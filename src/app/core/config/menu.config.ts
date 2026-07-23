@@ -118,16 +118,9 @@ export const MENU_CONFIG: MenuItem[] = [
     roles: [Role.SUPER_ADMIN, Role.GERENTE, Role.SUPERVISOR, Role.TECNICO]
   },
   {
-    label: 'Mantenimientos',
-    route: '/mantenimiento',
-    icon: 'calendar-clock',
-    group: 'Gestión de Activos',
-    roles: [Role.SUPER_ADMIN, Role.TECNICO]
-  },
-  {
-    label: 'Registro de Incidentes',
-    route: '/incidentes',
-    icon: 'alert-triangle',
+    label: 'Taller y Reportes',
+    route: '/taller-tecnico',
+    icon: 'wrench',
     group: 'Gestión de Activos',
     badge: '2',
     badgeColor: 'bg-rose-500 text-white',

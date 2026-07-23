@@ -11,13 +11,20 @@ import { ToastComponent } from '../components/toast/toast.component';
   imports: [CommonModule, RouterOutlet, SidebarComponent, HeaderComponent, ToastComponent],
   template: `
     <div class="min-h-screen bg-slate-50 flex overflow-hidden">
-      <!-- EasyDry Rail Sidebar -->
-      <app-sidebar></app-sidebar>
+      <!-- EasyDry Rail Sidebar / Slide-over Mobile -->
+      <app-sidebar 
+        [isOpenMobile]="isMobileSidebarOpen"
+        (closeMobileSidebar)="isMobileSidebarOpen = false">
+      </app-sidebar>
 
       <!-- Main Layout Body -->
       <div class="flex-1 flex flex-col min-w-0 h-screen overflow-y-auto">
         <!-- EasyDry Header -->
-        <app-header (agenciaChange)="onAgenciaChange($event)" (search)="onSearch($event)"></app-header>
+        <app-header 
+          (toggleSidebar)="isMobileSidebarOpen = !isMobileSidebarOpen"
+          (agenciaChange)="onAgenciaChange($event)" 
+          (search)="onSearch($event)">
+        </app-header>
 
         <!-- Main Content Area -->
         <main class="flex-1 p-6 md:p-8 max-w-7xl w-full mx-auto animate-fade-in">
@@ -31,6 +38,8 @@ import { ToastComponent } from '../components/toast/toast.component';
   `
 })
 export class AdminLayoutComponent {
+  isMobileSidebarOpen = false;
+
   onAgenciaChange(agencia: string) {
     // Shared agency change handler if needed
   }

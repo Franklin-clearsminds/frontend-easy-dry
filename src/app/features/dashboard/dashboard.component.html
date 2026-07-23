@@ -51,6 +51,58 @@
   <!-- ========================================== -->
   @if (!isOperador && !isTecnico) {
     
+    <!-- BARRA DE FILTROS DINÁMICOS -->
+    <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-easydry animate-fade-in flex flex-col lg:flex-row gap-4 items-end z-20 relative">
+      <div class="w-full lg:w-1/4">
+        <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5"><i-lucide name="map-pin" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide> Sucursal</label>
+        <select [(ngModel)]="sucursalFilter" (change)="aplicarFiltros()" class="w-full bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-xl px-3 py-2 focus:ring-2 focus:ring-easydry-blue focus:border-easydry-blue transition-colors appearance-none font-medium cursor-pointer">
+          @for (suc of listaSucursales; track suc) {
+            <option [value]="suc">{{ suc }}</option>
+          }
+        </select>
+      </div>
+      
+      <div class="w-full lg:w-1/4">
+        <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5"><i-lucide name="car" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide> Modelo / Tipo</label>
+        <select [(ngModel)]="modeloFilter" (change)="aplicarFiltros()" class="w-full bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-xl px-3 py-2 focus:ring-2 focus:ring-easydry-blue focus:border-easydry-blue transition-colors appearance-none font-medium cursor-pointer">
+          @for (mod of listaModelos; track mod) {
+            <option [value]="mod">{{ mod }}</option>
+          }
+        </select>
+      </div>
+
+      <div class="w-full lg:w-1/4">
+        <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5"><i-lucide name="palette" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide> Color</label>
+        <select [(ngModel)]="colorFilter" (change)="aplicarFiltros()" class="w-full bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-xl px-3 py-2 focus:ring-2 focus:ring-easydry-blue focus:border-easydry-blue transition-colors appearance-none font-medium cursor-pointer">
+          @for (col of listaColores; track col) {
+            <option [value]="col">{{ col }}</option>
+          }
+        </select>
+      </div>
+
+      <div class="w-full lg:w-1/4">
+        <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5"><i-lucide name="calendar-days" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide> Período</label>
+        <select [(ngModel)]="fechaFilter" (change)="aplicarFiltros()" class="w-full bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-xl px-3 py-2 focus:ring-2 focus:ring-easydry-blue focus:border-easydry-blue transition-colors appearance-none font-medium cursor-pointer">
+          @for (fec of listaFechas; track fec) {
+            <option [value]="fec">{{ fec }}</option>
+          }
+        </select>
+      </div>
+
+      @if (fechaFilter === 'Personalizado') {
+        <div class="w-full lg:w-1/4 flex items-end gap-2 animate-fade-in">
+          <div class="flex-1">
+            <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Desde</label>
+            <input type="date" [(ngModel)]="fechaInicio" (change)="aplicarFiltros()" class="w-full bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-xl px-3 py-2 focus:ring-2 focus:ring-easydry-blue focus:border-easydry-blue transition-colors">
+          </div>
+          <div class="flex-1">
+            <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Hasta</label>
+            <input type="date" [(ngModel)]="fechaFin" (change)="aplicarFiltros()" class="w-full bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-xl px-3 py-2 focus:ring-2 focus:ring-easydry-blue focus:border-easydry-blue transition-colors">
+          </div>
+        </div>
+      }
+    </div>
+    
     <!-- 2. KPIs PRINCIPALES -->
     <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
       <app-stat-card title="Vehículos Hoy" [value]="produccion?.vehiculosHoy || 0" [trend]="produccion?.variacionVehiculos" [trendPositive]="produccion?.tendenciaVehiculos === 'up'" icon="car" variant="primary"></app-stat-card>

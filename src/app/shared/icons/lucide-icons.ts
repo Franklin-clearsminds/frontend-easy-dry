@@ -47,7 +47,8 @@ import {
   Map,
   Star,
   CheckSquare,
-  Pencil
+  Pencil,
+  Menu
 } from 'lucide-angular';
 
 export const EASYDRY_ICONS = {
@@ -101,6 +102,7 @@ export const EASYDRY_ICONS = {
   Star,
   CheckSquare,
   Pencil,
+  Menu,
 
   // Kebab-case mappings
   'layout-dashboard': LayoutDashboard,
@@ -151,5 +153,6 @@ export const EASYDRY_ICONS = {
   'map': Map,
   'star': Star,
   'check-square': CheckSquare,
-  'pencil': Pencil
+  'pencil': Pencil,
+  'menu': Menu
 };

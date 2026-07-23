@@ -5,11 +5,12 @@ import { LucideAngularModule } from 'lucide-angular';
 import { AuthService } from '../../core/services/auth.service';
 import { ServicioLavadoMockService } from '../../core/services/servicio-lavado-mock.service';
 import { VehiculoServicio } from '../../core/models';
+import { ModalComponent } from '../../shared/components/modal/modal.component';
 
 @Component({
   selector: 'app-mi-bahia',
   standalone: true,
-  imports: [CommonModule, RouterModule, LucideAngularModule],
+  imports: [CommonModule, RouterModule, LucideAngularModule, ModalComponent],
   template: `
     <div class="space-y-6 animate-fade-in">
 
@@ -105,29 +106,113 @@ import { VehiculoServicio } from '../../core/models';
         } @else {
           <div class="space-y-3">
             @for (s of misServicios; track s.id) {
-              <div class="flex items-center gap-4 p-4 rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-white hover:shadow-sm transition-all">
-                <div class="w-10 h-10 rounded-xl bg-easydry-blue/10 text-easydry-blue flex items-center justify-center font-bold text-xs flex-shrink-0">
-                  {{ s.placa.substring(0, 3) }}
+              <div class="p-4 rounded-xl border border-slate-100 bg-white shadow-sm hover:shadow-md transition-all cursor-pointer" (click)="abrirDetalle(s)">
+                <div class="flex items-start justify-between mb-2">
+                  <div>
+                    <span class="font-mono font-extrabold text-xs text-easydry-blue bg-easydry-blue/10 px-2 py-0.5 rounded-md">
+                      {{ s.ordenTrabajoOT || 'OT-9800' }}
+                    </span>
+                    <div class="font-bold text-slate-900 text-sm mt-1.5">{{ s.marca }} {{ s.modelo }}</div>
+                    <div class="text-[11px] font-mono font-extrabold text-slate-500">{{ s.placa }}</div>
+                  </div>
+                  <span class="px-2.5 py-1 rounded-full text-[10px] font-extrabold text-center max-w-[80px]"
+                    [ngClass]="{
+                      'bg-amber-100 text-amber-800': s.estado === 'EN PROCESO',
+                      'bg-easydry-blue/15 text-easydry-blue': s.estado === 'FINALIZADO',
+                      'bg-easydry-green/20 text-easydry-green-dark': s.estado === 'APROBADO',
+                      'bg-rose-100 text-rose-800': s.estado === 'RECHAZADO'
+                    }">
+                    {{ s.estado }}
+                  </span>
                 </div>
-                <div class="flex-1 min-w-0">
-                  <p class="font-bold text-slate-900 text-sm">{{ s.marca }} {{ s.modelo }}</p>
-                  <p class="text-xs text-slate-500">{{ s.placa }} · {{ s.servicio }} · {{ s.horaIngreso }}</p>
+                
+                <div class="flex items-center justify-between mt-3 text-xs">
+                  <div class="flex items-center gap-1.5 text-slate-500">
+                    <i-lucide name="clock" class="w-3.5 h-3.5"></i-lucide>
+                    <span>{{ s.horaIngreso || '08:30' }}</span>
+                  </div>
+                  <div class="font-semibold text-slate-700">
+                    {{ s.servicio }}
+                  </div>
                 </div>
-                <span class="px-3 py-1 rounded-full text-xs font-bold flex-shrink-0"
-                  [ngClass]="{
-                    'bg-amber-100 text-amber-800': s.estado === 'EN PROCESO',
-                    'bg-blue-100 text-blue-800': s.estado === 'FINALIZADO',
-                    'bg-indigo-100 text-indigo-800': s.estado === 'PENDIENTE APROBACIÓN',
-                    'bg-green-100 text-green-800': s.estado === 'APROBADO',
-                    'bg-rose-100 text-rose-800': s.estado === 'RECHAZADO'
-                  }">
-                  {{ s.estado }}
-                </span>
               </div>
             }
           </div>
         }
       </div>
+
+      <!-- Modal Detalle Servicio (Mobile) -->
+      <app-modal 
+        [isOpen]="modalDetalleOpen" 
+        [title]="'Detalle: ' + (servicioDetalleSeleccionado?.placa || '')" 
+        icon="info"
+        (close)="modalDetalleOpen = false">
+        
+        @if (servicioDetalleSeleccionado) {
+          <div class="space-y-4">
+            <div class="grid grid-cols-2 gap-3 text-xs">
+              <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                <span class="block text-[10px] text-slate-400 font-bold uppercase mb-1">Orden / OT</span>
+                <span class="font-mono font-extrabold text-easydry-blue">{{ servicioDetalleSeleccionado.ordenTrabajoOT }}</span>
+                <span class="block text-[10px] text-slate-500 mt-0.5">{{ servicioDetalleSeleccionado.numeroOrden }}</span>
+              </div>
+              <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                <span class="block text-[10px] text-slate-400 font-bold uppercase mb-1">Vehículo</span>
+                <span class="font-bold text-slate-800">{{ servicioDetalleSeleccionado.marca }} {{ servicioDetalleSeleccionado.modelo }}</span>
+                <span class="block text-[10px] text-slate-500 mt-0.5">{{ servicioDetalleSeleccionado.color }}</span>
+              </div>
+            </div>
+
+            <div class="p-3 bg-easydry-blue/5 rounded-xl border border-easydry-blue/10 text-xs">
+              <span class="block text-[10px] text-easydry-blue font-bold uppercase mb-1">Servicio</span>
+              <span class="font-bold text-slate-800 text-sm block mb-0.5">{{ servicioDetalleSeleccionado.servicio }}</span>
+              <span class="text-slate-500 font-semibold">{{ servicioDetalleSeleccionado.categoriaServicio }}</span>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-3 text-xs">
+              <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                <span class="block text-[10px] text-slate-400 font-bold uppercase mb-1">Sucursal / Bahía</span>
+                <span class="font-bold text-slate-800 block">{{ servicioDetalleSeleccionado.agencia }}</span>
+                <span class="text-slate-500 mt-0.5">{{ servicioDetalleSeleccionado.bahia || 'Bahía 1' }}</span>
+              </div>
+              <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                <span class="block text-[10px] text-slate-400 font-bold uppercase mb-1">Horarios</span>
+                <span class="font-bold text-slate-800 block">Ingreso: {{ servicioDetalleSeleccionado.horaIngreso || '08:30' }}</span>
+                <span class="text-slate-500 mt-0.5">Salida: {{ servicioDetalleSeleccionado.horaSalida || '09:30' }}</span>
+              </div>
+            </div>
+
+            <div class="p-3 bg-slate-50 rounded-xl border border-slate-100 text-xs flex justify-between items-center">
+              <div>
+                <span class="block text-[10px] text-slate-400 font-bold uppercase mb-1">Operador</span>
+                <span class="font-bold text-slate-800">{{ servicioDetalleSeleccionado.empleado }}</span>
+              </div>
+              <div class="text-right">
+                <span class="block text-[10px] text-slate-400 font-bold uppercase mb-1">Estado</span>
+                <span class="font-extrabold" [ngClass]="{
+                  'text-amber-600': servicioDetalleSeleccionado.estado === 'EN PROCESO',
+                  'text-easydry-blue': servicioDetalleSeleccionado.estado === 'FINALIZADO',
+                  'text-easydry-green-dark': servicioDetalleSeleccionado.estado === 'APROBADO',
+                  'text-rose-600': servicioDetalleSeleccionado.estado === 'RECHAZADO'
+                }">{{ servicioDetalleSeleccionado.estado }}</span>
+              </div>
+            </div>
+          </div>
+        }
+
+        <div modal-footer class="flex flex-col gap-2 w-full">
+          @if (servicioDetalleSeleccionado) {
+            @if (canFinalizar(servicioDetalleSeleccionado)) {
+              <button
+                (click)="finalizarServicio(servicioDetalleSeleccionado); modalDetalleOpen = false"
+                class="w-full px-4 py-2.5 bg-easydry-blue text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 shadow-sm">
+                <i-lucide name="check-circle-2" class="w-4 h-4"></i-lucide> Finalizar Servicio
+              </button>
+            }
+          }
+          <button (click)="modalDetalleOpen = false" class="w-full px-4 py-2.5 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs mt-1">Cerrar Detalle</button>
+        </div>
+      </app-modal>
 
       <!-- Aviso de privacidad de datos -->
       <div class="bg-easydry-blue/5 border border-easydry-blue/15 rounded-2xl p-4 flex items-start gap-3">
@@ -162,6 +247,28 @@ export class MiBahiaComponent implements OnInit {
       this.misServicios = list.filter(s =>
         s.empleado?.toLowerCase().includes(this.user?.nombre?.toLowerCase() ?? '')
       );
+    });
+  }
+
+  modalDetalleOpen = false;
+  servicioDetalleSeleccionado?: VehiculoServicio;
+
+  abrirDetalle(item: VehiculoServicio) {
+    this.servicioDetalleSeleccionado = item;
+    this.modalDetalleOpen = true;
+  }
+
+  canFinalizar(item: VehiculoServicio): boolean {
+    return item.estado === 'EN PROCESO';
+  }
+
+  finalizarServicio(item: VehiculoServicio) {
+    this.serviciosService.finalizarServicioOperador(item.id).subscribe(res => {
+      if (res) {
+        // En una app real, actualizaríamos el item en el arreglo o refrescaríamos la lista.
+        // Para este prototipo, simplemente cambiamos el estado visualmente
+        item.estado = 'FINALIZADO';
+      }
     });
   }
 }

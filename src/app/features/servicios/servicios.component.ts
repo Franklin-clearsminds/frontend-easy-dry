@@ -10,11 +10,12 @@ import { ToastService } from '../../shared/services/toast.service';
 import { Role } from '../../core/models/roles.model';
 import { CatalogoServiciosMockService } from '../../core/services/catalogo-servicios-mock.service';
 import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
+import { FilterBarComponent, FilterState } from '../../shared/components/filter-bar/filter-bar.component';
 
 @Component({
   selector: 'app-servicios',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, PaginationComponent],
+  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, PaginationComponent, FilterBarComponent],
   template: `
     <div class="space-y-6 animate-fade-in">
       
@@ -55,10 +56,20 @@ import { PaginationComponent } from '../../shared/components/pagination/paginati
         </button>
       </div>
 
-      <!-- Filter Controls Bar -->
-      <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-xs flex flex-wrap items-center justify-between gap-4">
+      <!-- Global Filter Bar -->
+      <app-filter-bar 
+        [showSucursal]="!isOperador" 
+        [showOperador]="!isOperador"
+        [showBahia]="!isOperador"
+        [showEstado]="true"
+        [showFechas]="true"
+        [listaEstados]="['Todos', 'EN PROCESO', 'FINALIZADO', 'APROBADO', 'RECHAZADO']"
+        (filterChange)="aplicarNuevosFiltros($event)">
+      </app-filter-bar>
+
+      <!-- Additional Search and Categories -->
+      <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-xs flex flex-wrap items-center justify-between gap-4 mb-4">
         <div class="flex flex-wrap items-center gap-3 flex-1 min-w-[280px]">
-          
           <div class="relative flex-1 min-w-[200px]">
             <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
               <i-lucide name="search" class="w-4 h-4"></i-lucide>
@@ -66,24 +77,16 @@ import { PaginationComponent } from '../../shared/components/pagination/paginati
             <input 
               type="text" 
               [(ngModel)]="filtroTexto" 
+              (input)="aplicarFiltros()"
               placeholder="Buscar por placa (ej. PBX-8932) u Orden OT..." 
               class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold">
           </div>
 
-          <select [(ngModel)]="filtroCategoria" class="bg-slate-50 border border-slate-200 text-xs font-semibold rounded-xl px-3 py-2">
+          <select [(ngModel)]="filtroCategoria" (change)="aplicarFiltros()" class="bg-slate-50 border border-slate-200 text-xs font-semibold rounded-xl px-3 py-2">
             <option value="Todas">Todas las Categorías</option>
             <option value="Servicios Generales">Servicios Generales</option>
             <option value="Servicios Especiales">Servicios Especiales</option>
           </select>
-
-          <select [(ngModel)]="filtroEstado" class="bg-slate-50 border border-slate-200 text-xs font-semibold rounded-xl px-3 py-2">
-            <option value="Todos">Todos los Estados</option>
-            <option value="EN PROCESO">EN PROCESO</option>
-            <option value="FINALIZADO">FINALIZADO</option>
-            <option value="APROBADO">APROBADO</option>
-            <option value="RECHAZADO">RECHAZADO</option>
-          </select>
-
         </div>
 
         <div class="text-xs font-semibold text-slate-500">
@@ -93,7 +96,8 @@ import { PaginationComponent } from '../../shared/components/pagination/paginati
 
       <!-- Services List / Table -->
       <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry overflow-hidden">
-        <div class="overflow-x-auto">
+        <!-- Desktop Table View -->
+        <div class="hidden lg:block overflow-x-auto">
           <table class="w-full text-left text-sm">
             <thead class="bg-slate-50 text-slate-500 text-xs font-bold uppercase tracking-wider border-b border-slate-200">
               <tr>
@@ -205,6 +209,42 @@ import { PaginationComponent } from '../../shared/components/pagination/paginati
           </table>
         </div>
 
+        <!-- Mobile / Tablet Card View -->
+        <div class="block lg:hidden divide-y divide-slate-100">
+          @for (item of paginatedServicios; track item.id) {
+            <div class="p-4 hover:bg-slate-50 transition-colors cursor-pointer" (click)="abrirDetalle(item)">
+              <div class="flex items-start justify-between mb-2">
+                <div>
+                  <span class="font-mono font-extrabold text-xs text-easydry-blue bg-easydry-blue/10 px-2 py-0.5 rounded-md">
+                    {{ item.ordenTrabajoOT || 'OT-9800' }}
+                  </span>
+                  <div class="font-bold text-slate-900 text-sm mt-1.5">{{ item.marca }} {{ item.modelo }}</div>
+                  <div class="text-[11px] font-mono font-extrabold text-slate-500">{{ item.placa }}</div>
+                </div>
+                <span class="px-2.5 py-1 rounded-full text-[10px] font-extrabold text-center max-w-[80px]"
+                  [ngClass]="{
+                    'bg-amber-100 text-amber-800': item.estado === 'EN PROCESO',
+                    'bg-easydry-blue/15 text-easydry-blue': item.estado === 'FINALIZADO',
+                    'bg-easydry-green/20 text-easydry-green-dark': item.estado === 'APROBADO',
+                    'bg-rose-100 text-rose-800': item.estado === 'RECHAZADO'
+                  }">
+                  {{ item.estado }}
+                </span>
+              </div>
+              
+              <div class="flex items-center justify-between mt-3 text-xs">
+                <div class="flex items-center gap-1.5 text-slate-500">
+                  <i-lucide name="clock" class="w-3.5 h-3.5"></i-lucide>
+                  <span>{{ item.horaIngreso || '08:30' }}</span>
+                </div>
+                <div class="font-semibold text-slate-700">
+                  {{ item.servicio }}
+                </div>
+              </div>
+            </div>
+          }
+        </div>
+
         <app-pagination 
           [totalItems]="serviciosFiltrados.length" 
           [currentPage]="currentPage" 
@@ -213,6 +253,95 @@ import { PaginationComponent } from '../../shared/components/pagination/paginati
           (pageSizeChange)="onPageSizeChange($event)">
         </app-pagination>
       </div>
+
+      <!-- Modal Detalle Servicio (Mobile) -->
+      <app-modal 
+        [isOpen]="modalDetalleOpen" 
+        [title]="'Detalle: ' + (servicioDetalleSeleccionado?.placa || '')" 
+        icon="info"
+        (close)="modalDetalleOpen = false">
+        
+        @if (servicioDetalleSeleccionado) {
+          <div class="space-y-4">
+            <div class="grid grid-cols-2 gap-3 text-xs">
+              <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                <span class="block text-[10px] text-slate-400 font-bold uppercase mb-1">Orden / OT</span>
+                <span class="font-mono font-extrabold text-easydry-blue">{{ servicioDetalleSeleccionado.ordenTrabajoOT }}</span>
+                <span class="block text-[10px] text-slate-500 mt-0.5">{{ servicioDetalleSeleccionado.numeroOrden }}</span>
+              </div>
+              <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                <span class="block text-[10px] text-slate-400 font-bold uppercase mb-1">Vehículo</span>
+                <span class="font-bold text-slate-800">{{ servicioDetalleSeleccionado.marca }} {{ servicioDetalleSeleccionado.modelo }}</span>
+                <span class="block text-[10px] text-slate-500 mt-0.5">{{ servicioDetalleSeleccionado.color }}</span>
+              </div>
+            </div>
+
+            <div class="p-3 bg-easydry-blue/5 rounded-xl border border-easydry-blue/10 text-xs">
+              <span class="block text-[10px] text-easydry-blue font-bold uppercase mb-1">Servicio</span>
+              <span class="font-bold text-slate-800 text-sm block mb-0.5">{{ servicioDetalleSeleccionado.servicio }}</span>
+              <span class="text-slate-500 font-semibold">{{ servicioDetalleSeleccionado.categoriaServicio }}</span>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-3 text-xs">
+              <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                <span class="block text-[10px] text-slate-400 font-bold uppercase mb-1">Sucursal / Bahía</span>
+                <span class="font-bold text-slate-800 block">{{ servicioDetalleSeleccionado.agencia }}</span>
+                <span class="text-slate-500 mt-0.5">{{ servicioDetalleSeleccionado.bahia || 'Bahía 1' }}</span>
+              </div>
+              <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                <span class="block text-[10px] text-slate-400 font-bold uppercase mb-1">Horarios</span>
+                <span class="font-bold text-slate-800 block">Ingreso: {{ servicioDetalleSeleccionado.horaIngreso || '08:30' }}</span>
+                <span class="text-slate-500 mt-0.5">Salida: {{ servicioDetalleSeleccionado.horaSalida || '09:30' }}</span>
+              </div>
+            </div>
+
+            <div class="p-3 bg-slate-50 rounded-xl border border-slate-100 text-xs flex justify-between items-center">
+              <div>
+                <span class="block text-[10px] text-slate-400 font-bold uppercase mb-1">Operador</span>
+                <span class="font-bold text-slate-800">{{ servicioDetalleSeleccionado.empleado }}</span>
+              </div>
+              <div class="text-right">
+                <span class="block text-[10px] text-slate-400 font-bold uppercase mb-1">Estado</span>
+                <span class="font-extrabold" [ngClass]="{
+                  'text-amber-600': servicioDetalleSeleccionado.estado === 'EN PROCESO',
+                  'text-easydry-blue': servicioDetalleSeleccionado.estado === 'FINALIZADO',
+                  'text-easydry-green-dark': servicioDetalleSeleccionado.estado === 'APROBADO',
+                  'text-rose-600': servicioDetalleSeleccionado.estado === 'RECHAZADO'
+                }">{{ servicioDetalleSeleccionado.estado }}</span>
+              </div>
+            </div>
+          </div>
+        }
+
+        <div modal-footer class="flex flex-col gap-2 w-full">
+          @if (servicioDetalleSeleccionado) {
+            @if (servicioDetalleSeleccionado.video || servicioDetalleSeleccionado.videoUrl) {
+              <button 
+                (click)="verVideoEvidencia(servicioDetalleSeleccionado); modalDetalleOpen = false"
+                class="w-full px-4 py-2.5 bg-slate-100 hover:bg-easydry-blue hover:text-white text-easydry-blue rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-2 shadow-sm">
+                <i-lucide name="film" class="w-4 h-4"></i-lucide> Ver Vídeo Evidencia
+              </button>
+            }
+            
+            @if (canFinalizar(servicioDetalleSeleccionado)) {
+              <button
+                (click)="finalizarServicio(servicioDetalleSeleccionado); modalDetalleOpen = false"
+                class="w-full px-4 py-2.5 bg-easydry-blue text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 shadow-sm">
+                <i-lucide name="check-circle-2" class="w-4 h-4"></i-lucide> Finalizar Servicio
+              </button>
+            }
+
+            @if (servicioDetalleSeleccionado.estado === 'FINALIZADO' && canApprove) {
+              <button
+                (click)="aprobarServicio(servicioDetalleSeleccionado); modalDetalleOpen = false"
+                class="w-full px-4 py-2.5 bg-easydry-green text-slate-950 font-extrabold rounded-xl text-xs flex items-center justify-center gap-2 shadow-sm">
+                <i-lucide name="thumbs-up" class="w-4 h-4"></i-lucide> Aprobar Servicio
+              </button>
+            }
+          }
+          <button (click)="modalDetalleOpen = false" class="w-full px-4 py-2.5 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs mt-1">Cerrar Detalle</button>
+        </div>
+      </app-modal>
 
       <!-- Modal Digital HOJA DE CONTROL DE SERVICIO (Nueva OT) -->
       <app-modal 
@@ -228,7 +357,7 @@ import { PaginationComponent } from '../../shared/components/pagination/paginati
             <span class="font-mono">Fecha: {{ nuevoRegistro.fecha }}</span>
           </div>
 
-          <div class="grid grid-cols-3 gap-3">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div>
               <label class="block text-[11px] font-bold text-slate-700 uppercase mb-1">Nº Orden</label>
               <input type="text" [(ngModel)]="nuevoRegistro.numeroOrden" name="numeroOrden" placeholder="ORD-2026-005" class="w-full p-2 border rounded-xl text-xs font-mono" required>
@@ -243,7 +372,7 @@ import { PaginationComponent } from '../../shared/components/pagination/paginati
             </div>
           </div>
 
-          <div class="grid grid-cols-3 gap-3">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div>
               <label class="block text-[11px] font-bold text-slate-700 uppercase mb-1">Marca</label>
               <input type="text" [(ngModel)]="nuevoRegistro.marca" name="marca" placeholder="Toyota" class="w-full p-2 border rounded-xl text-xs" required>
@@ -258,7 +387,7 @@ import { PaginationComponent } from '../../shared/components/pagination/paginati
             </div>
           </div>
 
-          <div class="grid grid-cols-2 gap-3">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
               <label class="block text-[11px] font-bold text-slate-700 uppercase mb-1">Hora Ingreso</label>
               <input type="time" [(ngModel)]="nuevoRegistro.horaIngreso" name="horaIngreso" class="w-full p-2 border rounded-xl text-xs font-mono" required>
@@ -273,19 +402,19 @@ import { PaginationComponent } from '../../shared/components/pagination/paginati
           <div class="p-3 bg-easydry-blue/5 rounded-2xl border border-easydry-blue/20 space-y-3">
             <label class="block text-xs font-extrabold text-easydry-blue uppercase">Categoría de Servicio</label>
             
-            <div class="grid grid-cols-2 gap-3">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <label 
                 class="p-2.5 rounded-xl border cursor-pointer flex items-center gap-2 text-xs font-bold"
                 [ngClass]="nuevoRegistro.categoriaServicio === 'GENERAL' ? 'bg-easydry-blue text-white border-easydry-blue' : 'bg-white text-slate-700'">
                 <input type="radio" [(ngModel)]="nuevoRegistro.categoriaServicio" name="catRadio" value="GENERAL" (change)="onCategoriaChange()" class="hidden">
-                <span>🧼 Servicios Generales</span>
+                <span class="flex items-center gap-1.5"><i-lucide name="droplet" class="w-4 h-4"></i-lucide> Servicios Generales</span>
               </label>
 
               <label 
                 class="p-2.5 rounded-xl border cursor-pointer flex items-center gap-2 text-xs font-bold"
                 [ngClass]="nuevoRegistro.categoriaServicio === 'ESPECIAL' ? 'bg-easydry-blue text-white border-easydry-blue' : 'bg-white text-slate-700'">
                 <input type="radio" [(ngModel)]="nuevoRegistro.categoriaServicio" name="catRadio" value="ESPECIAL" (change)="onCategoriaChange()" class="hidden">
-                <span>⭐ Servicios Especiales</span>
+                <span class="flex items-center gap-1.5"><i-lucide name="star" class="w-4 h-4"></i-lucide> Servicios Especiales</span>
               </label>
             </div>
 
@@ -301,21 +430,39 @@ import { PaginationComponent } from '../../shared/components/pagination/paginati
 
           <!-- Video Proof Upload -->
           <div class="space-y-1.5">
-            <label class="block text-[11px] font-bold text-slate-700 uppercase">Evidencia Vídeo de Ingreso (Video URL / Carga)</label>
-            <input 
-              type="text" 
-              [(ngModel)]="nuevoRegistro.videoUrl" 
-              name="videoUrl" 
-              placeholder="https://assets.mixkit.co/videos/preview/mixkit-car-wash-in-a-machine-41484-large.mp4" 
-              class="w-full p-2.5 border rounded-xl text-xs font-mono">
-            <p class="text-[10px] text-slate-400">Vídeo demostrativo del estado inicial del automóvil al ingresar a la bahía.</p>
+            <label class="block text-[11px] font-bold text-slate-700 uppercase">Evidencia Vídeo de Ingreso</label>
+            
+            <div class="relative w-full border-2 border-dashed border-slate-300 rounded-xl p-4 flex flex-col items-center justify-center hover:bg-slate-50 transition-colors cursor-pointer"
+                 (click)="fileInput.click()">
+              <input 
+                #fileInput
+                type="file" 
+                accept="video/*" 
+                capture="environment"
+                class="hidden"
+                (change)="onFileSelected($event)">
+              
+              @if (videoFileSelected) {
+                <div class="flex items-center gap-2 text-easydry-green-dark">
+                  <i-lucide name="check-circle-2" class="w-6 h-6"></i-lucide>
+                  <span class="text-xs font-bold">{{ videoFileName }}</span>
+                </div>
+                <p class="text-[10px] text-slate-500 mt-1">Vídeo listo para subir</p>
+              } @else {
+                <div class="p-3 bg-easydry-blue/10 text-easydry-blue rounded-full mb-2">
+                  <i-lucide name="video" class="w-6 h-6"></i-lucide>
+                </div>
+                <p class="text-xs font-bold text-slate-700 text-center">Toca para grabar o seleccionar vídeo</p>
+                <p class="text-[10px] text-slate-400 text-center mt-1">Accede a la cámara o galería</p>
+              }
+            </div>
           </div>
 
         </form>
 
-        <div modal-footer>
-          <button (click)="modalNuevoRegistroOpen = false" class="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs">Cancelar</button>
-          <button (click)="guardarHojaServicio()" class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs">Guardar e Iniciar Servicio</button>
+        <div modal-footer class="flex flex-col-reverse sm:flex-row gap-2 w-full sm:w-auto">
+          <button (click)="modalNuevoRegistroOpen = false" class="w-full sm:w-auto px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs flex justify-center">Cancelar</button>
+          <button (click)="guardarHojaServicio()" class="w-full sm:w-auto px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs flex justify-center">Guardar e Iniciar Servicio</button>
         </div>
       </app-modal>
 
@@ -344,8 +491,8 @@ import { PaginationComponent } from '../../shared/components/pagination/paginati
           </div>
         }
 
-        <div modal-footer>
-          <button (click)="modalVideoOpen = false" class="px-4 py-2 bg-slate-200 text-slate-800 font-bold rounded-xl text-xs">Cerrar Vídeo</button>
+        <div modal-footer class="w-full sm:w-auto">
+          <button (click)="modalVideoOpen = false" class="w-full sm:w-auto px-4 py-2 bg-slate-200 text-slate-800 font-bold rounded-xl text-xs flex justify-center">Cerrar Vídeo</button>
         </div>
       </app-modal>
 
@@ -358,7 +505,18 @@ export class ServiciosComponent implements OnInit {
 
   filtroTexto = '';
   filtroCategoria = 'Todas';
-  filtroEstado = 'Todos';
+  
+  // Guardamos el estado global
+  filtrosGlobales: FilterState = { sucursal: 'Todas', operador: 'Todos', bahia: 'Todas', estado: 'Todos', fecha: 'Hoy' };
+
+  aplicarNuevosFiltros(filtros: FilterState) {
+    this.filtrosGlobales = filtros;
+    this.aplicarFiltros();
+  }
+
+  aplicarFiltros() {
+    this.currentPage = 1;
+  }
 
   currentPage = 1;
   pageSize = 5;
@@ -366,8 +524,14 @@ export class ServiciosComponent implements OnInit {
   modalNuevoRegistroOpen = false;
   modalVideoOpen = false;
 
+  modalDetalleOpen = false;
+  servicioDetalleSeleccionado?: VehiculoServicio;
+
   opcionesServicios: CatalogoServicio[] = [];
   catalogoCompleto: CatalogoServicio[] = [];
+
+  videoFileSelected = false;
+  videoFileName = '';
 
   nuevoRegistro = {
     numeroOrden: 'ORD-2026-005',
@@ -448,6 +612,16 @@ export class ServiciosComponent implements OnInit {
     }
   }
 
+  onFileSelected(event: any) {
+    const file = event.target.files[0];
+    if (file) {
+      this.videoFileSelected = true;
+      this.videoFileName = file.name;
+      // Aquí se implementaría la lógica para subir el archivo o crear una URL local
+      // this.nuevoRegistro.videoUrl = URL.createObjectURL(file);
+    }
+  }
+
   /**
    * Filtrado de servicios con scoping por rol:
    * - OPERADOR: solo ve sus propios servicios (filtrado por nombre)
@@ -458,7 +632,7 @@ export class ServiciosComponent implements OnInit {
     const user = this.authService.getCurrentUser();
     const role = this.authService.getRole();
 
-    return this.servicios.filter(s => {
+    let resultados = this.servicios.filter(s => {
       // ── Scope por Rol ──
       if (role === Role.OPERADOR && user) {
         // El operador solo ve sus propios registros
@@ -484,10 +658,23 @@ export class ServiciosComponent implements OnInit {
         s.placa.toLowerCase().includes(this.filtroTexto.toLowerCase()) ||
         (s.ordenTrabajoOT && s.ordenTrabajoOT.toLowerCase().includes(this.filtroTexto.toLowerCase()));
       const matchCat = this.filtroCategoria === 'Todas' || s.categoriaServicio === this.filtroCategoria;
-      const matchEst = this.filtroEstado === 'Todos' || s.estado === this.filtroEstado;
 
-      return matchTexto && matchCat && matchEst;
+      return matchTexto && matchCat;
     });
+
+    if (this.filtrosGlobales.estado !== 'Todos') {
+      resultados = resultados.filter(s => s.estado === this.filtrosGlobales.estado);
+    }
+    if (this.filtrosGlobales.sucursal !== 'Todas') {
+      resultados = resultados.filter(s => s.agencia === this.filtrosGlobales.sucursal);
+    }
+    if (this.filtrosGlobales.bahia !== 'Todas') {
+      resultados = resultados.filter(s => s.bahia === this.filtrosGlobales.bahia);
+    }
+    if (this.filtrosGlobales.operador !== 'Todos') {
+      resultados = resultados.filter(s => s.empleado?.includes(this.filtrosGlobales.operador));
+    }
+    return resultados;
   }
 
   get paginatedServicios() {
@@ -536,5 +723,10 @@ export class ServiciosComponent implements OnInit {
   verVideoEvidencia(item: VehiculoServicio) {
     this.servicioSeleccionado = item;
     this.modalVideoOpen = true;
+  }
+
+  abrirDetalle(item: VehiculoServicio) {
+    this.servicioDetalleSeleccionado = item;
+    this.modalDetalleOpen = true;
   }
 }

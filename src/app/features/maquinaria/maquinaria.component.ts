@@ -12,11 +12,12 @@ import { Maquinaria, MovimientoMaquinaria, Sucursal, Incidente, Mantenimiento } 
 import { ModalComponent } from '../../shared/components/modal/modal.component';
 import { ToastService } from '../../shared/services/toast.service';
 import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
+import { FilterBarComponent, FilterState } from '../../shared/components/filter-bar/filter-bar.component';
 
 @Component({
   selector: 'app-maquinaria',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, PaginationComponent],
+  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, PaginationComponent, FilterBarComponent],
   template: `
     <div class="space-y-6 animate-fade-in">
       
@@ -37,8 +38,19 @@ import { PaginationComponent } from '../../shared/components/pagination/paginati
 
       </div>
 
-      <!-- Filters Bar -->
-      <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-xs flex flex-wrap items-center justify-between gap-4 mb-6">
+      <!-- Global Filter Bar -->
+      <app-filter-bar 
+        [showSucursal]="canTransfer" 
+        [showOperador]="false"
+        [showBahia]="true"
+        [showEstado]="true"
+        [showFechas]="false"
+        [listaEstados]="['Todos', 'Operativa', 'Requiere Mantenimiento', 'En Reparación', 'Fuera de Servicio']"
+        (filterChange)="aplicarNuevosFiltros($event)">
+      </app-filter-bar>
+
+      <!-- Search Bar -->
+      <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-xs flex flex-wrap items-center justify-between gap-4 mb-4">
         <div class="flex flex-wrap items-center gap-3 flex-1 min-w-[280px]">
           <div class="relative flex-1 min-w-[200px]">
             <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
@@ -47,27 +59,10 @@ import { PaginationComponent } from '../../shared/components/pagination/paginati
             <input 
               type="text" 
               [(ngModel)]="filtroTexto" 
+              (input)="aplicarFiltros()"
               placeholder="Buscar por código o nombre..." 
               class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold">
           </div>
-
-          <select 
-            [(ngModel)]="filtroSucursal" 
-            [disabled]="!canTransfer"
-            class="bg-slate-50 border border-slate-200 text-xs font-semibold rounded-xl px-3 py-2 disabled:opacity-60 disabled:cursor-not-allowed">
-            <option value="Todas">Todas las Sucursales</option>
-            @for (s of sucursales; track s.id) {
-              <option [value]="s.nombre">{{ s.nombre }}</option>
-            }
-          </select>
-
-          <select [(ngModel)]="filtroEstado" class="bg-slate-50 border border-slate-200 text-xs font-semibold rounded-xl px-3 py-2">
-            <option value="Todos">Todos los Estados</option>
-            <option value="Operativa">Operativa</option>
-            <option value="Requiere Mantenimiento">Requiere Mantenimiento</option>
-            <option value="En Reparación">En Reparación</option>
-            <option value="Fuera de Servicio">Fuera de Servicio</option>
-          </select>
         </div>
         <div class="text-xs font-semibold text-slate-500">
           Equipos: <strong class="text-easydry-blue">{{ maquinasFiltradas.length }}</strong>
@@ -220,9 +215,14 @@ import { PaginationComponent } from '../../shared/components/pagination/paginati
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <!-- Incidents Log -->
               <div class="border border-slate-200 rounded-2xl p-4 space-y-3">
-                <h4 class="font-bold text-slate-900 text-xs uppercase tracking-wider flex items-center gap-2">
-                  <i-lucide name="alert-triangle" class="w-4 h-4 text-rose-500"></i-lucide> Fallos y Averías
-                </h4>
+                <div class="flex items-center justify-between mb-3">
+                  <h4 class="font-bold text-slate-900 text-xs uppercase tracking-wider flex items-center gap-2">
+                    <i-lucide name="alert-triangle" class="w-4 h-4 text-rose-500"></i-lucide> Fallos y Averías
+                  </h4>
+                  <button (click)="reportarFallo()" class="text-[10px] flex items-center gap-1 font-bold text-easydry-blue hover:text-easydry-blue-dark bg-easydry-blue/10 hover:bg-easydry-blue/20 px-2 py-1 rounded transition-colors">
+                    <i-lucide name="plus" class="w-3 h-3"></i-lucide> Reportar
+                  </button>
+                </div>
                 <div class="space-y-2 max-h-48 overflow-y-auto pr-2">
                   @for (inc of incidentesMaquina; track inc.id) {
                     <div class="p-3 bg-rose-50/50 rounded-xl border border-rose-100 flex flex-col gap-1 text-xs">
@@ -248,9 +248,14 @@ import { PaginationComponent } from '../../shared/components/pagination/paginati
 
               <!-- Maintenance Log -->
               <div class="border border-slate-200 rounded-2xl p-4 space-y-3">
-                <h4 class="font-bold text-slate-900 text-xs uppercase tracking-wider flex items-center gap-2">
-                  <i-lucide name="wrench" class="w-4 h-4 text-amber-500"></i-lucide> Mantenimientos
-                </h4>
+                <div class="flex items-center justify-between mb-3">
+                  <h4 class="font-bold text-slate-900 text-xs uppercase tracking-wider flex items-center gap-2">
+                    <i-lucide name="wrench" class="w-4 h-4 text-amber-500"></i-lucide> Mantenimientos
+                  </h4>
+                  <button (click)="programarMantenimiento()" class="text-[10px] flex items-center gap-1 font-bold text-easydry-blue hover:text-easydry-blue-dark bg-easydry-blue/10 hover:bg-easydry-blue/20 px-2 py-1 rounded transition-colors">
+                    <i-lucide name="plus" class="w-3 h-3"></i-lucide> Programar
+                  </button>
+                </div>
                 <div class="space-y-2 max-h-48 overflow-y-auto pr-2">
                   @for (man of mantenimientosMaquina; track man.id) {
                     <div class="p-3 bg-amber-50/50 rounded-xl border border-amber-100 flex flex-col gap-1 text-xs">
@@ -392,8 +397,17 @@ export class MaquinariaComponent implements OnInit {
   };
 
   filtroTexto = '';
-  filtroSucursal = 'Todas';
-  filtroEstado = 'Todos';
+
+  filtrosGlobales: FilterState = { sucursal: 'Todas', operador: 'Todos', bahia: 'Todas', estado: 'Todos', fecha: 'Hoy' };
+
+  aplicarNuevosFiltros(filtros: FilterState) {
+    this.filtrosGlobales = filtros;
+    this.aplicarFiltros();
+  }
+
+  aplicarFiltros() {
+    this.currentPage = 1;
+  }
 
   currentPage = 1;
   pageSize = 6;
@@ -419,11 +433,6 @@ export class MaquinariaComponent implements OnInit {
   public authService = inject(AuthService);
 
   ngOnInit(): void {
-    const user = this.authService.getCurrentUser();
-    
-    if (user && user.role !== 'SUPER_ADMIN' && user.sucursalNombre) {
-      this.filtroSucursal = user.sucursalNombre;
-    }
 
     this.maquinariaService.getMaquinaria().subscribe(list => {
       this.maquinas = list;
@@ -444,22 +453,29 @@ export class MaquinariaComponent implements OnInit {
 
   get maquinasFiltradas() {
     const user = this.authService.getCurrentUser();
-    return this.maquinas.filter(m => {
-      if (user && user.role !== 'SUPER_ADMIN' && user.sucursalNombre) {
-        if (m.agencia.toLowerCase() !== user.sucursalNombre.toLowerCase()) {
-          return false;
-        }
+    let resultados = this.maquinas.filter(m => {
+      let matchScope = true;
+      if (!this.canTransfer && user && user.sucursalNombre) {
+        matchScope = m.agencia === user.sucursalNombre;
       }
-      
       const matchTexto = !this.filtroTexto || 
         m.nombre.toLowerCase().includes(this.filtroTexto.toLowerCase()) || 
         m.codigo.toLowerCase().includes(this.filtroTexto.toLowerCase());
       
-      const matchSucursal = this.filtroSucursal === 'Todas' || m.agencia === this.filtroSucursal;
-      const matchEstado = this.filtroEstado === 'Todos' || m.estado === this.filtroEstado;
-      
-      return matchTexto && matchSucursal && matchEstado;
+      return matchScope && matchTexto;
     });
+
+    if (this.filtrosGlobales.estado !== 'Todos') {
+      resultados = resultados.filter(m => m.estado === this.filtrosGlobales.estado);
+    }
+    if (this.filtrosGlobales.sucursal !== 'Todas') {
+      resultados = resultados.filter(m => m.agencia === this.filtrosGlobales.sucursal);
+    }
+    if (this.filtrosGlobales.bahia !== 'Todas') {
+      resultados = resultados.filter(m => m.bahia === this.filtrosGlobales.bahia);
+    }
+
+    return resultados;
   }
 
   get paginatedMaquinaria() {
@@ -539,5 +555,13 @@ export class MaquinariaComponent implements OnInit {
       this.toastService.success('Activo Guardado', `Equipo ${creada.codigo} registrado exitosamente.`);
       this.modalCrearOpen = false;
     });
+  }
+
+  reportarFallo() {
+    this.toastService.info('Módulo en Desarrollo', 'La pantalla para reportar un nuevo fallo está en construcción.');
+  }
+
+  programarMantenimiento() {
+    this.toastService.info('Módulo en Desarrollo', 'La pantalla para programar mantenimientos está en construcción.');
   }
 }

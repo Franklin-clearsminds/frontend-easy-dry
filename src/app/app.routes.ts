@@ -8,8 +8,7 @@ import { AprobacionesComponent } from './features/aprobaciones/aprobaciones.comp
 import { ProductividadComponent } from './features/productividad/productividad.component';
 import { ReportesComponent } from './features/reportes/reportes.component';
 import { MaquinariaComponent } from './features/maquinaria/maquinaria.component';
-import { IncidentesComponent } from './features/incidentes/incidentes.component';
-import { MantenimientoComponent } from './features/mantenimiento/mantenimiento.component';
+import { TallerTecnicoComponent } from './features/taller-tecnico/taller-tecnico.component';
 import { UsuariosComponent } from './features/usuarios/usuarios.component';
 import { ConfiguracionComponent } from './features/configuracion/configuracion.component';
 import { CatalogoServiciosComponent } from './features/configuracion/catalogo-servicios/catalogo-servicios.component';
@@ -20,6 +19,7 @@ import { AsignacionesComponent } from './features/asignaciones/asignaciones.comp
 import { MapaOperativoComponent } from './features/mapa-operativo/mapa-operativo.component';
 import { MiBahiaComponent } from './features/mi-bahia/mi-bahia.component';
 import { UnauthorizedComponent } from './features/unauthorized/unauthorized.component';
+import { PerfilComponent } from './features/perfil/perfil.component';
 import { authGuard, roleGuard } from './core/guards/auth.guard';
 import { Role } from './core/models/roles.model';
 
@@ -45,6 +45,11 @@ export const routes: Routes = [
       {
         path: 'dashboard',
         component: DashboardComponent,
+        canActivate: [authGuard]
+      },
+      {
+        path: 'perfil',
+        component: PerfilComponent,
         canActivate: [authGuard]
       },
 
@@ -114,17 +119,10 @@ export const routes: Routes = [
         canActivate: [authGuard, roleGuard([Role.SUPER_ADMIN, Role.GERENTE, Role.SUPERVISOR, Role.TECNICO])]
       },
 
-      // ── Mantenimiento: Admin y Técnico ──
+      // ── Taller Técnico (Mantenimiento e Incidentes) ──
       {
-        path: 'mantenimiento',
-        component: MantenimientoComponent,
-        canActivate: [authGuard, roleGuard([Role.SUPER_ADMIN, Role.TECNICO])]
-      },
-
-      // ── Incidentes: Admin, Gerente, Supervisor, Técnico ──
-      {
-        path: 'incidentes',
-        component: IncidentesComponent,
+        path: 'taller-tecnico',
+        component: TallerTecnicoComponent,
         canActivate: [authGuard, roleGuard([Role.SUPER_ADMIN, Role.GERENTE, Role.SUPERVISOR, Role.TECNICO])]
       },
 

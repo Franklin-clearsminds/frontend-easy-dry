@@ -8,15 +8,15 @@ import { LucideAngularModule } from 'lucide-angular';
   standalone: true,
   imports: [CommonModule, LucideAngularModule],
   template: `
-    <div class="fixed top-5 right-5 z-50 flex flex-col gap-3 max-w-sm w-full pointer-events-none">
+    <div class="fixed top-4 left-4 right-4 sm:top-6 sm:left-auto sm:right-6 z-[100] flex flex-col gap-3 sm:max-w-sm w-auto sm:w-full pointer-events-none">
       @for (toast of toastService.toasts$ | async; track toast.id) {
         <div 
-          class="pointer-events-auto flex items-start p-4 rounded-xl shadow-xl border animate-fade-in transition-all duration-300"
+          class="pointer-events-auto flex items-start p-4 rounded-xl shadow-xl border animate-fade-in transition-all duration-300 bg-white text-slate-800"
           [ngClass]="{
-            'bg-white border-easydry-green/50 text-slate-800': toast.type === 'success',
-            'bg-white border-amber-400 text-slate-800': toast.type === 'warning',
-            'bg-white border-rose-400 text-slate-800': toast.type === 'error',
-            'bg-white border-easydry-blue/50 text-slate-800': toast.type === 'info'
+            'border-easydry-green/50': toast.type === 'success',
+            'border-amber-400': toast.type === 'warning',
+            'border-rose-400': toast.type === 'error',
+            'border-easydry-blue/50': toast.type === 'info'
           }">
           <div class="mr-3 mt-0.5 p-1.5 rounded-lg"
             [ngClass]="{

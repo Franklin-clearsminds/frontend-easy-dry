@@ -1,4 +1,4 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, inject, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LucideAngularModule } from 'lucide-angular';
@@ -9,27 +9,30 @@ import { Mantenimiento, Maquinaria } from '../../core/models';
 import { ModalComponent } from '../../shared/components/modal/modal.component';
 import { ToastService } from '../../shared/services/toast.service';
 import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
+import { FilterBarComponent, FilterState } from '../../shared/components/filter-bar/filter-bar.component';
 
 @Component({
   selector: 'app-mantenimiento',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, PaginationComponent],
+  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, PaginationComponent, FilterBarComponent],
   template: `
     <div class="space-y-6 animate-fade-in">
       
       <!-- Top Title & Action Bar -->
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-100 shadow-easydry">
-        <div>
-          <h1 class="text-2xl font-extrabold text-slate-900 font-outfit">Plan de Mantenimiento Preventivo & Correctivo</h1>
-          <p class="text-slate-500 text-xs mt-1">Programación de intervenciones técnicas, calendario de visitas y presupuesto de repuestos.</p>
+      @if (!hideHeader) {
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-100 shadow-easydry">
+          <div>
+            <h1 class="text-2xl font-extrabold text-slate-900 font-outfit">Plan de Mantenimiento Preventivo & Correctivo</h1>
+            <p class="text-slate-500 text-xs mt-1">Programación de intervenciones técnicas, calendario de visitas y presupuesto de repuestos.</p>
+          </div>
+          <button 
+            (click)="modalCrearOpen = true"
+            class="px-4 py-2.5 bg-easydry-blue hover:bg-easydry-blue-dark text-white font-bold rounded-xl text-xs transition-colors flex items-center gap-2 shadow-xs self-start sm:self-auto">
+            <i-lucide name="calendar-clock" class="w-4 h-4"></i-lucide>
+            <span>Agendar Mantenimiento</span>
+          </button>
         </div>
-        <button 
-          (click)="modalCrearOpen = true"
-          class="px-4 py-2.5 bg-easydry-blue hover:bg-easydry-blue-dark text-white font-bold rounded-xl text-xs transition-colors flex items-center gap-2 shadow-xs self-start sm:self-auto">
-          <i-lucide name="calendar-clock" class="w-4 h-4"></i-lucide>
-          <span>Agendar Mantenimiento</span>
-        </button>
-      </div>
+      }
 
       <!-- Calendar / Visual Timeline Banner -->
       <div class="bg-white rounded-2xl p-6 border border-slate-100 shadow-easydry space-y-4">
@@ -59,14 +62,26 @@ import { PaginationComponent } from '../../shared/components/pagination/paginati
         </div>
       </div>
 
+      <!-- Global Filter Bar -->
+      <app-filter-bar 
+        [showSucursal]="true" 
+        [showOperador]="false"
+        [showBahia]="true"
+        [showEstado]="true"
+        [showFechas]="true"
+        [listaEstados]="['Todos', 'Programado', 'Completado']"
+        (filterChange)="aplicarNuevosFiltros($event)">
+      </app-filter-bar>
+
       <!-- Mantenimientos Table -->
       <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry overflow-hidden">
         <div class="p-6 border-b border-slate-100 flex items-center justify-between">
           <h3 class="font-bold text-slate-900 text-base font-outfit">Registro General de Mantenimientos</h3>
-          <span class="text-xs text-slate-500 font-semibold">Total programado: {{ mantenimientos.length }}</span>
+          <span class="text-xs text-slate-500 font-semibold">Total programado: {{ mantenimientosFiltrados.length }}</span>
         </div>
 
-        <div class="overflow-x-auto">
+        <!-- Desktop Table View -->
+        <div class="hidden lg:block overflow-x-auto">
           <table class="w-full text-left text-sm">
             <thead class="bg-slate-50 text-slate-500 text-xs font-bold uppercase tracking-wider border-b border-slate-200">
               <tr>
@@ -120,6 +135,44 @@ import { PaginationComponent } from '../../shared/components/pagination/paginati
             </tbody>
           </table>
         </div>
+
+        <!-- Mobile Card View -->
+        <div class="block lg:hidden divide-y divide-slate-100">
+          @for (m of paginatedMantenimientos; track m.id) {
+            <div class="p-4 hover:bg-slate-50 transition-colors cursor-pointer" (click)="abrirDetalle(m)">
+              <div class="flex items-start justify-between mb-2">
+                <div>
+                  <span class="font-mono font-extrabold text-xs text-easydry-blue bg-easydry-blue/10 px-2 py-0.5 rounded-md">
+                    {{ m.fecha }}
+                  </span>
+                  <div class="font-bold text-slate-900 text-sm mt-1.5">{{ m.maquina }}</div>
+                </div>
+                <span class="px-2.5 py-1 rounded-full text-[10px] font-extrabold text-center max-w-[80px]"
+                  [ngClass]="{
+                    'bg-amber-100 text-amber-800': m.estado === 'Programado',
+                    'bg-easydry-blue/15 text-easydry-blue': m.estado === 'En Proceso',
+                    'bg-easydry-green/20 text-easydry-green-dark': m.estado === 'Completado'
+                  }">
+                  {{ m.estado }}
+                </span>
+              </div>
+              
+              <div class="flex items-center justify-between mt-3 text-xs">
+                <span class="px-2 py-0.5 rounded-md font-semibold text-[10px]"
+                  [ngClass]="{
+                    'bg-blue-100 text-blue-800': m.tipo === 'Preventivo',
+                    'bg-rose-100 text-rose-800': m.tipo === 'Correctivo',
+                    'bg-indigo-100 text-indigo-800': m.tipo === 'Calibración'
+                  }">
+                  {{ m.tipo }}
+                </span>
+                <div class="font-semibold text-slate-700 truncate max-w-[150px]">
+                  {{ m.tecnico }}
+                </div>
+              </div>
+            </div>
+          }
+        </div>
         
         <app-pagination 
           [totalItems]="mantenimientos.length" 
@@ -129,6 +182,65 @@ import { PaginationComponent } from '../../shared/components/pagination/paginati
           (pageSizeChange)="onPageSizeChange($event)">
         </app-pagination>
       </div>
+
+      <!-- Modal Detalle Mantenimiento -->
+      <app-modal 
+        [isOpen]="modalDetalleOpen" 
+        [title]="'Detalle de Mantenimiento'" 
+        icon="wrench"
+        (close)="modalDetalleOpen = false">
+        
+        @if (mantenimientoDetalleSeleccionado) {
+          <div class="space-y-4">
+            <div class="p-4 bg-slate-50 rounded-xl border border-slate-100">
+              <span class="block text-[10px] text-slate-400 font-bold uppercase mb-1">Maquinaria</span>
+              <span class="font-bold text-slate-900 text-sm block">{{ mantenimientoDetalleSeleccionado.maquina }}</span>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3 text-xs">
+              <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                <span class="block text-[10px] text-slate-400 font-bold uppercase mb-1">Fecha Programada</span>
+                <span class="font-mono font-extrabold text-easydry-blue block">{{ mantenimientoDetalleSeleccionado.fecha }}</span>
+              </div>
+              <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                <span class="block text-[10px] text-slate-400 font-bold uppercase mb-1">Estado</span>
+                <span class="font-extrabold" [ngClass]="{
+                  'text-amber-600': mantenimientoDetalleSeleccionado.estado === 'Programado',
+                  'text-easydry-blue': mantenimientoDetalleSeleccionado.estado === 'En Proceso',
+                  'text-easydry-green-dark': mantenimientoDetalleSeleccionado.estado === 'Completado'
+                }">{{ mantenimientoDetalleSeleccionado.estado }}</span>
+              </div>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-3 text-xs">
+              <div class="p-3 bg-easydry-blue/5 rounded-xl border border-easydry-blue/10">
+                <span class="block text-[10px] text-easydry-blue font-bold uppercase mb-1">Tipo de Intervención</span>
+                <span class="font-bold text-slate-800 block">{{ mantenimientoDetalleSeleccionado.tipo }}</span>
+              </div>
+              <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                <span class="block text-[10px] text-slate-400 font-bold uppercase mb-1">Técnico / Especialista</span>
+                <span class="font-bold text-slate-800 block">{{ mantenimientoDetalleSeleccionado.tecnico }}</span>
+              </div>
+            </div>
+
+            <div class="p-4 bg-slate-50 rounded-xl border border-slate-100 text-xs">
+              <span class="block text-[10px] text-slate-400 font-bold uppercase mb-1">Descripción del Trabajo</span>
+              <p class="text-slate-700 leading-relaxed">{{ mantenimientoDetalleSeleccionado.descripcion }}</p>
+            </div>
+          </div>
+        }
+
+        <div modal-footer class="flex flex-col gap-2 w-full">
+          @if (mantenimientoDetalleSeleccionado && mantenimientoDetalleSeleccionado.estado !== 'Completado') {
+             <button
+                (click)="modalDetalleOpen = false"
+                class="w-full px-4 py-2.5 bg-easydry-blue text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 shadow-sm">
+                <i-lucide name="wrench" class="w-4 h-4"></i-lucide> Iniciar / Completar Tarea
+             </button>
+          }
+          <button (click)="modalDetalleOpen = false" class="w-full px-4 py-2.5 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs mt-1">Cerrar Detalle</button>
+        </div>
+      </app-modal>
 
       <!-- Modal Agendar Mantenimiento -->
       <app-modal 
@@ -189,9 +301,30 @@ import { PaginationComponent } from '../../shared/components/pagination/paginati
   `
 })
 export class MantenimientoComponent implements OnInit {
+  @Input() hideHeader = false;
   mantenimientos: Mantenimiento[] = [];
   listaMaquinas: Maquinaria[] = [];
   modalCrearOpen = false;
+  
+  filtrosGlobales: FilterState = { sucursal: 'Todas', operador: 'Todos', bahia: 'Todas', estado: 'Todos', fecha: 'Hoy' };
+
+  aplicarNuevosFiltros(filtros: FilterState) {
+    this.filtrosGlobales = filtros;
+    this.currentPage = 1;
+  }
+
+  get mantenimientosFiltrados() {
+    let resultados = this.mantenimientos;
+
+    if (this.filtrosGlobales.estado !== 'Todos') {
+      resultados = resultados.filter(m => m.estado === this.filtrosGlobales.estado);
+    }
+    
+    return resultados;
+  }
+
+  modalDetalleOpen = false;
+  mantenimientoDetalleSeleccionado?: Mantenimiento;
 
   currentPage = 1;
   pageSize = 5;
@@ -243,8 +376,7 @@ export class MantenimientoComponent implements OnInit {
 
   get paginatedMantenimientos() {
     const start = (this.currentPage - 1) * this.pageSize;
-    const end = start + this.pageSize;
-    return this.mantenimientos.slice(start, end);
+    return this.mantenimientosFiltrados.slice(start, start + this.pageSize);
   }
 
   onPageChange(page: number) {
@@ -266,5 +398,10 @@ export class MantenimientoComponent implements OnInit {
       this.toastService.success('Mantenimiento Agendado', `Visita agendada para ${creado.maquina} el ${creado.fecha}`);
       this.modalCrearOpen = false;
     });
+  }
+  
+  abrirDetalle(mantenimiento: Mantenimiento) {
+    this.mantenimientoDetalleSeleccionado = mantenimiento;
+    this.modalDetalleOpen = true;
   }
 }

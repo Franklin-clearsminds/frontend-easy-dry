@@ -7,11 +7,12 @@ import { Usuario } from '../../core/models';
 import { ModalComponent } from '../../shared/components/modal/modal.component';
 import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
 import { ToastService } from '../../shared/services/toast.service';
+import { FilterBarComponent, FilterState } from '../../shared/components/filter-bar/filter-bar.component';
 
 @Component({
   selector: 'app-usuarios',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, PaginationComponent],
+  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, PaginationComponent, FilterBarComponent],
   template: `
     <div class="space-y-6 animate-fade-in">
       
@@ -29,11 +30,22 @@ import { ToastService } from '../../shared/services/toast.service';
         </button>
       </div>
 
+      <!-- Global Filter Bar -->
+      <app-filter-bar 
+        [showSucursal]="true" 
+        [showOperador]="false"
+        [showBahia]="false"
+        [showEstado]="true"
+        [showFechas]="false"
+        [listaEstados]="['Todos', 'Activo', 'Inactivo', 'Suspendido']"
+        (filterChange)="aplicarNuevosFiltros($event)">
+      </app-filter-bar>
+
       <!-- Users Grid / Table -->
       <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry overflow-hidden">
         <div class="p-6 border-b border-slate-100 flex items-center justify-between">
           <h3 class="font-bold text-slate-900 text-base font-outfit">Directorio de Equipo Humano EasyDry</h3>
-          <span class="text-xs text-slate-500 font-bold">{{ usuarios.length }} Usuarios Registrados</span>
+          <span class="text-xs text-slate-500 font-bold">{{ usuariosFiltrados.length }} Usuarios Registrados</span>
         </div>
 
         <div class="overflow-x-auto">
@@ -150,9 +162,15 @@ import { ToastService } from '../../shared/services/toast.service';
             </div>
           </div>
 
-          <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Correo Electrónico Corporativo</label>
-            <input type="email" [(ngModel)]="nuevoUsuario.email" name="email" placeholder="usuario@easydry.com" class="w-full p-2.5 border rounded-xl text-sm" required>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Correo Electrónico Corporativo</label>
+              <input type="email" [(ngModel)]="nuevoUsuario.email" name="email" placeholder="usuario@easydry.com" class="w-full p-2.5 border rounded-xl text-sm" required>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Contraseña</label>
+              <input type="password" [(ngModel)]="nuevoUsuario.password" name="password" placeholder="••••••••" class="w-full p-2.5 border rounded-xl text-sm" required>
+            </div>
           </div>
         </form>
 
@@ -169,6 +187,26 @@ export class UsuariosComponent implements OnInit {
   usuarios: Usuario[] = [];
   modalCrearOpen = false;
 
+  filtrosGlobales: FilterState = { sucursal: 'Todas', operador: 'Todos', bahia: 'Todas', estado: 'Todos', fecha: 'Hoy' };
+
+  aplicarNuevosFiltros(filtros: FilterState) {
+    this.filtrosGlobales = filtros;
+    this.currentPage = 1;
+  }
+
+  get usuariosFiltrados() {
+    let resultados = this.usuarios;
+
+    if (this.filtrosGlobales.estado !== 'Todos') {
+      resultados = resultados.filter(u => u.estado === this.filtrosGlobales.estado);
+    }
+    if (this.filtrosGlobales.sucursal !== 'Todas') {
+      resultados = resultados.filter(u => u.agencia === this.filtrosGlobales.sucursal);
+    }
+    
+    return resultados;
+  }
+
   currentPage = 1;
   pageSize = 5;
 
@@ -180,6 +218,7 @@ export class UsuariosComponent implements OnInit {
     estado: 'Activo' as Usuario['estado'],
     fechaAsignacion: new Date().toISOString().split('T')[0],
     email: '',
+    password: '',
     avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
   };
 
@@ -194,8 +233,7 @@ export class UsuariosComponent implements OnInit {
 
   get paginatedUsuarios() {
     const start = (this.currentPage - 1) * this.pageSize;
-    const end = start + this.pageSize;
-    return this.usuarios.slice(start, end);
+    return this.usuariosFiltrados.slice(start, start + this.pageSize);
   }
 
   onPageChange(page: number) {
@@ -212,8 +250,8 @@ export class UsuariosComponent implements OnInit {
   }
 
   guardarUsuario() {
-    if (!this.nuevoUsuario.nombre || !this.nuevoUsuario.email) {
-      this.toastService.warning('Datos Incompletos', 'Ingrese nombre y correo corporativo.');
+    if (!this.nuevoUsuario.nombre || !this.nuevoUsuario.email || !this.nuevoUsuario.password) {
+      this.toastService.warning('Datos Incompletos', 'Ingrese nombre, correo y contraseña.');
       return;
     }
 

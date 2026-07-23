@@ -8,11 +8,12 @@ import { VehiculoServicio } from '../../core/models';
 import { ModalComponent } from '../../shared/components/modal/modal.component';
 import { ToastService } from '../../shared/services/toast.service';
 import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
+import { FilterBarComponent, FilterState } from '../../shared/components/filter-bar/filter-bar.component';
 
 @Component({
   selector: 'app-aprobaciones',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, PaginationComponent],
+  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, PaginationComponent, FilterBarComponent],
   template: `
     <div class="space-y-6 animate-fade-in">
       
@@ -36,6 +37,17 @@ import { PaginationComponent } from '../../shared/components/pagination/paginati
           </button>
         </div>
       </div>
+
+      <!-- Global Filter Bar -->
+      <app-filter-bar 
+        [showSucursal]="true" 
+        [showOperador]="true"
+        [showBahia]="false"
+        [showEstado]="true"
+        [showFechas]="false"
+        [listaEstados]="['Todos', 'FINALIZADO', 'APROBADO', 'RECHAZADO']"
+        (filterChange)="aplicarNuevosFiltros($event)">
+      </app-filter-bar>
 
       <!-- Day Status Summary Card -->
       <div class="bg-gradient-to-r from-easydry-blue to-easydry-blue-dark p-6 rounded-2xl text-white shadow-xl flex items-center justify-between">
@@ -229,8 +241,31 @@ export class AprobacionesComponent implements OnInit {
     return this.serviciosDelDia.filter(s => s.estado === 'APROBADO').length;
   }
 
+  filtrosGlobales: FilterState = { sucursal: 'Todas', operador: 'Todos', bahia: 'Todas', estado: 'Todos', fecha: 'Hoy' };
+
+  get serviciosFiltrados() {
+    let resultados = this.serviciosDelDia;
+
+    if (this.filtrosGlobales.estado !== 'Todos') {
+      resultados = resultados.filter(s => s.estado === this.filtrosGlobales.estado);
+    }
+    if (this.filtrosGlobales.sucursal !== 'Todas') {
+      resultados = resultados.filter(s => s.agencia === this.filtrosGlobales.sucursal);
+    }
+    if (this.filtrosGlobales.operador !== 'Todos') {
+      resultados = resultados.filter(s => s.empleado?.includes(this.filtrosGlobales.operador || ''));
+    }
+
+    return resultados;
+  }
+
   get esDiaCerrado() {
     return this.serviciosDelDia.length > 0 && this.serviciosDelDia.every(s => s.estado === 'APROBADO');
+  }
+
+  aplicarNuevosFiltros(filtros: FilterState) {
+    this.filtrosGlobales = filtros;
+    this.currentPage = 1;
   }
 
   ngOnInit(): void {
@@ -272,8 +307,7 @@ export class AprobacionesComponent implements OnInit {
 
   get paginatedServicios() {
     const start = (this.currentPage - 1) * this.pageSize;
-    const end = start + this.pageSize;
-    return this.serviciosParaAprobar.slice(start, end);
+    return this.serviciosFiltrados.slice(start, start + this.pageSize);
   }
 
   onPageChange(page: number) {

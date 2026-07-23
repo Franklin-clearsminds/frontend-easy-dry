@@ -20,8 +20,15 @@ interface DemoRolEntry {
   template: `
     <header class="h-20 bg-white border-b border-slate-200 px-6 flex items-center justify-between sticky top-0 z-20 shadow-sm">
 
-      <!-- Left: Context Label -->
-      <div class="flex items-center gap-4">
+      <!-- Left: Mobile Hamburger & Context Label -->
+      <div class="flex items-center gap-3 sm:gap-4">
+        <!-- Mobile Sidebar Toggle -->
+        <button 
+          (click)="onToggleSidebar()"
+          class="md:hidden p-2 -ml-1 rounded-xl bg-slate-100 border border-slate-200 text-slate-900 hover:bg-easydry-blue hover:text-white transition-colors focus:outline-none shadow-sm">
+          <i-lucide name="menu" class="w-5 h-5"></i-lucide>
+        </button>
+
         <div class="hidden sm:flex items-center gap-2">
           <i-lucide name="building-2" class="w-4 h-4 text-easydry-blue"></i-lucide>
           <span class="text-sm font-semibold text-slate-600">
@@ -121,6 +128,7 @@ interface DemoRolEntry {
   `
 })
 export class HeaderComponent {
+  @Output() toggleSidebar = new EventEmitter<void>();
   @Output() agenciaChange = new EventEmitter<string>();
   @Output() search = new EventEmitter<string>();
 
@@ -132,11 +140,11 @@ export class HeaderComponent {
   unreadCount = 2;
 
   demoRoles: DemoRolEntry[] = [
-    { value: Role.SUPER_ADMIN, email: 'admin@easydry.com', label: '👑 Super Admin' },
-    { value: Role.GERENTE, email: 'gerente.quito@easydry.com', label: '👔 Gerente (Quito Norte)' },
-    { value: Role.SUPERVISOR, email: 'supervisor.quito@easydry.com', label: '📋 Supervisor' },
-    { value: Role.OPERADOR, email: 'operador.bahia1@easydry.com', label: '🧼 Operador (Bahía 1)' },
-    { value: Role.TECNICO, email: 'tecnico@easydry.com', label: '🔧 Técnico Maquinaria' }
+    { value: Role.SUPER_ADMIN, email: 'admin@easydry.com', label: 'Super Admin' },
+    { value: Role.GERENTE, email: 'gerente.quito@easydry.com', label: 'Gerente (Quito Norte)' },
+    { value: Role.SUPERVISOR, email: 'supervisor.quito@easydry.com', label: 'Supervisor' },
+    { value: Role.OPERADOR, email: 'operador.bahia1@easydry.com', label: 'Operador (Bahía 1)' },
+    { value: Role.TECNICO, email: 'tecnico@easydry.com', label: 'Técnico Maquinaria' }
   ];
 
   get user() { return this.authService.getCurrentUser(); }
@@ -150,6 +158,10 @@ export class HeaderComponent {
   }
 
   private router: Router = inject(Router);
+
+  onToggleSidebar() {
+    this.toggleSidebar.emit();
+  }
 
   onSearch() {
     if (this.searchQuery.trim()) {

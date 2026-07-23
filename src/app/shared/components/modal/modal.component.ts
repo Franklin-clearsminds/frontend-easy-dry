@@ -35,7 +35,7 @@ import { LucideAngularModule } from 'lucide-angular';
           </div>
 
           <!-- Modal Footer (Optional slot) -->
-          <div class="px-6 py-4 border-t border-slate-100 bg-slate-50 flex items-center justify-end gap-3">
+          <div class="px-4 sm:px-6 py-4 border-t border-slate-100 bg-slate-50 flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-3">
             <ng-content select="[modal-footer]"></ng-content>
           </div>
 

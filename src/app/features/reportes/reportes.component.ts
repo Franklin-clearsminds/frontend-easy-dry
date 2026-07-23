@@ -6,11 +6,12 @@ import { ReporteMockService } from '../../core/services/reporte-mock.service';
 import { Reporte } from '../../core/models';
 import { ToastService } from '../../shared/services/toast.service';
 import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
+import { FilterBarComponent, FilterState } from '../../shared/components/filter-bar/filter-bar.component';
 
 @Component({
   selector: 'app-reportes',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule, PaginationComponent],
+  imports: [CommonModule, FormsModule, LucideAngularModule, PaginationComponent, FilterBarComponent],
   template: `
     <div class="space-y-6 animate-fade-in">
       
@@ -64,6 +65,16 @@ import { PaginationComponent } from '../../shared/components/pagination/paginati
           </div>
         </div>
       </div>
+
+      <!-- Global Filter Bar -->
+      <app-filter-bar 
+        [showSucursal]="true" 
+        [showOperador]="false"
+        [showBahia]="false"
+        [showEstado]="false"
+        [showFechas]="true"
+        (filterChange)="aplicarNuevosFiltros($event)">
+      </app-filter-bar>
 
       <!-- Generated Reports List -->
       <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry overflow-hidden">
@@ -152,6 +163,23 @@ export class ReportesComponent implements OnInit {
   nuevaAgencia = 'Todas las Agencias';
   generando = false;
   
+  filtrosGlobales: FilterState = { sucursal: 'Todas', operador: 'Todos', bahia: 'Todas', estado: 'Todos', fecha: 'Hoy' };
+
+  aplicarNuevosFiltros(filtros: FilterState) {
+    this.filtrosGlobales = filtros;
+    this.currentPage = 1;
+  }
+
+  get reportesFiltrados() {
+    let resultados = this.reportes;
+
+    if (this.filtrosGlobales.sucursal !== 'Todas') {
+      resultados = resultados.filter(r => r.agencia === this.filtrosGlobales.sucursal);
+    }
+    
+    return resultados;
+  }
+
   currentPage = 1;
   pageSize = 5;
 
@@ -166,8 +194,7 @@ export class ReportesComponent implements OnInit {
 
   get paginatedReportes() {
     const start = (this.currentPage - 1) * this.pageSize;
-    const end = start + this.pageSize;
-    return this.reportes.slice(start, end);
+    return this.reportesFiltrados.slice(start, start + this.pageSize);
   }
 
   onPageChange(page: number) {

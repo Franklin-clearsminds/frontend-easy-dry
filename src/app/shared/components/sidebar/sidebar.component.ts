@@ -1,4 +1,4 @@
-import { Component, inject, computed, signal } from '@angular/core';
+import { Component, inject, computed, signal, Input, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { LucideAngularModule } from 'lucide-angular';
@@ -18,14 +18,21 @@ interface MenuGroup {
   standalone: true,
   imports: [CommonModule, RouterModule, LucideAngularModule],
   template: `
-    <!-- Static w-20 Layout Placeholder (Prevents Main Content from Moving) -->
-    <div class="w-20 h-screen flex-shrink-0 relative z-40">
+    <!-- Mobile Backdrop -->
+    @if (isOpenMobile) {
+      <div class="fixed inset-0 bg-slate-900/60 z-40 md:hidden backdrop-blur-sm animate-fade-in" (click)="closeMobile()"></div>
+    }
+
+    <!-- Sidebar Wrapper -->
+    <div 
+      class="flex-shrink-0 transition-all duration-300"
+      [ngClass]="isOpenMobile ? 'fixed inset-y-0 left-0 w-72 z-50 md:relative md:w-20 md:z-40' : 'hidden md:block w-20 relative z-40 h-screen'">
 
       <aside
         (mouseenter)="isHovered = true"
         (mouseleave)="isHovered = false"
-        class="absolute top-0 left-0 h-screen bg-gradient-to-b from-easydry-blue via-easydry-blue-dark to-easydry-blue-deep text-white flex flex-col transition-all duration-300 ease-in-out select-none z-50 overflow-hidden border-r border-white/10"
-        [ngClass]="isHovered ? 'w-72 shadow-2xl' : 'w-20 shadow-xl'">
+        class="absolute top-0 left-0 h-screen bg-gradient-to-b from-easydry-blue via-easydry-blue-dark to-easydry-blue-deep text-white flex flex-col transition-all duration-300 ease-in-out select-none overflow-hidden border-r border-white/10"
+        [ngClass]="(isHovered || isOpenMobile) ? 'w-72 shadow-2xl' : 'w-20 shadow-xl'">
 
         <!-- Logo Header -->
         <div class="h-20 flex items-center px-4 border-b border-white/15 flex-shrink-0 bg-easydry-blue-dark/60">
@@ -50,7 +57,7 @@ interface MenuGroup {
         </div>
 
         <!-- Rol Badge (expandido) -->
-        @if (isHovered && currentRole) {
+        @if ((isHovered || isOpenMobile) && currentRole) {
           <div class="px-4 py-2.5 border-b border-white/10 animate-fade-in flex-shrink-0">
             <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/10 border border-white/20 text-[10px] font-bold text-white">
               <i-lucide name="shield" class="w-3 h-3 text-easydry-lime"></i-lucide>
@@ -67,7 +74,7 @@ interface MenuGroup {
           @for (group of menuGroups; track group.title) {
             @if (group.items.length > 0) {
               <div class="space-y-1">
-                @if (isHovered) {
+                @if (isHovered || isOpenMobile) {
                   <div class="px-3 pt-1 pb-1 animate-fade-in">
                     <span class="text-[10px] font-extrabold text-easydry-lime/90 uppercase tracking-widest">
                       {{ group.title }}
@@ -82,14 +89,15 @@ interface MenuGroup {
                       routerLinkActive="bg-white/20 text-easydry-green border-l-4 border-easydry-green shadow-md font-bold"
                       [routerLinkActiveOptions]="{ exact: item.route === '/dashboard' }"
                       class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-200 hover:text-white hover:bg-white/10 transition-all duration-200 group text-xs relative"
-                      [ngClass]="{ 'justify-center': !isHovered }">
+                      [ngClass]="{ 'justify-center': (!isHovered && !isOpenMobile) }"
+                      (click)="closeMobile()">
 
                       <i-lucide
                         [name]="item.icon"
                         class="w-5 h-5 flex-shrink-0 transition-transform group-hover:scale-110 text-easydry-green">
                       </i-lucide>
 
-                      @if (isHovered) {
+                      @if (isHovered || isOpenMobile) {
                         <span class="flex-1 whitespace-nowrap font-medium text-xs animate-fade-in">{{ item.label }}</span>
                         @if (item.badge) {
                           <span
@@ -114,30 +122,37 @@ interface MenuGroup {
 
         <!-- User Profile & Status Footer -->
         <div class="p-3 border-t border-white/10 bg-black/20 flex-shrink-0">
-          @if (isHovered) {
-            <div class="flex items-center gap-3 p-2 rounded-xl bg-white/5 border border-white/10 animate-fade-in">
-              <img
-                [src]="user?.avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80'"
-                alt="Avatar"
-                class="w-9 h-9 rounded-full object-cover border-2 border-easydry-green flex-shrink-0">
-              <div class="flex-1 min-w-0">
-                <p class="text-xs font-bold text-white truncate">{{ user?.nombre }} {{ user?.apellido }}</p>
-                <p class="text-[10px] text-easydry-lime truncate font-bold uppercase tracking-wider">{{ rolLabel }}</p>
-              </div>
-              <button
-                (click)="authService.logout()"
-                title="Cerrar Sesión"
-                class="text-slate-400 hover:text-rose-400 p-1.5 rounded-lg hover:bg-white/10 transition-colors">
-                <i-lucide name="log-out" class="w-4 h-4"></i-lucide>
+          @if (isHovered || isOpenMobile) {
+            <div class="flex flex-col gap-1 animate-fade-in">
+              <a 
+                routerLink="/perfil"
+                (click)="closeMobile()"
+                class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-300 hover:text-white hover:bg-white/10 transition-colors text-xs font-medium">
+                <i-lucide name="user" class="w-5 h-5 flex-shrink-0 text-easydry-lime"></i-lucide>
+                <span class="whitespace-nowrap">Configuración de Perfil</span>
+              </a>
+              <button 
+                (click)="authService.logout()" 
+                class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-rose-400 hover:text-rose-300 hover:bg-rose-400/10 transition-colors text-xs font-medium w-full text-left">
+                <i-lucide name="log-out" class="w-5 h-5 flex-shrink-0"></i-lucide>
+                <span class="whitespace-nowrap">Cerrar Sesión</span>
               </button>
             </div>
           } @else {
-            <button
-              (click)="authService.logout()"
-              title="Cerrar Sesión"
-              class="w-full flex justify-center py-2 text-slate-300 hover:text-rose-400 hover:bg-white/10 rounded-xl transition-colors">
-              <i-lucide name="log-out" class="w-5 h-5"></i-lucide>
-            </button>
+            <div class="flex flex-col gap-2">
+              <a 
+                routerLink="/perfil"
+                title="Configuración de Perfil"
+                class="w-full flex justify-center py-2 text-slate-400 hover:text-easydry-lime hover:bg-white/10 rounded-xl transition-colors">
+                <i-lucide name="user" class="w-5 h-5"></i-lucide>
+              </a>
+              <button
+                (click)="authService.logout()"
+                title="Cerrar Sesión"
+                class="w-full flex justify-center py-2 text-slate-400 hover:text-rose-400 hover:bg-white/10 rounded-xl transition-colors">
+                <i-lucide name="log-out" class="w-5 h-5"></i-lucide>
+              </button>
+            </div>
           }
         </div>
 
@@ -147,6 +162,9 @@ interface MenuGroup {
   `
 })
 export class SidebarComponent {
+  @Input() isOpenMobile = false;
+  @Output() closeMobileSidebar = new EventEmitter<void>();
+
   isHovered = false;
 
   public authService = inject(AuthService);
@@ -177,5 +195,11 @@ export class SidebarComponent {
     }
 
     return Object.values(groups);
+  }
+
+  closeMobile() {
+    if (this.isOpenMobile) {
+      this.closeMobileSidebar.emit();
+    }
   }
 }

@@ -1,4 +1,4 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, inject, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LucideAngularModule } from 'lucide-angular';
@@ -9,32 +9,46 @@ import { Incidente, Maquinaria } from '../../core/models';
 import { ModalComponent } from '../../shared/components/modal/modal.component';
 import { ToastService } from '../../shared/services/toast.service';
 import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
+import { FilterBarComponent, FilterState } from '../../shared/components/filter-bar/filter-bar.component';
 
 @Component({
   selector: 'app-incidentes',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, PaginationComponent],
+  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, PaginationComponent, FilterBarComponent],
   template: `
     <div class="space-y-6 animate-fade-in">
       
       <!-- Header -->
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-100 shadow-easydry">
-        <div>
-          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-rose-100 text-rose-800 text-xs font-bold mb-2">
-            <i-lucide name="alert-triangle" class="w-3.5 h-3.5"></i-lucide>
-            <span>Gestión de Desperfectos e Incidentes de Maquinaria</span>
+      @if (!hideHeader) {
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-100 shadow-easydry">
+          <div>
+            <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-rose-100 text-rose-800 text-xs font-bold mb-2">
+              <i-lucide name="alert-triangle" class="w-3.5 h-3.5"></i-lucide>
+              <span>Gestión de Desperfectos e Incidentes de Maquinaria</span>
+            </div>
+            <h1 class="text-2xl font-extrabold text-slate-900 font-outfit">Reporte y Solución de Desperfectos</h1>
+            <p class="text-slate-500 text-xs mt-1">Registro de fallas en equipos de bahía y resolución técnica por el rol Técnico/Gerente (Pendiente ➔ Solucionado).</p>
           </div>
-          <h1 class="text-2xl font-extrabold text-slate-900 font-outfit">Reporte y Solución de Desperfectos</h1>
-          <p class="text-slate-500 text-xs mt-1">Registro de fallas en equipos de bahía y resolución técnica por el rol Técnico/Gerente (Pendiente ➔ Solucionado).</p>
-        </div>
 
-        <button 
-          (click)="modalReportarOpen = true"
-          class="px-4 py-3 bg-rose-600 hover:bg-rose-700 text-white font-extrabold rounded-xl text-xs transition-colors shadow-xs flex items-center gap-2">
-          <i-lucide name="plus" class="w-4 h-4"></i-lucide>
-          <span>Reportar Nuevo Desperfecto</span>
-        </button>
-      </div>
+          <button 
+            (click)="modalReportarOpen = true"
+            class="px-4 py-3 bg-rose-600 hover:bg-rose-700 text-white font-extrabold rounded-xl text-xs transition-colors shadow-xs flex items-center gap-2">
+            <i-lucide name="plus" class="w-4 h-4"></i-lucide>
+            <span>Reportar Nuevo Desperfecto</span>
+          </button>
+        </div>
+      }
+
+      <!-- Global Filter Bar -->
+      <app-filter-bar 
+        [showSucursal]="true" 
+        [showOperador]="false"
+        [showBahia]="false"
+        [showEstado]="true"
+        [showFechas]="true"
+        [listaEstados]="['Todos', 'Pendiente', 'En Solución', 'Solucionado']"
+        (filterChange)="aplicarNuevosFiltros($event)">
+      </app-filter-bar>
 
       <!-- Incident Cards Grid -->
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -93,7 +107,7 @@ import { PaginationComponent } from '../../shared/components/pagination/paginati
 
       <div class="mt-6">
         <app-pagination 
-          [totalItems]="incidentes.length" 
+          [totalItems]="incidentesFiltrados.length" 
           [currentPage]="currentPage" 
           [pageSize]="pageSize"
           (pageChange)="onPageChange($event)"
@@ -177,6 +191,7 @@ import { PaginationComponent } from '../../shared/components/pagination/paginati
   `
 })
 export class IncidentesComponent implements OnInit {
+  @Input() hideHeader = false;
   incidentes: Incidente[] = [];
   maquinasDisponibles: Maquinaria[] = [];
   incidenteSolucionar?: Incidente;
@@ -187,6 +202,8 @@ export class IncidentesComponent implements OnInit {
   modalReportarOpen = false;
   modalSolucionarOpen = false;
   observacionSolucion = '';
+  
+  filtrosGlobales: FilterState = { sucursal: 'Todas', operador: 'Todos', bahia: 'Todas', estado: 'Todos', fecha: 'Hoy' };
 
   nuevoIncidente = {
     maquina: 'Aspiradora Industrial AS-002',
@@ -229,10 +246,27 @@ export class IncidentesComponent implements OnInit {
     });
   }
 
+  aplicarNuevosFiltros(filtros: FilterState) {
+    this.filtrosGlobales = filtros;
+    this.currentPage = 1;
+  }
+
+  get incidentesFiltrados() {
+    let resultados = this.incidentes;
+
+    if (this.filtrosGlobales.estado !== 'Todos') {
+      resultados = resultados.filter(inc => inc.estado === this.filtrosGlobales.estado);
+    }
+    if (this.filtrosGlobales.sucursal !== 'Todas') {
+      resultados = resultados.filter(inc => inc.agencia === this.filtrosGlobales.sucursal);
+    }
+    
+    return resultados;
+  }
+
   get paginatedIncidentes() {
     const start = (this.currentPage - 1) * this.pageSize;
-    const end = start + this.pageSize;
-    return this.incidentes.slice(start, end);
+    return this.incidentesFiltrados.slice(start, start + this.pageSize);
   }
 
   onPageChange(page: number) {

@@ -9,11 +9,12 @@ import { Operador, HistorialAsignacionOperador, Sucursal } from '../../core/mode
 import { ModalComponent } from '../../shared/components/modal/modal.component';
 import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
 import { ToastService } from '../../shared/services/toast.service';
+import { FilterBarComponent, FilterState } from '../../shared/components/filter-bar/filter-bar.component';
 
 @Component({
   selector: 'app-operadores',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, PaginationComponent],
+  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, PaginationComponent, FilterBarComponent],
   template: `
     <div class="space-y-6 animate-fade-in">
       
@@ -25,11 +26,21 @@ import { ToastService } from '../../shared/services/toast.service';
         </div>
       </div>
 
+      <!-- Global Filter Bar -->
+      <app-filter-bar 
+        [showSucursal]="isSuperAdmin" 
+        [showOperador]="false"
+        [showBahia]="true"
+        [showEstado]="true"
+        [showFechas]="false"
+        [listaEstados]="['Todos', 'Activo', 'Inactivo', 'En Capacitación']"
+        (filterChange)="aplicarNuevosFiltros($event)">
+      </app-filter-bar>
+
       <!-- Filters Bar -->
-      <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-xs flex flex-wrap items-center justify-between gap-4">
+      <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-xs flex flex-wrap items-center justify-between gap-4 mb-4">
         
         <div class="flex flex-wrap items-center gap-3 flex-1 min-w-[280px]">
-          
           <div class="relative flex-1 min-w-[200px]">
             <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
               <i-lucide name="search" class="w-4 h-4"></i-lucide>
@@ -37,28 +48,10 @@ import { ToastService } from '../../shared/services/toast.service';
             <input 
               type="text" 
               [(ngModel)]="filtroTexto" 
+              (input)="aplicarFiltros()"
               placeholder="Buscar por nombre o cédula..." 
               class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold">
           </div>
-
-          <select 
-            [(ngModel)]="filtroSucursal" 
-            [disabled]="!isSuperAdmin"
-            class="bg-slate-50 border border-slate-200 text-xs font-semibold rounded-xl px-3 py-2 disabled:opacity-60 disabled:cursor-not-allowed">
-            <option value="Todas">Todas las Sucursales</option>
-            @for (s of sucursales; track s.id) {
-              <option [value]="s.nombre">{{ s.nombre }}</option>
-            }
-          </select>
-
-
-          <select [(ngModel)]="filtroEstado" class="bg-slate-50 border border-slate-200 text-xs font-semibold rounded-xl px-3 py-2">
-            <option value="Todos">Todos los Estados</option>
-            <option value="Activo">Activo</option>
-            <option value="Inactivo">Inactivo</option>
-            <option value="En Capacitación">En Capacitación</option>
-          </select>
-
         </div>
 
         <div class="text-xs font-semibold text-slate-500">
@@ -228,8 +221,16 @@ export class OperadoresComponent implements OnInit {
   historialOperador: HistorialAsignacionOperador[] = [];
 
   filtroTexto = '';
-  filtroSucursal = 'Todas';
-  filtroEstado = 'Todos';
+  filtrosGlobales: FilterState = { sucursal: 'Todas', operador: 'Todos', bahia: 'Todas', estado: 'Todos', fecha: 'Hoy' };
+
+  aplicarNuevosFiltros(filtros: FilterState) {
+    this.filtrosGlobales = filtros;
+    this.aplicarFiltros();
+  }
+
+  aplicarFiltros() {
+    this.currentPage = 1;
+  }
 
   currentPage = 1;
   pageSize = 5;
@@ -242,9 +243,6 @@ export class OperadoresComponent implements OnInit {
 
   ngOnInit(): void {
     const user = this.authService.getCurrentUser();
-    if (user && user.role !== 'SUPER_ADMIN' && user.sucursalNombre) {
-      this.filtroSucursal = user.sucursalNombre;
-    }
     this.operadorService.getOperadores().subscribe(list => {
       this.operadores = list;
     });
@@ -258,21 +256,35 @@ export class OperadoresComponent implements OnInit {
     return this.authService.hasRole('SUPER_ADMIN' as any);
   }
 
+  get userSucursal() {
+    return this.authService.getCurrentUser()?.sucursalNombre;
+  }
+
   get operadoresFiltrados() {
-    const user = this.authService.getCurrentUser();
-    return this.operadores.filter(o => {
-      // Filtrado por alcance de sucursal si no es admin
-      if (user && user.role !== 'SUPER_ADMIN' && user.sucursalNombre) {
-        if (o.sucursal.toLowerCase() !== user.sucursalNombre.toLowerCase()) {
-          return false;
-        }
+    let resultados = this.operadores.filter(op => {
+      // ── Scope por Rol ──
+      let matchScope = true;
+      if (!this.isSuperAdmin && this.userSucursal) {
+        matchScope = op.sucursal === this.userSucursal;
       }
       
-      const matchTexto = !this.filtroTexto || o.nombre.toLowerCase().includes(this.filtroTexto.toLowerCase()) || o.cedula.includes(this.filtroTexto);
-      const matchSucursal = this.filtroSucursal === 'Todas' || o.sucursal === this.filtroSucursal;
-      const matchEstado = this.filtroEstado === 'Todos' || o.estado === this.filtroEstado;
-      return matchTexto && matchSucursal && matchEstado;
+      const term = this.filtroTexto.toLowerCase();
+      const matchTexto = op.nombre.toLowerCase().includes(term) || op.cedula.toLowerCase().includes(term);
+
+      return matchScope && matchTexto;
     });
+
+    if (this.filtrosGlobales.estado !== 'Todos') {
+      resultados = resultados.filter(op => op.estado === this.filtrosGlobales.estado);
+    }
+    if (this.filtrosGlobales.sucursal !== 'Todas') {
+      resultados = resultados.filter(op => op.sucursal === this.filtrosGlobales.sucursal);
+    }
+    if (this.filtrosGlobales.bahia !== 'Todas') {
+      resultados = resultados.filter(op => op.bahia === this.filtrosGlobales.bahia);
+    }
+
+    return resultados;
   }
 
   get paginatedOperadores() {
