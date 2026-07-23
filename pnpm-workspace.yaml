@@ -1,0 +1,12 @@
+allowBuilds:
+  '@parcel/watcher': false
+  core-js: false
+  esbuild: false
+  lmdb: false
+  msgpackr-extract: false
+onlyBuiltDependencies:
+  - "@parcel/watcher"
+  - "core-js"
+  - "esbuild"
+  - "lmdb"
+  - "msgpackr-extract"

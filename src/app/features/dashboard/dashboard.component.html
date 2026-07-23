@@ -1,0 +1,171 @@
+<div class="space-y-6 animate-fade-in pb-10">
+
+  <!-- ========================================== -->
+  <!-- 1. ENCABEZADO CONTEXTUAL                   -->
+  <!-- ========================================== -->
+  <div class="bg-gradient-to-r from-easydry-blue via-easydry-blue-dark to-slate-900 rounded-3xl p-6 md:p-8 text-white shadow-xl relative overflow-hidden flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+    
+    <div class="relative z-10">
+      <div class="flex items-center gap-3 mb-3">
+        <span class="px-3 py-1 bg-white/20 border border-white/30 rounded-full text-xs font-bold tracking-wider uppercase text-white shadow-sm flex items-center gap-1.5">
+          <i-lucide name="shield" class="w-3.5 h-3.5"></i-lucide>
+          {{ rolLabel }}
+        </span>
+        <span class="text-white/60 text-sm font-semibold">EasyDry® Operaciones</span>
+      </div>
+      
+      <h1 class="text-3xl font-extrabold tracking-tight font-outfit">
+        {{ contextLabel }}
+      </h1>
+      
+      <p class="text-slate-300 text-sm mt-1 flex items-center gap-2">
+        <i-lucide name="user" class="w-4 h-4"></i-lucide>
+        {{ auth.getCurrentUser()?.nombre }} {{ auth.getCurrentUser()?.apellido }}
+        <span class="opacity-50">|</span>
+        <i-lucide name="calendar" class="w-4 h-4"></i-lucide>
+        {{ fechaActual | date:'fullDate':'':'es' }}
+      </p>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="relative z-10 flex gap-3 flex-wrap">
+      @if (!isOperador && !isTecnico) {
+        <a routerLink="/mapa-operativo" class="px-4 py-2.5 bg-easydry-green hover:bg-easydry-green-dark text-slate-900 font-bold rounded-xl shadow-glow-green transition-all flex items-center gap-2 text-sm">
+          <i-lucide name="map" class="w-4 h-4"></i-lucide> Mapa Nacional
+        </a>
+      }
+      @if (isOperador) {
+        <a routerLink="/servicios" class="px-4 py-2.5 bg-easydry-green hover:bg-easydry-green-dark text-slate-900 font-bold rounded-xl shadow-glow-green transition-all flex items-center gap-2 text-sm">
+          <i-lucide name="plus-circle" class="w-4 h-4"></i-lucide> Nueva OT
+        </a>
+      }
+    </div>
+
+    <!-- Abstract Decoration -->
+    <div class="absolute -right-10 -top-10 w-64 h-64 bg-easydry-green/10 rounded-full blur-3xl pointer-events-none"></div>
+  </div>
+
+
+  <!-- ========================================== -->
+  <!-- VISTA: SUPER ADMIN, GERENTE, SUPERVISOR    -->
+  <!-- ========================================== -->
+  @if (!isOperador && !isTecnico) {
+    
+    <!-- 2. KPIs PRINCIPALES -->
+    <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
+      <app-stat-card title="Vehículos Hoy" [value]="produccion?.vehiculosHoy || 0" [trend]="produccion?.variacionVehiculos" [trendPositive]="produccion?.tendenciaVehiculos === 'up'" icon="car" variant="primary"></app-stat-card>
+      
+      <app-stat-card title="S. Generales" [value]="serviciosData?.generales || 0" icon="droplet" variant="success"></app-stat-card>
+      
+      <app-stat-card title="S. Especiales" [value]="serviciosData?.especiales || 0" icon="star" variant="warning"></app-stat-card>
+      
+      <app-stat-card title="Operadores" [value]="(operadores?.activos || 0) + ' / ' + (operadores?.total || 0)" icon="users" variant="primary"></app-stat-card>
+      
+      <app-stat-card title="Bahías Activas" [value]="operadores?.bahiasActivas || 0" icon="check-square" variant="success"></app-stat-card>
+      
+      <app-stat-card title="Equipos OK" [value]="(maquinaria?.operativas || 0) + ' / ' + (maquinaria?.total || 0)" icon="hard-drive" variant="primary"></app-stat-card>
+    </div>
+
+    <!-- 3. GRAFICOS PRINCIPALES Y ALERTAS -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      
+      <!-- 4. Producción por Tiempo -->
+      <div class="lg:col-span-2">
+        <app-chart-card
+          title="Producción Diaria por Hora"
+          subtitle="Flujo de vehículos a lo largo del día"
+          type="line"
+          [data]="produccion?.produccionPorHora">
+        </app-chart-card>
+      </div>
+      
+      <!-- 10. Alertas Operativas -->
+      <div class="lg:col-span-1">
+        <app-alertas-widget [alertas]="alertas"></app-alertas-widget>
+      </div>
+
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      
+      <!-- 5. Ranking Operadores -->
+      <div class="lg:col-span-1">
+        <app-ranking-operadores-widget [ranking]="operadores?.ranking || []"></app-ranking-operadores-widget>
+      </div>
+      
+      <!-- 7. Servicios Realizados (Doughnut) -->
+      <div class="lg:col-span-1">
+        <app-chart-card
+          title="Distribución (G. vs E.)"
+          subtitle="Proporción de servicios generales"
+          type="doughnut"
+          [data]="serviciosData?.distribucionGenerales">
+        </app-chart-card>
+      </div>
+
+      <!-- 8. Servicios Especiales (Bar) -->
+      <div class="lg:col-span-1">
+        <app-chart-card
+          title="Servicios Especiales"
+          subtitle="Desglose comercial"
+          type="bar"
+          [data]="serviciosData?.distribucionEspeciales">
+        </app-chart-card>
+      </div>
+
+    </div>
+
+    <!-- 11. Aprobaciones Pendientes (Especial para Gerentes) -->
+    @if (isGerente || isSuperAdmin) {
+      <div class="grid grid-cols-1 gap-6">
+        <app-aprobaciones-widget [aprobaciones]="serviciosData?.aprobacionesPendientes || []"></app-aprobaciones-widget>
+      </div>
+    }
+
+  }
+
+
+  <!-- ========================================== -->
+  <!-- VISTA: OPERADOR                            -->
+  <!-- ========================================== -->
+  @if (isOperador) {
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
+      <app-stat-card title="Mis Servicios Hoy" value="15" icon="car" variant="primary"></app-stat-card>
+      <app-stat-card title="En Proceso" value="2" icon="clock" variant="warning"></app-stat-card>
+      <app-stat-card title="Finalizados" value="13" icon="check-circle-2" variant="success"></app-stat-card>
+    </div>
+    
+    <div class="bg-white rounded-2xl p-6 border border-slate-100 shadow-easydry">
+      <h4 class="font-bold text-slate-900 text-lg font-outfit mb-4">Progreso del Día</h4>
+      <div class="flex flex-col items-center justify-center py-10 text-slate-400">
+        <i-lucide name="car" class="w-16 h-16 mb-4 opacity-20"></i-lucide>
+        <p class="font-bold">Tu bahía está activa.</p>
+        <p class="text-sm">Registra tus servicios en la pestaña Servicios.</p>
+      </div>
+    </div>
+  }
+
+
+  <!-- ========================================== -->
+  <!-- VISTA: TÉCNICO                             -->
+  <!-- ========================================== -->
+  @if (isTecnico) {
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
+      <app-stat-card title="Equipos a Cargo" [value]="maquinaria?.total || 0" icon="hard-drive" variant="primary"></app-stat-card>
+      <app-stat-card title="En Mantenimiento" [value]="maquinaria?.mantenimiento || 0" icon="wrench" variant="warning"></app-stat-card>
+      <app-stat-card title="Daños Reportados" [value]="maquinaria?.danadas || 0" icon="alert-triangle" variant="danger"></app-stat-card>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <app-chart-card
+        title="Fallas por Tipo de Equipo"
+        subtitle="Registro histórico"
+        type="doughnut"
+        [data]="maquinaria?.fallasPorTipo">
+      </app-chart-card>
+      
+      <app-alertas-widget [alertas]="alertas"></app-alertas-widget>
+    </div>
+  }
+
+</div>

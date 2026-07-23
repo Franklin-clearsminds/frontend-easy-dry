@@ -1,0 +1,49 @@
+import { Component, Input } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { LucideAngularModule } from 'lucide-angular';
+
+@Component({
+  selector: 'app-ranking-operadores-widget',
+  standalone: true,
+  imports: [CommonModule, LucideAngularModule],
+  template: `
+    <div class="bg-white rounded-2xl p-6 border border-slate-100 shadow-easydry h-full">
+      <div class="flex items-center justify-between mb-4">
+        <h4 class="font-bold text-slate-900 text-lg font-outfit flex items-center gap-2">
+          <i-lucide name="trophy" class="w-5 h-5 text-amber-500"></i-lucide>
+          Top Operadores
+        </h4>
+        <span class="text-xs font-semibold bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full">Hoy</span>
+      </div>
+
+      <div class="space-y-3">
+        @for (op of ranking; track op.posicion) {
+          <div class="p-3 bg-slate-50 border border-slate-100 hover:border-easydry-blue/30 hover:bg-easydry-blue/5 transition-colors rounded-xl flex items-center justify-between group">
+            <div class="flex items-center gap-3">
+              <span class="w-7 h-7 rounded-full flex items-center justify-center font-extrabold text-xs shadow-xs"
+                    [ngClass]="{
+                      'bg-amber-400 text-slate-900': op.posicion === 1,
+                      'bg-slate-300 text-slate-800': op.posicion === 2,
+                      'bg-amber-700/30 text-amber-900': op.posicion === 3,
+                      'bg-slate-100 text-slate-500': op.posicion > 3
+                    }">
+                {{ op.posicion }}
+              </span>
+              <div>
+                <p class="text-sm font-bold text-slate-900 group-hover:text-easydry-blue transition-colors">{{ op.nombre }}</p>
+                <p class="text-[11px] text-slate-500">{{ op.bahia }}</p>
+              </div>
+            </div>
+            <div class="text-right flex flex-col items-end">
+              <span class="text-sm font-extrabold text-slate-800">{{ op.vehiculos }}</span>
+              <span class="text-[9px] font-bold uppercase tracking-widest text-slate-400">VEH.</span>
+            </div>
+          </div>
+        }
+      </div>
+    </div>
+  `
+})
+export class RankingOperadoresWidgetComponent {
+  @Input() ranking: any[] = [];
+}
