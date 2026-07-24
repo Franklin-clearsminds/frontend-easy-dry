@@ -233,25 +233,30 @@ export class MiBahiaComponent implements OnInit {
   private auth = inject(AuthService);
   private serviciosService = inject(ServicioLavadoMockService);
 
+  user = this.auth.getCurrentUser();
   misServicios: VehiculoServicio[] = [];
-
-  get user() { return this.auth.getCurrentUser(); }
-  get enProceso() { return this.misServicios.filter(s => s.estado === 'EN PROCESO').length; }
-  get finalizados() { return this.misServicios.filter(s => s.estado === 'FINALIZADO').length; }
-  get aprobados() { return this.misServicios.filter(s => s.estado === 'APROBADO').length; }
-
-  ngOnInit(): void {
-    const nombreOperador = `${this.user?.nombre} ${this.user?.apellido}`;
-    this.serviciosService.getServicios().subscribe(list => {
-      // Filtrar solo los servicios de este operador
-      this.misServicios = list.filter(s =>
-        s.empleado?.toLowerCase().includes(this.user?.nombre?.toLowerCase() ?? '')
-      );
-    });
-  }
+  enProceso = 0;
+  finalizados = 0;
+  aprobados = 0;
 
   modalDetalleOpen = false;
   servicioDetalleSeleccionado?: VehiculoServicio;
+
+  ngOnInit(): void {
+    this.user = this.auth.getCurrentUser();
+    this.serviciosService.getServicios().subscribe(list => {
+      this.misServicios = list.filter(s =>
+        s.empleado?.toLowerCase().includes(this.user?.nombre?.toLowerCase() ?? '')
+      );
+      this.recalcularKpis();
+    });
+  }
+
+  private recalcularKpis(): void {
+    this.enProceso = this.misServicios.filter(s => s.estado === 'EN PROCESO').length;
+    this.finalizados = this.misServicios.filter(s => s.estado === 'FINALIZADO').length;
+    this.aprobados = this.misServicios.filter(s => s.estado === 'APROBADO').length;
+  }
 
   abrirDetalle(item: VehiculoServicio) {
     this.servicioDetalleSeleccionado = item;
@@ -265,9 +270,8 @@ export class MiBahiaComponent implements OnInit {
   finalizarServicio(item: VehiculoServicio) {
     this.serviciosService.finalizarServicioOperador(item.id).subscribe(res => {
       if (res) {
-        // En una app real, actualizaríamos el item en el arreglo o refrescaríamos la lista.
-        // Para este prototipo, simplemente cambiamos el estado visualmente
         item.estado = 'FINALIZADO';
+        this.recalcularKpis();
       }
     });
   }

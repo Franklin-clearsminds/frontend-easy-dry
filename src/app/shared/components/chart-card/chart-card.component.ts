@@ -1,6 +1,6 @@
-import { Component, Input, OnInit, OnChanges, SimpleChanges, ElementRef, ViewChild, AfterViewInit } from '@angular/core';
+import { Component, Input, OnChanges, SimpleChanges, ElementRef, ViewChild, AfterViewInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Chart, registerables, ChartConfiguration, ChartType } from 'chart.js';
+import { Chart, registerables, ChartType } from 'chart.js';
 
 Chart.register(...registerables);
 
@@ -25,7 +25,7 @@ Chart.register(...registerables);
     </div>
   `
 })
-export class ChartCardComponent implements AfterViewInit, OnChanges {
+export class ChartCardComponent implements AfterViewInit, OnChanges, OnDestroy {
   @Input() title = '';
   @Input() subtitle = '';
   @Input() type: ChartType = 'line';
@@ -34,27 +34,49 @@ export class ChartCardComponent implements AfterViewInit, OnChanges {
 
   @ViewChild('chartCanvas') chartCanvas!: ElementRef<HTMLCanvasElement>;
   private chartInstance?: Chart;
+  private viewReady = false;
 
   ngAfterViewInit(): void {
+    this.viewReady = true;
     this.renderChart();
   }
 
   ngOnChanges(changes: SimpleChanges): void {
+    if (!this.viewReady) return;
     if (changes['data'] && !changes['data'].firstChange) {
-      this.renderChart();
+      this.updateChart();
     }
   }
 
-  private renderChart(): void {
-    if (!this.chartCanvas) return;
-    
+  ngOnDestroy(): void {
+    this.destroyChart();
+  }
+
+  private destroyChart(): void {
     if (this.chartInstance) {
       this.chartInstance.destroy();
+      this.chartInstance = undefined;
     }
+  }
+
+  private updateChart(): void {
+    if (!this.chartInstance || !this.data) {
+      this.renderChart();
+      return;
+    }
+    this.chartInstance.data = this.data;
+    this.chartInstance.update('none');
+  }
+
+  private renderChart(): void {
+    if (!this.chartCanvas || !this.data) return;
+
+    this.destroyChart();
 
     const defaultOptions: any = {
       responsive: true,
       maintainAspectRatio: false,
+      animation: false,
       plugins: {
         legend: {
           display: true,

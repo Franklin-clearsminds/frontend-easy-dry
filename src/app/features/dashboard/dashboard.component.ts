@@ -62,26 +62,39 @@ export class DashboardComponent implements OnInit {
 
   fechaActual = new Date();
   
-  // Helpers Roles
-  get currentRole() { return this.auth.getRole(); }
-  get isSuperAdmin() { return this.auth.hasRole(Role.SUPER_ADMIN); }
-  get isGerente() { return this.auth.hasRole(Role.GERENTE); }
-  get isSupervisor() { return this.auth.hasRole(Role.SUPERVISOR); }
-  get isOperador() { return this.auth.hasRole(Role.OPERADOR); }
-  get isTecnico() { return this.auth.hasRole(Role.TECNICO); }
-
-  get sucursalNombre() { return this.auth.getCurrentUser()?.sucursalNombre; }
-  get bahiaNombre() { return this.auth.getCurrentUser()?.bahiaNombre; }
-  get rolLabel() { return this.currentRole ? ROLE_LABELS[this.currentRole] : ''; }
-
-  get contextLabel() {
-    if (this.isSuperAdmin) return 'Red Nacional EasyDry';
-    if (this.isGerente || this.isSupervisor || this.isTecnico) return this.sucursalNombre;
-    if (this.isOperador) return `${this.bahiaNombre} - ${this.sucursalNombre}`;
-    return 'EasyDry';
-  }
+  // Helpers Roles (cacheados para no recalcular en cada CD)
+  currentRole: Role | null = null;
+  isSuperAdmin = false;
+  isGerente = false;
+  isSupervisor = false;
+  isOperador = false;
+  isTecnico = false;
+  sucursalNombre = '';
+  bahiaNombre = '';
+  rolLabel = '';
+  contextLabel = '';
 
   ngOnInit(): void {
+    this.currentRole = this.auth.getRole();
+    this.isSuperAdmin = this.auth.hasRole(Role.SUPER_ADMIN);
+    this.isGerente = this.auth.hasRole(Role.GERENTE);
+    this.isSupervisor = this.auth.hasRole(Role.SUPERVISOR);
+    this.isOperador = this.auth.hasRole(Role.OPERADOR);
+    this.isTecnico = this.auth.hasRole(Role.TECNICO);
+    this.sucursalNombre = this.auth.getCurrentUser()?.sucursalNombre || '';
+    this.bahiaNombre = this.auth.getCurrentUser()?.bahiaNombre || '';
+    this.rolLabel = this.currentRole ? ROLE_LABELS[this.currentRole] : '';
+
+    if (this.isSuperAdmin) this.contextLabel = 'Red Nacional EasyDry';
+    else if (this.isGerente || this.isSupervisor || this.isTecnico) this.contextLabel = this.sucursalNombre;
+    else if (this.isOperador) this.contextLabel = `${this.bahiaNombre} - ${this.sucursalNombre}`;
+    else this.contextLabel = 'EasyDry';
+
+    // Operador/Técnico no necesitan la carga pesada de charts globales
+    if (this.isOperador) {
+      return;
+    }
+
     this.dashboardService.getProduccion().subscribe(d => {
       this.baseProduccion = JSON.parse(JSON.stringify(d));
       this.produccion = JSON.parse(JSON.stringify(d));

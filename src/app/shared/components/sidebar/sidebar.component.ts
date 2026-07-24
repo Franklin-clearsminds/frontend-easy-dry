@@ -1,10 +1,10 @@
-import { Component, inject, computed, signal, Input, Output, EventEmitter } from '@angular/core';
+import { Component, inject, Input, Output, EventEmitter, OnInit, ChangeDetectionStrategy, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { LucideAngularModule } from 'lucide-angular';
 import { AuthService } from '../../../core/services/auth.service';
 import { PermissionService } from '../../../core/services/permission.service';
-import { ROLE_LABELS, ROLE_COLORS, Role } from '../../../core/models/roles.model';
+import { ROLE_LABELS, Role } from '../../../core/models/roles.model';
 import { MenuItem } from '../../../core/config/menu.config';
 
 // Agrupar items del menú por grupo
@@ -17,6 +17,7 @@ interface MenuGroup {
   selector: 'app-sidebar',
   standalone: true,
   imports: [CommonModule, RouterModule, LucideAngularModule],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <!-- Mobile Backdrop -->
     @if (isOpenMobile) {
@@ -29,10 +30,10 @@ interface MenuGroup {
       [ngClass]="isOpenMobile ? 'fixed inset-y-0 left-0 w-72 z-50 md:relative md:w-20 md:z-40' : 'hidden md:block w-20 relative z-40 h-screen'">
 
       <aside
-        (mouseenter)="isHovered = true"
-        (mouseleave)="isHovered = false"
+        (mouseenter)="onHover(true)"
+        (mouseleave)="onHover(false)"
         class="absolute top-0 left-0 h-screen bg-gradient-to-b from-easydry-blue via-easydry-blue-dark to-easydry-blue-deep text-white flex flex-col transition-all duration-300 ease-in-out select-none overflow-hidden border-r border-white/10"
-        [ngClass]="(isHovered || isOpenMobile) ? 'w-72 shadow-2xl' : 'w-20 shadow-xl'">
+        [ngClass]="(isHovered() || isOpenMobile) ? 'w-72 shadow-2xl' : 'w-20 shadow-xl'">
 
         <!-- Logo Header -->
         <div class="h-20 flex items-center px-4 border-b border-white/15 flex-shrink-0 bg-easydry-blue-dark/60">
@@ -43,7 +44,7 @@ interface MenuGroup {
               </div>
             </div>
 
-            @if (isHovered) {
+            @if (isHovered()) {
               <div class="flex flex-col animate-fade-in whitespace-nowrap">
                 <div class="flex items-center gap-0.5">
                   <span class="font-extrabold text-xl tracking-tight text-white font-outfit">easy</span>
@@ -57,7 +58,7 @@ interface MenuGroup {
         </div>
 
         <!-- Rol Badge (expandido) -->
-        @if ((isHovered || isOpenMobile) && currentRole) {
+        @if ((isHovered() || isOpenMobile) && currentRole) {
           <div class="px-4 py-2.5 border-b border-white/10 animate-fade-in flex-shrink-0">
             <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/10 border border-white/20 text-[10px] font-bold text-white">
               <i-lucide name="shield" class="w-3 h-3 text-easydry-lime"></i-lucide>
@@ -74,7 +75,7 @@ interface MenuGroup {
           @for (group of menuGroups; track group.title) {
             @if (group.items.length > 0) {
               <div class="space-y-1">
-                @if (isHovered || isOpenMobile) {
+                @if (isHovered() || isOpenMobile) {
                   <div class="px-3 pt-1 pb-1 animate-fade-in">
                     <span class="text-[10px] font-extrabold text-easydry-lime/90 uppercase tracking-widest">
                       {{ group.title }}
@@ -83,13 +84,13 @@ interface MenuGroup {
                 }
 
                 <div class="space-y-1">
-                  @for (item of group.items; track item.route) {
+                  @for (item of group.items; track item.label + item.route) {
                     <a
                       [routerLink]="[item.route]"
                       routerLinkActive="bg-white/20 text-easydry-green border-l-4 border-easydry-green shadow-md font-bold"
                       [routerLinkActiveOptions]="{ exact: item.route === '/dashboard' }"
                       class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-200 hover:text-white hover:bg-white/10 transition-all duration-200 group text-xs relative"
-                      [ngClass]="{ 'justify-center': (!isHovered && !isOpenMobile) }"
+                      [ngClass]="{ 'justify-center': (!isHovered() && !isOpenMobile) }"
                       (click)="closeMobile()">
 
                       <i-lucide
@@ -97,7 +98,7 @@ interface MenuGroup {
                         class="w-5 h-5 flex-shrink-0 transition-transform group-hover:scale-110 text-easydry-green">
                       </i-lucide>
 
-                      @if (isHovered || isOpenMobile) {
+                      @if (isHovered() || isOpenMobile) {
                         <span class="flex-1 whitespace-nowrap font-medium text-xs animate-fade-in">{{ item.label }}</span>
                         @if (item.badge) {
                           <span
@@ -122,7 +123,7 @@ interface MenuGroup {
 
         <!-- User Profile & Status Footer -->
         <div class="p-3 border-t border-white/10 bg-black/20 flex-shrink-0">
-          @if (isHovered || isOpenMobile) {
+          @if (isHovered() || isOpenMobile) {
             <div class="flex flex-col gap-1 animate-fade-in">
               <a 
                 routerLink="/perfil"
@@ -161,40 +162,62 @@ interface MenuGroup {
     </div>
   `
 })
-export class SidebarComponent {
+export class SidebarComponent implements OnInit {
   @Input() isOpenMobile = false;
   @Output() closeMobileSidebar = new EventEmitter<void>();
 
-  isHovered = false;
+  isHovered = signal(false);
+  private hoverTimer: ReturnType<typeof setTimeout> | null = null;
 
   public authService = inject(AuthService);
   private permissionService = inject(PermissionService);
 
-  get user() { return this.authService.getCurrentUser(); }
-  get currentRole() { return this.authService.getRole(); }
-  get rolLabel(): string {
-    const r = this.currentRole;
-    return r ? ROLE_LABELS[r] : '';
-  }
-  get contextLabel(): string {
-    const u = this.user;
-    if (!u) return '';
-    if (u.role === Role.SUPER_ADMIN) return 'Red Nacional EasyDry®';
-    if (u.role === Role.OPERADOR && u.bahiaNombre) return `${u.sucursalNombre} · ${u.bahiaNombre}`;
-    return u.sucursalNombre || '';
+  user = this.authService.getCurrentUser();
+  currentRole = this.authService.getRole();
+  rolLabel = '';
+  contextLabel = '';
+  menuGroups: MenuGroup[] = [];
+
+  ngOnInit(): void {
+    this.refreshMenuContext();
   }
 
-  get menuGroups(): MenuGroup[] {
+  private refreshMenuContext(): void {
+    this.user = this.authService.getCurrentUser();
+    this.currentRole = this.authService.getRole();
+    this.rolLabel = this.currentRole ? ROLE_LABELS[this.currentRole] : '';
+
+    const u = this.user;
+    if (!u) {
+      this.contextLabel = '';
+    } else if (u.role === Role.SUPER_ADMIN) {
+      this.contextLabel = 'Red Nacional EasyDry®';
+    } else if (u.role === Role.OPERADOR && u.bahiaNombre) {
+      this.contextLabel = `${u.sucursalNombre} · ${u.bahiaNombre}`;
+    } else {
+      this.contextLabel = u.sucursalNombre || '';
+    }
+
     const items = this.permissionService.getMenuForCurrentRole();
     const groups: Record<string, MenuGroup> = {};
-
     for (const item of items) {
       const g = item.group || 'General';
       if (!groups[g]) groups[g] = { title: g, items: [] };
       groups[g].items.push(item);
     }
+    this.menuGroups = Object.values(groups);
+  }
 
-    return Object.values(groups);
+  onHover(hovered: boolean): void {
+    if (this.hoverTimer) {
+      clearTimeout(this.hoverTimer);
+      this.hoverTimer = null;
+    }
+    // Evita thrashing de CD al pasar rápido el mouse por el borde del rail
+    this.hoverTimer = setTimeout(() => {
+      this.isHovered.set(hovered);
+      this.hoverTimer = null;
+    }, hovered ? 40 : 120);
   }
 
   closeMobile() {

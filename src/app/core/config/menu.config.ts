@@ -72,7 +72,15 @@ export const MENU_CONFIG: MenuItem[] = [
     icon: 'car',
     group: 'Servicios de Lavado',
     badge: 'Hoy',
-    roles: [Role.SUPER_ADMIN, Role.GERENTE, Role.SUPERVISOR, Role.OPERADOR]
+    roles: [Role.SUPER_ADMIN, Role.GERENTE, Role.SUPERVISOR]
+  },
+  {
+    label: 'Mis Servicios',
+    route: '/servicios',
+    icon: 'car',
+    group: 'Mi Área',
+    badge: 'Hoy',
+    roles: [Role.OPERADOR]
   },
   {
     label: 'Aprobaciones del Día',
@@ -98,13 +106,6 @@ export const MENU_CONFIG: MenuItem[] = [
     label: 'Mi Bahía',
     route: '/mi-bahia',
     icon: 'map-pin',
-    group: 'Mi Área',
-    roles: [Role.OPERADOR]
-  },
-  {
-    label: 'Mis Evidencias',
-    route: '/servicios',
-    icon: 'image',
     group: 'Mi Área',
     roles: [Role.OPERADOR]
   },

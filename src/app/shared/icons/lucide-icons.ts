@@ -15,6 +15,7 @@ import {
   Plus,
   Filter,
   CheckCircle2,
+  CheckCircle,
   Clock,
   ShieldCheck,
   ChevronRight,
@@ -22,6 +23,7 @@ import {
   Eye,
   Play,
   X,
+  XCircle,
   ChevronDown,
   Sparkles,
   RefreshCw,
@@ -44,11 +46,15 @@ import {
   LogIn,
   User,
   Calendar,
+  CalendarDays,
   Map,
   Star,
   CheckSquare,
   Pencil,
-  Menu
+  Menu,
+  Film,
+  Palette,
+  LayoutGrid
 } from 'lucide-angular';
 
 export const EASYDRY_ICONS = {
@@ -69,6 +75,7 @@ export const EASYDRY_ICONS = {
   Plus,
   Filter,
   CheckCircle2,
+  CheckCircle,
   Clock,
   ShieldCheck,
   ChevronRight,
@@ -76,6 +83,7 @@ export const EASYDRY_ICONS = {
   Eye,
   Play,
   X,
+  XCircle,
   ChevronDown,
   Sparkles,
   RefreshCw,
@@ -98,11 +106,15 @@ export const EASYDRY_ICONS = {
   LogIn,
   User,
   Calendar,
+  CalendarDays,
   Map,
   Star,
   CheckSquare,
   Pencil,
   Menu,
+  Film,
+  Palette,
+  LayoutGrid,
 
   // Kebab-case mappings
   'layout-dashboard': LayoutDashboard,
@@ -121,6 +133,7 @@ export const EASYDRY_ICONS = {
   'plus': Plus,
   'filter': Filter,
   'check-circle-2': CheckCircle2,
+  'check-circle': CheckCircle,
   'clock': Clock,
   'shield-check': ShieldCheck,
   'chevron-right': ChevronRight,
@@ -128,6 +141,7 @@ export const EASYDRY_ICONS = {
   'eye': Eye,
   'play': Play,
   'x': X,
+  'x-circle': XCircle,
   'chevron-down': ChevronDown,
   'sparkles': Sparkles,
   'refresh-cw': RefreshCw,
@@ -150,9 +164,13 @@ export const EASYDRY_ICONS = {
   'log-in': LogIn,
   'user': User,
   'calendar': Calendar,
+  'calendar-days': CalendarDays,
   'map': Map,
   'star': Star,
   'check-square': CheckSquare,
   'pencil': Pencil,
-  'menu': Menu
+  'menu': Menu,
+  'film': Film,
+  'palette': Palette,
+  'layout-grid': LayoutGrid
 };

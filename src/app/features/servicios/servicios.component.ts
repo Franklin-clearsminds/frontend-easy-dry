@@ -501,6 +501,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
 })
 export class ServiciosComponent implements OnInit {
   servicios: VehiculoServicio[] = [];
+  serviciosFiltrados: VehiculoServicio[] = [];
   servicioSeleccionado?: VehiculoServicio;
 
   filtroTexto = '';
@@ -516,6 +517,7 @@ export class ServiciosComponent implements OnInit {
 
   aplicarFiltros() {
     this.currentPage = 1;
+    this.recalcularServiciosFiltrados();
   }
 
   currentPage = 1;
@@ -593,6 +595,7 @@ export class ServiciosComponent implements OnInit {
 
     this.servicioService.getServicios().subscribe(list => {
       this.servicios = list;
+      this.recalcularServiciosFiltrados();
     });
 
     this.catalogoMock.getServiciosActivos().subscribe(cat => {
@@ -628,35 +631,26 @@ export class ServiciosComponent implements OnInit {
    * - GERENTE: solo ve servicios de su sucursal
    * - SUPER_ADMIN: ve todos
    */
-  get serviciosFiltrados() {
+  private recalcularServiciosFiltrados(): void {
     const user = this.authService.getCurrentUser();
     const role = this.authService.getRole();
+    const texto = this.filtroTexto.toLowerCase();
 
     let resultados = this.servicios.filter(s => {
       // ── Scope por Rol ──
       if (role === Role.OPERADOR && user) {
-        // El operador solo ve sus propios registros
         const mismoOperador = s.empleado?.toLowerCase().includes(user.nombre.toLowerCase());
         if (!mismoOperador) return false;
-      } else if (role === Role.GERENTE && user?.sucursalNombre) {
-        // El gerente solo ve su sucursal
-        const mismoSucursal = s.agencia?.toLowerCase().includes(
-          user.sucursalNombre!.replace('EasyDry ', '').toLowerCase()
-        );
-        if (!mismoSucursal) return false;
-      } else if (role === Role.SUPERVISOR && user?.sucursalNombre) {
-        // El supervisor solo ve su sucursal
+      } else if ((role === Role.GERENTE || role === Role.SUPERVISOR) && user?.sucursalNombre) {
         const mismoSucursal = s.agencia?.toLowerCase().includes(
           user.sucursalNombre!.replace('EasyDry ', '').toLowerCase()
         );
         if (!mismoSucursal) return false;
       }
-      // SUPER_ADMIN: sin filtro adicional
 
-      // ── Filtros de UI ──
-      const matchTexto = !this.filtroTexto ||
-        s.placa.toLowerCase().includes(this.filtroTexto.toLowerCase()) ||
-        (s.ordenTrabajoOT && s.ordenTrabajoOT.toLowerCase().includes(this.filtroTexto.toLowerCase()));
+      const matchTexto = !texto ||
+        s.placa.toLowerCase().includes(texto) ||
+        (s.ordenTrabajoOT?.toLowerCase().includes(texto) ?? false);
       const matchCat = this.filtroCategoria === 'Todas' || s.categoriaServicio === this.filtroCategoria;
 
       return matchTexto && matchCat;
@@ -674,7 +668,8 @@ export class ServiciosComponent implements OnInit {
     if (this.filtrosGlobales.operador !== 'Todos') {
       resultados = resultados.filter(s => s.empleado?.includes(this.filtrosGlobales.operador));
     }
-    return resultados;
+
+    this.serviciosFiltrados = resultados;
   }
 
   get paginatedServicios() {
@@ -701,6 +696,7 @@ export class ServiciosComponent implements OnInit {
     this.servicioService.crearRegistroHojaServicio(this.nuevoRegistro as any).subscribe(creado => {
       this.toastService.success('Hoja de Control Creada', `Servicio ${creado.ordenTrabajoOT} (${creado.placa}) registrado en estado EN PROCESO.`);
       this.modalNuevoRegistroOpen = false;
+      this.recalcularServiciosFiltrados();
     });
   }
 
@@ -708,6 +704,7 @@ export class ServiciosComponent implements OnInit {
     this.servicioService.finalizarServicioOperador(item.id).subscribe(res => {
       if (res) {
         this.toastService.success('Servicio Finalizado', `Vehículo ${item.placa} finalizado. Enviado a Aprobación del Gerente.`);
+        this.recalcularServiciosFiltrados();
       }
     });
   }
@@ -716,6 +713,7 @@ export class ServiciosComponent implements OnInit {
     this.servicioService.aprobarServicioGerente(item.id).subscribe(res => {
       if (res) {
         this.toastService.success('Servicio Aprobado', `Servicio ${item.placa} aprobado por Gerencia.`);
+        this.recalcularServiciosFiltrados();
       }
     });
   }
