@@ -8,9 +8,11 @@ import { LucideAngularModule } from 'lucide-angular';
   imports: [CommonModule, LucideAngularModule],
   template: `
     @if (isOpen) {
-      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in">
+      <div class="fixed inset-0 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in"
+           [ngClass]="zClass">
         <div 
-          class="bg-white rounded-3xl shadow-2xl border border-slate-100 w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh] animate-fade-in">
+          class="bg-white rounded-3xl shadow-2xl border border-slate-100 w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh] animate-fade-in"
+          (click)="$event.stopPropagation()">
           
           <!-- Modal Header -->
           <div class="px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-easydry-blue to-easydry-blue-dark text-white flex items-center justify-between">
@@ -48,6 +50,8 @@ export class ModalComponent {
   @Input() isOpen = false;
   @Input() title = '';
   @Input() icon = '';
+  /** Permite apilar modales (ej. z-[60] sobre una ficha z-50). */
+  @Input() zClass = 'z-50';
   @Output() close = new EventEmitter<void>();
 
   closeModal() {

@@ -375,6 +375,124 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
         </div>
       </app-modal>
 
+      <!-- Modal Reportar Fallo (desde Ficha) -->
+      <app-modal
+        [isOpen]="modalReportarOpen"
+        title="Reportar Fallo / Avería"
+        icon="alert-triangle"
+        zClass="z-[60]"
+        (close)="modalReportarOpen = false">
+
+        @if (maquinaSeleccionada) {
+          <form (ngSubmit)="guardarReporteFallo()" class="space-y-4">
+            <div class="p-3 bg-rose-50 rounded-xl border border-rose-100 text-xs">
+              <p class="font-bold text-slate-800">Equipo</p>
+              <p class="text-slate-600 mt-0.5">{{ maquinaSeleccionada.codigo }} — {{ maquinaSeleccionada.nombre }}</p>
+              <p class="text-slate-500 mt-1">{{ maquinaSeleccionada.agencia }} · {{ maquinaSeleccionada.bahia }}</p>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Tipo de Falla</label>
+                <select [(ngModel)]="nuevoIncidente.tipo" name="tipoFallo" class="w-full p-2.5 border rounded-xl text-sm font-semibold">
+                  <option value="Fuga de agua">Fuga de agua</option>
+                  <option value="Falla eléctrica">Falla eléctrica</option>
+                  <option value="Problema hidráulico">Problema hidráulico</option>
+                  <option value="Baja presión">Baja presión</option>
+                  <option value="Manguera dañada">Manguera dañada</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Prioridad</label>
+                <select [(ngModel)]="nuevoIncidente.prioridad" name="prioridadFallo" class="w-full p-2.5 border rounded-xl text-sm font-semibold">
+                  <option value="Baja">Baja</option>
+                  <option value="Media">Media</option>
+                  <option value="Alta">Alta</option>
+                  <option value="Crítica">Crítica</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Descripción del Problema</label>
+              <textarea
+                [(ngModel)]="nuevoIncidente.descripcion"
+                name="descFallo"
+                rows="3"
+                placeholder="Describa el fallo observado en el equipo..."
+                class="w-full p-2.5 border rounded-xl text-sm"
+                required></textarea>
+            </div>
+          </form>
+        }
+
+        <div modal-footer>
+          <button (click)="modalReportarOpen = false" class="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs">Cancelar</button>
+          <button (click)="guardarReporteFallo()" class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs">Registrar Reporte</button>
+        </div>
+      </app-modal>
+
+      <!-- Modal Programar Mantenimiento (desde Ficha) -->
+      <app-modal
+        [isOpen]="modalProgramarOpen"
+        title="Programar Mantenimiento"
+        icon="calendar-clock"
+        zClass="z-[60]"
+        (close)="modalProgramarOpen = false">
+
+        @if (maquinaSeleccionada) {
+          <form (ngSubmit)="guardarProgramacionMantenimiento()" class="space-y-4">
+            <div class="p-3 bg-amber-50 rounded-xl border border-amber-100 text-xs">
+              <p class="font-bold text-slate-800">Equipo</p>
+              <p class="text-slate-600 mt-0.5">{{ maquinaSeleccionada.codigo }} — {{ maquinaSeleccionada.nombre }}</p>
+              <p class="text-slate-500 mt-1">{{ maquinaSeleccionada.agencia }} · {{ maquinaSeleccionada.bahia }}</p>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Tipo de Intervención</label>
+                <select [(ngModel)]="nuevoMantenimiento.tipo" name="tipoMant" class="w-full p-2.5 border rounded-xl text-sm font-semibold">
+                  <option value="Preventivo">Preventivo</option>
+                  <option value="Correctivo">Correctivo</option>
+                  <option value="Calibración">Calibración</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Fecha Programada</label>
+                <input type="date" [(ngModel)]="nuevoMantenimiento.fecha" name="fechaMant" class="w-full p-2.5 border rounded-xl text-sm" required>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Técnico / Especialista</label>
+                <input type="text" [(ngModel)]="nuevoMantenimiento.tecnico" name="tecnicoMant" placeholder="Ing. Esteban Torres" class="w-full p-2.5 border rounded-xl text-sm" required>
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Costo Estimado ($)</label>
+                <input type="number" [(ngModel)]="nuevoMantenimiento.costo" name="costoMant" class="w-full p-2.5 border rounded-xl text-sm" min="0" required>
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Descripción del Trabajo</label>
+              <textarea
+                [(ngModel)]="nuevoMantenimiento.descripcion"
+                name="descMant"
+                rows="3"
+                placeholder="Detalle de tareas, repuestos y alcance..."
+                class="w-full p-2.5 border rounded-xl text-sm"
+                required></textarea>
+            </div>
+          </form>
+        }
+
+        <div modal-footer>
+          <button (click)="modalProgramarOpen = false" class="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs">Cancelar</button>
+          <button (click)="guardarProgramacionMantenimiento()" class="px-4 py-2 bg-easydry-blue hover:bg-easydry-blue-dark text-white font-bold rounded-xl text-xs">Guardar Mantenimiento</button>
+        </div>
+      </app-modal>
+
     </div>
   `
 })
@@ -389,6 +507,22 @@ export class MaquinariaComponent implements OnInit {
   modalFichaOpen = false;
   modalTransferirOpen = false;
   modalCrearOpen = false;
+  modalReportarOpen = false;
+  modalProgramarOpen = false;
+
+  nuevoIncidente = {
+    tipo: 'Falla eléctrica' as Incidente['tipo'],
+    prioridad: 'Alta' as Incidente['prioridad'],
+    descripcion: ''
+  };
+
+  nuevoMantenimiento = {
+    tipo: 'Preventivo' as Mantenimiento['tipo'],
+    fecha: new Date().toISOString().substring(0, 10),
+    tecnico: '',
+    costo: 0,
+    descripcion: ''
+  };
 
   transferencia = {
     sucursalNueva: 'EasyDry Quito Sur',
@@ -558,10 +692,79 @@ export class MaquinariaComponent implements OnInit {
   }
 
   reportarFallo() {
-    this.toastService.info('Módulo en Desarrollo', 'La pantalla para reportar un nuevo fallo está en construcción.');
+    if (!this.maquinaSeleccionada) return;
+    this.nuevoIncidente = {
+      tipo: 'Falla eléctrica',
+      prioridad: 'Alta',
+      descripcion: ''
+    };
+    this.modalReportarOpen = true;
   }
 
   programarMantenimiento() {
-    this.toastService.info('Módulo en Desarrollo', 'La pantalla para programar mantenimientos está en construcción.');
+    if (!this.maquinaSeleccionada) return;
+    const user = this.authService.getCurrentUser();
+    this.nuevoMantenimiento = {
+      tipo: 'Preventivo',
+      fecha: new Date().toISOString().substring(0, 10),
+      tecnico: user ? `${user.nombre} ${user.apellido}` : 'Esteban Torres',
+      costo: 0,
+      descripcion: ''
+    };
+    this.modalProgramarOpen = true;
+  }
+
+  guardarReporteFallo() {
+    if (!this.maquinaSeleccionada) return;
+    if (!this.nuevoIncidente.descripcion.trim()) {
+      this.toastService.warning('Descripción Requerida', 'Escriba el fallo presentado por la máquina.');
+      return;
+    }
+
+    const usuario = this.authService.getCurrentUser();
+    const reportadoPor = usuario ? `${usuario.nombre} ${usuario.apellido}` : 'Operador';
+
+    const registro: Omit<Incidente, 'id'> = {
+      codigoIncidente: '',
+      maquina: this.maquinaSeleccionada.nombre,
+      agencia: this.maquinaSeleccionada.agencia,
+      fecha: new Date().toISOString().replace('T', ' ').substring(0, 16),
+      tipo: this.nuevoIncidente.tipo,
+      prioridad: this.nuevoIncidente.prioridad,
+      estado: 'Pendiente',
+      descripcion: this.nuevoIncidente.descripcion.trim(),
+      reportadoPor
+    };
+
+    this.incidenteService.crearIncidente(registro).subscribe(creado => {
+      this.incidentesMaquina = [creado, ...this.incidentesMaquina];
+      this.toastService.success('Reporte Creado', `Incidente ${creado.codigoIncidente} registrado en estado Pendiente.`);
+      this.modalReportarOpen = false;
+    });
+  }
+
+  guardarProgramacionMantenimiento() {
+    if (!this.maquinaSeleccionada) return;
+    if (!this.nuevoMantenimiento.descripcion.trim() || !this.nuevoMantenimiento.tecnico.trim()) {
+      this.toastService.warning('Campos Requeridos', 'Complete técnico y descripción del trabajo.');
+      return;
+    }
+
+    const registro: Omit<Mantenimiento, 'id'> = {
+      maquina: this.maquinaSeleccionada.nombre,
+      tipo: this.nuevoMantenimiento.tipo,
+      fecha: this.nuevoMantenimiento.fecha,
+      tecnico: this.nuevoMantenimiento.tecnico.trim(),
+      estado: 'Programado',
+      costo: Number(this.nuevoMantenimiento.costo) || 0,
+      descripcion: this.nuevoMantenimiento.descripcion.trim(),
+      agencia: this.maquinaSeleccionada.agencia
+    };
+
+    this.mantenimientoService.registrarMantenimiento(registro).subscribe(creado => {
+      this.mantenimientosMaquina = [creado, ...this.mantenimientosMaquina];
+      this.toastService.success('Mantenimiento Agendado', `Visita programada para ${creado.maquina} el ${creado.fecha}.`);
+      this.modalProgramarOpen = false;
+    });
   }
 }
