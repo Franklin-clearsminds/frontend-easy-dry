@@ -1,0 +1,9 @@
+{
+  "name": "easydry-serverless",
+  "private": true,
+  "version": "1.0.0",
+  "description": "API serverless EasyDry (Lambda + DynamoDB). Vive dentro de frontend-easy-dry, no es un repo aparte.",
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  }
+}

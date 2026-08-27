@@ -1,0 +1,41 @@
+openapi: 3.1.0
+info:
+  title: EasyDry API
+  version: 1.0.0
+servers:
+  - url: /api/v1
+paths:
+  /me:
+    get:
+      summary: Perfil y permisos del usuario autenticado
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Usuario actual
+  /work-orders:
+    get:
+      summary: Listar órdenes de trabajo
+    post:
+      summary: Crear OT
+  /work-orders/{id}/complete:
+    post:
+      summary: Completar OT
+  /work-orders/{id}/approve:
+    post:
+      summary: Aprobar OT
+  /work-orders/{id}/reject:
+    post:
+      summary: Rechazar OT
+  /branches:
+    get:
+      summary: Listar sucursales
+  /files/presign:
+    post:
+      summary: URL prefirmada S3
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

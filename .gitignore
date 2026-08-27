@@ -21,6 +21,8 @@ pnpm-debug.log*
 .env.development.local
 .env.test.local
 .env.production.local
+!.env.example
+!serverless/.env.example
 
 # IDEs and Editors
 .vscode/*
@@ -38,3 +40,12 @@ pnpm-debug.log*
 # Operating System
 .DS_Store
 Thumbs.db
+
+# Serverless (deps propias, no del build Angular)
+/serverless/node_modules
+/serverless/dist
+
+# Documentación local (no subir a GitHub)
+/docs/
+**/ARQUITECTURA-EASDRY.md
+**/CONTEXTO-PROYECTOS.md
