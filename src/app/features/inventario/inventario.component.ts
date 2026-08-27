@@ -464,7 +464,7 @@ import {
                     <th class="py-3 px-3">Fecha</th>
                     <th class="py-3 px-3">Tipo de Operación</th>
                     <th class="py-3 px-4">Insumo / Producto</th>
-                    <th class="py-3 px-3">Origen ➔ Destino</th>
+                    <th class="py-3 px-3">Origen / Destino</th>
                     <th class="py-3 px-3 text-center">Cantidad</th>
                     <th class="py-3 px-4">Responsable</th>
                   </tr>
@@ -485,7 +485,7 @@ import {
                         </span>
                       </td>
                       <td class="py-3 px-4 font-semibold text-slate-900">{{ mov.productoNombre }}</td>
-                      <td class="py-3 px-3 text-slate-600 font-medium">{{ mov.origen }} ➔ <strong class="text-easydry-blue">{{ mov.destino }}</strong></td>
+                      <td class="py-3 px-3 text-slate-600 font-medium">{{ mov.origen }} &rarr; <strong class="text-easydry-blue">{{ mov.destino }}</strong></td>
                       <td class="py-3 px-3 text-center font-mono font-extrabold text-slate-800">{{ mov.cantidad }} {{ mov.unidad }}</td>
                       <td class="py-3 px-4 text-slate-500">{{ mov.responsable }}</td>
                     </tr>
@@ -567,9 +567,10 @@ import {
                       <!-- Tipo Aplicable -->
                       <td class="py-3.5 px-4 text-center">
                         <span 
-                          class="px-2.5 py-1 rounded-full text-[10px] font-extrabold inline-flex items-center gap-1"
+                          class="px-2.5 py-1 rounded-full text-[10px] font-extrabold inline-flex items-center gap-1.5"
                           [ngClass]="e.tipoAplicable === 'liquido' ? 'bg-blue-100 text-blue-800 border border-blue-200' : 'bg-amber-100 text-amber-800 border border-amber-200'">
-                          {{ e.tipoAplicable === 'liquido' ? '💧 Líquidos / Granel' : '📦 Unitario / Conteo' }}
+                          <i-lucide [name]="e.tipoAplicable === 'liquido' ? 'droplet' : 'package'" class="w-3 h-3"></i-lucide>
+                          <span>{{ e.tipoAplicable === 'liquido' ? 'Líquidos / Granel' : 'Unitario / Conteo' }}</span>
                         </span>
                       </td>
 
@@ -632,9 +633,10 @@ import {
                   <span class="font-mono text-[10px] font-bold text-slate-500 bg-white px-2 py-0.5 rounded border">
                     {{ al.productoSKU }}
                   </span>
-                  <span class="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold"
+                  <span class="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold inline-flex items-center gap-1"
                     [ngClass]="al.nivel === 'Critico' ? 'bg-rose-100 text-rose-800 border border-rose-300' : 'bg-amber-100 text-amber-800 border border-amber-300'">
-                    {{ al.nivel === 'Critico' ? '🚨 Stock Crítico' : '⚠️ Stock Bajo' }}
+                    <i-lucide [name]="al.nivel === 'Critico' ? 'alert-octagon' : 'alert-triangle'" class="w-3 h-3"></i-lucide>
+                    <span>{{ al.nivel === 'Critico' ? 'Stock Crítico' : 'Stock Bajo' }}</span>
                   </span>
                 </div>
 

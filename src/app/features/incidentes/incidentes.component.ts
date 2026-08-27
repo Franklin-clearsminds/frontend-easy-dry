@@ -339,7 +339,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
             </div>
           </div>
 
-          <!-- 📸 Subida de Fotos y Videos de Reparación -->
+          <!-- Subida de Fotos y Videos de Reparación -->
           <div class="border-2 border-dashed border-emerald-200 bg-emerald-50/40 rounded-2xl p-4 space-y-3">
             <div class="flex items-center justify-between">
               <label class="text-xs font-bold text-emerald-900 uppercase flex items-center gap-1.5">
@@ -394,7 +394,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
             }
           </div>
 
-          <!-- 📄 Subida de Documentos Técnicos, Facturas y Garantías -->
+          <!-- Subida de Documentos Técnicos, Facturas y Garantías -->
           <div class="border-2 border-dashed border-indigo-200 bg-indigo-50/40 rounded-2xl p-4 space-y-3">
             <div class="flex items-center justify-between">
               <label class="text-xs font-bold text-indigo-900 uppercase flex items-center gap-1.5">

@@ -36,7 +36,7 @@ import { Agencia } from '../../core/models';
             </div>
           </div>
           <div>
-            <h2 class="text-2xl font-extrabold font-outfit text-white tracking-wide">🏆 Reto EasyDry - "Cero Reclamos & Máximo Rendimiento"</h2>
+            <h2 class="text-2xl font-extrabold font-outfit text-white tracking-wide">Reto EasyDry - "Cero Reclamos & Máximo Rendimiento"</h2>
             <p class="text-xs text-easydry-lime font-medium">Competencia mensual entre agencias y técnicos especialistas</p>
           </div>
         </div>
@@ -65,7 +65,10 @@ import { Agencia } from '../../core/models';
             </div>
             <div class="mt-4 pt-3 border-t border-white/10 flex items-center justify-between text-xs">
               <span class="text-slate-300">42 Tratamientos Cerámicos</span>
-              <span class="font-extrabold text-easydry-lime">⭐ 5.0 Rating</span>
+              <span class="font-extrabold text-easydry-lime flex items-center gap-1">
+                <i-lucide name="star" class="w-3.5 h-3.5 fill-easydry-lime text-easydry-lime"></i-lucide>
+                <span>5.0 Rating</span>
+              </span>
             </div>
           </div>
 

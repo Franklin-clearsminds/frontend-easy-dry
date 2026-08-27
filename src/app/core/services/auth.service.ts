@@ -71,6 +71,26 @@ export class AuthService {
     this.currentUserSubject.next(user);
   }
 
+  updateProfile(data: Partial<UsuarioAuth>): Observable<{ success: boolean; user: UsuarioAuth }> {
+    const current = this.getCurrentUser();
+    const updated: UsuarioAuth = {
+      ...current,
+      ...data
+    };
+    this.setUser(updated);
+    return of({ success: true, user: updated }).pipe(delay(200));
+  }
+
+  changePassword(actual: string, nueva: string): Observable<{ success: boolean; message?: string }> {
+    if (!actual || !nueva) {
+      return of({ success: false, message: 'Todos los campos son obligatorios.' });
+    }
+    if (nueva.length < 6) {
+      return of({ success: false, message: 'La nueva contraseña debe tener al menos 6 caracteres.' });
+    }
+    return of({ success: true, message: 'Contraseña actualizada correctamente.' }).pipe(delay(250));
+  }
+
   logout(): void {
     localStorage.removeItem(STORAGE_KEY);
     this.currentUserSubject.next(null);

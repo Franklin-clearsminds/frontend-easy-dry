@@ -21,7 +21,7 @@ import { Sucursal, Bahia } from '../../core/models';
             <span>Estructura Jerárquica Operativa</span>
           </div>
           <h1 class="text-2xl md:text-3xl font-extrabold font-outfit">Mapa Operativo en Tiempo Real</h1>
-          <p class="text-slate-300 text-xs mt-1">Trazabilidad visual: Sucursal ➔ Bahía ➔ Operador ➔ Maquinaria Asignada</p>
+          <p class="text-slate-300 text-xs mt-1">Trazabilidad visual: Sucursal &rarr; Bahía &rarr; Operador &rarr; Maquinaria Asignada</p>
         </div>
 
         <div class="flex items-center gap-2 bg-white/10 p-2 rounded-2xl border border-white/10 text-xs font-semibold">
@@ -35,9 +35,9 @@ import { Sucursal, Bahia } from '../../core/models';
         <div class="flex items-center gap-3">
           <span class="text-xs font-bold text-slate-700">Filtrar por Sucursal:</span>
           <select [(ngModel)]="sucursalFiltro" class="bg-slate-50 border border-slate-200 text-xs font-bold rounded-xl px-3.5 py-2 text-easydry-blue">
-            <option value="Todas">🏢 Mostrar Todas las Sucursales</option>
+            <option value="Todas">Mostrar Todas las Sucursales</option>
             @for (s of sucursales; track s.id) {
-              <option [value]="s.nombre">📍 {{ s.nombre }}</option>
+              <option [value]="s.nombre">{{ s.nombre }}</option>
             }
           </select>
         </div>
@@ -73,7 +73,7 @@ import { Sucursal, Bahia } from '../../core/models';
               </div>
             </div>
 
-            <!-- Level 2 & 3 & 4: BAHÍAS ➔ OPERADOR ➔ MAQUINARIA NODES -->
+            <!-- Level 2 & 3 & 4: BAHÍAS -> OPERADOR -> MAQUINARIA NODES -->
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
               @for (b of getBahiasPorSucursal(suc.id); track b.id) {
                 <div 

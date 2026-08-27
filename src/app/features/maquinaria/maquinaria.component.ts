@@ -200,7 +200,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                 @for (mov of movimientosMaquina; track mov.id) {
                   <div class="p-3 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between text-xs">
                     <div>
-                      <p class="font-bold text-slate-900">{{ mov.sucursalAnterior }} ➔ {{ mov.sucursalNueva }}</p>
+                      <p class="font-bold text-slate-900">{{ mov.sucursalAnterior }} &rarr; {{ mov.sucursalNueva }}</p>
                       <p class="text-[11px] text-slate-500">Motivo: {{ mov.motivo }}</p>
                     </div>
                     <span class="font-mono text-slate-500 text-[10px]">{{ mov.fecha }}</span>

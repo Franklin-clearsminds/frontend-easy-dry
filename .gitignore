@@ -1,11 +1,13 @@
 # Dependencies
 /node_modules
 /.pnpm-store
+.pnpm-store/
 
 # Angular / Build output
 /.angular
 /dist
 /tmp
+/out-tsc
 /out-pro
 
 # Logs
@@ -15,12 +17,12 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# Runtime data / Environment
+# Runtime data / Environment & Secrets
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.*
+!.env.example
+*.pem
+*.key
 
 # IDEs and Editors
 .vscode/*
@@ -28,7 +30,8 @@ pnpm-debug.log*
 !.vscode/tasks.json
 !.vscode/launch.json
 !.vscode/extensions.json
-.idea
+.idea/
+.vs/
 *.suo
 *.ntvs*
 *.njsproj
@@ -37,4 +40,17 @@ pnpm-debug.log*
 
 # Operating System
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
 Thumbs.db
+ehthumbs.db
+desktop.ini
+
+# AI & Assistant Temp Configs
+.claude/
+CLAUDE.md
+AGENTS.md
+.gemini/
+.agents/

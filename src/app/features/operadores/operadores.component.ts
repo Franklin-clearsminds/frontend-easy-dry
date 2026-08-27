@@ -191,7 +191,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                     <div class="text-right font-mono font-semibold text-slate-600">
                       <span>{{ h.fechaInicio }}</span>
                       @if (h.fechaFin) {
-                        <span> ➔ {{ h.fechaFin }}</span>
+                        <span> &rarr; {{ h.fechaFin }}</span>
                       } @else {
                         <span class="text-easydry-green-dark font-bold"> (Actual)</span>
                       }

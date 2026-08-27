@@ -804,7 +804,7 @@ export class InventarioMockService {
         const minSucursal = item.producto.stockAlertaSucursal ?? Math.ceil((item.producto.stockMinimoGlobal ?? 10) / 4);
         if (item.stockPorSucursal[sucursalNombre] <= minSucursal) {
           alertasGeneradas.push(
-            `⚠️ Quedan solo ${item.stockPorSucursal[sucursalNombre]} ${item.producto.unidadMedida} de "${item.producto.nombre}" en ${sucursalNombre}.`
+            `Quedan solo ${item.stockPorSucursal[sucursalNombre]} ${item.producto.unidadMedida} de "${item.producto.nombre}" en ${sucursalNombre}.`
           );
         }
       }

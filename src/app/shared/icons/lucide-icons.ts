@@ -72,7 +72,13 @@ import {
   Box,
   LayoutList,
   Save,
-  Loader
+  Loader,
+  AlertOctagon,
+  ArrowRight,
+  Camera,
+  Upload,
+  Key,
+  EyeOff
 } from 'lucide-angular';
 
 export const EASYDRY_ICONS = {
@@ -151,6 +157,9 @@ export const EASYDRY_ICONS = {
   LayoutList,
   Save,
   Loader,
+  AlertOctagon,
+  ArrowRight,
+  Camera,
 
   // Kebab-case mappings
   'layout-dashboard': LayoutDashboard,
@@ -226,5 +235,11 @@ export const EASYDRY_ICONS = {
   'box': Box,
   'layout-list': LayoutList,
   'save': Save,
-  'loader': Loader
+  'loader': Loader,
+  'alert-octagon': AlertOctagon,
+  'arrow-right': ArrowRight,
+  'camera': Camera,
+  'upload': Upload,
+  'key': Key,
+  'eye-off': EyeOff
 };
