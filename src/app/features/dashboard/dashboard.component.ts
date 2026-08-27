@@ -63,7 +63,7 @@ export class DashboardComponent implements OnInit {
   fechaActual = new Date();
   
   // Helpers Roles (cacheados para no recalcular en cada CD)
-  currentRole: Role | null = null;
+  currentRole: Role | string | null = null;
   isSuperAdmin = false;
   isGerente = false;
   isSupervisor = false;
@@ -75,25 +75,14 @@ export class DashboardComponent implements OnInit {
   contextLabel = '';
 
   ngOnInit(): void {
-    this.currentRole = this.auth.getRole();
-    this.isSuperAdmin = this.auth.hasRole(Role.SUPER_ADMIN);
-    this.isGerente = this.auth.hasRole(Role.GERENTE);
-    this.isSupervisor = this.auth.hasRole(Role.SUPERVISOR);
-    this.isOperador = this.auth.hasRole(Role.OPERADOR);
-    this.isTecnico = this.auth.hasRole(Role.TECNICO);
-    this.sucursalNombre = this.auth.getCurrentUser()?.sucursalNombre || '';
-    this.bahiaNombre = this.auth.getCurrentUser()?.bahiaNombre || '';
-    this.rolLabel = this.currentRole ? ROLE_LABELS[this.currentRole] : '';
-
-    if (this.isSuperAdmin) this.contextLabel = 'Red Nacional EasyDry';
-    else if (this.isGerente || this.isSupervisor || this.isTecnico) this.contextLabel = this.sucursalNombre;
-    else if (this.isOperador) this.contextLabel = `${this.bahiaNombre} - ${this.sucursalNombre}`;
-    else this.contextLabel = 'EasyDry';
-
-    // Operador/Técnico no necesitan la carga pesada de charts globales
-    if (this.isOperador) {
-      return;
-    }
+    this.currentRole = Role.SUPER_ADMIN;
+    this.isSuperAdmin = true;
+    this.isGerente = false;
+    this.isSupervisor = false;
+    this.isOperador = false;
+    this.isTecnico = false;
+    this.rolLabel = 'Super Administrador';
+    this.contextLabel = 'Red Nacional EasyDry®';
 
     this.dashboardService.getProduccion().subscribe(d => {
       this.baseProduccion = JSON.parse(JSON.stringify(d));
@@ -157,5 +146,16 @@ export class DashboardComponent implements OnInit {
     // Reasignar referencias para disparar actualización
     this.produccion = prod;
     this.serviciosData = serv;
+  }
+
+  resetFiltros() {
+    this.sucursalFilter = 'Todas';
+    this.modeloFilter = 'Todos';
+    this.colorFilter = 'Todos';
+    this.fechaFilter = 'Hoy';
+    this.fechaInicio = '';
+    this.fechaFin = '';
+    this.produccion = JSON.parse(JSON.stringify(this.baseProduccion));
+    this.serviciosData = JSON.parse(JSON.stringify(this.baseServiciosData));
   }
 }

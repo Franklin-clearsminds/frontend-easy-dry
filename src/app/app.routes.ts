@@ -20,6 +20,7 @@ import { MapaOperativoComponent } from './features/mapa-operativo/mapa-operativo
 import { MiBahiaComponent } from './features/mi-bahia/mi-bahia.component';
 import { UnauthorizedComponent } from './features/unauthorized/unauthorized.component';
 import { PerfilComponent } from './features/perfil/perfil.component';
+import { InventarioComponent } from './features/inventario/inventario.component';
 import { authGuard, roleGuard } from './core/guards/auth.guard';
 import { Role } from './core/models/roles.model';
 
@@ -123,6 +124,13 @@ export const routes: Routes = [
       {
         path: 'taller-tecnico',
         component: TallerTecnicoComponent,
+        canActivate: [authGuard, roleGuard([Role.SUPER_ADMIN, Role.GERENTE, Role.SUPERVISOR, Role.TECNICO])]
+      },
+
+      // ── Inventario de Insumos & Bodega ──
+      {
+        path: 'inventario',
+        component: InventarioComponent,
         canActivate: [authGuard, roleGuard([Role.SUPER_ADMIN, Role.GERENTE, Role.SUPERVISOR, Role.TECNICO])]
       },
 

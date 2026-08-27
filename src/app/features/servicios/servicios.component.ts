@@ -4,11 +4,13 @@ import { FormsModule } from '@angular/forms';
 import { LucideAngularModule } from 'lucide-angular';
 import { ServicioLavadoMockService } from '../../core/services/servicio-lavado-mock.service';
 import { AuthService } from '../../core/services/auth.service';
-import { VehiculoServicio, CatalogoServicio } from '../../core/models';
+import { InventarioMockService } from '../../core/services/inventario-mock.service';
+import { VehiculoServicio, CatalogoServicio, InsumoConsumidoServicio, InventarioItem } from '../../core/models';
 import { ModalComponent } from '../../shared/components/modal/modal.component';
 import { ToastService } from '../../shared/services/toast.service';
 import { Role } from '../../core/models/roles.model';
 import { CatalogoServiciosMockService } from '../../core/services/catalogo-servicios-mock.service';
+import { ServiciosExtrasMockService } from '../../core/services/servicios-extras-mock.service';
 import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
 import { FilterBarComponent, FilterState } from '../../shared/components/filter-bar/filter-bar.component';
 
@@ -28,29 +30,11 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
           </div>
           <h1 class="text-2xl font-extrabold text-slate-900 font-outfit">Control y Registro de Servicios de Lavado</h1>
           <p class="text-slate-500 text-xs mt-1">Digitalización del proceso físico: OT, placa, evidencias en vídeo/fotos y flujo de aprobación por Gerencia.</p>
-
-          <!-- Contexto Operador -->
-          @if (isOperador) {
-            <div class="flex items-center gap-3 mt-3 flex-wrap">
-              <div class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-easydry-green/10 border border-easydry-green/20 text-easydry-green-dark text-xs font-bold">
-                <i-lucide name="building-2" class="w-3.5 h-3.5"></i-lucide>
-                <span>{{ authService.getCurrentUser()?.sucursalNombre }}</span>
-              </div>
-              <div class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-easydry-blue/10 border border-easydry-blue/20 text-easydry-blue text-xs font-bold">
-                <i-lucide name="hard-drive" class="w-3.5 h-3.5"></i-lucide>
-                <span>{{ authService.getCurrentUser()?.bahiaNombre }}</span>
-              </div>
-              <div class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 text-xs font-bold">
-                <i-lucide name="info" class="w-3.5 h-3.5"></i-lucide>
-                <span>Solo ves tus servicios registrados</span>
-              </div>
-            </div>
-          }
         </div>
 
         <button
           (click)="modalNuevoRegistroOpen = true"
-          class="px-4 py-3 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2">
+          class="px-4 py-3 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
           <i-lucide name="plus" class="w-4 h-4"></i-lucide>
           <span>Nueva Hoja de Control (OT)</span>
         </button>
@@ -86,6 +70,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
             <option value="Todas">Todas las Categorías</option>
             <option value="Servicios Generales">Servicios Generales</option>
             <option value="Servicios Especiales">Servicios Especiales</option>
+            <option value="Servicios Extras">Servicios Extras</option>
           </select>
         </div>
 
@@ -130,9 +115,16 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
 
                   <td class="py-3.5 px-4">
                     <span 
-                      class="px-2 py-0.5 rounded text-[10px] font-extrabold block w-fit mb-1"
-                      [ngClass]="item.categoriaServicio === 'ESPECIAL' || item.categoriaServicio === 'Servicios Especiales' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-700'">
-                      {{ item.categoriaServicio === 'ESPECIAL' ? 'Servicios Especiales' : (item.categoriaServicio === 'GENERAL' ? 'Servicios Generales' : item.categoriaServicio) || 'Servicios Generales' }}
+                      class="px-2 py-0.5 rounded text-[10px] font-extrabold block w-fit mb-1 border"
+                      [ngClass]="{
+                        'bg-amber-100 text-amber-800 border-amber-300': item.categoriaServicio === 'ESPECIAL' || item.categoriaServicio === 'Servicios Especiales',
+                        'bg-purple-100 text-purple-800 border-purple-300': item.categoriaServicio === 'EXTRA' || item.categoriaServicio === 'Servicios Extras',
+                        'bg-blue-100 text-blue-800 border-blue-300': item.categoriaServicio === 'GENERAL' || item.categoriaServicio === 'Servicios Generales' || !item.categoriaServicio
+                      }">
+                      {{ 
+                        item.categoriaServicio === 'ESPECIAL' || item.categoriaServicio === 'Servicios Especiales' ? 'Servicios Especiales' : 
+                        (item.categoriaServicio === 'EXTRA' || item.categoriaServicio === 'Servicios Extras' ? 'Servicios Extras' : 'Servicios Generales') 
+                      }}
                     </span>
                     <span class="font-bold text-slate-900 text-xs">{{ item.servicio }}</span>
                   </td>
@@ -310,6 +302,34 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                 }">{{ servicioDetalleSeleccionado.estado }}</span>
               </div>
             </div>
+
+            <!-- Insumos Utilizados en este Servicio -->
+            @if (servicioDetalleSeleccionado.insumosUtilizados && servicioDetalleSeleccionado.insumosUtilizados.length > 0) {
+              <div class="p-3.5 bg-blue-50/50 rounded-2xl border border-blue-100 text-xs space-y-2">
+                <div class="flex items-center justify-between">
+                  <span class="text-[11px] text-blue-950 font-extrabold uppercase flex items-center gap-1.5">
+                    <i-lucide name="boxes" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide>
+                    Insumos & Recursos Utilizados
+                  </span>
+                  <span class="text-[10px] text-blue-700 font-bold bg-blue-100 px-2 py-0.5 rounded-full">
+                    Descontado de {{ servicioDetalleSeleccionado.agencia }}
+                  </span>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  @for (ins of servicioDetalleSeleccionado.insumosUtilizados; track ins.productoId) {
+                    <div class="p-2.5 bg-white rounded-xl border border-blue-100/80 flex items-center justify-between shadow-2xs">
+                      <div>
+                        <p class="font-bold text-slate-900 text-xs">{{ ins.productoNombre }}</p>
+                        <span class="font-mono text-[10px] text-slate-400">{{ ins.productoSKU }}</span>
+                      </div>
+                      <span class="font-mono font-extrabold text-xs text-easydry-blue bg-blue-50 px-2 py-1 rounded-lg">
+                        {{ ins.cantidad }} {{ ins.unidadMedida }}
+                      </span>
+                    </div>
+                  }
+                </div>
+              </div>
+            }
           </div>
         }
 
@@ -402,29 +422,96 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
           <div class="p-3 bg-easydry-blue/5 rounded-2xl border border-easydry-blue/20 space-y-3">
             <label class="block text-xs font-extrabold text-easydry-blue uppercase">Categoría de Servicio</label>
             
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
               <label 
-                class="p-2.5 rounded-xl border cursor-pointer flex items-center gap-2 text-xs font-bold"
-                [ngClass]="nuevoRegistro.categoriaServicio === 'GENERAL' ? 'bg-easydry-blue text-white border-easydry-blue' : 'bg-white text-slate-700'">
+                class="p-2.5 rounded-xl border cursor-pointer flex items-center gap-2 text-xs font-bold transition-all"
+                [ngClass]="nuevoRegistro.categoriaServicio === 'GENERAL' ? 'bg-easydry-blue text-white border-easydry-blue shadow-xs' : 'bg-white text-slate-700 hover:border-slate-300'">
                 <input type="radio" [(ngModel)]="nuevoRegistro.categoriaServicio" name="catRadio" value="GENERAL" (change)="onCategoriaChange()" class="hidden">
-                <span class="flex items-center gap-1.5"><i-lucide name="droplet" class="w-4 h-4"></i-lucide> Servicios Generales</span>
+                <span class="flex items-center gap-1.5"><i-lucide name="droplet" class="w-4 h-4"></i-lucide> Generales</span>
               </label>
 
               <label 
-                class="p-2.5 rounded-xl border cursor-pointer flex items-center gap-2 text-xs font-bold"
-                [ngClass]="nuevoRegistro.categoriaServicio === 'ESPECIAL' ? 'bg-easydry-blue text-white border-easydry-blue' : 'bg-white text-slate-700'">
+                class="p-2.5 rounded-xl border cursor-pointer flex items-center gap-2 text-xs font-bold transition-all"
+                [ngClass]="nuevoRegistro.categoriaServicio === 'ESPECIAL' ? 'bg-amber-600 text-white border-amber-600 shadow-xs' : 'bg-white text-slate-700 hover:border-slate-300'">
                 <input type="radio" [(ngModel)]="nuevoRegistro.categoriaServicio" name="catRadio" value="ESPECIAL" (change)="onCategoriaChange()" class="hidden">
-                <span class="flex items-center gap-1.5"><i-lucide name="star" class="w-4 h-4"></i-lucide> Servicios Especiales</span>
+                <span class="flex items-center gap-1.5"><i-lucide name="star" class="w-4 h-4"></i-lucide> Especiales</span>
+              </label>
+
+              <label 
+                class="p-2.5 rounded-xl border cursor-pointer flex items-center gap-2 text-xs font-bold transition-all"
+                [ngClass]="nuevoRegistro.categoriaServicio === 'EXTRA' ? 'bg-purple-600 text-white border-purple-600 shadow-xs' : 'bg-white text-slate-700 hover:border-slate-300'">
+                <input type="radio" [(ngModel)]="nuevoRegistro.categoriaServicio" name="catRadio" value="EXTRA" (change)="onCategoriaChange()" class="hidden">
+                <span class="flex items-center gap-1.5"><i-lucide name="sparkles" class="w-4 h-4"></i-lucide> Extras</span>
               </label>
             </div>
 
             <div>
               <label class="block text-[11px] font-bold text-slate-700 uppercase mb-1">Servicio Específico</label>
-              <select [(ngModel)]="nuevoRegistro.servicio" name="servicio" class="w-full p-2.5 border rounded-xl text-xs font-bold">
+              <select [(ngModel)]="nuevoRegistro.servicio" name="servicio" (change)="onServicioSelect()" class="w-full p-2.5 border rounded-xl text-xs font-bold bg-white focus:ring-2 focus:ring-easydry-blue">
                 @for (s of opcionesServicios; track s.id) {
                   <option [value]="s.nombre">{{ s.nombre }}</option>
                 }
               </select>
+            </div>
+          </div>
+
+          <!-- Insumos y Recursos Utilizados (Descuento Automático de Stock) -->
+          <div class="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+            <div class="flex items-center justify-between">
+              <label class="text-xs font-bold text-slate-800 uppercase flex items-center gap-1.5">
+                <i-lucide name="boxes" class="w-4 h-4 text-easydry-blue"></i-lucide>
+                Insumos a Consumir en este Servicio
+              </label>
+              <span class="text-[10px] text-slate-500 font-semibold bg-white px-2 py-0.5 rounded border">
+                Descuento automático de: {{ nuevoRegistro.agencia }}
+              </span>
+            </div>
+
+            @if (insumosConsumoForm.length === 0) {
+              <p class="text-xs text-slate-400 italic">No hay insumos agregados para este servicio.</p>
+            } @else {
+              <div class="space-y-2">
+                @for (ins of insumosConsumoForm; track ins.productoId; let idx = $index) {
+                  <div class="p-2.5 bg-white rounded-xl border flex items-center justify-between gap-3 shadow-2xs">
+                    <div class="overflow-hidden flex-1">
+                      <p class="font-bold text-slate-900 text-xs truncate">{{ ins.productoNombre }}</p>
+                      <div class="flex items-center gap-2 text-[10px] text-slate-500">
+                        <span class="font-mono bg-slate-100 px-1 py-0.2 rounded">{{ ins.productoSKU }}</span>
+                        <span>•</span>
+                        <span class="text-easydry-blue font-semibold">Stock en {{ nuevoRegistro.agencia }}: {{ getStockDisponible(ins.productoId) }} {{ ins.unidadMedida }}</span>
+                      </div>
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                      <button type="button" (click)="disminuirCantidadInsumo(idx)" class="w-6 h-6 rounded-lg bg-slate-100 hover:bg-slate-200 font-extrabold flex items-center justify-center text-slate-700">-</button>
+                      <input type="number" [(ngModel)]="ins.cantidad" [name]="'cant_' + idx" min="0.1" step="0.5" class="w-14 text-center p-1 border rounded-lg text-xs font-mono font-bold text-easydry-blue">
+                      <span class="text-[10px] text-slate-500 font-bold">{{ ins.unidadMedida }}</span>
+                      <button type="button" (click)="aumentarCantidadInsumo(idx)" class="w-6 h-6 rounded-lg bg-slate-100 hover:bg-slate-200 font-extrabold flex items-center justify-center text-slate-700">+</button>
+                      <button type="button" (click)="eliminarInsumoConsumo(idx)" class="p-1 text-rose-500 hover:bg-rose-50 rounded-lg ml-1">
+                        <i-lucide name="trash-2" class="w-3.5 h-3.5"></i-lucide>
+                      </button>
+                    </div>
+                  </div>
+                }
+              </div>
+            }
+
+            <!-- Selector para añadir insumo extra -->
+            <div class="flex items-center gap-2 pt-1">
+              <select #selectInsumoExtra class="flex-1 p-2 bg-white border rounded-xl text-xs font-medium">
+                <option value="">+ Añadir otro insumo del inventario...</option>
+                @for (item of productosInventario; track item.producto.id) {
+                  <option [value]="item.producto.id">
+                    {{ item.producto.nombre }} ({{ item.producto.unidadMedida }}) - SKU: {{ item.producto.codigoSKU }}
+                  </option>
+                }
+              </select>
+              <button 
+                type="button" 
+                (click)="agregarInsumoExtra(selectInsumoExtra.value); selectInsumoExtra.value = ''"
+                class="px-3 py-2 bg-easydry-blue text-white rounded-xl text-xs font-bold whitespace-nowrap">
+                + Agregar
+              </button>
             </div>
           </div>
 
@@ -557,8 +644,12 @@ export class ServiciosComponent implements OnInit {
     videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-car-wash-in-a-machine-41484-large.mp4'
   };
 
-  private catalogoMock = inject(CatalogoServiciosMockService);
+  productosInventario: InventarioItem[] = [];
+  insumosConsumoForm: InsumoConsumidoServicio[] = [];
 
+  private catalogoMock = inject(CatalogoServiciosMockService);
+  private extrasMock = inject(ServiciosExtrasMockService);
+  private inventarioService = inject(InventarioMockService);
   private servicioService = inject(ServicioLavadoMockService);
   public authService = inject(AuthService);
   private toastService = inject(ToastService);
@@ -602,17 +693,105 @@ export class ServiciosComponent implements OnInit {
       this.catalogoCompleto = cat;
       this.onCategoriaChange();
     });
+
+    this.inventarioService.getItems().subscribe(items => {
+      this.productosInventario = items;
+    });
   }
 
   onCategoriaChange() {
-    this.opcionesServicios = this.catalogoCompleto.filter(s => s.categoria === this.nuevoRegistro.categoriaServicio);
-    if (this.opcionesServicios.length > 0) {
-      this.nuevoRegistro.servicio = this.opcionesServicios[0].nombre;
-      this.nuevoRegistro.servicioId = this.opcionesServicios[0].id;
+    if (this.nuevoRegistro.categoriaServicio === 'EXTRA') {
+      // Cargar lista de servicios extras
+      this.extrasMock.getServiciosExtras().subscribe(extras => {
+        this.opcionesServicios = extras.map(e => ({
+          id: e.id,
+          nombre: e.servicioNombre,
+          codigo: e.codigoSE,
+          categoria: 'EXTRA',
+          descripcion: e.servicioDescripcion || '',
+          estado: 'Activo',
+          requiereFoto: true,
+          requiereVideo: true,
+          insumosReceta: e.insumosReceta
+        }));
+        if (this.opcionesServicios.length > 0) {
+          this.nuevoRegistro.servicio = this.opcionesServicios[0].nombre;
+          this.nuevoRegistro.servicioId = this.opcionesServicios[0].id;
+          this.onServicioSelect();
+        }
+      });
     } else {
-      this.nuevoRegistro.servicio = '';
-      this.nuevoRegistro.servicioId = 0;
+      this.opcionesServicios = this.catalogoCompleto.filter(s => s.categoria === this.nuevoRegistro.categoriaServicio);
+      if (this.opcionesServicios.length > 0) {
+        this.nuevoRegistro.servicio = this.opcionesServicios[0].nombre;
+        this.nuevoRegistro.servicioId = this.opcionesServicios[0].id;
+        this.onServicioSelect();
+      } else {
+        this.nuevoRegistro.servicio = '';
+        this.nuevoRegistro.servicioId = 0;
+        this.insumosConsumoForm = [];
+      }
     }
+  }
+
+  onServicioSelect() {
+    const serv = this.opcionesServicios.find(s => s.nombre === this.nuevoRegistro.servicio) ||
+                 this.catalogoCompleto.find(s => s.nombre === this.nuevoRegistro.servicio);
+    if (serv && serv.insumosReceta && serv.insumosReceta.length > 0) {
+      this.insumosConsumoForm = serv.insumosReceta.map(r => ({
+        productoId: r.productoId,
+        productoSKU: r.productoSKU,
+        productoNombre: r.productoNombre,
+        unidadMedida: r.unidadMedida,
+        cantidad: r.cantidadSugerida
+      }));
+    } else {
+      // Default: 1 Shampoo + 1 Paño Microfibra
+      this.insumosConsumoForm = [
+        { productoId: 1, productoSKU: 'QUIM-001', productoNombre: 'Shampoo Ecológico Ultra-Espuma pH Neutro', unidadMedida: 'Caneca 20L', cantidad: 1 },
+        { productoId: 5, productoSKU: 'TEX-001', productoNombre: 'Paños de Microfibra Premium', unidadMedida: 'Pack x10', cantidad: 1 }
+      ];
+    }
+  }
+
+  aumentarCantidadInsumo(idx: number) {
+    if (this.insumosConsumoForm[idx]) {
+      this.insumosConsumoForm[idx].cantidad = Math.round((this.insumosConsumoForm[idx].cantidad + 0.5) * 10) / 10;
+    }
+  }
+
+  disminuirCantidadInsumo(idx: number) {
+    if (this.insumosConsumoForm[idx] && this.insumosConsumoForm[idx].cantidad > 0.5) {
+      this.insumosConsumoForm[idx].cantidad = Math.round((this.insumosConsumoForm[idx].cantidad - 0.5) * 10) / 10;
+    }
+  }
+
+  eliminarInsumoConsumo(idx: number) {
+    this.insumosConsumoForm.splice(idx, 1);
+  }
+
+  agregarInsumoExtra(productoIdStr: string) {
+    if (!productoIdStr) return;
+    const prodId = Number(productoIdStr);
+    const item = this.productosInventario.find(i => i.producto.id === prodId);
+    if (!item) return;
+
+    const existe = this.insumosConsumoForm.find(ins => ins.productoId === prodId);
+    if (existe) {
+      existe.cantidad += 1;
+    } else {
+      this.insumosConsumoForm.push({
+        productoId: item.producto.id,
+        productoSKU: item.producto.codigoSKU,
+        productoNombre: item.producto.nombre,
+        unidadMedida: item.producto.unidadMedida,
+        cantidad: 1
+      });
+    }
+  }
+
+  getStockDisponible(productoId: number): number {
+    return this.inventarioService.getStockDisponibleSucursal(productoId, this.nuevoRegistro.agencia);
   }
 
   onFileSelected(event: any) {
@@ -620,8 +799,6 @@ export class ServiciosComponent implements OnInit {
     if (file) {
       this.videoFileSelected = true;
       this.videoFileName = file.name;
-      // Aquí se implementaría la lógica para subir el archivo o crear una URL local
-      // this.nuevoRegistro.videoUrl = URL.createObjectURL(file);
     }
   }
 
@@ -651,7 +828,17 @@ export class ServiciosComponent implements OnInit {
       const matchTexto = !texto ||
         s.placa.toLowerCase().includes(texto) ||
         (s.ordenTrabajoOT?.toLowerCase().includes(texto) ?? false);
-      const matchCat = this.filtroCategoria === 'Todas' || s.categoriaServicio === this.filtroCategoria;
+
+      let matchCat = true;
+      if (this.filtroCategoria !== 'Todas') {
+        if (this.filtroCategoria === 'Servicios Generales') {
+          matchCat = s.categoriaServicio === 'Servicios Generales' || s.categoriaServicio === 'GENERAL';
+        } else if (this.filtroCategoria === 'Servicios Especiales') {
+          matchCat = s.categoriaServicio === 'Servicios Especiales' || s.categoriaServicio === 'ESPECIAL';
+        } else if (this.filtroCategoria === 'Servicios Extras') {
+          matchCat = s.categoriaServicio === 'Servicios Extras' || s.categoriaServicio === 'EXTRA';
+        }
+      }
 
       return matchTexto && matchCat;
     });
@@ -693,8 +880,35 @@ export class ServiciosComponent implements OnInit {
       return;
     }
 
-    this.servicioService.crearRegistroHojaServicio(this.nuevoRegistro as any).subscribe(creado => {
-      this.toastService.success('Hoja de Control Creada', `Servicio ${creado.ordenTrabajoOT} (${creado.placa}) registrado en estado EN PROCESO.`);
+    const payload = {
+      ...this.nuevoRegistro,
+      insumosUtilizados: [...this.insumosConsumoForm]
+    };
+
+    // 1. Descuento automático de stock de la sucursal y registro de consumo
+    if (this.insumosConsumoForm.length > 0) {
+      this.inventarioService.consumirInsumosServicio(
+        this.nuevoRegistro.agencia,
+        this.nuevoRegistro.ordenTrabajoOT,
+        this.nuevoRegistro.placa,
+        this.insumosConsumoForm,
+        this.nuevoRegistro.empleado
+      ).subscribe(res => {
+        // Disparar toasts de alerta si algún insumo cayó en nivel bajo/crítico
+        if (res.alertasGeneradas && res.alertasGeneradas.length > 0) {
+          res.alertasGeneradas.forEach(msg => {
+            this.toastService.warning('Alerta de Stock Insumos', msg);
+          });
+        }
+      });
+    }
+
+    // 2. Guardar registro de servicio
+    this.servicioService.crearRegistroHojaServicio(payload as any).subscribe(creado => {
+      this.toastService.success(
+        'Hoja de Control Creada',
+        `Servicio ${creado.ordenTrabajoOT} (${creado.placa}) registrado. Insumos descontados de ${this.nuevoRegistro.agencia}.`
+      );
       this.modalNuevoRegistroOpen = false;
       this.recalcularServiciosFiltrados();
     });

@@ -36,17 +36,17 @@ import { ROLE_LABELS } from '../../core/models/roles.model';
               </button>
             </div>
             
-            <h3 class="text-lg font-bold text-slate-900">{{ currentUser?.nombre }} {{ currentUser?.apellido }}</h3>
+            <h3 class="text-lg font-bold text-slate-900">{{ currentUser.nombre }} {{ currentUser.apellido }}</h3>
             <p class="text-[11px] font-extrabold text-easydry-blue uppercase tracking-widest mt-1">{{ rolLabel }}</p>
             
             <div class="mt-6 pt-6 border-t border-slate-100 text-left space-y-3">
                <div class="flex items-center gap-3 text-slate-600 text-xs">
                  <i-lucide name="mail" class="w-4 h-4 text-slate-400"></i-lucide>
-                 <span class="truncate">{{ currentUser?.email }}</span>
+                 <span class="truncate">{{ currentUser.email }}</span>
                </div>
                <div class="flex items-center gap-3 text-slate-600 text-xs">
                  <i-lucide name="map-pin" class="w-4 h-4 text-slate-400"></i-lucide>
-                 <span class="truncate">{{ currentUser?.sucursalNombre || 'Sede Central' }}</span>
+                 <span class="truncate">{{ currentUser.sucursalNombre || 'Sede Central' }}</span>
                </div>
             </div>
           </div>

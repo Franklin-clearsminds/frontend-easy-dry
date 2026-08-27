@@ -4,7 +4,8 @@ export interface MenuItem {
   label: string;
   route: string;
   icon: string;
-  roles: Role[];
+  roles?: Role[] | string[];
+  moduloCodigo: string; // Código del módulo asociado
   badge?: string;
   badgeColor?: string;
   group?: string;
@@ -12,7 +13,7 @@ export interface MenuItem {
 
 /**
  * Configuración declarativa del menú de navegación EasyDry®
- * Cada ítem especifica qué roles pueden verlo.
+ * Cada ítem está vinculado a un código de módulo del sistema.
  */
 export const MENU_CONFIG: MenuItem[] = [
 
@@ -21,17 +22,17 @@ export const MENU_CONFIG: MenuItem[] = [
     label: 'Dashboard',
     route: '/dashboard',
     icon: 'layout-dashboard',
-    group: 'Panel Principal',
-    roles: [Role.SUPER_ADMIN, Role.GERENTE, Role.SUPERVISOR, Role.OPERADOR, Role.TECNICO]
+    moduloCodigo: 'dashboard',
+    group: 'Panel Principal'
   },
   {
     label: 'Mapa Operativo Red',
     route: '/mapa-operativo',
     icon: 'sliders',
+    moduloCodigo: 'mapa-operativo',
     group: 'Panel Principal',
     badge: 'Live',
-    badgeColor: 'bg-easydry-green text-slate-950',
-    roles: [Role.SUPER_ADMIN, Role.GERENTE, Role.SUPERVISOR]
+    badgeColor: 'bg-easydry-green text-slate-950'
   },
 
   // ─── Operación & Sucursales ────────────────────────────────────
@@ -39,23 +40,23 @@ export const MENU_CONFIG: MenuItem[] = [
     label: 'Control de Sucursales',
     route: '/sucursales',
     icon: 'building-2',
+    moduloCodigo: 'sucursales',
     group: 'Operación & Sucursales',
-    badge: '4',
-    roles: [Role.SUPER_ADMIN]
+    badge: '4'
   },
   {
     label: 'Operadores de Bahía',
     route: '/operadores',
     icon: 'user-check',
-    group: 'Operación & Sucursales',
-    roles: [Role.SUPER_ADMIN, Role.GERENTE, Role.SUPERVISOR]
+    moduloCodigo: 'operadores',
+    group: 'Operación & Sucursales'
   },
   {
     label: 'Asignaciones de Bahía',
     route: '/asignaciones',
     icon: 'check-circle-2',
-    group: 'Operación & Sucursales',
-    roles: [Role.SUPER_ADMIN, Role.GERENTE, Role.SUPERVISOR]
+    moduloCodigo: 'asignaciones',
+    group: 'Operación & Sucursales'
   },
 
   // ─── Servicios de Lavado ───────────────────────────────────────
@@ -63,51 +64,41 @@ export const MENU_CONFIG: MenuItem[] = [
     label: 'Catálogo de Servicios',
     route: '/configuracion/servicios',
     icon: 'file-text',
-    group: 'Servicios de Lavado',
-    roles: [Role.SUPER_ADMIN]
+    moduloCodigo: 'configuracion/servicios',
+    group: 'Servicios de Lavado'
   },
   {
     label: 'Servicios de Lavado',
     route: '/servicios',
     icon: 'car',
+    moduloCodigo: 'servicios',
     group: 'Servicios de Lavado',
-    badge: 'Hoy',
-    roles: [Role.SUPER_ADMIN, Role.GERENTE, Role.SUPERVISOR]
-  },
-  {
-    label: 'Mis Servicios',
-    route: '/servicios',
-    icon: 'car',
-    group: 'Mi Área',
-    badge: 'Hoy',
-    roles: [Role.OPERADOR]
+    badge: 'Hoy'
   },
   {
     label: 'Aprobaciones del Día',
     route: '/aprobaciones',
     icon: 'shield-check',
+    moduloCodigo: 'aprobaciones',
     group: 'Servicios de Lavado',
     badge: 'Gerencia',
-    badgeColor: 'bg-easydry-green text-slate-950',
-    roles: [Role.SUPER_ADMIN, Role.GERENTE]
+    badgeColor: 'bg-easydry-green text-slate-950'
   },
   {
     label: 'Productividad & Reto',
     route: '/productividad',
     icon: 'trophy',
+    moduloCodigo: 'productividad',
     group: 'Servicios de Lavado',
     badge: 'Reto',
-    badgeColor: 'bg-amber-400 text-slate-950',
-    roles: [Role.SUPER_ADMIN, Role.GERENTE, Role.SUPERVISOR]
+    badgeColor: 'bg-amber-400 text-slate-950'
   },
-
-  // ─── Vista Operador de Bahía ───────────────────────────────────
   {
     label: 'Mi Bahía',
     route: '/mi-bahia',
     icon: 'map-pin',
-    group: 'Mi Área',
-    roles: [Role.OPERADOR]
+    moduloCodigo: 'mi-bahia',
+    group: 'Servicios de Lavado'
   },
 
   // ─── Activos & Técnico ─────────────────────────────────────────
@@ -115,17 +106,26 @@ export const MENU_CONFIG: MenuItem[] = [
     label: 'Maquinaria & Equipos',
     route: '/maquinaria',
     icon: 'hard-drive',
-    group: 'Gestión de Activos',
-    roles: [Role.SUPER_ADMIN, Role.GERENTE, Role.SUPERVISOR, Role.TECNICO]
+    moduloCodigo: 'maquinaria',
+    group: 'Gestión de Activos'
   },
   {
     label: 'Taller y Reportes',
     route: '/taller-tecnico',
     icon: 'wrench',
+    moduloCodigo: 'taller-tecnico',
     group: 'Gestión de Activos',
     badge: '2',
-    badgeColor: 'bg-rose-500 text-white',
-    roles: [Role.SUPER_ADMIN, Role.GERENTE, Role.SUPERVISOR, Role.TECNICO]
+    badgeColor: 'bg-rose-500 text-white'
+  },
+  {
+    label: 'Inventario de Insumos',
+    route: '/inventario',
+    icon: 'boxes',
+    moduloCodigo: 'inventario',
+    group: 'Gestión de Activos',
+    badge: 'Stock',
+    badgeColor: 'bg-easydry-blue/15 text-easydry-blue'
   },
 
   // ─── Administración ────────────────────────────────────────────
@@ -133,21 +133,21 @@ export const MENU_CONFIG: MenuItem[] = [
     label: 'Reportes Operativos',
     route: '/reportes',
     icon: 'file-bar-chart',
-    group: 'Administración',
-    roles: [Role.SUPER_ADMIN, Role.GERENTE]
+    moduloCodigo: 'reportes',
+    group: 'Administración'
   },
   {
     label: 'Usuarios y Roles',
     route: '/usuarios',
     icon: 'users',
-    group: 'Administración',
-    roles: [Role.SUPER_ADMIN]
+    moduloCodigo: 'usuarios',
+    group: 'Administración'
   },
   {
     label: 'Configuración',
     route: '/configuracion',
     icon: 'settings',
-    group: 'Administración',
-    roles: [Role.SUPER_ADMIN]
+    moduloCodigo: 'configuracion',
+    group: 'Administración'
   }
 ];

@@ -17,6 +17,10 @@ export class CatalogoServiciosMockService {
       estado: 'Activo',
       requiereFoto: false,
       requiereVideo: false,
+      insumosReceta: [
+        { productoId: 1, productoSKU: 'QUIM-001', productoNombre: 'Shampoo Ecológico Ultra-Espuma', unidadMedida: 'Caneca 20L', cantidadSugerida: 1 },
+        { productoId: 5, productoSKU: 'TEX-001', productoNombre: 'Paños de Microfibra Premium', unidadMedida: 'Pack x10', cantidadSugerida: 1 }
+      ],
       fechaCreacion: '2026-08-01'
     },
     {
@@ -28,6 +32,11 @@ export class CatalogoServiciosMockService {
       estado: 'Activo',
       requiereFoto: true,
       requiereVideo: false,
+      insumosReceta: [
+        { productoId: 1, productoSKU: 'QUIM-001', productoNombre: 'Shampoo Ecológico Ultra-Espuma', unidadMedida: 'Caneca 20L', cantidadSugerida: 1 },
+        { productoId: 4, productoSKU: 'QUIM-004', productoNombre: 'Gel Abrillantador de Neumáticos', unidadMedida: 'Galón (3.8L)', cantidadSugerida: 1 },
+        { productoId: 5, productoSKU: 'TEX-001', productoNombre: 'Paños de Microfibra Premium', unidadMedida: 'Pack x10', cantidadSugerida: 1 }
+      ],
       fechaCreacion: '2026-08-01'
     },
     {
@@ -35,10 +44,16 @@ export class CatalogoServiciosMockService {
       nombre: 'Deluxe',
       codigo: 'SER-003',
       categoria: 'GENERAL',
-      descripcion: 'Servicio premium general completo',
+      descripcion: 'Servicio premium general completo con encerado hidrofóbico',
       estado: 'Activo',
       requiereFoto: true,
       requiereVideo: false,
+      insumosReceta: [
+        { productoId: 1, productoSKU: 'QUIM-001', productoNombre: 'Shampoo Ecológico Ultra-Espuma', unidadMedida: 'Caneca 20L', cantidadSugerida: 1 },
+        { productoId: 2, productoSKU: 'QUIM-002', productoNombre: 'Cera Líquida Polimérica Carnauba', unidadMedida: 'Galón (3.8L)', cantidadSugerida: 1 },
+        { productoId: 4, productoSKU: 'QUIM-004', productoNombre: 'Gel Abrillantador de Neumáticos', unidadMedida: 'Galón (3.8L)', cantidadSugerida: 1 },
+        { productoId: 5, productoSKU: 'TEX-001', productoNombre: 'Paños de Microfibra Premium', unidadMedida: 'Pack x10', cantidadSugerida: 2 }
+      ],
       fechaCreacion: '2026-08-01'
     },
     {
@@ -50,6 +65,9 @@ export class CatalogoServiciosMockService {
       estado: 'Activo',
       requiereFoto: false,
       requiereVideo: false,
+      insumosReceta: [
+        { productoId: 1, productoSKU: 'QUIM-001', productoNombre: 'Shampoo Ecológico Ultra-Espuma', unidadMedida: 'Caneca 20L', cantidadSugerida: 1 }
+      ],
       fechaCreacion: '2026-08-01'
     },
     {
@@ -61,6 +79,10 @@ export class CatalogoServiciosMockService {
       estado: 'Activo',
       requiereFoto: true,
       requiereVideo: true,
+      insumosReceta: [
+        { productoId: 2, productoSKU: 'QUIM-002', productoNombre: 'Cera Líquida Polimérica Carnauba', unidadMedida: 'Galón (3.8L)', cantidadSugerida: 1 },
+        { productoId: 5, productoSKU: 'TEX-001', productoNombre: 'Paños de Microfibra Premium', unidadMedida: 'Pack x10', cantidadSugerida: 2 }
+      ],
       fechaCreacion: '2026-08-02'
     },
     {
@@ -109,7 +131,22 @@ export class CatalogoServiciosMockService {
     }
   ];
 
-  private serviciosSubject = new BehaviorSubject<CatalogoServicio[]>(this.initialServices);
+  private loadStoredServices(): CatalogoServicio[] {
+    try {
+      const stored = localStorage.getItem('easydry_catalogo_servicios_v3');
+      return stored ? JSON.parse(stored) : this.initialServices;
+    } catch {
+      return this.initialServices;
+    }
+  }
+
+  private saveStoredServices(data: CatalogoServicio[]): void {
+    try {
+      localStorage.setItem('easydry_catalogo_servicios_v3', JSON.stringify(data));
+    } catch {}
+  }
+
+  private serviciosSubject = new BehaviorSubject<CatalogoServicio[]>(this.loadStoredServices());
   public servicios$ = this.serviciosSubject.asObservable();
 
   getServicios(): Observable<CatalogoServicio[]> {
@@ -124,29 +161,32 @@ export class CatalogoServiciosMockService {
   crearServicio(servicio: Omit<CatalogoServicio, 'id' | 'fechaCreacion'>): Observable<CatalogoServicio> {
     const nuevo: CatalogoServicio = {
       ...servicio,
-      id: Math.max(...this.serviciosSubject.value.map(s => s.id)) + 1,
+      id: Math.max(...this.serviciosSubject.value.map(s => s.id), 0) + 1,
       fechaCreacion: new Date().toISOString().split('T')[0]
     };
     
     const actualizados = [...this.serviciosSubject.value, nuevo];
+    this.saveStoredServices(actualizados);
     this.serviciosSubject.next(actualizados);
-    return of(nuevo).pipe(delay(400));
+    return of(nuevo).pipe(delay(300));
   }
 
   actualizarServicio(id: number, cambios: Partial<CatalogoServicio>): Observable<CatalogoServicio> {
     const actualizados = this.serviciosSubject.value.map(s => 
       s.id === id ? { ...s, ...cambios } : s
     );
+    this.saveStoredServices(actualizados);
     this.serviciosSubject.next(actualizados);
     const modificado = actualizados.find(s => s.id === id)!;
-    return of(modificado).pipe(delay(400));
+    return of(modificado).pipe(delay(300));
   }
 
   cambiarEstado(id: number, estado: 'Activo' | 'Inactivo'): Observable<boolean> {
     const actualizados = this.serviciosSubject.value.map(s => 
       s.id === id ? { ...s, estado } : s
     );
+    this.saveStoredServices(actualizados);
     this.serviciosSubject.next(actualizados);
-    return of(true).pipe(delay(300));
+    return of(true).pipe(delay(250));
   }
 }

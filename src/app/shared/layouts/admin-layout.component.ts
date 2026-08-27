@@ -10,25 +10,20 @@ import { ToastComponent } from '../components/toast/toast.component';
   standalone: true,
   imports: [CommonModule, RouterOutlet, SidebarComponent, HeaderComponent, ToastComponent],
   template: `
-    <div class="min-h-screen bg-slate-50 flex overflow-hidden">
-      <!-- EasyDry Rail Sidebar / Slide-over Mobile -->
-      <app-sidebar 
-        [isOpenMobile]="isMobileSidebarOpen"
-        (closeMobileSidebar)="isMobileSidebarOpen = false">
-      </app-sidebar>
+    <div class="h-screen bg-slate-50 flex overflow-hidden">
+      <!-- EasyDry Sidebar (PC / Laptop Desktop Optimized) -->
+      <app-sidebar></app-sidebar>
 
       <!-- Main Layout Body -->
-      <div class="flex-1 flex flex-col min-w-0 h-screen overflow-y-auto">
-        <!-- EasyDry Header -->
-        <app-header 
-          (toggleSidebar)="isMobileSidebarOpen = !isMobileSidebarOpen"
-          (agenciaChange)="onAgenciaChange($event)" 
-          (search)="onSearch($event)">
-        </app-header>
+      <div class="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
+        <!-- EasyDry Corporate Header -->
+        <app-header (search)="onSearch($event)"></app-header>
 
-        <!-- Main Content Area -->
-        <main class="flex-1 p-6 md:p-8 max-w-7xl w-full mx-auto animate-fade-in">
-          <router-outlet></router-outlet>
+        <!-- Main Content Area (Spacious for PC/Laptops) -->
+        <main class="flex-1 overflow-y-auto">
+          <div class="p-6 lg:p-8 max-w-[1600px] w-full mx-auto animate-fade-in">
+            <router-outlet></router-outlet>
+          </div>
         </main>
       </div>
 
@@ -38,13 +33,7 @@ import { ToastComponent } from '../components/toast/toast.component';
   `
 })
 export class AdminLayoutComponent {
-  isMobileSidebarOpen = false;
-
-  onAgenciaChange(agencia: string) {
-    // Shared agency change handler if needed
-  }
-
   onSearch(query: string) {
-    // Shared search query handler if needed
+    // Search handler
   }
 }

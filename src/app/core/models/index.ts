@@ -1,4 +1,7 @@
+import { InsumoConsumidoServicio } from './inventario.model';
+export * from './roles.model';
 export * from './catalogo-servicio.model';
+export * from './inventario.model';
 export interface Usuario {
   id: number;
   nombre: string;
@@ -101,7 +104,7 @@ export interface VehiculoServicio {
   modelo: string;
   anio: number;
   color: string;
-  categoriaServicio: 'Servicios Generales' | 'Servicios Especiales' | 'GENERAL' | 'ESPECIAL' | string;
+  categoriaServicio: 'Servicios Generales' | 'Servicios Especiales' | 'Servicios Extras' | 'GENERAL' | 'ESPECIAL' | 'EXTRA' | string;
   servicioId?: number;
   servicio: 'Express' | 'Completo' | 'Deluxe' | 'Retoque' | 'Pulido' | 'Micro pulido' | 'Recubrimiento Cerámico' | 'Lavado motor' | 'Tratamientos especiales' | string;
   categoria: 'Sedán' | 'SUV' | 'Camioneta' | 'Hatchback' | string;
@@ -119,6 +122,7 @@ export interface VehiculoServicio {
   tiempoEstimadoMin?: number;
   costo?: number;
   notas?: string;
+  insumosUtilizados?: InsumoConsumidoServicio[];
   observacionGerente?: string;
   aprobadoPor?: string;
   fechaAprobacion?: string;
@@ -160,20 +164,42 @@ export interface Mantenimiento {
   fotos?: string[];
 }
 
+export interface ArchivoAdjunto {
+  id: string;
+  nombre: string;
+  tipo: 'imagen' | 'video' | 'documento';
+  extension?: string;
+  url: string;
+  tamanio?: string;
+  fechaSubida?: string;
+}
+
 export interface Incidente {
   id: number;
   codigoIncidente: string;
   maquina: string;
   agencia: string;
   fecha: string;
-  tipo: 'Manguera dañada' | 'Falla eléctrica' | 'Problema hidráulico' | 'Fuga de agua' | 'Baja presión' | string;
+  tipo: 'Manguera dañada' | 'Falla eléctrica' | 'Problema hidráulico' | 'Fuga de agua' | 'Baja presión' | 'Desgaste' | 'Rotura de pieza' | string;
   prioridad: 'Alta' | 'Media' | 'Baja' | 'Crítica' | string;
   estado: 'Pendiente' | 'En Solución' | 'Solucionado' | 'Abierto' | 'En Revisión' | 'Resuelto' | string;
   descripcion: string;
   reportadoPor: string;
+
+  // Evidencias del Fallo (Fotos y Videos al reportar)
+  fotosFallo?: string[];
+  videosFallo?: string[];
+  archivosFallo?: ArchivoAdjunto[];
+
+  // Evidencias de la Reparación / Solución (Fotos, Videos y Documentos al solucionar)
   fechaSolucion?: string;
   solucionadoPor?: string;
   observacionSolucion?: string;
+  costoReparacion?: number;
+  repuestosUtilizados?: string;
+  fotosReparacion?: string[];
+  videosReparacion?: string[];
+  documentosReparacion?: ArchivoAdjunto[];
 }
 
 export interface Reporte {
@@ -186,3 +212,28 @@ export interface Reporte {
   ingresosTotales: number;
   eficienciaGeneral: number;
 }
+
+// =========================================================================
+// SERVICIOS EXTRAS
+// =========================================================================
+
+import { RecetaInsumoServicio } from './inventario.model';
+
+/** Asignación de Servicio Extra a un Operador específico */
+export interface ServicioExtra {
+  id: number;
+  codigoSE: string;                      // Ej: SE-2026-001
+  servicioNombre: string;                // Nombre del servicio extra
+  servicioDescripcion?: string;
+  operadorId: number;
+  operadorNombre: string;
+  sucursales: string[];                  // Lista de sucursales asignadas
+  insumosReceta: RecetaInsumoServicio[]; // Insumos y cantidades
+  estado: 'Pendiente' | 'En Proceso' | 'Completado' | 'Cancelado';
+  fechaProgramada: string;
+  fechaCompletado?: string;
+  notas?: string;
+  creadoPor: string;
+  fechaCreacion: string;
+}
+

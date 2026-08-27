@@ -22,17 +22,17 @@ import { ModalComponent } from '../../shared/components/modal/modal.component';
               <i-lucide name="map-pin" class="w-3.5 h-3.5"></i-lucide>
               <span>Mi Área de Trabajo</span>
             </div>
-            <h1 class="text-2xl font-extrabold font-outfit">{{ user?.nombre }} {{ user?.apellido }}</h1>
+            <h1 class="text-2xl font-extrabold font-outfit">{{ user.nombre }} {{ user.apellido }}</h1>
             <p class="text-easydry-lime font-semibold text-sm mt-1">Operador de Bahía</p>
 
             <div class="flex items-center gap-4 mt-3 flex-wrap">
               <div class="flex items-center gap-2 text-slate-200 text-sm">
                 <i-lucide name="building-2" class="w-4 h-4 text-easydry-green"></i-lucide>
-                <span class="font-semibold">{{ user?.sucursalNombre || 'Sin sucursal' }}</span>
+                <span class="font-semibold">{{ user.sucursalNombre || 'Sin sucursal' }}</span>
               </div>
               <div class="flex items-center gap-2 text-slate-200 text-sm">
                 <i-lucide name="hard-drive" class="w-4 h-4 text-easydry-lime"></i-lucide>
-                <span class="font-semibold">{{ user?.bahiaNombre || 'Sin bahía asignada' }}</span>
+                <span class="font-semibold">{{ user.bahiaNombre || 'Sin bahía asignada' }}</span>
               </div>
             </div>
           </div>
@@ -220,8 +220,8 @@ import { ModalComponent } from '../../shared/components/modal/modal.component';
         <div>
           <p class="text-sm font-bold text-easydry-blue">Alcance de tu sesión</p>
           <p class="text-xs text-slate-600 mt-0.5">
-            Solo puedes ver y registrar servicios asignados a tu bahía ({{ user?.bahiaNombre }})
-            en la sucursal {{ user?.sucursalNombre }}. Para reportar problemas de maquinaria contacta al Supervisor.
+            Solo puedes ver y registrar servicios asignados a tu bahía ({{ user.bahiaNombre }})
+            en la sucursal {{ user.sucursalNombre }}. Para reportar problemas de maquinaria contacta al Supervisor.
           </p>
         </div>
       </div>

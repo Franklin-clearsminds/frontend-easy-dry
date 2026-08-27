@@ -52,84 +52,13 @@ export const MOCK_USUARIOS: Usuario[] = [
     id: 1,
     nombre: 'Franklin',
     apellido: 'Administrador',
-    rol: 'SuperAdmin',
-    agencia: 'Todas',
+    rol: 'Super Administrador',
+    agencia: 'EasyDry Corporativo',
     estado: 'Activo',
     fechaAsignacion: '2024-01-15',
     email: 'admin@easydry.com',
     avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
-  },
-  {
-    id: 2,
-    nombre: 'Carlos',
-    apellido: 'Mendoza',
-    rol: 'Gerente',
-    agencia: 'EasyDry Quito Norte',
-    estado: 'Activo',
-    fechaAsignacion: '2024-02-01',
-    email: 'gerente.quito@easydry.com',
-    sucursalAsignada: 'EasyDry Quito Norte',
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80'
-  },
-  {
-    id: 3,
-    nombre: 'Diana',
-    apellido: 'Salazar',
-    rol: 'Gerente',
-    agencia: 'EasyDry Quito Sur',
-    estado: 'Activo',
-    fechaAsignacion: '2024-02-10',
-    email: 'dsalazar@easydry.com',
-    sucursalAsignada: 'EasyDry Quito Sur',
-    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80'
-  },
-  {
-    id: 4,
-    nombre: 'Mateo',
-    apellido: 'Guerrero',
-    rol: 'Supervisor',
-    agencia: 'EasyDry Quito Norte',
-    estado: 'Activo',
-    fechaAsignacion: '2024-03-12',
-    email: 'supervisor.quito@easydry.com',
-    sucursalAsignada: 'EasyDry Quito Norte',
-    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80'
-  },
-  {
-    id: 5,
-    nombre: 'Juan',
-    apellido: 'Pérez',
-    rol: 'OPERADOR',
-    agencia: 'EasyDry Quito Norte',
-    sucursalAsignada: 'EasyDry Quito Norte',
-    bahiaAsignada: 'Bahía 1 (Lavado Ecológico)',
-    estado: 'Activo',
-    fechaAsignacion: '2024-01-15',
-    email: 'operador.bahia1@easydry.com',
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80'
-  },
-  {
-    id: 6,
-    nombre: 'Esteban',
-    apellido: 'Torres',
-    rol: 'Técnico',
-    agencia: 'EasyDry Quito Norte',
-    estado: 'Activo',
-    fechaAsignacion: '2024-04-05',
-    email: 'tecnico@easydry.com',
-    avatar: 'https://images.unsplash.com/photo-1599566150163-29194dcaad36?w=150&auto=format&fit=crop&q=80'
-  },
-  ...Array.from({ length: 40 }).map((_, i) => ({
-    id: i + 7,
-    nombre: `Usuario ${i + 7}`,
-    apellido: `Apellido ${i + 7}`,
-    rol: i % 4 === 0 ? 'Gerente' : (i % 3 === 0 ? 'Supervisor' : 'Técnico Especialista'),
-    agencia: i % 2 === 0 ? 'EasyDry Quito Norte' : 'EasyDry Quito Sur',
-    estado: i % 5 === 0 ? 'Inactivo' : 'Activo',
-    fechaAsignacion: `2025-${String(Math.floor(Math.random() * 12) + 1).padStart(2, '0')}-01`,
-    email: `usuario${i + 7}@easydry.com`,
-    avatar: `https://images.unsplash.com/photo-${1500000000000 + i}?w=150&auto=format&fit=crop&q=80`
-  }))
+  }
 ];
 
 
@@ -246,6 +175,32 @@ export const MOCK_SERVICIOS: VehiculoServicio[] = [
     aprobadoPor: 'Diana Salazar (Gerente)',
     fechaAprobacion: '2026-07-22 08:40',
     notas: 'Lavado ecológico rápido exterior'
+  },
+  {
+    id: 105,
+    numeroOrden: 'ORD-2026-005',
+    ordenTrabajoOT: 'OT-9840',
+    placa: 'PDK-5510',
+    marca: 'Kia',
+    modelo: 'Sportage R',
+    anio: 2024,
+    color: 'Rojo Pasión',
+    categoriaServicio: 'Servicios Extras',
+    servicio: 'Lavado Motor & Chasis Completo',
+    categoria: 'SUV',
+    agencia: 'EasyDry Quito Norte',
+    bahia: 'Bahía 1 (Lavado Ecológico)',
+    empleado: 'Juan Pérez',
+    fecha: '2026-07-22',
+    horaIngreso: '10:00',
+    horaSalida: '10:45',
+    estado: 'EN PROCESO',
+    foto: 'https://images.unsplash.com/photo-1552519507-da3b142c6e3d?w=800&auto=format&fit=crop&q=80',
+    video: 'https://assets.mixkit.co/videos/preview/mixkit-car-wash-in-a-machine-41484-large.mp4',
+    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-car-wash-in-a-machine-41484-large.mp4',
+    tiempoEstimadoMin: 45,
+    costo: 45.00,
+    notas: 'Servicio Extra programado: Desengrase a fondo de motor y chasis'
   }
 ];
 
@@ -348,8 +303,35 @@ export const MOCK_INCIDENTES: Incidente[] = [
     tipo: 'Falla eléctrica',
     prioridad: 'Alta',
     estado: 'Pendiente',
-    descripcion: 'Bomba de succión no enciende al accionar switch secundario. Fuga de aire detectada.',
-    reportadoPor: 'Carlos Mendoza (Gerente)'
+    descripcion: 'Bomba de succión no enciende al accionar switch secundario. Fuga de aire y recalentamiento detectado.',
+    reportadoPor: 'Franklin Administrador',
+    fotosFallo: [
+      'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=800&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1581092335397-9583fe92d232?w=800&auto=format&fit=crop&q=80'
+    ],
+    videosFallo: [
+      'https://assets.mixkit.co/videos/preview/mixkit-circuit-board-details-close-up-42289-large.mp4'
+    ],
+    archivosFallo: [
+      {
+        id: 'f-1',
+        nombre: 'panel_electrico_danado.jpg',
+        tipo: 'imagen',
+        extension: 'JPG',
+        url: 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=800&auto=format&fit=crop&q=80',
+        tamanio: '2.4 MB',
+        fechaSubida: '2026-07-20 11:32'
+      },
+      {
+        id: 'f-2',
+        nombre: 'video_falla_succion.mp4',
+        tipo: 'video',
+        extension: 'MP4',
+        url: 'https://assets.mixkit.co/videos/preview/mixkit-circuit-board-details-close-up-42289-large.mp4',
+        tamanio: '14.8 MB',
+        fechaSubida: '2026-07-20 11:35'
+      }
+    ]
   },
   {
     id: 2,
@@ -360,32 +342,90 @@ export const MOCK_INCIDENTES: Incidente[] = [
     tipo: 'Fuga de agua',
     prioridad: 'Media',
     estado: 'Solucionado',
-    descripcion: 'Fuga leve de agua en acople rápido de manguera de alta presión.',
-    reportadoPor: 'Juan Pérez (Operador)',
+    descripcion: 'Fuga de agua continua en el cabezal de la manguera de alta presión y desgaste en el acople rápido.',
+    reportadoPor: 'Franklin Administrador',
+    fotosFallo: [
+      'https://images.unsplash.com/photo-1581092580497-e0d23cbdf1dc?w=800&auto=format&fit=crop&q=80'
+    ],
+    videosFallo: [
+      'https://assets.mixkit.co/videos/preview/mixkit-car-wash-in-a-machine-41484-large.mp4'
+    ],
     fechaSolucion: '2026-07-15 14:20',
-    solucionadoPor: 'Esteban Torres (Técnico)',
-    observacionSolucion: 'Reemplazo de empaque O-ring y niple de latón reforzado.'
+    solucionadoPor: 'Esteban Torres (Taller Central)',
+    observacionSolucion: 'Sustitución completa del juego de empaques O-ring reforzados de alta presión y acople de bronce industrial. Se realizaron pruebas a 180 BAR durante 15 minutos sin goteo.',
+    costoReparacion: 45.00,
+    repuestosUtilizados: 'Empaques O-Ring Viton 1/2", Acople Rápido M22 Bronce',
+    fotosReparacion: [
+      'https://images.unsplash.com/photo-1504917599217-d4dc5ebe6122?w=800&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=800&auto=format&fit=crop&q=80'
+    ],
+    videosReparacion: [
+      'https://assets.mixkit.co/videos/preview/mixkit-water-spraying-from-a-hose-close-up-41508-large.mp4'
+    ],
+    documentosReparacion: [
+      {
+        id: 'doc-1',
+        nombre: 'Informe_Tecnico_HD001_Reparacion.pdf',
+        tipo: 'documento',
+        extension: 'PDF',
+        url: '#',
+        tamanio: '1.2 MB',
+        fechaSubida: '2026-07-15 14:25'
+      },
+      {
+        id: 'doc-2',
+        nombre: 'Factura_Repuestos_Acoples_Bronce.pdf',
+        tipo: 'documento',
+        extension: 'PDF',
+        url: '#',
+        tamanio: '450 KB',
+        fechaSubida: '2026-07-15 14:28'
+      },
+      {
+        id: 'doc-3',
+        nombre: 'Certificado_Garantia_Piezas_Karcher.pdf',
+        tipo: 'documento',
+        extension: 'PDF',
+        url: '#',
+        tamanio: '890 KB',
+        fechaSubida: '2026-07-15 14:30'
+      }
+    ]
   },
-  ...Array.from({ length: 45 }).map((_, i) => {
-    const isSolucionado = i % 2 !== 0;
-    return {
-      id: i + 3,
-      codigoIncidente: `INC-2026-${String(i + 3).padStart(3, '0')}`,
-      maquina: `Equipo-${String((i % 8) + 1).padStart(3, '0')}`,
-      agencia: i % 3 === 0 ? 'EasyDry Quito Sur' : 'EasyDry Quito Norte',
-      fecha: `2026-07-${String(Math.floor(Math.random() * 28) + 1).padStart(2, '0')} 10:00`,
-      tipo: i % 3 === 0 ? 'Desgaste' : (i % 2 === 0 ? 'Falla eléctrica' : 'Rotura de pieza'),
-      prioridad: i % 4 === 0 ? 'Alta' : (i % 2 === 0 ? 'Media' : 'Baja'),
-      estado: isSolucionado ? 'Solucionado' : (i % 5 === 0 ? 'Pendiente' : 'En Solución'),
-      descripcion: `Falla detectada durante operación. Incidente #${i + 3} registrado automáticamente.`,
-      reportadoPor: 'Operador del sistema',
-      ...(isSolucionado ? {
-        fechaSolucion: `2026-07-${String(Math.floor(Math.random() * 28) + 1).padStart(2, '0')} 16:30`,
-        solucionadoPor: 'Esteban Torres (Técnico)',
-        observacionSolucion: 'Reparación completada y verificada.'
-      } : {})
-    };
-  })
+  {
+    id: 3,
+    codigoIncidente: 'INC-2026-003',
+    maquina: 'Generador de Ozono OZ-001',
+    agencia: 'EasyDry Cumbayá',
+    fecha: '2026-07-18 15:40',
+    tipo: 'Falla eléctrica',
+    prioridad: 'Crítica',
+    estado: 'Solucionado',
+    descripcion: 'Generador no produce descarga iónica. Fusible térmico saltado repetidamente.',
+    reportadoPor: 'Franklin Administrador',
+    fotosFallo: [
+      'https://images.unsplash.com/photo-1581092335397-9583fe92d232?w=800&auto=format&fit=crop&q=80'
+    ],
+    fechaSolucion: '2026-07-19 11:00',
+    solucionadoPor: 'Esteban Torres (Taller Central)',
+    observacionSolucion: 'Reemplazo de placa cerámica de alta tensión y fusible cerámico de 10A.',
+    costoReparacion: 65.00,
+    repuestosUtilizados: 'Placa Cerámica Ozono 10g/h, Fusible Cerámico 10A',
+    fotosReparacion: [
+      'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=800&auto=format&fit=crop&q=80'
+    ],
+    documentosReparacion: [
+      {
+        id: 'doc-4',
+        nombre: 'Protocolo_Calibracion_Ozono.pdf',
+        tipo: 'documento',
+        extension: 'PDF',
+        url: '#',
+        tamanio: '2.1 MB',
+        fechaSubida: '2026-07-19 11:15'
+      }
+    ]
+  }
 ];
 
 export const MOCK_REPORTES: Reporte[] = [
