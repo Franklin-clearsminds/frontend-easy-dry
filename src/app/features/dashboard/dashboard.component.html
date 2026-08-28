@@ -1,185 +1,171 @@
 <div class="space-y-8 animate-fade-in">
-  
-  <!-- Encabezado de Bienvenida & Contexto Operativo (PC / Laptop) -->
+
+  <!-- Encabezado dinámico por rol -->
   <div class="bg-gradient-to-r from-easydry-blue via-easydry-blue-dark to-easydry-blue-deep rounded-3xl p-6 lg:p-8 text-white shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-6 relative overflow-hidden">
     <div class="relative z-10 space-y-2">
-      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-easydry-green/20 text-easydry-lime border border-easydry-green/40 text-xs font-bold shadow-2xs">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-easydry-green/20 text-easydry-lime border border-easydry-green/40 text-xs font-bold">
         <div class="w-2 h-2 rounded-full bg-easydry-green animate-pulse"></div>
-        <span>Super Administrador · Red Nacional</span>
+        <span>{{ rolLabel }} · {{ contextLabel }}</span>
       </div>
-      
-      <h1 class="text-3xl font-extrabold tracking-tight font-outfit">
-        Panel de Control Central EasyDry®
+      <h1 class="text-2xl lg:text-3xl font-extrabold tracking-tight font-outfit">
+        @if (isExecutive) { Panel de Control Central EasyDry® }
+        @else if (isTecnicoRole) { Dashboard Técnico & Taller }
+        @else if (isOperador) { Mi Dashboard de Bahía }
+        @else if (isExtras) { Dashboard Servicios Especiales }
+        @else if (isComercial) { Dashboard Comercial }
+        @else if (isDistribuidor) { Dashboard de Suministros }
+        @else { Dashboard EasyDry® }
       </h1>
-      
-      <p class="text-slate-300 text-sm mt-1 flex items-center gap-2">
-        <i-lucide name="user" class="w-4 h-4"></i-lucide>
-        Franklin Administrador
+      <p class="text-slate-300 text-sm flex items-center gap-2 flex-wrap">
+        <i-lucide name="user" class="w-4 h-4"></i-lucide> {{ userName }}
         <span class="opacity-50">|</span>
-        <i-lucide name="calendar" class="w-4 h-4"></i-lucide>
-        {{ fechaActual | date:'fullDate' }}
+        <i-lucide name="calendar" class="w-4 h-4"></i-lucide> {{ fechaActual | date:'fullDate' }}
       </p>
     </div>
-
-    <!-- Quick Actions -->
     <div class="relative z-10 flex gap-3 flex-wrap">
-      <a routerLink="/mapa-operativo" class="px-4 py-2.5 bg-easydry-green hover:bg-easydry-green-dark text-slate-900 font-bold rounded-xl shadow-glow-green transition-all flex items-center gap-2 text-sm">
-        <i-lucide name="map" class="w-4 h-4"></i-lucide> Mapa Nacional en Vivo
-      </a>
-      <a routerLink="/servicios" class="px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white font-bold rounded-xl border border-white/20 transition-all flex items-center gap-2 text-sm">
-        <i-lucide name="plus-circle" class="w-4 h-4"></i-lucide> Nueva Hoja de Control
-      </a>
+      @if (isExecutive) {
+        <a routerLink="/mapa-operativo" class="px-4 py-2.5 bg-easydry-green hover:bg-easydry-green-dark text-slate-900 font-bold rounded-xl text-sm flex items-center gap-2">
+          <i-lucide name="map" class="w-4 h-4"></i-lucide> Mapa en Vivo
+        </a>
+      }
+      @if (isTecnicoRole) {
+        <a routerLink="/taller-tecnico" class="px-4 py-2.5 bg-easydry-green hover:bg-easydry-green-dark text-slate-900 font-bold rounded-xl text-sm flex items-center gap-2">
+          <i-lucide name="wrench" class="w-4 h-4"></i-lucide> Ir al Taller
+        </a>
+      }
+      @if (isOperador) {
+        <a routerLink="/mi-bahia" class="px-4 py-2.5 bg-easydry-green hover:bg-easydry-green-dark text-slate-900 font-bold rounded-xl text-sm flex items-center gap-2">
+          <i-lucide name="car" class="w-4 h-4"></i-lucide> Mi Bahía
+        </a>
+      }
+      @if (isExtras) {
+        <a routerLink="/servicios" class="px-4 py-2.5 bg-easydry-green hover:bg-easydry-green-dark text-slate-900 font-bold rounded-xl text-sm flex items-center gap-2">
+          <i-lucide name="sparkles" class="w-4 h-4"></i-lucide> Cola de Servicios
+        </a>
+      }
+      @if (isDistribuidor) {
+        <a routerLink="/inventario" class="px-4 py-2.5 bg-easydry-green hover:bg-easydry-green-dark text-slate-900 font-bold rounded-xl text-sm flex items-center gap-2">
+          <i-lucide name="package" class="w-4 h-4"></i-lucide> Inventario
+        </a>
+      }
     </div>
-
-    <!-- Abstract Decoration -->
     <div class="absolute -right-10 -top-10 w-64 h-64 bg-easydry-green/10 rounded-full blur-3xl pointer-events-none"></div>
   </div>
 
-  <!-- BARRA DE FILTROS DINÁMICOS -->
-  <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-easydry animate-fade-in flex flex-col lg:flex-row gap-4 items-end z-20 relative">
-    <div class="w-full lg:w-1/4">
-      <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5"><i-lucide name="map-pin" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide> Sucursal</label>
-      <select [(ngModel)]="sucursalFilter" (change)="aplicarFiltros()" class="w-full bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-xl px-3 py-2 focus:ring-2 focus:ring-easydry-blue focus:border-easydry-blue transition-colors appearance-none font-medium cursor-pointer">
-        @for (suc of listaSucursales; track suc) {
-          <option [value]="suc">{{ suc }}</option>
-        }
-      </select>
-    </div>
-    
-    <div class="w-full lg:w-1/4">
-      <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5"><i-lucide name="car" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide> Tipo de Vehículo</label>
-      <select [(ngModel)]="modeloFilter" (change)="aplicarFiltros()" class="w-full bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-xl px-3 py-2 focus:ring-2 focus:ring-easydry-blue focus:border-easydry-blue transition-colors appearance-none font-medium cursor-pointer">
-        @for (mod of listaModelos; track mod) {
-          <option [value]="mod">{{ mod }}</option>
-        }
-      </select>
-    </div>
-
-    <div class="w-full lg:w-1/4">
-      <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5"><i-lucide name="calendar" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide> Período</label>
-      <select [(ngModel)]="fechaFilter" (change)="aplicarFiltros()" class="w-full bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-xl px-3 py-2 focus:ring-2 focus:ring-easydry-blue focus:border-easydry-blue transition-colors appearance-none font-medium cursor-pointer">
-        @for (fec of listaFechas; track fec) {
-          <option [value]="fec">{{ fec }}</option>
-        }
-      </select>
+  <!-- ═══ DASHBOARD EJECUTIVO (Admin / Supervisor / Gerente) ═══ -->
+  @if (isExecutive) {
+    <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-easydry flex flex-col lg:flex-row gap-4 items-end">
+      <div class="w-full lg:w-1/4">
+        <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">Sucursal</label>
+        <select [(ngModel)]="sucursalFilter" (change)="aplicarFiltros()" class="w-full bg-slate-50 border border-slate-200 text-sm rounded-xl px-3 py-2 font-medium">
+          @for (suc of listaSucursales; track suc) { <option [value]="suc">{{ suc }}</option> }
+        </select>
+      </div>
+      <div class="w-full lg:w-1/4">
+        <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">Período</label>
+        <select [(ngModel)]="fechaFilter" (change)="aplicarFiltros()" class="w-full bg-slate-50 border border-slate-200 text-sm rounded-xl px-3 py-2 font-medium">
+          @for (fec of listaFechas; track fec) { <option [value]="fec">{{ fec }}</option> }
+        </select>
+      </div>
+      <div class="w-full lg:w-1/4">
+        <button (click)="resetFiltros()" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm py-2 px-4 rounded-xl flex items-center justify-center gap-2">
+          <i-lucide name="rotate-ccw" class="w-4 h-4"></i-lucide> Limpiar
+        </button>
+      </div>
     </div>
 
-    <div class="w-full lg:w-1/4">
-      <button (click)="resetFiltros()" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm py-2 px-4 rounded-xl transition-colors flex items-center justify-center gap-2">
-        <i-lucide name="rotate-ccw" class="w-4 h-4"></i-lucide> Limpiar Filtros
-      </button>
-    </div>
-  </div>
-
-  <!-- STAT CARDS (4 Columnas Desktop) -->
-  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-    <app-stat-card
-      title="Vehículos Atendidos"
-      [value]="produccion?.totalVehiculos || 0"
-      icon="car"
-      change="12%"
-      trend="up"
-      description="Respecto a ayer"
-      variant="primary">
-    </app-stat-card>
-
-    <app-stat-card
-      title="Ingresos Estimados"
-      [value]="'$' + (produccion?.ingresosEstimados || 0)"
-      icon="dollar-sign"
-      change="8%"
-      trend="up"
-      description="Meta diaria alcanzada"
-      variant="success">
-    </app-stat-card>
-
-    <app-stat-card
-      title="Bahías Operativas"
-      [value]="(produccion?.bahiasOcupadas || 0) + ' / ' + (produccion?.totalBahias || 0)"
-      icon="shield-check"
-      description="92% Capacidad instalada"
-      variant="primary">
-    </app-stat-card>
-
-    <app-stat-card
-      title="Tiempo Promedio / Auto"
-      [value]="(produccion?.tiempoPromedioMinutos || 0) + ' min'"
-      icon="clock"
-      change="-4 min"
-      trend="up"
-      description="Optimización ecológica"
-      variant="warning">
-    </app-stat-card>
-  </div>
-
-  <!-- CHARTS & OPERATIONAL WIDGETS -->
-  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-    
-    <!-- 1. Flujo Horario de Vehículos (Line Chart) -->
-    <div class="lg:col-span-2">
-      <app-chart-card
-        title="Flujo Horario de Atención"
-        subtitle="Vehículos procesados a lo largo del día"
-        type="line"
-        [data]="produccion?.flujoHorario">
-      </app-chart-card>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <app-stat-card title="Vehículos Atendidos" [value]="produccion?.totalVehiculos || 0" icon="car" change="12%" trend="up" description="Respecto a ayer" variant="primary"></app-stat-card>
+      <app-stat-card title="Ingresos Estimados" [value]="'$' + (produccion?.ingresosEstimados || 0)" icon="dollar-sign" change="8%" trend="up" description="Meta diaria" variant="success"></app-stat-card>
+      <app-stat-card title="Bahías Operativas" [value]="(produccion?.bahiasOcupadas || 0) + ' / ' + (produccion?.totalBahias || 0)" icon="shield-check" description="Capacidad instalada" variant="primary"></app-stat-card>
+      <app-stat-card title="Tiempo Promedio" [value]="(produccion?.tiempoPromedioMinutos || 0) + ' min'" icon="clock" change="-4 min" trend="up" description="Por vehículo" variant="warning"></app-stat-card>
     </div>
 
-    <!-- 2. Widget de Alertas Operativas -->
-    <div class="lg:col-span-1">
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div class="lg:col-span-2">
+        <app-chart-card title="Flujo Horario de Atención" subtitle="Vehículos procesados hoy" type="line" [data]="produccion?.flujoHorario"></app-chart-card>
+      </div>
       <app-alertas-widget [alertas]="alertas"></app-alertas-widget>
-    </div>
-
-    <!-- 3. Distribución por Categoría de Vehículo (Doughnut) -->
-    <div class="lg:col-span-1">
-      <app-chart-card
-        title="Distribución por Tipo"
-        subtitle="Sedán, SUV, Camionetas"
-        type="doughnut"
-        [data]="produccion?.distribucionModelos">
-      </app-chart-card>
-    </div>
-
-    <!-- 4. Ranking de Operadores -->
-    <div class="lg:col-span-1">
+      <app-chart-card title="Distribución por Bahía" subtitle="Productividad por bahía" type="bar" [data]="produccion?.distribucionModelos"></app-chart-card>
       <app-ranking-operadores-widget [ranking]="operadores?.ranking || []"></app-ranking-operadores-widget>
+      <app-chart-card title="Disponibilidad de Equipos" subtitle="Estado de maquinaria" type="doughnut" [data]="maquinaria?.distribucionEstado"></app-chart-card>
+      <app-chart-card title="Servicios Generales" subtitle="Mix de servicios" type="doughnut" [data]="serviciosData?.distribucionGenerales"></app-chart-card>
+      <div class="lg:col-span-2">
+        <app-chart-card title="Servicios Especiales" subtitle="Pulido, cerámico, motor" type="bar" [data]="serviciosData?.distribucionEspeciales"></app-chart-card>
+      </div>
     </div>
-
-    <!-- 5. Estado de Maquinaria -->
-    <div class="lg:col-span-1">
-      <app-chart-card
-        title="Disponibilidad de Equipos"
-        subtitle="Operativas vs Mantenimiento"
-        type="doughnut"
-        [data]="maquinaria?.distribucionEstado">
-      </app-chart-card>
-    </div>
-
-    <!-- 6. Servicios Generales vs Especiales (Doughnut) -->
-    <div class="lg:col-span-1">
-      <app-chart-card
-        title="Distribución (G. vs E.)"
-        subtitle="Proporción de servicios generales"
-        type="doughnut"
-        [data]="serviciosData?.distribucionGenerales">
-      </app-chart-card>
-    </div>
-
-    <!-- 7. Servicios Especiales (Bar) -->
-    <div class="lg:col-span-2">
-      <app-chart-card
-        title="Servicios Especiales Realizados"
-        subtitle="Desglose comercial de pulido, cerámico y motor"
-        type="bar"
-        [data]="serviciosData?.distribucionEspeciales">
-      </app-chart-card>
-    </div>
-
-  </div>
-
-  <!-- Aprobaciones Pendientes del Día -->
-  <div class="grid grid-cols-1 gap-6">
     <app-aprobaciones-widget [aprobaciones]="serviciosData?.aprobacionesPendientes || []"></app-aprobaciones-widget>
-  </div>
+  }
+
+  <!-- ═══ DASHBOARD TÉCNICO ═══ -->
+  @if (isTecnicoRole && tecnicoData) {
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <app-stat-card title="Incidentes Abiertos" [value]="tecnicoData.incidentesAbiertos" icon="alert-triangle" variant="warning"></app-stat-card>
+      <app-stat-card title="Mantenimientos Pend." [value]="tecnicoData.mantenimientosPendientes" icon="calendar-clock" variant="primary"></app-stat-card>
+      <app-stat-card title="Equipos Operativos" [value]="tecnicoData.equiposOperativos" icon="shield-check" variant="success"></app-stat-card>
+      <app-stat-card title="Tiempo Medio Reparación" [value]="tecnicoData.tiempoMedioReparacionHrs + ' hrs'" icon="clock" variant="primary"></app-stat-card>
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <app-chart-card title="Incidentes por Estado" type="doughnut" [data]="tecnicoData.chartIncidentesPorEstado"></app-chart-card>
+      <app-chart-card title="Mantenimientos Semana" type="bar" [data]="tecnicoData.chartMantenimientosSemana"></app-chart-card>
+      <app-chart-card title="Fallos por Tipo" type="doughnut" [data]="tecnicoData.chartFallosPorTipo"></app-chart-card>
+    </div>
+  }
+
+  <!-- ═══ DASHBOARD OPERADOR ═══ -->
+  @if (isOperador && operadorData) {
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <app-stat-card title="OTs Hoy" [value]="operadorData.otsHoy" icon="car" variant="primary"></app-stat-card>
+      <app-stat-card title="En Proceso" [value]="operadorData.enProceso" icon="loader" variant="warning"></app-stat-card>
+      <app-stat-card title="Finalizados" [value]="operadorData.finalizados" icon="check-circle" variant="success"></app-stat-card>
+      <app-stat-card title="Tiempo Promedio" [value]="operadorData.tiempoPromedioMin + ' min'" icon="clock" [subtitle]="'Meta: ' + operadorData.metaDiaria + ' OTs'" variant="primary"></app-stat-card>
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <app-chart-card title="OTs por Hora" subtitle="Ritmo de atención hoy" type="line" [data]="operadorData.chartOtsPorHora"></app-chart-card>
+      <app-chart-card title="Mix de Servicios" subtitle="Generales vs Especiales" type="doughnut" [data]="operadorData.chartServiciosTipo"></app-chart-card>
+    </div>
+  }
+
+  <!-- ═══ DASHBOARD EXTRAS ═══ -->
+  @if (isExtras && extrasData) {
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <app-stat-card title="Pendientes" [value]="extrasData.asignacionesPendientes" icon="clock" variant="warning"></app-stat-card>
+      <app-stat-card title="En Proceso" [value]="extrasData.enProceso" icon="loader" variant="primary"></app-stat-card>
+      <app-stat-card title="Completadas Semana" [value]="extrasData.completadasSemana" icon="check-circle" variant="success"></app-stat-card>
+      <app-stat-card title="Calificación Prom." [value]="extrasData.calificacionPromedio + ' ★'" icon="star" [subtitle]="extrasData.sucursalesActivas + ' sucursales'" variant="success"></app-stat-card>
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <app-chart-card title="Cola por Prioridad" type="bar" [data]="extrasData.chartColaPorPrioridad"></app-chart-card>
+      <app-chart-card title="Completados esta Semana" type="bar" [data]="extrasData.chartCompletadosSemana"></app-chart-card>
+    </div>
+  }
+
+  <!-- ═══ DASHBOARD COMERCIAL ═══ -->
+  @if (isComercial && comercialData) {
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <app-stat-card title="Servicios del Mes" [value]="comercialData.serviciosMes" icon="bar-chart-2" variant="primary"></app-stat-card>
+      <app-stat-card title="Ingresos Mes" [value]="'$' + comercialData.ingresosMesUSD" icon="dollar-sign" variant="success"></app-stat-card>
+      <app-stat-card title="Tasa Aprobación" [value]="comercialData.tasaAprobacion + '%'" icon="check-circle" variant="success"></app-stat-card>
+      <app-stat-card title="Extras Vendidos" [value]="comercialData.extrasVendidos" icon="sparkles" variant="primary"></app-stat-card>
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <app-chart-card title="Ingresos por Semana" type="line" [data]="comercialData.chartIngresosSemana"></app-chart-card>
+      <app-chart-card title="Mix de Servicios" type="doughnut" [data]="comercialData.chartMixServicios"></app-chart-card>
+    </div>
+  }
+
+  <!-- ═══ DASHBOARD DISTRIBUIDOR ═══ -->
+  @if (isDistribuidor && distribuidorData) {
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <app-stat-card title="SKUs Críticos" [value]="distribuidorData.skusCriticos" icon="alert-triangle" variant="warning"></app-stat-card>
+      <app-stat-card title="Pedidos Pendientes" [value]="distribuidorData.pedidosPendientes" icon="package" variant="primary"></app-stat-card>
+      <app-stat-card title="Entregas Semana" [value]="distribuidorData.entregasSemana" icon="truck" variant="success"></app-stat-card>
+      <app-stat-card title="Valor Inventario" [value]="'$' + distribuidorData.valorInventarioUSD" icon="dollar-sign" variant="primary"></app-stat-card>
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <app-chart-card title="Consumo de Insumos" type="bar" [data]="distribuidorData.chartConsumoInsumos"></app-chart-card>
+      <app-chart-card title="Estado de Stock" type="doughnut" [data]="distribuidorData.chartStockEstado"></app-chart-card>
+    </div>
+  }
 
 </div>

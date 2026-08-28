@@ -34,6 +34,15 @@ export const MENU_CONFIG: MenuItem[] = [
     badge: 'Live',
     badgeColor: 'bg-easydry-green text-slate-950'
   },
+  {
+    label: 'Notificaciones',
+    route: '/notificaciones',
+    icon: 'bell',
+    moduloCodigo: 'notificaciones',
+    group: 'Panel Principal',
+    badge: '3',
+    badgeColor: 'bg-rose-500 text-white'
+  },
 
   // ─── Operación & Sucursales ────────────────────────────────────
   {

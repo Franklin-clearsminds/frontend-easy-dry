@@ -521,7 +521,7 @@
 <!-- MODAL: CATALOGO GENERAL / ESPECIAL                                      -->
 <!-- ======================================================================= -->
 @if (showModal) {
-  <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+  <div appModalPortal class="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
       <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 shrink-0">
         <h3 class="font-extrabold text-lg text-slate-900">{{ isEditing ? 'Editar Servicio' : 'Nuevo Servicio' }}</h3>
@@ -627,7 +627,7 @@
 <!-- MODAL: SERVICIO EXTRA                                                    -->
 <!-- ======================================================================= -->
 @if (showModalExtras) {
-  <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+  <div appModalPortal class="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[92vh]">
       <!-- Header -->
       <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center shrink-0 bg-gradient-to-r from-easydry-blue/5 to-transparent">

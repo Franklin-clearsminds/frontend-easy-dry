@@ -6,6 +6,8 @@ import { MantenimientoMockService } from '../../core/services/mantenimiento-mock
 import { MaquinariaMockService } from '../../core/services/maquinaria-mock.service';
 import { AuthService } from '../../core/services/auth.service';
 import { Mantenimiento, Maquinaria } from '../../core/models';
+import { Role } from '../../core/models/roles.model';
+import { DEMO_CREDENTIALS } from '../../core/services/auth.service';
 import { ModalComponent } from '../../shared/components/modal/modal.component';
 import { ToastService } from '../../shared/services/toast.service';
 import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
@@ -91,6 +93,9 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                 <th class="py-3.5 px-4">Técnico Certificado</th>
                 <th class="py-3.5 px-4">Estado</th>
                 <th class="py-3.5 px-4">Descripción</th>
+                @if (puedeAsignar) {
+                  <th class="py-3.5 px-4">Acciones</th>
+                }
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100">
@@ -130,6 +135,31 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                   <td class="py-3.5 px-4 text-xs text-slate-500 max-w-xs truncate">
                     {{ m.descripcion }}
                   </td>
+                  @if (puedeAsignar) {
+                    <td class="py-3.5 px-4">
+                      @if (m.estado !== 'Completado' && m.estado !== 'Cancelado') {
+                        <div class="flex flex-col gap-1.5">
+                          @if (m.tecnicoAsignadoNombre) {
+                            <span class="text-[10px] font-semibold text-violet-700">{{ m.tecnicoAsignadoNombre }}</span>
+                          }
+                          <div class="flex flex-wrap gap-1">
+                            <button
+                              (click)="openModalAsignar(m); $event.stopPropagation()"
+                              class="px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-lg text-[10px]">
+                              {{ m.tecnicoAsignadoId ? 'Reasignar' : 'Asignar' }}
+                            </button>
+                            @if (m.tecnicoAsignadoId) {
+                              <button
+                                (click)="cancelarAsignacionMantenimiento(m); $event.stopPropagation()"
+                                class="px-3 py-1.5 bg-rose-100 hover:bg-rose-200 text-rose-800 font-bold rounded-lg text-[10px]">
+                                Cancelar
+                              </button>
+                            }
+                          </div>
+                        </div>
+                      }
+                    </td>
+                  }
                 </tr>
               }
             </tbody>
@@ -170,12 +200,28 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                   {{ m.tecnico }}
                 </div>
               </div>
+              @if (puedeAsignar && m.estado !== 'Completado' && m.estado !== 'Cancelado') {
+                <div class="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-slate-100" (click)="$event.stopPropagation()">
+                  <button
+                    (click)="openModalAsignar(m)"
+                    class="px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-lg text-[10px]">
+                    {{ m.tecnicoAsignadoId ? 'Reasignar' : 'Asignar' }}
+                  </button>
+                  @if (m.tecnicoAsignadoId) {
+                    <button
+                      (click)="cancelarAsignacionMantenimiento(m)"
+                      class="px-3 py-1.5 bg-rose-100 hover:bg-rose-200 text-rose-800 font-bold rounded-lg text-[10px]">
+                      Cancelar
+                    </button>
+                  }
+                </div>
+              }
             </div>
           }
         </div>
         
         <app-pagination 
-          [totalItems]="mantenimientos.length" 
+          [totalItems]="mantenimientosFiltrados.length" 
           [currentPage]="currentPage" 
           [pageSize]="pageSize"
           (pageChange)="onPageChange($event)"
@@ -297,6 +343,52 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
         </div>
       </app-modal>
 
+      <app-modal
+        [isOpen]="modalAsignarOpen"
+        [title]="mantenimientoAsignar?.tecnicoAsignadoId ? 'Reasignar Mantenimiento' : 'Asignar Mantenimiento'"
+        icon="user-cog"
+        (close)="modalAsignarOpen = false">
+        @if (mantenimientoAsignar) {
+          <div class="space-y-4">
+            <p class="text-xs text-slate-600">
+              <strong class="text-slate-900">{{ mantenimientoAsignar.maquina }}</strong>
+              · {{ mantenimientoAsignar.fecha }}
+            </p>
+            <p class="text-xs text-slate-500">
+              Ejecuta la tarea tú mismo o delega a un técnico de campo.
+            </p>
+            @if (mantenimientoAsignar.tecnicoAsignadoNombre) {
+              <div class="p-3 bg-violet-50 border border-violet-200 rounded-xl text-xs text-violet-800">
+                Asignado actualmente a: <strong>{{ mantenimientoAsignar.tecnicoAsignadoNombre }}</strong>
+              </div>
+            }
+            <button
+              type="button"
+              (click)="asignarMantenimientoAEjecutor(gestorActual.id, gestorActual.nombreCompleto)"
+              class="w-full py-3 px-4 bg-violet-600 hover:bg-violet-700 text-white font-extrabold rounded-xl text-xs">
+              {{ etiquetaEjecutarYo }}
+            </button>
+            <p class="text-[10px] font-bold text-slate-400 uppercase">Delegar a técnico</p>
+            @for (tec of tecnicosDisponibles; track tec.email) {
+              <button
+                type="button"
+                (click)="asignarMantenimientoAEjecutor(tec.id, tec.nombre)"
+                class="w-full py-3 px-4 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl text-xs">
+                {{ tec.nombre }}
+              </button>
+            }
+            @if (mantenimientoAsignar.tecnicoAsignadoId) {
+              <button
+                type="button"
+                (click)="cancelarAsignacionMantenimiento(mantenimientoAsignar)"
+                class="w-full py-3 px-4 bg-rose-50 hover:bg-rose-100 text-rose-800 font-bold rounded-xl text-xs border border-rose-200">
+                Cancelar asignación
+              </button>
+            }
+          </div>
+        }
+      </app-modal>
+
     </div>
   `
 })
@@ -305,6 +397,18 @@ export class MantenimientoComponent implements OnInit {
   mantenimientos: Mantenimiento[] = [];
   listaMaquinas: Maquinaria[] = [];
   modalCrearOpen = false;
+  modalAsignarOpen = false;
+  mantenimientoAsignar?: Mantenimiento;
+
+  gestorActual = { id: 0, nombreCompleto: '' };
+
+  tecnicosDisponibles = DEMO_CREDENTIALS
+    .filter(c => c.role === Role.TECNICO)
+    .map(c => ({
+      id: DEMO_CREDENTIALS.indexOf(c) + 1,
+      nombre: c.nombre,
+      email: c.email,
+    }));
   
   filtrosGlobales: FilterState = { sucursal: 'Todas', operador: 'Todos', bahia: 'Todas', estado: 'Todos', fecha: 'Hoy' };
 
@@ -315,12 +419,68 @@ export class MantenimientoComponent implements OnInit {
 
   get mantenimientosFiltrados() {
     let resultados = this.mantenimientos;
+    const user = this.authService.getCurrentUser();
+
+    if (this.esTecnico && user) {
+      resultados = resultados.filter(m => m.tecnicoAsignadoId === user.id);
+    }
 
     if (this.filtrosGlobales.estado !== 'Todos') {
       resultados = resultados.filter(m => m.estado === this.filtrosGlobales.estado);
     }
     
     return resultados;
+  }
+
+  get esGestor(): boolean {
+    return this.authService.hasRole(Role.COORD_MANTENIMIENTO);
+  }
+
+  get puedeAsignar(): boolean {
+    return this.esGestor || this.authService.hasRole(Role.SUPER_ADMIN);
+  }
+
+  get etiquetaEjecutarYo(): string {
+    if (this.authService.hasRole(Role.SUPER_ADMIN)) {
+      return 'Ejecutar yo (Super Administrador)';
+    }
+    return 'Ejecutar yo (Gestor Técnico)';
+  }
+
+  get esTecnico(): boolean {
+    return this.authService.hasRole(Role.TECNICO);
+  }
+
+  openModalAsignar(m: Mantenimiento) {
+    this.mantenimientoAsignar = m;
+    this.modalAsignarOpen = true;
+  }
+
+  asignarMantenimientoAEjecutor(tecnicoId: number, tecnicoNombre: string) {
+    const user = this.authService.getCurrentUser();
+    if (!this.mantenimientoAsignar || !user) return;
+
+    this.mantenimientoService.asignarMantenimiento(
+      this.mantenimientoAsignar.id,
+      tecnicoId,
+      tecnicoNombre,
+      user.id,
+      `${user.nombre} ${user.apellido}`.trim()
+    ).subscribe(updated => {
+      if (updated) {
+        this.toastService.success('Asignación registrada', `Mantenimiento delegado a ${tecnicoNombre}`);
+        this.modalAsignarOpen = false;
+      }
+    });
+  }
+
+  cancelarAsignacionMantenimiento(m: Mantenimiento) {
+    this.mantenimientoService.cancelarAsignacion(m.id).subscribe(updated => {
+      if (updated) {
+        this.toastService.success('Asignación cancelada', `El mantenimiento de ${updated.maquina} quedó sin asignar`);
+        this.modalAsignarOpen = false;
+      }
+    });
   }
 
   modalDetalleOpen = false;
@@ -343,7 +503,7 @@ export class MantenimientoComponent implements OnInit {
     maquina: 'Hidrolavadora Ecológica HD-001',
     tipo: 'Preventivo' as Mantenimiento['tipo'],
     fecha: '2026-08-05',
-    tecnico: 'Ing. Marco Andrade',
+    tecnico: 'Sin asignar',
     estado: 'Programado' as Mantenimiento['estado'],
     costo: 120.00,
     descripcion: ''
@@ -354,20 +514,42 @@ export class MantenimientoComponent implements OnInit {
   private toastService = inject(ToastService);
   public authService = inject(AuthService);
 
+  /** Roles con alcance de red/taller nacional: no filtrar por agencia exacta. */
+  private debeFiltrarPorSucursal(user: ReturnType<AuthService['getCurrentUser']>): boolean {
+    if (!user?.sucursalNombre || user.role === Role.SUPER_ADMIN) return false;
+    const rolesAlcanceNacional: Role[] = [
+      Role.COORD_MANTENIMIENTO,
+      Role.TECNICO,
+      Role.SUPERVISOR,
+      Role.GERENTE,
+    ];
+    return !rolesAlcanceNacional.includes(user.role as Role);
+  }
+
   ngOnInit(): void {
     const user = this.authService.getCurrentUser();
+    if (user) {
+      this.gestorActual = {
+        id: user.id,
+        nombreCompleto: `${user.nombre} ${user.apellido}`.trim(),
+      };
+    }
 
-    this.mantenimientoService.getMantenimientos().subscribe(list => {
-      if (user && user.role !== 'SUPER_ADMIN' && user.sucursalNombre) {
-        this.mantenimientos = list.filter(m => m.agencia && m.agencia.toLowerCase() === user.sucursalNombre!.toLowerCase());
+    this.mantenimientoService.mantenimientos$.subscribe(list => {
+      if (user && this.debeFiltrarPorSucursal(user)) {
+        this.mantenimientos = list.filter(
+          m => m.agencia && m.agencia.toLowerCase() === user.sucursalNombre!.toLowerCase()
+        );
       } else {
         this.mantenimientos = list;
       }
     });
 
     this.maquinariaService.getMaquinaria().subscribe(list => {
-      if (user && user.role !== 'SUPER_ADMIN' && user.sucursalNombre) {
-        this.listaMaquinas = list.filter(m => m.agencia.toLowerCase() === user.sucursalNombre!.toLowerCase());
+      if (user && this.debeFiltrarPorSucursal(user)) {
+        this.listaMaquinas = list.filter(
+          m => m.agencia.toLowerCase() === user.sucursalNombre!.toLowerCase()
+        );
       } else {
         this.listaMaquinas = list;
       }

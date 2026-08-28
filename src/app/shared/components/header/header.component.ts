@@ -1,14 +1,16 @@
 import { Component, Output, EventEmitter, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { RouterModule } from '@angular/router';
 import { LucideAngularModule } from 'lucide-angular';
 import { AuthService } from '../../../core/services/auth.service';
 import { ToastService } from '../../services/toast.service';
+import { MOCK_NOTIFICACIONES } from '../../../core/mocks/notificaciones.mock';
 
 @Component({
   selector: 'app-header',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule],
+  imports: [CommonModule, FormsModule, RouterModule, LucideAngularModule],
   template: `
     <header class="h-20 bg-white border-b border-slate-200 px-8 flex items-center justify-between sticky top-0 z-20 shadow-xs">
 
@@ -47,46 +49,16 @@ import { ToastService } from '../../services/toast.service';
           <span>Super Administrador</span>
         </div>
 
-        <!-- Notifications Bell -->
-        <div class="relative">
-          <button
-            (click)="toggleNotifications()"
-            class="p-2.5 rounded-xl text-slate-600 hover:text-easydry-blue hover:bg-slate-100 transition-colors relative focus:outline-none">
-            <i-lucide name="bell" class="w-5 h-5"></i-lucide>
-            @if (unreadCount > 0) {
-              <span class="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-rose-500 rounded-full ring-2 ring-white"></span>
-            }
-          </button>
-
-          @if (showNotifications) {
-            <div class="absolute right-0 mt-3 w-80 bg-white rounded-2xl shadow-2xl border border-slate-100 py-3 z-50 animate-fade-in">
-              <div class="px-4 pb-2 border-b border-slate-100 flex items-center justify-between">
-                <h4 class="font-bold text-slate-900 text-sm">Notificaciones del Sistema</h4>
-                <span class="text-[11px] font-semibold bg-easydry-blue/10 text-easydry-blue px-2 py-0.5 rounded-full">{{ unreadCount }} Nuevas</span>
-              </div>
-              <div class="divide-y divide-slate-100 max-h-72 overflow-y-auto">
-                <div class="p-3 hover:bg-slate-50 transition-colors cursor-pointer flex items-start gap-3">
-                  <div class="p-2 rounded-lg bg-amber-100 text-amber-700 mt-0.5">
-                    <i-lucide name="alert-triangle" class="w-4 h-4"></i-lucide>
-                  </div>
-                  <div>
-                    <p class="text-xs font-semibold text-slate-800">Incidente en Aspiradora AS-002</p>
-                    <p class="text-[11px] text-slate-500">EasyDry Quito Norte • hace 25 min</p>
-                  </div>
-                </div>
-                <div class="p-3 hover:bg-slate-50 transition-colors cursor-pointer flex items-start gap-3">
-                  <div class="p-2 rounded-lg bg-easydry-green/20 text-easydry-green-dark mt-0.5">
-                    <i-lucide name="check-circle-2" class="w-4 h-4"></i-lucide>
-                  </div>
-                  <div>
-                    <p class="text-xs font-semibold text-slate-800">Toyota RAV4 - Pendiente Aprobación</p>
-                    <p class="text-[11px] text-slate-500">EasyDry Quito Norte • hace 40 min</p>
-                  </div>
-                </div>
-              </div>
-            </div>
+        <!-- Notifications -->
+        <a
+          routerLink="/notificaciones"
+          class="p-2.5 rounded-xl text-slate-600 hover:text-easydry-blue hover:bg-slate-100 transition-colors relative focus:outline-none inline-flex"
+          title="Notificaciones">
+          <i-lucide name="bell" class="w-5 h-5"></i-lucide>
+          @if (unreadCount > 0) {
+            <span class="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-rose-500 rounded-full ring-2 ring-white"></span>
           }
-        </div>
+        </a>
 
         <div class="h-8 w-px bg-slate-200"></div>
 
@@ -113,8 +85,7 @@ export class HeaderComponent {
   private toastService = inject(ToastService);
 
   searchQuery = '';
-  showNotifications = false;
-  unreadCount = 2;
+  unreadCount = MOCK_NOTIFICACIONES.filter(n => !n.leida).length;
 
   get user() { return this.authService.getCurrentUser(); }
 
@@ -123,9 +94,5 @@ export class HeaderComponent {
       this.search.emit(this.searchQuery);
       this.toastService.info('Búsqueda', `Buscando: "${this.searchQuery}"`);
     }
-  }
-
-  toggleNotifications() {
-    this.showNotifications = !this.showNotifications;
   }
 }

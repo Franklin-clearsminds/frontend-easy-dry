@@ -50,14 +50,102 @@ export const MOCK_AGENCIAS: Agencia[] = [
 export const MOCK_USUARIOS: Usuario[] = [
   {
     id: 1,
-    nombre: 'Franklin',
-    apellido: 'Administrador',
+    nombre: 'Administrador Easy Dry',
+    apellido: 'Corporativo',
     rol: 'Super Administrador',
-    agencia: 'EasyDry Corporativo',
+    agencia: 'EasyDry Corporativo Nacional',
     estado: 'Activo',
     fechaAsignacion: '2024-01-15',
     email: 'admin@easydry.com',
     avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
+  },
+  {
+    id: 2,
+    nombre: 'Supervisor Costa',
+    apellido: 'Operaciones',
+    rol: 'Supervisor Regional',
+    agencia: 'EasyDry Guayaquil (Costa)',
+    estado: 'Activo',
+    fechaAsignacion: '2024-02-01',
+    email: 'supervisor.costa@easydry.com',
+    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80'
+  },
+  {
+    id: 3,
+    nombre: 'Coordinador Mantenimiento',
+    apellido: 'Taller',
+    rol: 'Coordinador Mantenimiento',
+    agencia: 'Taller Central Nacional',
+    estado: 'Activo',
+    fechaAsignacion: '2024-02-10',
+    email: 'mantenimiento@easydry.com',
+    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80'
+  },
+  {
+    id: 4,
+    nombre: 'Técnico Easy Dry',
+    apellido: 'Mantenimiento',
+    rol: 'Técnico de Maquinaria',
+    agencia: 'Red Nacional EasyDry',
+    estado: 'Activo',
+    fechaAsignacion: '2024-03-01',
+    email: 'tecnico@easydry.com',
+    avatar: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?w=150&auto=format&fit=crop&q=80'
+  },
+  {
+    id: 5,
+    nombre: 'Operador Bahía 01',
+    apellido: 'Quito',
+    rol: 'Operador de Bahía',
+    agencia: 'EasyDry Quito Norte',
+    estado: 'Activo',
+    fechaAsignacion: '2024-03-15',
+    email: 'operador.bahia01@easydry.com',
+    avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80'
+  },
+  {
+    id: 6,
+    nombre: 'Coordinador Comercial',
+    apellido: 'Ventas',
+    rol: 'Coordinador Comercial',
+    agencia: 'EasyDry Corporativo Nacional',
+    estado: 'Activo',
+    fechaAsignacion: '2024-04-01',
+    email: 'comercial@easydry.com',
+    avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80'
+  },
+  {
+    id: 7,
+    nombre: 'Jefe Servicios Especiales',
+    apellido: 'Detallado VIP',
+    rol: 'Jefe Servicios Especiales',
+    agencia: 'Región Costa / Sierra',
+    estado: 'Activo',
+    fechaAsignacion: '2024-04-10',
+    email: 'especiales@easydry.com',
+    avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&auto=format&fit=crop&q=80'
+  },
+  {
+    id: 8,
+    nombre: 'Operador Pulido',
+    apellido: 'Especiales',
+    rol: 'Operador Servicios Especiales',
+    agencia: 'EasyDry Guayaquil (Costa)',
+    estado: 'Activo',
+    fechaAsignacion: '2024-05-01',
+    email: 'operador.especial@easydry.com',
+    avatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=150&auto=format&fit=crop&q=80'
+  },
+  {
+    id: 9,
+    nombre: 'Distribuidor Central',
+    apellido: 'Suministros',
+    rol: 'Distribuidor Central',
+    agencia: 'Bodega Central EasyDry',
+    estado: 'Activo',
+    fechaAsignacion: '2024-05-15',
+    email: 'distribuidor@easydry.com',
+    avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150&auto=format&fit=crop&q=80'
   }
 ];
 
@@ -273,11 +361,27 @@ export const MOCK_MANTENIMIENTOS: Mantenimiento[] = [
     id: 1,
     maquina: 'Hidrolavadora HD-001',
     tipo: 'Preventivo',
-    fecha: '2026-06-15',
-    tecnico: 'Esteban Torres (Técnico)',
-    estado: 'Completado',
+    fecha: '2026-08-28',
+    tecnico: 'Sin asignar',
+    estado: 'Programado',
     costo: 85.00,
-    descripcion: 'Cambio de sellos cerámicos de bomba y aceite hidráulico.',
+    descripcion: 'Cambio de sellos cerámicos de bomba y aceite hidráulico. Pendiente de asignación.',
+    agencia: 'EasyDry Quito Norte'
+  },
+  {
+    id: 100,
+    maquina: 'Compresor de Aire CA-003',
+    tipo: 'Preventivo',
+    fecha: '2026-08-28',
+    tecnico: 'Técnico Easy Dry',
+    tecnicoAsignadoId: 4,
+    tecnicoAsignadoNombre: 'Técnico Easy Dry',
+    gestorAsignadorId: 3,
+    gestorAsignadorNombre: 'Coordinador Mantenimiento',
+    fechaAsignacion: '2026-08-28 07:30',
+    estado: 'En Proceso',
+    costo: 25.00,
+    descripcion: 'Mantenimiento delegado al técnico de campo.',
     agencia: 'EasyDry Quito Norte'
   },
   ...Array.from({ length: 45 }).map((_, i) => ({
@@ -286,7 +390,7 @@ export const MOCK_MANTENIMIENTOS: Mantenimiento[] = [
     tipo: i % 3 === 0 ? 'Correctivo' : 'Preventivo',
     fecha: `2026-07-${String(Math.floor(Math.random() * 28) + 1).padStart(2, '0')}`,
     tecnico: i % 2 === 0 ? 'Esteban Torres (Técnico)' : 'Pedro Martínez (Técnico)',
-    estado: i % 4 === 0 ? 'Programado' : (i % 5 === 0 ? 'En Curso' : 'Completado'),
+    estado: i % 4 === 0 ? 'Programado' : (i % 5 === 0 ? 'En Proceso' : 'Completado'),
     costo: Math.floor(Math.random() * 200) + 50,
     descripcion: `Revisión y mantenimiento de componentes rutinarios (Orden #${202600 + i}).`,
     agencia: i % 2 === 0 ? 'EasyDry Quito Norte' : 'EasyDry Quito Sur'
@@ -424,6 +528,26 @@ export const MOCK_INCIDENTES: Incidente[] = [
         tamanio: '2.1 MB',
         fechaSubida: '2026-07-19 11:15'
       }
+    ]
+  },
+  {
+    id: 4,
+    codigoIncidente: 'INC-2026-004',
+    maquina: 'Compresor de Aire CA-003',
+    agencia: 'EasyDry Quito Norte',
+    fecha: '2026-08-28 06:45',
+    tipo: 'Baja presión',
+    prioridad: 'Media',
+    estado: 'En Solución',
+    descripcion: 'Caída de presión en tanque. Posible fuga en válvula de retención.',
+    reportadoPor: 'Operador Bahía 02',
+    tecnicoAsignadoId: 4,
+    tecnicoAsignadoNombre: 'Técnico Easy Dry',
+    gestorAsignadorId: 3,
+    gestorAsignadorNombre: 'Coordinador Mantenimiento',
+    fechaAsignacion: '2026-08-28 07:00',
+    fotosFallo: [
+      'https://images.unsplash.com/photo-1581092335397-9583fe92d232?w=800&auto=format&fit=crop&q=80'
     ]
   }
 ];

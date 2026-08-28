@@ -162,6 +162,11 @@ export interface Mantenimiento {
   descripcion: string;
   agencia?: string;
   fotos?: string[];
+  tecnicoAsignadoId?: number;
+  tecnicoAsignadoNombre?: string;
+  gestorAsignadorId?: number;
+  gestorAsignadorNombre?: string;
+  fechaAsignacion?: string;
 }
 
 export interface ArchivoAdjunto {
@@ -185,6 +190,12 @@ export interface Incidente {
   estado: 'Pendiente' | 'En Solución' | 'Solucionado' | 'Abierto' | 'En Revisión' | 'Resuelto' | string;
   descripcion: string;
   reportadoPor: string;
+
+  tecnicoAsignadoId?: number;
+  tecnicoAsignadoNombre?: string;
+  gestorAsignadorId?: number;
+  gestorAsignadorNombre?: string;
+  fechaAsignacion?: string;
 
   // Evidencias del Fallo (Fotos y Videos al reportar)
   fotosFallo?: string[];

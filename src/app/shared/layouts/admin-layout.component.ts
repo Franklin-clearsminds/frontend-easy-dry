@@ -11,7 +11,9 @@ import { ToastComponent } from '../components/toast/toast.component';
   imports: [CommonModule, RouterOutlet, SidebarComponent, HeaderComponent, ToastComponent],
   template: `
     <div class="h-screen bg-slate-50 flex overflow-hidden">
-      <!-- EasyDry Sidebar (PC / Laptop Desktop Optimized) -->
+      <!-- Espacio reservado para el rail del sidebar (80px) — el sidebar es fixed encima -->
+      <div class="w-20 flex-shrink-0 h-screen" aria-hidden="true"></div>
+
       <app-sidebar></app-sidebar>
 
       <!-- Main Layout Body -->

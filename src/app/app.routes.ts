@@ -20,6 +20,7 @@ import { MapaOperativoComponent } from './features/mapa-operativo/mapa-operativo
 import { MiBahiaComponent } from './features/mi-bahia/mi-bahia.component';
 import { UnauthorizedComponent } from './features/unauthorized/unauthorized.component';
 import { PerfilComponent } from './features/perfil/perfil.component';
+import { NotificacionesComponent } from './features/notificaciones/notificaciones.component';
 import { InventarioComponent } from './features/inventario/inventario.component';
 import { authGuard, roleGuard } from './core/guards/auth.guard';
 import { Role } from './core/models/roles.model';
@@ -42,127 +43,256 @@ export const routes: Routes = [
         component: UnauthorizedComponent
       },
 
-      // ── Acceso Universal (todos los roles autenticados) ──
-      {
-        path: 'dashboard',
-        component: DashboardComponent,
-        canActivate: [authGuard]
-      },
+      // ── Acceso Universal / Perfil ──
       {
         path: 'perfil',
         component: PerfilComponent,
         canActivate: [authGuard]
       },
 
-      // ── Solo Operador ──
+      {
+        path: 'notificaciones',
+        component: NotificacionesComponent,
+        canActivate: [authGuard]
+      },
+
+      // ── Dashboard Principal ──
+      {
+        path: 'dashboard',
+        component: DashboardComponent,
+        canActivate: [
+          authGuard,
+          roleGuard([
+            Role.SUPER_ADMIN,
+            Role.SUPERVISOR,
+            Role.COORD_MANTENIMIENTO,
+            Role.TECNICO,
+            Role.OPERADOR,
+            Role.COORD_COMERCIAL,
+            Role.COORD_SERVICIOS_ESPECIALES,
+            Role.OPERADOR_SERVICIOS_ESPECIALES,
+            Role.DISTRIBUIDOR
+          ], 'dashboard')
+        ]
+      },
+
+      // ── Área Operativa de Bahía ──
       {
         path: 'mi-bahia',
         component: MiBahiaComponent,
-        canActivate: [authGuard, roleGuard([Role.OPERADOR])]
+        canActivate: [
+          authGuard,
+          roleGuard([
+            Role.SUPER_ADMIN,
+            Role.OPERADOR,
+            Role.OPERADOR_SERVICIOS_ESPECIALES
+          ], 'mi-bahia')
+        ]
       },
 
-      // ── Servicios: Admin, Gerente, Supervisor, Operador ──
+      // ── Servicios de Lavado (OTs) ──
       {
         path: 'servicios',
         component: ServiciosComponent,
-        canActivate: [authGuard, roleGuard([Role.SUPER_ADMIN, Role.GERENTE, Role.SUPERVISOR, Role.OPERADOR])]
+        canActivate: [
+          authGuard,
+          roleGuard([
+            Role.SUPER_ADMIN,
+            Role.SUPERVISOR,
+            Role.OPERADOR,
+            Role.COORD_COMERCIAL,
+            Role.COORD_SERVICIOS_ESPECIALES,
+            Role.OPERADOR_SERVICIOS_ESPECIALES
+          ], 'servicios')
+        ]
       },
 
-      // ── Aprobaciones: Admin y Gerente ──
+      // ── Aprobaciones y Cierres (SuperAdmin y Jefe Especiales) ──
       {
         path: 'aprobaciones',
         component: AprobacionesComponent,
-        canActivate: [authGuard, roleGuard([Role.SUPER_ADMIN, Role.GERENTE])]
+        canActivate: [
+          authGuard,
+          roleGuard([
+            Role.SUPER_ADMIN,
+            Role.COORD_SERVICIOS_ESPECIALES
+          ], 'aprobaciones')
+        ]
       },
 
-      // ── Productividad: Admin, Gerente, Supervisor ──
+      // ── Productividad & Reto EasyDry ──
       {
         path: 'productividad',
         component: ProductividadComponent,
-        canActivate: [authGuard, roleGuard([Role.SUPER_ADMIN, Role.GERENTE, Role.SUPERVISOR])]
+        canActivate: [
+          authGuard,
+          roleGuard([
+            Role.SUPER_ADMIN,
+            Role.SUPERVISOR,
+            Role.COORD_COMERCIAL,
+            Role.COORD_SERVICIOS_ESPECIALES
+          ], 'productividad')
+        ]
       },
 
-      // ── Mapa Operativo: Admin, Gerente, Supervisor ──
+      // ── Mapa Operativo en Vivo ──
       {
         path: 'mapa-operativo',
         component: MapaOperativoComponent,
-        canActivate: [authGuard, roleGuard([Role.SUPER_ADMIN, Role.GERENTE, Role.SUPERVISOR])]
+        canActivate: [
+          authGuard,
+          roleGuard([
+            Role.SUPER_ADMIN,
+            Role.SUPERVISOR
+          ], 'mapa-operativo')
+        ]
       },
 
-      // ── Sucursales: Solo Admin ──
+      // ── Sucursales ──
       {
         path: 'sucursales',
         component: SucursalesComponent,
-        canActivate: [authGuard, roleGuard([Role.SUPER_ADMIN])]
+        canActivate: [
+          authGuard,
+          roleGuard([
+            Role.SUPER_ADMIN,
+            Role.SUPERVISOR
+          ], 'sucursales')
+        ]
       },
       {
         path: 'sucursales/:id',
         component: SucursalDetailComponent,
-        canActivate: [authGuard, roleGuard([Role.SUPER_ADMIN])]
+        canActivate: [
+          authGuard,
+          roleGuard([
+            Role.SUPER_ADMIN,
+            Role.SUPERVISOR
+          ], 'sucursales')
+        ]
       },
 
-      // ── Operadores & Asignaciones: Admin, Gerente, Supervisor ──
+      // ── Operadores & Asignaciones ──
       {
         path: 'operadores',
         component: OperadoresComponent,
-        canActivate: [authGuard, roleGuard([Role.SUPER_ADMIN, Role.GERENTE, Role.SUPERVISOR])]
+        canActivate: [
+          authGuard,
+          roleGuard([
+            Role.SUPER_ADMIN,
+            Role.SUPERVISOR,
+            Role.COORD_SERVICIOS_ESPECIALES
+          ], 'operadores')
+        ]
       },
       {
         path: 'asignaciones',
         component: AsignacionesComponent,
-        canActivate: [authGuard, roleGuard([Role.SUPER_ADMIN, Role.GERENTE, Role.SUPERVISOR])]
+        canActivate: [
+          authGuard,
+          roleGuard([
+            Role.SUPER_ADMIN,
+            Role.SUPERVISOR,
+            Role.COORD_SERVICIOS_ESPECIALES
+          ], 'asignaciones')
+        ]
       },
 
-      // ── Maquinaria: Admin, Gerente, Supervisor, Técnico ──
+      // ── Maquinaria & Equipos ──
       {
         path: 'maquinaria',
         component: MaquinariaComponent,
-        canActivate: [authGuard, roleGuard([Role.SUPER_ADMIN, Role.GERENTE, Role.SUPERVISOR, Role.TECNICO])]
+        canActivate: [
+          authGuard,
+          roleGuard([
+            Role.SUPER_ADMIN,
+            Role.SUPERVISOR,
+            Role.COORD_MANTENIMIENTO,
+            Role.TECNICO,
+            Role.COORD_SERVICIOS_ESPECIALES
+          ], 'maquinaria')
+        ]
       },
 
       // ── Taller Técnico (Mantenimiento e Incidentes) ──
       {
         path: 'taller-tecnico',
         component: TallerTecnicoComponent,
-        canActivate: [authGuard, roleGuard([Role.SUPER_ADMIN, Role.GERENTE, Role.SUPERVISOR, Role.TECNICO])]
+        canActivate: [
+          authGuard,
+          roleGuard([
+            Role.SUPER_ADMIN,
+            Role.SUPERVISOR,
+            Role.COORD_MANTENIMIENTO,
+            Role.TECNICO
+          ], 'taller-tecnico')
+        ]
       },
 
       // ── Inventario de Insumos & Bodega ──
       {
         path: 'inventario',
         component: InventarioComponent,
-        canActivate: [authGuard, roleGuard([Role.SUPER_ADMIN, Role.GERENTE, Role.SUPERVISOR, Role.TECNICO])]
+        canActivate: [
+          authGuard,
+          roleGuard([
+            Role.SUPER_ADMIN,
+            Role.SUPERVISOR,
+            Role.COORD_MANTENIMIENTO,
+            Role.TECNICO,
+            Role.DISTRIBUIDOR
+          ], 'inventario')
+        ]
       },
 
-      // ── Reportes: Admin y Gerente ──
+      // ── Reportes Operativos ──
       {
         path: 'reportes',
         component: ReportesComponent,
-        canActivate: [authGuard, roleGuard([Role.SUPER_ADMIN, Role.GERENTE])]
+        canActivate: [
+          authGuard,
+          roleGuard([
+            Role.SUPER_ADMIN,
+            Role.SUPERVISOR,
+            Role.COORD_COMERCIAL
+          ], 'reportes')
+        ]
       },
 
-      // ── Agencias: Solo Admin ──
+      // ── Agencias (Solo SuperAdmin) ──
       {
         path: 'agencias',
         component: AgenciasComponent,
-        canActivate: [authGuard, roleGuard([Role.SUPER_ADMIN])]
+        canActivate: [
+          authGuard,
+          roleGuard([Role.SUPER_ADMIN], 'agencias')
+        ]
       },
 
-      // ── Usuarios y Configuración: Solo Admin ──
+      // ── Usuarios, Roles y Configuración Global (Solo SuperAdmin) ──
       {
         path: 'usuarios',
         component: UsuariosComponent,
-        canActivate: [authGuard, roleGuard([Role.SUPER_ADMIN])]
+        canActivate: [
+          authGuard,
+          roleGuard([Role.SUPER_ADMIN], 'usuarios')
+        ]
       },
       {
         path: 'configuracion',
         component: ConfiguracionComponent,
-        canActivate: [authGuard, roleGuard([Role.SUPER_ADMIN])]
+        canActivate: [
+          authGuard,
+          roleGuard([Role.SUPER_ADMIN], 'configuracion')
+        ]
       },
       {
         path: 'configuracion/servicios',
         component: CatalogoServiciosComponent,
-        canActivate: [authGuard, roleGuard([Role.SUPER_ADMIN])]
+        canActivate: [
+          authGuard,
+          roleGuard([Role.SUPER_ADMIN], 'configuracion/servicios')
+        ]
       }
     ]
   },

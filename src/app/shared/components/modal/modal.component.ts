@@ -1,5 +1,5 @@
-import { Component, Input, Output, EventEmitter } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, Input, Output, EventEmitter, inject, OnInit, ElementRef } from '@angular/core';
+import { CommonModule, DOCUMENT } from '@angular/common';
 import { LucideAngularModule } from 'lucide-angular';
 
 @Component({
@@ -8,7 +8,7 @@ import { LucideAngularModule } from 'lucide-angular';
   imports: [CommonModule, LucideAngularModule],
   template: `
     @if (isOpen) {
-      <div class="fixed inset-0 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in"
+      <div class="fixed inset-0 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in"
            [ngClass]="zClass">
         <div 
           class="bg-white rounded-3xl shadow-2xl border border-slate-100 w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh] animate-fade-in"
@@ -46,13 +46,20 @@ import { LucideAngularModule } from 'lucide-angular';
     }
   `
 })
-export class ModalComponent {
+export class ModalComponent implements OnInit {
   @Input() isOpen = false;
   @Input() title = '';
   @Input() icon = '';
-  /** Permite apilar modales (ej. z-[60] sobre una ficha z-50). */
-  @Input() zClass = 'z-50';
+  /** z-index sobre sidebar (z-50) y header */
+  @Input() zClass = 'z-[9999]';
   @Output() close = new EventEmitter<void>();
+
+  private host = inject(ElementRef<HTMLElement>);
+  private doc = inject(DOCUMENT);
+
+  ngOnInit(): void {
+    this.doc.body.appendChild(this.host.nativeElement);
+  }
 
   closeModal() {
     this.close.emit();

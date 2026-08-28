@@ -6,6 +6,13 @@ import { MOCK_DASHBOARD_OPERADORES } from '../mocks/dashboard-operadores.mock';
 import { MOCK_SERVICIOS_DATA } from '../mocks/servicios-data.mock';
 import { MOCK_MAQUINARIA } from '../mocks/maquinaria.mock';
 import { MOCK_ALERTAS } from '../mocks/alertas.mock';
+import {
+  MOCK_DASHBOARD_TECNICO,
+  MOCK_DASHBOARD_OPERADOR,
+  MOCK_DASHBOARD_EXTRAS,
+  MOCK_DASHBOARD_DISTRIBUIDOR,
+  MOCK_DASHBOARD_COMERCIAL
+} from '../mocks/dashboard-roles.mock';
 
 @Injectable({
   providedIn: 'root'
@@ -32,4 +39,23 @@ export class DashboardOperativoService {
     return of(MOCK_ALERTAS).pipe(delay(250));
   }
 
+  getDashboardTecnico(): Observable<typeof MOCK_DASHBOARD_TECNICO> {
+    return of(MOCK_DASHBOARD_TECNICO).pipe(delay(180));
+  }
+
+  getDashboardOperador(): Observable<typeof MOCK_DASHBOARD_OPERADOR> {
+    return of(MOCK_DASHBOARD_OPERADOR).pipe(delay(180));
+  }
+
+  getDashboardExtras(): Observable<typeof MOCK_DASHBOARD_EXTRAS> {
+    return of(MOCK_DASHBOARD_EXTRAS).pipe(delay(180));
+  }
+
+  getDashboardDistribuidor(): Observable<typeof MOCK_DASHBOARD_DISTRIBUIDOR> {
+    return of(MOCK_DASHBOARD_DISTRIBUIDOR).pipe(delay(180));
+  }
+
+  getDashboardComercial(): Observable<typeof MOCK_DASHBOARD_COMERCIAL> {
+    return of(MOCK_DASHBOARD_COMERCIAL).pipe(delay(180));
+  }
 }

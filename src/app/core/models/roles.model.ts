@@ -1,13 +1,18 @@
 // =========================================================
-// EasyDry® - Sistema de Roles y Permisos Modulares Dinámicos
+// EasyDry® - Sistema Oficial de Roles y Permisos RBAC
 // =========================================================
 
 export enum Role {
   SUPER_ADMIN = 'SUPER_ADMIN',
   GERENTE = 'GERENTE',
   SUPERVISOR = 'SUPERVISOR',
-  OPERADOR = 'OPERADOR',
+  COORD_MANTENIMIENTO = 'COORD_MANTENIMIENTO',
   TECNICO = 'TECNICO',
+  OPERADOR = 'OPERADOR',
+  COORD_COMERCIAL = 'COORD_COMERCIAL',
+  COORD_SERVICIOS_ESPECIALES = 'COORD_SERVICIOS_ESPECIALES',
+  OPERADOR_SERVICIOS_ESPECIALES = 'OPERADOR_SERVICIOS_ESPECIALES',
+  DISTRIBUIDOR = 'DISTRIBUIDOR',
   CUSTOM = 'CUSTOM'
 }
 
@@ -19,7 +24,7 @@ export interface ModuloSistema {
   descripcion: string;
   icono: string;
   rutaPrincipal: string;
-  grupo: 'Panel Principal' | 'Operación & Sucursales' | 'Servicios de Lavado' | 'Gestión de Activos' | 'Administración';
+  grupo: 'Panel Principal' | 'Operación & Sucursales' | 'Servicios de Lavado' | 'Gestión de Activos' | 'Administración' | 'Mi Cuenta';
 }
 
 /** Catálogo oficial de módulos configurables */
@@ -41,6 +46,15 @@ export const MODULOS_SISTEMA: ModuloSistema[] = [
     descripcion: 'Trazabilidad visual jerárquica: Sucursales, Bahías, Operadores y Maquinaria en tiempo real',
     icono: 'sliders',
     rutaPrincipal: '/mapa-operativo',
+    grupo: 'Panel Principal'
+  },
+  {
+    id: 'mod_notificaciones',
+    codigo: 'notificaciones',
+    nombre: 'Centro de Notificaciones',
+    descripcion: 'Alertas operativas, aprobaciones pendientes, inventario y avisos del sistema',
+    icono: 'bell',
+    rutaPrincipal: '/notificaciones',
     grupo: 'Panel Principal'
   },
 
@@ -176,8 +190,116 @@ export const MODULOS_SISTEMA: ModuloSistema[] = [
     icono: 'settings',
     rutaPrincipal: '/configuracion',
     grupo: 'Administración'
+  },
+
+  // ── Mi Cuenta ──
+  {
+    id: 'mod_perfil',
+    codigo: 'perfil',
+    nombre: 'Mi Perfil de Usuario',
+    descripcion: 'Información personal, credenciales y datos de sucursal',
+    icono: 'user',
+    rutaPrincipal: '/perfil',
+    grupo: 'Mi Cuenta'
   }
 ];
+
+/** Módulos por defecto asignados a cada uno de los 9 roles */
+export const MODULOS_POR_ROL: Record<string, string[]> = {
+  [Role.SUPER_ADMIN]: MODULOS_SISTEMA.map(m => m.codigo),
+  [Role.GERENTE]: MODULOS_SISTEMA.map(m => m.codigo),
+  
+  [Role.SUPERVISOR]: [
+    'dashboard',
+    'notificaciones',
+    'mapa-operativo',
+    'sucursales',
+    'operadores',
+    'asignaciones',
+    'servicios',
+    'productividad',
+    'maquinaria',
+    'taller-tecnico',
+    'inventario',
+    'reportes',
+    'perfil'
+  ],
+
+  [Role.COORD_MANTENIMIENTO]: [
+    'dashboard',
+    'notificaciones',
+    'maquinaria',
+    'taller-tecnico',
+    'inventario',
+    'perfil'
+  ],
+
+  [Role.TECNICO]: [
+    'dashboard',
+    'notificaciones',
+    'maquinaria',
+    'taller-tecnico',
+    'inventario',
+    'perfil'
+  ],
+
+  [Role.OPERADOR]: [
+    'dashboard',
+    'notificaciones',
+    'mi-bahia',
+    'servicios',
+    'perfil'
+  ],
+
+  [Role.COORD_COMERCIAL]: [
+    'dashboard',
+    'notificaciones',
+    'productividad',
+    'servicios',
+    'reportes',
+    'perfil'
+  ],
+
+  [Role.COORD_SERVICIOS_ESPECIALES]: [
+    'dashboard',
+    'notificaciones',
+    'servicios',
+    'aprobaciones',
+    'operadores',
+    'asignaciones',
+    'productividad',
+    'maquinaria',
+    'perfil'
+  ],
+
+  [Role.OPERADOR_SERVICIOS_ESPECIALES]: [
+    'dashboard',
+    'notificaciones',
+    'servicios',
+    'mi-bahia',
+    'perfil'
+  ],
+
+  [Role.DISTRIBUIDOR]: [
+    'dashboard',
+    'notificaciones',
+    'inventario',
+    'perfil'
+  ]
+};
+
+/** Ruta de inicio por defecto según rol */
+export const DEFAULT_ROUTE_POR_ROL: Record<string, string> = {
+  [Role.SUPER_ADMIN]: '/dashboard',
+  [Role.SUPERVISOR]: '/dashboard',
+  [Role.COORD_MANTENIMIENTO]: '/taller-tecnico',
+  [Role.TECNICO]: '/taller-tecnico',
+  [Role.OPERADOR]: '/mi-bahia',
+  [Role.COORD_COMERCIAL]: '/dashboard',
+  [Role.COORD_SERVICIOS_ESPECIALES]: '/dashboard',
+  [Role.OPERADOR_SERVICIOS_ESPECIALES]: '/servicios',
+  [Role.DISTRIBUIDOR]: '/dashboard'
+};
 
 /** Estructura de un Rol Dinámico / Personalizado */
 export interface RolPersonalizado {
@@ -187,22 +309,117 @@ export interface RolPersonalizado {
   descripcion: string;
   color: string;
   badgeClass: string;
-  modulos: string[]; // Lista de codigos de ModuloSistema autorizados
-  esSistema: boolean; // Si es true, no se puede eliminar (SuperAdmin)
+  modulos: string[];
+  esSistema: boolean;
   fechaCreacion: string;
   usuariosCount?: number;
 }
 
-/** Rol inicial base del sistema */
 export const ROLES_INICIALES: RolPersonalizado[] = [
   {
     id: 'rol_super_admin',
-    codigo: 'SUPER_ADMIN',
+    codigo: Role.SUPER_ADMIN,
     nombre: 'Super Administrador',
     descripcion: 'Acceso total y sin restricciones a todos los módulos y configuraciones del sistema.',
     color: '#7C3AED',
     badgeClass: 'bg-purple-100 text-purple-800 border-purple-200',
-    modulos: MODULOS_SISTEMA.map(m => m.codigo), // Todos los módulos
+    modulos: MODULOS_POR_ROL[Role.SUPER_ADMIN],
+    esSistema: true,
+    fechaCreacion: '2026-01-01',
+    usuariosCount: 1
+  },
+  {
+    id: 'rol_supervisor',
+    codigo: Role.SUPERVISOR,
+    nombre: 'Supervisor Regional',
+    descripcion: 'Control operativo de sucursales asignadas, operadores, bahías y mapa operativo en vivo.',
+    color: '#07558C',
+    badgeClass: 'bg-blue-100 text-blue-800 border-blue-200',
+    modulos: MODULOS_POR_ROL[Role.SUPERVISOR],
+    esSistema: true,
+    fechaCreacion: '2026-01-01',
+    usuariosCount: 1
+  },
+  {
+    id: 'rol_coord_mantenimiento',
+    codigo: Role.COORD_MANTENIMIENTO,
+    nombre: 'Coordinador Mantenimiento',
+    descripcion: 'Gestión completa de maquinaria, creación de órdenes y asignación de técnicos.',
+    color: '#D97706',
+    badgeClass: 'bg-amber-100 text-amber-800 border-amber-200',
+    modulos: MODULOS_POR_ROL[Role.COORD_MANTENIMIENTO],
+    esSistema: true,
+    fechaCreacion: '2026-01-01',
+    usuariosCount: 1
+  },
+  {
+    id: 'rol_tecnico',
+    codigo: Role.TECNICO,
+    nombre: 'Técnico de Maquinaria',
+    descripcion: 'Ejecución de mantenimientos preventivos/correctivos y reporte de incidentes en taller.',
+    color: '#EA580C',
+    badgeClass: 'bg-orange-100 text-orange-800 border-orange-200',
+    modulos: MODULOS_POR_ROL[Role.TECNICO],
+    esSistema: true,
+    fechaCreacion: '2026-01-01',
+    usuariosCount: 1
+  },
+  {
+    id: 'rol_operador',
+    codigo: Role.OPERADOR,
+    nombre: 'Operador de Bahía',
+    descripcion: 'Operación diaria de lavado, digitalización de OTs, fotos y evidencias en bahía.',
+    color: '#059669',
+    badgeClass: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+    modulos: MODULOS_POR_ROL[Role.OPERADOR],
+    esSistema: true,
+    fechaCreacion: '2026-01-01',
+    usuariosCount: 1
+  },
+  {
+    id: 'rol_coord_comercial',
+    codigo: Role.COORD_COMERCIAL,
+    nombre: 'Coordinador Comercial',
+    descripcion: 'Control comercial, establecimiento de metas, seguimiento de productividad y reportes.',
+    color: '#2563EB',
+    badgeClass: 'bg-sky-100 text-sky-800 border-sky-200',
+    modulos: MODULOS_POR_ROL[Role.COORD_COMERCIAL],
+    esSistema: true,
+    fechaCreacion: '2026-01-01',
+    usuariosCount: 1
+  },
+  {
+    id: 'rol_coord_servicios_especiales',
+    codigo: Role.COORD_SERVICIOS_ESPECIALES,
+    nombre: 'Jefe Servicios Especiales',
+    descripcion: 'Creación, asignación, supervisión y aprobación final de servicios premium y detallado.',
+    color: '#0891B2',
+    badgeClass: 'bg-cyan-100 text-cyan-800 border-cyan-200',
+    modulos: MODULOS_POR_ROL[Role.COORD_SERVICIOS_ESPECIALES],
+    esSistema: true,
+    fechaCreacion: '2026-01-01',
+    usuariosCount: 1
+  },
+  {
+    id: 'rol_operador_servicios_especiales',
+    codigo: Role.OPERADOR_SERVICIOS_ESPECIALES,
+    nombre: 'Operador Servicios Especiales',
+    descripcion: 'Ejecución de servicios extras (pulido, cerámico, motor) con evidencias fotográficas.',
+    color: '#9BCB3B',
+    badgeClass: 'bg-lime-100 text-lime-800 border-lime-200',
+    modulos: MODULOS_POR_ROL[Role.OPERADOR_SERVICIOS_ESPECIALES],
+    esSistema: true,
+    fechaCreacion: '2026-01-01',
+    usuariosCount: 1
+  },
+  {
+    id: 'rol_distribuidor',
+    codigo: Role.DISTRIBUIDOR,
+    nombre: 'Distribuidor Central',
+    descripcion: 'Control de inventario central, preparación de pedidos, despachos y confirmación de entregas.',
+    color: '#475569',
+    badgeClass: 'bg-slate-100 text-slate-800 border-slate-200',
+    modulos: MODULOS_POR_ROL[Role.DISTRIBUIDOR],
     esSistema: true,
     fechaCreacion: '2026-01-01',
     usuariosCount: 1
@@ -215,16 +432,21 @@ export interface UsuarioAuth {
   nombre: string;
   apellido: string;
   email: string;
+  password?: string;
   role: Role | string;
-  rolNombre?: string;
+  rolNombre: string;
   rolPersonalizado?: RolPersonalizado;
-  modulosPermitidos?: string[];
+  modulosPermitidos: string[];
   sucursalId?: number;
+  sucursal?: string;
   sucursalNombre?: string;
+  region?: string;
   bahiaId?: number;
   bahiaNombre?: string;
-  estado: 'Activo' | 'Inactivo' | string;
+  estado: 'Activo' | 'Inactivo';
   avatar?: string;
+  token?: string;
+  permisos?: PermisosRol;
 }
 
 /** Mapa de permisos de acciones del sistema */
@@ -248,6 +470,8 @@ export interface PermisosRol {
   verReportes: boolean;
   verProductividadGlobal: boolean;
   verConfiguracion: boolean;
+  gestionarInventario: boolean;
+  despacharSuministros: boolean;
 }
 
 export const PERMISOS_POR_ROL: Record<string, PermisosRol> = {
@@ -270,16 +494,248 @@ export const PERMISOS_POR_ROL: Record<string, PermisosRol> = {
     registrarIncidente: true,
     verReportes: true,
     verProductividadGlobal: true,
-    verConfiguracion: true
+    verConfiguracion: true,
+    gestionarInventario: true,
+    despacharSuministros: true
+  },
+
+  [Role.GERENTE]: {
+    verTodasSucursales: false,
+    crearSucursal: false,
+    editarSucursal: false,
+    crearUsuarios: false,
+    asignarRoles: false,
+    verOtrosSucursales: false,
+    cambiarSucursalOperador: false,
+    cambiarBahiaOperador: true,
+    aprobarServicios: true,
+    rechazarServicios: true,
+    cerrarDia: true,
+    registrarServicio: true,
+    verTodosServicios: true,
+    verMaquinaria: true,
+    gestionarMantenimiento: false,
+    registrarIncidente: true,
+    verReportes: true,
+    verProductividadGlobal: true,
+    verConfiguracion: false,
+    gestionarInventario: false,
+    despacharSuministros: false
+  },
+
+  [Role.SUPERVISOR]: {
+    verTodasSucursales: false,
+    crearSucursal: false,
+    editarSucursal: false,
+    crearUsuarios: false,
+    asignarRoles: false,
+    verOtrosSucursales: false,
+    cambiarSucursalOperador: false,
+    cambiarBahiaOperador: true,
+    aprobarServicios: false,
+    rechazarServicios: false,
+    cerrarDia: false,
+    registrarServicio: true,
+    verTodosServicios: true,
+    verMaquinaria: true,
+    gestionarMantenimiento: false,
+    registrarIncidente: true,
+    verReportes: true,
+    verProductividadGlobal: false,
+    verConfiguracion: false,
+    gestionarInventario: false,
+    despacharSuministros: false
+  },
+
+  [Role.COORD_MANTENIMIENTO]: {
+    verTodasSucursales: false,
+    crearSucursal: false,
+    editarSucursal: false,
+    crearUsuarios: false,
+    asignarRoles: false,
+    verOtrosSucursales: false,
+    cambiarSucursalOperador: false,
+    cambiarBahiaOperador: false,
+    aprobarServicios: false,
+    rechazarServicios: false,
+    cerrarDia: false,
+    registrarServicio: false,
+    verTodosServicios: false,
+    verMaquinaria: true,
+    gestionarMantenimiento: true,
+    registrarIncidente: true,
+    verReportes: false,
+    verProductividadGlobal: false,
+    verConfiguracion: false,
+    gestionarInventario: true,
+    despacharSuministros: false
+  },
+
+  [Role.TECNICO]: {
+    verTodasSucursales: false,
+    crearSucursal: false,
+    editarSucursal: false,
+    crearUsuarios: false,
+    asignarRoles: false,
+    verOtrosSucursales: false,
+    cambiarSucursalOperador: false,
+    cambiarBahiaOperador: false,
+    aprobarServicios: false,
+    rechazarServicios: false,
+    cerrarDia: false,
+    registrarServicio: false,
+    verTodosServicios: false,
+    verMaquinaria: true,
+    gestionarMantenimiento: true,
+    registrarIncidente: true,
+    verReportes: false,
+    verProductividadGlobal: false,
+    verConfiguracion: false,
+    gestionarInventario: false,
+    despacharSuministros: false
+  },
+
+  [Role.OPERADOR]: {
+    verTodasSucursales: false,
+    crearSucursal: false,
+    editarSucursal: false,
+    crearUsuarios: false,
+    asignarRoles: false,
+    verOtrosSucursales: false,
+    cambiarSucursalOperador: false,
+    cambiarBahiaOperador: false,
+    aprobarServicios: false,
+    rechazarServicios: false,
+    cerrarDia: false,
+    registrarServicio: true,
+    verTodosServicios: false,
+    verMaquinaria: false,
+    gestionarMantenimiento: false,
+    registrarIncidente: false,
+    verReportes: false,
+    verProductividadGlobal: false,
+    verConfiguracion: false,
+    gestionarInventario: false,
+    despacharSuministros: false
+  },
+
+  [Role.COORD_COMERCIAL]: {
+    verTodasSucursales: true,
+    crearSucursal: false,
+    editarSucursal: false,
+    crearUsuarios: false,
+    asignarRoles: false,
+    verOtrosSucursales: true,
+    cambiarSucursalOperador: false,
+    cambiarBahiaOperador: false,
+    aprobarServicios: false,
+    rechazarServicios: false,
+    cerrarDia: false,
+    registrarServicio: false,
+    verTodosServicios: true,
+    verMaquinaria: false,
+    gestionarMantenimiento: false,
+    registrarIncidente: false,
+    verReportes: true,
+    verProductividadGlobal: true,
+    verConfiguracion: false,
+    gestionarInventario: false,
+    despacharSuministros: false
+  },
+
+  [Role.COORD_SERVICIOS_ESPECIALES]: {
+    verTodasSucursales: false,
+    crearSucursal: false,
+    editarSucursal: false,
+    crearUsuarios: false,
+    asignarRoles: false,
+    verOtrosSucursales: false,
+    cambiarSucursalOperador: false,
+    cambiarBahiaOperador: true,
+    aprobarServicios: true,
+    rechazarServicios: true,
+    cerrarDia: false,
+    registrarServicio: true,
+    verTodosServicios: true,
+    verMaquinaria: true,
+    gestionarMantenimiento: false,
+    registrarIncidente: true,
+    verReportes: true,
+    verProductividadGlobal: true,
+    verConfiguracion: false,
+    gestionarInventario: false,
+    despacharSuministros: false
+  },
+
+  [Role.OPERADOR_SERVICIOS_ESPECIALES]: {
+    verTodasSucursales: false,
+    crearSucursal: false,
+    editarSucursal: false,
+    crearUsuarios: false,
+    asignarRoles: false,
+    verOtrosSucursales: false,
+    cambiarSucursalOperador: false,
+    cambiarBahiaOperador: false,
+    aprobarServicios: false, // NO aprueba, solo ejecuta
+    rechazarServicios: false,
+    cerrarDia: false,
+    registrarServicio: true,
+    verTodosServicios: false,
+    verMaquinaria: false,
+    gestionarMantenimiento: false,
+    registrarIncidente: false,
+    verReportes: false,
+    verProductividadGlobal: false,
+    verConfiguracion: false,
+    gestionarInventario: false,
+    despacharSuministros: false
+  },
+
+  [Role.DISTRIBUIDOR]: {
+    verTodasSucursales: false,
+    crearSucursal: false,
+    editarSucursal: false,
+    crearUsuarios: false,
+    asignarRoles: false,
+    verOtrosSucursales: false,
+    cambiarSucursalOperador: false,
+    cambiarBahiaOperador: false,
+    aprobarServicios: false,
+    rechazarServicios: false,
+    cerrarDia: false,
+    registrarServicio: false,
+    verTodosServicios: false,
+    verMaquinaria: false,
+    gestionarMantenimiento: false,
+    registrarIncidente: false,
+    verReportes: false,
+    verProductividadGlobal: false,
+    verConfiguracion: false,
+    gestionarInventario: true,
+    despacharSuministros: true
   }
 };
 
 export const ROLE_LABELS: Record<string, string> = {
   [Role.SUPER_ADMIN]: 'Super Administrador',
-  'SuperAdmin': 'Super Administrador'
+  [Role.SUPERVISOR]: 'Supervisor Regional',
+  [Role.COORD_MANTENIMIENTO]: 'Coordinador Mantenimiento',
+  [Role.TECNICO]: 'Técnico de Maquinaria',
+  [Role.OPERADOR]: 'Operador de Bahía',
+  [Role.COORD_COMERCIAL]: 'Coordinador Comercial',
+  [Role.COORD_SERVICIOS_ESPECIALES]: 'Jefe Servicios Especiales',
+  [Role.OPERADOR_SERVICIOS_ESPECIALES]: 'Operador Servicios Especiales',
+  [Role.DISTRIBUIDOR]: 'Distribuidor Central'
 };
 
 export const ROLE_COLORS: Record<string, string> = {
   [Role.SUPER_ADMIN]: 'bg-purple-100 text-purple-800 border-purple-200',
-  'SuperAdmin': 'bg-purple-100 text-purple-800 border-purple-200'
+  [Role.SUPERVISOR]: 'bg-blue-100 text-blue-800 border-blue-200',
+  [Role.COORD_MANTENIMIENTO]: 'bg-amber-100 text-amber-800 border-amber-200',
+  [Role.TECNICO]: 'bg-orange-100 text-orange-800 border-orange-200',
+  [Role.OPERADOR]: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+  [Role.COORD_COMERCIAL]: 'bg-sky-100 text-sky-800 border-sky-200',
+  [Role.COORD_SERVICIOS_ESPECIALES]: 'bg-cyan-100 text-cyan-800 border-cyan-200',
+  [Role.OPERADOR_SERVICIOS_ESPECIALES]: 'bg-lime-100 text-lime-800 border-lime-200',
+  [Role.DISTRIBUIDOR]: 'bg-slate-100 text-slate-800 border-slate-200'
 };

@@ -41,4 +41,53 @@ export class IncidenteMockService {
     }
     return of(null);
   }
+
+  asignarIncidente(
+    id: number,
+    tecnicoId: number,
+    tecnicoNombre: string,
+    gestorId: number,
+    gestorNombre: string
+  ): Observable<Incidente | null> {
+    const current = this.incidentesSubject.value;
+    const idx = current.findIndex(i => i.id === id);
+    if (idx === -1) return of(null);
+
+    const actualizado: Incidente = {
+      ...current[idx],
+      tecnicoAsignadoId: tecnicoId,
+      tecnicoAsignadoNombre: tecnicoNombre,
+      gestorAsignadorId: gestorId,
+      gestorAsignadorNombre: gestorNombre,
+      fechaAsignacion: new Date().toLocaleString(),
+      estado: 'En Solución',
+    };
+    const next = [...current];
+    next[idx] = actualizado;
+    this.incidentesSubject.next(next);
+    return of(actualizado).pipe(delay(300));
+  }
+
+  cancelarAsignacion(id: number): Observable<Incidente | null> {
+    const current = this.incidentesSubject.value;
+    const idx = current.findIndex(i => i.id === id);
+    if (idx === -1) return of(null);
+
+    const item = current[idx];
+    if (!item.tecnicoAsignadoId || item.estado === 'Solucionado') return of(null);
+
+    const actualizado: Incidente = {
+      ...item,
+      tecnicoAsignadoId: undefined,
+      tecnicoAsignadoNombre: undefined,
+      gestorAsignadorId: undefined,
+      gestorAsignadorNombre: undefined,
+      fechaAsignacion: undefined,
+      estado: 'Pendiente',
+    };
+    const next = [...current];
+    next[idx] = actualizado;
+    this.incidentesSubject.next(next);
+    return of(actualizado).pipe(delay(300));
+  }
 }

@@ -9,6 +9,7 @@ import { IncidenteMockService } from '../../core/services/incidente-mock.service
 import { MantenimientoMockService } from '../../core/services/mantenimiento-mock.service';
 import { AuthService } from '../../core/services/auth.service';
 import { Maquinaria, MovimientoMaquinaria, Sucursal, Incidente, Mantenimiento } from '../../core/models';
+import { Role } from '../../core/models/roles.model';
 import { ModalComponent } from '../../shared/components/modal/modal.component';
 import { ToastService } from '../../shared/services/toast.service';
 import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
@@ -578,18 +579,30 @@ export class MaquinariaComponent implements OnInit {
   }
 
   get canTransfer() {
-    return this.authService.hasRole('SUPER_ADMIN' as any);
+    return this.authService.hasRole(Role.SUPER_ADMIN);
   }
 
   get canCreate() {
-    return this.authService.hasRole('SUPER_ADMIN' as any);
+    return this.authService.hasRole(Role.SUPER_ADMIN);
+  }
+
+  /** Roles con alcance de red/taller nacional: no filtrar por agencia exacta. */
+  private debeFiltrarPorSucursal(user: ReturnType<AuthService['getCurrentUser']>): boolean {
+    if (!user?.sucursalNombre || user.role === Role.SUPER_ADMIN) return false;
+    const rolesAlcanceNacional: Role[] = [
+      Role.COORD_MANTENIMIENTO,
+      Role.TECNICO,
+      Role.SUPERVISOR,
+      Role.GERENTE,
+    ];
+    return !rolesAlcanceNacional.includes(user.role as Role);
   }
 
   get maquinasFiltradas() {
     const user = this.authService.getCurrentUser();
     let resultados = this.maquinas.filter(m => {
       let matchScope = true;
-      if (!this.canTransfer && user && user.sucursalNombre) {
+      if (user && this.debeFiltrarPorSucursal(user)) {
         matchScope = m.agencia === user.sucursalNombre;
       }
       const matchTexto = !this.filtroTexto || 

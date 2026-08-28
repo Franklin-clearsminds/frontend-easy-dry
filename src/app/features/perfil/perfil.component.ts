@@ -5,11 +5,12 @@ import { LucideAngularModule } from 'lucide-angular';
 import { AuthService } from '../../core/services/auth.service';
 import { ToastService } from '../../shared/services/toast.service';
 import { Role, ROLE_LABELS } from '../../core/models/roles.model';
+import { ModalPortalDirective } from '../../shared/directives/modal-portal.directive';
 
 @Component({
   selector: 'app-perfil',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule],
+  imports: [CommonModule, FormsModule, LucideAngularModule, ModalPortalDirective],
   template: `
     <div class="max-w-4xl mx-auto space-y-6 animate-fade-in pb-12">
       
@@ -341,7 +342,7 @@ import { Role, ROLE_LABELS } from '../../core/models/roles.model';
       <!-- MODAL 1: CONFIRMACIÓN PARA GUARDAR CAMBIOS                    -->
       <!-- ───────────────────────────────────────────────────────────── -->
       @if (showConfirmGuardarModal) {
-        <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-fade-in">
+        <div appModalPortal class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[9999] p-4 animate-fade-in">
           <div class="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-slate-100 space-y-4 text-center">
             <div class="w-14 h-14 rounded-2xl bg-easydry-blue/10 text-easydry-blue flex items-center justify-center mx-auto">
               <i-lucide name="save" class="w-7 h-7"></i-lucide>
@@ -376,7 +377,7 @@ import { Role, ROLE_LABELS } from '../../core/models/roles.model';
       <!-- MODAL 2: ÉXITO DE CAMBIOS REALIZADOS                          -->
       <!-- ───────────────────────────────────────────────────────────── -->
       @if (showExitoModal) {
-        <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-fade-in">
+        <div appModalPortal class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[9999] p-4 animate-fade-in">
           <div class="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-slate-100 space-y-4 text-center">
             <div class="w-14 h-14 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto">
               <i-lucide name="check-circle-2" class="w-7 h-7"></i-lucide>
@@ -403,7 +404,7 @@ import { Role, ROLE_LABELS } from '../../core/models/roles.model';
       <!-- MODAL 3: DESCARTAR CAMBIOS AL SALIR                           -->
       <!-- ───────────────────────────────────────────────────────────── -->
       @if (showDescartarModal) {
-        <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-fade-in">
+        <div appModalPortal class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[9999] p-4 animate-fade-in">
           <div class="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-slate-100 space-y-4 text-center">
             <div class="w-14 h-14 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center mx-auto">
               <i-lucide name="alert-triangle" class="w-7 h-7"></i-lucide>
@@ -437,7 +438,7 @@ import { Role, ROLE_LABELS } from '../../core/models/roles.model';
       <!-- MODAL 4: SELECCIONADOR DE AVATAR PREDEFINIDO                  -->
       <!-- ───────────────────────────────────────────────────────────── -->
       @if (showAvatarModal) {
-        <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-fade-in">
+        <div appModalPortal class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[9999] p-4 animate-fade-in">
           <div class="bg-white rounded-3xl p-6 max-w-lg w-full shadow-2xl border border-slate-100 space-y-5">
             <div class="flex items-center justify-between border-b pb-3">
               <h3 class="font-bold text-slate-900 text-base">Seleccionar Avatar Corporativo</h3>

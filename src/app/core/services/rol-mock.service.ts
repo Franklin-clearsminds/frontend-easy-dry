@@ -18,13 +18,46 @@ export class RolMockService {
       if (stored) {
         const parsed = JSON.parse(stored) as RolPersonalizado[];
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
+          const normalized = this.normalizeRoles(parsed);
+          const corrupto = normalized.some(r => !r.id || !r.codigo || !Array.isArray(r.modulos));
+          if (corrupto) {
+            console.warn('Roles en localStorage incompletos, restaurando catálogo base');
+            return [...ROLES_INICIALES];
+          }
+          return normalized;
         }
       }
     } catch (e) {
       console.warn('Error reading stored roles, using initial defaults', e);
     }
     return [...ROLES_INICIALES];
+  }
+
+  /** Fusiona roles guardados con el catálogo base para no perder módulos ni metadatos. */
+  private normalizeRoles(stored: RolPersonalizado[]): RolPersonalizado[] {
+    const mergedBase = ROLES_INICIALES.map(base => {
+      const custom = stored.find(
+        s => s.id === base.id || s.codigo?.toLowerCase() === base.codigo.toLowerCase()
+      );
+      if (!custom) return { ...base };
+      return {
+        ...base,
+        ...custom,
+        modulos: Array.isArray(custom.modulos) && custom.modulos.length > 0 ? custom.modulos : base.modulos,
+        esSistema: base.esSistema,
+        badgeClass: custom.badgeClass || base.badgeClass,
+      };
+    });
+
+    const customOnly = stored
+      .filter(s => !ROLES_INICIALES.some(b => b.id === s.id || b.codigo === s.codigo))
+      .map(s => ({
+        ...s,
+        modulos: Array.isArray(s.modulos) ? s.modulos : [],
+        esSistema: !!s.esSistema,
+      }));
+
+    return [...mergedBase, ...customOnly];
   }
 
   private saveRoles(roles: RolPersonalizado[]): void {

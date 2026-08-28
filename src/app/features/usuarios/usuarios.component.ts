@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { LucideAngularModule } from 'lucide-angular';
 import { UsuarioMockService } from '../../core/services/usuario-mock.service';
 import { RolMockService } from '../../core/services/rol-mock.service';
+import { DEMO_CREDENTIALS } from '../../core/services/auth.service';
 import { Usuario, ModuloSistema, RolPersonalizado, MODULOS_SISTEMA } from '../../core/models';
 import { ModalComponent } from '../../shared/components/modal/modal.component';
 import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
@@ -204,12 +205,91 @@ interface ModuloGrupo {
 
             <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-easydry flex items-center gap-4">
               <div class="w-12 h-12 rounded-2xl bg-easydry-green/15 text-easydry-green-dark flex items-center justify-center flex-shrink-0">
-                <i-lucide name="lock" class="w-6 h-6"></i-lucide>
+                <i-lucide name="users" class="w-6 h-6"></i-lucide>
               </div>
               <div>
-                <p class="text-2xl font-extrabold text-slate-900 font-outfit">SuperAdmin</p>
-                <p class="text-xs text-slate-500 font-medium">Acceso Total Activo</p>
+                <p class="text-2xl font-extrabold text-slate-900">{{ rolesConUsuarios }}</p>
+                <p class="text-xs text-slate-500 font-medium">Roles con Usuarios Activos</p>
               </div>
+            </div>
+          </div>
+
+          <!-- Tabla de roles activos en la plataforma -->
+          <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry overflow-hidden">
+            <div class="p-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h3 class="font-bold text-slate-900 text-base font-outfit">Roles Activos en la Plataforma</h3>
+                <p class="text-xs text-slate-500">Perfiles del sistema RBAC en uso con cuentas demo y módulos habilitados</p>
+              </div>
+              <span class="text-xs font-bold text-purple-700 bg-purple-50 px-3 py-1.5 rounded-xl border border-purple-200">
+                {{ roles.length }} roles configurados
+              </span>
+            </div>
+
+            <div class="overflow-x-auto">
+              <table class="w-full text-left text-sm">
+                <thead class="bg-slate-50 text-slate-500 text-xs font-bold uppercase tracking-wider border-b border-slate-200">
+                  <tr>
+                    <th class="py-3.5 px-4">Rol</th>
+                    <th class="py-3.5 px-4">Código</th>
+                    <th class="py-3.5 px-4">Usuarios</th>
+                    <th class="py-3.5 px-4">Módulos</th>
+                    <th class="py-3.5 px-4">Tipo</th>
+                    <th class="py-3.5 px-4 text-right">Acción</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                  @for (rol of roles; track rol.id) {
+                    <tr class="hover:bg-slate-50/80 transition-colors">
+                      <td class="py-3.5 px-4">
+                        <div class="flex items-center gap-3">
+                          <div
+                            class="w-9 h-9 rounded-xl flex items-center justify-center text-white flex-shrink-0"
+                            [style.background-color]="rol.color || '#7C3AED'">
+                            <i-lucide name="shield" class="w-4 h-4"></i-lucide>
+                          </div>
+                          <div>
+                            <p class="font-bold text-slate-900 text-xs">{{ rol.nombre }}</p>
+                            <p class="text-[10px] text-slate-500 line-clamp-1 max-w-xs">{{ rol.descripcion }}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td class="py-3.5 px-4">
+                        <span class="font-mono text-[11px] font-bold text-slate-600 bg-slate-100 px-2 py-1 rounded-md">{{ rol.codigo }}</span>
+                      </td>
+                      <td class="py-3.5 px-4">
+                        <span class="text-xs font-extrabold text-slate-800">{{ getUsuariosCountForRol(rol.nombre) }}</span>
+                        @if (getCuentasDemoForRol(rol).length > 0) {
+                          <p class="text-[10px] text-slate-400 mt-0.5">{{ getCuentasDemoForRol(rol)[0].email }}</p>
+                        }
+                      </td>
+                      <td class="py-3.5 px-4">
+                        <span class="text-xs font-bold text-purple-700">{{ getModulosCount(rol) }} / {{ modulosDisponibles.length }}</span>
+                      </td>
+                      <td class="py-3.5 px-4">
+                        @if (rol.esSistema) {
+                          <span class="px-2 py-0.5 rounded-md bg-purple-100 text-purple-800 text-[10px] font-extrabold uppercase border border-purple-200">Sistema</span>
+                        } @else {
+                          <span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[10px] font-extrabold uppercase">Personalizado</span>
+                        }
+                      </td>
+                      <td class="py-3.5 px-4 text-right">
+                        <button
+                          (click)="abrirModalEditarRol(rol)"
+                          class="px-3 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-bold border border-purple-200">
+                          Configurar
+                        </button>
+                      </td>
+                    </tr>
+                  } @empty {
+                    <tr>
+                      <td colspan="6" class="py-10 px-4 text-center text-sm text-slate-500">
+                        No hay roles configurados. Use «Crear Nuevo Rol» para agregar uno.
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
             </div>
           </div>
 
@@ -254,21 +334,21 @@ interface ModuloGrupo {
                     <div class="flex items-center justify-between text-xs mb-1.5">
                       <span class="font-bold text-slate-700">Módulos Habilitados:</span>
                       <span class="font-extrabold text-purple-700">
-                        {{ rol.modulos.length }} de {{ modulosDisponibles.length }} módulos
+                        {{ getModulosCount(rol) }} de {{ modulosDisponibles.length }} módulos
                       </span>
                     </div>
                     <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
                       <div 
                         class="h-2 rounded-full transition-all duration-500"
                         [style.background-color]="rol.color || '#7C3AED'"
-                        [style.width.%]="(rol.modulos.length / modulosDisponibles.length) * 100">
+                        [style.width.%]="getModulosProgress(rol)">
                       </div>
                     </div>
                   </div>
 
                   <!-- Mini Badges of Allowed Modules -->
                   <div class="mt-3 flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
-                    @for (modCodigo of rol.modulos; track modCodigo) {
+                    @for (modCodigo of rol.modulos ?? []; track modCodigo) {
                       <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-50 border border-slate-200 text-[10px] font-semibold text-slate-700">
                         <i-lucide [name]="getModuloIcon(modCodigo)" class="w-3 h-3 text-easydry-blue"></i-lucide>
                         <span>{{ getModuloNombre(modCodigo) }}</span>
@@ -567,8 +647,30 @@ export class UsuariosComponent implements OnInit {
     });
 
     this.rolService.roles$.subscribe(list => {
-      this.roles = list;
+      this.roles = list.map(rol => ({
+        ...rol,
+        modulos: Array.isArray(rol.modulos) ? rol.modulos : [],
+      }));
     });
+  }
+
+  get rolesConUsuarios(): number {
+    return this.roles.filter(r => this.getUsuariosCountForRol(r.nombre) > 0).length;
+  }
+
+  getModulosCount(rol: RolPersonalizado): number {
+    return rol.modulos?.length ?? 0;
+  }
+
+  getModulosProgress(rol: RolPersonalizado): number {
+    if (!this.modulosDisponibles.length) return 0;
+    return (this.getModulosCount(rol) / this.modulosDisponibles.length) * 100;
+  }
+
+  getCuentasDemoForRol(rol: RolPersonalizado) {
+    return DEMO_CREDENTIALS.filter(
+      c => c.role === rol.codigo || c.rolNombre.toLowerCase() === rol.nombre.toLowerCase()
+    );
   }
 
   private agruparModulos() {

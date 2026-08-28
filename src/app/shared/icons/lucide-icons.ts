@@ -78,7 +78,9 @@ import {
   Camera,
   Upload,
   Key,
-  EyeOff
+  EyeOff,
+  ShieldPlus,
+  UserPlus
 } from 'lucide-angular';
 
 export const EASYDRY_ICONS = {
@@ -160,6 +162,11 @@ export const EASYDRY_ICONS = {
   AlertOctagon,
   ArrowRight,
   Camera,
+  Upload,
+  Key,
+  EyeOff,
+  ShieldPlus,
+  UserPlus,
 
   // Kebab-case mappings
   'layout-dashboard': LayoutDashboard,
@@ -241,5 +248,7 @@ export const EASYDRY_ICONS = {
   'camera': Camera,
   'upload': Upload,
   'key': Key,
-  'eye-off': EyeOff
+  'eye-off': EyeOff,
+  'shield-plus': ShieldPlus,
+  'user-plus': UserPlus
 };

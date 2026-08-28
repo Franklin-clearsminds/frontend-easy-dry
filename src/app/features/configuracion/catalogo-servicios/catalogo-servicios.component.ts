@@ -8,13 +8,14 @@ import { OperadorMockService } from '../../../core/services/operador-mock.servic
 import { ServiciosExtrasMockService } from '../../../core/services/servicios-extras-mock.service';
 import { CatalogoServicio, RecetaInsumoServicio, InventarioItem, Operador, ServicioExtra } from '../../../core/models';
 import { PaginationComponent } from '../../../shared/components/pagination/pagination.component';
+import { ModalPortalDirective } from '../../../shared/directives/modal-portal.directive';
 
 const SUCURSALES_RED = ['EasyDry Quito Norte', 'EasyDry Quito Sur', 'EasyDry Cumbayá', 'EasyDry Guayaquil'];
 
 @Component({
   selector: 'app-catalogo-servicios',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule, PaginationComponent],
+  imports: [CommonModule, FormsModule, LucideAngularModule, PaginationComponent, ModalPortalDirective],
   templateUrl: './catalogo-servicios.component.html'
 })
 export class CatalogoServiciosComponent implements OnInit {

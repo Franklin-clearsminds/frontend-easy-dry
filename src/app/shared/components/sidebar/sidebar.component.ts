@@ -5,11 +5,16 @@ import { LucideAngularModule } from 'lucide-angular';
 import { AuthService } from '../../../core/services/auth.service';
 import { PermissionService } from '../../../core/services/permission.service';
 import { MenuItem } from '../../../core/config/menu.config';
+import { isMobileAppRole } from '../../../core/config/mobile-roles.config';
 
 interface MenuGroup {
   title: string;
   items: MenuItem[];
 }
+
+/** Ancho interno expandido del sidebar (w-72 = 288px) */
+const SIDEBAR_INNER_W = '288px';
+const SIDEBAR_RAIL_W = '80px';
 
 @Component({
   selector: 'app-sidebar',
@@ -17,94 +22,109 @@ interface MenuGroup {
   imports: [CommonModule, RouterModule, LucideAngularModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <!-- Desktop / Laptop Sidebar Container -->
-    <div class="flex-shrink-0 relative z-40 h-screen transition-all duration-300" [ngClass]="isExpanded() ? 'w-72' : 'w-20'">
+    <!-- Overlay opaco sobre el contenido (no mueve el layout) -->
+    <div
+      class="fixed top-0 right-0 bottom-0 bg-slate-900/50 z-40 transition-opacity duration-300 ease-in-out pointer-events-none"
+      [style.left]="sidebarRailW"
+      [class.opacity-0]="!isExpanded()"
+      [class.opacity-100]="isExpanded()"
+      aria-hidden="true">
+    </div>
+
+    <!-- Sidebar fijo — solo ocupa 80px en layout; al expandir se superpone -->
+    <div
+      class="fixed left-0 top-0 h-screen z-50 overflow-hidden transition-[width] duration-300 ease-in-out shadow-2xl"
+      [class.w-72]="isExpanded()"
+      [class.w-20]="!isExpanded()"
+      (mouseenter)="isExpanded.set(true)"
+      (mouseleave)="isExpanded.set(false)">
 
       <aside
-        class="absolute top-0 left-0 h-screen bg-gradient-to-b from-easydry-blue via-easydry-blue-dark to-easydry-blue-deep text-white flex flex-col transition-all duration-300 ease-in-out select-none overflow-hidden border-r border-white/10 shadow-xl"
-        [ngClass]="isExpanded() ? 'w-72' : 'w-20'">
+        class="h-full w-72 bg-gradient-to-b from-easydry-blue via-easydry-blue-dark to-easydry-blue-deep text-white flex flex-col select-none overflow-hidden border-r border-white/10">
 
-        <!-- Logo Header & Collapse Toggle -->
-        <div class="h-20 flex items-center justify-between px-4 border-b border-white/15 flex-shrink-0 bg-easydry-blue-dark/60">
-          <div class="flex items-center gap-3 overflow-hidden cursor-pointer flex-1" [routerLink]="['/dashboard']">
-            <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-easydry-green to-easydry-lime p-0.5 shadow-glow-green flex-shrink-0 flex items-center justify-center">
-              <div class="w-full h-full bg-easydry-blue-dark rounded-[10px] flex items-center justify-center relative overflow-hidden">
-                <i-lucide name="droplet" class="w-6 h-6 text-easydry-green fill-easydry-green/30"></i-lucide>
-              </div>
-            </div>
-
-            @if (isExpanded()) {
-              <div class="flex flex-col animate-fade-in whitespace-nowrap">
-                <div class="flex items-center gap-0.5">
-                  <span class="font-extrabold text-xl tracking-tight text-white font-outfit">easy</span>
-                  <span class="font-extrabold text-xl tracking-tight text-easydry-green font-outfit">dry</span>
-                  <span class="text-[9px] align-super text-easydry-lime ml-0.5 font-bold">®</span>
+        <!-- Logo — icono fijo en columna de 80px -->
+        <div class="h-20 flex items-center border-b border-white/15 flex-shrink-0 bg-easydry-blue-dark/60 overflow-hidden">
+          <div class="w-20 flex-shrink-0 flex items-center justify-center">
+            <a [routerLink]="['/dashboard']" class="block">
+              <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-easydry-green to-easydry-lime p-0.5 shadow-glow-green flex items-center justify-center">
+                <div class="w-full h-full bg-easydry-blue-dark rounded-[10px] flex items-center justify-center">
+                  <i-lucide name="droplet" class="w-6 h-6 text-easydry-green fill-easydry-green/30"></i-lucide>
                 </div>
-                <span class="text-[9px] tracking-widest text-slate-300 uppercase font-bold">Plataforma Admin</span>
               </div>
-            }
+            </a>
           </div>
-
-          <!-- Toggle Expand / Collapse Button -->
-          <button
-            (click)="toggleExpand()"
-            [title]="isExpanded() ? 'Colapsar barra lateral' : 'Expandir barra lateral'"
-            class="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-white/10 transition-colors">
-            <i-lucide [name]="isExpanded() ? 'chevron-left' : 'chevron-right'" class="w-4 h-4"></i-lucide>
-          </button>
+          <div
+            class="flex flex-col overflow-hidden whitespace-nowrap pr-4 transition-opacity duration-300 ease-in-out"
+            [class.opacity-100]="isExpanded()"
+            [class.opacity-0]="!isExpanded()">
+            <div class="flex items-center gap-0.5">
+              <span class="font-extrabold text-xl tracking-tight text-white font-outfit">easy</span>
+              <span class="font-extrabold text-xl tracking-tight text-easydry-green font-outfit">dry</span>
+              <span class="text-[9px] align-super text-easydry-lime ml-0.5 font-bold">®</span>
+            </div>
+            <span class="text-[9px] tracking-widest text-slate-300 uppercase font-bold">{{ platformLabel }}</span>
+          </div>
         </div>
 
-        <!-- SuperAdmin Badge -->
-        @if (isExpanded()) {
-          <div class="px-4 py-2.5 border-b border-white/10 animate-fade-in flex-shrink-0">
-            <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-purple-500/20 border border-purple-400/30 text-[10px] font-bold text-purple-200">
-              <i-lucide name="shield-check" class="w-3.5 h-3.5 text-easydry-lime"></i-lucide>
-              <span>Super Administrador</span>
-            </div>
-            <p class="text-[9px] text-slate-300 mt-1 truncate font-medium">Red Nacional EasyDry®</p>
-          </div>
-        }
-
-        <!-- Navigation Menu Groups -->
-        <div class="flex-1 overflow-y-auto py-4 px-3 space-y-5">
-          @for (group of menuGroups; track group.title) {
+        <!-- Menú -->
+        <div class="flex-1 overflow-y-auto overflow-x-hidden py-3 sidebar-nav-scroll">
+          @for (group of menuGroups; track group.title; let groupIndex = $index) {
             @if (group.items.length > 0) {
-              <div class="space-y-1">
-                @if (isExpanded()) {
-                  <div class="px-3 pt-1 pb-1 animate-fade-in">
-                    <span class="text-[10px] font-extrabold text-easydry-lime/90 uppercase tracking-widest">
-                      {{ group.title }}
-                    </span>
+              <div [class.mt-2]="groupIndex > 0">
+                <div
+                  class="grid transition-[grid-template-rows,opacity] duration-300 ease-in-out"
+                  [style.grid-template-rows]="isExpanded() ? '1fr' : '0fr'"
+                  [class.opacity-100]="isExpanded()"
+                  [class.opacity-0]="!isExpanded()">
+                  <div class="overflow-hidden" [style.min-width]="sidebarInnerW">
+                    <div class="flex h-6 items-center">
+                      <div class="w-20 flex-shrink-0"></div>
+                      <span class="text-[10px] font-extrabold text-easydry-lime/90 uppercase tracking-widest whitespace-nowrap pr-4">
+                        {{ group.title }}
+                      </span>
+                    </div>
                   </div>
-                }
+                </div>
 
-                <div class="space-y-1">
+                <div class="space-y-0.5">
                   @for (item of group.items; track item.label + item.route) {
                     <a
                       [routerLink]="[item.route]"
-                      routerLinkActive="bg-white/20 text-easydry-green border-l-4 border-easydry-green shadow-md font-bold"
+                      routerLinkActive="bg-white/20 text-easydry-green !border-l-4 !border-easydry-green shadow-md font-bold"
                       [routerLinkActiveOptions]="{ exact: item.route === '/dashboard' }"
-                      class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-200 hover:text-white hover:bg-white/10 transition-all duration-200 group text-xs relative"
-                      [ngClass]="{ 'justify-center': !isExpanded() }">
+                      class="flex items-center h-10 rounded-xl text-slate-200 hover:text-white hover:bg-white/10 transition-colors duration-200 group text-xs relative border-l-4 border-transparent"
+                      [style.min-width]="sidebarInnerW">
 
-                      <i-lucide
-                        [name]="item.icon"
-                        class="w-5 h-5 flex-shrink-0 transition-transform group-hover:scale-110 text-easydry-green">
-                      </i-lucide>
+                      <div class="w-20 flex-shrink-0 flex items-center justify-center">
+                        <i-lucide
+                          [name]="item.icon"
+                          class="w-5 h-5 text-easydry-green transition-transform duration-200 group-hover:scale-110">
+                        </i-lucide>
+                      </div>
 
-                      @if (isExpanded()) {
-                        <span class="flex-1 whitespace-nowrap font-medium text-xs animate-fade-in">{{ item.label }}</span>
-                        @if (item.badge) {
-                          <span
-                            class="px-2 py-0.5 text-[10px] font-extrabold rounded-full flex-shrink-0 shadow-xs animate-fade-in"
-                            [ngClass]="item.badgeColor || 'bg-easydry-green text-slate-950'">
-                            {{ item.badge }}
-                          </span>
-                        }
-                      } @else {
-                        <!-- Tooltip Floating on Rail Mode -->
-                        <div class="absolute left-full ml-3 px-3 py-1.5 bg-slate-900 text-white text-xs font-semibold rounded-md opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap shadow-xl z-50">
+                      <span
+                        class="flex-1 whitespace-nowrap font-medium text-xs pr-2 transition-opacity duration-300 ease-in-out"
+                        [class.opacity-100]="isExpanded()"
+                        [class.opacity-0]="!isExpanded()">
+                        {{ item.label }}
+                      </span>
+
+                      @if (item.badge) {
+                        <span
+                          class="px-2 py-0.5 mr-3 text-[10px] font-extrabold rounded-full flex-shrink-0 shadow-xs whitespace-nowrap transition-opacity duration-300 ease-in-out"
+                          [ngClass]="item.badgeColor || 'bg-easydry-green text-slate-950'"
+                          [class.opacity-100]="isExpanded()"
+                          [class.opacity-0]="!isExpanded()">
+                          {{ item.badge }}
+                        </span>
+                      }
+
+                      @if (!isExpanded()) {
+                        <div class="absolute left-full ml-3 px-3 py-1.5 bg-slate-900 text-white text-xs font-semibold rounded-md opacity-0 invisible group-hover:opacity-100 group-hover:visible pointer-events-none transition-all duration-150 whitespace-nowrap shadow-xl z-[60]">
                           {{ item.label }}
+                          @if (item.badge) {
+                            <span class="ml-2 opacity-80">· {{ item.badge }}</span>
+                          }
                         </div>
                       }
                     </a>
@@ -115,54 +135,72 @@ interface MenuGroup {
           }
         </div>
 
-        <!-- User Profile & Status Footer -->
-        <div class="p-3 border-t border-white/10 bg-black/20 flex-shrink-0">
-          @if (isExpanded()) {
-            <div class="flex flex-col gap-1 animate-fade-in">
-              <a 
-                routerLink="/perfil"
-                class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-300 hover:text-white hover:bg-white/10 transition-colors text-xs font-medium">
-                <i-lucide name="user" class="w-5 h-5 flex-shrink-0 text-easydry-lime"></i-lucide>
-                <span class="whitespace-nowrap">Configuración de Perfil</span>
-              </a>
-              <button 
-                (click)="authService.logout()" 
-                class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-rose-400 hover:text-rose-300 hover:bg-rose-400/10 transition-colors text-xs font-medium w-full text-left">
-                <i-lucide name="log-out" class="w-5 h-5 flex-shrink-0"></i-lucide>
-                <span class="whitespace-nowrap">Cerrar Sesión</span>
-              </button>
+        <!-- Footer -->
+        <div class="py-2 border-t border-white/10 bg-black/20 flex-shrink-0 space-y-0.5">
+          <a
+            routerLink="/perfil"
+            [title]="!isExpanded() ? 'Configuración de Perfil' : ''"
+            class="flex items-center h-10 rounded-xl text-slate-300 hover:text-white hover:bg-white/10 transition-colors duration-200 text-xs font-medium"
+            [style.min-width]="sidebarInnerW">
+            <div class="w-20 flex-shrink-0 flex items-center justify-center">
+              <i-lucide name="user" class="w-5 h-5 text-easydry-lime"></i-lucide>
             </div>
-          } @else {
-            <div class="flex flex-col gap-2">
-              <a 
-                routerLink="/perfil"
-                title="Configuración de Perfil"
-                class="w-full flex justify-center py-2 text-slate-400 hover:text-easydry-lime hover:bg-white/10 rounded-xl transition-colors">
-                <i-lucide name="user" class="w-5 h-5"></i-lucide>
-              </a>
-              <button
-                (click)="authService.logout()"
-                title="Cerrar Sesión"
-                class="w-full flex justify-center py-2 text-slate-400 hover:text-rose-400 hover:bg-white/10 rounded-xl transition-colors">
-                <i-lucide name="log-out" class="w-5 h-5"></i-lucide>
-              </button>
+            <span
+              class="whitespace-nowrap transition-opacity duration-300 ease-in-out"
+              [class.opacity-100]="isExpanded()"
+              [class.opacity-0]="!isExpanded()">
+              Configuración de Perfil
+            </span>
+          </a>
+          <button
+            (click)="authService.logout()"
+            [title]="!isExpanded() ? 'Cerrar Sesión' : ''"
+            class="flex items-center h-10 rounded-xl text-rose-400 hover:text-rose-300 hover:bg-rose-400/10 transition-colors duration-200 text-xs font-medium w-full"
+            [style.min-width]="sidebarInnerW">
+            <div class="w-20 flex-shrink-0 flex items-center justify-center">
+              <i-lucide name="log-out" class="w-5 h-5"></i-lucide>
             </div>
-          }
+            <span
+              class="whitespace-nowrap transition-opacity duration-300 ease-in-out text-left"
+              [class.opacity-100]="isExpanded()"
+              [class.opacity-0]="!isExpanded()">
+              Cerrar Sesión
+            </span>
+          </button>
         </div>
 
       </aside>
-
     </div>
-  `
+  `,
+  styles: [`
+    .sidebar-nav-scroll {
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+    }
+    .sidebar-nav-scroll::-webkit-scrollbar {
+      width: 4px;
+    }
+    .sidebar-nav-scroll::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 4px;
+    }
+  `]
 })
 export class SidebarComponent implements OnInit {
-  isExpanded = signal(true);
+  isExpanded = signal(false);
+  readonly sidebarInnerW = SIDEBAR_INNER_W;
+  readonly sidebarRailW = SIDEBAR_RAIL_W;
 
   public authService = inject(AuthService);
   private permissionService = inject(PermissionService);
   private cdr = inject(ChangeDetectorRef);
 
   menuGroups: MenuGroup[] = [];
+
+  get platformLabel(): string {
+    const role = this.authService.getRole();
+    return isMobileAppRole(role) ? 'App Móvil & Web' : 'Plataforma Admin';
+  }
 
   ngOnInit(): void {
     this.refreshMenu();
@@ -182,9 +220,5 @@ export class SidebarComponent implements OnInit {
       groups[g].items.push(item);
     }
     this.menuGroups = Object.values(groups);
-  }
-
-  toggleExpand(): void {
-    this.isExpanded.update(v => !v);
   }
 }

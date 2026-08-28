@@ -6,15 +6,18 @@ import { IncidenteMockService } from '../../core/services/incidente-mock.service
 import { MaquinariaMockService } from '../../core/services/maquinaria-mock.service';
 import { AuthService } from '../../core/services/auth.service';
 import { Incidente, Maquinaria, ArchivoAdjunto } from '../../core/models';
+import { Role } from '../../core/models/roles.model';
+import { DEMO_CREDENTIALS } from '../../core/services/auth.service';
 import { ModalComponent } from '../../shared/components/modal/modal.component';
 import { ToastService } from '../../shared/services/toast.service';
 import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
 import { FilterBarComponent, FilterState } from '../../shared/components/filter-bar/filter-bar.component';
+import { ModalPortalDirective } from '../../shared/directives/modal-portal.directive';
 
 @Component({
   selector: 'app-incidentes',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, PaginationComponent, FilterBarComponent],
+  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, PaginationComponent, FilterBarComponent, ModalPortalDirective],
   template: `
     <div class="space-y-6 animate-fade-in">
       
@@ -87,6 +90,12 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                 </div>
                 <p class="text-slate-700 font-medium line-clamp-2">{{ inc.descripcion }}</p>
                 <p class="text-slate-400 text-[10px]">Reportado por: <strong class="text-slate-600">{{ inc.reportadoPor }}</strong></p>
+                @if (inc.tecnicoAsignadoNombre) {
+                  <p class="text-violet-700 text-[10px] font-bold mt-1">Asignado a: {{ inc.tecnicoAsignadoNombre }}</p>
+                }
+                @if (!inc.tecnicoAsignadoId && inc.estado === 'Pendiente') {
+                  <p class="text-amber-700 text-[10px] font-bold mt-1">Sin asignar — requiere gestor técnico</p>
+                }
               </div>
 
               <!-- Evidencias del Fallo (Badges / Miniatura) -->
@@ -157,12 +166,30 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
               </button>
 
               @if (inc.estado !== 'Solucionado') {
-                <button 
-                  (click)="openModalSolucionar(inc)"
-                  class="w-full py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5 shadow-xs">
-                  <i-lucide name="wrench" class="w-4 h-4"></i-lucide>
-                  <span>Registrar Reparación & Solución</span>
-                </button>
+                @if (puedeAsignar) {
+                  <button 
+                    (click)="openModalAsignar(inc)"
+                    class="w-full py-2 bg-violet-600 hover:bg-violet-700 text-white font-extrabold rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5 shadow-xs">
+                    <i-lucide name="user-cog" class="w-4 h-4"></i-lucide>
+                    <span>{{ inc.tecnicoAsignadoId ? 'Reasignar o Delegar' : 'Asignar o Ejecutar Reparación' }}</span>
+                  </button>
+                  @if (inc.tecnicoAsignadoId) {
+                    <button 
+                      (click)="cancelarAsignacionIncidente(inc)"
+                      class="w-full py-2 bg-rose-50 hover:bg-rose-100 text-rose-800 font-bold rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5 border border-rose-200">
+                      <i-lucide name="x-circle" class="w-4 h-4"></i-lucide>
+                      <span>Cancelar Asignación</span>
+                    </button>
+                  }
+                }
+                @if (puedeSolucionar(inc)) {
+                  <button 
+                    (click)="openModalSolucionar(inc)"
+                    class="w-full py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5 shadow-xs">
+                    <i-lucide name="wrench" class="w-4 h-4"></i-lucide>
+                    <span>Registrar Reparación & Solución</span>
+                  </button>
+                }
               }
             </div>
 
@@ -633,7 +660,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
       <!-- MODAL 4: LIGHTBOX / VISOR DE FOTO O VIDEO EN ALTA RESOLUCIÓN  -->
       <!-- ============================================================== -->
       @if (mediaZoomUrl) {
-        <div class="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-6 animate-fade-in" (click)="cerrarMediaZoom()">
+        <div appModalPortal class="fixed inset-0 z-[9999] bg-black/90 flex items-center justify-center p-6 animate-fade-in" (click)="cerrarMediaZoom()">
           <div class="relative max-w-4xl w-full max-h-[85vh] flex items-center justify-center" (click)="$event.stopPropagation()">
             <button 
               (click)="cerrarMediaZoom()" 
@@ -644,6 +671,58 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
           </div>
         </div>
       }
+
+      <!-- MODAL: ASIGNAR TÉCNICO (Gestor Técnico / Super Admin) -->
+      <app-modal
+        [isOpen]="modalAsignarOpen"
+        [title]="incidenteAsignar?.tecnicoAsignadoId ? 'Reasignar Reparación' : 'Asignar Reparación'"
+        icon="user-cog"
+        (close)="modalAsignarOpen = false">
+        @if (incidenteAsignar) {
+          <div class="space-y-4">
+            <p class="text-xs text-slate-600">
+              <strong class="text-slate-900">{{ incidenteAsignar.codigoIncidente }}</strong>
+              · {{ incidenteAsignar.maquina }}
+            </p>
+            <p class="text-xs text-slate-500">
+              Ejecuta la reparación tú mismo o delega a un técnico de campo.
+            </p>
+            @if (incidenteAsignar.tecnicoAsignadoNombre) {
+              <div class="p-3 bg-violet-50 border border-violet-200 rounded-xl text-xs text-violet-800">
+                Asignado actualmente a: <strong>{{ incidenteAsignar.tecnicoAsignadoNombre }}</strong>
+              </div>
+            }
+
+            <button
+              type="button"
+              (click)="asignarAEjecutor(gestorActual.id, gestorActual.nombreCompleto)"
+              class="w-full py-3 px-4 bg-violet-600 hover:bg-violet-700 text-white font-extrabold rounded-xl text-xs flex items-center justify-center gap-2">
+              <i-lucide name="wrench" class="w-4 h-4"></i-lucide>
+              {{ etiquetaEjecutarYo }}
+            </button>
+
+            <p class="text-[10px] font-bold text-slate-400 uppercase">Delegar a técnico</p>
+            @for (tec of tecnicosDisponibles; track tec.email) {
+              <button
+                type="button"
+                (click)="asignarAEjecutor(tec.id, tec.nombre)"
+                class="w-full py-3 px-4 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl text-xs flex items-center justify-between">
+                <span>{{ tec.nombre }}</span>
+                <i-lucide name="chevron-right" class="w-4 h-4"></i-lucide>
+              </button>
+            }
+
+            @if (incidenteAsignar.tecnicoAsignadoId) {
+              <button
+                type="button"
+                (click)="cancelarAsignacionIncidente(incidenteAsignar)"
+                class="w-full py-3 px-4 bg-rose-50 hover:bg-rose-100 text-rose-800 font-bold rounded-xl text-xs border border-rose-200">
+                Cancelar asignación
+              </button>
+            }
+          </div>
+        }
+      </app-modal>
 
     </div>
   `
@@ -662,6 +741,19 @@ export class IncidentesComponent implements OnInit {
   modalReportarOpen = false;
   modalSolucionarOpen = false;
   modalDetalleOpen = false;
+  modalAsignarOpen = false;
+
+  incidenteAsignar?: Incidente;
+
+  tecnicosDisponibles = DEMO_CREDENTIALS
+    .filter(c => c.role === Role.TECNICO)
+    .map((c, i) => ({
+      id: DEMO_CREDENTIALS.indexOf(c) + 1,
+      nombre: c.nombre,
+      email: c.email,
+    }));
+
+  gestorActual = { id: 0, nombreCompleto: '' };
 
   mediaZoomUrl: string | null = null;
   mediaZoomTipo: 'imagen' | 'video' = 'imagen';
@@ -693,8 +785,14 @@ export class IncidentesComponent implements OnInit {
 
   ngOnInit(): void {
     const user = this.authService.getCurrentUser();
-    
-    this.incidenteService.getIncidentes().subscribe(list => {
+    if (user) {
+      this.gestorActual = {
+        id: user.id,
+        nombreCompleto: `${user.nombre} ${user.apellido}`.trim(),
+      };
+    }
+
+    this.incidenteService.incidentes$.subscribe(list => {
       this.incidentes = list;
     });
 
@@ -711,8 +809,77 @@ export class IncidentesComponent implements OnInit {
     this.currentPage = 1;
   }
 
+  get esGestor(): boolean {
+    return this.authService.hasRole(Role.COORD_MANTENIMIENTO);
+  }
+
+  get puedeAsignar(): boolean {
+    return this.esGestor || this.authService.hasRole(Role.SUPER_ADMIN);
+  }
+
+  get etiquetaEjecutarYo(): string {
+    if (this.authService.hasRole(Role.SUPER_ADMIN)) {
+      return 'Ejecutar yo (Super Administrador)';
+    }
+    return 'Ejecutar yo (Gestor Técnico)';
+  }
+
+  get esTecnico(): boolean {
+    return this.authService.hasRole(Role.TECNICO);
+  }
+
+  puedeSolucionar(inc: Incidente): boolean {
+    const user = this.authService.getCurrentUser();
+    if (!user || inc.estado === 'Solucionado') return false;
+    if (this.authService.hasRole(Role.SUPER_ADMIN)) return true;
+    if (this.puedeAsignar || this.esTecnico) {
+      return inc.tecnicoAsignadoId === user.id;
+    }
+    return true;
+  }
+
+  openModalAsignar(inc: Incidente) {
+    this.incidenteAsignar = inc;
+    this.modalAsignarOpen = true;
+  }
+
+  asignarAEjecutor(tecnicoId: number, tecnicoNombre: string) {
+    const user = this.authService.getCurrentUser();
+    if (!this.incidenteAsignar || !user) return;
+
+    this.incidenteService.asignarIncidente(
+      this.incidenteAsignar.id,
+      tecnicoId,
+      tecnicoNombre,
+      user.id,
+      `${user.nombre} ${user.apellido}`.trim()
+    ).subscribe(updated => {
+      if (updated) {
+        this.toastService.success('Asignación registrada', `Reparación delegada a ${tecnicoNombre}`);
+        this.modalAsignarOpen = false;
+        if (tecnicoId === user.id) {
+          this.openModalSolucionar(updated);
+        }
+      }
+    });
+  }
+
+  cancelarAsignacionIncidente(inc: Incidente) {
+    this.incidenteService.cancelarAsignacion(inc.id).subscribe(updated => {
+      if (updated) {
+        this.toastService.success('Asignación cancelada', `${updated.codigoIncidente} quedó pendiente de asignación`);
+        this.modalAsignarOpen = false;
+      }
+    });
+  }
+
   get incidentesFiltrados() {
     let resultados = this.incidentes;
+    const user = this.authService.getCurrentUser();
+
+    if (this.esTecnico && user) {
+      resultados = resultados.filter(inc => inc.tecnicoAsignadoId === user.id);
+    }
 
     if (this.filtrosGlobales.estado !== 'Todos') {
       resultados = resultados.filter(inc => inc.estado === this.filtrosGlobales.estado);
