@@ -1,7 +1,7 @@
-import { Injectable, inject } from '@angular/core';
+﻿import { Injectable, inject } from '@angular/core';
 import { AuthService } from './auth.service';
-import { RolMockService } from './rol-mock.service';
-import { Role, PermisosRol } from '../models/roles.model';
+import { RolMockService } from '../../infrastructure/mocks/rol-mock.service';
+import { Role, PermisosRol } from '../../domain';
 import { MenuItem, MENU_CONFIG } from '../config/menu.config';
 
 @Injectable({

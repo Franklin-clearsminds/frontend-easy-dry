@@ -1,9 +1,9 @@
-import { Component, inject } from '@angular/core';
+﻿import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
 import { LucideAngularModule } from 'lucide-angular';
 import { AuthService } from '../../core/services/auth.service';
-import { ROLE_LABELS } from '../../core/models/roles.model';
+import { ROLE_LABELS } from '../../domain';
 
 @Component({
   selector: 'app-unauthorized',

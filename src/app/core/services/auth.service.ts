@@ -1,9 +1,9 @@
-import { Injectable, inject } from '@angular/core';
+﻿import { Injectable, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { BehaviorSubject, Observable, of } from 'rxjs';
 import { delay } from 'rxjs/operators';
-import { Role, UsuarioAuth, PERMISOS_POR_ROL, PermisosRol, ROLE_LABELS } from '../models/roles.model';
-import { RolMockService } from './rol-mock.service';
+import { Role, UsuarioAuth, PERMISOS_POR_ROL, PermisosRol, ROLE_LABELS } from '../../domain';
+import { RolMockService } from '../../infrastructure/mocks/rol-mock.service';
 
 export const SUPER_ADMIN_USER: UsuarioAuth = {
   id: 1,

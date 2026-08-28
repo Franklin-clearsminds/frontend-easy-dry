@@ -6,7 +6,7 @@ import { ApiClient } from '../http/api-client';
 export class WorkOrdersApiAdapter implements WorkOrderRepositoryPort {
   private readonly api = inject(ApiClient);
 
-  findById(id: string): Promise<WorkOrder | null> {
+  findById(id: number): Promise<WorkOrder | null> {
     return this.api.get<WorkOrder>(`/work-orders/${id}`);
   }
 
@@ -18,15 +18,15 @@ export class WorkOrdersApiAdapter implements WorkOrderRepositoryPort {
     return this.api.post<WorkOrder>('/work-orders', order);
   }
 
-  complete(id: string, version: number): Promise<WorkOrder> {
+  complete(id: number, version: number): Promise<WorkOrder> {
     return this.api.post<WorkOrder>(`/work-orders/${id}/complete`, { version });
   }
 
-  approve(id: string, version: number): Promise<WorkOrder> {
+  approve(id: number, version: number): Promise<WorkOrder> {
     return this.api.post<WorkOrder>(`/work-orders/${id}/approve`, { version });
   }
 
-  reject(id: string, version: number, reason: string): Promise<WorkOrder> {
+  reject(id: number, version: number, reason: string): Promise<WorkOrder> {
     return this.api.post<WorkOrder>(`/work-orders/${id}/reject`, { version, reason });
   }
 }

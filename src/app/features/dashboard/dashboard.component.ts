@@ -1,13 +1,13 @@
-import { Component, OnInit, inject } from '@angular/core';
+﻿import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import { LucideAngularModule } from 'lucide-angular';
 import { StatCardComponent } from '../../shared/components/stat-card/stat-card.component';
 import { ChartCardComponent } from '../../shared/components/chart-card/chart-card.component';
-import { DashboardOperativoService } from '../../core/services/dashboard-operativo.service';
+import { DashboardOperativoService } from '../../infrastructure/mocks/dashboard-operativo.service';
 import { AuthService } from '../../core/services/auth.service';
-import { Role, ROLE_LABELS } from '../../core/models/roles.model';
+import { Role, ROLE_LABELS } from '../../domain';
 
 // Nuevos Widgets
 import { AlertasWidgetComponent } from './components/alertas-widget.component';

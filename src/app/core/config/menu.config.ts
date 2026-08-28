@@ -1,4 +1,4 @@
-import { Role } from '../models/roles.model';
+﻿import { Role } from '../../domain';
 
 export interface MenuItem {
   label: string;
