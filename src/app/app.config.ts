@@ -15,7 +15,16 @@ export const appConfig: ApplicationConfig = {
   providers: [
     { provide: LOCALE_ID, useValue: 'es' },
     provideZoneChangeDetection({ eventCoalescing: true }),
-    provideRouter(routes, withComponentInputBinding(), withViewTransitions()),
+    provideRouter(
+      routes,
+      withComponentInputBinding(),
+      withViewTransitions({
+        skipInitialTransition: true,
+        onViewTransitionCreated: ({ transition }) => {
+          transition.finished.catch(() => undefined);
+        },
+      })
+    ),
     provideAnimations(),
     provideHttpClient(withInterceptors([authInterceptor, correlationInterceptor, errorInterceptor])),
     importProvidersFrom(LucideAngularModule.pick(EASYDRY_ICONS))
