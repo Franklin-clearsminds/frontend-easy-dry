@@ -122,7 +122,8 @@ export class AuthService {
   }
 
   getRolLabel(role?: Role | string): string {
-    return 'Super Administrador';
+    const code = role ?? this.getRole();
+    return ROLE_LABELS[code] || String(code);
   }
 
   getUserContextLabel(): string {

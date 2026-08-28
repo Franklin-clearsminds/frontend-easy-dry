@@ -58,6 +58,67 @@ export const MOCK_USUARIOS: Usuario[] = [
     fechaAsignacion: '2024-01-15',
     email: 'admin@easydry.com',
     avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
+  },
+  {
+    id: 2,
+    nombre: 'Carlos',
+    apellido: 'Mendoza',
+    rol: 'Gerente',
+    agencia: 'EasyDry Quito Norte',
+    estado: 'Activo',
+    fechaAsignacion: '2024-03-01',
+    email: 'carlos.gerente@easydry.com',
+    sucursalAsignada: 'EasyDry Quito Norte',
+    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80'
+  },
+  {
+    id: 3,
+    nombre: 'Diana',
+    apellido: 'Salazar',
+    rol: 'Supervisor',
+    agencia: 'EasyDry Quito Sur',
+    estado: 'Activo',
+    fechaAsignacion: '2024-06-12',
+    email: 'diana.supervisor@easydry.com',
+    sucursalAsignada: 'EasyDry Quito Sur',
+    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80'
+  },
+  {
+    id: 4,
+    nombre: 'Franklin',
+    apellido: 'Mendoza',
+    rol: 'Operador de Bahía',
+    agencia: 'EasyDry Quito Norte',
+    estado: 'Activo',
+    fechaAsignacion: '2025-02-10',
+    email: 'franklin.operador@easydry.com',
+    sucursalAsignada: 'EasyDry Quito Norte',
+    bahiaAsignada: 'Bahía 1 (Lavado Ecológico)',
+    avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80'
+  },
+  {
+    id: 5,
+    nombre: 'Carlos',
+    apellido: 'Andrade',
+    rol: 'Operador de Servicios Extras',
+    agencia: 'EasyDry Quito Norte',
+    estado: 'Activo',
+    fechaAsignacion: '2025-04-18',
+    email: 'carlos.extras@easydry.com',
+    sucursalAsignada: 'EasyDry Quito Norte',
+    avatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=150&auto=format&fit=crop&q=80'
+  },
+  {
+    id: 6,
+    nombre: 'Diego',
+    apellido: 'Morales',
+    rol: 'Técnico de Taller',
+    agencia: 'EasyDry Quito Norte',
+    estado: 'Activo',
+    fechaAsignacion: '2025-01-22',
+    email: 'diego.tecnico@easydry.com',
+    sucursalAsignada: 'EasyDry Quito Norte',
+    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80'
   }
 ];
 

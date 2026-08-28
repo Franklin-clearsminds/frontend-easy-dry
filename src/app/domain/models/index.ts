@@ -6,7 +6,7 @@ export interface Usuario {
   id: number;
   nombre: string;
   apellido: string;
-  rol: 'SuperAdmin' | 'Gerente' | 'Supervisor' | 'Técnico' | 'OPERADOR' | string;
+  rol: 'Super Administrador' | 'Gerente' | 'Supervisor' | 'Operador de Bahía' | 'Operador de Servicios Extras' | 'Técnico de Taller' | 'Técnico' | 'OPERADOR' | 'SERVICIOS_EXTRAS' | string;
   agencia: string;
   estado: 'Activo' | 'Inactivo' | 'En Capacitación' | string;
   fechaAsignacion: string;

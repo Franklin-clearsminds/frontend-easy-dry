@@ -532,7 +532,7 @@ export class UsuariosComponent implements OnInit {
   } = {
     nombre: '',
     apellido: '',
-    rol: 'Gerente de Sucursal',
+    rol: 'Gerente',
     agencia: 'EasyDry Quito Norte',
     estado: 'Activo',
     email: ''
@@ -619,6 +619,8 @@ export class UsuariosComponent implements OnInit {
     if (rolNombre.includes('Admin') || rolNombre.includes('Super')) return 'bg-purple-100 text-purple-900 border-purple-300';
     if (rolNombre.includes('Gerente')) return 'bg-easydry-blue/15 text-easydry-blue border-easydry-blue/20';
     if (rolNombre.includes('Supervisor')) return 'bg-amber-100 text-amber-800 border-amber-200';
+    if (rolNombre.includes('Extras')) return 'bg-teal-100 text-teal-800 border-teal-200';
+    if (rolNombre.includes('Técnico') || rolNombre.includes('Tecnico')) return 'bg-violet-100 text-violet-800 border-violet-200';
     if (rolNombre.includes('Operador')) return 'bg-easydry-green/20 text-easydry-green-dark border-easydry-green/30';
     return 'bg-slate-100 text-slate-700 border-slate-200';
   }

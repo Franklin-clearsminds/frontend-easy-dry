@@ -7,9 +7,20 @@ export enum Role {
   GERENTE = 'GERENTE',
   SUPERVISOR = 'SUPERVISOR',
   OPERADOR = 'OPERADOR',
+  SERVICIOS_EXTRAS = 'SERVICIOS_EXTRAS',
   TECNICO = 'TECNICO',
   CUSTOM = 'CUSTOM'
 }
+
+/** Roles de sistema (`esSistema`). CUSTOM se crea en Identity, no es grupo fijo. */
+export const ROLES_SISTEMA: Role[] = [
+  Role.SUPER_ADMIN,
+  Role.GERENTE,
+  Role.SUPERVISOR,
+  Role.OPERADOR,
+  Role.SERVICIOS_EXTRAS,
+  Role.TECNICO
+];
 
 /** Definición de un módulo funcional del sistema */
 export interface ModuloSistema {
@@ -193,19 +204,91 @@ export interface RolPersonalizado {
   usuariosCount?: number;
 }
 
-/** Rol inicial base del sistema */
+function todosLosModulos(): string[] {
+  return MODULOS_SISTEMA.map(m => m.codigo);
+}
+
+/** Catálogo oficial de roles de sistema (más CUSTOM, que se crea en UI). */
 export const ROLES_INICIALES: RolPersonalizado[] = [
   {
     id: 'rol_super_admin',
-    codigo: 'SUPER_ADMIN',
+    codigo: Role.SUPER_ADMIN,
     nombre: 'Super Administrador',
-    descripcion: 'Acceso total y sin restricciones a todos los módulos y configuraciones del sistema.',
+    descripcion: 'Acceso total: usuarios, roles, sucursales, catálogo y configuración de la red.',
     color: '#7C3AED',
     badgeClass: 'bg-purple-100 text-purple-800 border-purple-200',
-    modulos: MODULOS_SISTEMA.map(m => m.codigo), // Todos los módulos
+    modulos: todosLosModulos(),
     esSistema: true,
     fechaCreacion: '2026-01-01',
     usuariosCount: 1
+  },
+  {
+    id: 'rol_gerente',
+    codigo: Role.GERENTE,
+    nombre: 'Gerente',
+    descripcion: 'Aprueba y rechaza OT, cierra el día, reportes y productividad. Red o multi-sucursal.',
+    color: '#07558C',
+    badgeClass: 'bg-sky-100 text-sky-800 border-sky-200',
+    modulos: [
+      'dashboard', 'mapa-operativo', 'operadores', 'asignaciones',
+      'servicios', 'aprobaciones', 'productividad',
+      'maquinaria', 'taller-tecnico', 'inventario', 'reportes'
+    ],
+    esSistema: true,
+    fechaCreacion: '2026-01-01',
+    usuariosCount: 0
+  },
+  {
+    id: 'rol_supervisor',
+    codigo: Role.SUPERVISOR,
+    nombre: 'Supervisor',
+    descripcion: 'Opera una sucursal: bahías, operadores, mapa y OT del sitio. No cierra el día.',
+    color: '#D97706',
+    badgeClass: 'bg-amber-100 text-amber-800 border-amber-200',
+    modulos: [
+      'dashboard', 'mapa-operativo', 'operadores', 'asignaciones',
+      'servicios', 'productividad',
+      'maquinaria', 'taller-tecnico', 'inventario'
+    ],
+    esSistema: true,
+    fechaCreacion: '2026-01-01',
+    usuariosCount: 0
+  },
+  {
+    id: 'rol_operador',
+    codigo: Role.OPERADOR,
+    nombre: 'Operador de Bahía',
+    descripcion: 'Crea y completa OT de lavado general en una bahía. No aprueba ni cierra el día.',
+    color: '#9BCB3B',
+    badgeClass: 'bg-lime-100 text-lime-800 border-lime-200',
+    modulos: ['dashboard', 'mi-bahia', 'servicios'],
+    esSistema: true,
+    fechaCreacion: '2026-01-01',
+    usuariosCount: 0
+  },
+  {
+    id: 'rol_servicios_extras',
+    codigo: Role.SERVICIOS_EXTRAS,
+    nombre: 'Operador de Servicios Extras',
+    descripcion: 'Ejecuta asignaciones EXTRA (pulido, cerámico, motor) en la app. No crea las asignaciones.',
+    color: '#0F766E',
+    badgeClass: 'bg-teal-100 text-teal-800 border-teal-200',
+    modulos: ['dashboard'],
+    esSistema: true,
+    fechaCreacion: '2026-01-01',
+    usuariosCount: 0
+  },
+  {
+    id: 'rol_tecnico',
+    codigo: Role.TECNICO,
+    nombre: 'Técnico de Taller',
+    descripcion: 'Máquinas, preventivos e incidentes. No opera bahía ni extras.',
+    color: '#5B21B6',
+    badgeClass: 'bg-violet-100 text-violet-800 border-violet-200',
+    modulos: ['dashboard', 'maquinaria', 'taller-tecnico', 'inventario'],
+    esSistema: true,
+    fechaCreacion: '2026-01-01',
+    usuariosCount: 0
   }
 ];
 
@@ -250,6 +333,28 @@ export interface PermisosRol {
   verConfiguracion: boolean;
 }
 
+const PERMISOS_NINGUNO: PermisosRol = {
+  verTodasSucursales: false,
+  crearSucursal: false,
+  editarSucursal: false,
+  crearUsuarios: false,
+  asignarRoles: false,
+  verOtrosSucursales: false,
+  cambiarSucursalOperador: false,
+  cambiarBahiaOperador: false,
+  aprobarServicios: false,
+  rechazarServicios: false,
+  cerrarDia: false,
+  registrarServicio: false,
+  verTodosServicios: false,
+  verMaquinaria: false,
+  gestionarMantenimiento: false,
+  registrarIncidente: false,
+  verReportes: false,
+  verProductividadGlobal: false,
+  verConfiguracion: false
+};
+
 export const PERMISOS_POR_ROL: Record<string, PermisosRol> = {
   [Role.SUPER_ADMIN]: {
     verTodasSucursales: true,
@@ -271,15 +376,61 @@ export const PERMISOS_POR_ROL: Record<string, PermisosRol> = {
     verReportes: true,
     verProductividadGlobal: true,
     verConfiguracion: true
-  }
+  },
+  [Role.GERENTE]: {
+    ...PERMISOS_NINGUNO,
+    verTodasSucursales: true,
+    verOtrosSucursales: true,
+    aprobarServicios: true,
+    rechazarServicios: true,
+    cerrarDia: true,
+    verTodosServicios: true,
+    verMaquinaria: true,
+    verReportes: true,
+    verProductividadGlobal: true
+  },
+  [Role.SUPERVISOR]: {
+    ...PERMISOS_NINGUNO,
+    cambiarBahiaOperador: true,
+    verTodosServicios: true,
+    verMaquinaria: true,
+    gestionarMantenimiento: true,
+    registrarIncidente: true
+  },
+  [Role.OPERADOR]: {
+    ...PERMISOS_NINGUNO,
+    registrarServicio: true
+  },
+  [Role.SERVICIOS_EXTRAS]: {
+    ...PERMISOS_NINGUNO
+  },
+  [Role.TECNICO]: {
+    ...PERMISOS_NINGUNO,
+    verMaquinaria: true,
+    gestionarMantenimiento: true,
+    registrarIncidente: true
+  },
+  [Role.CUSTOM]: { ...PERMISOS_NINGUNO }
 };
 
 export const ROLE_LABELS: Record<string, string> = {
   [Role.SUPER_ADMIN]: 'Super Administrador',
-  'SuperAdmin': 'Super Administrador'
+  [Role.GERENTE]: 'Gerente',
+  [Role.SUPERVISOR]: 'Supervisor',
+  [Role.OPERADOR]: 'Operador de Bahía',
+  [Role.SERVICIOS_EXTRAS]: 'Operador de Servicios Extras',
+  [Role.TECNICO]: 'Técnico de Taller',
+  [Role.CUSTOM]: 'Rol personalizado',
+  SuperAdmin: 'Super Administrador'
 };
 
 export const ROLE_COLORS: Record<string, string> = {
   [Role.SUPER_ADMIN]: 'bg-purple-100 text-purple-800 border-purple-200',
-  'SuperAdmin': 'bg-purple-100 text-purple-800 border-purple-200'
+  [Role.GERENTE]: 'bg-sky-100 text-sky-800 border-sky-200',
+  [Role.SUPERVISOR]: 'bg-amber-100 text-amber-800 border-amber-200',
+  [Role.OPERADOR]: 'bg-lime-100 text-lime-800 border-lime-200',
+  [Role.SERVICIOS_EXTRAS]: 'bg-teal-100 text-teal-800 border-teal-200',
+  [Role.TECNICO]: 'bg-violet-100 text-violet-800 border-violet-200',
+  [Role.CUSTOM]: 'bg-slate-100 text-slate-800 border-slate-200',
+  SuperAdmin: 'bg-purple-100 text-purple-800 border-purple-200'
 };

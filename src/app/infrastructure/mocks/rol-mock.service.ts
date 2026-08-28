@@ -1,9 +1,9 @@
 ﻿import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable, of } from 'rxjs';
-import { delay, map } from 'rxjs/operators';
+import { delay } from 'rxjs/operators';
 import { RolPersonalizado, ModuloSistema, MODULOS_SISTEMA, ROLES_INICIALES } from '../../domain';
 
-const ROLES_STORAGE_KEY = 'easydry_roles_custom_v1';
+const ROLES_STORAGE_KEY = 'easydry_roles_custom_v2';
 
 @Injectable({
   providedIn: 'root'
@@ -18,13 +18,29 @@ export class RolMockService {
       if (stored) {
         const parsed = JSON.parse(stored) as RolPersonalizado[];
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
+          return this.mergeSystemRoles(parsed);
         }
       }
     } catch (e) {
       console.warn('Error reading stored roles, using initial defaults', e);
     }
     return [...ROLES_INICIALES];
+  }
+
+  /** Si el storage quedó con un catálogo viejo, agrega los roles de sistema que falten. */
+  private mergeSystemRoles(current: RolPersonalizado[]): RolPersonalizado[] {
+    const codes = new Set(current.map(r => r.codigo));
+    const missing = ROLES_INICIALES.filter(r => !codes.has(r.codigo));
+    if (missing.length === 0) {
+      return current;
+    }
+    const merged = [...current, ...missing];
+    try {
+      localStorage.setItem(ROLES_STORAGE_KEY, JSON.stringify(merged));
+    } catch {
+      /* ignore quota */
+    }
+    return merged;
   }
 
   private saveRoles(roles: RolPersonalizado[]): void {
@@ -118,7 +134,7 @@ export class RolMockService {
     }
 
     if (rol.esSistema) {
-      return of({ success: false, message: 'Los roles del sistema (SuperAdmin) no pueden ser eliminados.' });
+      return of({ success: false, message: 'Los roles del sistema no pueden ser eliminados.' });
     }
 
     const actualizados = current.filter(r => r.id !== id);
