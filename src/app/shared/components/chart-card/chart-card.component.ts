@@ -88,7 +88,7 @@ export class ChartCardComponent implements AfterViewInit, OnChanges, OnDestroy {
           }
         },
         tooltip: {
-          backgroundColor: '#053F67',
+          backgroundColor: '#003A7C',
           titleFont: { family: 'Outfit', size: 13, weight: 'bold' },
           bodyFont: { family: 'Inter', size: 12 },
           padding: 12,

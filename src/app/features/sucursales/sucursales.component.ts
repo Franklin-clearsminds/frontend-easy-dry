@@ -553,7 +553,7 @@ export class SucursalesComponent implements OnInit {
   formMarca: Omit<MarcaSucursal, 'id' | 'codigo'> & { id?: number; codigo?: string } = {
     nombre: '',
     descripcion: '',
-    color: '#07558C',
+    color: '#004282',
     estado: 'Activa'
   };
 
@@ -636,7 +636,7 @@ export class SucursalesComponent implements OnInit {
   }
 
   colorMarca(marcaId?: number): string {
-    return this.marcas.find(m => m.id === marcaId)?.color || '#07558C';
+    return this.marcas.find(m => m.id === marcaId)?.color || '#004282';
   }
 
   abrirModalCrearSucursal(): void {
@@ -692,7 +692,7 @@ export class SucursalesComponent implements OnInit {
     this.marcaService.crear({
       nombre: this.altaRapidaMarca.trim(),
       descripcion: '',
-      color: '#07558C',
+      color: '#004282',
       estado: 'Activa'
     }).subscribe(creada => {
       this.marcas = [...this.marcas, creada];
@@ -782,7 +782,7 @@ export class SucursalesComponent implements OnInit {
     this.editandoMarca = !!marca;
     this.formMarca = marca
       ? { ...marca }
-      : { nombre: '', descripcion: '', color: '#07558C', estado: 'Activa' };
+      : { nombre: '', descripcion: '', color: '#004282', estado: 'Activa' };
     this.modalMarcaOpen = true;
   }
 

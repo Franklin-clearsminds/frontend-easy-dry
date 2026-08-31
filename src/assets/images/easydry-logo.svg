@@ -18,9 +18,9 @@
 
   <defs>
     <linearGradient id="dropGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#0A70B8" />
-      <stop offset="50%" stop-color="#07558C" />
-      <stop offset="100%" stop-color="#042D4B" />
+      <stop offset="0%" stop-color="#36699B" />
+      <stop offset="50%" stop-color="#004282" />
+      <stop offset="100%" stop-color="#002952" />
     </linearGradient>
   </defs>
 </svg>

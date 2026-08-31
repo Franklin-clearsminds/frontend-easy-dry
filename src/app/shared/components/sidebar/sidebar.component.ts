@@ -42,28 +42,37 @@ const SIDEBAR_RAIL_W = '80px';
       <aside
         class="h-full w-72 bg-gradient-to-b from-easydry-blue via-easydry-blue-dark to-easydry-blue-deep text-white flex flex-col select-none overflow-hidden border-r border-white/10">
 
-        <!-- Logo — icono fijo en columna de 80px -->
-        <div class="h-20 flex items-center border-b border-white/15 flex-shrink-0 bg-easydry-blue-dark/60 overflow-hidden">
-          <div class="w-20 flex-shrink-0 flex items-center justify-center">
-            <a [routerLink]="['/dashboard']" class="block">
-              <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-easydry-green to-easydry-lime p-0.5 shadow-glow-green flex items-center justify-center">
-                <div class="w-full h-full bg-easydry-blue-dark rounded-[10px] flex items-center justify-center">
-                  <i-lucide name="droplet" class="w-6 h-6 text-easydry-green fill-easydry-green/30"></i-lucide>
-                </div>
-              </div>
-            </a>
-          </div>
-          <div
-            class="flex flex-col overflow-hidden whitespace-nowrap pr-4 transition-opacity duration-300 ease-in-out"
-            [class.opacity-100]="isExpanded()"
-            [class.opacity-0]="!isExpanded()">
-            <div class="flex items-center gap-0.5">
-              <span class="font-extrabold text-xl tracking-tight text-white font-outfit">easy</span>
-              <span class="font-extrabold text-xl tracking-tight text-easydry-green font-outfit">dry</span>
-              <span class="text-[9px] align-super text-easydry-lime ml-0.5 font-bold">®</span>
+        <!-- Rail 80px: isotipo fijo a la izquierda. Expandido: wordmark + plataforma -->
+        <div class="relative h-24 flex-shrink-0 border-b border-white/15 bg-easydry-blue-dark/60">
+          <a
+            [routerLink]="['/dashboard']"
+            class="absolute left-0 top-0 w-20 h-24 flex items-center justify-center transition-opacity duration-200"
+            [class.opacity-0]="isExpanded()"
+            [class.pointer-events-none]="isExpanded()"
+            [attr.tabindex]="isExpanded() ? -1 : 0"
+            aria-label="EasyDry®">
+            <div class="w-12 h-12 rounded-xl bg-white p-1 flex items-center justify-center">
+              <img
+                src="assets/images/easydry-logo-mark.png"
+                alt=""
+                class="w-full h-full object-contain">
             </div>
-            <span class="text-[9px] tracking-widest text-slate-300 uppercase font-bold">{{ platformLabel }}</span>
-          </div>
+          </a>
+          <a
+            [routerLink]="['/dashboard']"
+            class="absolute inset-0 flex flex-col items-center justify-center gap-1.5 px-3 transition-opacity duration-200"
+            [class.opacity-0]="!isExpanded()"
+            [class.pointer-events-none]="!isExpanded()"
+            [attr.tabindex]="isExpanded() ? 0 : -1"
+            aria-label="EasyDry®">
+            <div class="bg-white rounded-lg px-3 py-2">
+              <img
+                src="assets/images/easydry-logo-horizontal.png"
+                alt=""
+                class="h-11 w-auto max-w-[230px] object-contain">
+            </div>
+            <span class="text-[9px] tracking-widest text-slate-300 uppercase font-bold whitespace-nowrap">{{ platformLabel }}</span>
+          </a>
         </div>
 
         <!-- Menú -->

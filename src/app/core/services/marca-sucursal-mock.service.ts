@@ -31,7 +31,7 @@ export class MarcaSucursalMockService {
       id: nextId,
       codigo: `ED-${String(nextId).padStart(3, '0')}`,
       estado: marca.estado || 'Activa',
-      color: marca.color || '#07558C'
+      color: marca.color || '#004282'
     };
     this.marcasSubject.next([...current, nueva]);
     return of(nueva).pipe(delay(250));

@@ -8,16 +8,16 @@ module.exports = {
       colors: {
         easydry: {
           blue: {
-            DEFAULT: '#07558C',
-            dark: '#053F67',
-            deep: '#042D4B',
-            light: '#0A70B8',
-            hover: '#0863A3',
-            50: '#F0F7FC',
-            100: '#E0F0FA',
-            500: '#07558C',
-            600: '#053F67',
-            900: '#032138',
+            DEFAULT: '#004282',
+            dark: '#003A7C',
+            deep: '#002952',
+            light: '#36699B',
+            hover: '#003F7A',
+            50: '#E8F1F8',
+            100: '#D4E4F2',
+            500: '#004282',
+            600: '#003A7C',
+            900: '#001A33',
           },
           green: {
             DEFAULT: '#9BCB3B',
@@ -50,10 +50,10 @@ module.exports = {
         sans: ['Inter', 'Outfit', 'system-ui', '-apple-system', 'sans-serif'],
       },
       boxShadow: {
-        'easydry': '0 4px 20px -2px rgba(7, 85, 140, 0.08), 0 2px 6px -1px rgba(7, 85, 140, 0.04)',
-        'easydry-hover': '0 10px 25px -3px rgba(7, 85, 140, 0.12), 0 4px 10px -2px rgba(155, 203, 59, 0.15)',
+        'easydry': '0 4px 20px -2px rgba(0, 66, 130, 0.08), 0 2px 6px -1px rgba(0, 66, 130, 0.04)',
+        'easydry-hover': '0 10px 25px -3px rgba(0, 66, 130, 0.12), 0 4px 10px -2px rgba(155, 203, 59, 0.15)',
         'glow-green': '0 0 15px rgba(155, 203, 59, 0.4)',
-        'glow-blue': '0 0 15px rgba(7, 85, 140, 0.3)',
+        'glow-blue': '0 0 15px rgba(0, 66, 130, 0.3)',
       }
     },
   },

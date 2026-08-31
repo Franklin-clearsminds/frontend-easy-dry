@@ -106,7 +106,7 @@ export class RolMockService {
       codigo: codigoGenerado,
       nombre: data.nombre,
       descripcion: data.descripcion || `Rol personalizado con ${data.modulos.length} módulos habilitados`,
-      color: data.color || '#07558C',
+      color: data.color || '#004282',
       badgeClass,
       modulos: data.modulos,
       esSistema: false,

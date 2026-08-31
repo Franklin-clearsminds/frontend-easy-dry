@@ -932,7 +932,7 @@ export class UsuariosComponent implements OnInit {
     this.rolForm = {
       nombre: '',
       descripcion: '',
-      color: '#07558C',
+      color: '#004282',
       modulos: ['dashboard', 'servicios'],
       esSistema: false
     };

@@ -33,7 +33,7 @@ export const MOCK_MARCAS_SUCURSAL: MarcaSucursal[] = [
     codigo: 'ED-STD',
     nombre: 'EasyDry',
     descripcion: 'Marca estándar de lavado ecológico.',
-    color: '#07558C',
+    color: '#004282',
     estado: 'Activa'
   },
   {

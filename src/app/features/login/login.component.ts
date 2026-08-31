@@ -25,17 +25,10 @@ import { environment } from '../../core/config/env';
 
           <!-- Logo Branding Header -->
           <div class="flex flex-col items-center text-center mb-8">
-            <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-easydry-green to-easydry-lime p-0.5 shadow-glow-green mb-3 flex items-center justify-center">
-              <div class="w-full h-full bg-easydry-blue-dark rounded-[14px] flex items-center justify-center">
-                <i-lucide name="droplet" class="w-9 h-9 text-easydry-green fill-easydry-green/30"></i-lucide>
-              </div>
-            </div>
-
-            <div class="flex items-center gap-1">
-              <span class="font-extrabold text-3xl sm:text-4xl tracking-tight text-easydry-blue font-outfit">easy</span>
-              <span class="font-extrabold text-3xl sm:text-4xl tracking-tight text-easydry-green font-outfit">dry</span>
-              <span class="text-xs font-bold text-easydry-lime align-super ml-0.5">®</span>
-            </div>
+            <img
+              src="assets/images/easydry-logo-stacked.png"
+              alt="EasyDry®"
+              class="h-32 w-32 object-contain mb-3">
             <p class="text-slate-500 text-xs font-bold uppercase tracking-widest mt-1.5">Autenticación & Control de Acceso</p>
             @if (!env.production) {
               <p class="mt-2 text-[10px] font-bold uppercase tracking-wider text-easydry-blue/70">

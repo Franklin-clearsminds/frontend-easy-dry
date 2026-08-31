@@ -15,12 +15,12 @@ export const MOCK_PRODUCCION = {
       {
         label: 'Vehículos',
         data: [20, 50, 80, 120, 110, 95, 105, 140, 90, 40],
-        borderColor: '#07558C',
-        backgroundColor: 'rgba(7, 85, 140, 0.15)',
+        borderColor: '#004282',
+        backgroundColor: 'rgba(0, 66, 130, 0.15)',
         tension: 0.4,
         fill: true,
         pointBackgroundColor: '#9BCB3B',
-        pointBorderColor: '#07558C',
+        pointBorderColor: '#004282',
       }
     ]
   },

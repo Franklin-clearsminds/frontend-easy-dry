@@ -214,8 +214,8 @@ export class ProductividadComponent implements OnInit {
     labels: ['Mayo 2026', 'Junio 2026', 'Julio 2026'],
     datasets: [
       { label: 'EasyDry Cumbayá', data: [94, 96, 98.2], backgroundColor: '#9BCB3B' },
-      { label: 'EasyDry Quito Norte', data: [92, 94, 96.4], backgroundColor: '#07558C' },
-      { label: 'EasyDry Guayaquil', data: [90, 92, 94.0], backgroundColor: '#0A70B8' },
+      { label: 'EasyDry Quito Norte', data: [92, 94, 96.4], backgroundColor: '#004282' },
+      { label: 'EasyDry Guayaquil', data: [90, 92, 94.0], backgroundColor: '#36699B' },
       { label: 'EasyDry Quito Sur', data: [88, 90, 91.8], backgroundColor: '#B2E040' }
     ]
   };

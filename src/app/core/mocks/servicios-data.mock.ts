@@ -8,7 +8,7 @@ export const MOCK_SERVICIOS_DATA = {
     labels: ['Express', 'Completo', 'Deluxe'],
     datasets: [{
       data: [350, 250, 100],
-      backgroundColor: ['#07558C', '#9BCB3B', '#F59E0B']
+      backgroundColor: ['#004282', '#9BCB3B', '#F59E0B']
     }]
   },
 

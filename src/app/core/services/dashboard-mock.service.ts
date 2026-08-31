@@ -47,12 +47,12 @@ export class DashboardMockService {
         {
           label: 'Vehículos Atendidos',
           data: [52, 64, 58, 71, 85, 92, 48],
-          borderColor: '#07558C',
-          backgroundColor: 'rgba(7, 85, 140, 0.15)',
+          borderColor: '#004282',
+          backgroundColor: 'rgba(0, 66, 130, 0.15)',
           fill: true,
           tension: 0.4,
           pointBackgroundColor: '#9BCB3B',
-          pointBorderColor: '#07558C',
+          pointBorderColor: '#004282',
           pointRadius: 5,
           pointHoverRadius: 8
         }
@@ -67,7 +67,7 @@ export class DashboardMockService {
         {
           label: 'Servicios de Lavado',
           data: [380, 290, 210, 368],
-          backgroundColor: ['#07558C', '#0A70B8', '#9BCB3B', '#B2E040'],
+          backgroundColor: ['#004282', '#36699B', '#9BCB3B', '#B2E040'],
           borderRadius: 6
         }
       ]
@@ -80,7 +80,7 @@ export class DashboardMockService {
       datasets: [
         {
           data: [65, 23, 12],
-          backgroundColor: ['#07558C', '#9BCB3B', '#B2E040'],
+          backgroundColor: ['#004282', '#9BCB3B', '#B2E040'],
           hoverOffset: 8
         }
       ]

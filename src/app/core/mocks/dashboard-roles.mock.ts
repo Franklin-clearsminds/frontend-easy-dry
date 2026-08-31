@@ -19,7 +19,7 @@ export const MOCK_DASHBOARD_TECNICO = {
     datasets: [{
       label: 'Órdenes',
       data: [2, 1, 3, 2, 4, 1],
-      backgroundColor: '#07558C',
+      backgroundColor: '#004282',
       borderRadius: 6
     }]
   },
@@ -27,7 +27,7 @@ export const MOCK_DASHBOARD_TECNICO = {
     labels: ['Eléctrica', 'Hidráulica', 'Fuga', 'Desgaste'],
     datasets: [{
       data: [4, 3, 5, 2],
-      backgroundColor: ['#07558C', '#9BCB3B', '#E11D48', '#F59E0B'],
+      backgroundColor: ['#004282', '#9BCB3B', '#E11D48', '#F59E0B'],
       borderWidth: 0
     }]
   }
@@ -45,8 +45,8 @@ export const MOCK_DASHBOARD_OPERADOR = {
     datasets: [{
       label: 'OTs',
       data: [1, 2, 3, 2, 1, 2, 2, 1],
-      borderColor: '#07558C',
-      backgroundColor: 'rgba(7, 85, 140, 0.12)',
+      borderColor: '#004282',
+      backgroundColor: 'rgba(0, 66, 130, 0.12)',
       tension: 0.35,
       fill: true
     }]
@@ -55,7 +55,7 @@ export const MOCK_DASHBOARD_OPERADOR = {
     labels: ['Generales', 'Especiales'],
     datasets: [{
       data: [11, 3],
-      backgroundColor: ['#07558C', '#9BCB3B'],
+      backgroundColor: ['#004282', '#9BCB3B'],
       borderWidth: 0
     }]
   }
@@ -96,7 +96,7 @@ export const MOCK_DASHBOARD_DISTRIBUIDOR = {
     datasets: [{
       label: 'Unidades',
       data: [120, 45, 80, 30],
-      backgroundColor: '#07558C',
+      backgroundColor: '#004282',
       borderRadius: 6
     }]
   },
@@ -130,7 +130,7 @@ export const MOCK_DASHBOARD_COMERCIAL = {
     labels: ['Generales', 'Especiales Premium'],
     datasets: [{
       data: [520, 186, 136],
-      backgroundColor: ['#07558C', '#0A70B8', '#9BCB3B'],
+      backgroundColor: ['#004282', '#36699B', '#9BCB3B'],
       borderWidth: 0
     }]
   }
