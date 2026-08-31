@@ -11,6 +11,8 @@ import {
   MODULOS_POR_ROL,
   DEFAULT_ROUTE_POR_ROL
 } from '../models/roles.model';
+import { RolMockService } from './rol-mock.service';
+import { isMockMode } from '../config/env';
 
 export interface DemoUserCredential {
   nombre: string;
@@ -21,15 +23,27 @@ export interface DemoUserCredential {
   sucursal: string;
   region: string;
   avatar: string;
+  bahiaNombre?: string;
+  modalidadPulidor?: 'FIJO' | 'MOVIL';
 }
 
 export const DEMO_CREDENTIALS: DemoUserCredential[] = [
   {
+    nombre: 'Super Administrador Easy Dry',
+    email: 'superadmin@easydry.com',
+    passwordPlain: 'EasyDry2026*Super',
+    role: Role.SUPER_ADMIN,
+    rolNombre: 'Super Administrador',
+    sucursal: 'EasyDry Corporativo',
+    region: 'Nacional',
+    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
+  },
+  {
     nombre: 'Administrador Easy Dry',
     email: 'admin@easydry.com',
     passwordPlain: 'EasyDry2026*Admin',
-    role: Role.SUPER_ADMIN,
-    rolNombre: 'Super Administrador',
+    role: Role.ADMIN,
+    rolNombre: 'Administrador',
     sucursal: 'EasyDry Corporativo',
     region: 'Nacional',
     avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
@@ -45,7 +59,7 @@ export const DEMO_CREDENTIALS: DemoUserCredential[] = [
     avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80'
   },
   {
-    nombre: 'Coordinador Mantenimiento',
+    nombre: 'Gestor Técnico',
     email: 'mantenimiento@easydry.com',
     passwordPlain: 'EasyDry2026*Mant',
     role: Role.COORD_MANTENIMIENTO,
@@ -69,9 +83,10 @@ export const DEMO_CREDENTIALS: DemoUserCredential[] = [
     email: 'operador.bahia01@easydry.com',
     passwordPlain: 'EasyDry2026*Op',
     role: Role.OPERADOR,
-    rolNombre: 'Operador Generales y Especiales',
+    rolNombre: 'Operador de Bahía',
     sucursal: 'EasyDry Quito Norte',
     region: 'Región Sierra',
+    bahiaNombre: 'Bahía 1 (Lavado Ecológico)',
     avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80'
   },
   {
@@ -99,30 +114,53 @@ export const DEMO_CREDENTIALS: DemoUserCredential[] = [
     email: 'operador.especial@easydry.com',
     passwordPlain: 'EasyDry2026*Ope',
     role: Role.OPERADOR_SERVICIOS_ESPECIALES,
-    rolNombre: 'Operador Servicios Especiales',
-    sucursal: 'EasyDry Guayaquil',
-    region: 'Región Costa',
+    rolNombre: 'Operador de Servicios Especiales',
+    sucursal: 'Red Nacional · Móvil',
+    region: 'Costa / Sierra / Austro',
+    modalidadPulidor: 'MOVIL',
     avatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=150&auto=format&fit=crop&q=80'
   },
   {
-    nombre: 'Distribuidor Central',
+    nombre: 'Operador Pulido Quito Norte',
+    email: 'operador.pulido.norte@easydry.com',
+    passwordPlain: 'EasyDry2026*OpeF',
+    role: Role.OPERADOR_SERVICIOS_ESPECIALES,
+    rolNombre: 'Operador de Servicios Especiales',
+    sucursal: 'EasyDry Quito Norte',
+    region: 'Región Sierra',
+    modalidadPulidor: 'FIJO',
+    avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150&auto=format&fit=crop&q=80'
+  },
+  {
+    nombre: 'Gestor de Inventario',
     email: 'distribuidor@easydry.com',
     passwordPlain: 'EasyDry2026*Dis',
     role: Role.DISTRIBUIDOR,
-    rolNombre: 'Distribuidor Central',
+    rolNombre: 'Gestor de Inventario',
     sucursal: 'Bodega Central',
     region: 'Nacional',
     avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150&auto=format&fit=crop&q=80'
+  },
+  {
+    nombre: 'Asistente de Bodega',
+    email: 'asistente.bodega@easydry.com',
+    passwordPlain: 'EasyDry2026*Bod',
+    role: Role.ASISTENTE_BODEGA,
+    rolNombre: 'Asistente de Bodega',
+    sucursal: 'Bodega Central',
+    region: 'Nacional',
+    avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80'
   }
 ];
 
-const STORAGE_KEY = 'easydry_auth_user_v4';
+const STORAGE_KEY = 'easydry_auth_user_v5';
 
 @Injectable({
   providedIn: 'root'
 })
 export class AuthService {
   private router = inject(Router);
+  private rolService = inject(RolMockService);
 
   private currentUserSubject = new BehaviorSubject<UsuarioAuth | null>(this.getStoredUser());
   public currentUser$ = this.currentUserSubject.asObservable();
@@ -166,6 +204,13 @@ export class AuthService {
       }).pipe(delay(200));
     }
 
+    if (!isMockMode()) {
+      return of({
+        success: false,
+        message: 'API remota aún no configurada. Defina NG_APP_API_BASE_URL y NG_APP_USE_MOCKS=false cuando exista backend.'
+      }).pipe(delay(200));
+    }
+
     const demoMatch = DEMO_CREDENTIALS.find(
       c => c.email.toLowerCase() === normalizedEmail
     );
@@ -185,7 +230,11 @@ export class AuthService {
     }
 
     const role = demoMatch.role;
-    const modulosPermitidos = MODULOS_POR_ROL[role] || [];
+    const rolConfig = this.rolService.getRolPorCodigo(role);
+    const modulosPermitidos =
+      role === Role.SUPER_ADMIN
+        ? MODULOS_POR_ROL[Role.SUPER_ADMIN]
+        : (rolConfig?.modulos?.length ? rolConfig.modulos : MODULOS_POR_ROL[role] || []);
     const permisos = PERMISOS_POR_ROL[role] || PERMISOS_POR_ROL[Role.OPERADOR];
 
     const authenticatedUser: UsuarioAuth = {
@@ -194,11 +243,13 @@ export class AuthService {
       apellido: demoMatch.nombre.split(' ').slice(1).join(' ') || '',
       email: demoMatch.email,
       role: demoMatch.role,
-      rolNombre: demoMatch.rolNombre,
+      rolNombre: ROLE_LABELS[role] || demoMatch.rolNombre,
       modulosPermitidos,
       sucursal: demoMatch.sucursal,
       sucursalNombre: demoMatch.sucursal,
+      bahiaNombre: demoMatch.bahiaNombre,
       region: demoMatch.region,
+      modalidadPulidor: demoMatch.modalidadPulidor,
       estado: 'Activo',
       avatar: demoMatch.avatar,
       token: `easydry_token_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -253,29 +304,34 @@ export class AuthService {
 
   getCurrentUser(): UsuarioAuth {
     return this.currentUserSubject.value || {
-      id: 1,
+      id: 2,
       nombre: 'Administrador Easy Dry',
       apellido: 'Corporativo',
       email: 'admin@easydry.com',
-      role: Role.SUPER_ADMIN,
-      rolNombre: 'Super Administrador',
-      modulosPermitidos: MODULOS_POR_ROL[Role.SUPER_ADMIN],
+      role: Role.ADMIN,
+      rolNombre: 'Administrador',
+      modulosPermitidos: MODULOS_POR_ROL[Role.ADMIN],
       sucursal: 'EasyDry Corporativo',
       sucursalNombre: 'EasyDry Corporativo',
       region: 'Nacional',
       estado: 'Activo',
       avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
       token: 'easydry_admin_token',
-      permisos: PERMISOS_POR_ROL[Role.SUPER_ADMIN]
+      permisos: PERMISOS_POR_ROL[Role.ADMIN]
     };
   }
 
   getRole(): Role | string {
-    return this.currentUserSubject.value?.role ?? Role.SUPER_ADMIN;
+    return this.currentUserSubject.value?.role ?? Role.ADMIN;
   }
 
   isSuperAdmin(): boolean {
     return this.currentUserSubject.value?.role === Role.SUPER_ADMIN;
+  }
+
+  isAdmin(): boolean {
+    const role = this.currentUserSubject.value?.role;
+    return role === Role.SUPER_ADMIN || role === Role.ADMIN;
   }
 
   hasRole(role: Role | string): boolean {

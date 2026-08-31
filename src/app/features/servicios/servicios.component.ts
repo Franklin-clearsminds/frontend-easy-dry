@@ -5,14 +5,19 @@ import { LucideAngularModule } from 'lucide-angular';
 import { ServicioLavadoMockService } from '../../core/services/servicio-lavado-mock.service';
 import { AuthService } from '../../core/services/auth.service';
 import { InventarioMockService } from '../../core/services/inventario-mock.service';
-import { VehiculoServicio, CatalogoServicio, InsumoConsumidoServicio, InventarioItem } from '../../core/models';
+import { VehiculoServicio, CatalogoServicio, InsumoConsumidoServicio, InventarioItem, ArchivoAdjunto, Incidente, Maquinaria } from '../../core/models';
 import { ModalComponent } from '../../shared/components/modal/modal.component';
 import { ToastService } from '../../shared/services/toast.service';
 import { Role } from '../../core/models/roles.model';
 import { CatalogoServiciosMockService } from '../../core/services/catalogo-servicios-mock.service';
+import { SucursalMockService } from '../../core/services/sucursal-mock.service';
 import { ServiciosExtrasMockService } from '../../core/services/servicios-extras-mock.service';
 import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
 import { FilterBarComponent, FilterState } from '../../shared/components/filter-bar/filter-bar.component';
+import { MaquinariaMockService } from '../../core/services/maquinaria-mock.service';
+import { IncidenteMockService } from '../../core/services/incidente-mock.service';
+import { PermissionService } from '../../core/services/permission.service';
+import { formatearPlaca, placasEquivalentes, validarPlaca } from '../../core/utils/placa.util';
 
 @Component({
   selector: 'app-servicios',
@@ -32,12 +37,22 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
           <p class="text-slate-500 text-xs mt-1">Digitalización del proceso físico: OT, placa, evidencias en vídeo/fotos y flujo de aprobación por Gerencia.</p>
         </div>
 
-        <button
-          (click)="modalNuevoRegistroOpen = true"
-          class="px-4 py-3 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
-          <i-lucide name="plus" class="w-4 h-4"></i-lucide>
-          <span>Nueva Hoja de Control (OT)</span>
-        </button>
+        <div class="flex items-center gap-3 flex-wrap">
+          @if (puedeReportarFalla) {
+            <button
+              (click)="abrirModalReportarFalla()"
+              class="px-4 py-3 bg-rose-500 hover:bg-rose-600 text-white font-extrabold rounded-xl text-xs transition-all flex items-center gap-2 cursor-pointer">
+              <i-lucide name="alert-triangle" class="w-4 h-4"></i-lucide>
+              <span>Reportar Falla / Avería</span>
+            </button>
+          }
+          <button
+            (click)="modalNuevoRegistroOpen = true"
+            class="px-4 py-3 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
+            <i-lucide name="plus" class="w-4 h-4"></i-lucide>
+            <span>Nueva Hoja de Control (OT)</span>
+          </button>
+        </div>
       </div>
 
       <!-- Global Filter Bar -->
@@ -70,7 +85,6 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
             <option value="Todas">Todas las Categorías</option>
             <option value="Servicios Generales">Servicios Generales</option>
             <option value="Servicios Especiales">Servicios Especiales</option>
-            <option value="Servicios Extras">Servicios Extras</option>
           </select>
         </div>
 
@@ -117,13 +131,12 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                     <span 
                       class="px-2 py-0.5 rounded text-[10px] font-extrabold block w-fit mb-1 border"
                       [ngClass]="{
-                        'bg-amber-100 text-amber-800 border-amber-300': item.categoriaServicio === 'ESPECIAL' || item.categoriaServicio === 'Servicios Especiales',
-                        'bg-purple-100 text-purple-800 border-purple-300': item.categoriaServicio === 'EXTRA' || item.categoriaServicio === 'Servicios Extras',
+                        'bg-amber-100 text-amber-800 border-amber-300': item.categoriaServicio === 'ESPECIAL' || item.categoriaServicio === 'Servicios Especiales' || item.categoriaServicio === 'EXTRA' || item.categoriaServicio === 'Servicios Extras',
                         'bg-blue-100 text-blue-800 border-blue-300': item.categoriaServicio === 'GENERAL' || item.categoriaServicio === 'Servicios Generales' || !item.categoriaServicio
                       }">
                       {{ 
-                        item.categoriaServicio === 'ESPECIAL' || item.categoriaServicio === 'Servicios Especiales' ? 'Servicios Especiales' : 
-                        (item.categoriaServicio === 'EXTRA' || item.categoriaServicio === 'Servicios Extras' ? 'Servicios Extras' : 'Servicios Generales') 
+                        item.categoriaServicio === 'ESPECIAL' || item.categoriaServicio === 'Servicios Especiales' || item.categoriaServicio === 'EXTRA' || item.categoriaServicio === 'Servicios Extras' ? 'Servicios Especiales' : 
+                        'Servicios Generales'
                       }}
                     </span>
                     <span class="font-bold text-slate-900 text-xs">{{ item.servicio }}</span>
@@ -388,7 +401,24 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
             </div>
             <div>
               <label class="block text-[11px] font-bold text-slate-700 uppercase mb-1">Placa Vehículo</label>
-              <input type="text" [(ngModel)]="nuevoRegistro.placa" name="placa" placeholder="PBX-1234" class="w-full p-2 border rounded-xl text-xs font-mono font-bold uppercase" required>
+              <input
+                type="text"
+                [ngModel]="nuevoRegistro.placa"
+                (ngModelChange)="onPlacaChange($event)"
+                name="placa"
+                placeholder="PBX-1234"
+                maxlength="8"
+                autocomplete="off"
+                class="w-full p-2 border rounded-xl text-xs font-mono font-bold uppercase tracking-wide"
+                [class.border-rose-400]="placaTocada && !placaValida"
+                [class.border-easydry-green]="placaValida"
+                required>
+              <p class="text-[10px] mt-1 font-semibold"
+                [class.text-easydry-green-dark]="placaValida"
+                [class.text-rose-600]="placaTocada && !placaValida"
+                [class.text-slate-400]="!placaTocada && !placaValida">
+                {{ placaMensaje }}
+              </p>
             </div>
           </div>
 
@@ -422,7 +452,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
           <div class="p-3 bg-easydry-blue/5 rounded-2xl border border-easydry-blue/20 space-y-3">
             <label class="block text-xs font-extrabold text-easydry-blue uppercase">Categoría de Servicio</label>
             
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               <label 
                 class="p-2.5 rounded-xl border cursor-pointer flex items-center gap-2 text-xs font-bold transition-all"
                 [ngClass]="nuevoRegistro.categoriaServicio === 'GENERAL' ? 'bg-easydry-blue text-white border-easydry-blue shadow-xs' : 'bg-white text-slate-700 hover:border-slate-300'">
@@ -435,13 +465,6 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                 [ngClass]="nuevoRegistro.categoriaServicio === 'ESPECIAL' ? 'bg-amber-600 text-white border-amber-600 shadow-xs' : 'bg-white text-slate-700 hover:border-slate-300'">
                 <input type="radio" [(ngModel)]="nuevoRegistro.categoriaServicio" name="catRadio" value="ESPECIAL" (change)="onCategoriaChange()" class="hidden">
                 <span class="flex items-center gap-1.5"><i-lucide name="star" class="w-4 h-4"></i-lucide> Especiales</span>
-              </label>
-
-              <label 
-                class="p-2.5 rounded-xl border cursor-pointer flex items-center gap-2 text-xs font-bold transition-all"
-                [ngClass]="nuevoRegistro.categoriaServicio === 'EXTRA' ? 'bg-purple-600 text-white border-purple-600 shadow-xs' : 'bg-white text-slate-700 hover:border-slate-300'">
-                <input type="radio" [(ngModel)]="nuevoRegistro.categoriaServicio" name="catRadio" value="EXTRA" (change)="onCategoriaChange()" class="hidden">
-                <span class="flex items-center gap-1.5"><i-lucide name="sparkles" class="w-4 h-4"></i-lucide> Extras</span>
               </label>
             </div>
 
@@ -583,6 +606,105 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
         </div>
       </app-modal>
 
+      <app-modal
+        [isOpen]="modalReportarFallaOpen"
+        title="Reportar Desperfecto o Falla de Maquinaria"
+        icon="alert-triangle"
+        (close)="modalReportarFallaOpen = false">
+
+        <form (ngSubmit)="guardarReporteFalla()" class="space-y-4">
+          @if (maquinasReporte.length === 0) {
+            <div class="p-4 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800">
+              {{ isOperadorEspeciales
+                ? 'No hay equipos móviles de servicios especiales registrados. Contacta al jefe de especiales.'
+                : 'No hay equipos registrados en tu bahía. Contacta al supervisor si necesitas reportar un equipo nuevo.' }}
+            </div>
+          } @else {
+            <p class="text-xs text-slate-500">
+              {{ isOperadorEspeciales
+                ? 'Reporta fallos de tu equipo móvil. El taller técnico gestiona la reparación.'
+                : 'Solo puedes subir el reporte. La reparación la gestiona el taller técnico.' }}
+            </p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Equipo Afectado</label>
+                <select [(ngModel)]="maquinaSeleccionadaId" name="maquinaFalla" class="w-full p-2.5 border rounded-xl text-xs font-bold" required>
+                  @for (m of maquinasReporte; track m.id) {
+                    <option [ngValue]="m.id">{{ m.codigo }} — {{ m.nombre }}</option>
+                  }
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Tipo de Falla</label>
+                <select [(ngModel)]="nuevoIncidente.tipo" name="tipoFalla" class="w-full p-2.5 border rounded-xl text-xs font-bold">
+                  @for (tipo of tiposFallaDisponibles; track tipo) {
+                    <option [value]="tipo">{{ tipo }}</option>
+                  }
+                </select>
+              </div>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Descripción del Problema</label>
+              <textarea
+                [(ngModel)]="nuevoIncidente.descripcion"
+                name="descripcionFalla"
+                placeholder="Describa ruidos, sobrecalentamiento, pads desgastados u otros síntomas..."
+                rows="3"
+                class="w-full p-3 border rounded-xl text-xs font-medium focus:ring-2 focus:ring-rose-500"
+                required>
+              </textarea>
+            </div>
+            <div class="border-2 border-dashed border-rose-200 bg-rose-50/40 rounded-2xl p-4 space-y-3">
+              <label class="text-xs font-bold text-rose-900 uppercase flex items-center gap-1.5">
+                <i-lucide name="camera" class="w-4 h-4 text-rose-600"></i-lucide>
+                Evidencias del Fallo (opcional)
+              </label>
+              <div class="flex items-center gap-3 flex-wrap">
+                <label class="cursor-pointer px-4 py-2.5 bg-white border border-rose-300 hover:bg-rose-50 text-rose-700 font-bold rounded-xl text-xs flex items-center gap-2">
+                  <i-lucide name="upload-cloud" class="w-4 h-4"></i-lucide>
+                  <span>Seleccionar Archivos</span>
+                  <input type="file" multiple accept="image/*,video/*" (change)="onSubirArchivosFallo($event)" class="hidden">
+                </label>
+                <button type="button" (click)="agregarEvidenciaFalloDemo()"
+                  class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold">
+                  + Evidencia de prueba
+                </button>
+              </div>
+              @if (archivosFalloSubidos.length > 0) {
+                <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2">
+                  @for (arch of archivosFalloSubidos; track arch.id; let idx = $index) {
+                    <div class="relative bg-white border rounded-xl p-2 shadow-xs">
+                      @if (arch.tipo === 'imagen') {
+                        <img [src]="arch.url" alt="Fallo" class="w-full h-24 object-cover rounded-lg">
+                      } @else {
+                        <div class="w-full h-24 bg-slate-900 rounded-lg flex items-center justify-center">
+                          <i-lucide name="film" class="w-8 h-8 text-purple-400"></i-lucide>
+                        </div>
+                      }
+                      <p class="text-[10px] font-semibold text-slate-700 truncate mt-1">{{ arch.nombre }}</p>
+                      <button type="button" (click)="eliminarArchivoFallo(idx)"
+                        class="absolute top-1 right-1 p-1 bg-rose-600 text-white rounded-full">
+                        <i-lucide name="x" class="w-3 h-3"></i-lucide>
+                      </button>
+                    </div>
+                  }
+                </div>
+              }
+            </div>
+          }
+        </form>
+
+        <div modal-footer>
+          <button (click)="modalReportarFallaOpen = false" class="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs">Cancelar</button>
+          <button
+            (click)="guardarReporteFalla()"
+            [disabled]="maquinasReporte.length === 0"
+            class="px-4 py-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-bold rounded-xl text-xs">
+            Enviar Reporte
+          </button>
+        </div>
+      </app-modal>
+
     </div>
   `
 })
@@ -612,12 +734,31 @@ export class ServiciosComponent implements OnInit {
 
   modalNuevoRegistroOpen = false;
   modalVideoOpen = false;
+  modalReportarFallaOpen = false;
+  maquinasReporte: Maquinaria[] = [];
+  maquinaSeleccionadaId = 0;
+  archivosFalloSubidos: ArchivoAdjunto[] = [];
+  tiposFallaDisponibles: string[] = [
+    'Falla eléctrica',
+    'Fuga de agua',
+    'Problema hidráulico',
+    'Baja presión',
+    'Manguera dañada',
+    'Desgaste',
+    'Rotura de pieza'
+  ];
+  nuevoIncidente = {
+    tipo: 'Falla eléctrica' as Incidente['tipo'],
+    prioridad: 'Alta' as Incidente['prioridad'],
+    descripcion: ''
+  };
 
   modalDetalleOpen = false;
   servicioDetalleSeleccionado?: VehiculoServicio;
 
   opcionesServicios: CatalogoServicio[] = [];
   catalogoCompleto: CatalogoServicio[] = [];
+  sucursalServicioIds: number[] | null = null;
 
   videoFileSelected = false;
   videoFileName = '';
@@ -644,24 +785,58 @@ export class ServiciosComponent implements OnInit {
     videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-car-wash-in-a-machine-41484-large.mp4'
   };
 
+  placaTocada = false;
+
+  get resultadoPlaca() {
+    return validarPlaca(this.nuevoRegistro.placa);
+  }
+
+  get placaValida(): boolean {
+    return this.resultadoPlaca.valida;
+  }
+
+  get placaMensaje(): string {
+    if (!this.nuevoRegistro.placa) {
+      return 'Formato ANT Ecuador: AAA-1234 (auto) o AAA-123 (moto).';
+    }
+    return this.resultadoPlaca.mensaje;
+  }
+
+  onPlacaChange(valor: string): void {
+    this.placaTocada = true;
+    this.nuevoRegistro.placa = formatearPlaca(valor);
+  }
+
   productosInventario: InventarioItem[] = [];
   insumosConsumoForm: InsumoConsumidoServicio[] = [];
 
   private catalogoMock = inject(CatalogoServiciosMockService);
+  private sucursalService = inject(SucursalMockService);
   private extrasMock = inject(ServiciosExtrasMockService);
   private inventarioService = inject(InventarioMockService);
   private servicioService = inject(ServicioLavadoMockService);
   public authService = inject(AuthService);
   private toastService = inject(ToastService);
+  private maquinariaService = inject(MaquinariaMockService);
+  private incidenteService = inject(IncidenteMockService);
+  private permissions = inject(PermissionService);
 
   // ── Role helpers ──
   get isOperador() { return this.authService.hasRole(Role.OPERADOR); }
-  get isGerente() { return this.authService.hasAnyRole([Role.SUPER_ADMIN, Role.GERENTE]); }
+  get isOperadorEspeciales() {
+    return this.authService.hasAnyRole([Role.OPERADOR_SERVICIOS_ESPECIALES, Role.COORD_SERVICIOS_ESPECIALES]);
+  }
+  get isGerente() { return this.authService.hasAnyRole([Role.SUPER_ADMIN, Role.ADMIN, Role.GERENTE]); }
   get isSuperAdmin() { return this.authService.hasRole(Role.SUPER_ADMIN); }
+  get isAdmin() { return this.authService.isAdmin(); }
+  get puedeReportarFalla() {
+    return this.authService.hasAnyRole([Role.OPERADOR, Role.OPERADOR_SERVICIOS_ESPECIALES])
+      && this.permissions.canRegistrarIncidente();
+  }
 
   /** Solo Gerente y SuperAdmin pueden aprobar servicios */
   get canApprove() {
-    return this.authService.hasAnyRole([Role.SUPER_ADMIN, Role.GERENTE]);
+    return this.authService.hasAnyRole([Role.SUPER_ADMIN, Role.ADMIN, Role.GERENTE]);
   }
 
   /** El operador solo puede finalizar sus PROPIOS servicios */
@@ -694,43 +869,153 @@ export class ServiciosComponent implements OnInit {
       this.onCategoriaChange();
     });
 
+    this.sucursalService.getSucursales().subscribe(() => {
+      const sucNombre = user?.sucursalNombre || user?.sucursal;
+      const suc = this.sucursalService.getSucursalPorNombre(sucNombre);
+      this.sucursalServicioIds = suc?.servicioIds?.length ? suc.servicioIds : null;
+      this.onCategoriaChange();
+    });
+
     this.inventarioService.getItems().subscribe(items => {
       this.productosInventario = items;
+    });
+
+    if (this.isOperadorEspeciales) {
+      this.tiposFallaDisponibles = [
+        'Sobrecalentamiento',
+        'Pad / disco desgastado',
+        'Vibración anormal',
+        'Falla eléctrica',
+        'Lámpara dañada',
+        'Desgaste',
+        'Rotura de pieza'
+      ];
+      this.nuevoIncidente.tipo = 'Sobrecalentamiento';
+    }
+
+    if (this.puedeReportarFalla) {
+      this.maquinariaService.getMaquinaria().subscribe(list => {
+        this.maquinasReporte = this.isOperadorEspeciales
+          ? list.filter(m => this.esEquipoServiciosEspeciales(m))
+          : list.filter(m => {
+              const sucursal = user?.sucursalNombre || user?.sucursal || '';
+              const bahia = user?.bahiaNombre || '';
+              const mismaSucursal = m.agencia === sucursal || m.sucursalNombre === sucursal;
+              if (!bahia) return mismaSucursal;
+              return mismaSucursal && (m.bahia === bahia || m.bahiaNombre === bahia);
+            });
+        if (this.maquinasReporte.length > 0) {
+          this.maquinaSeleccionadaId = this.maquinasReporte[0].id;
+        }
+      });
+    }
+  }
+
+  private esEquipoServiciosEspeciales(m: Maquinaria): boolean {
+    const tipos = ['Pulidora', 'Lámpara Infrarroja', 'Extractor'];
+    if (m.tipo && tipos.includes(m.tipo)) return true;
+    const bahia = `${m.bahiaNombre || ''} ${m.bahia || ''}`.toLowerCase();
+    const sucursal = `${m.sucursalNombre || ''} ${m.agencia || ''}`.toLowerCase();
+    return bahia.includes('móvil') || bahia.includes('especial') || sucursal.includes('servicios especiales');
+  }
+
+  abrirModalReportarFalla(): void {
+    this.archivosFalloSubidos = [];
+    this.nuevoIncidente.descripcion = '';
+    this.modalReportarFallaOpen = true;
+  }
+
+  onSubirArchivosFallo(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    if (!input.files) return;
+    Array.from(input.files).forEach(file => {
+      const isVideo = file.type.startsWith('video');
+      this.archivosFalloSubidos.push({
+        id: `arch-${Date.now()}-${Math.random()}`,
+        nombre: file.name,
+        tipo: isVideo ? 'video' : 'imagen',
+        extension: file.name.split('.').pop()?.toUpperCase() || (isVideo ? 'MP4' : 'JPG'),
+        url: URL.createObjectURL(file),
+        tamanio: `${(file.size / (1024 * 1024)).toFixed(1)} MB`,
+        fechaSubida: new Date().toLocaleTimeString()
+      });
+    });
+    this.toastService.success('Archivos cargados', `${input.files.length} evidencia(s) lista(s).`);
+  }
+
+  agregarEvidenciaFalloDemo(): void {
+    this.archivosFalloSubidos.push({
+      id: `demo-f-${Date.now()}`,
+      nombre: 'falla_equipo_especial.jpg',
+      tipo: 'imagen',
+      extension: 'JPG',
+      url: 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=800&auto=format&fit=crop&q=80',
+      tamanio: '2.1 MB',
+      fechaSubida: 'Hoy'
+    });
+  }
+
+  eliminarArchivoFallo(index: number): void {
+    this.archivosFalloSubidos.splice(index, 1);
+  }
+
+  guardarReporteFalla(): void {
+    const maquina = this.maquinasReporte.find(m => m.id === this.maquinaSeleccionadaId);
+    if (!maquina) {
+      this.toastService.warning('Equipo requerido', 'Seleccione el equipo afectado.');
+      return;
+    }
+    if (!this.nuevoIncidente.descripcion.trim()) {
+      this.toastService.warning('Descripción requerida', 'Describa el fallo observado.');
+      return;
+    }
+
+    const user = this.authService.getCurrentUser()!;
+    const fotos = this.archivosFalloSubidos.filter(a => a.tipo === 'imagen').map(a => a.url);
+    const videos = this.archivosFalloSubidos.filter(a => a.tipo === 'video').map(a => a.url);
+    const reportadoPor = `${user.nombre} ${user.apellido}`.trim()
+      + (this.isOperadorEspeciales ? ' (Servicios Especiales)' : ' (Operador)');
+
+    const registro: Omit<Incidente, 'id'> = {
+      codigoIncidente: '',
+      maquina: maquina.nombre,
+      agencia: maquina.agencia || maquina.sucursalNombre || user.sucursalNombre || '',
+      fecha: new Date().toISOString().replace('T', ' ').substring(0, 16),
+      tipo: this.nuevoIncidente.tipo,
+      prioridad: this.nuevoIncidente.prioridad,
+      estado: 'Pendiente',
+      descripcion: this.nuevoIncidente.descripcion.trim(),
+      reportadoPor,
+      fotosFallo: fotos.length > 0 ? fotos : undefined,
+      videosFallo: videos.length > 0 ? videos : undefined,
+      archivosFallo: this.archivosFalloSubidos.length > 0 ? [...this.archivosFalloSubidos] : undefined
+    };
+
+    this.incidenteService.crearIncidente(registro).subscribe(creado => {
+      this.toastService.success('Reporte enviado', `Incidente ${creado.codigoIncidente} registrado. El taller lo procesará.`);
+      this.modalReportarFallaOpen = false;
     });
   }
 
   onCategoriaChange() {
-    if (this.nuevoRegistro.categoriaServicio === 'EXTRA') {
-      // Cargar lista de servicios extras
-      this.extrasMock.getServiciosExtras().subscribe(extras => {
-        this.opcionesServicios = extras.map(e => ({
-          id: e.id,
-          nombre: e.servicioNombre,
-          codigo: e.codigoSE,
-          categoria: 'EXTRA',
-          descripcion: e.servicioDescripcion || '',
-          estado: 'Activo',
-          requiereFoto: true,
-          requiereVideo: true,
-          insumosReceta: e.insumosReceta
-        }));
-        if (this.opcionesServicios.length > 0) {
-          this.nuevoRegistro.servicio = this.opcionesServicios[0].nombre;
-          this.nuevoRegistro.servicioId = this.opcionesServicios[0].id;
-          this.onServicioSelect();
-        }
-      });
+    if (this.nuevoRegistro.categoriaServicio === 'ESPECIAL') {
+      this.opcionesServicios = this.catalogoCompleto.filter(
+        s => s.categoria === 'ESPECIAL' || s.categoria === 'EXTRA'
+      );
     } else {
-      this.opcionesServicios = this.catalogoCompleto.filter(s => s.categoria === this.nuevoRegistro.categoriaServicio);
-      if (this.opcionesServicios.length > 0) {
-        this.nuevoRegistro.servicio = this.opcionesServicios[0].nombre;
-        this.nuevoRegistro.servicioId = this.opcionesServicios[0].id;
-        this.onServicioSelect();
-      } else {
-        this.nuevoRegistro.servicio = '';
-        this.nuevoRegistro.servicioId = 0;
-        this.insumosConsumoForm = [];
-      }
+      this.opcionesServicios = this.catalogoCompleto.filter(s => s.categoria === 'GENERAL');
+    }
+    if (this.sucursalServicioIds?.length) {
+      this.opcionesServicios = this.opcionesServicios.filter(s => this.sucursalServicioIds!.includes(s.id));
+    }
+    if (this.opcionesServicios.length > 0) {
+      this.nuevoRegistro.servicio = this.opcionesServicios[0].nombre;
+      this.nuevoRegistro.servicioId = this.opcionesServicios[0].id;
+      this.onServicioSelect();
+    } else {
+      this.nuevoRegistro.servicio = '';
+      this.nuevoRegistro.servicioId = 0;
+      this.insumosConsumoForm = [];
     }
   }
 
@@ -834,9 +1119,8 @@ export class ServiciosComponent implements OnInit {
         if (this.filtroCategoria === 'Servicios Generales') {
           matchCat = s.categoriaServicio === 'Servicios Generales' || s.categoriaServicio === 'GENERAL';
         } else if (this.filtroCategoria === 'Servicios Especiales') {
-          matchCat = s.categoriaServicio === 'Servicios Especiales' || s.categoriaServicio === 'ESPECIAL';
-        } else if (this.filtroCategoria === 'Servicios Extras') {
-          matchCat = s.categoriaServicio === 'Servicios Extras' || s.categoriaServicio === 'EXTRA';
+          matchCat = s.categoriaServicio === 'Servicios Especiales' || s.categoriaServicio === 'ESPECIAL'
+            || s.categoriaServicio === 'Servicios Extras' || s.categoriaServicio === 'EXTRA';
         }
       }
 
@@ -875,8 +1159,27 @@ export class ServiciosComponent implements OnInit {
   }
 
   guardarHojaServicio() {
-    if (!this.nuevoRegistro.placa || !this.nuevoRegistro.ordenTrabajoOT) {
-      this.toastService.warning('Campos Incompletos', 'Ingrese placa y Nº de OT.');
+    this.placaTocada = true;
+    const resultado = validarPlaca(this.nuevoRegistro.placa);
+    if (!resultado.valida) {
+      this.toastService.warning('Placa inválida', resultado.mensaje);
+      return;
+    }
+    this.nuevoRegistro.placa = resultado.placa;
+
+    if (!this.nuevoRegistro.ordenTrabajoOT) {
+      this.toastService.warning('Campos Incompletos', 'Ingrese el Nº de OT.');
+      return;
+    }
+
+    const ocupada = this.servicios.find(s =>
+      placasEquivalentes(s.placa, resultado.placa) && s.estado === 'EN PROCESO'
+    );
+    if (ocupada) {
+      this.toastService.warning(
+        'Placa en bahía',
+        `${resultado.placa} ya tiene la OT ${ocupada.ordenTrabajoOT} en proceso.`
+      );
       return;
     }
 

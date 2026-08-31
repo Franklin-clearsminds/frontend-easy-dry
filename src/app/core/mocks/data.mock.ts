@@ -50,9 +50,20 @@ export const MOCK_AGENCIAS: Agencia[] = [
 export const MOCK_USUARIOS: Usuario[] = [
   {
     id: 1,
-    nombre: 'Administrador Easy Dry',
+    nombre: 'Super Administrador Easy Dry',
     apellido: 'Corporativo',
     rol: 'Super Administrador',
+    agencia: 'EasyDry Corporativo Nacional',
+    estado: 'Activo',
+    fechaAsignacion: '2024-01-15',
+    email: 'superadmin@easydry.com',
+    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
+  },
+  {
+    id: 2,
+    nombre: 'Administrador Easy Dry',
+    apellido: 'Corporativo',
+    rol: 'Administrador',
     agencia: 'EasyDry Corporativo Nacional',
     estado: 'Activo',
     fechaAsignacion: '2024-01-15',
@@ -60,7 +71,7 @@ export const MOCK_USUARIOS: Usuario[] = [
     avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
   },
   {
-    id: 2,
+    id: 3,
     nombre: 'Supervisor Costa',
     apellido: 'Operaciones',
     rol: 'Supervisor Regional',
@@ -71,10 +82,10 @@ export const MOCK_USUARIOS: Usuario[] = [
     avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80'
   },
   {
-    id: 3,
-    nombre: 'Coordinador Mantenimiento',
+    id: 4,
+    nombre: 'Gestor Técnico',
     apellido: 'Taller',
-    rol: 'Coordinador Mantenimiento',
+    rol: 'Gestor Técnico',
     agencia: 'Taller Central Nacional',
     estado: 'Activo',
     fechaAsignacion: '2024-02-10',
@@ -82,7 +93,7 @@ export const MOCK_USUARIOS: Usuario[] = [
     avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80'
   },
   {
-    id: 4,
+    id: 5,
     nombre: 'Técnico Easy Dry',
     apellido: 'Mantenimiento',
     rol: 'Técnico de Maquinaria',
@@ -93,7 +104,7 @@ export const MOCK_USUARIOS: Usuario[] = [
     avatar: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?w=150&auto=format&fit=crop&q=80'
   },
   {
-    id: 5,
+    id: 6,
     nombre: 'Operador Bahía 01',
     apellido: 'Quito',
     rol: 'Operador de Bahía',
@@ -104,7 +115,7 @@ export const MOCK_USUARIOS: Usuario[] = [
     avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80'
   },
   {
-    id: 6,
+    id: 7,
     nombre: 'Coordinador Comercial',
     apellido: 'Ventas',
     rol: 'Coordinador Comercial',
@@ -115,7 +126,7 @@ export const MOCK_USUARIOS: Usuario[] = [
     avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80'
   },
   {
-    id: 7,
+    id: 8,
     nombre: 'Jefe Servicios Especiales',
     apellido: 'Detallado VIP',
     rol: 'Jefe Servicios Especiales',
@@ -126,26 +137,50 @@ export const MOCK_USUARIOS: Usuario[] = [
     avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&auto=format&fit=crop&q=80'
   },
   {
-    id: 8,
+    id: 9,
     nombre: 'Operador Pulido',
     apellido: 'Especiales',
     rol: 'Operador Servicios Especiales',
-    agencia: 'EasyDry Guayaquil (Costa)',
+    agencia: 'Red Nacional · Móvil',
     estado: 'Activo',
     fechaAsignacion: '2024-05-01',
     email: 'operador.especial@easydry.com',
-    avatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=150&auto=format&fit=crop&q=80'
+    avatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=150&auto=format&fit=crop&q=80',
+    modalidadPulidor: 'MOVIL'
   },
   {
-    id: 9,
-    nombre: 'Distribuidor Central',
+    id: 11,
+    nombre: 'Diego',
+    apellido: 'Pulido Norte',
+    rol: 'Operador Servicios Especiales',
+    agencia: 'EasyDry Quito Norte',
+    estado: 'Activo',
+    fechaAsignacion: '2024-06-01',
+    email: 'operador.pulido.norte@easydry.com',
+    avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150&auto=format&fit=crop&q=80',
+    modalidadPulidor: 'FIJO'
+  },
+  {
+    id: 10,
+    nombre: 'Gestor de Inventario',
     apellido: 'Suministros',
-    rol: 'Distribuidor Central',
+    rol: 'Gestor de Inventario',
     agencia: 'Bodega Central EasyDry',
     estado: 'Activo',
     fechaAsignacion: '2024-05-15',
     email: 'distribuidor@easydry.com',
     avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150&auto=format&fit=crop&q=80'
+  },
+  {
+    id: 12,
+    nombre: 'Luis',
+    apellido: 'Bodega',
+    rol: 'Asistente de Bodega',
+    agencia: 'Bodega Central EasyDry',
+    estado: 'Activo',
+    fechaAsignacion: '2024-06-10',
+    email: 'asistente.bodega@easydry.com',
+    avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80'
   }
 ];
 
@@ -273,7 +308,7 @@ export const MOCK_SERVICIOS: VehiculoServicio[] = [
     modelo: 'Sportage R',
     anio: 2024,
     color: 'Rojo Pasión',
-    categoriaServicio: 'Servicios Extras',
+    categoriaServicio: 'Servicios Especiales',
     servicio: 'Lavado Motor & Chasis Completo',
     categoria: 'SUV',
     agencia: 'EasyDry Quito Norte',
@@ -353,6 +388,60 @@ export const MOCK_MAQUINARIA: Maquinaria[] = [
     fechaMantenimiento: '2026-09-01',
     imagen: 'https://images.unsplash.com/photo-1520340356584-f9917d1eea6f?w=500&auto=format&fit=crop&q=80',
     horasUso: 610
+  },
+  {
+    id: 4,
+    codigo: 'PL-101',
+    nombre: 'Pulidora Orbital Dual Action PL-101',
+    tipo: 'Pulidora',
+    marca: 'Rupes Bigfoot',
+    modelo: 'LHR15 Mark III',
+    numeroSerie: 'SN-SE-101-RUP',
+    agencia: 'Red Nacional · Servicios Especiales',
+    bahia: 'Equipo Móvil',
+    sucursalNombre: 'Red Nacional · Servicios Especiales',
+    bahiaNombre: 'Equipo Móvil',
+    operadorResponsable: 'Operador Pulido',
+    estado: 'Operativa',
+    fechaMantenimiento: '2026-08-20',
+    imagen: 'https://images.unsplash.com/photo-1520340356584-f9917d1eea6f?w=500&auto=format&fit=crop&q=80',
+    horasUso: 340
+  },
+  {
+    id: 5,
+    codigo: 'IR-201',
+    nombre: 'Lámpara Infrarroja de Curado IR-201',
+    tipo: 'Lámpara Infrarroja',
+    marca: 'IRtad',
+    modelo: 'SmartCure 2K',
+    numeroSerie: 'SN-SE-201-IR',
+    agencia: 'Red Nacional · Servicios Especiales',
+    bahia: 'Equipo Móvil',
+    sucursalNombre: 'Red Nacional · Servicios Especiales',
+    bahiaNombre: 'Equipo Móvil',
+    operadorResponsable: 'Operador Pulido',
+    estado: 'Operativa',
+    fechaMantenimiento: '2026-08-12',
+    imagen: 'https://images.unsplash.com/photo-1581092160562-40aa08e78837?w=500&auto=format&fit=crop&q=80',
+    horasUso: 210
+  },
+  {
+    id: 6,
+    codigo: 'EX-301',
+    nombre: 'Extractor de Motor Portátil EX-301',
+    tipo: 'Extractor',
+    marca: 'Kärcher',
+    modelo: 'Puzzi 10/1',
+    numeroSerie: 'SN-SE-301-EX',
+    agencia: 'Red Nacional · Servicios Especiales',
+    bahia: 'Equipo Móvil',
+    sucursalNombre: 'Red Nacional · Servicios Especiales',
+    bahiaNombre: 'Equipo Móvil',
+    operadorResponsable: 'Operador Pulido',
+    estado: 'Operativa',
+    fechaMantenimiento: '2026-08-05',
+    imagen: 'https://images.unsplash.com/photo-1558317374-067fb5f30001?w=500&auto=format&fit=crop&q=80',
+    horasUso: 180
   }
 ];
 
@@ -377,7 +466,7 @@ export const MOCK_MANTENIMIENTOS: Mantenimiento[] = [
     tecnicoAsignadoId: 4,
     tecnicoAsignadoNombre: 'Técnico Easy Dry',
     gestorAsignadorId: 3,
-    gestorAsignadorNombre: 'Coordinador Mantenimiento',
+    gestorAsignadorNombre: 'Gestor Técnico',
     fechaAsignacion: '2026-08-28 07:30',
     estado: 'En Proceso',
     costo: 25.00,
@@ -544,7 +633,7 @@ export const MOCK_INCIDENTES: Incidente[] = [
     tecnicoAsignadoId: 4,
     tecnicoAsignadoNombre: 'Técnico Easy Dry',
     gestorAsignadorId: 3,
-    gestorAsignadorNombre: 'Coordinador Mantenimiento',
+    gestorAsignadorNombre: 'Gestor Técnico',
     fechaAsignacion: '2026-08-28 07:00',
     fotosFallo: [
       'https://images.unsplash.com/photo-1581092335397-9583fe92d232?w=800&auto=format&fit=crop&q=80'

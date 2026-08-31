@@ -9,7 +9,7 @@ import { MOCK_ALERTAS } from '../mocks/alertas.mock';
 import {
   MOCK_DASHBOARD_TECNICO,
   MOCK_DASHBOARD_OPERADOR,
-  MOCK_DASHBOARD_EXTRAS,
+  MOCK_DASHBOARD_OPERADOR_ESPECIALES,
   MOCK_DASHBOARD_DISTRIBUIDOR,
   MOCK_DASHBOARD_COMERCIAL
 } from '../mocks/dashboard-roles.mock';
@@ -47,8 +47,13 @@ export class DashboardOperativoService {
     return of(MOCK_DASHBOARD_OPERADOR).pipe(delay(180));
   }
 
-  getDashboardExtras(): Observable<typeof MOCK_DASHBOARD_EXTRAS> {
-    return of(MOCK_DASHBOARD_EXTRAS).pipe(delay(180));
+  getDashboardOperadorEspeciales(): Observable<typeof MOCK_DASHBOARD_OPERADOR_ESPECIALES> {
+    return of(MOCK_DASHBOARD_OPERADOR_ESPECIALES).pipe(delay(180));
+  }
+
+  /** @deprecated usar getDashboardOperadorEspeciales */
+  getDashboardExtras(): Observable<typeof MOCK_DASHBOARD_OPERADOR_ESPECIALES> {
+    return this.getDashboardOperadorEspeciales();
   }
 
   getDashboardDistribuidor(): Observable<typeof MOCK_DASHBOARD_DISTRIBUIDOR> {

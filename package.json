@@ -4,9 +4,10 @@
   "private": true,
   "scripts": {
     "ng": "ng",
-    "start": "ng serve",
-    "build": "ng build",
-    "watch": "ng build --watch --configuration development"
+    "env:sync": "node scripts/sync-env.mjs",
+    "start": "node scripts/sync-env.mjs && ng serve",
+    "build": "node scripts/sync-env.mjs --prod && ng build",
+    "watch": "node scripts/sync-env.mjs && ng build --watch --configuration development"
   },
   "dependencies": {
     "@angular/animations": "^19.1.0",

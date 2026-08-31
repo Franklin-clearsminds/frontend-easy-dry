@@ -4,6 +4,7 @@
 
 export enum Role {
   SUPER_ADMIN = 'SUPER_ADMIN',
+  ADMIN = 'ADMIN',
   GERENTE = 'GERENTE',
   SUPERVISOR = 'SUPERVISOR',
   COORD_MANTENIMIENTO = 'COORD_MANTENIMIENTO',
@@ -13,6 +14,7 @@ export enum Role {
   COORD_SERVICIOS_ESPECIALES = 'COORD_SERVICIOS_ESPECIALES',
   OPERADOR_SERVICIOS_ESPECIALES = 'OPERADOR_SERVICIOS_ESPECIALES',
   DISTRIBUIDOR = 'DISTRIBUIDOR',
+  ASISTENTE_BODEGA = 'ASISTENTE_BODEGA',
   CUSTOM = 'CUSTOM'
 }
 
@@ -204,9 +206,10 @@ export const MODULOS_SISTEMA: ModuloSistema[] = [
   }
 ];
 
-/** Módulos por defecto asignados a cada uno de los 9 roles */
+/** Módulos por defecto asignados a cada uno de los 11 roles oficiales */
 export const MODULOS_POR_ROL: Record<string, string[]> = {
   [Role.SUPER_ADMIN]: MODULOS_SISTEMA.map(m => m.codigo),
+  [Role.ADMIN]: MODULOS_SISTEMA.map(m => m.codigo),
   [Role.GERENTE]: MODULOS_SISTEMA.map(m => m.codigo),
   
   [Role.SUPERVISOR]: [
@@ -285,12 +288,20 @@ export const MODULOS_POR_ROL: Record<string, string[]> = {
     'notificaciones',
     'inventario',
     'perfil'
+  ],
+
+  [Role.ASISTENTE_BODEGA]: [
+    'dashboard',
+    'notificaciones',
+    'inventario',
+    'perfil'
   ]
 };
 
 /** Ruta de inicio por defecto según rol */
 export const DEFAULT_ROUTE_POR_ROL: Record<string, string> = {
   [Role.SUPER_ADMIN]: '/dashboard',
+  [Role.ADMIN]: '/dashboard',
   [Role.SUPERVISOR]: '/dashboard',
   [Role.COORD_MANTENIMIENTO]: '/taller-tecnico',
   [Role.TECNICO]: '/taller-tecnico',
@@ -298,7 +309,8 @@ export const DEFAULT_ROUTE_POR_ROL: Record<string, string> = {
   [Role.COORD_COMERCIAL]: '/dashboard',
   [Role.COORD_SERVICIOS_ESPECIALES]: '/dashboard',
   [Role.OPERADOR_SERVICIOS_ESPECIALES]: '/servicios',
-  [Role.DISTRIBUIDOR]: '/dashboard'
+  [Role.DISTRIBUIDOR]: '/inventario',
+  [Role.ASISTENTE_BODEGA]: '/inventario'
 };
 
 /** Estructura de un Rol Dinámico / Personalizado */
@@ -320,11 +332,25 @@ export const ROLES_INICIALES: RolPersonalizado[] = [
     id: 'rol_super_admin',
     codigo: Role.SUPER_ADMIN,
     nombre: 'Super Administrador',
-    descripcion: 'Acceso total y sin restricciones a todos los módulos y configuraciones del sistema.',
-    color: '#7C3AED',
+    descripcion:
+      'Nivel máximo de la plataforma. Acceso global inmutable: supervisión nacional, auditoría y gobierno del sistema. Sus permisos no pueden modificarse.',
+    color: '#6D28D9',
     badgeClass: 'bg-purple-100 text-purple-800 border-purple-200',
     modulos: MODULOS_POR_ROL[Role.SUPER_ADMIN],
     esSistema: true,
+    fechaCreacion: '2026-01-01',
+    usuariosCount: 1
+  },
+  {
+    id: 'rol_admin',
+    codigo: Role.ADMIN,
+    nombre: 'Administrador',
+    descripcion:
+      'Administrador operativo de la plataforma. Gestiona usuarios, configuración y módulos asignados. Sus permisos pueden ajustarse por el Super Administrador.',
+    color: '#7C3AED',
+    badgeClass: 'bg-violet-100 text-violet-800 border-violet-200',
+    modulos: MODULOS_POR_ROL[Role.ADMIN],
+    esSistema: false,
     fechaCreacion: '2026-01-01',
     usuariosCount: 1
   },
@@ -343,8 +369,8 @@ export const ROLES_INICIALES: RolPersonalizado[] = [
   {
     id: 'rol_coord_mantenimiento',
     codigo: Role.COORD_MANTENIMIENTO,
-    nombre: 'Coordinador Mantenimiento',
-    descripcion: 'Gestión completa de maquinaria, creación de órdenes y asignación de técnicos.',
+    nombre: 'Gestor Técnico',
+    descripcion: 'Gestión completa de maquinaria, órdenes de mantenimiento, incidentes y asignación de técnicos.',
     color: '#D97706',
     badgeClass: 'bg-amber-100 text-amber-800 border-amber-200',
     modulos: MODULOS_POR_ROL[Role.COORD_MANTENIMIENTO],
@@ -404,7 +430,7 @@ export const ROLES_INICIALES: RolPersonalizado[] = [
     id: 'rol_operador_servicios_especiales',
     codigo: Role.OPERADOR_SERVICIOS_ESPECIALES,
     nombre: 'Operador Servicios Especiales',
-    descripcion: 'Ejecución de servicios extras (pulido, cerámico, motor) con evidencias fotográficas.',
+    descripcion: 'Ejecución de servicios especiales premium (pulido, cerámico, motor) con evidencias fotográficas y reporte de fallos de equipo móvil.',
     color: '#9BCB3B',
     badgeClass: 'bg-lime-100 text-lime-800 border-lime-200',
     modulos: MODULOS_POR_ROL[Role.OPERADOR_SERVICIOS_ESPECIALES],
@@ -415,11 +441,23 @@ export const ROLES_INICIALES: RolPersonalizado[] = [
   {
     id: 'rol_distribuidor',
     codigo: Role.DISTRIBUIDOR,
-    nombre: 'Distribuidor Central',
-    descripcion: 'Control de inventario central, preparación de pedidos, despachos y confirmación de entregas.',
+    nombre: 'Gestor de Inventario',
+    descripcion: 'Administra el inventario central: catálogo de insumos, stock, alertas, entradas de compra y despachos a sucursales.',
     color: '#475569',
     badgeClass: 'bg-slate-100 text-slate-800 border-slate-200',
     modulos: MODULOS_POR_ROL[Role.DISTRIBUIDOR],
+    esSistema: true,
+    fechaCreacion: '2026-01-01',
+    usuariosCount: 1
+  },
+  {
+    id: 'rol_asistente_bodega',
+    codigo: Role.ASISTENTE_BODEGA,
+    nombre: 'Asistente de Bodega',
+    descripcion: 'Opera la bodega central: registra entradas de mercadería y despacha insumos a sucursales. No crea catálogo ni ajusta políticas de stock.',
+    color: '#0F766E',
+    badgeClass: 'bg-teal-100 text-teal-800 border-teal-200',
+    modulos: MODULOS_POR_ROL[Role.ASISTENTE_BODEGA],
     esSistema: true,
     fechaCreacion: '2026-01-01',
     usuariosCount: 1
@@ -443,6 +481,7 @@ export interface UsuarioAuth {
   region?: string;
   bahiaId?: number;
   bahiaNombre?: string;
+  modalidadPulidor?: 'FIJO' | 'MOVIL';
   estado: 'Activo' | 'Inactivo';
   avatar?: string;
   token?: string;
@@ -476,6 +515,30 @@ export interface PermisosRol {
 
 export const PERMISOS_POR_ROL: Record<string, PermisosRol> = {
   [Role.SUPER_ADMIN]: {
+    verTodasSucursales: true,
+    crearSucursal: true,
+    editarSucursal: true,
+    crearUsuarios: true,
+    asignarRoles: true,
+    verOtrosSucursales: true,
+    cambiarSucursalOperador: true,
+    cambiarBahiaOperador: true,
+    aprobarServicios: true,
+    rechazarServicios: true,
+    cerrarDia: true,
+    registrarServicio: true,
+    verTodosServicios: true,
+    verMaquinaria: true,
+    gestionarMantenimiento: true,
+    registrarIncidente: true,
+    verReportes: true,
+    verProductividadGlobal: true,
+    verConfiguracion: true,
+    gestionarInventario: true,
+    despacharSuministros: true
+  },
+
+  [Role.ADMIN]: {
     verTodasSucursales: true,
     crearSucursal: true,
     editarSucursal: true,
@@ -611,7 +674,7 @@ export const PERMISOS_POR_ROL: Record<string, PermisosRol> = {
     verTodosServicios: false,
     verMaquinaria: false,
     gestionarMantenimiento: false,
-    registrarIncidente: false,
+    registrarIncidente: true,
     verReportes: false,
     verProductividadGlobal: false,
     verConfiguracion: false,
@@ -683,7 +746,7 @@ export const PERMISOS_POR_ROL: Record<string, PermisosRol> = {
     verTodosServicios: false,
     verMaquinaria: false,
     gestionarMantenimiento: false,
-    registrarIncidente: false,
+    registrarIncidente: true,
     verReportes: false,
     verProductividadGlobal: false,
     verConfiguracion: false,
@@ -713,23 +776,51 @@ export const PERMISOS_POR_ROL: Record<string, PermisosRol> = {
     verConfiguracion: false,
     gestionarInventario: true,
     despacharSuministros: true
+  },
+
+  [Role.ASISTENTE_BODEGA]: {
+    verTodasSucursales: false,
+    crearSucursal: false,
+    editarSucursal: false,
+    crearUsuarios: false,
+    asignarRoles: false,
+    verOtrosSucursales: false,
+    cambiarSucursalOperador: false,
+    cambiarBahiaOperador: false,
+    aprobarServicios: false,
+    rechazarServicios: false,
+    cerrarDia: false,
+    registrarServicio: false,
+    verTodosServicios: false,
+    verMaquinaria: false,
+    gestionarMantenimiento: false,
+    registrarIncidente: false,
+    verReportes: false,
+    verProductividadGlobal: false,
+    verConfiguracion: false,
+    gestionarInventario: false,
+    despacharSuministros: true
   }
 };
 
 export const ROLE_LABELS: Record<string, string> = {
   [Role.SUPER_ADMIN]: 'Super Administrador',
+  [Role.ADMIN]: 'Administrador',
   [Role.SUPERVISOR]: 'Supervisor Regional',
-  [Role.COORD_MANTENIMIENTO]: 'Coordinador Mantenimiento',
+  [Role.COORD_MANTENIMIENTO]: 'Gestor Técnico',
   [Role.TECNICO]: 'Técnico de Maquinaria',
   [Role.OPERADOR]: 'Operador de Bahía',
   [Role.COORD_COMERCIAL]: 'Coordinador Comercial',
   [Role.COORD_SERVICIOS_ESPECIALES]: 'Jefe Servicios Especiales',
-  [Role.OPERADOR_SERVICIOS_ESPECIALES]: 'Operador Servicios Especiales',
-  [Role.DISTRIBUIDOR]: 'Distribuidor Central'
+  [Role.OPERADOR_SERVICIOS_ESPECIALES]: 'Operador de Servicios Especiales',
+  [Role.DISTRIBUIDOR]: 'Gestor de Inventario',
+  [Role.ASISTENTE_BODEGA]: 'Asistente de Bodega',
+  [Role.GERENTE]: 'Gerente de Sucursal',
 };
 
 export const ROLE_COLORS: Record<string, string> = {
   [Role.SUPER_ADMIN]: 'bg-purple-100 text-purple-800 border-purple-200',
+  [Role.ADMIN]: 'bg-violet-100 text-violet-800 border-violet-200',
   [Role.SUPERVISOR]: 'bg-blue-100 text-blue-800 border-blue-200',
   [Role.COORD_MANTENIMIENTO]: 'bg-amber-100 text-amber-800 border-amber-200',
   [Role.TECNICO]: 'bg-orange-100 text-orange-800 border-orange-200',
@@ -737,5 +828,26 @@ export const ROLE_COLORS: Record<string, string> = {
   [Role.COORD_COMERCIAL]: 'bg-sky-100 text-sky-800 border-sky-200',
   [Role.COORD_SERVICIOS_ESPECIALES]: 'bg-cyan-100 text-cyan-800 border-cyan-200',
   [Role.OPERADOR_SERVICIOS_ESPECIALES]: 'bg-lime-100 text-lime-800 border-lime-200',
-  [Role.DISTRIBUIDOR]: 'bg-slate-100 text-slate-800 border-slate-200'
+  [Role.DISTRIBUIDOR]: 'bg-slate-100 text-slate-800 border-slate-200',
+  [Role.ASISTENTE_BODEGA]: 'bg-teal-100 text-teal-800 border-teal-200'
 };
+
+/** Códigos oficiales que no pueden eliminarse desde la matriz de roles */
+export const ROLES_OFICIALES_NO_ELIMINABLES: string[] = [
+  Role.SUPER_ADMIN,
+  Role.ADMIN,
+  Role.SUPERVISOR,
+  Role.COORD_MANTENIMIENTO,
+  Role.TECNICO,
+  Role.OPERADOR,
+  Role.COORD_COMERCIAL,
+  Role.COORD_SERVICIOS_ESPECIALES,
+  Role.OPERADOR_SERVICIOS_ESPECIALES,
+  Role.DISTRIBUIDOR,
+  Role.ASISTENTE_BODEGA,
+];
+
+/** Solo el Super Administrador tiene permisos inmutables */
+export function isRolPermisosInmutable(codigo?: string): boolean {
+  return codigo === Role.SUPER_ADMIN;
+}

@@ -253,7 +253,7 @@ export class OperadoresComponent implements OnInit {
   }
 
   get isSuperAdmin() {
-    return this.authService.hasRole('SUPER_ADMIN' as any);
+    return this.authService.isAdmin();
   }
 
   get userSucursal() {

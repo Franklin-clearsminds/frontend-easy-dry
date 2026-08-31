@@ -8,8 +8,24 @@ import {
   InventarioItem,
   MovimientoStock,
   AlertaReabastecimiento,
-  InsumoConsumidoServicio
+  InsumoConsumidoServicio,
+  BodegaInventario,
+  BODEGA_CENTRAL_ID,
+  stockEnBodega
 } from '../models/inventario.model';
+
+export const BODEGA_CENTRAL: BodegaInventario = {
+  id: BODEGA_CENTRAL_ID,
+  codigo: 'BOD-CENTRAL',
+  nombre: 'Bodega Central',
+  ciudad: 'Quito',
+  region: 'Nacional',
+  esCentral: true,
+  activa: true,
+  fechaCreacion: '2026-01-01'
+};
+
+export const BODEGAS_INICIALES: BodegaInventario[] = [BODEGA_CENTRAL];
 
 // =========================================================================
 // DATOS INICIALES POR DEFECTO
@@ -391,8 +407,9 @@ export const MOVIMIENTOS_INICIALES: MovimientoStock[] = [
 const KEYS = {
   TIPOS: 'easydry_inv_tipos_v5',
   ENVASES: 'easydry_inv_envases_v5',
-  ITEMS: 'easydry_inv_items_v5',
-  MOVIMIENTOS: 'easydry_inv_movimientos_v5'
+  ITEMS: 'easydry_inv_items_v6',
+  MOVIMIENTOS: 'easydry_inv_movimientos_v5',
+  BODEGAS: 'easydry_inv_bodegas_v1'
 };
 
 @Injectable({
@@ -405,11 +422,60 @@ export class InventarioMockService {
   private envasesSubject = new BehaviorSubject<EnvaseUnidad[]>(this.loadStored(KEYS.ENVASES, ENVASES_UNIDADES_INICIALES));
   public envases$ = this.envasesSubject.asObservable();
 
-  private itemsSubject = new BehaviorSubject<InventarioItem[]>(this.loadStored(KEYS.ITEMS, PRODUCTOS_INICIALES));
+  private bodegasSubject = new BehaviorSubject<BodegaInventario[]>(this.cargarBodegas());
+  public bodegas$ = this.bodegasSubject.asObservable();
+
+  private itemsSubject = new BehaviorSubject<InventarioItem[]>(this.cargarItems());
   public items$ = this.itemsSubject.asObservable();
 
   private movimientosSubject = new BehaviorSubject<MovimientoStock[]>(this.loadStored(KEYS.MOVIMIENTOS, MOVIMIENTOS_INICIALES));
   public movimientos$ = this.movimientosSubject.asObservable();
+
+  private cargarBodegas(): BodegaInventario[] {
+    const storedRaw = this.loadStored<BodegaInventario[] | null>(KEYS.BODEGAS, null);
+    const stored = Array.isArray(storedRaw) ? storedRaw : [];
+    const sinCentral = stored.filter(b => b.id !== BODEGA_CENTRAL_ID && !b.esCentral);
+    const found = stored.find(b => b.id === BODEGA_CENTRAL_ID || b.esCentral);
+    const central: BodegaInventario = {
+      ...BODEGA_CENTRAL,
+      ...(found || {})
+    };
+    central.id = BODEGA_CENTRAL_ID;
+    central.esCentral = true;
+    central.activa = true;
+    central.nombre = central.nombre?.trim() || BODEGA_CENTRAL.nombre;
+    const merged = [central, ...sinCentral];
+    this.saveStored(KEYS.BODEGAS, merged);
+    return merged;
+  }
+
+  private cargarItems(): InventarioItem[] {
+    const stored = this.loadStored<InventarioItem[] | null>(KEYS.ITEMS, null);
+    const base = stored && stored.length ? stored : PRODUCTOS_INICIALES;
+    const bodegas = this.bodegasSubject?.value ?? this.cargarBodegas();
+    const hydratados = base.map(item => this.hidratarStockBodegas(item, bodegas));
+    this.saveStored(KEYS.ITEMS, hydratados);
+    return hydratados;
+  }
+
+  private hidratarStockBodegas(item: InventarioItem, bodegas: BodegaInventario[]): InventarioItem {
+    const porBodega: Record<string, number> = { ...(item.stockPorBodega || {}) };
+    if (porBodega[BODEGA_CENTRAL_ID] == null) {
+      porBodega[BODEGA_CENTRAL_ID] = item.stockBodegaCentral ?? 0;
+    }
+    bodegas.forEach(b => {
+      if (porBodega[b.id] == null) porBodega[b.id] = 0;
+    });
+    item.stockPorBodega = porBodega;
+    item.stockBodegaCentral = porBodega[BODEGA_CENTRAL_ID] ?? 0;
+    return item;
+  }
+
+  private syncStockCentral(item: InventarioItem): void {
+    if (!item.stockPorBodega) item.stockPorBodega = {};
+    item.stockPorBodega[BODEGA_CENTRAL_ID] = item.stockPorBodega[BODEGA_CENTRAL_ID] ?? 0;
+    item.stockBodegaCentral = item.stockPorBodega[BODEGA_CENTRAL_ID];
+  }
 
   private loadStored<T>(key: string, fallback: T): T {
     try {
@@ -505,6 +571,83 @@ export class InventarioMockService {
   }
 
   // =========================================================================
+  // GESTIÓN DE BODEGAS (Bodega Central siempre existe)
+  // =========================================================================
+
+  getBodegas(): Observable<BodegaInventario[]> {
+    return this.bodegas$.pipe(delay(150));
+  }
+
+  getBodegaCentral(): BodegaInventario {
+    return this.bodegasSubject.value.find(b => b.esCentral) || BODEGA_CENTRAL;
+  }
+
+  crearBodega(data: { nombre: string; ciudad?: string; region?: string; codigo?: string }): Observable<{ success: boolean; message?: string; bodega?: BodegaInventario }> {
+    const nombre = (data.nombre || '').trim();
+    if (!nombre) {
+      return of({ success: false, message: 'Ingrese el nombre de la bodega.' });
+    }
+    const current = this.bodegasSubject.value;
+    const duplicada = current.some(b => b.nombre.toLowerCase() === nombre.toLowerCase());
+    if (duplicada) {
+      return of({ success: false, message: `Ya existe una bodega llamada "${nombre}".` });
+    }
+
+    const nuevo: BodegaInventario = {
+      id: `bod_${Date.now()}`,
+      codigo: (data.codigo || nombre).toUpperCase().replace(/\s+/g, '_').slice(0, 24),
+      nombre,
+      ciudad: (data.ciudad || '').trim(),
+      region: (data.region || '').trim(),
+      esCentral: false,
+      activa: true,
+      fechaCreacion: new Date().toISOString().substring(0, 10)
+    };
+
+    const updated = [...current, nuevo];
+    this.saveStored(KEYS.BODEGAS, updated);
+    this.bodegasSubject.next(updated);
+
+    const items = this.itemsSubject.value.map(item => {
+      const porBodega = { ...(item.stockPorBodega || {}) };
+      porBodega[nuevo.id] = 0;
+      item.stockPorBodega = porBodega;
+      this.syncStockCentral(item);
+      return item;
+    });
+    this.saveStored(KEYS.ITEMS, items);
+    this.itemsSubject.next([...items]);
+
+    return of({ success: true, bodega: nuevo }).pipe(delay(250));
+  }
+
+  eliminarBodega(id: string): Observable<{ success: boolean; message?: string }> {
+    const bodega = this.bodegasSubject.value.find(b => b.id === id);
+    if (!bodega) return of({ success: false, message: 'Bodega no encontrada.' });
+    if (bodega.esCentral || bodega.id === BODEGA_CENTRAL_ID) {
+      return of({ success: false, message: 'La Bodega Central no se puede eliminar.' });
+    }
+
+    const updated = this.bodegasSubject.value.filter(b => b.id !== id);
+    this.saveStored(KEYS.BODEGAS, updated);
+    this.bodegasSubject.next(updated);
+
+    const items = this.itemsSubject.value.map(item => {
+      if (item.stockPorBodega) {
+        const { [id]: _removed, ...rest } = item.stockPorBodega;
+        item.stockPorBodega = rest;
+        this.syncStockCentral(item);
+      }
+      this.recalcularEstadoItem(item);
+      return item;
+    });
+    this.saveStored(KEYS.ITEMS, items);
+    this.itemsSubject.next([...items]);
+
+    return of({ success: true }).pipe(delay(200));
+  }
+
+  // =========================================================================
   // GESTIÓN DEL INVENTARIO Y CATÁLOGO DE PRODUCTOS
   // =========================================================================
 
@@ -521,9 +664,18 @@ export class InventarioMockService {
       fechaCreacion: new Date().toISOString().substring(0, 10)
     };
 
+    const stockPorBodega: Record<string, number> = {};
+    this.bodegasSubject.value.forEach(b => {
+      stockPorBodega[b.id] = b.esCentral ? stockInicialBodega : 0;
+    });
+    if (stockPorBodega[BODEGA_CENTRAL_ID] == null) {
+      stockPorBodega[BODEGA_CENTRAL_ID] = stockInicialBodega;
+    }
+
     const nuevoItem: InventarioItem = {
       producto: nuevoProd,
       stockBodegaCentral: stockInicialBodega,
+      stockPorBodega,
       stockPorSucursal: {
         'EasyDry Quito Norte': 0,
         'EasyDry Quito Sur': 0,
@@ -547,7 +699,7 @@ export class InventarioMockService {
         productoNombre: nuevoProd.nombre,
         productoSKU: nuevoProd.codigoSKU,
         origen: 'Inventario Inicial Apertura',
-        destino: 'Bodega Central HUB',
+        destino: this.getBodegaCentral().nombre,
         cantidad: stockInicialBodega,
         unidad: nuevoProd.unidadMedida,
         responsable: 'Franklin Administrador',
@@ -582,13 +734,14 @@ export class InventarioMockService {
   // OPERACIONES DE STOCK: DESPACHOS, ENTRADAS Y AJUSTES
   // =========================================================================
 
-  /** Despachar insumos desde Bodega Central hacia una Sucursal */
+  /** Despachar insumos desde una bodega (por defecto Bodega Central) hacia una Sucursal */
   despacharASucursal(
     productoId: number,
     sucursalDestino: string,
     cantidad: number,
     responsable = 'Franklin Administrador',
-    observacion = ''
+    observacion = '',
+    bodegaOrigenId = BODEGA_CENTRAL_ID
   ): Observable<{ success: boolean; message?: string; item?: InventarioItem }> {
     const current = this.itemsSubject.value;
     const item = current.find(i => i.producto.id === productoId);
@@ -597,15 +750,19 @@ export class InventarioMockService {
       return of({ success: false, message: 'Producto no encontrado en inventario.' });
     }
 
-    if (item.stockBodegaCentral < cantidad) {
+    const bodega = this.bodegasSubject.value.find(b => b.id === bodegaOrigenId) || this.getBodegaCentral();
+    if (!item.stockPorBodega) item.stockPorBodega = {};
+    const disponible = stockEnBodega(item, bodega.id);
+
+    if (disponible < cantidad) {
       return of({
         success: false,
-        message: `Stock insuficiente en Bodega Central (${item.stockBodegaCentral} disponibles, intentando despachar ${cantidad}).`
+        message: `Stock insuficiente en ${bodega.nombre} (${disponible} disponibles, intentando despachar ${cantidad}).`
       });
     }
 
-    // Actualizar stock
-    item.stockBodegaCentral -= cantidad;
+    item.stockPorBodega[bodega.id] = disponible - cantidad;
+    this.syncStockCentral(item);
     if (!item.stockPorSucursal[sucursalDestino]) {
       item.stockPorSucursal[sucursalDestino] = 0;
     }
@@ -615,13 +772,12 @@ export class InventarioMockService {
     this.saveStored(KEYS.ITEMS, current);
     this.itemsSubject.next([...current]);
 
-    // Registrar movimiento
     this.registrarMovimientoInterno({
       tipo: 'Despacho a Sucursal',
       productoId: item.producto.id,
       productoNombre: item.producto.nombre,
       productoSKU: item.producto.codigoSKU,
-      origen: 'Bodega Central HUB',
+      origen: bodega.nombre,
       destino: sucursalDestino,
       cantidad,
       unidad: item.producto.unidadMedida,
@@ -632,21 +788,25 @@ export class InventarioMockService {
     return of({ success: true, item }).pipe(delay(350));
   }
 
-  /** Registrar entrada de compras o reposición en Bodega Central */
+  /** Registrar entrada de compras o reposición en una bodega (por defecto Central) */
   registrarEntradaBodega(
     productoId: number,
     cantidad: number,
     costoTotalUSD = 0,
     proveedor = '',
     responsable = 'Franklin Administrador',
-    observacion = ''
+    observacion = '',
+    bodegaDestinoId = BODEGA_CENTRAL_ID
   ): Observable<{ success: boolean; item?: InventarioItem }> {
     const current = this.itemsSubject.value;
     const item = current.find(i => i.producto.id === productoId);
 
     if (!item) return of({ success: false });
 
-    item.stockBodegaCentral += cantidad;
+    const bodega = this.bodegasSubject.value.find(b => b.id === bodegaDestinoId) || this.getBodegaCentral();
+    if (!item.stockPorBodega) item.stockPorBodega = {};
+    item.stockPorBodega[bodega.id] = stockEnBodega(item, bodega.id) + cantidad;
+    this.syncStockCentral(item);
     this.recalcularEstadoItem(item);
     this.saveStored(KEYS.ITEMS, current);
     this.itemsSubject.next([...current]);
@@ -657,18 +817,18 @@ export class InventarioMockService {
       productoNombre: item.producto.nombre,
       productoSKU: item.producto.codigoSKU,
       origen: proveedor || item.producto.proveedorPrincipal || 'Proveedor',
-      destino: 'Bodega Central HUB',
+      destino: bodega.nombre,
       cantidad,
       unidad: item.producto.unidadMedida,
       responsable,
       costoTotalUSD,
-      observaciones: observacion || 'Ingreso de compra a inventario central.'
+      observaciones: observacion || `Ingreso de compra a ${bodega.nombre}.`
     });
 
     return of({ success: true, item }).pipe(delay(300));
   }
 
-  /** Ajustar manualmente el stock de una sucursal */
+  /** Ajustar manualmente el stock de una sucursal o de una bodega */
   ajustarStockSucursal(
     productoId: number,
     sucursalNombre: string,
@@ -681,8 +841,24 @@ export class InventarioMockService {
 
     if (!item) return of(false);
 
-    const anterior = item.stockPorSucursal[sucursalNombre] || 0;
-    item.stockPorSucursal[sucursalNombre] = nuevaCantidad;
+    const bodega = this.bodegasSubject.value.find(
+      b => b.id === sucursalNombre || b.nombre === sucursalNombre
+    );
+
+    let anterior = 0;
+    let destino = sucursalNombre;
+
+    if (bodega) {
+      if (!item.stockPorBodega) item.stockPorBodega = {};
+      anterior = stockEnBodega(item, bodega.id);
+      item.stockPorBodega[bodega.id] = nuevaCantidad;
+      this.syncStockCentral(item);
+      destino = bodega.nombre;
+    } else {
+      anterior = item.stockPorSucursal[sucursalNombre] || 0;
+      item.stockPorSucursal[sucursalNombre] = nuevaCantidad;
+    }
+
     this.recalcularEstadoItem(item);
     this.saveStored(KEYS.ITEMS, current);
     this.itemsSubject.next([...current]);
@@ -693,7 +869,7 @@ export class InventarioMockService {
       productoNombre: item.producto.nombre,
       productoSKU: item.producto.codigoSKU,
       origen: `Ajuste (${anterior} -> ${nuevaCantidad})`,
-      destino: sucursalNombre,
+      destino,
       cantidad: Math.abs(nuevaCantidad - anterior),
       unidad: item.producto.unidadMedida,
       responsable,
@@ -717,24 +893,26 @@ export class InventarioMockService {
         const alertas: AlertaReabastecimiento[] = [];
 
         items.forEach(item => {
-          // Alerta en Bodega Central
           const alertaBodega = item.producto.stockAlertaBodega ?? item.producto.stockMinimoGlobal ?? 10;
-          if (item.stockBodegaCentral <= alertaBodega) {
-            const stockOptimo = item.producto.stockOptimoGlobal ?? alertaBodega * 3;
-            const deficit = stockOptimo - item.stockBodegaCentral;
-            alertas.push({
-              productoId: item.producto.id,
-              productoSKU: item.producto.codigoSKU,
-              productoNombre: item.producto.nombre,
-              ubicacion: 'Bodega Central HUB',
-              stockActual: item.stockBodegaCentral,
-              stockMinimo: alertaBodega,
-              deficit: deficit > 0 ? deficit : 5,
-              unidad: item.producto.unidadMedida,
-              nivel: item.stockBodegaCentral === 0 ? 'Critico' : (item.stockBodegaCentral <= alertaBodega / 2 ? 'Critico' : 'Bajo'),
-              sugerenciaReabastecimiento: Math.max(deficit, 10)
-            });
-          }
+          this.bodegasSubject.value.forEach(bodega => {
+            const qty = stockEnBodega(item, bodega.id);
+            if (qty <= alertaBodega) {
+              const stockOptimo = item.producto.stockOptimoGlobal ?? alertaBodega * 3;
+              const deficit = stockOptimo - qty;
+              alertas.push({
+                productoId: item.producto.id,
+                productoSKU: item.producto.codigoSKU,
+                productoNombre: item.producto.nombre,
+                ubicacion: bodega.nombre,
+                stockActual: qty,
+                stockMinimo: alertaBodega,
+                deficit: deficit > 0 ? deficit : 5,
+                unidad: item.producto.unidadMedida,
+                nivel: qty === 0 ? 'Critico' : (qty <= alertaBodega / 2 ? 'Critico' : 'Bajo'),
+                sugerenciaReabastecimiento: Math.max(deficit, 10)
+              });
+            }
+          });
 
           // Alertas en Sucursales
           const alertaSucursal = item.producto.stockAlertaSucursal ?? Math.ceil((item.producto.stockMinimoGlobal ?? 10) / 4);
@@ -823,16 +1001,20 @@ export class InventarioMockService {
   }
 
   private recalcularEstadoItem(item: InventarioItem): void {
+    this.syncStockCentral(item);
+    const totalBodegas = Object.values(item.stockPorBodega || {}).reduce((a, b) => a + b, 0);
     const totalSucursales = Object.values(item.stockPorSucursal).reduce((a, b) => a + b, 0);
-    item.stockTotalRed = item.stockBodegaCentral + totalSucursales;
+    item.stockTotalRed = totalBodegas + totalSucursales;
 
     const alertaBodega = item.producto.stockAlertaBodega ?? item.producto.stockMinimoGlobal ?? 10;
     const alertaSucursal = item.producto.stockAlertaSucursal ?? Math.ceil((item.producto.stockMinimoGlobal ?? 10) / 4);
 
     const alertas: string[] = [];
-    if (item.stockBodegaCentral <= alertaBodega) {
-      alertas.push('Bodega Central');
-    }
+    this.bodegasSubject.value.forEach(b => {
+      if (stockEnBodega(item, b.id) <= alertaBodega) {
+        alertas.push(b.nombre);
+      }
+    });
 
     Object.entries(item.stockPorSucursal).forEach(([suc, qty]) => {
       if (qty <= alertaSucursal) {

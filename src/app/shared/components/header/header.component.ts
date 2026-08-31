@@ -6,6 +6,7 @@ import { LucideAngularModule } from 'lucide-angular';
 import { AuthService } from '../../../core/services/auth.service';
 import { ToastService } from '../../services/toast.service';
 import { MOCK_NOTIFICACIONES } from '../../../core/mocks/notificaciones.mock';
+import { environment } from '../../../core/config/env';
 
 @Component({
   selector: 'app-header',
@@ -20,9 +21,14 @@ import { MOCK_NOTIFICACIONES } from '../../../core/mocks/notificaciones.mock';
           <div class="w-2.5 h-2.5 rounded-full bg-easydry-green animate-pulse"></div>
           <i-lucide name="building-2" class="w-4 h-4 text-easydry-blue"></i-lucide>
           <span class="text-xs font-bold text-slate-700 font-outfit">
-            Red Nacional EasyDry®
+            Red Nacional {{ env.appName }}
           </span>
         </div>
+        @if (!env.production) {
+          <span class="px-2 py-1 rounded-lg bg-amber-50 border border-amber-200 text-[10px] font-extrabold uppercase tracking-wider text-amber-800">
+            {{ env.environmentName }}
+          </span>
+        }
       </div>
 
       <!-- Center: Global Search Bar (PC / Laptop) -->
@@ -81,6 +87,7 @@ import { MOCK_NOTIFICACIONES } from '../../../core/mocks/notificaciones.mock';
 export class HeaderComponent {
   @Output() search = new EventEmitter<string>();
 
+  readonly env = environment;
   public authService = inject(AuthService);
   private toastService = inject(ToastService);
 

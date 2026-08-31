@@ -5,11 +5,13 @@ import { LucideAngularModule } from 'lucide-angular';
 import { SucursalMockService } from '../../core/services/sucursal-mock.service';
 import { BahiaMockService } from '../../core/services/bahia-mock.service';
 import { MaquinariaMockService } from '../../core/services/maquinaria-mock.service';
-import { Sucursal, Bahia, Maquinaria } from '../../core/models';
+import { Sucursal, Bahia, Maquinaria, CatalogoServicio } from '../../core/models';
 import { StatCardComponent } from '../../shared/components/stat-card/stat-card.component';
 import { ModalComponent } from '../../shared/components/modal/modal.component';
 import { FormsModule } from '@angular/forms';
 import { ToastService } from '../../shared/services/toast.service';
+import { CatalogoServiciosMockService } from '../../core/services/catalogo-servicios-mock.service';
+import { AuthService } from '../../core/services/auth.service';
 
 @Component({
   selector: 'app-sucursal-detail',
@@ -35,6 +37,16 @@ import { ToastService } from '../../shared/services/toast.service';
                 <div>
                   <h1 class="text-2xl md:text-3xl font-extrabold text-slate-900 font-outfit">{{ sucursal.nombre }}</h1>
                   <p class="text-xs text-slate-500 font-medium mt-0.5">{{ sucursal.ciudad }} • {{ sucursal.direccion }}</p>
+                  <div class="flex flex-wrap gap-2 mt-2">
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-easydry-blue/10 text-easydry-blue text-[10px] font-extrabold uppercase">
+                      <i-lucide name="map-pin" class="w-3 h-3"></i-lucide>
+                      Región {{ sucursal.regionNombre || 'Sin asignar' }}
+                    </span>
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-easydry-green/20 text-easydry-green-dark text-[10px] font-extrabold uppercase">
+                      <i-lucide name="tag" class="w-3 h-3"></i-lucide>
+                      {{ sucursal.marcaNombre || 'Sin marca' }}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -52,6 +64,29 @@ import { ToastService } from '../../shared/services/toast.service';
           </div>
         }
       </div>
+
+      @if (sucursal) {
+        <div class="bg-white p-6 rounded-3xl border border-slate-100 shadow-easydry">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+            <div>
+              <h2 class="font-extrabold text-slate-900 font-outfit">Servicios de esta sucursal</h2>
+              <p class="text-xs text-slate-500">Catálogo asignado manualmente. Se puede editar en cualquier momento.</p>
+            </div>
+            <button (click)="abrirModalServicios()" class="px-4 py-2 bg-easydry-blue text-white font-bold rounded-xl text-xs flex items-center gap-1.5">
+              <i-lucide name="pencil" class="w-3.5 h-3.5"></i-lucide>
+              Editar servicios
+            </button>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            @if (!(sucursal.serviciosNombres || []).length) {
+              <span class="text-xs text-slate-400 font-semibold">Sin servicios asignados.</span>
+            }
+            @for (nombre of sucursal.serviciosNombres || []; track nombre) {
+              <span class="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-800 text-xs font-bold">{{ nombre }}</span>
+            }
+          </div>
+        </div>
+      }
 
       <!-- Summary KPI Cards -->
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
@@ -190,12 +225,47 @@ import { ToastService } from '../../shared/services/toast.service';
         </div>
       </app-modal>
 
+      <app-modal
+        [isOpen]="modalServiciosOpen"
+        title="Editar servicios de la sucursal"
+        icon="sparkles"
+        (close)="modalServiciosOpen = false">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-72 overflow-y-auto">
+          <div class="border border-slate-200 rounded-xl p-3 bg-slate-50">
+            <p class="text-[10px] font-extrabold uppercase text-easydry-blue mb-2">Generales</p>
+            @for (s of serviciosGenerales; track s.id) {
+              <label class="flex items-start gap-2 py-1.5 cursor-pointer">
+                <input type="checkbox" class="mt-0.5" [checked]="servicioSeleccionado(s.id)" (change)="toggleServicio(s.id, s.nombre)">
+                <span class="text-xs font-semibold text-slate-800">{{ s.nombre }}</span>
+              </label>
+            }
+          </div>
+          <div class="border border-amber-200 rounded-xl p-3 bg-amber-50/50">
+            <p class="text-[10px] font-extrabold uppercase text-amber-700 mb-2">Especiales</p>
+            @for (s of serviciosEspeciales; track s.id) {
+              <label class="flex items-start gap-2 py-1.5 cursor-pointer">
+                <input type="checkbox" class="mt-0.5" [checked]="servicioSeleccionado(s.id)" (change)="toggleServicio(s.id, s.nombre)">
+                <span class="text-xs font-semibold text-slate-800">{{ s.nombre }}</span>
+              </label>
+            }
+          </div>
+        </div>
+        <div modal-footer>
+          <button (click)="modalServiciosOpen = false" class="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs">Cancelar</button>
+          <button (click)="guardarServiciosSucursal()" class="px-4 py-2 bg-easydry-blue text-white font-bold rounded-xl text-xs">Guardar servicios</button>
+        </div>
+      </app-modal>
+
     </div>
   `
 })
 export class SucursalDetailComponent implements OnInit {
   sucursal?: Sucursal;
   bahias: Bahia[] = [];
+  catalogoServicios: CatalogoServicio[] = [];
+  idsServiciosEdit: number[] = [];
+  nombresServiciosEdit: string[] = [];
+  modalServiciosOpen = false;
   
   // Maquinaria Asignación
   modalMaquinariaOpen = false;
@@ -207,13 +277,27 @@ export class SucursalDetailComponent implements OnInit {
   private sucursalService = inject(SucursalMockService);
   private bahiaService = inject(BahiaMockService);
   private maquinariaService = inject(MaquinariaMockService);
+  private catalogoService = inject(CatalogoServiciosMockService);
+  private auth = inject(AuthService);
   private toastService = inject(ToastService);
+
+  get serviciosGenerales(): CatalogoServicio[] {
+    return this.catalogoServicios.filter(s => s.categoria === 'GENERAL' && s.estado === 'Activo');
+  }
+
+  get serviciosEspeciales(): CatalogoServicio[] {
+    return this.catalogoServicios.filter(s => (s.categoria === 'ESPECIAL' || s.categoria === 'EXTRA') && s.estado === 'Activo');
+  }
 
   ngOnInit(): void {
     const id = Number(this.route.snapshot.paramMap.get('id')) || 1;
     
     this.sucursalService.getSucursalById(id).subscribe(suc => {
       this.sucursal = suc;
+    });
+
+    this.catalogoService.getServiciosActivos().subscribe(list => {
+      this.catalogoServicios = list;
     });
 
     this.bahiaService.getBahiasPorSucursal(id).subscribe(list => {
@@ -269,6 +353,53 @@ export class SucursalDetailComponent implements OnInit {
         this.toastService.success('Equipo Asignado', `${maquina.nombre} ha sido asignada a ${this.bahiaSeleccionada!.nombre}`);
         this.cerrarModalMaquinaria();
       }
+    });
+  }
+
+  abrirModalServicios() {
+    if (!this.sucursal) return;
+    this.idsServiciosEdit = [...(this.sucursal.servicioIds || [])];
+    this.nombresServiciosEdit = [...(this.sucursal.serviciosNombres || [])];
+    this.modalServiciosOpen = true;
+  }
+
+  servicioSeleccionado(id: number): boolean {
+    return this.idsServiciosEdit.includes(id);
+  }
+
+  toggleServicio(id: number, nombre: string) {
+    const idx = this.idsServiciosEdit.indexOf(id);
+    if (idx >= 0) {
+      this.idsServiciosEdit.splice(idx, 1);
+      const ni = this.nombresServiciosEdit.indexOf(nombre);
+      if (ni >= 0) this.nombresServiciosEdit.splice(ni, 1);
+    } else {
+      this.idsServiciosEdit.push(id);
+      this.nombresServiciosEdit.push(nombre);
+    }
+  }
+
+  guardarServiciosSucursal() {
+    if (!this.sucursal) return;
+    if (!this.idsServiciosEdit.length) {
+      this.toastService.warning('Servicios requeridos', 'Seleccione al menos un servicio del catálogo.');
+      return;
+    }
+    const user = this.auth.getCurrentUser();
+    const actualizada: Sucursal = {
+      ...this.sucursal,
+      servicioIds: [...this.idsServiciosEdit],
+      serviciosNombres: this.catalogoServicios
+        .filter(s => this.idsServiciosEdit.includes(s.id))
+        .map(s => s.nombre)
+    };
+    this.sucursalService.actualizarSucursal(actualizada, {
+      motivo: 'Actualización de servicios de sucursal',
+      realizadoPor: `${user.nombre} ${user.apellido}`.trim()
+    }).subscribe(res => {
+      this.sucursal = res;
+      this.modalServiciosOpen = false;
+      this.toastService.success('Servicios actualizados', `${res.nombre} ahora ofrece ${res.serviciosNombres?.length || 0} servicios.`);
     });
   }
 }

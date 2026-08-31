@@ -3,10 +3,9 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { LucideAngularModule } from 'lucide-angular';
-import { AuthService, DEMO_CREDENTIALS } from '../../core/services/auth.service';
+import { AuthService } from '../../core/services/auth.service';
 import { ToastService } from '../../shared/services/toast.service';
-import { MOBILE_APP_ROLES_ORDER } from '../../core/config/mobile-roles.config';
-import { Role } from '../../core/models/roles.model';
+import { environment } from '../../core/config/env';
 
 @Component({
   selector: 'app-login',
@@ -38,6 +37,11 @@ import { Role } from '../../core/models/roles.model';
               <span class="text-xs font-bold text-easydry-lime align-super ml-0.5">®</span>
             </div>
             <p class="text-slate-500 text-xs font-bold uppercase tracking-widest mt-1.5">Autenticación & Control de Acceso</p>
+            @if (!env.production) {
+              <p class="mt-2 text-[10px] font-bold uppercase tracking-wider text-easydry-blue/70">
+                {{ env.environmentName }} · {{ env.useMocks ? 'datos mock' : env.apiBaseUrl }}
+              </p>
+            }
           </div>
 
           <!-- Error Alert Banner -->
@@ -106,46 +110,6 @@ import { Role } from '../../core/models/roles.model';
               }
             </button>
           </form>
-
-          <!-- Demo credentials (prototipo) -->
-          <div class="mt-6 pt-5 border-t border-slate-100">
-            <div class="mb-3 p-3 rounded-xl bg-easydry-blue/5 border border-easydry-blue/15">
-              <p class="text-[11px] text-easydry-blue font-bold">
-                Los roles de la app móvil pueden ingresar aquí con las mismas credenciales.
-              </p>
-            </div>
-
-            <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Accesos demo — App móvil y web</p>
-            <div class="space-y-2">
-              @for (cred of demoCredentialsMobile; track cred.email) {
-                <button
-                  type="button"
-                  (click)="fillDemoCredentials(cred.email, cred.passwordPlain)"
-                  class="w-full text-left p-2.5 rounded-lg bg-slate-50 hover:bg-emerald-50 border border-slate-200 hover:border-emerald-200 transition-colors group">
-                  <div class="flex items-center justify-between gap-2">
-                    <p class="text-xs font-bold text-slate-800 group-hover:text-emerald-900">{{ getRolDisplayName(cred) }}</p>
-                    <span class="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 shrink-0">Móvil + Web</span>
-                  </div>
-                  <p class="text-[11px] text-slate-500 font-mono mt-0.5">{{ cred.email }}</p>
-                </button>
-              }
-            </div>
-
-            <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mt-4 mb-2">Accesos panel administrativo</p>
-            <div class="space-y-2 max-h-32 overflow-y-auto pr-1">
-              @for (cred of demoCredentialsAdmin; track cred.email) {
-                <button
-                  type="button"
-                  (click)="fillDemoCredentials(cred.email, cred.passwordPlain)"
-                  class="w-full text-left p-2.5 rounded-lg bg-slate-50 hover:bg-purple-50 border border-slate-200 hover:border-purple-200 transition-colors group">
-                  <p class="text-xs font-bold text-slate-800 group-hover:text-purple-900">{{ cred.rolNombre }}</p>
-                  <p class="text-[11px] text-slate-500 font-mono mt-0.5">{{ cred.email }}</p>
-                </button>
-              }
-            </div>
-
-            <p class="text-[10px] text-slate-400 mt-2">Toca un rol para autocompletar correo y contraseña.</p>
-          </div>
         </div>
 
         <p class="text-center text-[11px] text-white/50">
@@ -156,29 +120,12 @@ import { Role } from '../../core/models/roles.model';
   `
 })
 export class LoginComponent implements OnInit {
+  readonly env = environment;
   email = '';
   password = '';
   showPassword = false;
   loading = false;
   errorMessage = '';
-  demoCredentials = DEMO_CREDENTIALS;
-
-  get demoCredentialsMobile() {
-    return MOBILE_APP_ROLES_ORDER
-      .map(role => DEMO_CREDENTIALS.find(c => c.role === role))
-      .filter((c): c is (typeof DEMO_CREDENTIALS)[number] => !!c);
-  }
-
-  get demoCredentialsAdmin() {
-    const mobileSet = new Set(MOBILE_APP_ROLES_ORDER);
-    return DEMO_CREDENTIALS.filter(c => !mobileSet.has(c.role));
-  }
-
-  getRolDisplayName(cred: (typeof DEMO_CREDENTIALS)[number]): string {
-    if (cred.role === Role.COORD_MANTENIMIENTO) return 'Gestor Técnico';
-    if (cred.role === Role.OPERADOR_SERVICIOS_ESPECIALES) return 'Operador de Servicios Extras';
-    return cred.rolNombre;
-  }
 
   private authService = inject(AuthService);
   private toastService = inject(ToastService);
@@ -190,12 +137,6 @@ export class LoginComponent implements OnInit {
       const targetRoute = this.authService.getDefaultRouteForRole(user?.role);
       this.router.navigateByUrl(targetRoute);
     }
-  }
-
-  fillDemoCredentials(email: string, password: string) {
-    this.email = email;
-    this.password = password;
-    this.errorMessage = '';
   }
 
   onLogin() {

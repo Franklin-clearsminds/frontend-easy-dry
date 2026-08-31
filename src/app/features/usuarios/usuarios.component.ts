@@ -5,7 +5,10 @@ import { LucideAngularModule } from 'lucide-angular';
 import { UsuarioMockService } from '../../core/services/usuario-mock.service';
 import { RolMockService } from '../../core/services/rol-mock.service';
 import { DEMO_CREDENTIALS } from '../../core/services/auth.service';
-import { Usuario, ModuloSistema, RolPersonalizado, MODULOS_SISTEMA } from '../../core/models';
+import { Usuario, ModuloSistema, RolPersonalizado, MODULOS_SISTEMA, Sucursal, ModalidadPulidor } from '../../core/models';
+import { isRolPermisosInmutable } from '../../core/models/roles.model';
+import { SucursalMockService } from '../../core/services/sucursal-mock.service';
+import { esRolOperadorEspeciales } from '../../core/utils/modalidad-especiales.util';
 import { ModalComponent } from '../../shared/components/modal/modal.component';
 import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
 import { ToastService } from '../../shared/services/toast.service';
@@ -135,7 +138,18 @@ interface ModuloGrupo {
                         </span>
                       </td>
                       <td class="py-3.5 px-4 text-xs font-semibold text-slate-700">
-                        {{ u.agencia }}
+                        <div class="flex flex-col gap-1">
+                          <span>{{ u.agencia }}</span>
+                          @if (esOperadorEspecialesRol(u.rol)) {
+                            <span
+                              class="w-fit px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide"
+                              [ngClass]="u.modalidadPulidor === 'FIJO'
+                                ? 'bg-easydry-blue/10 text-easydry-blue border border-easydry-blue/20'
+                                : 'bg-cyan-50 text-cyan-800 border border-cyan-200'">
+                              {{ u.modalidadPulidor === 'FIJO' ? 'Pulidor fijo' : 'Pulidor móvil' }}
+                            </span>
+                          }
+                        </div>
                       </td>
                       <td class="py-3.5 px-4 text-xs text-slate-600 font-mono">
                         {{ u.email }}
@@ -267,8 +281,12 @@ interface ModuloGrupo {
                         <span class="text-xs font-bold text-purple-700">{{ getModulosCount(rol) }} / {{ modulosDisponibles.length }}</span>
                       </td>
                       <td class="py-3.5 px-4">
-                        @if (rol.esSistema) {
+                        @if (isRolPermisosInmutable(rol.codigo)) {
+                          <span class="px-2 py-0.5 rounded-md bg-purple-100 text-purple-800 text-[10px] font-extrabold uppercase border border-purple-200">Inmutable</span>
+                        } @else if (rol.esSistema) {
                           <span class="px-2 py-0.5 rounded-md bg-purple-100 text-purple-800 text-[10px] font-extrabold uppercase border border-purple-200">Sistema</span>
+                        } @else if (rol.codigo === 'ADMIN') {
+                          <span class="px-2 py-0.5 rounded-md bg-violet-100 text-violet-800 text-[10px] font-extrabold uppercase border border-violet-200">Configurable</span>
                         } @else {
                           <span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[10px] font-extrabold uppercase">Personalizado</span>
                         }
@@ -309,9 +327,17 @@ interface ModuloGrupo {
                       <div>
                         <div class="flex items-center gap-2">
                           <h3 class="font-extrabold text-slate-900 text-base font-outfit">{{ rol.nombre }}</h3>
-                          @if (rol.esSistema) {
+                          @if (isRolPermisosInmutable(rol.codigo)) {
+                            <span class="px-2 py-0.5 rounded-md bg-purple-100 text-purple-800 text-[10px] font-extrabold uppercase border border-purple-200">
+                              Inmutable
+                            </span>
+                          } @else if (rol.esSistema) {
                             <span class="px-2 py-0.5 rounded-md bg-purple-100 text-purple-800 text-[10px] font-extrabold uppercase border border-purple-200">
                               Sistema
+                            </span>
+                          } @else if (rol.codigo === 'ADMIN') {
+                            <span class="px-2 py-0.5 rounded-md bg-violet-100 text-violet-800 text-[10px] font-extrabold uppercase border border-violet-200">
+                              Configurable
                             </span>
                           }
                         </div>
@@ -348,7 +374,7 @@ interface ModuloGrupo {
 
                   <!-- Mini Badges of Allowed Modules -->
                   <div class="mt-3 flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
-                    @for (modCodigo of rol.modulos ?? []; track modCodigo) {
+                    @for (modCodigo of rol.modulos; track modCodigo) {
                       <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-50 border border-slate-200 text-[10px] font-semibold text-slate-700">
                         <i-lucide [name]="getModuloIcon(modCodigo)" class="w-3 h-3 text-easydry-blue"></i-lucide>
                         <span>{{ getModuloNombre(modCodigo) }}</span>
@@ -411,28 +437,11 @@ interface ModuloGrupo {
           <div class="grid grid-cols-2 gap-4">
             <div>
               <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Rol Asignado (Dinámico)</label>
-              <select [(ngModel)]="usuarioForm.rol" name="rol" class="w-full p-2.5 border rounded-xl text-sm font-semibold">
+              <select [(ngModel)]="usuarioForm.rol" name="rol" (ngModelChange)="onRolUsuarioChange()" class="w-full p-2.5 border rounded-xl text-sm font-semibold">
                 @for (r of roles; track r.id) {
                   <option [value]="r.nombre">{{ r.nombre }}</option>
                 }
               </select>
-            </div>
-            <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Agencia / Local</label>
-              <select [(ngModel)]="usuarioForm.agencia" name="agencia" class="w-full p-2.5 border rounded-xl text-sm font-semibold">
-                <option value="EasyDry Corporativo">EasyDry Corporativo</option>
-                <option value="EasyDry Quito Norte">EasyDry Quito Norte</option>
-                <option value="EasyDry Quito Sur">EasyDry Quito Sur</option>
-                <option value="EasyDry Cumbayá">EasyDry Cumbayá</option>
-                <option value="EasyDry Guayaquil">EasyDry Guayaquil</option>
-              </select>
-            </div>
-          </div>
-
-          <div class="grid grid-cols-2 gap-4">
-            <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Correo Electrónico</label>
-              <input type="email" [(ngModel)]="usuarioForm.email" name="email" placeholder="usuario@easydry.com" class="w-full p-2.5 border rounded-xl text-sm" required>
             </div>
             <div>
               <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Estado</label>
@@ -442,6 +451,62 @@ interface ModuloGrupo {
                 <option value="Suspendido">Suspendido</option>
               </select>
             </div>
+          </div>
+
+          @if (esOperadorEspecialesRol(usuarioForm.rol)) {
+            <div class="p-4 rounded-2xl border border-cyan-200 bg-cyan-50/60 space-y-3">
+              <div>
+                <p class="text-xs font-extrabold text-cyan-900 uppercase tracking-wide">Modalidad del pulidor</p>
+                <p class="text-[11px] text-cyan-800 mt-0.5">Fijo: trabaja solo en una sucursal. Móvil: se desplaza entre sedes.</p>
+              </div>
+              <div class="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  (click)="setModalidadPulidor('FIJO')"
+                  class="px-3 py-2.5 rounded-xl text-xs font-extrabold border transition-colors"
+                  [ngClass]="usuarioForm.modalidadPulidor === 'FIJO'
+                    ? 'bg-easydry-blue text-white border-easydry-blue'
+                    : 'bg-white text-slate-700 border-slate-200 hover:border-easydry-blue'">
+                  Fijo en sucursal
+                </button>
+                <button
+                  type="button"
+                  (click)="setModalidadPulidor('MOVIL')"
+                  class="px-3 py-2.5 rounded-xl text-xs font-extrabold border transition-colors"
+                  [ngClass]="usuarioForm.modalidadPulidor === 'MOVIL'
+                    ? 'bg-cyan-700 text-white border-cyan-700'
+                    : 'bg-white text-slate-700 border-slate-200 hover:border-cyan-400'">
+                  Móvil · Red nacional
+                </button>
+              </div>
+              @if (usuarioForm.modalidadPulidor === 'FIJO') {
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Sucursal asignada</label>
+                  <select [(ngModel)]="usuarioForm.agencia" name="agenciaFijo" class="w-full p-2.5 border rounded-xl text-sm font-semibold bg-white" required>
+                    @for (s of sucursales; track s.id) {
+                      <option [value]="s.nombre">{{ s.nombre }} ({{ s.ciudad }})</option>
+                    }
+                  </select>
+                </div>
+              } @else {
+                <p class="text-xs font-semibold text-cyan-900">Ubicación: Red Nacional · Móvil entre sucursales</p>
+              }
+            </div>
+          } @else {
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Agencia / Local</label>
+              <select [(ngModel)]="usuarioForm.agencia" name="agencia" class="w-full p-2.5 border rounded-xl text-sm font-semibold">
+                <option value="EasyDry Corporativo">EasyDry Corporativo</option>
+                @for (s of sucursales; track s.id) {
+                  <option [value]="s.nombre">{{ s.nombre }}</option>
+                }
+              </select>
+            </div>
+          }
+
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Correo Electrónico</label>
+            <input type="email" [(ngModel)]="usuarioForm.email" name="email" placeholder="usuario@easydry.com" class="w-full p-2.5 border rounded-xl text-sm" required>
           </div>
 
           @if (!editandoUsuario) {
@@ -480,7 +545,7 @@ interface ModuloGrupo {
                   type="text" 
                   [(ngModel)]="rolForm.nombre" 
                   placeholder="Ej: Auditor Operativo, Jefe de Patio, Cajero" 
-                  [disabled]="rolForm.esSistema"
+                  [disabled]="isRolPermisosInmutable(rolForm.codigo) || rolForm.esSistema"
                   class="w-full p-2.5 border rounded-xl text-sm font-bold text-slate-900">
               </div>
 
@@ -521,7 +586,7 @@ interface ModuloGrupo {
                 <button
                   type="button"
                   (click)="desmarcarTodosModulos()"
-                  [disabled]="rolForm.esSistema"
+                  [disabled]="isRolPermisosInmutable(rolForm.codigo) || rolForm.esSistema"
                   class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors disabled:opacity-50">
                   Desmarcar Todos
                 </button>
@@ -550,7 +615,7 @@ interface ModuloGrupo {
                         <input 
                           type="checkbox"
                           [checked]="isModuloSelected(mod.codigo)"
-                          [disabled]="rolForm.esSistema"
+                          [disabled]="isRolPermisosInmutable(rolForm.codigo) || rolForm.esSistema"
                           (change)="toggleModulo(mod.codigo)"
                           class="mt-1 w-4 h-4 rounded text-purple-600 focus:ring-purple-500 cursor-pointer">
 
@@ -590,6 +655,7 @@ export class UsuariosComponent implements OnInit {
 
   usuarios: Usuario[] = [];
   roles: RolPersonalizado[] = [];
+  sucursales: Sucursal[] = [];
   modulosDisponibles: ModuloSistema[] = MODULOS_SISTEMA;
   modulosAgrupados: ModuloGrupo[] = [];
 
@@ -609,19 +675,22 @@ export class UsuariosComponent implements OnInit {
     estado: string;
     email: string;
     password?: string;
+    modalidadPulidor: ModalidadPulidor;
   } = {
     nombre: '',
     apellido: '',
     rol: 'Gerente de Sucursal',
     agencia: 'EasyDry Quito Norte',
     estado: 'Activo',
-    email: ''
+    email: '',
+    modalidadPulidor: 'MOVIL'
   };
 
   modalRolOpen = false;
   editandoRol: RolPersonalizado | null = null;
   rolForm: {
     id?: string;
+    codigo?: string;
     nombre: string;
     descripcion: string;
     color: string;
@@ -637,7 +706,11 @@ export class UsuariosComponent implements OnInit {
 
   private usuarioService = inject(UsuarioMockService);
   private rolService = inject(RolMockService);
+  private sucursalService = inject(SucursalMockService);
   private toastService = inject(ToastService);
+
+  isRolPermisosInmutable = isRolPermisosInmutable;
+  esOperadorEspecialesRol = esRolOperadorEspeciales;
 
   ngOnInit(): void {
     this.agruparModulos();
@@ -651,6 +724,10 @@ export class UsuariosComponent implements OnInit {
         ...rol,
         modulos: Array.isArray(rol.modulos) ? rol.modulos : [],
       }));
+    });
+
+    this.sucursalService.getSucursales().subscribe(list => {
+      this.sucursales = list;
     });
   }
 
@@ -749,10 +826,11 @@ export class UsuariosComponent implements OnInit {
       nombre: '',
       apellido: '',
       rol: this.roles[0]?.nombre || 'Super Administrador',
-      agencia: 'EasyDry Quito Norte',
+      agencia: this.sucursales[0]?.nombre || 'EasyDry Quito Norte',
       estado: 'Activo',
       email: '',
-      password: ''
+      password: '',
+      modalidadPulidor: 'MOVIL'
     };
     this.modalUsuarioOpen = true;
   }
@@ -765,9 +843,38 @@ export class UsuariosComponent implements OnInit {
       rol: u.rol,
       agencia: u.agencia,
       estado: u.estado,
-      email: u.email
+      email: u.email,
+      modalidadPulidor: u.modalidadPulidor || (esRolOperadorEspeciales(u.rol) ? 'MOVIL' : 'MOVIL')
     };
     this.modalUsuarioOpen = true;
+  }
+
+  onRolUsuarioChange() {
+    if (esRolOperadorEspeciales(this.usuarioForm.rol)) {
+      if (!this.usuarioForm.modalidadPulidor) {
+        this.usuarioForm.modalidadPulidor = 'MOVIL';
+      }
+      this.setModalidadPulidor(this.usuarioForm.modalidadPulidor);
+    }
+  }
+
+  setModalidadPulidor(modalidad: ModalidadPulidor) {
+    this.usuarioForm.modalidadPulidor = modalidad;
+    if (modalidad === 'MOVIL') {
+      this.usuarioForm.agencia = 'Red Nacional · Móvil';
+    } else if (!this.sucursales.some(s => s.nombre === this.usuarioForm.agencia)) {
+      this.usuarioForm.agencia = this.sucursales[0]?.nombre || 'EasyDry Quito Norte';
+    }
+  }
+
+  private payloadModalidad(): { agencia: string; modalidadPulidor?: ModalidadPulidor } {
+    if (!esRolOperadorEspeciales(this.usuarioForm.rol)) {
+      return { agencia: this.usuarioForm.agencia, modalidadPulidor: undefined };
+    }
+    if (this.usuarioForm.modalidadPulidor === 'FIJO') {
+      return { agencia: this.usuarioForm.agencia, modalidadPulidor: 'FIJO' };
+    }
+    return { agencia: 'Red Nacional · Móvil', modalidadPulidor: 'MOVIL' };
   }
 
   guardarUsuario() {
@@ -776,15 +883,23 @@ export class UsuariosComponent implements OnInit {
       return;
     }
 
+    if (esRolOperadorEspeciales(this.usuarioForm.rol) && this.usuarioForm.modalidadPulidor === 'FIJO' && !this.usuarioForm.agencia) {
+      this.toastService.warning('Sucursal requerida', 'Un pulidor fijo debe quedar asignado a una sucursal.');
+      return;
+    }
+
+    const modalidad = this.payloadModalidad();
+
     if (this.editandoUsuario) {
       const actualizado: Usuario = {
         ...this.editandoUsuario,
         nombre: this.usuarioForm.nombre,
         apellido: this.usuarioForm.apellido,
         rol: this.usuarioForm.rol,
-        agencia: this.usuarioForm.agencia,
+        agencia: modalidad.agencia,
         estado: this.usuarioForm.estado as Usuario['estado'],
-        email: this.usuarioForm.email
+        email: this.usuarioForm.email,
+        modalidadPulidor: modalidad.modalidadPulidor
       };
 
       this.usuarioService.actualizarUsuario(actualizado).subscribe(() => {
@@ -796,11 +911,12 @@ export class UsuariosComponent implements OnInit {
         nombre: this.usuarioForm.nombre,
         apellido: this.usuarioForm.apellido,
         rol: this.usuarioForm.rol,
-        agencia: this.usuarioForm.agencia,
+        agencia: modalidad.agencia,
         estado: this.usuarioForm.estado as Usuario['estado'],
         email: this.usuarioForm.email,
         fechaAsignacion: new Date().toISOString().split('T')[0],
-        avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
+        avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+        modalidadPulidor: modalidad.modalidadPulidor
       };
 
       this.usuarioService.crearUsuario(nuevo).subscribe(creado => {
@@ -827,6 +943,7 @@ export class UsuariosComponent implements OnInit {
     this.editandoRol = rol;
     this.rolForm = {
       id: rol.id,
+      codigo: rol.codigo,
       nombre: rol.nombre,
       descripcion: rol.descripcion,
       color: rol.color,
@@ -841,7 +958,8 @@ export class UsuariosComponent implements OnInit {
   }
 
   toggleModulo(codigo: string) {
-    if (this.rolForm.esSistema) return; // SuperAdmin conserva todos
+    if (isRolPermisosInmutable(this.rolForm.codigo)) return;
+    if (this.rolForm.esSistema) return;
     const idx = this.rolForm.modulos.indexOf(codigo);
     if (idx !== -1) {
       this.rolForm.modulos.splice(idx, 1);
@@ -855,6 +973,7 @@ export class UsuariosComponent implements OnInit {
   }
 
   desmarcarTodosModulos() {
+    if (isRolPermisosInmutable(this.rolForm.codigo)) return;
     if (this.rolForm.esSistema) return;
     this.rolForm.modulos = [];
   }
@@ -864,6 +983,11 @@ export class UsuariosComponent implements OnInit {
   }
 
   guardarRol() {
+    if (isRolPermisosInmutable(this.rolForm.codigo)) {
+      this.toastService.warning('Rol inmutable', 'Los permisos del Super Administrador no pueden modificarse.');
+      return;
+    }
+
     if (!this.rolForm.nombre.trim()) {
       this.toastService.warning('Nombre Requerido', 'Ingrese un nombre descriptivo para el rol.');
       return;

@@ -209,7 +209,7 @@ export class AsignacionesComponent implements OnInit {
   public authService = inject(AuthService);
 
   get isSuperAdmin() {
-    return this.authService.hasRole('SUPER_ADMIN' as any);
+    return this.authService.isAdmin();
   }
 
   get historialFiltrado() {

@@ -1,5 +1,5 @@
 <!-- ====================================================================== -->
-<!-- TABS: SERVICIOS GENERALES, ESPECIALES Y EXTRAS                         -->
+<!-- TABS: SERVICIOS GENERALES Y ESPECIALES (+ ASIGNACIONES)                  -->
 <!-- ====================================================================== -->
 <div class="p-6 space-y-6">
 
@@ -11,7 +11,7 @@
         <span>Parametrización & Catálogos EasyDry®</span>
       </div>
       <h1 class="text-2xl font-extrabold text-slate-900 font-outfit">Catálogo de Servicios</h1>
-      <p class="text-sm text-slate-500">Gestión de Servicios Generales, Servicios Especiales y asignación de Servicios Extras.</p>
+      <p class="text-sm text-slate-500">Tabla maestra de servicios. Luego se asignan uno a uno a cada sucursal (al crear o al editar).</p>
     </div>
 
     <!-- Botones de Acción según la pestaña activa -->
@@ -31,16 +31,16 @@
         <span>Nuevo Servicio Especial</span>
       </button>
       <button
-        *ngIf="tabActiva === 'extras'"
+        *ngIf="tabActiva === 'especiales'"
         (click)="abrirModalNuevoExtra()"
         class="bg-easydry-blue hover:bg-easydry-blue-dark text-white font-extrabold px-4 py-2.5 rounded-xl shadow flex items-center gap-2 transition-all text-xs">
         <i-lucide name="sparkles" class="w-4 h-4 text-easydry-lime"></i-lucide>
-        <span>Nuevo Servicio Extra</span>
+        <span>Nueva Asignación Especial</span>
       </button>
     </div>
   </div>
 
-  <!-- Tab Navigation (3 Pestañas Claras: Generales, Especiales, Extras) -->
+  <!-- Tab Navigation: Generales y Especiales -->
   <div class="flex flex-wrap gap-2 p-1.5 bg-slate-200/80 rounded-2xl w-fit">
     
     <!-- Pestaña 1: Servicios Generales -->
@@ -65,19 +65,11 @@
       <span class="bg-amber-100 text-amber-800 text-[10px] font-extrabold px-2 py-0.5 rounded-full">
         {{ serviciosEspeciales.length }}
       </span>
-    </button>
-
-    <!-- Pestaña 3: Servicios Extras -->
-    <button
-      (click)="tabActiva = 'extras'"
-      [ngClass]="tabActiva === 'extras' ? 'bg-white text-purple-700 shadow-md font-extrabold' : 'text-slate-600 hover:text-slate-900 font-semibold'"
-      class="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs transition-all">
-      <i-lucide name="sparkles" class="w-4 h-4 text-purple-500"></i-lucide>
-      <span>Servicios Extras</span>
-      <span class="bg-purple-100 text-purple-800 text-[10px] font-extrabold px-2 py-0.5 rounded-full">
-        {{ serviciosExtras.length }}
+      <span class="bg-purple-100 text-purple-800 text-[10px] font-extrabold px-2 py-0.5 rounded-full" title="Asignaciones activas">
+        {{ serviciosExtras.length }} asig.
       </span>
     </button>
+
   </div>
 
   <!-- ====================================================================== -->
@@ -321,14 +313,13 @@
           (pageSizeChange)="onPageSizeChangeEspeciales($event)">
         </app-pagination>
       </div>
-    </div>
-  }
 
-  <!-- ====================================================================== -->
-  <!-- TAB 3: SERVICIOS EXTRAS                                                -->
-  <!-- ====================================================================== -->
-  @if (tabActiva === 'extras') {
-    <div class="space-y-6 animate-fade-in">
+      <!-- Asignaciones a operadores de servicios especiales -->
+      <div class="space-y-6 pt-4 border-t border-slate-200">
+        <div>
+          <h2 class="text-base font-extrabold text-slate-900">Asignaciones a Operadores de Servicios Especiales</h2>
+          <p class="text-xs text-slate-500 mt-1">Trabajos premium (pulido, cerámico, motor) delegados a operadores móviles</p>
+        </div>
 
       <!-- Stats Cards -->
       <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -399,7 +390,7 @@
         </select>
       </div>
 
-      <!-- Tabla Servicios Extras -->
+      <!-- Tabla Asignaciones Servicios Especiales -->
       <div class="bg-white rounded-2xl shadow-easydry border border-slate-100 overflow-hidden">
         <table class="w-full text-left text-sm">
           <thead class="bg-slate-50/80 text-slate-500 font-bold border-b border-slate-200 text-[11px] uppercase tracking-wider">
@@ -495,7 +486,7 @@
                 <td colspan="8" class="px-6 py-14 text-center">
                   <div class="flex flex-col items-center gap-3 text-slate-400">
                     <i-lucide name="sparkles" class="w-10 h-10 opacity-30"></i-lucide>
-                    <p class="font-semibold text-xs">No hay servicios extras registrados</p>
+                    <p class="font-semibold text-xs">No hay asignaciones de servicios especiales registradas</p>
                     <p class="text-[11px]">Crea uno nuevo para asignarlo a un operador y sucursales</p>
                   </div>
                 </td>
@@ -511,6 +502,7 @@
           (pageChange)="onPageChangeExtras($event)"
           (pageSizeChange)="onPageSizeChangeExtras($event)">
         </app-pagination>
+      </div>
       </div>
     </div>
   }
@@ -636,7 +628,7 @@
             <i-lucide name="star" class="w-5 h-5 text-easydry-blue"></i-lucide>
           </div>
           <div>
-            <h3 class="font-extrabold text-lg text-slate-900">{{ isEditingExtras ? 'Editar Servicio Extra' : 'Nuevo Servicio Extra' }}</h3>
+            <h3 class="font-extrabold text-lg text-slate-900">{{ isEditingExtras ? 'Editar Asignación Especial' : 'Nueva Asignación Especial' }}</h3>
             <p class="text-xs text-slate-400">Asigna un servicio especial directamente a un operador</p>
           </div>
         </div>
@@ -782,7 +774,7 @@
           <button (click)="cerrarModalExtras()" class="px-4 py-2 text-sm font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition-colors">Cancelar</button>
           <button (click)="guardarServicioExtra()" class="px-5 py-2 text-sm font-bold text-white bg-easydry-blue hover:bg-easydry-blue-dark shadow-sm rounded-xl transition-all flex items-center gap-2">
             <i-lucide name="save" class="w-4 h-4"></i-lucide>
-            {{ isEditingExtras ? 'Actualizar' : 'Crear Servicio Extra' }}
+            {{ isEditingExtras ? 'Actualizar' : 'Crear Asignación Especial' }}
           </button>
         </div>
       </div>

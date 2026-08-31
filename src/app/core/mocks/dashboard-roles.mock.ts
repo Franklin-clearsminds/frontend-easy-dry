@@ -61,7 +61,7 @@ export const MOCK_DASHBOARD_OPERADOR = {
   }
 };
 
-export const MOCK_DASHBOARD_EXTRAS = {
+export const MOCK_DASHBOARD_OPERADOR_ESPECIALES = {
   asignacionesPendientes: 4,
   enProceso: 2,
   completadasSemana: 11,
@@ -114,7 +114,7 @@ export const MOCK_DASHBOARD_COMERCIAL = {
   serviciosMes: 842,
   ingresosMesUSD: 28400,
   tasaAprobacion: 94,
-  extrasVendidos: 156,
+  especialesVendidos: 156,
   chartIngresosSemana: {
     labels: ['Sem 1', 'Sem 2', 'Sem 3', 'Sem 4'],
     datasets: [{
@@ -127,7 +127,7 @@ export const MOCK_DASHBOARD_COMERCIAL = {
     }]
   },
   chartMixServicios: {
-    labels: ['Generales', 'Especiales', 'Extras'],
+    labels: ['Generales', 'Especiales Premium'],
     datasets: [{
       data: [520, 186, 136],
       backgroundColor: ['#07558C', '#0A70B8', '#9BCB3B'],

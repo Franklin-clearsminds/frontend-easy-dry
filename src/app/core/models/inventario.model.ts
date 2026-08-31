@@ -2,6 +2,22 @@
 // EasyDry® - Modelo de Gestión de Inventario e Insumos
 // =========================================================
 
+/** Identificador inmutable de la Bodega Central (siempre existe, no se elimina). */
+export const BODEGA_CENTRAL_ID = 'bod_central';
+
+/** Bodega de almacenamiento de insumos (HUB nacional o satélite). */
+export interface BodegaInventario {
+  id: string;
+  codigo: string;
+  nombre: string;
+  ciudad?: string;
+  region?: string;
+  /** Solo Bodega Central. No se puede eliminar ni desactivar. */
+  esCentral: boolean;
+  activa: boolean;
+  fechaCreacion: string;
+}
+
 /** Tipo o Naturaleza del Producto (ej. Líquido, Químico, Unitario, EPP, Textil) */
 export interface TipoProducto {
   id: string;
@@ -57,14 +73,27 @@ export interface StockSucursal {
   ultimaActualizacion?: string;
 }
 
-/** Item Consolidado del Inventario General (Bodega Central + Red) */
+/** Item Consolidado del Inventario General (bodegas + sucursales) */
 export interface InventarioItem {
   producto: ProductoInsumo;
+  /** Stock de Bodega Central (espejo de stockPorBodega[bod_central]). */
   stockBodegaCentral: number;
-  stockPorSucursal: Record<string, number>; // Ej: { 'EasyDry Quito Norte': 12, 'EasyDry Quito Sur': 4, ... }
+  /** Stock por bodega (clave = BodegaInventario.id). Bodega Central siempre presente. */
+  stockPorBodega?: Record<string, number>;
+  stockPorSucursal: Record<string, number>;
   stockTotalRed: number;
   estadoGeneral: 'Optimo' | 'Bajo' | 'Critico';
   sucursalesEnAlerta: string[];
+}
+
+export function stockEnBodega(item: InventarioItem, bodegaId: string): number {
+  if (item.stockPorBodega && item.stockPorBodega[bodegaId] != null) {
+    return item.stockPorBodega[bodegaId];
+  }
+  if (bodegaId === BODEGA_CENTRAL_ID) {
+    return item.stockBodegaCentral ?? 0;
+  }
+  return 0;
 }
 
 /** Historial de Movimientos / Despachos / Transferencias de Stock */

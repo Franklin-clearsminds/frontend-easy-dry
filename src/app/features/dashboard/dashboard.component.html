@@ -11,9 +11,9 @@
         @if (isExecutive) { Panel de Control Central EasyDry® }
         @else if (isTecnicoRole) { Dashboard Técnico & Taller }
         @else if (isOperador) { Mi Dashboard de Bahía }
-        @else if (isExtras) { Dashboard Servicios Especiales }
+        @else if (isOperadorEspeciales) { Dashboard Operador Servicios Especiales }
         @else if (isComercial) { Dashboard Comercial }
-        @else if (isDistribuidor) { Dashboard de Suministros }
+        @else if (isBodega) { Dashboard de Inventario & Bodega }
         @else { Dashboard EasyDry® }
       </h1>
       <p class="text-slate-300 text-sm flex items-center gap-2 flex-wrap">
@@ -38,12 +38,12 @@
           <i-lucide name="car" class="w-4 h-4"></i-lucide> Mi Bahía
         </a>
       }
-      @if (isExtras) {
+      @if (isOperadorEspeciales) {
         <a routerLink="/servicios" class="px-4 py-2.5 bg-easydry-green hover:bg-easydry-green-dark text-slate-900 font-bold rounded-xl text-sm flex items-center gap-2">
           <i-lucide name="sparkles" class="w-4 h-4"></i-lucide> Cola de Servicios
         </a>
       }
-      @if (isDistribuidor) {
+      @if (isBodega) {
         <a routerLink="/inventario" class="px-4 py-2.5 bg-easydry-green hover:bg-easydry-green-dark text-slate-900 font-bold rounded-xl text-sm flex items-center gap-2">
           <i-lucide name="package" class="w-4 h-4"></i-lucide> Inventario
         </a>
@@ -126,17 +126,17 @@
     </div>
   }
 
-  <!-- ═══ DASHBOARD EXTRAS ═══ -->
-  @if (isExtras && extrasData) {
+  <!-- ═══ DASHBOARD OPERADOR SERVICIOS ESPECIALES ═══ -->
+  @if (isOperadorEspeciales && operadorEspecialesData) {
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-      <app-stat-card title="Pendientes" [value]="extrasData.asignacionesPendientes" icon="clock" variant="warning"></app-stat-card>
-      <app-stat-card title="En Proceso" [value]="extrasData.enProceso" icon="loader" variant="primary"></app-stat-card>
-      <app-stat-card title="Completadas Semana" [value]="extrasData.completadasSemana" icon="check-circle" variant="success"></app-stat-card>
-      <app-stat-card title="Calificación Prom." [value]="extrasData.calificacionPromedio + ' ★'" icon="star" [subtitle]="extrasData.sucursalesActivas + ' sucursales'" variant="success"></app-stat-card>
+      <app-stat-card title="Pendientes" [value]="operadorEspecialesData.asignacionesPendientes" icon="clock" variant="warning"></app-stat-card>
+      <app-stat-card title="En Proceso" [value]="operadorEspecialesData.enProceso" icon="loader" variant="primary"></app-stat-card>
+      <app-stat-card title="Completadas Semana" [value]="operadorEspecialesData.completadasSemana" icon="check-circle" variant="success"></app-stat-card>
+      <app-stat-card title="Calificación Prom." [value]="operadorEspecialesData.calificacionPromedio + '/5'" icon="star" [subtitle]="operadorEspecialesData.sucursalesActivas + ' sucursales'" variant="success"></app-stat-card>
     </div>
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <app-chart-card title="Cola por Prioridad" type="bar" [data]="extrasData.chartColaPorPrioridad"></app-chart-card>
-      <app-chart-card title="Completados esta Semana" type="bar" [data]="extrasData.chartCompletadosSemana"></app-chart-card>
+      <app-chart-card title="Cola por Prioridad" type="bar" [data]="operadorEspecialesData.chartColaPorPrioridad"></app-chart-card>
+      <app-chart-card title="Completados esta Semana" type="bar" [data]="operadorEspecialesData.chartCompletadosSemana"></app-chart-card>
     </div>
   }
 
@@ -146,7 +146,7 @@
       <app-stat-card title="Servicios del Mes" [value]="comercialData.serviciosMes" icon="bar-chart-2" variant="primary"></app-stat-card>
       <app-stat-card title="Ingresos Mes" [value]="'$' + comercialData.ingresosMesUSD" icon="dollar-sign" variant="success"></app-stat-card>
       <app-stat-card title="Tasa Aprobación" [value]="comercialData.tasaAprobacion + '%'" icon="check-circle" variant="success"></app-stat-card>
-      <app-stat-card title="Extras Vendidos" [value]="comercialData.extrasVendidos" icon="sparkles" variant="primary"></app-stat-card>
+      <app-stat-card title="Especiales Vendidos" [value]="comercialData.especialesVendidos" icon="sparkles" variant="primary"></app-stat-card>
     </div>
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
       <app-chart-card title="Ingresos por Semana" type="line" [data]="comercialData.chartIngresosSemana"></app-chart-card>
@@ -155,7 +155,7 @@
   }
 
   <!-- ═══ DASHBOARD DISTRIBUIDOR ═══ -->
-  @if (isDistribuidor && distribuidorData) {
+  @if (isBodega && distribuidorData) {
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
       <app-stat-card title="SKUs Críticos" [value]="distribuidorData.skusCriticos" icon="alert-triangle" variant="warning"></app-stat-card>
       <app-stat-card title="Pedidos Pendientes" [value]="distribuidorData.pedidosPendientes" icon="package" variant="primary"></app-stat-card>

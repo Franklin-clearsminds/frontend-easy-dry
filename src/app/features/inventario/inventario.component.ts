@@ -7,12 +7,14 @@ import { AuthService } from '../../core/services/auth.service';
 import { ToastService } from '../../shared/services/toast.service';
 import { ModalComponent } from '../../shared/components/modal/modal.component';
 import {
-  TipoProducto,
   EnvaseUnidad,
   ProductoInsumo,
   InventarioItem,
   MovimientoStock,
-  AlertaReabastecimiento
+  AlertaReabastecimiento,
+  BodegaInventario,
+  BODEGA_CENTRAL_ID,
+  stockEnBodega
 } from '../../core/models/inventario.model';
 
 @Component({
@@ -36,32 +38,42 @@ import {
             </div>
             <h1 class="text-2xl font-extrabold text-slate-900 font-outfit">Inventario Central & Suministros</h1>
             <p class="text-slate-500 text-xs mt-0.5">
-              Balance en tiempo real entre Bodega Central y Sucursales, transferencias y alertas automáticas por consumo en OT.
+              Bodega Central siempre activa. El Gestor puede crear bodegas satélite y despachar a sucursales.
             </p>
           </div>
 
           <!-- BOTONES ORGANIZADOS EN UNA SOLA FILA -->
           <div class="flex items-center gap-2.5 flex-nowrap shrink-0 overflow-x-auto pb-1 xl:pb-0">
-            <button
-              (click)="abrirModalEntradaBodega()"
-              class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl text-xs whitespace-nowrap flex items-center gap-2 transition-colors shadow-2xs">
-              <i-lucide name="arrow-down-circle" class="w-4 h-4 text-emerald-600"></i-lucide>
-              <span>+ Entrada Bodega (Compra)</span>
-            </button>
+            @if (puedeDespachar) {
+              <button
+                (click)="abrirModalEntradaBodega()"
+                class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl text-xs whitespace-nowrap flex items-center gap-2 transition-colors shadow-2xs">
+                <i-lucide name="arrow-down-circle" class="w-4 h-4 text-emerald-600"></i-lucide>
+                <span>+ Entrada Bodega (Compra)</span>
+              </button>
 
-            <button
-              (click)="abrirModalDespacho()"
-              class="px-3.5 py-2 bg-easydry-blue hover:bg-easydry-blue-dark text-white font-bold rounded-xl text-xs whitespace-nowrap flex items-center gap-2 transition-colors shadow-xs">
-              <i-lucide name="truck" class="w-4 h-4 text-easydry-lime"></i-lucide>
-              <span>Despachar a Sucursal</span>
-            </button>
+              <button
+                (click)="abrirModalDespacho()"
+                class="px-3.5 py-2 bg-easydry-blue hover:bg-easydry-blue-dark text-white font-bold rounded-xl text-xs whitespace-nowrap flex items-center gap-2 transition-colors shadow-xs">
+                <i-lucide name="truck" class="w-4 h-4 text-easydry-lime"></i-lucide>
+                <span>Despachar a Sucursal</span>
+              </button>
+            }
 
-            <button
-              (click)="abrirModalCrearProducto()"
-              class="px-3.5 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs whitespace-nowrap flex items-center gap-2 transition-all shadow-glow-green">
-              <i-lucide name="plus-circle" class="w-4 h-4"></i-lucide>
-              <span>+ Nuevo Insumo</span>
-            </button>
+            @if (puedeGestionarCatalogo) {
+              <button
+                (click)="abrirModalCrearBodega()"
+                class="px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-800 font-bold rounded-xl text-xs whitespace-nowrap flex items-center gap-2 transition-colors border border-slate-200 shadow-2xs">
+                <i-lucide name="warehouse" class="w-4 h-4 text-easydry-blue"></i-lucide>
+                <span>+ Nueva Bodega</span>
+              </button>
+              <button
+                (click)="abrirModalCrearProducto()"
+                class="px-3.5 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs whitespace-nowrap flex items-center gap-2 transition-all shadow-glow-green">
+                <i-lucide name="plus-circle" class="w-4 h-4"></i-lucide>
+                <span>+ Nuevo Insumo</span>
+              </button>
+            }
           </div>
         </div>
 
@@ -79,8 +91,8 @@ import {
 
           <div class="p-3 rounded-xl bg-blue-50/50 border border-blue-100/80 flex items-center justify-between">
             <div>
-              <span class="text-[10px] font-bold uppercase text-blue-800 block">Bodega Central HUB</span>
-              <p class="text-xl font-extrabold text-blue-950 font-outfit">{{ totalUnidadesBodega }} <span class="text-xs font-normal text-blue-700">unidades</span></p>
+              <span class="text-[10px] font-bold uppercase text-blue-800 block">Bodegas</span>
+              <p class="text-xl font-extrabold text-blue-950 font-outfit">{{ bodegas.length }} <span class="text-xs font-normal text-blue-700">· {{ totalUnidadesBodega }} uds.</span></p>
             </div>
             <div class="p-2 rounded-lg bg-blue-500 text-white">
               <i-lucide name="warehouse" class="w-4 h-4"></i-lucide>
@@ -127,11 +139,19 @@ import {
           </button>
 
           <button
+            (click)="activeTab = 'bodegas'"
+            class="pb-2.5 text-xs font-bold border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
+            [ngClass]="activeTab === 'bodegas' ? 'border-easydry-blue text-easydry-blue' : 'border-transparent text-slate-500 hover:text-slate-700'">
+            <i-lucide name="warehouse" class="w-4 h-4"></i-lucide>
+            Bodegas
+          </button>
+
+          <button
             (click)="activeTab = 'despachos'"
             class="pb-2.5 text-xs font-bold border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
             [ngClass]="activeTab === 'despachos' ? 'border-easydry-blue text-easydry-blue' : 'border-transparent text-slate-500 hover:text-slate-700'">
             <i-lucide name="truck" class="w-4 h-4"></i-lucide>
-            Bodega Central & Despachos
+            Movimientos & Despachos
           </button>
 
           <button
@@ -194,7 +214,12 @@ import {
                   <tr class="bg-slate-50 border-b border-slate-200/80 text-[10px] font-extrabold uppercase tracking-wider text-slate-600">
                     <th class="py-3.5 px-4">Insumo / Producto</th>
                     <th class="py-3.5 px-3">Presentación / Envase</th>
-                    <th class="py-3.5 px-3 text-center bg-blue-50/40 text-easydry-blue font-bold">Bodega Central HUB</th>
+                    @for (bod of bodegas; track bod.id) {
+                      <th class="py-3.5 px-3 text-center font-bold"
+                        [ngClass]="bod.esCentral ? 'bg-blue-50/40 text-easydry-blue' : 'bg-teal-50/40 text-teal-800'">
+                        {{ bod.nombre }}
+                      </th>
+                    }
                     <th class="py-3.5 px-3 text-center">Quito Norte</th>
                     <th class="py-3.5 px-3 text-center">Quito Sur</th>
                     <th class="py-3.5 px-3 text-center">Cumbayá</th>
@@ -233,11 +258,16 @@ import {
                         </span>
                       </td>
 
-                      <!-- Bodega Central -->
-                      <td class="py-3 px-3 text-center font-mono font-extrabold bg-blue-50/20 text-blue-900"
-                       [ngClass]="{ 'text-rose-600 bg-rose-50/40': item.stockBodegaCentral <= item.producto.stockAlertaBodega }">
-                        {{ item.stockBodegaCentral }} {{ item.producto.unidadMedida }}
-                      </td>
+                      @for (bod of bodegas; track bod.id) {
+                        <td class="py-3 px-3 text-center font-mono font-extrabold"
+                          [ngClass]="{
+                            'text-rose-600 bg-rose-50/40': stockBodega(item, bod.id) <= item.producto.stockAlertaBodega,
+                            'bg-blue-50/20 text-blue-900': bod.esCentral && stockBodega(item, bod.id) > item.producto.stockAlertaBodega,
+                            'bg-teal-50/20 text-teal-900': !bod.esCentral && stockBodega(item, bod.id) > item.producto.stockAlertaBodega
+                          }">
+                          {{ stockBodega(item, bod.id) }}
+                        </td>
+                      }
 
                       <!-- Sucursales -->
                       <td class="py-3 px-3 text-center font-mono font-semibold"
@@ -284,18 +314,22 @@ import {
                       <!-- Acciones -->
                       <td class="py-3 px-4 text-right">
                         <div class="flex items-center justify-end gap-1.5">
-                          <button
-                            (click)="abrirDespachoDirecto(item)"
-                            title="Despachar a Sucursal"
-                            class="p-1.5 rounded-lg bg-easydry-blue/10 hover:bg-easydry-blue text-easydry-blue hover:text-white transition-colors">
-                            <i-lucide name="truck" class="w-4 h-4"></i-lucide>
-                          </button>
-                          <button
-                            (click)="abrirAjusteStock(item)"
-                            title="Ajustar Stock Sucursal"
-                            class="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors">
-                            <i-lucide name="sliders" class="w-4 h-4"></i-lucide>
-                          </button>
+                          @if (puedeDespachar) {
+                            <button
+                              (click)="abrirDespachoDirecto(item)"
+                              title="Despachar a Sucursal"
+                              class="p-1.5 rounded-lg bg-easydry-blue/10 hover:bg-easydry-blue text-easydry-blue hover:text-white transition-colors">
+                              <i-lucide name="truck" class="w-4 h-4"></i-lucide>
+                            </button>
+                          }
+                          @if (puedeGestionarCatalogo) {
+                            <button
+                              (click)="abrirAjusteStock(item)"
+                              title="Ajustar Stock Sucursal"
+                              class="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors">
+                              <i-lucide name="sliders" class="w-4 h-4"></i-lucide>
+                            </button>
+                          }
                         </div>
                       </td>
 
@@ -327,12 +361,14 @@ import {
               </div>
             </div>
 
-            <button
-              (click)="abrirModalCrearProducto()"
-              class="px-3.5 py-1.5 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs flex items-center gap-1.5 shadow-2xs">
-              <i-lucide name="plus" class="w-4 h-4"></i-lucide>
-              <span>+ Nuevo Insumo</span>
-            </button>
+            @if (puedeGestionarCatalogo) {
+              <button
+                (click)="abrirModalCrearProducto()"
+                class="px-3.5 py-1.5 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs flex items-center gap-1.5 shadow-2xs">
+                <i-lucide name="plus" class="w-4 h-4"></i-lucide>
+                <span>+ Nuevo Insumo</span>
+              </button>
+            }
           </div>
 
           <!-- TABLA PRINCIPAL DEL CATÁLOGO DE INSUMOS -->
@@ -345,6 +381,9 @@ import {
                     <th class="py-3.5 px-4">Insumo / Producto</th>
                     <th class="py-3.5 px-3">Presentación / Envase</th>
                     <th class="py-3.5 px-3 text-center bg-blue-50/40 text-easydry-blue font-bold">Bodega Central</th>
+                    @if (bodegasSatelite.length > 0) {
+                      <th class="py-3.5 px-3 text-center bg-teal-50/40 text-teal-800 font-bold">Otras bodegas</th>
+                    }
                     <th class="py-3.5 px-3 text-center">Stock Mínimo (Alerta)</th>
                     <th class="py-3.5 px-3 text-center font-bold text-slate-800">Total en Red</th>
                     <th class="py-3.5 px-3 text-center">Estado</th>
@@ -385,8 +424,13 @@ import {
 
                       <!-- Stock Bodega Central -->
                       <td class="py-3 px-3 text-center font-mono font-extrabold bg-blue-50/20 text-blue-900">
-                        {{ item.stockBodegaCentral }} {{ item.producto.unidadMedida }}
+                        {{ stockBodega(item, bodegaCentralId) }} {{ item.producto.unidadMedida }}
                       </td>
+                      @if (bodegasSatelite.length > 0) {
+                        <td class="py-3 px-3 text-center font-mono font-extrabold bg-teal-50/20 text-teal-900">
+                          {{ stockOtrasBodegas(item) }}
+                        </td>
+                      }
 
                       <!-- Stock Mínimo -->
                       <td class="py-3 px-3 text-center font-mono font-bold text-rose-700">
@@ -439,7 +483,72 @@ import {
       }
 
       <!-- ============================================================== -->
-      <!-- PESTAÑA 3: BODEGA CENTRAL & HISTORIAL DE DESPACHOS            -->
+      <!-- PESTAÑA: BODEGAS (Central fija + satélites)                    -->
+      <!-- ============================================================== -->
+      @if (activeTab === 'bodegas') {
+        <div class="space-y-4 animate-fade-in">
+          <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-easydry flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h3 class="font-extrabold text-slate-900 text-base font-outfit">Red de Bodegas</h3>
+              <p class="text-slate-500 text-xs mt-0.5">
+                <strong>Bodega Central</strong> es permanente. El Gestor de Inventario puede abrir bodegas satélite (Costa, Sierra, etc.).
+              </p>
+            </div>
+            @if (puedeGestionarCatalogo) {
+              <button
+                (click)="abrirModalCrearBodega()"
+                class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs flex items-center gap-1.5">
+                <i-lucide name="plus" class="w-4 h-4"></i-lucide>
+                + Nueva Bodega
+              </button>
+            }
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            @for (bod of bodegas; track bod.id) {
+              <div class="bg-white rounded-2xl border p-5 shadow-easydry"
+                [class.border-easydry-blue]="bod.esCentral"
+                [class.border-slate-100]="!bod.esCentral">
+                <div class="flex items-start justify-between gap-3">
+                  <div class="flex items-center gap-3">
+                    <div class="p-2.5 rounded-xl"
+                      [ngClass]="bod.esCentral ? 'bg-easydry-blue text-white' : 'bg-teal-50 text-teal-800'">
+                      <i-lucide name="warehouse" class="w-5 h-5"></i-lucide>
+                    </div>
+                    <div>
+                      <p class="font-extrabold text-slate-900 text-sm">{{ bod.nombre }}</p>
+                      <p class="text-[11px] text-slate-500 font-mono">{{ bod.codigo }}</p>
+                    </div>
+                  </div>
+                  @if (bod.esCentral) {
+                    <span class="px-2 py-0.5 rounded-full bg-blue-100 text-easydry-blue text-[10px] font-extrabold uppercase">Sistema</span>
+                  }
+                </div>
+                <p class="text-xs text-slate-500 mt-3">
+                  {{ bod.ciudad || 'Sin ciudad' }}{{ bod.region ? ' · ' + bod.region : '' }}
+                </p>
+                <p class="text-lg font-extrabold text-slate-900 mt-2 font-outfit">
+                  {{ unidadesEnBodega(bod.id) }}
+                  <span class="text-xs font-normal text-slate-500">unidades en stock</span>
+                </p>
+                @if (!bod.esCentral && puedeGestionarCatalogo) {
+                  <button
+                    (click)="eliminarBodega(bod)"
+                    class="mt-3 text-[11px] font-bold text-rose-600 hover:underline">
+                    Eliminar bodega
+                  </button>
+                }
+                @if (bod.esCentral) {
+                  <p class="mt-3 text-[11px] text-slate-400 font-medium">No se puede eliminar ni desactivar.</p>
+                }
+              </div>
+            }
+          </div>
+        </div>
+      }
+
+      <!-- ============================================================== -->
+      <!-- PESTAÑA 3: HISTORIAL DE DESPACHOS                              -->
       <!-- ============================================================== -->
       @if (activeTab === 'despachos') {
         <div class="space-y-6 animate-fade-in">
@@ -450,10 +559,12 @@ import {
                 <i-lucide name="history" class="w-5 h-5 text-easydry-blue"></i-lucide>
                 Historial de Movimientos y Despachos Recientes
               </h3>
-              <button (click)="abrirModalDespacho()" class="px-4 py-2 bg-easydry-blue text-white rounded-xl text-xs font-bold flex items-center gap-1.5">
-                <i-lucide name="truck" class="w-4 h-4"></i-lucide>
-                Nuevo Despacho
-              </button>
+              @if (puedeDespachar) {
+                <button (click)="abrirModalDespacho()" class="px-4 py-2 bg-easydry-blue text-white rounded-xl text-xs font-bold flex items-center gap-1.5">
+                  <i-lucide name="truck" class="w-4 h-4"></i-lucide>
+                  Nuevo Despacho
+                </button>
+              }
             </div>
 
             <div class="overflow-x-auto">
@@ -518,12 +629,14 @@ import {
               </p>
             </div>
 
-            <button 
-              (click)="abrirModalCrearEnvase()" 
-              class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs flex items-center gap-1.5 shadow-glow-green transition-all self-start md:self-auto">
-              <i-lucide name="plus" class="w-4 h-4"></i-lucide>
-              <span>+ Crear Envase / Unidad</span>
-            </button>
+            @if (puedeGestionarCatalogo) {
+              <button 
+                (click)="abrirModalCrearEnvase()" 
+                class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs flex items-center gap-1.5 shadow-glow-green transition-all self-start md:self-auto">
+                <i-lucide name="plus" class="w-4 h-4"></i-lucide>
+                <span>+ Crear Envase / Unidad</span>
+              </button>
+            }
           </div>
 
           <!-- TABLA PRINCIPAL DE ENVASES & UNIDADES -->
@@ -744,17 +857,26 @@ import {
       <!-- ============================================================== -->
       <app-modal
         [isOpen]="modalDespachoOpen"
-        title="Despachar Insumos desde Bodega Central a Sucursal"
+        title="Despachar Insumos desde Bodega a Sucursal"
         icon="truck"
         (close)="modalDespachoOpen = false">
         
         <form (ngSubmit)="ejecutarDespacho()" class="space-y-4">
           <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Bodega de origen</label>
+            <select [(ngModel)]="despachoForm.bodegaOrigenId" name="bodegaOrigenId" class="w-full p-2.5 border rounded-xl text-xs font-bold" required>
+              @for (bod of bodegas; track bod.id) {
+                <option [value]="bod.id">{{ bod.nombre }}{{ bod.esCentral ? ' (fija)' : '' }}</option>
+              }
+            </select>
+          </div>
+
+          <div>
             <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Seleccionar Insumo</label>
             <select [(ngModel)]="despachoForm.productoId" name="productoId" (change)="onDespachoProductoChange()" class="w-full p-2.5 border rounded-xl text-xs font-bold" required>
               @for (item of inventarioItems; track item.producto.id) {
                 <option [value]="item.producto.id">
-                  {{ item.producto.codigoSKU }} - {{ item.producto.nombre }} (Disp. Bodega: {{ item.stockBodegaCentral }} {{ item.producto.unidadMedida }})
+                  {{ item.producto.codigoSKU }} - {{ item.producto.nombre }} (Disp. {{ nombreBodega(despachoForm.bodegaOrigenId) }}: {{ stockBodega(item, despachoForm.bodegaOrigenId) }} {{ item.producto.unidadMedida }})
                 </option>
               }
             </select>
@@ -794,11 +916,19 @@ import {
       <!-- ============================================================== -->
       <app-modal
         [isOpen]="modalEntradaOpen"
-        title="Registrar Entrada de Compra a Bodega Central"
+        title="Registrar Entrada de Compra a Bodega"
         icon="arrow-down-circle"
         (close)="modalEntradaOpen = false">
         
         <form (ngSubmit)="guardarEntradaBodega()" class="space-y-4">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Bodega destino</label>
+            <select [(ngModel)]="entradaForm.bodegaDestinoId" name="bodegaDestinoId" class="w-full p-2.5 border rounded-xl text-xs font-bold" required>
+              @for (bod of bodegas; track bod.id) {
+                <option [value]="bod.id">{{ bod.nombre }}{{ bod.esCentral ? ' (fija)' : '' }}</option>
+              }
+            </select>
+          </div>
           <div>
             <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Seleccionar Insumo Comprado</label>
             <select [(ngModel)]="entradaForm.productoId" name="productoId" class="w-full p-2.5 border rounded-xl text-xs font-bold" required>
@@ -885,7 +1015,9 @@ import {
             <div>
               <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Sucursal o Bodega a Calibrar</label>
               <select [(ngModel)]="ajusteForm.sucursal" class="w-full p-2.5 border rounded-xl text-xs font-bold">
-                <option value="Bodega Central HUB">Bodega Central HUB</option>
+                @for (bod of bodegas; track bod.id) {
+                  <option [value]="bod.id">{{ bod.nombre }}{{ bod.esCentral ? ' (fija)' : '' }}</option>
+                }
                 <option value="EasyDry Quito Norte">EasyDry Quito Norte</option>
                 <option value="EasyDry Quito Sur">EasyDry Quito Sur</option>
                 <option value="EasyDry Cumbayá">EasyDry Cumbayá</option>
@@ -911,15 +1043,56 @@ import {
         </div>
       </app-modal>
 
+      <app-modal
+        [isOpen]="modalBodegaOpen"
+        title="Crear Nueva Bodega"
+        icon="warehouse"
+        (close)="modalBodegaOpen = false">
+        <form (ngSubmit)="guardarBodega()" class="space-y-4">
+          <p class="text-xs text-slate-500">
+            Bodega Central ya existe y no se reemplaza. Esta bodega se suma a la red de almacenamiento.
+          </p>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Nombre de la bodega</label>
+            <input type="text" [(ngModel)]="bodegaForm.nombre" name="nombreBodega" placeholder="ej. Bodega Costa Guayaquil" class="w-full p-2.5 border rounded-xl text-xs font-bold" required>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Ciudad</label>
+              <input type="text" [(ngModel)]="bodegaForm.ciudad" name="ciudadBodega" placeholder="ej. Guayaquil" class="w-full p-2.5 border rounded-xl text-xs">
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Región</label>
+              <input type="text" [(ngModel)]="bodegaForm.region" name="regionBodega" placeholder="ej. Costa" class="w-full p-2.5 border rounded-xl text-xs">
+            </div>
+          </div>
+        </form>
+        <div modal-footer>
+          <button (click)="modalBodegaOpen = false" class="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs">Cancelar</button>
+          <button (click)="guardarBodega()" class="px-4 py-2 bg-easydry-green text-slate-950 font-extrabold rounded-xl text-xs">Crear Bodega</button>
+        </div>
+      </app-modal>
+
     </div>
   `
 })
 export class InventarioComponent implements OnInit {
-  activeTab: 'matriz' | 'catalogo' | 'despachos' | 'tipos_envases' | 'alertas' = 'matriz';
+  private auth = inject(AuthService);
+
+  get puedeGestionarCatalogo(): boolean {
+    return this.auth.can('gestionarInventario');
+  }
+
+  get puedeDespachar(): boolean {
+    return this.auth.can('despacharSuministros');
+  }
+  activeTab: 'matriz' | 'catalogo' | 'bodegas' | 'despachos' | 'tipos_envases' | 'alertas' = 'matriz';
   filtroTexto = '';
   filtroEstado = 'Todos';
+  bodegaCentralId = BODEGA_CENTRAL_ID;
 
   envases: EnvaseUnidad[] = [];
+  bodegas: BodegaInventario[] = [];
   inventarioItems: InventarioItem[] = [];
   movimientos: MovimientoStock[] = [];
   alertas: AlertaReabastecimiento[] = [];
@@ -930,6 +1103,7 @@ export class InventarioComponent implements OnInit {
   modalEntradaOpen = false;
   modalEnvaseOpen = false;
   modalAjusteOpen = false;
+  modalBodegaOpen = false;
 
   editandoProductoId: number | null = null;
   itemAjustar: InventarioItem | null = null;
@@ -949,6 +1123,7 @@ export class InventarioComponent implements OnInit {
 
   despachoForm = {
     productoId: 1,
+    bodegaOrigenId: BODEGA_CENTRAL_ID,
     sucursalDestino: 'EasyDry Quito Norte',
     cantidad: 2,
     observacion: ''
@@ -956,8 +1131,15 @@ export class InventarioComponent implements OnInit {
 
   entradaForm = {
     productoId: 1,
+    bodegaDestinoId: BODEGA_CENTRAL_ID,
     cantidad: 10,
     proveedor: 'EcoChemicals Ecuador S.A.'
+  };
+
+  bodegaForm = {
+    nombre: '',
+    ciudad: '',
+    region: ''
   };
 
   envaseForm = {
@@ -977,7 +1159,11 @@ export class InventarioComponent implements OnInit {
   public authService = inject(AuthService);
 
   ngOnInit(): void {
+    if (!this.puedeGestionarCatalogo && this.puedeDespachar) {
+      this.activeTab = 'despachos';
+    }
     this.inventarioService.getEnvases().subscribe(e => this.envases = e);
+    this.inventarioService.getBodegas().subscribe(b => this.bodegas = b);
     this.inventarioService.getItems().subscribe(items => this.inventarioItems = items);
     this.inventarioService.getMovimientos().subscribe(m => this.movimientos = m);
     this.inventarioService.getAlertasReabastecimiento().subscribe(a => this.alertas = a);
@@ -996,8 +1182,31 @@ export class InventarioComponent implements OnInit {
     });
   }
 
+  get bodegasSatelite(): BodegaInventario[] {
+    return this.bodegas.filter(b => !b.esCentral);
+  }
+
+  stockBodega(item: InventarioItem, bodegaId: string): number {
+    return stockEnBodega(item, bodegaId);
+  }
+
+  stockOtrasBodegas(item: InventarioItem): number {
+    return this.bodegasSatelite.reduce((acc, b) => acc + stockEnBodega(item, b.id), 0);
+  }
+
+  nombreBodega(id: string): string {
+    return this.bodegas.find(b => b.id === id)?.nombre || 'Bodega';
+  }
+
+  unidadesEnBodega(bodegaId: string): number {
+    return this.inventarioItems.reduce((acc, item) => acc + stockEnBodega(item, bodegaId), 0);
+  }
+
   get totalUnidadesBodega(): number {
-    return this.inventarioItems.reduce((acc, item) => acc + item.stockBodegaCentral, 0);
+    return this.inventarioItems.reduce((acc, item) => {
+      const enBodegas = Object.values(item.stockPorBodega || {}).reduce((a, b) => a + b, 0);
+      return acc + (enBodegas || item.stockBodegaCentral || 0);
+    }, 0);
   }
 
   get totalUnidadesSucursales(): number {
@@ -1104,12 +1313,14 @@ export class InventarioComponent implements OnInit {
     if (this.inventarioItems.length > 0) {
       this.despachoForm.productoId = this.inventarioItems[0].producto.id;
     }
+    this.despachoForm.bodegaOrigenId = this.bodegas.find(b => b.esCentral)?.id || BODEGA_CENTRAL_ID;
     this.despachoForm.cantidad = 2;
     this.modalDespachoOpen = true;
   }
 
   abrirDespachoDirecto(item: InventarioItem) {
     this.despachoForm.productoId = item.producto.id;
+    this.despachoForm.bodegaOrigenId = this.bodegas.find(b => b.esCentral)?.id || BODEGA_CENTRAL_ID;
     this.despachoForm.cantidad = 2;
     this.modalDespachoOpen = true;
   }
@@ -1126,8 +1337,9 @@ export class InventarioComponent implements OnInit {
       Number(this.despachoForm.productoId),
       this.despachoForm.sucursalDestino,
       Number(this.despachoForm.cantidad),
-      'Franklin Administrador',
-      this.despachoForm.observacion
+      this.auth.getCurrentUser()?.nombre || 'Operación Bodega',
+      this.despachoForm.observacion,
+      this.despachoForm.bodegaOrigenId
     ).subscribe(res => {
       if (res.success) {
         this.toastService.success('Despacho Exitoso', `Transferidos ${this.despachoForm.cantidad} a ${this.despachoForm.sucursalDestino}.`);
@@ -1142,20 +1354,52 @@ export class InventarioComponent implements OnInit {
     if (this.inventarioItems.length > 0) {
       this.entradaForm.productoId = this.inventarioItems[0].producto.id;
     }
+    this.entradaForm.bodegaDestinoId = this.bodegas.find(b => b.esCentral)?.id || BODEGA_CENTRAL_ID;
     this.entradaForm.cantidad = 10;
     this.modalEntradaOpen = true;
   }
 
   guardarEntradaBodega() {
+    const bodegaNombre = this.nombreBodega(this.entradaForm.bodegaDestinoId);
     this.inventarioService.registrarEntradaBodega(
       Number(this.entradaForm.productoId),
       Number(this.entradaForm.cantidad),
       0,
-      this.entradaForm.proveedor
+      this.entradaForm.proveedor,
+      this.auth.getCurrentUser()?.nombre || 'Operación Bodega',
+      '',
+      this.entradaForm.bodegaDestinoId
     ).subscribe(res => {
       if (res.success) {
-        this.toastService.success('Entrada Registrada', `Ingresaron ${this.entradaForm.cantidad} unidades a Bodega Central.`);
+        this.toastService.success('Entrada Registrada', `Ingresaron ${this.entradaForm.cantidad} unidades a ${bodegaNombre}.`);
         this.modalEntradaOpen = false;
+      }
+    });
+  }
+
+  abrirModalCrearBodega() {
+    this.bodegaForm = { nombre: '', ciudad: '', region: '' };
+    this.modalBodegaOpen = true;
+  }
+
+  guardarBodega() {
+    this.inventarioService.crearBodega(this.bodegaForm).subscribe(res => {
+      if (res.success) {
+        this.toastService.success('Bodega Creada', `${res.bodega?.nombre} agregada a la red. Bodega Central se mantiene.`);
+        this.modalBodegaOpen = false;
+        this.activeTab = 'bodegas';
+      } else {
+        this.toastService.warning('No se pudo crear', res.message || 'Revise el nombre de la bodega.');
+      }
+    });
+  }
+
+  eliminarBodega(bod: BodegaInventario) {
+    this.inventarioService.eliminarBodega(bod.id).subscribe(res => {
+      if (res.success) {
+        this.toastService.info('Bodega eliminada', `${bod.nombre} fue retirada de la red.`);
+      } else {
+        this.toastService.warning('No permitido', res.message || 'No se puede eliminar esta bodega.');
       }
     });
   }
@@ -1196,8 +1440,8 @@ export class InventarioComponent implements OnInit {
   abrirAjusteStock(item: InventarioItem) {
     this.itemAjustar = item;
     this.ajusteForm = {
-      sucursal: 'EasyDry Quito Norte',
-      nuevaCantidad: item.stockPorSucursal['EasyDry Quito Norte'] || 0,
+      sucursal: BODEGA_CENTRAL_ID,
+      nuevaCantidad: stockEnBodega(item, BODEGA_CENTRAL_ID),
       motivo: 'Inventario físico mensual'
     };
     this.modalAjusteOpen = true;

@@ -25,7 +25,7 @@ export class CatalogoServiciosComponent implements OnInit {
   private extrasService = inject(ServiciosExtrasMockService);
 
   // ── Tabs ──────────────────────────────────────────────────────────────────
-  tabActiva: 'generales' | 'especiales' | 'extras' = 'generales';
+  tabActiva: 'generales' | 'especiales' = 'generales';
 
   // ── Catálogo de servicios generales y especiales ─────────────────────────
   servicios: CatalogoServicio[] = [];
@@ -112,7 +112,7 @@ export class CatalogoServiciosComponent implements OnInit {
   }
 
   get serviciosEspeciales(): CatalogoServicio[] {
-    return this.servicios.filter(s => s.categoria === 'ESPECIAL');
+    return this.servicios.filter(s => s.categoria === 'ESPECIAL' || s.categoria === 'EXTRA');
   }
 
   // ── Conteos de estado para las stats cards de extras ─────────────────────

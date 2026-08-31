@@ -41,7 +41,7 @@ export class DashboardComponent implements OnInit {
 
   tecnicoData: any;
   operadorData: any;
-  extrasData: any;
+  operadorEspecialesData: any;
   distribuidorData: any;
   comercialData: any;
 
@@ -105,10 +105,10 @@ export class DashboardComponent implements OnInit {
     if (this.isOperador) {
       this.dashboardService.getDashboardOperador().subscribe(d => this.operadorData = d);
     }
-    if (this.isExtras) {
-      this.dashboardService.getDashboardExtras().subscribe(d => this.extrasData = d);
+    if (this.isOperadorEspeciales) {
+      this.dashboardService.getDashboardOperadorEspeciales().subscribe(d => this.operadorEspecialesData = d);
     }
-    if (this.isDistribuidor) {
+    if (this.isBodega) {
       this.dashboardService.getDashboardDistribuidor().subscribe(d => this.distribuidorData = d);
     }
     if (this.isComercial) {
@@ -117,7 +117,7 @@ export class DashboardComponent implements OnInit {
   }
 
   get isExecutive(): boolean {
-    return [Role.SUPER_ADMIN, Role.SUPERVISOR, Role.GERENTE].includes(this.currentRole as Role);
+    return [Role.SUPER_ADMIN, Role.ADMIN, Role.SUPERVISOR, Role.GERENTE].includes(this.currentRole as Role);
   }
   get isTecnicoRole(): boolean {
     return [Role.COORD_MANTENIMIENTO, Role.TECNICO].includes(this.currentRole as Role);
@@ -125,14 +125,14 @@ export class DashboardComponent implements OnInit {
   get isOperador(): boolean {
     return this.currentRole === Role.OPERADOR;
   }
-  get isExtras(): boolean {
+  get isOperadorEspeciales(): boolean {
     return [Role.OPERADOR_SERVICIOS_ESPECIALES, Role.COORD_SERVICIOS_ESPECIALES].includes(this.currentRole as Role);
   }
   get isComercial(): boolean {
     return this.currentRole === Role.COORD_COMERCIAL;
   }
-  get isDistribuidor(): boolean {
-    return this.currentRole === Role.DISTRIBUIDOR;
+  get isBodega(): boolean {
+    return this.currentRole === Role.DISTRIBUIDOR || this.currentRole === Role.ASISTENTE_BODEGA;
   }
 
   private normalizeProduccion(d: any) {

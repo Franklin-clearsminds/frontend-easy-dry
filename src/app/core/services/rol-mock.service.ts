@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable, of } from 'rxjs';
 import { delay, map } from 'rxjs/operators';
-import { RolPersonalizado, ModuloSistema, MODULOS_SISTEMA, ROLES_INICIALES } from '../models/roles.model';
+import { RolPersonalizado, ModuloSistema, MODULOS_SISTEMA, ROLES_INICIALES, ROLES_OFICIALES_NO_ELIMINABLES, isRolPermisosInmutable } from '../models/roles.model';
 
 const ROLES_STORAGE_KEY = 'easydry_roles_custom_v1';
 
@@ -129,6 +129,10 @@ export class RolMockService {
     }
 
     const rolExistente = current[index];
+    if (isRolPermisosInmutable(rolExistente.codigo)) {
+      return of(rolExistente).pipe(delay(300));
+    }
+
     const rolActualizado: RolPersonalizado = {
       ...rolExistente,
       ...cambios,
@@ -150,8 +154,8 @@ export class RolMockService {
       return of({ success: false, message: 'El rol no existe.' });
     }
 
-    if (rol.esSistema) {
-      return of({ success: false, message: 'Los roles del sistema (SuperAdmin) no pueden ser eliminados.' });
+    if (rol.esSistema || ROLES_OFICIALES_NO_ELIMINABLES.includes(rol.codigo)) {
+      return of({ success: false, message: 'Los roles oficiales del sistema no pueden ser eliminados.' });
     }
 
     const actualizados = current.filter(r => r.id !== id);

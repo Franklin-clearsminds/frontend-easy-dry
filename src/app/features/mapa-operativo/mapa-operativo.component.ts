@@ -63,6 +63,7 @@ import { Sucursal, Bahia } from '../../core/models';
                 <div>
                   <h2 class="text-xl font-extrabold text-slate-900 font-outfit">{{ suc.nombre }}</h2>
                   <p class="text-xs text-slate-500 font-semibold">{{ suc.ciudad }} • {{ suc.direccion }} • Responsable: <strong>{{ suc.responsable }}</strong></p>
+                  <p class="text-[11px] font-bold text-easydry-blue mt-1">Región {{ suc.regionNombre || '—' }} · Marca {{ suc.marcaNombre || '—' }}</p>
                 </div>
               </div>
 

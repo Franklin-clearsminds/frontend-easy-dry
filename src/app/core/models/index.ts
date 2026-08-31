@@ -2,6 +2,8 @@ import { InsumoConsumidoServicio } from './inventario.model';
 export * from './roles.model';
 export * from './catalogo-servicio.model';
 export * from './inventario.model';
+export type ModalidadPulidor = 'FIJO' | 'MOVIL';
+
 export interface Usuario {
   id: number;
   nombre: string;
@@ -14,6 +16,8 @@ export interface Usuario {
   avatar?: string;
   sucursalAsignada?: string;
   bahiaAsignada?: string;
+  /** Solo operadores de servicios especiales (pulidores): fijo en sucursal o móvil entre sedes. */
+  modalidadPulidor?: ModalidadPulidor;
 }
 
 export interface Sucursal {
@@ -27,6 +31,44 @@ export interface Sucursal {
   operadoresActivos?: number;
   maquinasAsignadasCount?: number;
   serviciosRealizadosMes?: number;
+  regionId?: number;
+  regionNombre?: string;
+  marcaId?: number;
+  marcaNombre?: string;
+  /** IDs del catálogo de servicios que esta sucursal ofrece. */
+  servicioIds?: number[];
+  /** Nombres denormalizados para listados. */
+  serviciosNombres?: string[];
+}
+
+export interface RegionOperativa {
+  id: number;
+  codigo: string;
+  nombre: string;
+  descripcion?: string;
+  responsable?: string;
+  estado: 'Activa' | 'Inactiva';
+}
+
+export interface MarcaSucursal {
+  id: number;
+  codigo: string;
+  nombre: string;
+  descripcion?: string;
+  color: string;
+  estado: 'Activa' | 'Inactiva';
+}
+
+export interface MovimientoRedSucursal {
+  id: number;
+  sucursalId: number;
+  sucursalNombre: string;
+  tipo: 'REGION' | 'MARCA';
+  valorAnterior: string;
+  valorNuevo: string;
+  motivo: string;
+  realizadoPor: string;
+  fecha: string;
 }
 
 export interface Bahia {

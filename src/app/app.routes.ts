@@ -64,6 +64,7 @@ export const routes: Routes = [
           authGuard,
           roleGuard([
             Role.SUPER_ADMIN,
+            Role.ADMIN,
             Role.SUPERVISOR,
             Role.COORD_MANTENIMIENTO,
             Role.TECNICO,
@@ -71,7 +72,8 @@ export const routes: Routes = [
             Role.COORD_COMERCIAL,
             Role.COORD_SERVICIOS_ESPECIALES,
             Role.OPERADOR_SERVICIOS_ESPECIALES,
-            Role.DISTRIBUIDOR
+            Role.DISTRIBUIDOR,
+            Role.ASISTENTE_BODEGA
           ], 'dashboard')
         ]
       },
@@ -84,6 +86,7 @@ export const routes: Routes = [
           authGuard,
           roleGuard([
             Role.SUPER_ADMIN,
+            Role.ADMIN,
             Role.OPERADOR,
             Role.OPERADOR_SERVICIOS_ESPECIALES
           ], 'mi-bahia')
@@ -98,6 +101,7 @@ export const routes: Routes = [
           authGuard,
           roleGuard([
             Role.SUPER_ADMIN,
+            Role.ADMIN,
             Role.SUPERVISOR,
             Role.OPERADOR,
             Role.COORD_COMERCIAL,
@@ -115,6 +119,7 @@ export const routes: Routes = [
           authGuard,
           roleGuard([
             Role.SUPER_ADMIN,
+            Role.ADMIN,
             Role.COORD_SERVICIOS_ESPECIALES
           ], 'aprobaciones')
         ]
@@ -128,6 +133,7 @@ export const routes: Routes = [
           authGuard,
           roleGuard([
             Role.SUPER_ADMIN,
+            Role.ADMIN,
             Role.SUPERVISOR,
             Role.COORD_COMERCIAL,
             Role.COORD_SERVICIOS_ESPECIALES
@@ -143,6 +149,7 @@ export const routes: Routes = [
           authGuard,
           roleGuard([
             Role.SUPER_ADMIN,
+            Role.ADMIN,
             Role.SUPERVISOR
           ], 'mapa-operativo')
         ]
@@ -156,6 +163,7 @@ export const routes: Routes = [
           authGuard,
           roleGuard([
             Role.SUPER_ADMIN,
+            Role.ADMIN,
             Role.SUPERVISOR
           ], 'sucursales')
         ]
@@ -167,6 +175,7 @@ export const routes: Routes = [
           authGuard,
           roleGuard([
             Role.SUPER_ADMIN,
+            Role.ADMIN,
             Role.SUPERVISOR
           ], 'sucursales')
         ]
@@ -180,6 +189,7 @@ export const routes: Routes = [
           authGuard,
           roleGuard([
             Role.SUPER_ADMIN,
+            Role.ADMIN,
             Role.SUPERVISOR,
             Role.COORD_SERVICIOS_ESPECIALES
           ], 'operadores')
@@ -192,6 +202,7 @@ export const routes: Routes = [
           authGuard,
           roleGuard([
             Role.SUPER_ADMIN,
+            Role.ADMIN,
             Role.SUPERVISOR,
             Role.COORD_SERVICIOS_ESPECIALES
           ], 'asignaciones')
@@ -206,6 +217,7 @@ export const routes: Routes = [
           authGuard,
           roleGuard([
             Role.SUPER_ADMIN,
+            Role.ADMIN,
             Role.SUPERVISOR,
             Role.COORD_MANTENIMIENTO,
             Role.TECNICO,
@@ -222,6 +234,7 @@ export const routes: Routes = [
           authGuard,
           roleGuard([
             Role.SUPER_ADMIN,
+            Role.ADMIN,
             Role.SUPERVISOR,
             Role.COORD_MANTENIMIENTO,
             Role.TECNICO
@@ -237,10 +250,12 @@ export const routes: Routes = [
           authGuard,
           roleGuard([
             Role.SUPER_ADMIN,
+            Role.ADMIN,
             Role.SUPERVISOR,
             Role.COORD_MANTENIMIENTO,
             Role.TECNICO,
-            Role.DISTRIBUIDOR
+            Role.DISTRIBUIDOR,
+            Role.ASISTENTE_BODEGA
           ], 'inventario')
         ]
       },
@@ -253,6 +268,7 @@ export const routes: Routes = [
           authGuard,
           roleGuard([
             Role.SUPER_ADMIN,
+            Role.ADMIN,
             Role.SUPERVISOR,
             Role.COORD_COMERCIAL
           ], 'reportes')
@@ -265,7 +281,7 @@ export const routes: Routes = [
         component: AgenciasComponent,
         canActivate: [
           authGuard,
-          roleGuard([Role.SUPER_ADMIN], 'agencias')
+          roleGuard([Role.SUPER_ADMIN, Role.ADMIN], 'agencias')
         ]
       },
 
@@ -275,7 +291,7 @@ export const routes: Routes = [
         component: UsuariosComponent,
         canActivate: [
           authGuard,
-          roleGuard([Role.SUPER_ADMIN], 'usuarios')
+          roleGuard([Role.SUPER_ADMIN, Role.ADMIN], 'usuarios')
         ]
       },
       {
@@ -283,7 +299,7 @@ export const routes: Routes = [
         component: ConfiguracionComponent,
         canActivate: [
           authGuard,
-          roleGuard([Role.SUPER_ADMIN], 'configuracion')
+          roleGuard([Role.SUPER_ADMIN, Role.ADMIN], 'configuracion')
         ]
       },
       {
@@ -291,7 +307,7 @@ export const routes: Routes = [
         component: CatalogoServiciosComponent,
         canActivate: [
           authGuard,
-          roleGuard([Role.SUPER_ADMIN], 'configuracion/servicios')
+          roleGuard([Role.SUPER_ADMIN, Role.ADMIN], 'configuracion/servicios')
         ]
       }
     ]
