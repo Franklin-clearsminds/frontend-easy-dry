@@ -50,6 +50,28 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
         (filterChange)="aplicarNuevosFiltros($event)">
       </app-filter-bar>
 
+      <!-- Ficha de Selección Sucursal -> Bahía (Punto 7: Responsable, Ubicación, Estado) -->
+      @if (filtrosGlobales.sucursal !== 'Todas' || filtrosGlobales.bahia !== 'Todas') {
+        <div class="p-4 bg-gradient-to-r from-blue-50/70 via-indigo-50/50 to-white rounded-2xl border border-blue-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-fade-in shadow-2xs">
+          <div class="flex items-center gap-3.5">
+            <div class="w-10 h-10 rounded-xl bg-easydry-blue text-white flex items-center justify-center font-bold">
+              <i-lucide name="wrench" class="w-5 h-5"></i-lucide>
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <h4 class="font-extrabold text-slate-900 text-sm font-outfit">{{ filtrosGlobales.sucursal }} — {{ filtrosGlobales.bahia }}</h4>
+                <span class="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                  Estado: Activo & Operativo
+                </span>
+              </div>
+              <p class="text-xs text-slate-500 mt-0.5">
+                <strong>Ubicación:</strong> Módulo de Lavado / Estación Técnica · <strong>Responsable Agencia:</strong> <span class="text-purple-700 font-bold">{{ getResponsableEquipo(filtrosGlobales.sucursal) }}</span>
+              </p>
+            </div>
+          </div>
+        </div>
+      }
+
       <!-- Search Bar -->
       <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-xs flex flex-wrap items-center justify-between gap-4 mb-4">
         <div class="flex flex-wrap items-center gap-3 flex-1 min-w-[280px]">
@@ -61,8 +83,8 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
               type="text" 
               [(ngModel)]="filtroTexto" 
               (input)="aplicarFiltros()"
-              placeholder="Buscar por código o nombre..." 
-              class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold">
+              placeholder="Buscar activo por código, nombre o serie..." 
+              class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold outline-none focus:ring-2 focus:ring-easydry-blue">
           </div>
         </div>
         <div class="text-xs font-semibold text-slate-500">
@@ -470,8 +492,8 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                 <input type="text" [(ngModel)]="nuevoMantenimiento.tecnico" name="tecnicoMant" placeholder="Ing. Esteban Torres" class="w-full p-2.5 border rounded-xl text-sm" required>
               </div>
               <div>
-                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Costo Estimado ($)</label>
-                <input type="number" [(ngModel)]="nuevoMantenimiento.costo" name="costoMant" class="w-full p-2.5 border rounded-xl text-sm" min="0" required>
+                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Duración Estimada (Horas)</label>
+                <input type="number" [(ngModel)]="nuevoMantenimiento.duracionHoras" name="duracionMant" class="w-full p-2.5 border rounded-xl text-sm" min="1" required>
               </div>
             </div>
 
@@ -521,7 +543,7 @@ export class MaquinariaComponent implements OnInit {
     tipo: 'Preventivo' as Mantenimiento['tipo'],
     fecha: new Date().toISOString().substring(0, 10),
     tecnico: '',
-    costo: 0,
+    duracionHoras: 2,
     descripcion: ''
   };
 
@@ -721,7 +743,7 @@ export class MaquinariaComponent implements OnInit {
       tipo: 'Preventivo',
       fecha: new Date().toISOString().substring(0, 10),
       tecnico: user ? `${user.nombre} ${user.apellido}` : 'Esteban Torres',
-      costo: 0,
+      duracionHoras: 2,
       descripcion: ''
     };
     this.modalProgramarOpen = true;
@@ -769,7 +791,7 @@ export class MaquinariaComponent implements OnInit {
       fecha: this.nuevoMantenimiento.fecha,
       tecnico: this.nuevoMantenimiento.tecnico.trim(),
       estado: 'Programado',
-      costo: Number(this.nuevoMantenimiento.costo) || 0,
+      duracionMin: (this.nuevoMantenimiento.duracionHoras || 2) * 60,
       descripcion: this.nuevoMantenimiento.descripcion.trim(),
       agencia: this.maquinaSeleccionada.agencia
     };
@@ -779,5 +801,14 @@ export class MaquinariaComponent implements OnInit {
       this.toastService.success('Mantenimiento Agendado', `Visita programada para ${creado.maquina} el ${creado.fecha}.`);
       this.modalProgramarOpen = false;
     });
+  }
+
+  getResponsableEquipo(sucursal: string): string {
+    const s = sucursal.toLowerCase();
+    if (s.includes('norte')) return 'Carlos Mendoza (Gerente) · Op. Roberto Gómez';
+    if (s.includes('sur')) return 'Esteban Paredes (Gerente) · Op. David Morales';
+    if (s.includes('cumbayá') || s.includes('cumbaya')) return 'Mateo Villacís (Gerente) · Op. Javier Ortiz';
+    if (s.includes('guayaquil')) return 'Diana Salazar (Gerente) · Op. Manuel Viteri';
+    return 'Gerencia General EasyDry';
   }
 }

@@ -161,6 +161,28 @@ export const MOCK_USUARIOS: Usuario[] = [
     modalidadPulidor: 'FIJO'
   },
   {
+    id: 12,
+    nombre: 'Carlos',
+    apellido: 'Mendoza',
+    rol: 'Gerente de Sucursal',
+    agencia: 'EasyDry Quito Norte',
+    estado: 'Activo',
+    fechaAsignacion: '2024-02-01',
+    email: 'gerente.norte@easydry.com',
+    avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80'
+  },
+  {
+    id: 13,
+    nombre: 'Diana',
+    apellido: 'Salazar',
+    rol: 'Gerente de Sucursal',
+    agencia: 'EasyDry Guayaquil (Costa)',
+    estado: 'Activo',
+    fechaAsignacion: '2024-02-15',
+    email: 'diana.gerente@easydry.com',
+    avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&auto=format&fit=crop&q=80'
+  },
+  {
     id: 10,
     nombre: 'Gestor de Inventario',
     apellido: 'Suministros',

@@ -13,8 +13,7 @@ export const roleGuard = (allowedRoles?: (Role | string)[], moduloCodigo?: strin
     const router = inject(Router);
 
     if (!authService.isLoggedIn()) {
-      router.navigate(['/login']);
-      return false;
+      return router.createUrlTree(['/login']);
     }
 
     // SuperAdmin tiene acceso total a cualquier ruta
@@ -42,8 +41,7 @@ export const roleGuard = (allowedRoles?: (Role | string)[], moduloCodigo?: strin
     }
 
     // Redirigir a página de acceso denegado
-    router.navigate(['/unauthorized']);
-    return false;
+    return router.createUrlTree(['/unauthorized']);
   };
 };
 
@@ -58,6 +56,5 @@ export const authGuard: CanActivateFn = (route, state) => {
     return true;
   }
 
-  router.navigate(['/login']);
-  return false;
+  return router.createUrlTree(['/login']);
 };

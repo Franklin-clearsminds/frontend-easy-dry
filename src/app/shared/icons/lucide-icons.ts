@@ -80,7 +80,9 @@ import {
   Key,
   EyeOff,
   ShieldPlus,
-  UserPlus
+  UserPlus,
+  UserX,
+  ChartBar
 } from 'lucide-angular';
 
 export const EASYDRY_ICONS = {
@@ -167,6 +169,8 @@ export const EASYDRY_ICONS = {
   EyeOff,
   ShieldPlus,
   UserPlus,
+  UserX,
+  ChartBar,
 
   // Kebab-case mappings
   'layout-dashboard': LayoutDashboard,
@@ -250,5 +254,8 @@ export const EASYDRY_ICONS = {
   'key': Key,
   'eye-off': EyeOff,
   'shield-plus': ShieldPlus,
-  'user-plus': UserPlus
+  'user-plus': UserPlus,
+  'user-x': UserX,
+  'bar-chart-2': ChartBar,
+  'chart-bar': ChartBar
 };

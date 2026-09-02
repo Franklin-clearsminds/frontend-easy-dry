@@ -1,4 +1,5 @@
-import { Routes } from '@angular/router';
+import { Routes, Router } from '@angular/router';
+import { inject } from '@angular/core';
 import { LoginComponent } from './features/login/login.component';
 import { AdminLayoutComponent } from './shared/layouts/admin-layout.component';
 import { DashboardComponent } from './features/dashboard/dashboard.component';
@@ -16,7 +17,6 @@ import { SucursalesComponent } from './features/sucursales/sucursales.component'
 import { SucursalDetailComponent } from './features/sucursales/sucursal-detail.component';
 import { OperadoresComponent } from './features/operadores/operadores.component';
 import { AsignacionesComponent } from './features/asignaciones/asignaciones.component';
-import { MapaOperativoComponent } from './features/mapa-operativo/mapa-operativo.component';
 import { MiBahiaComponent } from './features/mi-bahia/mi-bahia.component';
 import { UnauthorizedComponent } from './features/unauthorized/unauthorized.component';
 import { PerfilComponent } from './features/perfil/perfil.component';
@@ -65,6 +65,7 @@ export const routes: Routes = [
           roleGuard([
             Role.SUPER_ADMIN,
             Role.ADMIN,
+            Role.GERENTE,
             Role.SUPERVISOR,
             Role.COORD_MANTENIMIENTO,
             Role.TECNICO,
@@ -102,6 +103,7 @@ export const routes: Routes = [
           roleGuard([
             Role.SUPER_ADMIN,
             Role.ADMIN,
+            Role.GERENTE,
             Role.SUPERVISOR,
             Role.OPERADOR,
             Role.COORD_COMERCIAL,
@@ -111,7 +113,7 @@ export const routes: Routes = [
         ]
       },
 
-      // ── Aprobaciones y Cierres (SuperAdmin y Jefe Especiales) ──
+      // ── Aprobaciones y Cierres (SuperAdmin, Admin, Gerente y Jefe Especiales) ──
       {
         path: 'aprobaciones',
         component: AprobacionesComponent,
@@ -120,6 +122,7 @@ export const routes: Routes = [
           roleGuard([
             Role.SUPER_ADMIN,
             Role.ADMIN,
+            Role.GERENTE,
             Role.COORD_SERVICIOS_ESPECIALES
           ], 'aprobaciones')
         ]
@@ -134,6 +137,7 @@ export const routes: Routes = [
           roleGuard([
             Role.SUPER_ADMIN,
             Role.ADMIN,
+            Role.GERENTE,
             Role.SUPERVISOR,
             Role.COORD_COMERCIAL,
             Role.COORD_SERVICIOS_ESPECIALES
@@ -141,18 +145,13 @@ export const routes: Routes = [
         ]
       },
 
-      // ── Mapa Operativo en Vivo ──
+      // ── Redirección unificada: Mapa Operativo hacia Sucursales (Pestaña Mapa) ──
       {
         path: 'mapa-operativo',
-        component: MapaOperativoComponent,
-        canActivate: [
-          authGuard,
-          roleGuard([
-            Role.SUPER_ADMIN,
-            Role.ADMIN,
-            Role.SUPERVISOR
-          ], 'mapa-operativo')
-        ]
+        redirectTo: () => {
+          const router = inject(Router);
+          return router.createUrlTree(['/sucursales'], { queryParams: { tab: 'mapa' } });
+        }
       },
 
       // ── Sucursales ──
@@ -164,6 +163,7 @@ export const routes: Routes = [
           roleGuard([
             Role.SUPER_ADMIN,
             Role.ADMIN,
+            Role.GERENTE,
             Role.SUPERVISOR
           ], 'sucursales')
         ]
@@ -176,12 +176,13 @@ export const routes: Routes = [
           roleGuard([
             Role.SUPER_ADMIN,
             Role.ADMIN,
+            Role.GERENTE,
             Role.SUPERVISOR
           ], 'sucursales')
         ]
       },
 
-      // ── Operadores & Asignaciones ──
+      // ── Gestión Unificada de Operadores (Punto 4) ──
       {
         path: 'operadores',
         component: OperadoresComponent,
@@ -190,6 +191,7 @@ export const routes: Routes = [
           roleGuard([
             Role.SUPER_ADMIN,
             Role.ADMIN,
+            Role.GERENTE,
             Role.SUPERVISOR,
             Role.COORD_SERVICIOS_ESPECIALES
           ], 'operadores')
@@ -197,16 +199,7 @@ export const routes: Routes = [
       },
       {
         path: 'asignaciones',
-        component: AsignacionesComponent,
-        canActivate: [
-          authGuard,
-          roleGuard([
-            Role.SUPER_ADMIN,
-            Role.ADMIN,
-            Role.SUPERVISOR,
-            Role.COORD_SERVICIOS_ESPECIALES
-          ], 'asignaciones')
-        ]
+        redirectTo: 'operadores'
       },
 
       // ── Maquinaria & Equipos ──

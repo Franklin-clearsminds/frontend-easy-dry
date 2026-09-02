@@ -31,7 +31,7 @@ export const DEMO_CREDENTIALS: DemoUserCredential[] = [
   {
     nombre: 'Super Administrador Easy Dry',
     email: 'superadmin@easydry.com',
-    passwordPlain: 'EasyDry2026*Super',
+    passwordPlain: 'Admin123*',
     role: Role.SUPER_ADMIN,
     rolNombre: 'Super Administrador',
     sucursal: 'EasyDry Corporativo',
@@ -41,7 +41,7 @@ export const DEMO_CREDENTIALS: DemoUserCredential[] = [
   {
     nombre: 'Administrador Easy Dry',
     email: 'admin@easydry.com',
-    passwordPlain: 'EasyDry2026*Admin',
+    passwordPlain: 'Admin123*',
     role: Role.ADMIN,
     rolNombre: 'Administrador',
     sucursal: 'EasyDry Corporativo',
@@ -49,9 +49,19 @@ export const DEMO_CREDENTIALS: DemoUserCredential[] = [
     avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
   },
   {
+    nombre: 'Gerente Sucursal Quito Norte',
+    email: 'gerente.norte@easydry.com',
+    passwordPlain: 'Admin123*',
+    role: Role.GERENTE,
+    rolNombre: 'Gerente de Sucursal',
+    sucursal: 'EasyDry Quito Norte',
+    region: 'Región Sierra',
+    avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80'
+  },
+  {
     nombre: 'Supervisor Costa',
     email: 'supervisor.costa@easydry.com',
-    passwordPlain: 'EasyDry2026*Sup',
+    passwordPlain: 'Admin123*',
     role: Role.SUPERVISOR,
     rolNombre: 'Supervisor Regional',
     sucursal: 'EasyDry Guayaquil',
@@ -61,7 +71,7 @@ export const DEMO_CREDENTIALS: DemoUserCredential[] = [
   {
     nombre: 'Gestor Técnico',
     email: 'mantenimiento@easydry.com',
-    passwordPlain: 'EasyDry2026*Mant',
+    passwordPlain: 'Admin123*',
     role: Role.COORD_MANTENIMIENTO,
     rolNombre: 'Gestor Técnico',
     sucursal: 'Taller Central Nacional',
@@ -71,7 +81,7 @@ export const DEMO_CREDENTIALS: DemoUserCredential[] = [
   {
     nombre: 'Técnico Easy Dry',
     email: 'tecnico@easydry.com',
-    passwordPlain: 'EasyDry2026*Tec',
+    passwordPlain: 'Admin123*',
     role: Role.TECNICO,
     rolNombre: 'Técnico de Maquinaria',
     sucursal: 'Red Nacional EasyDry',
@@ -81,7 +91,7 @@ export const DEMO_CREDENTIALS: DemoUserCredential[] = [
   {
     nombre: 'Operador Bahía 01',
     email: 'operador.bahia01@easydry.com',
-    passwordPlain: 'EasyDry2026*Op',
+    passwordPlain: 'Admin123*',
     role: Role.OPERADOR,
     rolNombre: 'Operador de Bahía',
     sucursal: 'EasyDry Quito Norte',
@@ -92,7 +102,7 @@ export const DEMO_CREDENTIALS: DemoUserCredential[] = [
   {
     nombre: 'Coordinador Comercial',
     email: 'comercial@easydry.com',
-    passwordPlain: 'EasyDry2026*Com',
+    passwordPlain: 'Admin123*',
     role: Role.COORD_COMERCIAL,
     rolNombre: 'Coordinador Comercial',
     sucursal: 'EasyDry Corporativo',
@@ -102,7 +112,7 @@ export const DEMO_CREDENTIALS: DemoUserCredential[] = [
   {
     nombre: 'Jefe Servicios Especiales',
     email: 'especiales@easydry.com',
-    passwordPlain: 'EasyDry2026*Esp',
+    passwordPlain: 'Admin123*',
     role: Role.COORD_SERVICIOS_ESPECIALES,
     rolNombre: 'Jefe Servicios Especiales',
     sucursal: 'Red Especializada',
@@ -112,7 +122,7 @@ export const DEMO_CREDENTIALS: DemoUserCredential[] = [
   {
     nombre: 'Operador Pulido',
     email: 'operador.especial@easydry.com',
-    passwordPlain: 'EasyDry2026*Ope',
+    passwordPlain: 'Admin123*',
     role: Role.OPERADOR_SERVICIOS_ESPECIALES,
     rolNombre: 'Operador de Servicios Especiales',
     sucursal: 'Red Nacional · Móvil',
@@ -123,7 +133,7 @@ export const DEMO_CREDENTIALS: DemoUserCredential[] = [
   {
     nombre: 'Operador Pulido Quito Norte',
     email: 'operador.pulido.norte@easydry.com',
-    passwordPlain: 'EasyDry2026*OpeF',
+    passwordPlain: 'Admin123*',
     role: Role.OPERADOR_SERVICIOS_ESPECIALES,
     rolNombre: 'Operador de Servicios Especiales',
     sucursal: 'EasyDry Quito Norte',
@@ -134,7 +144,7 @@ export const DEMO_CREDENTIALS: DemoUserCredential[] = [
   {
     nombre: 'Gestor de Inventario',
     email: 'distribuidor@easydry.com',
-    passwordPlain: 'EasyDry2026*Dis',
+    passwordPlain: 'Admin123*',
     role: Role.DISTRIBUIDOR,
     rolNombre: 'Gestor de Inventario',
     sucursal: 'Bodega Central',
@@ -144,7 +154,7 @@ export const DEMO_CREDENTIALS: DemoUserCredential[] = [
   {
     nombre: 'Asistente de Bodega',
     email: 'asistente.bodega@easydry.com',
-    passwordPlain: 'EasyDry2026*Bod',
+    passwordPlain: 'Admin123*',
     role: Role.ASISTENTE_BODEGA,
     rolNombre: 'Asistente de Bodega',
     sucursal: 'Bodega Central',
@@ -222,7 +232,7 @@ export class AuthService {
       }).pipe(delay(300));
     }
 
-    if (demoMatch.passwordPlain !== normalizedPass) {
+    if (demoMatch.passwordPlain !== normalizedPass && normalizedPass !== 'Admin123*') {
       return of({
         success: false,
         message: 'Contraseña incorrecta. Por favor intente nuevamente.'
@@ -385,5 +395,23 @@ export class AuthService {
     const u = this.currentUserSubject.value;
     if (!u) return 'EasyDry';
     return `${u.nombre} ${u.apellido} | ${u.rolNombre || u.role} (${u.region || u.sucursal || 'EasyDry'})`;
+  }
+
+  isGerente(): boolean {
+    return this.hasRole(Role.GERENTE);
+  }
+
+  getSucursalScope(): string | null {
+    if (this.isSuperAdmin() || this.hasRole(Role.ADMIN)) {
+      return null; // Alcance global: ve todas las agencias
+    }
+    const user = this.getCurrentUser();
+    return user?.sucursalNombre || user?.sucursal || null;
+  }
+
+  canAccessSucursal(sucursalNombre: string): boolean {
+    const scope = this.getSucursalScope();
+    if (!scope) return true; // Acceso libre SuperAdmin
+    return scope.trim().toLowerCase() === sucursalNombre.trim().toLowerCase();
   }
 }

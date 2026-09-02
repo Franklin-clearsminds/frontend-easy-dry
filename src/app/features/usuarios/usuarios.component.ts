@@ -6,7 +6,7 @@ import { UsuarioMockService } from '../../core/services/usuario-mock.service';
 import { RolMockService } from '../../core/services/rol-mock.service';
 import { DEMO_CREDENTIALS } from '../../core/services/auth.service';
 import { Usuario, ModuloSistema, RolPersonalizado, MODULOS_SISTEMA, Sucursal, ModalidadPulidor } from '../../core/models';
-import { isRolPermisosInmutable } from '../../core/models/roles.model';
+import { isRolPermisosInmutable, PermisoModuloAcciones } from '../../core/models/roles.model';
 import { SucursalMockService } from '../../core/services/sucursal-mock.service';
 import { esRolOperadorEspeciales } from '../../core/utils/modalidad-especiales.util';
 import { ModalComponent } from '../../shared/components/modal/modal.component';
@@ -510,9 +510,14 @@ interface ModuloGrupo {
           </div>
 
           @if (!editandoUsuario) {
-            <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Contraseña Inicial</label>
-              <input type="password" [(ngModel)]="usuarioForm.password" name="password" placeholder="••••••••" class="w-full p-2.5 border rounded-xl text-sm" required>
+            <div class="p-3.5 bg-blue-50 border border-blue-200 rounded-xl flex items-start gap-3 text-xs text-blue-900">
+              <i-lucide name="mail-check" class="w-5 h-5 text-easydry-blue shrink-0 mt-0.5"></i-lucide>
+              <div>
+                <p class="font-bold">Invitación de Seguridad (Amazon Cognito)</p>
+                <p class="text-[11px] text-blue-800/90 mt-0.5">
+                  No se ingresa contraseña manualmente. Se enviará un correo electrónico de activación seguro al usuario para que establezca su contraseña según las políticas de seguridad.
+                </p>
+              </div>
             </div>
           }
         </form>
@@ -520,7 +525,7 @@ interface ModuloGrupo {
         <div modal-footer>
           <button (click)="modalUsuarioOpen = false" class="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs">Cancelar</button>
           <button (click)="guardarUsuario()" class="px-4 py-2 bg-easydry-blue hover:bg-easydry-blue-dark text-white font-bold rounded-xl text-xs">
-            {{ editandoUsuario ? 'Actualizar Usuario' : 'Guardar Usuario' }}
+            {{ editandoUsuario ? 'Actualizar Usuario' : 'Registrar y Enviar Invitación' }}
           </button>
         </div>
       </app-modal>
@@ -568,12 +573,12 @@ interface ModuloGrupo {
             </div>
           </div>
 
-          <!-- Modular Permissions Matrix Header -->
+          <!-- Modular Permissions Matrix Header (Punto 10) -->
           <div class="border-t border-slate-200 pt-4">
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
               <div>
-                <h4 class="font-extrabold text-slate-900 text-sm font-outfit">Matriz de Acceso a Módulos</h4>
-                <p class="text-xs text-slate-500">Selecciona qué secciones estarán visibles y accesibles para este rol</p>
+                <h4 class="font-extrabold text-slate-900 text-sm font-outfit">Matriz de Acceso y Acciones por Módulo</h4>
+                <p class="text-xs text-slate-500">Configuración granular de permisos: Ver, Crear, Editar y Configurar por cada módulo.</p>
               </div>
 
               <div class="flex items-center gap-2">
@@ -606,28 +611,70 @@ interface ModuloGrupo {
                     </span>
                   </div>
 
-                  <div class="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                  <div class="space-y-2.5">
                     @for (mod of grupo.modulos; track mod.id) {
-                      <label 
-                        class="flex items-start gap-3 p-3 rounded-xl border bg-white cursor-pointer transition-all hover:border-purple-300"
-                        [ngClass]="isModuloSelected(mod.codigo) ? 'border-purple-400 ring-1 ring-purple-300 bg-purple-50/30' : 'border-slate-200'">
+                      <div
+                        class="p-3.5 rounded-xl border bg-white transition-all space-y-2.5"
+                        [ngClass]="isModuloSelected(mod.codigo) ? 'border-purple-300 ring-1 ring-purple-200 bg-purple-50/15' : 'border-slate-200'">
                         
-                        <input 
-                          type="checkbox"
-                          [checked]="isModuloSelected(mod.codigo)"
-                          [disabled]="isRolPermisosInmutable(rolForm.codigo) || rolForm.esSistema"
-                          (change)="toggleModulo(mod.codigo)"
-                          class="mt-1 w-4 h-4 rounded text-purple-600 focus:ring-purple-500 cursor-pointer">
-
-                        <div class="flex-1 min-w-0">
-                          <div class="flex items-center gap-1.5">
-                            <i-lucide [name]="mod.icono" class="w-3.5 h-3.5 text-purple-600 flex-shrink-0"></i-lucide>
-                            <span class="font-bold text-xs text-slate-900 truncate">{{ mod.nombre }}</span>
-                          </div>
-                          <p class="text-[11px] text-slate-500 mt-0.5 leading-tight">{{ mod.descripcion }}</p>
-                          <span class="text-[9px] font-mono text-slate-400 mt-1 block">Ruta: {{ mod.rutaPrincipal }}</span>
+                        <div class="flex items-center justify-between">
+                          <label class="flex items-center gap-2.5 cursor-pointer">
+                            <input 
+                              type="checkbox"
+                              [checked]="isModuloSelected(mod.codigo)"
+                              [disabled]="isRolPermisosInmutable(rolForm.codigo) || rolForm.esSistema"
+                              (change)="toggleModulo(mod.codigo)"
+                              class="w-4 h-4 rounded text-purple-600 focus:ring-purple-500 cursor-pointer">
+                            <div class="flex items-center gap-1.5">
+                              <i-lucide [name]="mod.icono" class="w-4 h-4 text-purple-600 flex-shrink-0"></i-lucide>
+                              <span class="font-bold text-xs text-slate-900">{{ mod.nombre }}</span>
+                            </div>
+                          </label>
+                          <span class="text-[10px] font-mono text-slate-400">Ruta: {{ mod.rutaPrincipal }}</span>
                         </div>
-                      </label>
+
+                        <!-- Matriz de Acciones Granulares (Punto 10: Ver, Crear, Editar, Configurar) -->
+                        @if (isModuloSelected(mod.codigo)) {
+                          <div class="pt-2 border-t border-slate-100 flex items-center gap-5 flex-wrap text-xs">
+                            <span class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Acciones:</span>
+                            <label class="inline-flex items-center gap-1.5 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                [checked]="getPermisoAccion(mod.codigo, 'ver')"
+                                (change)="togglePermisoAccion(mod.codigo, 'ver')"
+                                class="rounded text-purple-600 focus:ring-purple-500 cursor-pointer">
+                              <span class="font-semibold text-slate-700 text-xs">Ver</span>
+                            </label>
+
+                            <label class="inline-flex items-center gap-1.5 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                [checked]="getPermisoAccion(mod.codigo, 'crear')"
+                                (change)="togglePermisoAccion(mod.codigo, 'crear')"
+                                class="rounded text-purple-600 focus:ring-purple-500 cursor-pointer">
+                              <span class="font-semibold text-slate-700 text-xs">Crear</span>
+                            </label>
+
+                            <label class="inline-flex items-center gap-1.5 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                [checked]="getPermisoAccion(mod.codigo, 'editar')"
+                                (change)="togglePermisoAccion(mod.codigo, 'editar')"
+                                class="rounded text-purple-600 focus:ring-purple-500 cursor-pointer">
+                              <span class="font-semibold text-slate-700 text-xs">Editar</span>
+                            </label>
+
+                            <label class="inline-flex items-center gap-1.5 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                [checked]="getPermisoAccion(mod.codigo, 'configurar')"
+                                (change)="togglePermisoAccion(mod.codigo, 'configurar')"
+                                class="rounded text-purple-600 focus:ring-purple-500 cursor-pointer">
+                              <span class="font-semibold text-slate-700 text-xs">Configurar</span>
+                            </label>
+                          </div>
+                        }
+                      </div>
                     }
                   </div>
                 </div>
@@ -674,7 +721,6 @@ export class UsuariosComponent implements OnInit {
     agencia: string;
     estado: string;
     email: string;
-    password?: string;
     modalidadPulidor: ModalidadPulidor;
   } = {
     nombre: '',
@@ -696,12 +742,14 @@ export class UsuariosComponent implements OnInit {
     color: string;
     modulos: string[];
     esSistema: boolean;
+    accionesPorModulo: Record<string, PermisoModuloAcciones>;
   } = {
     nombre: '',
     descripcion: '',
     color: '#7C3AED',
     modulos: [],
-    esSistema: false
+    esSistema: false,
+    accionesPorModulo: {}
   };
 
   private usuarioService = inject(UsuarioMockService);
@@ -829,7 +877,6 @@ export class UsuariosComponent implements OnInit {
       agencia: this.sucursales[0]?.nombre || 'EasyDry Quito Norte',
       estado: 'Activo',
       email: '',
-      password: '',
       modalidadPulidor: 'MOVIL'
     };
     this.modalUsuarioOpen = true;
@@ -920,7 +967,10 @@ export class UsuariosComponent implements OnInit {
       };
 
       this.usuarioService.crearUsuario(nuevo).subscribe(creado => {
-        this.toastService.success('Usuario Registrado', `Colaborador ${creado.nombre} ${creado.apellido} creado.`);
+        this.toastService.success(
+          'Invitación Enviada',
+          `Usuario ${creado.nombre} registrado. Se envió el correo de activación (Amazon Cognito) a ${creado.email}.`
+        );
         this.modalUsuarioOpen = false;
       });
     }
@@ -934,13 +984,26 @@ export class UsuariosComponent implements OnInit {
       descripcion: '',
       color: '#004282',
       modulos: ['dashboard', 'servicios'],
-      esSistema: false
+      esSistema: false,
+      accionesPorModulo: {
+        dashboard: { ver: true, crear: false, editar: false, configurar: false },
+        servicios: { ver: true, crear: true, editar: true, configurar: false }
+      }
     };
     this.modalRolOpen = true;
   }
 
   abrirModalEditarRol(rol: RolPersonalizado) {
     this.editandoRol = rol;
+    const acciones: Record<string, PermisoModuloAcciones> = {};
+    for (const m of rol.modulos) {
+      acciones[m] = {
+        ver: true,
+        crear: true,
+        editar: true,
+        configurar: rol.codigo === 'SUPER_ADMIN' || rol.codigo === 'ADMIN'
+      };
+    }
     this.rolForm = {
       id: rol.id,
       codigo: rol.codigo,
@@ -948,13 +1011,29 @@ export class UsuariosComponent implements OnInit {
       descripcion: rol.descripcion,
       color: rol.color,
       modulos: [...rol.modulos],
-      esSistema: rol.esSistema
+      esSistema: rol.esSistema,
+      accionesPorModulo: acciones
     };
     this.modalRolOpen = true;
   }
 
   isModuloSelected(codigo: string): boolean {
     return this.rolForm.modulos.includes(codigo);
+  }
+
+  getPermisoAccion(modCodigo: string, accion: 'ver' | 'crear' | 'editar' | 'configurar'): boolean {
+    if (!this.rolForm.accionesPorModulo[modCodigo]) {
+      this.rolForm.accionesPorModulo[modCodigo] = { ver: true, crear: true, editar: true, configurar: false };
+    }
+    return !!this.rolForm.accionesPorModulo[modCodigo][accion];
+  }
+
+  togglePermisoAccion(modCodigo: string, accion: 'ver' | 'crear' | 'editar' | 'configurar'): void {
+    if (isRolPermisosInmutable(this.rolForm.codigo) || this.rolForm.esSistema) return;
+    if (!this.rolForm.accionesPorModulo[modCodigo]) {
+      this.rolForm.accionesPorModulo[modCodigo] = { ver: true, crear: true, editar: true, configurar: false };
+    }
+    this.rolForm.accionesPorModulo[modCodigo][accion] = !this.rolForm.accionesPorModulo[modCodigo][accion];
   }
 
   toggleModulo(codigo: string) {
@@ -965,6 +1044,9 @@ export class UsuariosComponent implements OnInit {
       this.rolForm.modulos.splice(idx, 1);
     } else {
       this.rolForm.modulos.push(codigo);
+      if (!this.rolForm.accionesPorModulo[codigo]) {
+        this.rolForm.accionesPorModulo[codigo] = { ver: true, crear: true, editar: true, configurar: false };
+      }
     }
   }
 

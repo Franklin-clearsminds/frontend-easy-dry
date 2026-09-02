@@ -2,6 +2,7 @@ import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { LucideAngularModule } from 'lucide-angular';
 import { ChartCardComponent } from '../../shared/components/chart-card/chart-card.component';
+import { FilterBarComponent, FilterState } from '../../shared/components/filter-bar/filter-bar.component';
 import { AgenciaMockService } from '../../core/services/agencia-mock.service';
 import { AuthService } from '../../core/services/auth.service';
 import { Agencia } from '../../core/models';
@@ -9,7 +10,7 @@ import { Agencia } from '../../core/models';
 @Component({
   selector: 'app-productividad',
   standalone: true,
-  imports: [CommonModule, LucideAngularModule, ChartCardComponent],
+  imports: [CommonModule, LucideAngularModule, ChartCardComponent, FilterBarComponent],
   template: `
     <div class="space-y-8 animate-fade-in">
       
@@ -24,6 +25,17 @@ import { Agencia } from '../../core/models';
           <span>Reto EasyDry Activo: Edición Julio 2026</span>
         </span>
       </div>
+
+      <!-- Filtros Completos (Punto 15: Agencia, Servicio, Operador, Fechas) -->
+      <app-filter-bar 
+        [showSucursal]="true" 
+        [showOperador]="true"
+        [showServicio]="true"
+        [showBahia]="false"
+        [showEstado]="false"
+        [showFechas]="true"
+        (filterChange)="aplicarFiltros($event)">
+      </app-filter-bar>
 
       <!-- RETO EASYDRY SPECIAL GAMIFIED SECTION -->
       <div class="bg-gradient-to-r from-easydry-blue-dark via-easydry-blue to-slate-900 rounded-3xl p-6 md:p-8 text-white shadow-2xl relative overflow-hidden">
@@ -209,6 +221,7 @@ import { Agencia } from '../../core/models';
 })
 export class ProductividadComponent implements OnInit {
   agencias: Agencia[] = [];
+  todasLasAgencias: Agencia[] = [];
 
   comparativaChartData = {
     labels: ['Mayo 2026', 'Junio 2026', 'Julio 2026'],
@@ -230,7 +243,17 @@ export class ProductividadComponent implements OnInit {
       if (user && user.role !== 'SUPER_ADMIN' && user.sucursalNombre) {
         filtered = list.filter(a => a.nombre.toLowerCase() === user.sucursalNombre!.toLowerCase());
       }
+      this.todasLasAgencias = [...filtered];
       this.agencias = filtered.sort((a, b) => b.productividad - a.productividad);
     });
+  }
+
+  aplicarFiltros(filtros: FilterState): void {
+    let res = [...this.todasLasAgencias];
+    if (filtros.sucursal && filtros.sucursal !== 'Todas') {
+      res = res.filter(a => a.nombre.toLowerCase().includes(filtros.sucursal.toLowerCase()) ||
+                            filtros.sucursal.toLowerCase().includes(a.nombre.toLowerCase()));
+    }
+    this.agencias = res.sort((a, b) => b.productividad - a.productividad);
   }
 }

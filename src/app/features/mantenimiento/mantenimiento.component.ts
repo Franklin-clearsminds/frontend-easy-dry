@@ -5,18 +5,19 @@ import { LucideAngularModule } from 'lucide-angular';
 import { MantenimientoMockService } from '../../core/services/mantenimiento-mock.service';
 import { MaquinariaMockService } from '../../core/services/maquinaria-mock.service';
 import { AuthService } from '../../core/services/auth.service';
-import { Mantenimiento, Maquinaria } from '../../core/models';
+import { Mantenimiento, Maquinaria, ArchivoAdjunto } from '../../core/models';
 import { Role } from '../../core/models/roles.model';
 import { DEMO_CREDENTIALS } from '../../core/services/auth.service';
 import { ModalComponent } from '../../shared/components/modal/modal.component';
 import { ToastService } from '../../shared/services/toast.service';
 import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
 import { FilterBarComponent, FilterState } from '../../shared/components/filter-bar/filter-bar.component';
+import { FileUploaderComponent } from '../../shared/components/file-uploader/file-uploader.component';
 
 @Component({
   selector: 'app-mantenimiento',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, PaginationComponent, FilterBarComponent],
+  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, PaginationComponent, FilterBarComponent, FileUploaderComponent],
   template: `
     <div class="space-y-6 animate-fade-in">
       
@@ -29,28 +30,33 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
           </div>
           <button 
             (click)="modalCrearOpen = true"
-            class="px-4 py-2.5 bg-easydry-blue hover:bg-easydry-blue-dark text-white font-bold rounded-xl text-xs transition-colors flex items-center gap-2 shadow-xs self-start sm:self-auto">
+            class="px-4 py-2.5 bg-easydry-blue hover:bg-easydry-blue-dark text-white font-bold rounded-xl text-xs transition-colors flex items-center gap-2 shadow-xs self-start sm:self-auto cursor-pointer">
             <i-lucide name="calendar-clock" class="w-4 h-4"></i-lucide>
             <span>Agendar Mantenimiento</span>
           </button>
         </div>
       }
 
-      <!-- Calendar / Visual Timeline Banner -->
+      <!-- Calendar / Visual Timeline Banner (Punto 17) -->
       <div class="bg-white rounded-2xl p-6 border border-slate-100 shadow-easydry space-y-4">
-        <h3 class="font-bold text-slate-900 text-base font-outfit flex items-center gap-2">
-          <i-lucide name="calendar-clock" class="w-5 h-5 text-easydry-blue"></i-lucide>
-          <span>Línea de Tiempo de Intervenciones (Julio - Agosto 2026)</span>
-        </h3>
+        <div class="flex items-center justify-between">
+          <h3 class="font-bold text-slate-900 text-base font-outfit flex items-center gap-2">
+            <i-lucide name="calendar-clock" class="w-5 h-5 text-easydry-blue"></i-lucide>
+            <span>Línea de Tiempo de Intervenciones Técnicas (Julio - Agosto 2026)</span>
+          </h3>
+          <span class="text-xs text-slate-400">Haga clic en una fecha para ver la ficha técnica</span>
+        </div>
 
         <!-- Calendar Days Grid Bar -->
         <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
           @for (day of diasCalendario; track day.fecha) {
             <div 
-              class="p-3.5 rounded-xl border flex flex-col justify-between transition-all"
+              (click)="seleccionarDia(day)"
+              class="p-3.5 rounded-xl border flex flex-col justify-between transition-all cursor-pointer hover:shadow-xs hover:border-easydry-blue"
               [ngClass]="{
-                'bg-easydry-blue/10 border-easydry-blue text-easydry-blue font-bold': day.tieneMantenimiento,
-                'bg-slate-50 border-slate-200 text-slate-600': !day.tieneMantenimiento
+                'bg-easydry-blue/15 border-easydry-blue text-easydry-blue font-bold ring-2 ring-easydry-blue/30': diaSeleccionado?.fecha === day.fecha,
+                'bg-easydry-blue/10 border-easydry-blue text-easydry-blue font-bold': day.tieneMantenimiento && diaSeleccionado?.fecha !== day.fecha,
+                'bg-slate-50 border-slate-200 text-slate-600': !day.tieneMantenimiento && diaSeleccionado?.fecha !== day.fecha
               }">
               <div class="flex items-center justify-between text-xs">
                 <span class="font-mono font-bold">{{ day.dia }}</span>
@@ -62,6 +68,43 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
             </div>
           }
         </div>
+
+        <!-- Ficha de Intervención Técnica Desplegable (Punto 17) -->
+        @if (diaSeleccionado) {
+          <div class="p-5 bg-slate-50 border border-slate-200 rounded-2xl space-y-3 animate-fade-in">
+            <div class="flex items-center justify-between border-b border-slate-200 pb-3">
+              <div class="flex items-center gap-2.5">
+                <span class="p-2 bg-easydry-blue text-white rounded-xl">
+                  <i-lucide name="wrench" class="w-4 h-4"></i-lucide>
+                </span>
+                <div>
+                  <h4 class="font-bold text-slate-900 text-sm">Ficha Técnica de Intervención: {{ diaSeleccionado.fecha }}</h4>
+                  <p class="text-xs text-slate-500">{{ diaSeleccionado.evento || 'Visita preventiva programada' }}</p>
+                </div>
+              </div>
+              <button (click)="diaSeleccionado = null" class="text-slate-400 hover:text-slate-600 text-xs font-bold">Cerrar ✕</button>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs">
+              <div class="p-3 bg-white rounded-xl border border-slate-200">
+                <span class="text-[10px] text-slate-400 font-bold uppercase block">Técnico Asignado</span>
+                <span class="font-bold text-slate-900 block mt-0.5">{{ diaSeleccionado.tecnico || 'Ing. Marco Andrade' }}</span>
+              </div>
+              <div class="p-3 bg-white rounded-xl border border-slate-200">
+                <span class="text-[10px] text-slate-400 font-bold uppercase block">Estado de la Visita</span>
+                <span class="font-bold text-emerald-700 block mt-0.5">{{ diaSeleccionado.estado || 'Programado' }}</span>
+              </div>
+              <div class="p-3 bg-white rounded-xl border border-slate-200">
+                <span class="text-[10px] text-slate-400 font-bold uppercase block">Duración Estimada</span>
+                <span class="font-bold text-easydry-blue block mt-0.5">{{ diaSeleccionado.duracion || '120 min (2 Horas)' }}</span>
+              </div>
+              <div class="p-3 bg-white rounded-xl border border-slate-200">
+                <span class="text-[10px] text-slate-400 font-bold uppercase block">Evidencias Multimedia</span>
+                <span class="font-bold text-purple-700 block mt-0.5">2 Fotos / 1 Video S3</span>
+              </div>
+            </div>
+          </div>
+        }
       </div>
 
       <!-- Global Filter Bar -->
@@ -326,14 +369,22 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
               <input type="text" [(ngModel)]="nuevoMantenimiento.tecnico" name="tecnico" placeholder="Ing. Marco Andrade" class="w-full p-2.5 border rounded-xl text-sm" required>
             </div>
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Costo Estimado ($)</label>
-              <input type="number" [(ngModel)]="nuevoMantenimiento.costo" name="costo" class="w-full p-2.5 border rounded-xl text-sm" required>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Duración Estimada (Horas)</label>
+              <input type="number" [(ngModel)]="nuevoMantenimiento.duracionHoras" name="duracionHoras" class="w-full p-2.5 border rounded-xl text-sm" min="1" required>
             </div>
           </div>
 
           <div>
             <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Descripción del Trabajo</label>
             <textarea [(ngModel)]="nuevoMantenimiento.descripcion" name="descripcion" rows="3" placeholder="Detalle de repuestos y tareas..." class="w-full p-2.5 border rounded-xl text-sm" required></textarea>
+          </div>
+
+          <!-- Subida de Evidencias S3 (Punto 8) -->
+          <div class="pt-2">
+            <app-file-uploader
+              label="Evidencias / Fotos y Videos (Almacenamiento S3)"
+              (archivosChange)="evidenciasSubidas = $event">
+            </app-file-uploader>
           </div>
         </form>
 
@@ -499,13 +550,16 @@ export class MantenimientoComponent implements OnInit {
     { fecha: '2026-08-01', dia: '01', nombreDia: 'Sáb', tieneMantenimiento: true, evento: 'HD-001 Preventivo' },
   ];
 
+  diaSeleccionado: any = null;
+  evidenciasSubidas: ArchivoAdjunto[] = [];
+
   nuevoMantenimiento = {
     maquina: 'Hidrolavadora Ecológica HD-001',
     tipo: 'Preventivo' as Mantenimiento['tipo'],
     fecha: '2026-08-05',
     tecnico: 'Sin asignar',
     estado: 'Programado' as Mantenimiento['estado'],
-    costo: 120.00,
+    duracionHoras: 2,
     descripcion: ''
   };
 
@@ -570,15 +624,31 @@ export class MantenimientoComponent implements OnInit {
     this.currentPage = 1; // Reset to first page
   }
 
+  seleccionarDia(day: any): void {
+    if (this.diaSeleccionado?.fecha === day.fecha) {
+      this.diaSeleccionado = null;
+    } else {
+      this.diaSeleccionado = day;
+    }
+  }
+
   guardarMantenimiento() {
     if (!this.nuevoMantenimiento.descripcion) {
       this.toastService.warning('Campos Requeridos', 'Por favor ingrese la descripción del trabajo.');
       return;
     }
 
-    this.mantenimientoService.registrarMantenimiento(this.nuevoMantenimiento).subscribe(creado => {
+    const payload: any = {
+      ...this.nuevoMantenimiento,
+      duracionMin: (this.nuevoMantenimiento.duracionHoras || 2) * 60,
+      archivos: this.evidenciasSubidas.length > 0 ? [...this.evidenciasSubidas] : undefined
+    };
+    delete payload.costo;
+
+    this.mantenimientoService.registrarMantenimiento(payload).subscribe(creado => {
       this.toastService.success('Mantenimiento Agendado', `Visita agendada para ${creado.maquina} el ${creado.fecha}`);
       this.modalCrearOpen = false;
+      this.evidenciasSubidas = [];
     });
   }
   

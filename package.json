@@ -6,6 +6,7 @@
     "ng": "ng",
     "env:sync": "node scripts/sync-env.mjs",
     "start": "node scripts/sync-env.mjs && ng serve",
+    "dev": "node scripts/sync-env.mjs && ng serve",
     "build": "node scripts/sync-env.mjs --prod && ng build",
     "watch": "node scripts/sync-env.mjs && ng build --watch --configuration development"
   },

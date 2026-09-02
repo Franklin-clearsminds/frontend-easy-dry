@@ -10,6 +10,8 @@ import { ToastService } from '../../shared/services/toast.service';
 import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
 import { FilterBarComponent, FilterState } from '../../shared/components/filter-bar/filter-bar.component';
 
+import { Role } from '../../core/models/roles.model';
+
 @Component({
   selector: 'app-aprobaciones',
   standalone: true,
@@ -22,18 +24,18 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
         <div>
           <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-easydry-green/20 text-easydry-green-dark text-xs font-bold mb-2">
             <i-lucide name="shield-check" class="w-3.5 h-3.5"></i-lucide>
-            <span>Módulo de Cierre Diaria y Aprobación Gerencial</span>
+            <span>Módulo de Cierre Diario y Aprobación Gerencial</span>
           </div>
-          <h1 class="text-2xl font-extrabold text-slate-900 font-outfit">Aprobación Diaria del Gerente de Local</h1>
+          <h1 class="text-2xl font-extrabold text-slate-900 font-outfit">Aprobación Diaria de Servicios</h1>
           <p class="text-slate-500 text-xs mt-1">Revisión de vehículos atendidos hoy, evidencias en video, horarios y confirmación para cierre diario de operaciones.</p>
         </div>
 
         <div class="flex items-center gap-3">
           <button 
             (click)="aprobarTodos()"
-            class="px-5 py-3 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2">
+            class="px-5 py-3 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
             <i-lucide name="check-circle-2" class="w-4 h-4"></i-lucide>
-            <span>Aprobar Todos los Servicios del Día</span>
+            <span>Aprobar Todos los Servicios en Filtro</span>
           </button>
         </div>
       </div>
@@ -42,7 +44,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
       <app-filter-bar 
         [showSucursal]="true" 
         [showOperador]="true"
-        [showBahia]="false"
+        [showBahia]="true"
         [showEstado]="true"
         [showFechas]="false"
         [listaEstados]="['Todos', 'FINALIZADO', 'APROBADO', 'RECHAZADO']"
@@ -66,11 +68,15 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
               </span>
             }
           </h3>
-          <p class="text-xs text-slate-200">Sucursal: <strong>EasyDry Quito Norte</strong> • Fecha: <strong>22 de Julio 2026</strong></p>
+          <p class="text-xs text-slate-200">
+            Sucursal: <strong>{{ filtrosGlobales.sucursal === 'Todas' ? 'Todas las Sucursales (Red Nacional)' : filtrosGlobales.sucursal }}</strong>
+            • Bahía: <strong>{{ filtrosGlobales.bahia === 'Todas' ? 'Todas las Bahías' : filtrosGlobales.bahia }}</strong>
+            • Fecha: <strong>22 de Julio 2026</strong>
+          </p>
         </div>
 
         <div class="text-right">
-          <span class="text-3xl font-extrabold font-outfit text-easydry-lime">{{ totalAprobados }} / {{ serviciosDelDia.length }}</span>
+          <span class="text-3xl font-extrabold font-outfit text-easydry-lime">{{ totalAprobados }} / {{ serviciosFiltrados.length }}</span>
           <span class="text-xs text-slate-300 block font-semibold">Servicios Aprobados</span>
         </div>
       </div>
@@ -105,6 +111,10 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
 
               <!-- Service Type -->
               <div class="mt-3 p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-1">
+                <div class="flex items-center justify-between text-xs">
+                  <span class="text-slate-400 font-bold uppercase text-[10px]">Sucursal / Bahía:</span>
+                  <span class="font-bold text-slate-700 text-right truncate max-w-[180px]">{{ item.agencia }} • {{ item.bahia || 'Bahía 1' }}</span>
+                </div>
                 <div class="flex items-center justify-between text-xs">
                   <span class="text-slate-400 font-bold uppercase text-[10px]">Servicio:</span>
                   <span class="font-bold text-slate-900">{{ item.servicio }}</span>
@@ -238,7 +248,7 @@ export class AprobacionesComponent implements OnInit {
   private toastService = inject(ToastService);
 
   get totalAprobados() {
-    return this.serviciosDelDia.filter(s => s.estado === 'APROBADO').length;
+    return this.serviciosFiltrados.filter(s => s.estado === 'APROBADO').length;
   }
 
   filtrosGlobales: FilterState = { sucursal: 'Todas', operador: 'Todos', bahia: 'Todas', estado: 'Todos', fecha: 'Hoy' };
@@ -249,10 +259,15 @@ export class AprobacionesComponent implements OnInit {
     if (this.filtrosGlobales.estado !== 'Todos') {
       resultados = resultados.filter(s => s.estado === this.filtrosGlobales.estado);
     }
-    if (this.filtrosGlobales.sucursal !== 'Todas') {
-      resultados = resultados.filter(s => s.agencia === this.filtrosGlobales.sucursal);
+    if (this.filtrosGlobales.sucursal && this.filtrosGlobales.sucursal !== 'Todas') {
+      const suc = this.filtrosGlobales.sucursal.toLowerCase();
+      resultados = resultados.filter(s => s.agencia?.toLowerCase().includes(suc) || suc.includes(s.agencia?.toLowerCase() || ''));
     }
-    if (this.filtrosGlobales.operador !== 'Todos') {
+    if (this.filtrosGlobales.bahia && this.filtrosGlobales.bahia !== 'Todas') {
+      const bah = this.filtrosGlobales.bahia.toLowerCase();
+      resultados = resultados.filter(s => s.bahia?.toLowerCase().includes(bah) || bah.includes(s.bahia?.toLowerCase() || ''));
+    }
+    if (this.filtrosGlobales.operador && this.filtrosGlobales.operador !== 'Todos') {
       resultados = resultados.filter(s => s.empleado?.includes(this.filtrosGlobales.operador || ''));
     }
 
@@ -260,7 +275,7 @@ export class AprobacionesComponent implements OnInit {
   }
 
   get esDiaCerrado() {
-    return this.serviciosDelDia.length > 0 && this.serviciosDelDia.every(s => s.estado === 'APROBADO');
+    return this.serviciosFiltrados.length > 0 && this.serviciosFiltrados.every(s => s.estado === 'APROBADO');
   }
 
   aplicarNuevosFiltros(filtros: FilterState) {
@@ -269,6 +284,10 @@ export class AprobacionesComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    const user = this.authService.getCurrentUser();
+    if (user && user.role === Role.GERENTE && user.sucursalNombre) {
+      this.filtrosGlobales.sucursal = user.sucursalNombre;
+    }
     this.servicioService.getServicios().subscribe(list => {
       this.serviciosDelDia = list;
       this.serviciosParaAprobar = list;
@@ -320,9 +339,14 @@ export class AprobacionesComponent implements OnInit {
   }
 
   aprobarTodos() {
-    const gerente = this.authService.getCurrentUser()?.nombre || 'Carlos Mendoza (Gerente)';
-    this.servicioService.aprobarTodosLosServiciosDelDia('EasyDry Quito Norte', gerente).subscribe(() => {
-      this.toastService.success('Cierre Diario Exitoso', 'Todos los servicios de hoy fueron APROBADOS. Día Cerrado.');
+    const sucursalTarget = this.filtrosGlobales.sucursal === 'Todas' ? 'Todas' : this.filtrosGlobales.sucursal;
+    const user = this.authService.getCurrentUser();
+    const gerente = user ? `${user.nombre} (${user.role})` : 'Carlos Mendoza (Gerente)';
+    this.servicioService.aprobarTodosLosServiciosDelDia(sucursalTarget, gerente).subscribe(() => {
+      const msg = sucursalTarget === 'Todas'
+        ? 'Todos los servicios de todas las sucursales fueron APROBADOS. Día Cerrado.'
+        : `Todos los servicios de ${sucursalTarget} fueron APROBADOS. Día Cerrado.`;
+      this.toastService.success('Cierre Diario Exitoso', msg);
     });
   }
 
