@@ -40,7 +40,16 @@ export interface Sucursal {
   /** Nombres denormalizados para listados. */
   serviciosNombres?: string[];
   telefono?: string;
+  /** Si los servicios completados requieren aprobación gerencial antes del cierre diario. */
+  requiereAprobacion?: boolean;
+  /** ID del usuario con rol GERENTE asignado como aprobador de esta sucursal. */
+  gerenteId?: number;
+  /** Nombre denormalizado del gerente aprobador. */
+  gerenteNombre?: string;
+  /** Si la sucursal ofrece servicios especiales (pulido, cerámico, motor, etc.). */
+  tieneServiciosEspeciales?: boolean;
 }
+
 
 export interface RegionOperativa {
   id: number;
