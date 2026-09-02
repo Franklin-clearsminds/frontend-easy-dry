@@ -210,7 +210,19 @@ export const MODULOS_SISTEMA: ModuloSistema[] = [
 export const MODULOS_POR_ROL: Record<string, string[]> = {
   [Role.SUPER_ADMIN]: MODULOS_SISTEMA.map(m => m.codigo),
   [Role.ADMIN]: MODULOS_SISTEMA.map(m => m.codigo),
-  [Role.GERENTE]: MODULOS_SISTEMA.map(m => m.codigo),
+  [Role.GERENTE]: [
+    'dashboard',
+    'notificaciones',
+    'sucursales',
+    'operadores',
+    'servicios',
+    'aprobaciones',
+    'productividad',
+    'maquinaria',
+    'inventario',
+    'reportes',
+    'perfil'
+  ],
   
   [Role.SUPERVISOR]: [
     'dashboard',
@@ -302,6 +314,7 @@ export const MODULOS_POR_ROL: Record<string, string[]> = {
 export const DEFAULT_ROUTE_POR_ROL: Record<string, string> = {
   [Role.SUPER_ADMIN]: '/dashboard',
   [Role.ADMIN]: '/dashboard',
+  [Role.GERENTE]: '/dashboard',
   [Role.SUPERVISOR]: '/dashboard',
   [Role.COORD_MANTENIMIENTO]: '/taller-tecnico',
   [Role.TECNICO]: '/taller-tecnico',
@@ -313,6 +326,15 @@ export const DEFAULT_ROUTE_POR_ROL: Record<string, string> = {
   [Role.ASISTENTE_BODEGA]: '/inventario'
 };
 
+/** Permisos granulares de acción por módulo (Ver vs Crear / Editar / Configurar) */
+export interface PermisoModuloAcciones {
+  moduloCodigo?: string;
+  ver: boolean;
+  crear: boolean;
+  editar: boolean;
+  configurar: boolean;
+}
+
 /** Estructura de un Rol Dinámico / Personalizado */
 export interface RolPersonalizado {
   id: string;
@@ -322,6 +344,7 @@ export interface RolPersonalizado {
   color: string;
   badgeClass: string;
   modulos: string[];
+  accionesModulos?: Record<string, { ver: boolean; crear: boolean; editar: boolean; configurar: boolean }>;
   esSistema: boolean;
   fechaCreacion: string;
   usuariosCount?: number;
@@ -479,6 +502,8 @@ export interface UsuarioAuth {
   sucursal?: string;
   sucursalNombre?: string;
   region?: string;
+  sucursalesPermitidas?: number[];
+  regionPermitida?: string;
   bahiaId?: number;
   bahiaNombre?: string;
   modalidadPulidor?: 'FIJO' | 'MOVIL';

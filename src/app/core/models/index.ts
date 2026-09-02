@@ -39,7 +39,17 @@ export interface Sucursal {
   servicioIds?: number[];
   /** Nombres denormalizados para listados. */
   serviciosNombres?: string[];
+  telefono?: string;
+  /** Si los servicios completados requieren aprobación gerencial antes del cierre diario. */
+  requiereAprobacion?: boolean;
+  /** ID del usuario con rol GERENTE asignado como aprobador de esta sucursal. */
+  gerenteId?: number;
+  /** Nombre denormalizado del gerente aprobador. */
+  gerenteNombre?: string;
+  /** Si la sucursal ofrece servicios especiales (pulido, cerámico, motor, etc.). */
+  tieneServiciosEspeciales?: boolean;
 }
+
 
 export interface RegionOperativa {
   id: number;
@@ -78,6 +88,8 @@ export interface Bahia {
   sucursalId: number;
   sucursalNombre: string;
   estado: 'Disponible' | 'Ocupada' | 'Mantenimiento' | 'Inactiva' | string;
+  tipo?: string;
+  vehiculoActual?: string;
   operadorAsignado?: string;
   operadorId?: number;
   maquinariaAsignada?: string[];
@@ -162,6 +174,12 @@ export interface VehiculoServicio {
   video: string;
   videoUrl?: string;
   tiempoEstimadoMin?: number;
+  duracionMin?: number;
+  fechaInicio?: string;
+  horaInicio?: string;
+  fechaFin?: string;
+  horaFin?: string;
+  tiempoTranscurridoMin?: number;
   costo?: number;
   notas?: string;
   insumosUtilizados?: InsumoConsumidoServicio[];
@@ -198,17 +216,29 @@ export interface Mantenimiento {
   maquina: string;
   tipo: 'Preventivo' | 'Correctivo' | 'Calibración' | string;
   fecha: string;
+  fechaInicio?: string;
+  horaInicio?: string;
+  fechaFin?: string;
+  horaFin?: string;
+  duracionMin?: number;
+  tiempoTranscurridoMin?: number;
   tecnico: string;
   estado: 'Programado' | 'En Proceso' | 'Completado' | 'Cancelado' | string;
-  costo: number;
+  costo?: number;
   descripcion: string;
   agencia?: string;
   fotos?: string[];
+  videos?: string[];
+  documentos?: ArchivoAdjunto[];
+  archivos?: ArchivoAdjunto[];
   tecnicoAsignadoId?: number;
   tecnicoAsignadoNombre?: string;
   gestorAsignadorId?: number;
   gestorAsignadorNombre?: string;
   fechaAsignacion?: string;
+  observacionCierre?: string;
+  fechaCierre?: string;
+  cerradoPor?: string;
 }
 
 export interface ArchivoAdjunto {
@@ -218,7 +248,38 @@ export interface ArchivoAdjunto {
   extension?: string;
   url: string;
   tamanio?: string;
+  tamanoBytes?: number;
   fechaSubida?: string;
+  s3Key?: string;
+}
+
+export type EstadoEnvio = 'PENDIENTE' | 'ENVIADO' | 'RECIBIDO' | 'RECHAZADO';
+
+export interface EnvioSuministroItem {
+  productoId: number;
+  nombreProducto: string;
+  cantidad: number;
+  unidad: string;
+}
+
+export interface EnvioSuministro {
+  id: number;
+  codigoEnvio: string;
+  fecha: string;
+  fechaEnvio?: string;
+  fechaRecepcion?: string;
+  horaInicio?: string;
+  horaFin?: string;
+  duracionMin?: number;
+  sucursalId: number;
+  sucursalNombre: string;
+  ciudad: string;
+  productos: EnvioSuministroItem[];
+  responsableEnvio: string;
+  responsableRecepcion?: string;
+  estado: EstadoEnvio;
+  observaciones?: string;
+  motivoRechazo?: string;
 }
 
 export interface Incidente {

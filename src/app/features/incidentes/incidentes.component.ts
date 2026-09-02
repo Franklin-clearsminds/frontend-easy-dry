@@ -12,6 +12,7 @@ import { ModalComponent } from '../../shared/components/modal/modal.component';
 import { ToastService } from '../../shared/services/toast.service';
 import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
 import { FilterBarComponent, FilterState } from '../../shared/components/filter-bar/filter-bar.component';
+import { resolverRangoFechas, soloFecha } from '../../core/utils/fecha-rango';
 import { ModalPortalDirective } from '../../shared/directives/modal-portal.directive';
 
 @Component({
@@ -56,19 +57,19 @@ import { ModalPortalDirective } from '../../shared/directives/modal-portal.direc
       </app-filter-bar>
 
       <!-- Incident Cards Grid (Optimized for PC/Laptop) -->
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-stretch">
         @for (inc of paginatedIncidentes; track inc.id) {
-          <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry p-5 flex flex-col justify-between space-y-4 hover:shadow-easydry-hover transition-all">
+          <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry p-5 flex flex-col h-full min-h-[280px] hover:shadow-easydry-hover transition-all">
             
-            <div>
+            <div class="flex-1 min-w-0">
               <!-- Top bar: ID and Status badge -->
-              <div class="flex items-center justify-between mb-3">
-                <span class="font-mono font-extrabold text-xs text-slate-600 bg-slate-100 px-2.5 py-1 rounded-lg">
+              <div class="flex items-center justify-between gap-2 mb-3">
+                <span class="font-mono font-extrabold text-xs text-slate-600 bg-slate-100 px-2.5 py-1 rounded-lg truncate">
                   {{ inc.codigoIncidente }}
                 </span>
                 
                 <span 
-                  class="px-2.5 py-1 rounded-full text-[11px] font-extrabold"
+                  class="px-2.5 py-1 rounded-full text-[11px] font-extrabold shrink-0"
                   [ngClass]="{
                     'bg-rose-100 text-rose-800 border border-rose-300': inc.estado === 'Pendiente',
                     'bg-amber-100 text-amber-800 border border-amber-300': inc.estado === 'En Solución',
@@ -79,19 +80,19 @@ import { ModalPortalDirective } from '../../shared/directives/modal-portal.direc
               </div>
 
               <!-- Title & Branch -->
-              <h3 class="font-bold text-slate-900 text-base font-outfit">{{ inc.maquina }}</h3>
-              <p class="text-xs text-slate-500 font-semibold">{{ inc.agencia }} • {{ inc.fecha }}</p>
+              <h3 class="font-bold text-slate-900 text-base font-outfit leading-snug line-clamp-2">{{ inc.maquina }}</h3>
+              <p class="text-xs text-slate-500 font-semibold mt-0.5 truncate">{{ inc.agencia }} • {{ inc.fecha }}</p>
 
               <!-- Problem Summary Box -->
               <div class="mt-3 p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-1.5 text-xs">
                 <div class="flex items-center gap-1.5 text-rose-700 font-bold text-[11px]">
-                  <i-lucide name="alert-circle" class="w-3.5 h-3.5"></i-lucide>
-                  <span>Falla: {{ inc.tipo }}</span>
+                  <i-lucide name="alert-circle" class="w-3.5 h-3.5 shrink-0"></i-lucide>
+                  <span class="truncate">Falla: {{ inc.tipo }}</span>
                 </div>
                 <p class="text-slate-700 font-medium line-clamp-2">{{ inc.descripcion }}</p>
-                <p class="text-slate-400 text-[10px]">Reportado por: <strong class="text-slate-600">{{ inc.reportadoPor }}</strong></p>
+                <p class="text-slate-400 text-[10px] truncate">Reportado por: <strong class="text-slate-600">{{ inc.reportadoPor }}</strong></p>
                 @if (inc.tecnicoAsignadoNombre) {
-                  <p class="text-violet-700 text-[10px] font-bold mt-1">Asignado a: {{ inc.tecnicoAsignadoNombre }}</p>
+                  <p class="text-violet-700 text-[10px] font-bold mt-1 truncate">Asignado a: {{ inc.tecnicoAsignadoNombre }}</p>
                 }
                 @if (!inc.tecnicoAsignadoId && inc.estado === 'Pendiente') {
                   <p class="text-amber-700 text-[10px] font-bold mt-1">Sin asignar — requiere gestor técnico</p>
@@ -157,11 +158,11 @@ import { ModalPortalDirective } from '../../shared/directives/modal-portal.direc
             </div>
 
             <!-- Action Buttons -->
-            <div class="pt-3 border-t border-slate-100 flex flex-col gap-2">
+            <div class="pt-3 mt-auto border-t border-slate-100 flex flex-col gap-2">
               <button 
                 (click)="abrirDetalle(inc)"
-                class="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5">
-                <i-lucide name="eye" class="w-4 h-4 text-easydry-blue"></i-lucide>
+                class="w-full py-2 px-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5">
+                <i-lucide name="eye" class="w-4 h-4 text-easydry-blue shrink-0"></i-lucide>
                 <span>Ver Ficha & Evidencias</span>
               </button>
 
@@ -169,15 +170,15 @@ import { ModalPortalDirective } from '../../shared/directives/modal-portal.direc
                 @if (puedeAsignar) {
                   <button 
                     (click)="openModalAsignar(inc)"
-                    class="w-full py-2 bg-violet-600 hover:bg-violet-700 text-white font-extrabold rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5 shadow-xs">
-                    <i-lucide name="user-cog" class="w-4 h-4"></i-lucide>
-                    <span>{{ inc.tecnicoAsignadoId ? 'Reasignar o Delegar' : 'Asignar o Ejecutar Reparación' }}</span>
+                    class="w-full py-2 px-2 bg-violet-600 hover:bg-violet-700 text-white font-extrabold rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5 shadow-xs">
+                    <i-lucide name="user-cog" class="w-4 h-4 shrink-0"></i-lucide>
+                    <span>{{ inc.tecnicoAsignadoId ? 'Reasignar o Delegar' : 'Asignar o Ejecutar' }}</span>
                   </button>
                   @if (inc.tecnicoAsignadoId) {
                     <button 
                       (click)="cancelarAsignacionIncidente(inc)"
-                      class="w-full py-2 bg-rose-50 hover:bg-rose-100 text-rose-800 font-bold rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5 border border-rose-200">
-                      <i-lucide name="x-circle" class="w-4 h-4"></i-lucide>
+                      class="w-full py-2 px-2 bg-rose-50 hover:bg-rose-100 text-rose-800 font-bold rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5 border border-rose-200">
+                      <i-lucide name="x-circle" class="w-4 h-4 shrink-0"></i-lucide>
                       <span>Cancelar Asignación</span>
                     </button>
                   }
@@ -185,9 +186,9 @@ import { ModalPortalDirective } from '../../shared/directives/modal-portal.direc
                 @if (puedeSolucionar(inc)) {
                   <button 
                     (click)="openModalSolucionar(inc)"
-                    class="w-full py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5 shadow-xs">
-                    <i-lucide name="wrench" class="w-4 h-4"></i-lucide>
-                    <span>Registrar Reparación & Solución</span>
+                    class="w-full py-2 px-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5 shadow-xs">
+                    <i-lucide name="wrench" class="w-4 h-4 shrink-0"></i-lucide>
+                    <span>Registrar Reparación</span>
                   </button>
                 }
               }
@@ -886,6 +887,14 @@ export class IncidentesComponent implements OnInit {
     }
     if (this.filtrosGlobales.sucursal !== 'Todas') {
       resultados = resultados.filter(inc => inc.agencia === this.filtrosGlobales.sucursal);
+    }
+
+    const rango = resolverRangoFechas(this.filtrosGlobales);
+    if (rango) {
+      resultados = resultados.filter(inc => {
+        const d = soloFecha(inc.fecha);
+        return d >= rango.inicio && d <= rango.fin;
+      });
     }
     
     return resultados;

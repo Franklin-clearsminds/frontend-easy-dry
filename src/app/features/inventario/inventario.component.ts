@@ -6,6 +6,7 @@ import { InventarioMockService } from '../../core/services/inventario-mock.servi
 import { AuthService } from '../../core/services/auth.service';
 import { ToastService } from '../../shared/services/toast.service';
 import { ModalComponent } from '../../shared/components/modal/modal.component';
+import { EnvioSuministro } from '../../core/models';
 import {
   EnvaseUnidad,
   ProductoInsumo,
@@ -163,6 +164,17 @@ import {
           </button>
 
           <button
+            (click)="activeTab = 'envios'"
+            class="pb-2.5 text-xs font-bold border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
+            [ngClass]="activeTab === 'envios' ? 'border-easydry-blue text-easydry-blue' : 'border-transparent text-slate-500 hover:text-slate-700'">
+            <i-lucide name="send" class="w-4 h-4 text-emerald-600"></i-lucide>
+            Envíos & Confirmación (Punto 9)
+            <span class="px-1.5 py-0.2 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">
+              {{ envios.length }}
+            </span>
+          </button>
+
+          <button
             (click)="activeTab = 'alertas'"
             class="pb-2.5 text-xs font-bold border-b-2 transition-colors flex items-center gap-1.5 relative whitespace-nowrap cursor-pointer"
             [ngClass]="activeTab === 'alertas' ? 'border-rose-500 text-rose-600' : 'border-transparent text-slate-500 hover:text-slate-700'">
@@ -183,11 +195,11 @@ import {
       @if (activeTab === 'matriz') {
         <div class="space-y-4 animate-fade-in">
           
-          <!-- Filtros y Búsqueda Directa -->
-          <div class="bg-white p-3.5 rounded-2xl border border-slate-100 shadow-easydry flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <!-- Filtros, Selector Sucursal/Bahía y Búsqueda Directa (Punto 7 y Punto 18) -->
+          <div class="bg-white p-3.5 rounded-2xl border border-slate-100 shadow-easydry flex flex-col lg:flex-row lg:items-center justify-between gap-3">
             <div class="flex items-center gap-2 flex-1 max-w-md">
               <div class="relative w-full">
-                <i-lucide name="search" class="w-4 h-4 absolute left-3 top-2.5 text-slate-400"></i-lucide>
+                <i-lucide name="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i-lucide>
                 <input
                   type="text"
                   [(ngModel)]="filtroTexto"
@@ -197,14 +209,64 @@ import {
             </div>
 
             <div class="flex items-center gap-2.5 flex-wrap">
-              <select [(ngModel)]="filtroEstado" class="py-1.5 px-3 border rounded-xl text-xs font-medium bg-slate-50">
+              <!-- Selector Sucursal (Punto 7) -->
+              <select [(ngModel)]="filtroSucursal" class="py-1.5 px-3 border rounded-xl text-xs font-semibold bg-slate-50 text-slate-700">
+                <option value="Todas">Todas las Sucursales</option>
+                <option value="EasyDry Quito Norte">EasyDry Quito Norte</option>
+                <option value="EasyDry Quito Sur">EasyDry Quito Sur</option>
+                <option value="EasyDry Cumbayá">EasyDry Cumbayá</option>
+                <option value="EasyDry Guayaquil">EasyDry Guayaquil</option>
+              </select>
+
+              <!-- Selector Bahía (Punto 7) -->
+              <select [(ngModel)]="filtroBahia" class="py-1.5 px-3 border rounded-xl text-xs font-semibold bg-slate-50 text-slate-700">
+                <option value="Todas">Todas las Bahías</option>
+                <option value="Bahía 1">Bahía 1 (Lavado Ecológico)</option>
+                <option value="Bahía 2">Bahía 2 (Lavado y Encerado)</option>
+                <option value="Bahía 3">Bahía 3 (Pulido Especial)</option>
+                <option value="Bahía 4">Bahía 4 (Secado y Acabado)</option>
+              </select>
+
+              <select [(ngModel)]="filtroEstado" class="py-1.5 px-3 border rounded-xl text-xs font-medium bg-slate-50 text-slate-700">
                 <option value="Todos">Todos los Estados</option>
                 <option value="Optimo">Stock Óptimo</option>
                 <option value="Bajo">Stock Bajo</option>
                 <option value="Critico">Stock Crítico</option>
               </select>
+
+              <!-- Botón Limpiar Filtros con Icono (Punto 18) -->
+              <button
+                type="button"
+                (click)="limpiarFiltrosMatriz()"
+                title="Restablecer filtros de inventario"
+                class="px-3 py-1.5 bg-slate-100 hover:bg-rose-50 hover:text-rose-600 border border-slate-200 text-slate-600 font-bold rounded-xl text-xs flex items-center gap-1.5 cursor-pointer transition-colors">
+                <i-lucide name="rotate-ccw" class="w-3.5 h-3.5"></i-lucide>
+                <span>Limpiar filtros</span>
+              </button>
             </div>
           </div>
+
+          <!-- Ficha de Selección Sucursal -> Bahía (Punto 7: Responsable, Ubicación, Estado) -->
+          @if (filtroSucursal !== 'Todas' || filtroBahia !== 'Todas') {
+            <div class="p-4 bg-gradient-to-r from-blue-50/70 via-indigo-50/50 to-white rounded-2xl border border-blue-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-fade-in shadow-2xs">
+              <div class="flex items-center gap-3.5">
+                <div class="w-10 h-10 rounded-xl bg-easydry-blue text-white flex items-center justify-center font-bold">
+                  <i-lucide name="map-pin" class="w-5 h-5"></i-lucide>
+                </div>
+                <div>
+                  <div class="flex items-center gap-2">
+                    <h4 class="font-extrabold text-slate-900 text-sm font-outfit">{{ filtroSucursal }} — {{ filtroBahia }}</h4>
+                    <span class="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                      Estado: Activa & Operativa
+                    </span>
+                  </div>
+                  <p class="text-xs text-slate-500 mt-0.5">
+                    <strong>Ubicación:</strong> Sector Operativo / Red Nacional · <strong>Responsable de Sucursal:</strong> <span class="text-purple-700 font-bold">{{ getResponsableSucursal(filtroSucursal) }}</span>
+                  </p>
+                </div>
+              </div>
+            </div>
+          }
 
           <!-- Tabla de Matriz de Stock -->
           <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry overflow-hidden">
@@ -352,7 +414,7 @@ import {
           <div class="bg-white p-3.5 rounded-2xl border border-slate-100 shadow-easydry flex flex-col md:flex-row md:items-center justify-between gap-3">
             <div class="flex items-center gap-2 flex-1 max-w-md">
               <div class="relative w-full">
-                <i-lucide name="search" class="w-4 h-4 absolute left-3 top-2.5 text-slate-400"></i-lucide>
+                <i-lucide name="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i-lucide>
                 <input
                   type="text"
                   [(ngModel)]="filtroTexto"
@@ -605,7 +667,137 @@ import {
               </table>
             </div>
           </div>
+        </div>
+      }
 
+      <!-- ============================================================== -->
+      <!-- PESTAÑA 3.5: GESTIÓN DE ENVÍOS Y CONFIRMACIÓN (PUNTO 9)        -->
+      <!-- ============================================================== -->
+      @if (activeTab === 'envios') {
+        <div class="space-y-6 animate-fade-in">
+          <div class="bg-white p-6 rounded-3xl border border-slate-100 shadow-easydry flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <div class="flex items-center gap-2 mb-1">
+                <span class="p-2 rounded-xl bg-emerald-100 text-emerald-700">
+                  <i-lucide name="send" class="w-5 h-5"></i-lucide>
+                </span>
+                <h3 class="font-extrabold text-slate-900 text-base font-outfit">Flujo de Envíos y Confirmación de Recepción</h3>
+              </div>
+              <p class="text-slate-500 text-xs">
+                Control logístico de envíos desde Bodega/Distribuidor hacia Agencias receptoras con validación de estado y tiempos.
+              </p>
+            </div>
+
+            @if (puedeDespachar) {
+              <button
+                type="button"
+                (click)="abrirModalCrearEnvio()"
+                class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center gap-2 shadow-xs cursor-pointer">
+                <i-lucide name="plus" class="w-4 h-4"></i-lucide>
+                <span>Crear Envío de Suministro</span>
+              </button>
+            }
+          </div>
+
+          <!-- Tabla de Envíos -->
+          <div class="bg-white rounded-3xl border border-slate-100 shadow-easydry overflow-hidden">
+            <div class="overflow-x-auto">
+              <table class="w-full text-left text-xs">
+                <thead>
+                  <tr class="bg-slate-50 text-[10px] font-extrabold uppercase text-slate-500 border-b">
+                    <th class="py-3.5 px-4">Código Envío</th>
+                    <th class="py-3.5 px-3">Fecha & Salida</th>
+                    <th class="py-3.5 px-4">Agencia Destino</th>
+                    <th class="py-3.5 px-4">Insumos Enviados</th>
+                    <th class="py-3.5 px-3">Resp. Envío</th>
+                    <th class="py-3.5 px-3">Resp. Recepción</th>
+                    <th class="py-3.5 px-3 text-center">Tiempos</th>
+                    <th class="py-3.5 px-3 text-center">Estado</th>
+                    <th class="py-3.5 px-4 text-right">Acciones de Agencia</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 font-medium">
+                  @for (env of envios; track env.id) {
+                    <tr class="hover:bg-slate-50/80 transition-colors">
+                      <td class="py-3.5 px-4 font-mono font-extrabold text-easydry-blue">{{ env.codigoEnvio }}</td>
+                      <td class="py-3.5 px-3">
+                        <p class="font-bold text-slate-800">{{ env.fecha }}</p>
+                        <span class="text-[10px] text-slate-400 font-mono">{{ env.horaInicio || '08:00' }}</span>
+                      </td>
+                      <td class="py-3.5 px-4 font-bold text-slate-900">
+                        {{ env.sucursalNombre }}
+                        <p class="text-[10px] text-slate-400 font-normal">{{ env.ciudad }}</p>
+                      </td>
+                      <td class="py-3.5 px-4">
+                        <div class="space-y-0.5">
+                          @for (p of env.productos; track p.nombreProducto) {
+                            <div class="text-[11px] text-slate-700">
+                              <strong>{{ p.cantidad }} {{ p.unidad }}</strong> - {{ p.nombreProducto }}
+                            </div>
+                          }
+                        </div>
+                      </td>
+                      <td class="py-3.5 px-3 text-slate-600 text-[11px]">{{ env.responsableEnvio }}</td>
+                      <td class="py-3.5 px-3 text-[11px]">
+                        @if (env.responsableRecepcion) {
+                          <span class="font-bold text-purple-800">{{ env.responsableRecepcion }}</span>
+                        } @else {
+                          <span class="text-slate-400 italic">Pendiente de arribo</span>
+                        }
+                      </td>
+                      <td class="py-3.5 px-3 text-center">
+                        @if (env.duracionMin) {
+                          <span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-mono text-[10px] font-bold">
+                            {{ env.duracionMin }} min
+                          </span>
+                        } @else {
+                          <span class="text-[10px] text-slate-400 font-mono">En ruta</span>
+                        }
+                      </td>
+                      <td class="py-3.5 px-3 text-center">
+                        <span
+                          class="px-2.5 py-1 rounded-full text-[10px] font-extrabold"
+                          [ngClass]="{
+                            'bg-amber-100 text-amber-800 border border-amber-200': env.estado === 'PENDIENTE',
+                            'bg-blue-100 text-blue-800 border border-blue-200': env.estado === 'ENVIADO',
+                            'bg-emerald-100 text-emerald-800 border border-emerald-200': env.estado === 'RECIBIDO',
+                            'bg-rose-100 text-rose-800 border border-rose-200': env.estado === 'RECHAZADO'
+                          }">
+                          {{ env.estado }}
+                        </span>
+                      </td>
+                      <td class="py-3.5 px-4 text-right">
+                        @if (env.estado === 'ENVIADO') {
+                          <div class="flex items-center justify-end gap-1.5">
+                            <button
+                              type="button"
+                              (click)="confirmarRecepcionEnvio(env)"
+                              class="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1">
+                              <i-lucide name="check" class="w-3.5 h-3.5"></i-lucide>
+                              <span>Confirmar</span>
+                            </button>
+                            <button
+                              type="button"
+                              (click)="abrirModalRechazo(env)"
+                              class="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-600 hover:text-white text-rose-700 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1">
+                              <i-lucide name="x" class="w-3.5 h-3.5"></i-lucide>
+                              <span>Rechazar</span>
+                            </button>
+                          </div>
+                        } @else if (env.estado === 'RECIBIDO') {
+                          <span class="text-[11px] font-bold text-emerald-700">✓ Recepción Verificada</span>
+                        } @else if (env.estado === 'RECHAZADO') {
+                          <span class="text-[11px] font-bold text-rose-700" [title]="env.motivoRechazo || 'Rechazado'">✕ Rechazado: {{ env.motivoRechazo || 'Discrepancia' }}</span>
+                        } @else {
+                          <span class="text-[11px] text-slate-400 italic">En alistamiento</span>
+                        }
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       }
 
@@ -1073,11 +1265,123 @@ import {
         </div>
       </app-modal>
 
+      <!-- MODAL RECHAZO DE ENVÍO (Punto 9) -->
+      <app-modal
+        [isOpen]="modalRechazoOpen"
+        title="Rechazar Envío de Suministros"
+        icon="alert-triangle"
+        (close)="modalRechazoOpen = false">
+        @if (envioSeleccionadoRechazo) {
+          <div class="space-y-4">
+            <div class="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800">
+              Está a punto de registrar una disconformidad para el envío <strong>{{ envioSeleccionadoRechazo.codigoEnvio }}</strong> hacia <strong>{{ envioSeleccionadoRechazo.sucursalNombre }}</strong>.
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Motivo del Rechazo / No Conformidad</label>
+              <textarea
+                [(ngModel)]="motivoRechazoTexto"
+                rows="3"
+                placeholder="Indique la causa: Insumos dañados en tránsito, discrepancia en unidades recibidas, producto equivocado..."
+                class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 outline-none focus:ring-2 focus:ring-rose-500"
+                required>
+              </textarea>
+            </div>
+          </div>
+        }
+        <div modal-footer class="flex items-center justify-end gap-2 w-full">
+          <button
+            type="button"
+            (click)="modalRechazoOpen = false"
+            class="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer">
+            Cancelar
+          </button>
+          <button
+            type="button"
+            (click)="confirmarRechazoEnvio()"
+            [disabled]="!motivoRechazoTexto.trim()"
+            class="px-4 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white disabled:opacity-50 cursor-pointer">
+            Confirmar Rechazo
+          </button>
+        </div>
+      </app-modal>
+
+      <!-- MODAL CREAR ENVÍO (Punto 9) -->
+      <app-modal
+        [isOpen]="modalCrearEnvioOpen"
+        title="Crear y Despachar Envío de Suministros"
+        icon="send"
+        (close)="modalCrearEnvioOpen = false">
+        <form (ngSubmit)="guardarNuevoEnvio()" class="space-y-4">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Agencia / Sucursal Destino</label>
+            <select
+              [(ngModel)]="nuevoEnvioForm.sucursalNombre"
+              name="sucursalDestino"
+              class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800">
+              <option value="EasyDry Quito Norte">EasyDry Quito Norte (Quito)</option>
+              <option value="EasyDry Quito Sur">EasyDry Quito Sur (Quito)</option>
+              <option value="EasyDry Cumbayá">EasyDry Cumbayá (Quito)</option>
+              <option value="EasyDry Guayaquil">EasyDry Guayaquil (Guayaquil)</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Insumo Principal</label>
+            <select
+              [(ngModel)]="nuevoEnvioForm.insumoNombre"
+              name="insumo"
+              class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800">
+              <option value="Shampoo Ecológico Concentrado">Shampoo Ecológico Concentrado (Galón)</option>
+              <option value="Cera Línea Brillo Espejo">Cera Línea Brillo Espejo (Galón)</option>
+              <option value="Microfibras Ultra Absorbentes 40x40">Microfibras Ultra Absorbentes (Pack x10)</option>
+              <option value="Desengrasante Biodegradable">Desengrasante Biodegradable (Caneca)</option>
+            </select>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Cantidad</label>
+              <input
+                type="number"
+                [(ngModel)]="nuevoEnvioForm.cantidad"
+                name="cantidad"
+                min="1"
+                class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800">
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Prioridad / Observación</label>
+              <input
+                type="text"
+                [(ngModel)]="nuevoEnvioForm.observacion"
+                name="obs"
+                placeholder="Ej. Despacho urgente para fin de semana"
+                class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800">
+            </div>
+          </div>
+        </form>
+        <div modal-footer class="flex items-center justify-end gap-2 w-full">
+          <button
+            type="button"
+            (click)="modalCrearEnvioOpen = false"
+            class="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer">
+            Cancelar
+          </button>
+          <button
+            type="button"
+            (click)="guardarNuevoEnvio()"
+            class="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer">
+            Despachar Envío
+          </button>
+        </div>
+      </app-modal>
+
     </div>
   `
 })
 export class InventarioComponent implements OnInit {
   private auth = inject(AuthService);
+  private toastService = inject(ToastService);
 
   get puedeGestionarCatalogo(): boolean {
     return this.auth.can('gestionarInventario');
@@ -1086,10 +1390,81 @@ export class InventarioComponent implements OnInit {
   get puedeDespachar(): boolean {
     return this.auth.can('despacharSuministros');
   }
-  activeTab: 'matriz' | 'catalogo' | 'bodegas' | 'despachos' | 'tipos_envases' | 'alertas' = 'matriz';
+
+  activeTab: 'matriz' | 'catalogo' | 'bodegas' | 'despachos' | 'tipos_envases' | 'alertas' | 'envios' = 'matriz';
   filtroTexto = '';
   filtroEstado = 'Todos';
+  filtroSucursal = 'Todas';
+  filtroBahia = 'Todas';
   bodegaCentralId = BODEGA_CENTRAL_ID;
+
+  // Envíos y Confirmación (Punto 9)
+  modalRechazoOpen = false;
+  modalCrearEnvioOpen = false;
+  envioSeleccionadoRechazo: EnvioSuministro | null = null;
+  motivoRechazoTexto = '';
+  nuevoEnvioForm = {
+    sucursalNombre: 'EasyDry Quito Norte',
+    insumoNombre: 'Shampoo Ecológico Concentrado',
+    cantidad: 5,
+    observacion: ''
+  };
+
+  envios: EnvioSuministro[] = [
+    {
+      id: 1,
+      codigoEnvio: 'ENV-2026-001',
+      fecha: '2026-09-01',
+      fechaEnvio: '2026-09-01 08:30',
+      horaInicio: '08:30',
+      fechaRecepcion: '2026-09-01 11:15',
+      horaFin: '11:15',
+      duracionMin: 165,
+      sucursalId: 1,
+      sucursalNombre: 'EasyDry Quito Norte',
+      ciudad: 'Quito',
+      productos: [
+        { productoId: 1, nombreProducto: 'Shampoo Ecológico Concentrado', cantidad: 5, unidad: 'Galón' },
+        { productoId: 2, nombreProducto: 'Cera Línea Brillo Espejo', cantidad: 3, unidad: 'Galón' }
+      ],
+      responsableEnvio: 'Distribuidor Central (Bodega)',
+      responsableRecepcion: 'Carlos Mendoza (Gerente)',
+      estado: 'RECIBIDO',
+      observaciones: 'Despacho prioritario recibido en perfecto estado.'
+    },
+    {
+      id: 2,
+      codigoEnvio: 'ENV-2026-002',
+      fecha: '2026-09-02',
+      fechaEnvio: '2026-09-02 07:45',
+      horaInicio: '07:45',
+      sucursalId: 2,
+      sucursalNombre: 'EasyDry Guayaquil',
+      ciudad: 'Guayaquil',
+      productos: [
+        { productoId: 3, nombreProducto: 'Microfibras Ultra Absorbentes 40x40', cantidad: 20, unidad: 'Pack x10' },
+        { productoId: 4, nombreProducto: 'Desengrasante Biodegradable', cantidad: 4, unidad: 'Caneca' }
+      ],
+      responsableEnvio: 'Distribuidor Central (Bodega)',
+      estado: 'ENVIADO',
+      observaciones: 'Envío en tránsito terrestre hacia la agencia.'
+    },
+    {
+      id: 3,
+      codigoEnvio: 'ENV-2026-003',
+      fecha: '2026-09-02',
+      horaInicio: '09:00',
+      sucursalId: 3,
+      sucursalNombre: 'EasyDry Cumbayá',
+      ciudad: 'Quito',
+      productos: [
+        { productoId: 1, nombreProducto: 'Shampoo Ecológico Concentrado', cantidad: 2, unidad: 'Galón' }
+      ],
+      responsableEnvio: 'Distribuidor Central (Bodega)',
+      estado: 'PENDIENTE',
+      observaciones: 'Por embalar en bodega central.'
+    }
+  ];
 
   envases: EnvaseUnidad[] = [];
   bodegas: BodegaInventario[] = [];
@@ -1155,7 +1530,6 @@ export class InventarioComponent implements OnInit {
   };
 
   private inventarioService = inject(InventarioMockService);
-  private toastService = inject(ToastService);
   public authService = inject(AuthService);
 
   ngOnInit(): void {
@@ -1170,6 +1544,42 @@ export class InventarioComponent implements OnInit {
   }
 
   get itemsFiltrados(): InventarioItem[] {
+    const sucursalSel = this.filtroSucursal;
+    const sucursalDeBahia = this.sucursalDeBahiaSeleccionada();
+
+    return this.inventarioItems.filter(item => {
+      const matchText = !this.filtroTexto.trim() ||
+        item.producto.nombre.toLowerCase().includes(this.filtroTexto.toLowerCase()) ||
+        item.producto.codigoSKU.toLowerCase().includes(this.filtroTexto.toLowerCase()) ||
+        (item.producto.unidadMedida && item.producto.unidadMedida.toLowerCase().includes(this.filtroTexto.toLowerCase()));
+
+      const matchEstado = this.filtroEstado === 'Todos' || item.estadoGeneral === this.filtroEstado;
+
+      // Sucursal: stock real reportado en esa sucursal (0 o ausente = sin existencias).
+      let matchSucursal = true;
+      const sc = (sucursalSel !== 'Todas') ? sucursalSel : sucursalDeBahia;
+      if (sc) {
+        matchSucursal = (item.stockPorSucursal?.[sc] ?? 0) > 0;
+      }
+
+      return matchText && matchEstado && matchSucursal;
+    });
+  }
+
+  /** Devuelve la sucursal a la que pertenece la bahía seleccionada (si aplica). */
+  private sucursalDeBahiaSeleccionada(): string {
+    if (this.filtroBahia === 'Todas') return '';
+    const map: Record<string, string> = {
+      'Bahía 1': 'EasyDry Quito Norte',
+      'Bahía 2': 'EasyDry Quito Sur',
+      'Bahía 3': 'EasyDry Cumbayá',
+      'Bahía 4': 'EasyDry Guayaquil',
+    };
+    return map[this.filtroBahia] || '';
+  }
+
+  /** Catálogo maestro: filtra por texto y estado, sin restricción de sucursal/bahía. */
+  get productosCatalogoFiltrados(): InventarioItem[] {
     return this.inventarioItems.filter(item => {
       const matchText = !this.filtroTexto.trim() ||
         item.producto.nombre.toLowerCase().includes(this.filtroTexto.toLowerCase()) ||
@@ -1466,6 +1876,108 @@ export class InventarioComponent implements OnInit {
     this.despachoForm.cantidad = al.sugerenciaReabastecimiento;
     this.despachoForm.observacion = `Reabastecimiento urgente por alerta de stock (${al.nivel}).`;
     this.modalDespachoOpen = true;
+  }
+
+  // =========================================================================
+  // PUNTO 7 & 18: FILTROS DE MATRIZ, RESPONSABLE Y LIMPIAR
+  // =========================================================================
+
+  limpiarFiltrosMatriz(): void {
+    this.filtroTexto = '';
+    this.filtroEstado = 'Todos';
+    this.filtroSucursal = 'Todas';
+    this.filtroBahia = 'Todas';
+    this.toastService.info('Filtros Restablecidos', 'Se limpiaron los filtros de búsqueda e inventario.');
+  }
+
+  getResponsableSucursal(sucursal: string): string {
+    const s = sucursal.toLowerCase();
+    if (s.includes('norte')) return 'Carlos Mendoza (Gerente de Sucursal)';
+    if (s.includes('sur')) return 'Esteban Paredes (Gerente de Sucursal)';
+    if (s.includes('cumbayá') || s.includes('cumbaya')) return 'Mateo Villacís (Gerente de Sucursal)';
+    if (s.includes('guayaquil')) return 'Diana Salazar (Gerente de Sucursal)';
+    return 'Gerencia General EasyDry';
+  }
+
+  // =========================================================================
+  // PUNTO 9: ENVÍOS Y CONFIRMACIÓN / RECHAZO
+  // =========================================================================
+
+  abrirModalCrearEnvio(): void {
+    this.nuevoEnvioForm = {
+      sucursalNombre: 'EasyDry Quito Norte',
+      insumoNombre: 'Shampoo Ecológico Concentrado',
+      cantidad: 5,
+      observacion: ''
+    };
+    this.modalCrearEnvioOpen = true;
+  }
+
+  guardarNuevoEnvio(): void {
+    const nextId = this.envios.length + 1;
+    const nuevo: EnvioSuministro = {
+      id: nextId,
+      codigoEnvio: `ENV-2026-00${nextId}`,
+      fecha: new Date().toISOString().split('T')[0],
+      fechaEnvio: `${new Date().toISOString().split('T')[0]} ${new Date().toLocaleTimeString().substring(0, 5)}`,
+      horaInicio: new Date().toLocaleTimeString().substring(0, 5),
+      sucursalId: nextId,
+      sucursalNombre: this.nuevoEnvioForm.sucursalNombre,
+      ciudad: this.nuevoEnvioForm.sucursalNombre.includes('Guayaquil') ? 'Guayaquil' : 'Quito',
+      productos: [
+        {
+          productoId: 1,
+          nombreProducto: this.nuevoEnvioForm.insumoNombre,
+          cantidad: this.nuevoEnvioForm.cantidad,
+          unidad: 'Unidades'
+        }
+      ],
+      responsableEnvio: 'Distribuidor Central (Bodega)',
+      estado: 'ENVIADO',
+      observaciones: this.nuevoEnvioForm.observacion || 'Envío despachado desde Bodega Central'
+    };
+
+    this.envios.unshift(nuevo);
+    this.modalCrearEnvioOpen = false;
+    this.toastService.success(
+      'Envío Despachado',
+      `Envío ${nuevo.codigoEnvio} en tránsito hacia ${nuevo.sucursalNombre}.`
+    );
+  }
+
+  confirmarRecepcionEnvio(env: EnvioSuministro): void {
+    const ahora = new Date();
+    env.estado = 'RECIBIDO';
+    env.fechaRecepcion = ahora.toISOString().split('T')[0];
+    env.horaFin = ahora.toLocaleTimeString().substring(0, 5);
+    env.responsableRecepcion = this.auth.getCurrentUser()?.nombre
+      ? `${this.auth.getCurrentUser()?.nombre} ${this.auth.getCurrentUser()?.apellido || ''} (Receptor)`.trim()
+      : 'Gerente de Sucursal';
+    env.duracionMin = 140;
+
+    this.toastService.success(
+      'Recepción Confirmada',
+      `El envío ${env.codigoEnvio} fue verificado y recibido en ${env.sucursalNombre}.`
+    );
+  }
+
+  abrirModalRechazo(env: EnvioSuministro): void {
+    this.envioSeleccionadoRechazo = env;
+    this.motivoRechazoTexto = '';
+    this.modalRechazoOpen = true;
+  }
+
+  confirmarRechazoEnvio(): void {
+    if (!this.envioSeleccionadoRechazo || !this.motivoRechazoTexto.trim()) return;
+
+    this.envioSeleccionadoRechazo.estado = 'RECHAZADO';
+    this.envioSeleccionadoRechazo.motivoRechazo = this.motivoRechazoTexto.trim();
+    this.modalRechazoOpen = false;
+
+    this.toastService.warning(
+      'Envío Rechazado',
+      `Se registró disconformidad para ${this.envioSeleccionadoRechazo.codigoEnvio}: ${this.motivoRechazoTexto}`
+    );
   }
 }
 

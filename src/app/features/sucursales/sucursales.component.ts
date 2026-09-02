@@ -1,14 +1,15 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterModule } from '@angular/router';
+import { RouterModule, ActivatedRoute } from '@angular/router';
 import { LucideAngularModule } from 'lucide-angular';
 import { SucursalMockService } from '../../core/services/sucursal-mock.service';
 import { RegionMockService } from '../../core/services/region-mock.service';
 import { MarcaSucursalMockService } from '../../core/services/marca-sucursal-mock.service';
 import { BahiaMockService } from '../../core/services/bahia-mock.service';
+import { UsuarioMockService } from '../../core/services/usuario-mock.service';
 import { AuthService } from '../../core/services/auth.service';
-import { MarcaSucursal, MovimientoRedSucursal, RegionOperativa, Sucursal, CatalogoServicio } from '../../core/models';
+import { MarcaSucursal, MovimientoRedSucursal, RegionOperativa, Sucursal, CatalogoServicio, Bahia, Usuario } from '../../core/models';
 import { ModalComponent } from '../../shared/components/modal/modal.component';
 import { ToastService } from '../../shared/services/toast.service';
 import { CatalogoServiciosMockService } from '../../core/services/catalogo-servicios-mock.service';
@@ -22,19 +23,19 @@ import { CatalogoServiciosMockService } from '../../core/services/catalogo-servi
 
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-100 shadow-easydry">
         <div>
-          <h1 class="text-2xl font-extrabold text-slate-900 font-outfit">Control de Sucursales EasyDry®</h1>
-          <p class="text-slate-500 text-xs mt-1">Regiones, marcas, servicios por sucursal e infraestructura de bahías.</p>
+          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-easydry-blue/10 text-easydry-blue text-xs font-bold mb-2">
+            <i-lucide name="building-2" class="w-3.5 h-3.5"></i-lucide>
+            <span>Gestión de Red Física y Operatividad en Vivo</span>
+          </div>
+          <h1 class="text-2xl font-extrabold text-slate-900 font-outfit">Sucursales & Mapa de Red EasyDry®</h1>
+          <p class="text-slate-500 text-xs mt-1">Control administrativo de sedes, regiones operativas, marcas y trazabilidad jerárquica de bahías en tiempo real.</p>
         </div>
         <div class="flex items-center gap-3 flex-wrap">
-          <a [routerLink]="['/mapa-operativo']" class="px-4 py-2.5 bg-slate-100 hover:bg-easydry-blue hover:text-white text-slate-700 font-bold rounded-xl text-xs transition-colors flex items-center gap-2">
-            <i-lucide name="sliders" class="w-4 h-4"></i-lucide>
-            <span>Ver Mapa Operativo Global</span>
-          </a>
           <button
             (click)="abrirModalCrearSucursal()"
-            class="px-4 py-2.5 bg-easydry-blue hover:bg-easydry-blue-dark text-white font-bold rounded-xl text-xs transition-colors flex items-center gap-2 shadow-xs">
+            class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
             <i-lucide name="plus" class="w-4 h-4"></i-lucide>
-            <span>Registrar Nueva Sucursal</span>
+            <span>Registrar Sucursal</span>
           </button>
         </div>
       </div>
@@ -43,14 +44,164 @@ import { CatalogoServiciosMockService } from '../../core/services/catalogo-servi
         @for (tab of tabs; track tab.id) {
           <button
             (click)="tabActiva = tab.id"
-            class="px-4 py-2 rounded-xl text-xs font-extrabold border transition-colors"
+            class="px-4 py-2 rounded-xl text-xs font-extrabold border transition-colors cursor-pointer"
             [ngClass]="tabActiva === tab.id
-              ? 'bg-easydry-blue text-white border-easydry-blue'
+              ? 'bg-easydry-blue text-white border-easydry-blue shadow-sm'
               : 'bg-white text-slate-600 border-slate-200 hover:border-easydry-blue/40'">
             {{ tab.label }}
           </button>
         }
       </div>
+
+      <!-- ====================================================================== -->
+      <!-- TAB 0: MAPA OPERATIVO LIVE DE LA RED                                   -->
+      <!-- ====================================================================== -->
+      @if (tabActiva === 'mapa') {
+        <div class="space-y-6 animate-fade-in">
+          
+          <!-- Barra de Filtro de Sucursal para el Mapa -->
+          <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-xs flex flex-wrap items-center justify-between gap-4">
+            <div class="flex items-center gap-3 flex-wrap flex-1">
+              <div class="flex items-center gap-2">
+                <i-lucide name="filter" class="w-4 h-4 text-easydry-blue"></i-lucide>
+                <span class="text-xs font-bold text-slate-700 uppercase">Filtrar Sucursal:</span>
+              </div>
+              <select [(ngModel)]="filtroSucursalMapaId" class="bg-slate-50 border border-slate-200 text-xs font-bold rounded-xl px-3 py-2 min-w-56 focus:ring-2 focus:ring-easydry-blue">
+                <option [ngValue]="0">🌐 Toda la Red Nacional (Todas las sucursales)</option>
+                @for (suc of sucursales; track suc.id) {
+                  <option [ngValue]="suc.id">{{ suc.nombre }} ({{ suc.ciudad }})</option>
+                }
+              </select>
+            </div>
+
+            <!-- Leyenda de Estados de Bahía -->
+            <div class="flex items-center gap-3 flex-wrap text-[11px] font-bold text-slate-600">
+              <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> Disponible</span>
+              <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span> Lavado</span>
+              <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span> Secado</span>
+              <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-purple-500"></span> Aspirado</span>
+              <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span> Mantenimiento</span>
+            </div>
+          </div>
+
+          <!-- Árbol Operativo Jerárquico: Sucursal -> Bahía -> Operador & Maquinaria -->
+          <div class="space-y-6">
+            @for (suc of sucursalesMapa; track suc.id) {
+              <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry overflow-hidden">
+                <!-- Cabecera de la Sucursal -->
+                <div class="p-5 bg-gradient-to-r from-slate-50 to-white border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-easydry-blue/10 text-easydry-blue flex items-center justify-center font-bold">
+                      <i-lucide name="building-2" class="w-5 h-5"></i-lucide>
+                    </div>
+                    <div>
+                      <div class="flex items-center gap-2">
+                        <h3 class="font-extrabold text-base text-slate-900 font-outfit">{{ suc.nombre }}</h3>
+                        <span class="px-2 py-0.5 rounded-full text-[10px] font-bold"
+                          [ngClass]="suc.estado === 'Activo' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'">
+                          {{ suc.estado }}
+                        </span>
+                      </div>
+                      <p class="text-xs text-slate-500 font-medium mt-0.5">
+                        {{ suc.ciudad }} · Responsable: <strong class="text-slate-700">{{ suc.responsable }}</strong> · Tel: {{ suc.telefono }}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-xl">
+                      {{ getBahiasDeSucursal(suc.id).length }} Bahías Registradas
+                    </span>
+                    <a [routerLink]="['/sucursales', suc.id]" class="px-3 py-1.5 bg-easydry-blue/10 hover:bg-easydry-blue hover:text-white text-easydry-blue font-bold rounded-xl text-xs transition-colors flex items-center gap-1">
+                      <span>Gestionar</span>
+                      <i-lucide name="chevron-right" class="w-3.5 h-3.5"></i-lucide>
+                    </a>
+                  </div>
+                </div>
+
+                <!-- Grilla de Bahías de la Sucursal -->
+                <div class="p-5">
+                  @if (getBahiasDeSucursal(suc.id).length === 0) {
+                    <p class="text-xs text-slate-400 italic py-4 text-center">No hay bahías configuradas para esta sucursal.</p>
+                  } @else {
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      @for (bahia of getBahiasDeSucursal(suc.id); track bahia.id) {
+                        <div class="p-4 rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-white hover:shadow-md transition-all flex flex-col justify-between">
+                          <div>
+                            <!-- Header de Bahía -->
+                            <div class="flex items-start justify-between gap-2 mb-2">
+                              <div>
+                                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider font-mono">Bahía #{{ bahia.id }}</span>
+                                <h4 class="font-extrabold text-sm text-slate-900">{{ bahia.nombre }}</h4>
+                              </div>
+                              <span class="px-2.5 py-1 rounded-lg text-[10px] font-extrabold uppercase tracking-wider border"
+                                [ngClass]="getEstadoBahiaBadge(bahia.estado)">
+                                {{ bahia.estado }}
+                              </span>
+                            </div>
+
+                            <!-- Responsable y Operador asignado (Punto 16) -->
+                            <div class="mt-3 p-2.5 bg-white rounded-xl border border-slate-100 text-xs space-y-2">
+                              <div>
+                                <div class="text-[9px] font-extrabold text-purple-700 uppercase tracking-wider mb-0.5 flex items-center gap-1">
+                                  <i-lucide name="shield" class="w-3 h-3 text-purple-600"></i-lucide>
+                                  <span>Responsable de Agencia</span>
+                                </div>
+                                <p class="font-bold text-slate-800 text-[11px] truncate">{{ suc.responsable || 'Sin asignar' }}</p>
+                              </div>
+                              <div>
+                                <div class="text-[9px] font-extrabold text-easydry-blue uppercase tracking-wider mb-0.5 flex items-center gap-1">
+                                  <i-lucide name="user" class="w-3 h-3 text-easydry-blue"></i-lucide>
+                                  <span>Operador Asignado</span>
+                                </div>
+                                @if (bahia.operadorAsignado) {
+                                  <p class="font-bold text-slate-800 text-[11px] truncate">{{ bahia.operadorAsignado }}</p>
+                                } @else {
+                                  <p class="text-slate-400 italic text-[11px]">Sin operador asignado</p>
+                                }
+                              </div>
+                            </div>
+
+                            <!-- Maquinaria e Insumos vinculados -->
+                            <div class="mt-2 text-[11px] text-slate-500 space-y-1">
+                              @if (bahia.maquinariaAsignada && bahia.maquinariaAsignada.length > 0) {
+                                <div class="flex items-center gap-1 text-slate-600">
+                                  <i-lucide name="wrench" class="w-3 h-3 text-slate-400"></i-lucide>
+                                  <span>{{ bahia.maquinariaAsignada.length }} máquina(s) en línea</span>
+                                </div>
+                              }
+                              @if (bahia.vehiculoActual) {
+                                <div class="flex items-center gap-1 text-easydry-blue font-bold">
+                                  <i-lucide name="car" class="w-3 h-3"></i-lucide>
+                                  <span>En atención: {{ bahia.vehiculoActual }}</span>
+                                </div>
+                              }
+                            </div>
+                          </div>
+
+                          <div class="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
+                            <span class="text-slate-400">Tipo: {{ bahia.tipo || 'General' }}</span>
+                            <a [routerLink]="['/sucursales', suc.id]" class="text-easydry-blue font-bold hover:underline flex items-center gap-0.5">
+                              <span>Ver detalle</span>
+                              <i-lucide name="arrow-right" class="w-3 h-3"></i-lucide>
+                            </a>
+                          </div>
+                        </div>
+                      }
+                    </div>
+                  }
+                </div>
+              </div>
+            } @empty {
+              <div class="bg-white rounded-2xl border border-slate-100 p-12 text-center text-slate-400">
+                <i-lucide name="building-2" class="w-12 h-12 mx-auto mb-2 opacity-30"></i-lucide>
+                <p class="font-bold text-sm">No se encontraron sucursales para el filtro seleccionado.</p>
+              </div>
+            }
+          </div>
+
+        </div>
+      }
 
       @if (tabActiva === 'sucursales') {
         <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-xs flex flex-wrap items-center gap-3">
@@ -130,12 +281,20 @@ import { CatalogoServiciosMockService } from '../../core/services/catalogo-servi
                   <span class="text-slate-500">Responsable:</span>
                   <span class="font-bold text-slate-800">{{ suc.responsable }}</span>
                 </div>
-                <a
-                  [routerLink]="['/sucursales', suc.id]"
-                  class="w-full mt-2 py-2 bg-easydry-blue/10 hover:bg-easydry-blue hover:text-white text-easydry-blue font-bold rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5">
-                  <i-lucide name="eye" class="w-3.5 h-3.5"></i-lucide>
-                  <span>Ver Bahías & Operación</span>
-                </a>
+                <div class="flex items-center gap-2 mt-2">
+                  <button
+                    (click)="verEnMapa(suc)"
+                    class="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer">
+                    <i-lucide name="map" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide>
+                    <span>Ver en Mapa</span>
+                  </button>
+                  <a
+                    [routerLink]="['/sucursales', suc.id]"
+                    class="flex-1 py-2 bg-easydry-blue/10 hover:bg-easydry-blue hover:text-white text-easydry-blue font-bold rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5">
+                    <i-lucide name="eye" class="w-3.5 h-3.5"></i-lucide>
+                    <span>Detalle Bahías</span>
+                  </a>
+                </div>
               </div>
             </div>
           }
@@ -302,6 +461,164 @@ import { CatalogoServiciosMockService } from '../../core/services/catalogo-servi
         </div>
       }
 
+      <!-- ====================================================================== -->
+      <!-- TAB 4: GESTIÓN DE GERENTES DE SUCURSAL (PUNTO 3)                       -->
+      <!-- ====================================================================== -->
+      @if (tabActiva === 'gerentes') {
+        <div class="space-y-4 animate-fade-in">
+          <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="p-2 rounded-xl bg-purple-100 text-purple-700">
+                  <i-lucide name="user-check" class="w-5 h-5"></i-lucide>
+                </span>
+                <h2 class="text-lg font-extrabold text-slate-900 font-outfit">Gestión Exclusiva de Gerentes de Agencia</h2>
+              </div>
+              <p class="text-xs text-slate-500 mt-1">
+                Asignación de agencias y sucursales restringida exclusivamente a usuarios con rol <strong class="text-purple-700">GERENTE</strong>.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              (click)="abrirModalAsignarGerente()"
+              class="px-4 py-2.5 bg-purple-700 hover:bg-purple-800 text-white font-bold rounded-xl text-xs transition-colors flex items-center gap-2 shadow-xs cursor-pointer">
+              <i-lucide name="plus" class="w-4 h-4"></i-lucide>
+              <span>Asignar Agencia a Gerente</span>
+            </button>
+          </div>
+
+          <!-- Matriz de Gerentes y Agencias Asignadas -->
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            @for (ger of gerentesUsuarios; track ger.id) {
+              <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry p-5 flex flex-col justify-between hover:border-purple-200 transition-all">
+                <div>
+                  <div class="flex items-start justify-between gap-3 mb-3">
+                    <div class="flex items-center gap-3">
+                      <img
+                        [src]="ger.avatar || 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80'"
+                        alt="Avatar"
+                        class="w-11 h-11 rounded-full object-cover ring-2 ring-purple-300">
+                      <div>
+                        <h4 class="font-bold text-sm text-slate-900 leading-tight">{{ ger.nombre }} {{ ger.apellido }}</h4>
+                        <p class="text-[11px] text-slate-500 truncate">{{ ger.email }}</p>
+                      </div>
+                    </div>
+                    <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-purple-50 text-purple-800 border border-purple-200">
+                      Rol: GERENTE
+                    </span>
+                  </div>
+
+                  <!-- Información de Sucursal Asignada -->
+                  <div class="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-1.5 mt-2">
+                    <div class="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                      <i-lucide name="building-2" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide>
+                      <span>Agencia / Sucursal Asignada</span>
+                    </div>
+                    @if (ger.agencia) {
+                      <div class="flex items-center justify-between">
+                        <span class="font-extrabold text-slate-900 text-xs">{{ ger.agencia }}</span>
+                        <span class="px-2 py-0.5 rounded-md text-[9px] font-bold bg-emerald-100 text-emerald-800">
+                          Asignada
+                        </span>
+                      </div>
+                    } @else {
+                      <span class="text-xs text-rose-600 font-bold italic">Sin agencia asignada</span>
+                    }
+                  </div>
+                </div>
+
+                <!-- Acciones de Gestión de Gerente -->
+                <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                  <span class="text-[11px] font-medium text-slate-400">
+                    Estado: <strong class="text-slate-700">{{ ger.estado }}</strong>
+                  </span>
+                  <div class="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      (click)="abrirModalReasignar(ger)"
+                      class="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-easydry-blue hover:text-white text-slate-700 text-[11px] font-bold transition-colors cursor-pointer">
+                      Reasignar
+                    </button>
+                    @if (ger.agencia) {
+                      <button
+                        type="button"
+                        (click)="desasignarGerente(ger)"
+                        class="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-600 hover:text-white text-rose-700 text-[11px] font-bold transition-colors cursor-pointer"
+                        title="Remover asignación">
+                        Remover
+                      </button>
+                    }
+                  </div>
+                </div>
+
+              </div>
+            } @empty {
+              <div class="col-span-full p-8 text-center bg-white rounded-2xl border border-slate-100 text-slate-400">
+                No hay usuarios con rol GERENTE dados de alta en el directorio.
+              </div>
+            }
+          </div>
+        </div>
+      }
+
+      <!-- Modal Asignar / Reasignar Agencia a Gerente (Validación Exclusiva Rol GERENTE) -->
+      <app-modal
+        [isOpen]="modalAsignarGerenteOpen"
+        title="Asignación Exclusiva de Agencia a Gerente"
+        icon="shield"
+        (close)="modalAsignarGerenteOpen = false">
+        <div class="space-y-4">
+          <div class="p-3 bg-purple-50 rounded-xl border border-purple-200 text-purple-900 text-xs flex items-center gap-2">
+            <i-lucide name="info" class="w-4 h-4 shrink-0"></i-lucide>
+            <span>Por política de seguridad RBAC, solo usuarios con rol <strong>GERENTE</strong> pueden ser seleccionados.</span>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">
+              Usuario Gerente (Exclusivo Rol GERENTE)
+            </label>
+            <select
+              [(ngModel)]="formAsignarGerente.gerenteId"
+              class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800">
+              <option [ngValue]="0" disabled>Selecciona un usuario con rol GERENTE...</option>
+              @for (g of gerentesUsuarios; track g.id) {
+                <option [ngValue]="g.id">{{ g.nombre }} {{ g.apellido }} ({{ g.email }}) · Rol: GERENTE</option>
+              }
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">
+              Agencia / Sucursal a Asignar
+            </label>
+            <select
+              [(ngModel)]="formAsignarGerente.sucursalId"
+              class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800">
+              <option [ngValue]="0" disabled>Selecciona la sucursal...</option>
+              @for (s of sucursales; track s.id) {
+                <option [ngValue]="s.id">{{ s.nombre }} ({{ s.ciudad }})</option>
+              }
+            </select>
+          </div>
+        </div>
+
+        <div modal-footer class="flex items-center justify-end gap-2 w-full">
+          <button
+            type="button"
+            (click)="modalAsignarGerenteOpen = false"
+            class="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-200 transition-colors">
+            Cancelar
+          </button>
+          <button
+            type="button"
+            (click)="guardarAsignacionGerente()"
+            class="px-4 py-2 rounded-xl text-xs font-bold bg-purple-700 hover:bg-purple-800 text-white transition-colors">
+            Confirmar Asignación
+          </button>
+        </div>
+      </app-modal>
+
       <!-- Modal Crear / Editar Sucursal -->
       <app-modal
         [isOpen]="modalCrearOpen"
@@ -370,37 +687,111 @@ import { CatalogoServiciosMockService } from '../../core/services/catalogo-servi
             <input type="text" [(ngModel)]="nuevaSucursal.direccion" name="direccion" placeholder="Av. Principal N45-120" class="w-full p-2.5 border rounded-xl text-sm" required>
           </div>
 
-          <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Gerente / Responsable</label>
-            <input type="text" [(ngModel)]="nuevaSucursal.responsable" name="responsable" placeholder="Nombre de Responsable" class="w-full p-2.5 border rounded-xl text-sm" required>
-          </div>
 
-          <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Servicios de esta sucursal</label>
-            <p class="text-[11px] text-slate-500 mb-2">Se toman del catálogo corporativo. Márquelos ahora; podrá editarlos después.</p>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-56 overflow-y-auto pr-1">
-              <div class="border border-slate-200 rounded-xl p-3 bg-slate-50/80">
-                <p class="text-[10px] font-extrabold uppercase text-easydry-blue mb-2">Generales</p>
-                @for (s of serviciosGenerales; track s.id) {
-                  <label class="flex items-start gap-2 py-1.5 cursor-pointer">
-                    <input type="checkbox" class="mt-0.5 rounded border-slate-300" [checked]="servicioSeleccionado(s.id)" (change)="toggleServicio(s.id, s.nombre)">
-                    <span class="text-xs font-semibold text-slate-800">{{ s.nombre }}</span>
-                  </label>
-                }
+          <!-- ─── Aprobación Gerencial ─── -->
+          <div class="rounded-2xl border-2 transition-all"
+               [ngClass]="nuevaSucursal.requiereAprobacion ? 'border-easydry-green bg-easydry-green/5' : 'border-slate-200 bg-slate-50'">
+            <div class="flex items-center justify-between p-4 cursor-pointer select-none"
+                 (click)="nuevaSucursal.requiereAprobacion = !nuevaSucursal.requiereAprobacion">
+              <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-xl flex items-center justify-center"
+                     [ngClass]="nuevaSucursal.requiereAprobacion ? 'bg-easydry-green/20 text-easydry-green-dark' : 'bg-slate-200 text-slate-500'">
+                  <i-lucide name="shield-check" class="w-4 h-4"></i-lucide>
+                </div>
+                <div>
+                  <p class="text-xs font-extrabold text-slate-800 uppercase">Requiere Aprobación Gerencial</p>
+                  <p class="text-[11px] text-slate-500">Los servicios finalizados deben ser aprobados por el gerente antes del cierre del día</p>
+                </div>
               </div>
-              <div class="border border-amber-200 rounded-xl p-3 bg-amber-50/50">
-                <p class="text-[10px] font-extrabold uppercase text-amber-700 mb-2">Especiales</p>
-                @for (s of serviciosEspeciales; track s.id) {
-                  <label class="flex items-start gap-2 py-1.5 cursor-pointer">
-                    <input type="checkbox" class="mt-0.5 rounded border-slate-300" [checked]="servicioSeleccionado(s.id)" (change)="toggleServicio(s.id, s.nombre)">
-                    <span class="text-xs font-semibold text-slate-800">{{ s.nombre }}</span>
-                  </label>
-                }
+              <!-- Toggle switch -->
+              <div class="relative w-10 h-5 rounded-full transition-colors flex-shrink-0"
+                   [ngClass]="nuevaSucursal.requiereAprobacion ? 'bg-easydry-green' : 'bg-slate-300'">
+                <span class="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all"
+                      [ngClass]="nuevaSucursal.requiereAprobacion ? 'left-5' : 'left-0.5'"></span>
               </div>
             </div>
-            <p class="text-[11px] font-bold text-slate-600 mt-2">{{ (nuevaSucursal.servicioIds || []).length }} seleccionados</p>
+            <!-- Selector de Gerente (solo si aprobación activa) -->
+            @if (nuevaSucursal.requiereAprobacion) {
+              <div class="px-4 pb-4 border-t border-easydry-green/20 pt-3">
+                <label class="block text-xs font-bold text-slate-700 uppercase mb-1.5">
+                  <i-lucide name="user-check" class="w-3.5 h-3.5 inline mr-1 text-easydry-green-dark"></i-lucide>
+                  Gerente Aprobador
+                </label>
+                <select [(ngModel)]="nuevaSucursal.gerenteId" name="gerenteId"
+                        class="w-full p-2.5 border border-easydry-green/30 rounded-xl text-sm font-semibold bg-white focus:ring-2 focus:ring-easydry-green/30">
+                  <option [ngValue]="undefined">— Seleccione un Gerente —</option>
+                  @for (ger of gerentesUsuarios; track ger.id) {
+                    <option [ngValue]="ger.id">{{ ger.nombre }} {{ ger.apellido }} · {{ ger.sucursalAsignada || 'Red Nacional' }}</option>
+                  }
+                </select>
+                @if (!gerentesUsuarios.length) {
+                  <p class="text-[11px] text-amber-600 mt-1.5 flex items-center gap-1">
+                    <i-lucide name="alert-triangle" class="w-3 h-3"></i-lucide>
+                    No hay usuarios con rol Gerente registrados aún.
+                  </p>
+                }
+              </div>
+            }
+          </div>
+
+          <!-- ─── Servicios Especiales ─── -->
+          <div class="rounded-2xl border-2 transition-all"
+               [ngClass]="nuevaSucursal.tieneServiciosEspeciales ? 'border-amber-400 bg-amber-50/60' : 'border-slate-200 bg-slate-50'">
+            <div class="flex items-center justify-between p-4 cursor-pointer select-none"
+                 (click)="nuevaSucursal.tieneServiciosEspeciales = !nuevaSucursal.tieneServiciosEspeciales">
+              <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-xl flex items-center justify-center"
+                     [ngClass]="nuevaSucursal.tieneServiciosEspeciales ? 'bg-amber-200 text-amber-700' : 'bg-slate-200 text-slate-500'">
+                  <i-lucide name="star" class="w-4 h-4"></i-lucide>
+                </div>
+                <div>
+                  <p class="text-xs font-extrabold text-slate-800 uppercase">Cuenta con Servicios Especiales</p>
+                  <p class="text-[11px] text-slate-500">Pulido, tratamiento cerámico, limpieza de motor y otros servicios premium</p>
+                </div>
+              </div>
+              <!-- Toggle switch -->
+              <div class="relative w-10 h-5 rounded-full transition-colors flex-shrink-0"
+                   [ngClass]="nuevaSucursal.tieneServiciosEspeciales ? 'bg-amber-400' : 'bg-slate-300'">
+                <span class="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all"
+                      [ngClass]="nuevaSucursal.tieneServiciosEspeciales ? 'left-5' : 'left-0.5'"></span>
+              </div>
+            </div>
+            <!-- Selección de servicios especiales (solo si toggle activo) -->
+            @if (nuevaSucursal.tieneServiciosEspeciales) {
+              <div class="px-4 pb-4 border-t border-amber-200 pt-3">
+                <p class="text-[11px] text-amber-700 font-bold uppercase mb-2">Seleccione los servicios especiales disponibles en esta sucursal</p>
+                <div class="grid grid-cols-1 gap-1 max-h-36 overflow-y-auto pr-1">
+                  @for (s of serviciosEspeciales; track s.id) {
+                    <label class="flex items-center gap-2.5 py-1.5 px-2 rounded-lg hover:bg-amber-100/60 cursor-pointer transition-colors">
+                      <input type="checkbox" class="rounded border-amber-300 text-amber-500 focus:ring-amber-400"
+                             [checked]="servicioSeleccionado(s.id)" (change)="toggleServicio(s.id, s.nombre)">
+                      <span class="text-xs font-semibold text-slate-800">{{ s.nombre }}</span>
+                    </label>
+                  }
+                  @empty {
+                    <p class="text-[11px] text-slate-500 italic">No hay servicios especiales en el catálogo.</p>
+                  }
+                </div>
+              </div>
+            }
+          </div>
+
+          <!-- ─── Servicios Generales del Catálogo ─── -->
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Servicios Generales de esta Sucursal</label>
+            <p class="text-[11px] text-slate-500 mb-2">Del catálogo corporativo. Márquelos ahora; podrá editarlos después.</p>
+            <div class="border border-slate-200 rounded-xl p-3 bg-slate-50/80 max-h-48 overflow-y-auto">
+              @for (s of serviciosGenerales; track s.id) {
+                <label class="flex items-start gap-2 py-1.5 cursor-pointer">
+                  <input type="checkbox" class="mt-0.5 rounded border-slate-300" [checked]="servicioSeleccionado(s.id)" (change)="toggleServicio(s.id, s.nombre)">
+                  <span class="text-xs font-semibold text-slate-800">{{ s.nombre }}</span>
+                </label>
+              }
+            </div>
+            <p class="text-[11px] font-bold text-slate-600 mt-2">{{ (nuevaSucursal.servicioIds || []).length }} seleccionados en total</p>
           </div>
         </form>
+
 
         <div modal-footer>
           <button (click)="cerrarModal()" class="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs">Cancelar</button>
@@ -520,17 +911,28 @@ export class SucursalesComponent implements OnInit {
   catalogoServicios: CatalogoServicio[] = [];
   movimientos: MovimientoRedSucursal[] = [];
 
-  tabActiva: 'sucursales' | 'regiones' | 'marcas' = 'sucursales';
+  tabActiva: 'mapa' | 'sucursales' | 'regiones' | 'marcas' | 'gerentes' = 'sucursales';
   tabs = [
-    { id: 'sucursales' as const, label: 'Sucursales' },
-    { id: 'regiones' as const, label: 'Regiones' },
-    { id: 'marcas' as const, label: 'Marcas' }
+    { id: 'sucursales' as const, label: '🏢 Sucursales' },
+    { id: 'mapa' as const, label: '🗺️ Mapa Operativo en Vivo' },
+    { id: 'gerentes' as const, label: '👔 Gestión de Gerentes' },
+    { id: 'regiones' as const, label: '📍 Regiones' },
+    { id: 'marcas' as const, label: '🏷️ Marcas' }
   ];
 
   filtroRegionId = 0;
   filtroMarcaId = 0;
+  filtroSucursalMapaId = 0;
   regionSeleccionada: RegionOperativa | null = null;
   marcaSeleccionada: MarcaSucursal | null = null;
+  bahiasTodas: Bahia[] = [];
+
+  gerentesUsuarios: Usuario[] = [];
+  modalAsignarGerenteOpen = false;
+  formAsignarGerente = {
+    gerenteId: 0,
+    sucursalId: 0
+  };
 
   modalCrearOpen = false;
   editandoSucursal = false;
@@ -572,8 +974,10 @@ export class SucursalesComponent implements OnInit {
   private marcaService = inject(MarcaSucursalMockService);
   private catalogoService = inject(CatalogoServiciosMockService);
   private bahiaService = inject(BahiaMockService);
+  private usuarioService = inject(UsuarioMockService);
   private toastService = inject(ToastService);
-  private auth = inject(AuthService);
+  public auth = inject(AuthService);
+  private route = inject(ActivatedRoute);
 
   get regionesActivas(): RegionOperativa[] {
     return this.regiones.filter(r => r.estado === 'Activa');
@@ -592,7 +996,16 @@ export class SucursalesComponent implements OnInit {
   }
 
   get sucursalesFiltradas(): Sucursal[] {
+    const isGer = this.auth.isGerente();
+    const userScope = this.auth.getSucursalScope();
+
     return this.sucursales.filter(s => {
+      // Alcance estricto para Gerente de Agencia (Punto 6)
+      if (isGer && userScope) {
+        const matches = s.nombre.toLowerCase().includes(userScope.toLowerCase()) ||
+                        userScope.toLowerCase().includes(s.nombre.toLowerCase());
+        if (!matches) return false;
+      }
       const okRegion = this.filtroRegionId === 0 || s.regionId === this.filtroRegionId;
       const okMarca = this.filtroMarcaId === 0 || s.marcaId === this.filtroMarcaId;
       return okRegion && okMarca;
@@ -600,7 +1013,70 @@ export class SucursalesComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    this.route.queryParams.subscribe(params => {
+      if (params['tab'] && ['mapa', 'sucursales', 'regiones', 'marcas', 'gerentes'].includes(params['tab'])) {
+        this.tabActiva = params['tab'];
+      }
+      if (params['sucursalId']) {
+        this.filtroSucursalMapaId = Number(params['sucursalId']);
+      }
+    });
     this.cargarTodo();
+  }
+
+  abrirModalAsignarGerente(): void {
+    this.formAsignarGerente = {
+      gerenteId: this.gerentesUsuarios[0]?.id || 0,
+      sucursalId: this.sucursales[0]?.id || 0
+    };
+    this.modalAsignarGerenteOpen = true;
+  }
+
+  abrirModalReasignar(ger: Usuario): void {
+    const suc = this.sucursales.find(s => s.nombre === ger.agencia);
+    this.formAsignarGerente = {
+      gerenteId: ger.id,
+      sucursalId: suc?.id || this.sucursales[0]?.id || 0
+    };
+    this.modalAsignarGerenteOpen = true;
+  }
+
+  guardarAsignacionGerente(): void {
+    const ger = this.gerentesUsuarios.find(g => g.id === this.formAsignarGerente.gerenteId);
+    const suc = this.sucursales.find(s => s.id === this.formAsignarGerente.sucursalId);
+    if (!ger || !suc) {
+      this.toastService.warning('Campos requeridos', 'Selecciona un usuario gerente y una sucursal.');
+      return;
+    }
+
+    if (!ger.rol.toLowerCase().includes('gerente')) {
+      this.toastService.error('Violación RBAC', 'Solo usuarios con rol GERENTE pueden ser designados como responsables.');
+      return;
+    }
+
+    ger.agencia = suc.nombre;
+    suc.responsable = `${ger.nombre} ${ger.apellido}`;
+
+    this.usuarioService.actualizarUsuario(ger).subscribe();
+    this.sucursalService.actualizarSucursal(suc).subscribe();
+
+    this.modalAsignarGerenteOpen = false;
+    this.toastService.success('Agencia Asignada', `Se asignó ${suc.nombre} a ${ger.nombre} ${ger.apellido}.`);
+  }
+
+  desasignarGerente(ger: Usuario): void {
+    const anteriorAgencia = ger.agencia;
+    ger.agencia = '';
+    this.usuarioService.actualizarUsuario(ger).subscribe();
+
+    if (anteriorAgencia) {
+      const suc = this.sucursales.find(s => s.nombre === anteriorAgencia);
+      if (suc) {
+        suc.responsable = 'Sin Asignar';
+        this.sucursalService.actualizarSucursal(suc).subscribe();
+      }
+    }
+    this.toastService.info('Asignación Removida', `El gerente ${ger.nombre} ${ger.apellido} ha sido desvinculado.`);
   }
 
   cargarTodo(): void {
@@ -625,6 +1101,14 @@ export class SucursalesComponent implements OnInit {
     this.sucursalService.getMovimientos().subscribe(list => {
       this.movimientos = list;
     });
+    this.bahiaService.getBahias().subscribe(list => {
+      this.bahiasTodas = list;
+    });
+    this.usuarioService.getUsuarios().subscribe(list => {
+      this.gerentesUsuarios = list.filter(u =>
+        u.rol === 'Gerente de Sucursal' || u.rol === 'GERENTE' || u.rol.toLowerCase().includes('gerente')
+      );
+    });
   }
 
   sucursalesDeRegion(regionId: number): Sucursal[] {
@@ -639,6 +1123,32 @@ export class SucursalesComponent implements OnInit {
     return this.marcas.find(m => m.id === marcaId)?.color || '#004282';
   }
 
+  verEnMapa(suc: Sucursal): void {
+    this.filtroSucursalMapaId = suc.id;
+    this.tabActiva = 'mapa';
+  }
+
+  get sucursalesMapa(): Sucursal[] {
+    if (this.filtroSucursalMapaId === 0) return this.sucursales;
+    return this.sucursales.filter(s => s.id === this.filtroSucursalMapaId);
+  }
+
+  getBahiasDeSucursal(sucursalId: number): Bahia[] {
+    return this.bahiasTodas.filter(b => b.sucursalId === sucursalId);
+  }
+
+  getEstadoBahiaBadge(estado: string): string {
+    const map: Record<string, string> = {
+      'Disponible': 'bg-emerald-50 text-emerald-700 border-emerald-200',
+      'Lavado': 'bg-blue-50 text-blue-700 border-blue-200',
+      'Secado': 'bg-amber-50 text-amber-700 border-amber-200',
+      'Aspirado': 'bg-purple-50 text-purple-700 border-purple-200',
+      'Mantenimiento': 'bg-rose-50 text-rose-700 border-rose-200',
+      'Inactiva': 'bg-slate-100 text-slate-500 border-slate-200'
+    };
+    return map[estado] || 'bg-slate-100 text-slate-600 border-slate-200';
+  }
+
   abrirModalCrearSucursal(): void {
     this.editandoSucursal = false;
     this.nuevaSucursal = this.sucursalVacia();
@@ -650,7 +1160,11 @@ export class SucursalesComponent implements OnInit {
     this.nuevaSucursal = {
       ...suc,
       servicioIds: [...(suc.servicioIds || [])],
-      serviciosNombres: [...(suc.serviciosNombres || [])]
+      serviciosNombres: [...(suc.serviciosNombres || [])],
+      requiereAprobacion: suc.requiereAprobacion ?? false,
+      gerenteId: suc.gerenteId,
+      gerenteNombre: suc.gerenteNombre,
+      tieneServiciosEspeciales: suc.tieneServiciosEspeciales ?? false
     };
     this.modalCrearOpen = true;
   }
@@ -704,8 +1218,8 @@ export class SucursalesComponent implements OnInit {
   }
 
   guardarSucursal(): void {
-    if (!this.nuevaSucursal.nombre || !this.nuevaSucursal.responsable) {
-      this.toastService.warning('Datos Incompletos', 'Ingrese nombre y responsable de la sucursal.');
+    if (!this.nuevaSucursal.nombre) {
+      this.toastService.warning('Datos Incompletos', 'Ingrese el nombre de la sucursal.');
       return;
     }
     if (!this.nuevaSucursal.regionId) {
@@ -720,10 +1234,34 @@ export class SucursalesComponent implements OnInit {
       this.toastService.warning('Servicios requeridos', 'Asigne al menos un servicio del catálogo a esta sucursal.');
       return;
     }
+    // Validar gerente si requiere aprobación
+    if (this.nuevaSucursal.requiereAprobacion && !this.nuevaSucursal.gerenteId) {
+      this.toastService.warning('Gerente requerido', 'Seleccione el gerente aprobador para esta sucursal.');
+      return;
+    }
 
+    // Denormalizar nombres
     this.nuevaSucursal.serviciosNombres = this.catalogoServicios
       .filter(s => (this.nuevaSucursal.servicioIds || []).includes(s.id))
       .map(s => s.nombre);
+
+    // Denormalizar nombre del gerente
+    if (this.nuevaSucursal.requiereAprobacion && this.nuevaSucursal.gerenteId) {
+      const ger = this.gerentesUsuarios.find(g => g.id === this.nuevaSucursal.gerenteId);
+      this.nuevaSucursal.gerenteNombre = ger ? `${ger.nombre} ${ger.apellido ?? ''}`.trim() : undefined;
+    } else {
+      this.nuevaSucursal.gerenteId = undefined;
+      this.nuevaSucursal.gerenteNombre = undefined;
+    }
+
+    // Si no tiene especiales, limpiar servicios especiales del listado
+    if (!this.nuevaSucursal.tieneServiciosEspeciales) {
+      const idsEspeciales = new Set(this.serviciosEspeciales.map(s => s.id));
+      this.nuevaSucursal.servicioIds = (this.nuevaSucursal.servicioIds || []).filter(id => !idsEspeciales.has(id));
+      this.nuevaSucursal.serviciosNombres = this.catalogoServicios
+        .filter(s => (this.nuevaSucursal.servicioIds || []).includes(s.id))
+        .map(s => s.nombre);
+    }
 
     if (this.editandoSucursal) {
       const user = this.auth.getCurrentUser();
@@ -907,7 +1445,12 @@ export class SucursalesComponent implements OnInit {
       regionId: this.regionesActivas[0]?.id || 0,
       marcaId: this.marcasActivas[0]?.id || 0,
       servicioIds: [],
-      serviciosNombres: []
+      serviciosNombres: [],
+      requiereAprobacion: false,
+      gerenteId: undefined,
+      gerenteNombre: undefined,
+      tieneServiciosEspeciales: false
     };
   }
+
 }

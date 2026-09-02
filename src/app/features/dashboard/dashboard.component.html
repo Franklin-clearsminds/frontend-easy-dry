@@ -24,7 +24,7 @@
     </div>
     <div class="relative z-10 flex gap-3 flex-wrap">
       @if (isExecutive) {
-        <a routerLink="/mapa-operativo" class="px-4 py-2.5 bg-easydry-green hover:bg-easydry-green-dark text-slate-900 font-bold rounded-xl text-sm flex items-center gap-2">
+        <a routerLink="/sucursales" [queryParams]="{ tab: 'mapa' }" class="px-4 py-2.5 bg-easydry-green hover:bg-easydry-green-dark text-slate-900 font-bold rounded-xl text-sm flex items-center gap-2">
           <i-lucide name="map" class="w-4 h-4"></i-lucide> Mapa en Vivo
         </a>
       }

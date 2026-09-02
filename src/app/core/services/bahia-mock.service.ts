@@ -12,7 +12,7 @@ export class BahiaMockService {
   public bahias$ = this.bahiasSubject.asObservable();
 
   getBahias(): Observable<Bahia[]> {
-    return this.bahias$.pipe(delay(200));
+    return this.bahias$;
   }
 
   getBahiasPorSucursal(sucursalId: number): Observable<Bahia[]> {

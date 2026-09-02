@@ -12,7 +12,7 @@ export class ServicioLavadoMockService {
   public servicios$ = this.serviciosSubject.asObservable();
 
   getServicios(): Observable<VehiculoServicio[]> {
-    return this.servicios$.pipe(delay(200));
+    return this.servicios$;
   }
 
   getServiciosPorSucursal(sucursal: string): Observable<VehiculoServicio[]> {
@@ -83,7 +83,8 @@ export class ServicioLavadoMockService {
     const current = this.serviciosSubject.value;
     let count = 0;
     current.forEach(s => {
-      if (s.agencia.toLowerCase() === sucursal.toLowerCase() && (s.estado === 'FINALIZADO' || s.estado === 'EN PROCESO')) {
+      const matchSucursal = !sucursal || sucursal.toLowerCase().includes('toda') || s.agencia.toLowerCase() === sucursal.toLowerCase();
+      if (matchSucursal && (s.estado === 'FINALIZADO' || s.estado === 'EN PROCESO')) {
         s.estado = 'APROBADO';
         s.observacionGerente = 'Aprobación masiva de cierre de día.';
         s.aprobadoPor = gerenteNombre || 'Carlos Mendoza (Gerente)';

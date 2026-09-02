@@ -12,7 +12,7 @@ export class MaquinariaMockService {
   public maquinaria$ = this.maquinariaSubject.asObservable();
 
   getMaquinaria(): Observable<Maquinaria[]> {
-    return this.maquinaria$.pipe(delay(300));
+    return this.maquinaria$;
   }
 
   actualizarEstadoMaquina(id: number, estado: Maquinaria['estado']): Observable<Maquinaria | null> {

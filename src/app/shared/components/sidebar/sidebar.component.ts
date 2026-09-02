@@ -1,9 +1,11 @@
-import { Component, inject, OnInit, ChangeDetectionStrategy, ChangeDetectorRef, signal } from '@angular/core';
+import { Component, inject, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterModule } from '@angular/router';
+import { NavigationEnd, Router, RouterModule } from '@angular/router';
 import { LucideAngularModule } from 'lucide-angular';
+import { filter, Subscription } from 'rxjs';
 import { AuthService } from '../../../core/services/auth.service';
 import { PermissionService } from '../../../core/services/permission.service';
+import { UiStateService, SIDEBAR_INNER_W, SIDEBAR_RAIL_W } from '../../../core/services/ui-state.service';
 import { MenuItem } from '../../../core/config/menu.config';
 import { isMobileAppRole } from '../../../core/config/mobile-roles.config';
 
@@ -12,30 +14,24 @@ interface MenuGroup {
   items: MenuItem[];
 }
 
-/** Ancho interno expandido del sidebar (w-72 = 288px) */
-const SIDEBAR_INNER_W = '288px';
-const SIDEBAR_RAIL_W = '80px';
-
 @Component({
   selector: 'app-sidebar',
   standalone: true,
   imports: [CommonModule, RouterModule, LucideAngularModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <!-- Overlay opaco sobre el contenido (no mueve el layout) -->
-    <div
-      class="fixed top-0 right-0 bottom-0 bg-slate-900/50 z-40 transition-opacity duration-300 ease-in-out pointer-events-none"
-      [style.left]="sidebarRailW"
-      [class.opacity-0]="!isExpanded()"
-      [class.opacity-100]="isExpanded()"
-      aria-hidden="true">
-    </div>
+    <!-- Overlay backdrop when expanded -->
+    @if (isExpanded()) {
+      <div
+        class="fixed inset-0 bg-black/40 z-[998] animate-fade-in"
+        (click)="isExpanded.set(false)">
+      </div>
+    }
 
-    <!-- Sidebar fijo — solo ocupa 80px en layout; al expandir se superpone -->
+    <!-- Sidebar flotante: fixed a la izquierda, sobrepone el contenido -->
     <div
-      class="fixed left-0 top-0 h-screen z-50 overflow-hidden transition-[width] duration-300 ease-in-out shadow-2xl"
-      [class.w-72]="isExpanded()"
-      [class.w-20]="!isExpanded()"
+      class="fixed top-0 left-0 h-screen overflow-hidden transition-[width] duration-200 ease-in-out shadow-2xl z-[999]"
+      [style.width]="isExpanded() ? sidebarInnerW : sidebarRailW"
       (mouseenter)="isExpanded.set(true)"
       (mouseleave)="isExpanded.set(false)">
 
@@ -195,14 +191,18 @@ const SIDEBAR_RAIL_W = '80px';
     }
   `]
 })
-export class SidebarComponent implements OnInit {
-  isExpanded = signal(false);
+export class SidebarComponent implements OnInit, OnDestroy {
+  readonly uiState = inject(UiStateService);
+  /** Signal compartido: el layout lo lee para reservar el espacio del rail. */
+  readonly isExpanded = this.uiState.sidebarExpanded;
   readonly sidebarInnerW = SIDEBAR_INNER_W;
   readonly sidebarRailW = SIDEBAR_RAIL_W;
 
   public authService = inject(AuthService);
   private permissionService = inject(PermissionService);
   private cdr = inject(ChangeDetectorRef);
+  private router = inject(Router);
+  private subs = new Subscription();
 
   menuGroups: MenuGroup[] = [];
 
@@ -213,11 +213,25 @@ export class SidebarComponent implements OnInit {
 
   ngOnInit(): void {
     this.refreshMenu();
+    this.cdr.markForCheck();
 
-    this.authService.currentUser$.subscribe(() => {
-      this.refreshMenu();
-      this.cdr.markForCheck();
-    });
+    this.subs.add(
+      this.authService.currentUser$.subscribe(() => {
+        this.refreshMenu();
+        this.cdr.markForCheck();
+      })
+    );
+
+    this.subs.add(
+      this.router.events.pipe(filter(e => e instanceof NavigationEnd)).subscribe(() => {
+        this.isExpanded.set(false);
+        this.cdr.markForCheck();
+      })
+    );
+  }
+
+  ngOnDestroy(): void {
+    this.subs.unsubscribe();
   }
 
   private refreshMenu(): void {

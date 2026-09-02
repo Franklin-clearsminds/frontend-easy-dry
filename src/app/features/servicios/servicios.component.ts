@@ -5,19 +5,32 @@ import { LucideAngularModule } from 'lucide-angular';
 import { ServicioLavadoMockService } from '../../core/services/servicio-lavado-mock.service';
 import { AuthService } from '../../core/services/auth.service';
 import { InventarioMockService } from '../../core/services/inventario-mock.service';
-import { VehiculoServicio, CatalogoServicio, InsumoConsumidoServicio, InventarioItem, ArchivoAdjunto, Incidente, Maquinaria } from '../../core/models';
+import { 
+  VehiculoServicio, 
+  CatalogoServicio, 
+  InsumoConsumidoServicio, 
+  InventarioItem, 
+  ArchivoAdjunto, 
+  Incidente, 
+  Maquinaria,
+  Operador,
+  ServicioExtra,
+  RecetaInsumoServicio
+} from '../../core/models';
 import { ModalComponent } from '../../shared/components/modal/modal.component';
 import { ToastService } from '../../shared/services/toast.service';
 import { Role } from '../../core/models/roles.model';
 import { CatalogoServiciosMockService } from '../../core/services/catalogo-servicios-mock.service';
 import { SucursalMockService } from '../../core/services/sucursal-mock.service';
 import { ServiciosExtrasMockService } from '../../core/services/servicios-extras-mock.service';
+import { OperadorMockService } from '../../core/services/operador-mock.service';
 import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
 import { FilterBarComponent, FilterState } from '../../shared/components/filter-bar/filter-bar.component';
 import { MaquinariaMockService } from '../../core/services/maquinaria-mock.service';
 import { IncidenteMockService } from '../../core/services/incidente-mock.service';
 import { PermissionService } from '../../core/services/permission.service';
 import { formatearPlaca, placasEquivalentes, validarPlaca } from '../../core/utils/placa.util';
+import { resolverRangoFechas, soloFecha } from '../../core/utils/fecha-rango';
 
 @Component({
   selector: 'app-servicios',
@@ -41,55 +54,101 @@ import { formatearPlaca, placasEquivalentes, validarPlaca } from '../../core/uti
           @if (puedeReportarFalla) {
             <button
               (click)="abrirModalReportarFalla()"
-              class="px-4 py-3 bg-rose-500 hover:bg-rose-600 text-white font-extrabold rounded-xl text-xs transition-all flex items-center gap-2 cursor-pointer">
+              class="px-4 py-3 bg-rose-500 hover:bg-rose-600 text-white font-extrabold rounded-xl text-xs transition-all flex items-center gap-2 cursor-pointer shadow-xs">
               <i-lucide name="alert-triangle" class="w-4 h-4"></i-lucide>
               <span>Reportar Falla / Avería</span>
             </button>
           }
           <button
-            (click)="modalNuevoRegistroOpen = true"
+            (click)="abrirModalNuevaOT()"
             class="px-4 py-3 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
             <i-lucide name="plus" class="w-4 h-4"></i-lucide>
-            <span>Nueva Hoja de Control (OT)</span>
+            <span>{{ tabActiva === 'especiales' ? 'Nueva OT (Especial)' : 'Nueva Hoja de Control (OT)' }}</span>
           </button>
         </div>
       </div>
+
+      <!-- Tab Navigation: Generales y Especiales -->
+      <div class="flex flex-wrap gap-2 p-1.5 bg-slate-200/80 rounded-2xl w-fit">
+        
+        <!-- Pestaña 1: Servicios Generales -->
+        <button
+          (click)="cambiarTab('generales')"
+          [ngClass]="tabActiva === 'generales' ? 'bg-white text-easydry-blue shadow-md font-extrabold' : 'text-slate-600 hover:text-slate-900 font-semibold'"
+          class="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs transition-all cursor-pointer">
+          <i-lucide name="droplet" class="w-4 h-4 text-easydry-blue"></i-lucide>
+          <span>Servicios Generales</span>
+          <span class="bg-blue-100 text-blue-800 text-[10px] font-extrabold px-2 py-0.5 rounded-full">
+            {{ countServiciosGenerales }}
+          </span>
+        </button>
+
+        <!-- Pestaña 2: Servicios Especiales -->
+        <button
+          (click)="cambiarTab('especiales')"
+          [ngClass]="tabActiva === 'especiales' ? 'bg-white text-amber-700 shadow-md font-extrabold' : 'text-slate-600 hover:text-slate-900 font-semibold'"
+          class="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs transition-all cursor-pointer">
+          <i-lucide name="star" class="w-4 h-4 text-amber-500 fill-amber-500/20"></i-lucide>
+          <span>Servicios Especiales</span>
+          <span class="bg-amber-100 text-amber-800 text-[10px] font-extrabold px-2 py-0.5 rounded-full">
+            {{ countServiciosEspeciales }}
+          </span>
+        </button>
+
+      </div>
+
+      <!-- Banner contextual para Servicios Especiales -->
+      @if (tabActiva === 'especiales') {
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent p-4 rounded-2xl border border-amber-200/60 animate-fade-in">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-800 flex items-center justify-center shrink-0">
+              <i-lucide name="star" class="w-5 h-5 fill-amber-500 text-amber-600"></i-lucide>
+            </div>
+            <div>
+              <h2 class="text-sm font-extrabold text-slate-900 font-outfit">Hojas de Control de Servicios Especiales</h2>
+              <p class="text-xs text-slate-600 mt-0.5">Seguimiento de vehículos atendidos con Pulido, Recubrimiento Cerámico, Lavado de Motor y Chasis.</p>
+            </div>
+          </div>
+          <span class="text-xs font-bold text-amber-800 bg-amber-100/80 px-3 py-1 rounded-full border border-amber-200 self-start sm:self-auto">
+            {{ serviciosFiltrados.length }} OTs Especiales
+          </span>
+        </div>
+      }
 
       <!-- Global Filter Bar -->
       <app-filter-bar 
         [showSucursal]="!isOperador" 
         [showOperador]="!isOperador"
         [showBahia]="!isOperador"
+        [showServicio]="true"
+        [showRegion]="true"
         [showEstado]="true"
+        [showBusqueda]="true"
         [showFechas]="true"
+        [placeholderBusqueda]="'Buscar por placa, vehículo u operador...'"
+        [listaServicios]="listaServiciosFiltro"
         [listaEstados]="['Todos', 'EN PROCESO', 'FINALIZADO', 'APROBADO', 'RECHAZADO']"
         (filterChange)="aplicarNuevosFiltros($event)">
       </app-filter-bar>
 
       <!-- Additional Search and Categories -->
       <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-xs flex flex-wrap items-center justify-between gap-4 mb-4">
-        <div class="flex flex-wrap items-center gap-3 flex-1 min-w-[280px]">
-          <div class="relative flex-1 min-w-[200px]">
-            <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
-              <i-lucide name="search" class="w-4 h-4"></i-lucide>
-            </span>
-            <input 
-              type="text" 
-              [(ngModel)]="filtroTexto" 
-              (input)="aplicarFiltros()"
-              placeholder="Buscar por placa (ej. PBX-8932) u Orden OT..." 
-              class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold">
-          </div>
-
-          <select [(ngModel)]="filtroCategoria" (change)="aplicarFiltros()" class="bg-slate-50 border border-slate-200 text-xs font-semibold rounded-xl px-3 py-2">
-            <option value="Todas">Todas las Categorías</option>
-            <option value="Servicios Generales">Servicios Generales</option>
-            <option value="Servicios Especiales">Servicios Especiales</option>
-          </select>
+        <div class="flex-1 min-w-[240px] relative">
+          <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
+            <i-lucide name="search" class="w-4 h-4"></i-lucide>
+          </span>
+          <input 
+            type="text" 
+            [(ngModel)]="filtroTexto" 
+            (input)="aplicarFiltros()"
+            [placeholder]="tabActiva === 'generales' ? 'Buscar por placa (ej. PBX-8932) u Orden OT...' : 'Buscar por placa (ej. PBX-8932) u Orden OT especial...'" 
+            class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:ring-2"
+            [ngClass]="tabActiva === 'generales' ? 'focus:ring-easydry-blue' : 'focus:ring-amber-500'">
         </div>
 
         <div class="text-xs font-semibold text-slate-500">
-          Servicios Registrados: <strong class="text-easydry-blue">{{ serviciosFiltrados.length }} Vehículos</strong>
+          {{ tabActiva === 'generales' ? 'Servicios Generales Registrados:' : 'OTs de Servicios Especiales:' }}
+          <strong [ngClass]="tabActiva === 'generales' ? 'text-easydry-blue' : 'text-amber-700'">{{ serviciosFiltrados.length }} Vehículos</strong>
         </div>
       </div>
 
@@ -150,6 +209,9 @@ import { formatearPlaca, placasEquivalentes, validarPlaca } from '../../core/uti
                   <td class="py-3.5 px-4 text-xs font-mono">
                     <p class="text-slate-700 font-semibold">Ing: {{ item.horaIngreso || '08:30' }}</p>
                     <p class="text-slate-400">Sal: {{ item.horaSalida || '09:30' }}</p>
+                    <span class="mt-0.5 inline-block px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 text-[10px] font-bold">
+                      {{ calcularDuracion(item.horaIngreso || '', item.horaSalida || '') }}
+                    </span>
                   </td>
 
                   <td class="py-3.5 px-4 text-xs font-bold text-slate-800">
@@ -705,10 +767,35 @@ import { formatearPlaca, placasEquivalentes, validarPlaca } from '../../core/uti
         </div>
       </app-modal>
 
+
+
     </div>
   `
 })
 export class ServiciosComponent implements OnInit {
+  // ── Pestaña Activa: Servicios Generales vs Servicios Especiales ──
+  tabActiva: 'generales' | 'especiales' = 'generales';
+
+  cambiarTab(tab: 'generales' | 'especiales') {
+    this.tabActiva = tab;
+    this.currentPage = 1;
+    this.recalcularServiciosFiltrados();
+  }
+
+  abrirModalNuevaOT() {
+    this.nuevoRegistro.categoriaServicio = this.tabActiva === 'especiales' ? 'ESPECIAL' : 'GENERAL';
+    this.onCategoriaChange();
+    this.modalNuevoRegistroOpen = true;
+  }
+
+  get countServiciosGenerales(): number {
+    return this.servicios.filter(s => s.categoriaServicio === 'Servicios Generales' || s.categoriaServicio === 'GENERAL' || !s.categoriaServicio).length;
+  }
+
+  get countServiciosEspeciales(): number {
+    return this.servicios.filter(s => s.categoriaServicio === 'Servicios Especiales' || s.categoriaServicio === 'ESPECIAL' || s.categoriaServicio === 'EXTRA' || s.categoriaServicio === 'Servicios Extras').length;
+  }
+
   servicios: VehiculoServicio[] = [];
   serviciosFiltrados: VehiculoServicio[] = [];
   servicioSeleccionado?: VehiculoServicio;
@@ -718,6 +805,12 @@ export class ServiciosComponent implements OnInit {
   
   // Guardamos el estado global
   filtrosGlobales: FilterState = { sucursal: 'Todas', operador: 'Todos', bahia: 'Todas', estado: 'Todos', fecha: 'Hoy' };
+
+  // Lista de servicios disponibles para el filtro de tipo de servicio
+  listaServiciosFiltro: string[] = ['Express', 'Completo', 'Deluxe', 'Retoque', 'Pulido', 'Micro pulido', 'Recubrimiento Cerámico', 'Lavado motor', 'Tratamientos especiales'];
+
+  // Mapa sucursal -> región (para poder filtrar servicios por región)
+  mapaRegionSucursal: Record<string, string> = {};
 
   aplicarNuevosFiltros(filtros: FilterState) {
     this.filtrosGlobales = filtros;
@@ -813,6 +906,7 @@ export class ServiciosComponent implements OnInit {
   private catalogoMock = inject(CatalogoServiciosMockService);
   private sucursalService = inject(SucursalMockService);
   private extrasMock = inject(ServiciosExtrasMockService);
+  private operadorService = inject(OperadorMockService);
   private inventarioService = inject(InventarioMockService);
   private servicioService = inject(ServicioLavadoMockService);
   public authService = inject(AuthService);
@@ -820,6 +914,44 @@ export class ServiciosComponent implements OnInit {
   private maquinariaService = inject(MaquinariaMockService);
   private incidenteService = inject(IncidenteMockService);
   private permissions = inject(PermissionService);
+
+  // ── Servicios Extras / Asignaciones Especiales ──
+  serviciosExtras: ServicioExtra[] = [];
+  operadores: Operador[] = [];
+  sucursalesDisponibles: string[] = ['EasyDry Quito Norte', 'EasyDry Quito Sur', 'EasyDry Cumbayá', 'EasyDry Guayaquil'];
+
+  busquedaExtras = '';
+  filtroEstadoExtras = 'TODOS';
+  filtroOperadorExtras = 0;
+
+  currentPageExtras = 1;
+  pageSizeExtras = 5;
+
+  showModalExtras = false;
+  isEditingExtras = false;
+  editandoExtraId: number | null = null;
+
+  extraForm: {
+    servicioNombre: string;
+    servicioDescripcion: string;
+    operadorId: number;
+    operadorNombre: string;
+    sucursalesSeleccionadas: string[];
+    insumosReceta: RecetaInsumoServicio[];
+    estado: ServicioExtra['estado'];
+    fechaProgramada: string;
+    notas: string;
+  } = {
+    servicioNombre: '',
+    servicioDescripcion: '',
+    operadorId: 0,
+    operadorNombre: '',
+    sucursalesSeleccionadas: [],
+    insumosReceta: [],
+    estado: 'Pendiente',
+    fechaProgramada: new Date().toISOString().substring(0, 10),
+    notas: ''
+  };
 
   // ── Role helpers ──
   get isOperador() { return this.authService.hasRole(Role.OPERADOR); }
@@ -866,18 +998,35 @@ export class ServiciosComponent implements OnInit {
 
     this.catalogoMock.getServiciosActivos().subscribe(cat => {
       this.catalogoCompleto = cat;
+      const nombres = cat.map(c => c.nombre).filter(Boolean);
+      if (nombres.length) this.listaServiciosFiltro = Array.from(new Set(nombres));
       this.onCategoriaChange();
     });
 
-    this.sucursalService.getSucursales().subscribe(() => {
+    this.sucursalService.getSucursales().subscribe(list => {
       const sucNombre = user?.sucursalNombre || user?.sucursal;
       const suc = this.sucursalService.getSucursalPorNombre(sucNombre);
       this.sucursalServicioIds = suc?.servicioIds?.length ? suc.servicioIds : null;
+
+      // Construir mapa sucursal -> región para el filtro de región
+      this.mapaRegionSucursal = {};
+      list.forEach(s => {
+        if (s.nombre && s.regionNombre) this.mapaRegionSucursal[s.nombre] = s.regionNombre;
+      });
+
       this.onCategoriaChange();
     });
 
     this.inventarioService.getItems().subscribe(items => {
       this.productosInventario = items;
+    });
+
+    this.operadorService.getOperadores().subscribe(ops => {
+      this.operadores = ops;
+    });
+
+    this.extrasMock.getServiciosExtras().subscribe(extras => {
+      this.serviciosExtras = extras;
     });
 
     if (this.isOperadorEspeciales) {
@@ -1124,7 +1273,12 @@ export class ServiciosComponent implements OnInit {
         }
       }
 
-      return matchTexto && matchCat;
+      // ── Filtrado estricto por pestaña activa (Generales vs Especiales) ──
+      const tabMatch = this.tabActiva === 'generales'
+        ? (s.categoriaServicio === 'Servicios Generales' || s.categoriaServicio === 'GENERAL' || !s.categoriaServicio)
+        : (s.categoriaServicio === 'Servicios Especiales' || s.categoriaServicio === 'ESPECIAL' || s.categoriaServicio === 'EXTRA' || s.categoriaServicio === 'Servicios Extras');
+
+      return matchTexto && matchCat && tabMatch;
     });
 
     if (this.filtrosGlobales.estado !== 'Todos') {
@@ -1138,6 +1292,36 @@ export class ServiciosComponent implements OnInit {
     }
     if (this.filtrosGlobales.operador !== 'Todos') {
       resultados = resultados.filter(s => s.empleado?.includes(this.filtrosGlobales.operador));
+    }
+    if (this.filtrosGlobales.servicio && this.filtrosGlobales.servicio !== 'Todos') {
+      resultados = resultados.filter(s =>
+        s.servicio?.toLowerCase().includes(this.filtrosGlobales.servicio!.toLowerCase())
+      );
+    }
+    if (this.filtrosGlobales.region && this.filtrosGlobales.region !== 'Todas') {
+      resultados = resultados.filter(s =>
+        this.mapaRegionSucursal[s.agencia] === this.filtrosGlobales.region
+      );
+    }
+    if (this.filtrosGlobales.busqueda?.trim()) {
+      const b = this.filtrosGlobales.busqueda.trim().toLowerCase();
+      resultados = resultados.filter(s =>
+        s.placa?.toLowerCase().includes(b) ||
+        s.marca?.toLowerCase().includes(b) ||
+        s.modelo?.toLowerCase().includes(b) ||
+        s.empleado?.toLowerCase().includes(b) ||
+        s.servicio?.toLowerCase().includes(b) ||
+        s.ordenTrabajoOT?.toLowerCase().includes(b) ||
+        s.numeroOrden?.toLowerCase().includes(b)
+      );
+    }
+
+    const rango = resolverRangoFechas(this.filtrosGlobales);
+    if (rango) {
+      resultados = resultados.filter(s => {
+        const d = soloFecha(s.fecha);
+        return d >= rango.inicio && d <= rango.fin;
+      });
     }
 
     this.serviciosFiltrados = resultados;
@@ -1156,6 +1340,19 @@ export class ServiciosComponent implements OnInit {
   onPageSizeChange(size: number) {
     this.pageSize = size;
     this.currentPage = 1; // Reset to first page
+  }
+
+  calcularDuracion(inicio: string, fin: string): string {
+    if (!inicio || !fin) return '';
+    const parse = (t: string): number => {
+      const [h, m] = t.split(':').map(Number);
+      return (h || 0) * 60 + (m || 0);
+    };
+    let min = parse(fin) - parse(inicio);
+    if (min < 0) min += 24 * 60;
+    const h = Math.floor(min / 60);
+    const m = min % 60;
+    return h > 0 ? `${h}h ${m}min` : `${m}min`;
   }
 
   guardarHojaServicio() {
@@ -1243,5 +1440,173 @@ export class ServiciosComponent implements OnInit {
   abrirDetalle(item: VehiculoServicio) {
     this.servicioDetalleSeleccionado = item;
     this.modalDetalleOpen = true;
+  }
+
+  // ── Métodos para Asignaciones Especiales (Extras) ──────────────────────
+  get extrasPendientes()  { return this.serviciosExtras.filter(e => e.estado === 'Pendiente').length; }
+  get extrasEnProceso()   { return this.serviciosExtras.filter(e => e.estado === 'En Proceso').length; }
+  get extrasCompletados() { return this.serviciosExtras.filter(e => e.estado === 'Completado').length; }
+  get extrasCancelados()  { return this.serviciosExtras.filter(e => e.estado === 'Cancelado').length; }
+
+  get extrasFiltrados() {
+    return this.serviciosExtras.filter(e => {
+      const matchEst = this.filtroEstadoExtras === 'TODOS' || e.estado === this.filtroEstadoExtras;
+      const matchOp = this.filtroOperadorExtras === 0 || e.operadorId === this.filtroOperadorExtras;
+      const matchTxt = this.busquedaExtras === '' ||
+        e.servicioNombre.toLowerCase().includes(this.busquedaExtras.toLowerCase()) ||
+        e.codigoSE.toLowerCase().includes(this.busquedaExtras.toLowerCase()) ||
+        e.operadorNombre.toLowerCase().includes(this.busquedaExtras.toLowerCase());
+      return matchEst && matchOp && matchTxt;
+    });
+  }
+
+  get paginatedExtras() {
+    const start = (this.currentPageExtras - 1) * this.pageSizeExtras;
+    return this.extrasFiltrados.slice(start, start + this.pageSizeExtras);
+  }
+
+  onPageChangeExtras(page: number) { this.currentPageExtras = page; }
+  onPageSizeChangeExtras(size: number) { this.pageSizeExtras = size; this.currentPageExtras = 1; }
+
+  abrirModalNuevoExtra() {
+    this.isEditingExtras = false;
+    this.editandoExtraId = null;
+    this.extraForm = {
+      servicioNombre: '',
+      servicioDescripcion: '',
+      operadorId: this.operadores[0]?.id || 0,
+      operadorNombre: this.operadores[0]?.nombre || '',
+      sucursalesSeleccionadas: [],
+      insumosReceta: [],
+      estado: 'Pendiente',
+      fechaProgramada: new Date().toISOString().substring(0, 10),
+      notas: ''
+    };
+    this.showModalExtras = true;
+  }
+
+  abrirModalEditarExtra(extra: ServicioExtra) {
+    this.isEditingExtras = true;
+    this.editandoExtraId = extra.id;
+    this.extraForm = {
+      servicioNombre: extra.servicioNombre,
+      servicioDescripcion: extra.servicioDescripcion || '',
+      operadorId: extra.operadorId,
+      operadorNombre: extra.operadorNombre,
+      sucursalesSeleccionadas: [...extra.sucursales],
+      insumosReceta: JSON.parse(JSON.stringify(extra.insumosReceta)),
+      estado: extra.estado,
+      fechaProgramada: extra.fechaProgramada,
+      notas: extra.notas || ''
+    };
+    this.showModalExtras = true;
+  }
+
+  cerrarModalExtras() { this.showModalExtras = false; }
+
+  onOperadorExtraChange() {
+    const op = this.operadores.find(o => o.id === Number(this.extraForm.operadorId));
+    if (op) this.extraForm.operadorNombre = op.nombre;
+  }
+
+  toggleSucursalExtra(sucursal: string) {
+    const idx = this.extraForm.sucursalesSeleccionadas.indexOf(sucursal);
+    if (idx === -1) {
+      this.extraForm.sucursalesSeleccionadas.push(sucursal);
+    } else {
+      this.extraForm.sucursalesSeleccionadas.splice(idx, 1);
+    }
+  }
+
+  isSucursalExtraSeleccionada(sucursal: string): boolean {
+    return this.extraForm.sucursalesSeleccionadas.includes(sucursal);
+  }
+
+  agregarInsumoRecetaExtra(productoIdStr: string) {
+    if (!productoIdStr) return;
+    const prodId = Number(productoIdStr);
+    const item = this.productosInventario.find(i => i.producto.id === prodId);
+    if (!item) return;
+    const existe = this.extraForm.insumosReceta.find(r => r.productoId === prodId);
+    if (existe) {
+      existe.cantidadSugerida += 1;
+    } else {
+      this.extraForm.insumosReceta.push({
+        productoId: item.producto.id,
+        productoSKU: item.producto.codigoSKU,
+        productoNombre: item.producto.nombre,
+        unidadMedida: item.producto.unidadMedida,
+        cantidadSugerida: 1
+      });
+    }
+  }
+
+  aumentarInsumoRecetaExtra(index: number) {
+    const ins = this.extraForm.insumosReceta[index];
+    if (ins) ins.cantidadSugerida = Math.round((ins.cantidadSugerida + 0.5) * 10) / 10;
+  }
+
+  disminuirInsumoRecetaExtra(index: number) {
+    const ins = this.extraForm.insumosReceta[index];
+    if (ins && ins.cantidadSugerida > 0.5) {
+      ins.cantidadSugerida = Math.round((ins.cantidadSugerida - 0.5) * 10) / 10;
+    }
+  }
+
+  eliminarInsumoRecetaExtra(index: number) {
+    this.extraForm.insumosReceta.splice(index, 1);
+  }
+
+  guardarServicioExtra() {
+    if (!this.extraForm.servicioNombre.trim() || !this.extraForm.operadorId) {
+      this.toastService.warning('Datos incompletos', 'Ingrese el nombre del servicio y seleccione un operador.');
+      return;
+    }
+    const payload = {
+      servicioNombre: this.extraForm.servicioNombre.trim(),
+      servicioDescripcion: this.extraForm.servicioDescripcion.trim(),
+      operadorId: Number(this.extraForm.operadorId),
+      operadorNombre: this.extraForm.operadorNombre,
+      sucursales: this.extraForm.sucursalesSeleccionadas,
+      insumosReceta: this.extraForm.insumosReceta,
+      estado: this.extraForm.estado,
+      fechaProgramada: this.extraForm.fechaProgramada,
+      notas: this.extraForm.notas,
+      creadoPor: 'Franklin Administrador'
+    };
+
+    if (this.isEditingExtras && this.editandoExtraId) {
+      this.extrasMock.actualizarServicioExtra(this.editandoExtraId, payload).subscribe(() => {
+        this.toastService.success('Asignación Actualizada', 'Los cambios han sido guardados.');
+        this.cerrarModalExtras();
+      });
+    } else {
+      this.extrasMock.crearServicioExtra(payload).subscribe(() => {
+        this.toastService.success('Asignación Creada', 'El servicio especial ha sido asignado al operador.');
+        this.cerrarModalExtras();
+      });
+    }
+  }
+
+  cambiarEstadoExtra(extra: ServicioExtra, estado: ServicioExtra['estado']) {
+    this.extrasMock.cambiarEstado(extra.id, estado).subscribe(() => {
+      this.toastService.success('Estado Actualizado', `Asignación ${extra.codigoSE} marcada como ${estado}.`);
+    });
+  }
+
+  eliminarExtra(id: number) {
+    this.extrasMock.eliminarServicioExtra(id).subscribe(() => {
+      this.toastService.info('Asignación Eliminada', 'El registro ha sido removido del sistema.');
+    });
+  }
+
+  estadoExtraClass(estado: string): string {
+    const map: Record<string, string> = {
+      'Pendiente': 'bg-amber-50 text-amber-700 border-amber-200',
+      'En Proceso': 'bg-blue-50 text-blue-700 border-blue-200',
+      'Completado': 'bg-emerald-50 text-emerald-700 border-emerald-200',
+      'Cancelado': 'bg-slate-100 text-slate-500 border-slate-200'
+    };
+    return map[estado] || 'bg-slate-100 text-slate-500 border-slate-200';
   }
 }

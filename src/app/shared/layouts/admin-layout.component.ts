@@ -1,25 +1,27 @@
-import { Component } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterOutlet } from '@angular/router';
 import { SidebarComponent } from '../components/sidebar/sidebar.component';
 import { HeaderComponent } from '../components/header/header.component';
 import { ToastComponent } from '../components/toast/toast.component';
+import { UiStateService } from '../../core/services/ui-state.service';
 
 @Component({
   selector: 'app-admin-layout',
   standalone: true,
   imports: [CommonModule, RouterOutlet, SidebarComponent, HeaderComponent, ToastComponent],
   template: `
-    <div class="h-screen bg-slate-50 flex overflow-hidden">
-      <!-- Espacio reservado para el rail del sidebar (80px) — el sidebar es fixed encima -->
-      <div class="w-20 flex-shrink-0 h-screen" aria-hidden="true"></div>
-
+    <div class="h-screen bg-slate-50">
+      <!-- Sidebar flotante (fixed, rail retraído reserva 80px, al expandir flota con overlay) -->
       <app-sidebar></app-sidebar>
 
-      <!-- Main Layout Body -->
-      <div class="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
+      <!-- Main Layout Body: reserva el espacio del rail retraído vía margin-left.
+           Al expandir, el sidebar flota sobre el contenido (reserva 0). -->
+      <div
+        class="flex flex-col min-w-0 h-screen overflow-hidden transition-[margin] duration-200 ease-in-out"
+        [style.margin-left]="uiState.sidebarReservedWidth()">
         <!-- EasyDry Corporate Header -->
-        <app-header (search)="onSearch($event)"></app-header>
+        <app-header></app-header>
 
         <!-- Main Content Area (Spacious for PC/Laptops) -->
         <main class="flex-1 overflow-y-auto">
@@ -35,7 +37,5 @@ import { ToastComponent } from '../components/toast/toast.component';
   `
 })
 export class AdminLayoutComponent {
-  onSearch(query: string) {
-    // Search handler
-  }
+  readonly uiState = inject(UiStateService);
 }

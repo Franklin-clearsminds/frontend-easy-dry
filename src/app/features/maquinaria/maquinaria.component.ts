@@ -8,7 +8,7 @@ import { SucursalMockService } from '../../core/services/sucursal-mock.service';
 import { IncidenteMockService } from '../../core/services/incidente-mock.service';
 import { MantenimientoMockService } from '../../core/services/mantenimiento-mock.service';
 import { AuthService } from '../../core/services/auth.service';
-import { Maquinaria, MovimientoMaquinaria, Sucursal, Incidente, Mantenimiento } from '../../core/models';
+import { Maquinaria, MovimientoMaquinaria, Sucursal, Incidente, Mantenimiento, ArchivoAdjunto } from '../../core/models';
 import { Role } from '../../core/models/roles.model';
 import { ModalComponent } from '../../shared/components/modal/modal.component';
 import { ToastService } from '../../shared/services/toast.service';
@@ -44,11 +44,34 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
         [showSucursal]="canTransfer" 
         [showOperador]="false"
         [showBahia]="true"
+        [showRegion]="true"
         [showEstado]="true"
         [showFechas]="false"
         [listaEstados]="['Todos', 'Operativa', 'Requiere Mantenimiento', 'En Reparación', 'Fuera de Servicio']"
         (filterChange)="aplicarNuevosFiltros($event)">
       </app-filter-bar>
+
+      <!-- Ficha de Selección Sucursal -> Bahía (Punto 7: Responsable, Ubicación, Estado) -->
+      @if (filtrosGlobales.sucursal !== 'Todas' || filtrosGlobales.bahia !== 'Todas') {
+        <div class="p-4 bg-gradient-to-r from-blue-50/70 via-indigo-50/50 to-white rounded-2xl border border-blue-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-fade-in shadow-2xs">
+          <div class="flex items-center gap-3.5">
+            <div class="w-10 h-10 rounded-xl bg-easydry-blue text-white flex items-center justify-center font-bold">
+              <i-lucide name="wrench" class="w-5 h-5"></i-lucide>
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <h4 class="font-extrabold text-slate-900 text-sm font-outfit">{{ filtrosGlobales.sucursal }} — {{ filtrosGlobales.bahia }}</h4>
+                <span class="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                  Estado: Activo & Operativo
+                </span>
+              </div>
+              <p class="text-xs text-slate-500 mt-0.5">
+                <strong>Ubicación:</strong> Módulo de Lavado / Estación Técnica · <strong>Responsable Agencia:</strong> <span class="text-purple-700 font-bold">{{ getResponsableEquipo(filtrosGlobales.sucursal) }}</span>
+              </p>
+            </div>
+          </div>
+        </div>
+      }
 
       <!-- Search Bar -->
       <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-xs flex flex-wrap items-center justify-between gap-4 mb-4">
@@ -61,8 +84,8 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
               type="text" 
               [(ngModel)]="filtroTexto" 
               (input)="aplicarFiltros()"
-              placeholder="Buscar por código o nombre..." 
-              class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold">
+              placeholder="Buscar activo por código, nombre o serie..." 
+              class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold outline-none focus:ring-2 focus:ring-easydry-blue">
           </div>
         </div>
         <div class="text-xs font-semibold text-slate-500">
@@ -232,13 +255,27 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                         <span class="font-mono text-slate-500 text-[10px]">{{ inc.fecha }}</span>
                       </div>
                       <p class="text-[11px] text-slate-600 line-clamp-2">{{ inc.descripcion }}</p>
-                      <div class="flex justify-between items-center mt-1">
+                      <div class="flex justify-between items-center mt-1 gap-2 flex-wrap">
                         <span class="px-2 py-0.5 rounded text-[10px] font-bold"
                           [ngClass]="inc.estado === 'Resuelto' || inc.estado === 'Solucionado' ? 'bg-easydry-green/20 text-easydry-green-dark' : 'bg-amber-100 text-amber-800'">
                           {{ inc.estado }}
                         </span>
                         <span class="text-[10px] text-slate-400">Por: {{ inc.reportadoPor }}</span>
                       </div>
+                      @if (tieneEvidenciasFallo(inc)) {
+                        <div class="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                          @if (inc.fotosFallo?.length) {
+                            <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-white border border-rose-100 text-[10px] font-bold text-rose-700">
+                              <i-lucide name="image" class="w-3 h-3"></i-lucide> {{ inc.fotosFallo?.length }} foto(s)
+                            </span>
+                          }
+                          @if (inc.videosFallo?.length) {
+                            <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-white border border-rose-100 text-[10px] font-bold text-purple-700">
+                              <i-lucide name="film" class="w-3 h-3"></i-lucide> {{ inc.videosFallo?.length }} video(s)
+                            </span>
+                          }
+                        </div>
+                      }
                     </div>
                   }
                   @if (incidentesMaquina.length === 0) {
@@ -251,13 +288,13 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
               <div class="border border-slate-200 rounded-2xl p-4 space-y-3">
                 <div class="flex items-center justify-between mb-3">
                   <h4 class="font-bold text-slate-900 text-xs uppercase tracking-wider flex items-center gap-2">
-                    <i-lucide name="wrench" class="w-4 h-4 text-amber-500"></i-lucide> Mantenimientos
+                    <i-lucide name="wrench" class="w-4 h-4 text-amber-500"></i-lucide> Mantenimientos Programados
                   </h4>
                   <button (click)="programarMantenimiento()" class="text-[10px] flex items-center gap-1 font-bold text-easydry-blue hover:text-easydry-blue-dark bg-easydry-blue/10 hover:bg-easydry-blue/20 px-2 py-1 rounded transition-colors">
                     <i-lucide name="plus" class="w-3 h-3"></i-lucide> Programar
                   </button>
                 </div>
-                <div class="space-y-2 max-h-48 overflow-y-auto pr-2">
+                <div class="space-y-2 max-h-56 overflow-y-auto pr-2">
                   @for (man of mantenimientosMaquina; track man.id) {
                     <div class="p-3 bg-amber-50/50 rounded-xl border border-amber-100 flex flex-col gap-1 text-xs">
                       <div class="flex justify-between">
@@ -265,12 +302,37 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                         <span class="font-mono text-slate-500 text-[10px]">{{ man.fecha }}</span>
                       </div>
                       <p class="text-[11px] text-slate-600 line-clamp-2">{{ man.descripcion }}</p>
-                      <div class="flex justify-between items-center mt-1">
+                      <div class="flex justify-between items-center mt-1 gap-2 flex-wrap">
                         <span class="px-2 py-0.5 rounded text-[10px] font-bold"
-                          [ngClass]="man.estado === 'Completado' ? 'bg-easydry-green/20 text-easydry-green-dark' : 'bg-blue-100 text-blue-800'">
+                          [ngClass]="man.estado === 'Completado' ? 'bg-easydry-green/20 text-easydry-green-dark' : man.estado === 'En Proceso' ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'">
                           {{ man.estado }}
                         </span>
                         <span class="text-[10px] text-slate-400">Técnico: {{ man.tecnico }}</span>
+                      </div>
+                      <div class="flex items-center justify-between gap-2 mt-1.5 flex-wrap">
+                        <div class="flex items-center gap-1.5 flex-wrap">
+                          @if (man.fotos?.length) {
+                            <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-white border border-amber-100 text-[10px] font-bold text-emerald-700">
+                              <i-lucide name="image" class="w-3 h-3"></i-lucide> {{ man.fotos?.length }}
+                            </span>
+                          }
+                          @if (man.videos?.length) {
+                            <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-white border border-amber-100 text-[10px] font-bold text-purple-700">
+                              <i-lucide name="film" class="w-3 h-3"></i-lucide> {{ man.videos?.length }}
+                            </span>
+                          }
+                          @if (man.documentos?.length) {
+                            <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-white border border-amber-100 text-[10px] font-bold text-indigo-700">
+                              <i-lucide name="file-text" class="w-3 h-3"></i-lucide> {{ man.documentos?.length }}
+                            </span>
+                          }
+                        </div>
+                        <button
+                          type="button"
+                          (click)="abrirEvidenciasMantenimiento(man)"
+                          class="text-[10px] font-extrabold text-easydry-blue hover:underline">
+                          Adjuntar evidencias
+                        </button>
                       </div>
                     </div>
                   }
@@ -345,11 +407,29 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
           <div class="grid grid-cols-2 gap-4">
             <div>
               <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Código Activo</label>
-              <input type="text" [(ngModel)]="nuevaMaquina.codigo" name="codigo" placeholder="ej. HD-006" class="w-full p-2.5 border rounded-xl text-sm font-mono" required>
+              <input type="text" [(ngModel)]="nuevaMaquina.codigo" name="codigo" placeholder="ej. HD-006" 
+                [ngClass]="erroresMaquina.codigo ? 'border-rose-400 ring-2 ring-rose-100' : 'border-slate-200'"
+                class="w-full p-2.5 border rounded-xl text-sm font-mono" required
+                (input)="erroresMaquina.codigo = ''">
+              @if (erroresMaquina.codigo) {
+                <p class="mt-1 text-[11px] font-bold text-rose-600 flex items-center gap-1">
+                  <i-lucide name="alert-circle" class="w-3.5 h-3.5"></i-lucide>
+                  {{ erroresMaquina.codigo }}
+                </p>
+              }
             </div>
             <div>
               <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Nombre del Equipo</label>
-              <input type="text" [(ngModel)]="nuevaMaquina.nombre" name="nombre" placeholder="Hidrolavadora HD-006" class="w-full p-2.5 border rounded-xl text-sm" required>
+              <input type="text" [(ngModel)]="nuevaMaquina.nombre" name="nombre" placeholder="Hidrolavadora HD-006" 
+                [ngClass]="erroresMaquina.nombre ? 'border-rose-400 ring-2 ring-rose-100' : 'border-slate-200'"
+                class="w-full p-2.5 border rounded-xl text-sm" required
+                (input)="erroresMaquina.nombre = ''">
+              @if (erroresMaquina.nombre) {
+                <p class="mt-1 text-[11px] font-bold text-rose-600 flex items-center gap-1">
+                  <i-lucide name="alert-circle" class="w-3.5 h-3.5"></i-lucide>
+                  {{ erroresMaquina.nombre }}
+                </p>
+              }
             </div>
           </div>
 
@@ -365,7 +445,16 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
             </div>
             <div>
               <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Bahía</label>
-              <input type="text" [(ngModel)]="nuevaMaquina.bahia" name="bahia" placeholder="Bahía 1" class="w-full p-2.5 border rounded-xl text-sm" required>
+              <input type="text" [(ngModel)]="nuevaMaquina.bahia" name="bahia" placeholder="Bahía 1" 
+                [ngClass]="erroresMaquina.bahia ? 'border-rose-400 ring-2 ring-rose-100' : 'border-slate-200'"
+                class="w-full p-2.5 border rounded-xl text-sm" required
+                (input)="erroresMaquina.bahia = ''">
+              @if (erroresMaquina.bahia) {
+                <p class="mt-1 text-[11px] font-bold text-rose-600 flex items-center gap-1">
+                  <i-lucide name="alert-circle" class="w-3.5 h-3.5"></i-lucide>
+                  {{ erroresMaquina.bahia }}
+                </p>
+              }
             </div>
           </div>
         </form>
@@ -376,13 +465,15 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
         </div>
       </app-modal>
 
-      <!-- Modal Reportar Fallo (desde Ficha) -->
+      <!-- Modal Reportar Fallo (desde Ficha) — z-index por encima de la ficha -->
       <app-modal
         [isOpen]="modalReportarOpen"
         title="Reportar Fallo / Avería"
         icon="alert-triangle"
-        zClass="z-[60]"
-        (close)="modalReportarOpen = false">
+        zClass="z-[10050]"
+        [showBackButton]="true"
+        (close)="modalReportarOpen = false"
+        (back)="modalReportarOpen = false">
 
         @if (maquinaSeleccionada) {
           <form (ngSubmit)="guardarReporteFallo()" class="space-y-4">
@@ -421,25 +512,77 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                 name="descFallo"
                 rows="3"
                 placeholder="Describa el fallo observado en el equipo..."
+                [ngClass]="erroresFallo.descripcion ? 'border-rose-400 ring-2 ring-rose-100' : 'border-slate-200'"
                 class="w-full p-2.5 border rounded-xl text-sm"
+                (input)="erroresFallo.descripcion = ''"
                 required></textarea>
+              @if (erroresFallo.descripcion) {
+                <p class="mt-1 text-[11px] font-bold text-rose-600 flex items-center gap-1">
+                  <i-lucide name="alert-circle" class="w-3.5 h-3.5"></i-lucide>
+                  {{ erroresFallo.descripcion }}
+                </p>
+              }
+            </div>
+
+            <div class="border-2 border-dashed border-rose-200 bg-rose-50/40 rounded-2xl p-4 space-y-3">
+              <div class="flex items-center justify-between gap-2 flex-wrap">
+                <label class="text-xs font-bold text-rose-900 uppercase flex items-center gap-1.5">
+                  <i-lucide name="camera" class="w-4 h-4 text-rose-600"></i-lucide>
+                  Evidencias del Fallo (Fotos / Vídeos)
+                </label>
+                <span class="text-[11px] text-slate-500">Foto o video de la avería</span>
+              </div>
+              <div class="flex items-center gap-3 flex-wrap">
+                <label class="cursor-pointer px-4 py-2.5 bg-white border border-rose-300 hover:bg-rose-50 text-rose-700 font-bold rounded-xl text-xs flex items-center gap-2">
+                  <i-lucide name="upload-cloud" class="w-4 h-4"></i-lucide>
+                  <span>Subir Fotos / Videos del Fallo</span>
+                  <input type="file" multiple accept="image/*,video/*" (change)="onSubirArchivosFallo($event)" class="hidden">
+                </label>
+                <button type="button" (click)="agregarEvidenciaFalloDemo()"
+                  class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold">
+                  + Cargar Fotos/Video Demo
+                </button>
+              </div>
+              @if (archivosFalloSubidos.length > 0) {
+                <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2">
+                  @for (arch of archivosFalloSubidos; track arch.id; let idx = $index) {
+                    <div class="relative bg-white border rounded-xl p-2 shadow-xs">
+                      @if (arch.tipo === 'imagen') {
+                        <img [src]="arch.url" alt="Fallo" class="w-full h-24 object-cover rounded-lg">
+                      } @else {
+                        <div class="w-full h-24 bg-slate-900 rounded-lg flex flex-col items-center justify-center text-white">
+                          <i-lucide name="film" class="w-8 h-8 text-purple-400"></i-lucide>
+                          <span class="text-[9px] mt-1 font-mono">Vídeo</span>
+                        </div>
+                      }
+                      <p class="text-[10px] font-semibold text-slate-700 truncate mt-1">{{ arch.nombre }}</p>
+                      <button type="button" (click)="eliminarArchivoFallo(idx)"
+                        class="absolute top-1 right-1 p-1 bg-rose-600 text-white rounded-full">
+                        <i-lucide name="x" class="w-3 h-3"></i-lucide>
+                      </button>
+                    </div>
+                  }
+                </div>
+              }
             </div>
           </form>
         }
 
         <div modal-footer>
           <button (click)="modalReportarOpen = false" class="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs">Cancelar</button>
-          <button (click)="guardarReporteFallo()" class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs">Registrar Reporte</button>
+          <button (click)="guardarReporteFallo()" class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs">Registrar Reporte con Evidencias</button>
         </div>
       </app-modal>
 
-      <!-- Modal Programar Mantenimiento (desde Ficha) -->
+      <!-- Modal Programar Mantenimiento (desde Ficha) — z-index por encima de la ficha -->
       <app-modal
         [isOpen]="modalProgramarOpen"
         title="Programar Mantenimiento"
         icon="calendar-clock"
-        zClass="z-[60]"
-        (close)="modalProgramarOpen = false">
+        zClass="z-[10050]"
+        [showBackButton]="true"
+        (close)="modalProgramarOpen = false"
+        (back)="modalProgramarOpen = false">
 
         @if (maquinaSeleccionada) {
           <form (ngSubmit)="guardarProgramacionMantenimiento()" class="space-y-4">
@@ -467,11 +610,29 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Técnico / Especialista</label>
-                <input type="text" [(ngModel)]="nuevoMantenimiento.tecnico" name="tecnicoMant" placeholder="Ing. Esteban Torres" class="w-full p-2.5 border rounded-xl text-sm" required>
+                <input type="text" [(ngModel)]="nuevoMantenimiento.tecnico" name="tecnicoMant" placeholder="Ing. Esteban Torres" 
+                  [ngClass]="erroresMant.tecnico ? 'border-rose-400 ring-2 ring-rose-100' : 'border-slate-200'"
+                  class="w-full p-2.5 border rounded-xl text-sm" 
+                  (input)="erroresMant.tecnico = ''" required>
+                @if (erroresMant.tecnico) {
+                  <p class="mt-1 text-[11px] font-bold text-rose-600 flex items-center gap-1">
+                    <i-lucide name="alert-circle" class="w-3.5 h-3.5"></i-lucide>
+                    {{ erroresMant.tecnico }}
+                  </p>
+                }
               </div>
               <div>
-                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Costo Estimado ($)</label>
-                <input type="number" [(ngModel)]="nuevoMantenimiento.costo" name="costoMant" class="w-full p-2.5 border rounded-xl text-sm" min="0" required>
+                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Duración Estimada (Horas)</label>
+                <input type="number" [(ngModel)]="nuevoMantenimiento.duracionHoras" name="duracionMant" 
+                  [ngClass]="erroresMant.duracionHoras ? 'border-rose-400 ring-2 ring-rose-100' : 'border-slate-200'"
+                  class="w-full p-2.5 border rounded-xl text-sm" min="1"
+                  (input)="erroresMant.duracionHoras = ''" required>
+                @if (erroresMant.duracionHoras) {
+                  <p class="mt-1 text-[11px] font-bold text-rose-600 flex items-center gap-1">
+                    <i-lucide name="alert-circle" class="w-3.5 h-3.5"></i-lucide>
+                    {{ erroresMant.duracionHoras }}
+                  </p>
+                }
               </div>
             </div>
 
@@ -482,8 +643,100 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                 name="descMant"
                 rows="3"
                 placeholder="Detalle de tareas, repuestos y alcance..."
+                [ngClass]="erroresMant.descripcion ? 'border-rose-400 ring-2 ring-rose-100' : 'border-slate-200'"
                 class="w-full p-2.5 border rounded-xl text-sm"
+                (input)="erroresMant.descripcion = ''"
                 required></textarea>
+              @if (erroresMant.descripcion) {
+                <p class="mt-1 text-[11px] font-bold text-rose-600 flex items-center gap-1">
+                  <i-lucide name="alert-circle" class="w-3.5 h-3.5"></i-lucide>
+                  {{ erroresMant.descripcion }}
+                </p>
+              }
+            </div>
+
+            <div class="border-2 border-dashed border-emerald-200 bg-emerald-50/40 rounded-2xl p-4 space-y-3">
+              <div class="flex items-center justify-between gap-2 flex-wrap">
+                <label class="text-xs font-bold text-emerald-900 uppercase flex items-center gap-1.5">
+                  <i-lucide name="camera" class="w-4 h-4 text-emerald-600"></i-lucide>
+                  Evidencias del Mantenimiento (Fotos / Vídeos)
+                </label>
+                <span class="text-[11px] text-slate-500">Fotos del trabajo y video de prueba</span>
+              </div>
+              <div class="flex items-center gap-3 flex-wrap">
+                <label class="cursor-pointer px-4 py-2.5 bg-white border border-emerald-300 hover:bg-emerald-50 text-emerald-700 font-bold rounded-xl text-xs flex items-center gap-2">
+                  <i-lucide name="upload-cloud" class="w-4 h-4"></i-lucide>
+                  <span>Subir Fotos / Videos</span>
+                  <input type="file" multiple accept="image/*,video/*" (change)="onSubirMultimediaMant($event)" class="hidden">
+                </label>
+                <button type="button" (click)="agregarMultimediaMantDemo()"
+                  class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold">
+                  + Cargar Fotos/Video Demo
+                </button>
+              </div>
+              @if (multimediaMantSubida.length > 0) {
+                <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2">
+                  @for (m of multimediaMantSubida; track m.id; let idx = $index) {
+                    <div class="relative bg-white border rounded-xl p-2 shadow-xs">
+                      @if (m.tipo === 'imagen') {
+                        <img [src]="m.url" alt="Mantenimiento" class="w-full h-24 object-cover rounded-lg">
+                      } @else {
+                        <div class="w-full h-24 bg-slate-900 rounded-lg flex flex-col items-center justify-center text-white">
+                          <i-lucide name="film" class="w-8 h-8 text-emerald-400"></i-lucide>
+                          <span class="text-[9px] mt-1 font-mono">Vídeo</span>
+                        </div>
+                      }
+                      <p class="text-[10px] font-semibold text-slate-700 truncate mt-1">{{ m.nombre }}</p>
+                      <button type="button" (click)="eliminarMultimediaMant(idx)"
+                        class="absolute top-1 right-1 p-1 bg-rose-600 text-white rounded-full">
+                        <i-lucide name="x" class="w-3 h-3"></i-lucide>
+                      </button>
+                    </div>
+                  }
+                </div>
+              }
+            </div>
+
+            <div class="border-2 border-dashed border-indigo-200 bg-indigo-50/40 rounded-2xl p-4 space-y-3">
+              <div class="flex items-center justify-between gap-2 flex-wrap">
+                <label class="text-xs font-bold text-indigo-900 uppercase flex items-center gap-1.5">
+                  <i-lucide name="file-text" class="w-4 h-4 text-indigo-600"></i-lucide>
+                  Documentos Técnicos (PDF / Facturas / Informe)
+                </label>
+                <span class="text-[11px] text-slate-500">PDF, DOC, XLS</span>
+              </div>
+              <div class="flex items-center gap-3 flex-wrap">
+                <label class="cursor-pointer px-4 py-2.5 bg-white border border-indigo-300 hover:bg-indigo-50 text-indigo-700 font-bold rounded-xl text-xs flex items-center gap-2">
+                  <i-lucide name="file-text" class="w-4 h-4"></i-lucide>
+                  <span>Adjuntar Documento</span>
+                  <input type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.txt" (change)="onSubirDocumentosMant($event)" class="hidden">
+                </label>
+                <button type="button" (click)="agregarDocumentosMantDemo()"
+                  class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold">
+                  + Adjuntar PDF Demo
+                </button>
+              </div>
+              @if (documentosMantSubidos.length > 0) {
+                <div class="space-y-2 pt-2">
+                  @for (doc of documentosMantSubidos; track doc.id; let idx = $index) {
+                    <div class="p-2.5 bg-white border border-indigo-100 rounded-xl flex items-center justify-between">
+                      <div class="flex items-center gap-2.5 min-w-0">
+                        <div class="p-2 rounded-lg bg-indigo-100 text-indigo-700 flex-shrink-0">
+                          <i-lucide name="file-text" class="w-4 h-4"></i-lucide>
+                        </div>
+                        <div class="min-w-0">
+                          <p class="text-xs font-bold text-slate-900 truncate">{{ doc.nombre }}</p>
+                          <p class="text-[10px] text-slate-400 font-mono">{{ doc.tamanio || '1.4 MB' }} · {{ doc.extension || 'PDF' }}</p>
+                        </div>
+                      </div>
+                      <button type="button" (click)="eliminarDocumentoMant(idx)"
+                        class="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg">
+                        <i-lucide name="trash-2" class="w-4 h-4"></i-lucide>
+                      </button>
+                    </div>
+                  }
+                </div>
+              }
             </div>
           </form>
         }
@@ -491,6 +744,115 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
         <div modal-footer>
           <button (click)="modalProgramarOpen = false" class="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs">Cancelar</button>
           <button (click)="guardarProgramacionMantenimiento()" class="px-4 py-2 bg-easydry-blue hover:bg-easydry-blue-dark text-white font-bold rounded-xl text-xs">Guardar Mantenimiento</button>
+        </div>
+      </app-modal>
+
+      <app-modal
+        [isOpen]="modalEvidenciasMantOpen"
+        [title]="'Evidencias: ' + (mantenimientoEvidencias?.tipo || 'Mantenimiento')"
+        icon="camera"
+        zClass="z-[10050]"
+        [showBackButton]="true"
+        (close)="modalEvidenciasMantOpen = false"
+        (back)="modalEvidenciasMantOpen = false">
+
+        @if (mantenimientoEvidencias) {
+          <div class="space-y-4">
+            <div class="p-3 bg-amber-50 rounded-xl border border-amber-100 text-xs">
+              <p class="font-bold text-slate-800">{{ mantenimientoEvidencias.maquina }}</p>
+              <p class="text-slate-600 mt-0.5">{{ mantenimientoEvidencias.fecha }} · {{ mantenimientoEvidencias.tecnico }} · {{ mantenimientoEvidencias.estado }}</p>
+              <p class="text-slate-500 mt-1">{{ mantenimientoEvidencias.descripcion }}</p>
+            </div>
+
+            <div class="border-2 border-dashed border-emerald-200 bg-emerald-50/40 rounded-2xl p-4 space-y-3">
+              <div class="flex items-center justify-between gap-2 flex-wrap">
+                <label class="text-xs font-bold text-emerald-900 uppercase flex items-center gap-1.5">
+                  <i-lucide name="camera" class="w-4 h-4 text-emerald-600"></i-lucide>
+                  Fotos / Vídeos del trabajo
+                </label>
+                <span class="text-[11px] text-slate-500">Evidencia del mantenimiento</span>
+              </div>
+              <div class="flex items-center gap-3 flex-wrap">
+                <label class="cursor-pointer px-4 py-2.5 bg-white border border-emerald-300 hover:bg-emerald-50 text-emerald-700 font-bold rounded-xl text-xs flex items-center gap-2">
+                  <i-lucide name="upload-cloud" class="w-4 h-4"></i-lucide>
+                  <span>Subir Fotos / Videos</span>
+                  <input type="file" multiple accept="image/*,video/*" (change)="onSubirMultimediaMant($event)" class="hidden">
+                </label>
+                <button type="button" (click)="agregarMultimediaMantDemo()"
+                  class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold">
+                  + Cargar Fotos/Video Demo
+                </button>
+              </div>
+              @if (multimediaMantSubida.length > 0) {
+                <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2">
+                  @for (m of multimediaMantSubida; track m.id; let idx = $index) {
+                    <div class="relative bg-white border rounded-xl p-2 shadow-xs">
+                      @if (m.tipo === 'imagen') {
+                        <img [src]="m.url" alt="Evidencia" class="w-full h-24 object-cover rounded-lg">
+                      } @else {
+                        <div class="w-full h-24 bg-slate-900 rounded-lg flex flex-col items-center justify-center text-white">
+                          <i-lucide name="film" class="w-8 h-8 text-emerald-400"></i-lucide>
+                          <span class="text-[9px] mt-1 font-mono">Vídeo</span>
+                        </div>
+                      }
+                      <p class="text-[10px] font-semibold text-slate-700 truncate mt-1">{{ m.nombre }}</p>
+                      <button type="button" (click)="eliminarMultimediaMant(idx)"
+                        class="absolute top-1 right-1 p-1 bg-rose-600 text-white rounded-full">
+                        <i-lucide name="x" class="w-3 h-3"></i-lucide>
+                      </button>
+                    </div>
+                  }
+                </div>
+              }
+            </div>
+
+            <div class="border-2 border-dashed border-indigo-200 bg-indigo-50/40 rounded-2xl p-4 space-y-3">
+              <div class="flex items-center justify-between gap-2 flex-wrap">
+                <label class="text-xs font-bold text-indigo-900 uppercase flex items-center gap-1.5">
+                  <i-lucide name="file-text" class="w-4 h-4 text-indigo-600"></i-lucide>
+                  Documentos (PDF / Informe / Factura)
+                </label>
+                <span class="text-[11px] text-slate-500">PDF, DOC, XLS</span>
+              </div>
+              <div class="flex items-center gap-3 flex-wrap">
+                <label class="cursor-pointer px-4 py-2.5 bg-white border border-indigo-300 hover:bg-indigo-50 text-indigo-700 font-bold rounded-xl text-xs flex items-center gap-2">
+                  <i-lucide name="file-text" class="w-4 h-4"></i-lucide>
+                  <span>Adjuntar Documento</span>
+                  <input type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.txt" (change)="onSubirDocumentosMant($event)" class="hidden">
+                </label>
+                <button type="button" (click)="agregarDocumentosMantDemo()"
+                  class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold">
+                  + Adjuntar PDF Demo
+                </button>
+              </div>
+              @if (documentosMantSubidos.length > 0) {
+                <div class="space-y-2 pt-2">
+                  @for (doc of documentosMantSubidos; track doc.id; let idx = $index) {
+                    <div class="p-2.5 bg-white border border-indigo-100 rounded-xl flex items-center justify-between">
+                      <div class="flex items-center gap-2.5 min-w-0">
+                        <div class="p-2 rounded-lg bg-indigo-100 text-indigo-700 flex-shrink-0">
+                          <i-lucide name="file-text" class="w-4 h-4"></i-lucide>
+                        </div>
+                        <div class="min-w-0">
+                          <p class="text-xs font-bold text-slate-900 truncate">{{ doc.nombre }}</p>
+                          <p class="text-[10px] text-slate-400 font-mono">{{ doc.tamanio || '1.4 MB' }} · {{ doc.extension || 'PDF' }}</p>
+                        </div>
+                      </div>
+                      <button type="button" (click)="eliminarDocumentoMant(idx)"
+                        class="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg">
+                        <i-lucide name="trash-2" class="w-4 h-4"></i-lucide>
+                      </button>
+                    </div>
+                  }
+                </div>
+              }
+            </div>
+          </div>
+        }
+
+        <div modal-footer>
+          <button (click)="modalEvidenciasMantOpen = false" class="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs">Cancelar</button>
+          <button (click)="guardarEvidenciasMantenimiento()" class="px-4 py-2 bg-easydry-blue hover:bg-easydry-blue-dark text-white font-bold rounded-xl text-xs">Guardar Evidencias</button>
         </div>
       </app-modal>
 
@@ -510,6 +872,12 @@ export class MaquinariaComponent implements OnInit {
   modalCrearOpen = false;
   modalReportarOpen = false;
   modalProgramarOpen = false;
+  modalEvidenciasMantOpen = false;
+  mantenimientoEvidencias?: Mantenimiento;
+
+  archivosFalloSubidos: ArchivoAdjunto[] = [];
+  multimediaMantSubida: ArchivoAdjunto[] = [];
+  documentosMantSubidos: ArchivoAdjunto[] = [];
 
   nuevoIncidente = {
     tipo: 'Falla eléctrica' as Incidente['tipo'],
@@ -521,7 +889,7 @@ export class MaquinariaComponent implements OnInit {
     tipo: 'Preventivo' as Mantenimiento['tipo'],
     fecha: new Date().toISOString().substring(0, 10),
     tecnico: '',
-    costo: 0,
+    duracionHoras: 2,
     descripcion: ''
   };
 
@@ -534,6 +902,9 @@ export class MaquinariaComponent implements OnInit {
   filtroTexto = '';
 
   filtrosGlobales: FilterState = { sucursal: 'Todas', operador: 'Todos', bahia: 'Todas', estado: 'Todos', fecha: 'Hoy' };
+
+  // Mapa sucursal -> región (para el filtro de región)
+  mapaRegionSucursal: Record<string, string> = {};
 
   aplicarNuevosFiltros(filtros: FilterState) {
     this.filtrosGlobales = filtros;
@@ -559,6 +930,22 @@ export class MaquinariaComponent implements OnInit {
     imagen: 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=500&auto=format&fit=crop&q=80'
   };
 
+  erroresMaquina = {
+    codigo: '',
+    nombre: '',
+    bahia: ''
+  };
+
+  erroresFallo = {
+    descripcion: ''
+  };
+
+  erroresMant = {
+    tecnico: '',
+    duracionHoras: '',
+    descripcion: ''
+  };
+
   private maquinariaService = inject(MaquinariaMockService);
   private movimientoService = inject(MovimientoMaquinariaMockService);
   private sucursalService = inject(SucursalMockService);
@@ -575,6 +962,10 @@ export class MaquinariaComponent implements OnInit {
 
     this.sucursalService.getSucursales().subscribe(list => {
       this.sucursales = list;
+      this.mapaRegionSucursal = {};
+      list.forEach(s => {
+        if (s.nombre && s.regionNombre) this.mapaRegionSucursal[s.nombre] = s.regionNombre;
+      });
     });
   }
 
@@ -621,6 +1012,9 @@ export class MaquinariaComponent implements OnInit {
     if (this.filtrosGlobales.bahia !== 'Todas') {
       resultados = resultados.filter(m => m.bahia === this.filtrosGlobales.bahia);
     }
+    if (this.filtrosGlobales.region && this.filtrosGlobales.region !== 'Todas') {
+      resultados = resultados.filter(m => this.mapaRegionSucursal[m.agencia] === this.filtrosGlobales.region);
+    }
 
     return resultados;
   }
@@ -655,7 +1049,12 @@ export class MaquinariaComponent implements OnInit {
 
     // Obtener mantenimientos de la máquina
     this.mantenimientoService.getMantenimientos().subscribe(list => {
-      this.mantenimientosMaquina = list.filter(m => m.maquina === maq.codigo || m.maquina === maq.nombre);
+      this.mantenimientosMaquina = list
+        .filter(m => m.maquina === maq.codigo || m.maquina === maq.nombre)
+        .sort((a, b) => {
+          const orden: Record<string, number> = { Programado: 0, 'En Proceso': 1, Completado: 2, Cancelado: 3 };
+          return (orden[a.estado] ?? 9) - (orden[b.estado] ?? 9);
+        });
     });
 
     this.modalFichaOpen = true;
@@ -693,8 +1092,24 @@ export class MaquinariaComponent implements OnInit {
   }
 
   guardarNuevaMaquinaria() {
-    if (!this.nuevaMaquina.codigo || !this.nuevaMaquina.nombre) {
-      this.toastService.warning('Datos Incompletos', 'Ingrese el código y el nombre del equipo.');
+    this.erroresMaquina = { codigo: '', nombre: '', bahia: '' };
+    let valido = true;
+
+    if (!this.nuevaMaquina.codigo?.trim()) {
+      this.erroresMaquina.codigo = 'El código del activo es obligatorio.';
+      valido = false;
+    }
+    if (!this.nuevaMaquina.nombre?.trim()) {
+      this.erroresMaquina.nombre = 'El nombre del equipo es obligatorio.';
+      valido = false;
+    }
+    if (!this.nuevaMaquina.bahia?.trim()) {
+      this.erroresMaquina.bahia = 'Indique la bahía de destino.';
+      valido = false;
+    }
+
+    if (!valido) {
+      this.toastService.warning('Campos Requeridos', 'Complete los campos marcados en rojo.');
       return;
     }
 
@@ -711,6 +1126,8 @@ export class MaquinariaComponent implements OnInit {
       prioridad: 'Alta',
       descripcion: ''
     };
+    this.erroresFallo = { descripcion: '' };
+    this.archivosFalloSubidos = [];
     this.modalReportarOpen = true;
   }
 
@@ -721,21 +1138,188 @@ export class MaquinariaComponent implements OnInit {
       tipo: 'Preventivo',
       fecha: new Date().toISOString().substring(0, 10),
       tecnico: user ? `${user.nombre} ${user.apellido}` : 'Esteban Torres',
-      costo: 0,
+      duracionHoras: 2,
       descripcion: ''
     };
+    this.multimediaMantSubida = [];
+    this.documentosMantSubidos = [];
+    this.erroresMant = { tecnico: '', duracionHoras: '', descripcion: '' };
     this.modalProgramarOpen = true;
+  }
+
+  tieneEvidenciasFallo(inc: Incidente): boolean {
+    return !!(inc.fotosFallo?.length || inc.videosFallo?.length || inc.archivosFallo?.length);
+  }
+
+  private archivoDesdeFile(file: File, tipoForzado?: ArchivoAdjunto['tipo']): ArchivoAdjunto {
+    const isVideo = file.type.startsWith('video');
+    const isDoc = !file.type.startsWith('image') && !isVideo;
+    const tipo: ArchivoAdjunto['tipo'] = tipoForzado || (isVideo ? 'video' : isDoc ? 'documento' : 'imagen');
+    return {
+      id: `arch-${Date.now()}-${Math.random()}`,
+      nombre: file.name,
+      tipo,
+      extension: file.name.split('.').pop()?.toUpperCase() || (isVideo ? 'MP4' : isDoc ? 'PDF' : 'JPG'),
+      url: URL.createObjectURL(file),
+      tamanio: `${(file.size / (1024 * 1024)).toFixed(1)} MB`,
+      fechaSubida: new Date().toLocaleTimeString()
+    };
+  }
+
+  onSubirArchivosFallo(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    if (!input.files?.length) return;
+    Array.from(input.files).forEach(file => {
+      this.archivosFalloSubidos.push(this.archivoDesdeFile(file));
+    });
+    this.toastService.success('Archivos cargados', `${input.files.length} evidencia(s) del fallo lista(s).`);
+    input.value = '';
+  }
+
+  agregarEvidenciaFalloDemo(): void {
+    this.archivosFalloSubidos.push({
+      id: `demo-f-${Date.now()}-1`,
+      nombre: 'falla_equipo_bahia.jpg',
+      tipo: 'imagen',
+      extension: 'JPG',
+      url: 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=800&auto=format&fit=crop&q=80',
+      tamanio: '2.3 MB',
+      fechaSubida: 'Hoy'
+    });
+    this.archivosFalloSubidos.push({
+      id: `demo-f-${Date.now()}-2`,
+      nombre: 'video_fuga_presion.mp4',
+      tipo: 'video',
+      extension: 'MP4',
+      url: 'https://assets.mixkit.co/videos/preview/mixkit-circuit-board-details-close-up-42289-large.mp4',
+      tamanio: '12.4 MB',
+      fechaSubida: 'Hoy'
+    });
+    this.toastService.info('Demo', 'Se agregaron 1 foto y 1 video de prueba del fallo.');
+  }
+
+  eliminarArchivoFallo(index: number): void {
+    this.archivosFalloSubidos.splice(index, 1);
+  }
+
+  onSubirMultimediaMant(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    if (!input.files?.length) return;
+    Array.from(input.files).forEach(file => {
+      this.multimediaMantSubida.push(this.archivoDesdeFile(file));
+    });
+    this.toastService.success('Archivos cargados', `${input.files.length} evidencia(s) lista(s).`);
+    input.value = '';
+  }
+
+  agregarMultimediaMantDemo(): void {
+    this.multimediaMantSubida.push({
+      id: `demo-m-${Date.now()}-1`,
+      nombre: 'mantenimiento_equipo.jpg',
+      tipo: 'imagen',
+      extension: 'JPG',
+      url: 'https://images.unsplash.com/photo-1581092918056-0c4c3acd3789?w=800&auto=format&fit=crop&q=80',
+      tamanio: '1.8 MB',
+      fechaSubida: 'Hoy'
+    });
+    this.multimediaMantSubida.push({
+      id: `demo-m-${Date.now()}-2`,
+      nombre: 'video_prueba_operacion.mp4',
+      tipo: 'video',
+      extension: 'MP4',
+      url: 'https://assets.mixkit.co/videos/preview/mixkit-circuit-board-details-close-up-42289-large.mp4',
+      tamanio: '8.2 MB',
+      fechaSubida: 'Hoy'
+    });
+    this.toastService.info('Demo', 'Se agregaron 1 foto y 1 video de prueba.');
+  }
+
+  eliminarMultimediaMant(index: number): void {
+    this.multimediaMantSubida.splice(index, 1);
+  }
+
+  onSubirDocumentosMant(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    if (!input.files?.length) return;
+    Array.from(input.files).forEach(file => {
+      this.documentosMantSubidos.push(this.archivoDesdeFile(file, 'documento'));
+    });
+    this.toastService.success('Documentos cargados', `${input.files.length} documento(s) listo(s).`);
+    input.value = '';
+  }
+
+  agregarDocumentosMantDemo(): void {
+    this.documentosMantSubidos.push({
+      id: `demo-d-${Date.now()}`,
+      nombre: 'informe_mantenimiento.pdf',
+      tipo: 'documento',
+      extension: 'PDF',
+      url: '#',
+      tamanio: '1.4 MB',
+      fechaSubida: 'Hoy'
+    });
+    this.toastService.info('Demo', 'Se adjuntó un PDF de prueba.');
+  }
+
+  eliminarDocumentoMant(index: number): void {
+    this.documentosMantSubidos.splice(index, 1);
+  }
+
+  abrirEvidenciasMantenimiento(man: Mantenimiento): void {
+    this.mantenimientoEvidencias = man;
+    this.multimediaMantSubida = [
+      ...(man.archivos || []).filter(a => a.tipo !== 'documento'),
+      ...(man.fotos || []).map((url, i) => ({
+        id: `foto-${man.id}-${i}`,
+        nombre: `foto_${i + 1}.jpg`,
+        tipo: 'imagen' as const,
+        extension: 'JPG',
+        url
+      })),
+      ...(man.videos || []).map((url, i) => ({
+        id: `video-${man.id}-${i}`,
+        nombre: `video_${i + 1}.mp4`,
+        tipo: 'video' as const,
+        extension: 'MP4',
+        url
+      }))
+    ];
+    this.documentosMantSubidos = [...(man.documentos || [])];
+    this.modalEvidenciasMantOpen = true;
+  }
+
+  guardarEvidenciasMantenimiento(): void {
+    if (!this.mantenimientoEvidencias) return;
+    const fotos = this.multimediaMantSubida.filter(a => a.tipo === 'imagen').map(a => a.url);
+    const videos = this.multimediaMantSubida.filter(a => a.tipo === 'video').map(a => a.url);
+    this.mantenimientoService.actualizarMantenimiento(this.mantenimientoEvidencias.id, {
+      fotos,
+      videos,
+      archivos: [...this.multimediaMantSubida],
+      documentos: [...this.documentosMantSubidos]
+    }).subscribe(actualizado => {
+      if (!actualizado) return;
+      this.mantenimientosMaquina = this.mantenimientosMaquina.map(m =>
+        m.id === actualizado.id ? actualizado : m
+      );
+      this.toastService.success('Evidencias guardadas', 'Fotos, videos y documentos adjuntos al mantenimiento.');
+      this.modalEvidenciasMantOpen = false;
+    });
   }
 
   guardarReporteFallo() {
     if (!this.maquinaSeleccionada) return;
-    if (!this.nuevoIncidente.descripcion.trim()) {
+    this.erroresFallo = { descripcion: '' };
+    if (!this.nuevoIncidente.descripcion?.trim()) {
+      this.erroresFallo.descripcion = 'Describa el fallo presentado por la máquina.';
       this.toastService.warning('Descripción Requerida', 'Escriba el fallo presentado por la máquina.');
       return;
     }
 
     const usuario = this.authService.getCurrentUser();
     const reportadoPor = usuario ? `${usuario.nombre} ${usuario.apellido}` : 'Operador';
+    const fotos = this.archivosFalloSubidos.filter(a => a.tipo === 'imagen').map(a => a.url);
+    const videos = this.archivosFalloSubidos.filter(a => a.tipo === 'video').map(a => a.url);
 
     const registro: Omit<Incidente, 'id'> = {
       codigoIncidente: '',
@@ -746,22 +1330,47 @@ export class MaquinariaComponent implements OnInit {
       prioridad: this.nuevoIncidente.prioridad,
       estado: 'Pendiente',
       descripcion: this.nuevoIncidente.descripcion.trim(),
-      reportadoPor
+      reportadoPor,
+      fotosFallo: fotos.length ? fotos : undefined,
+      videosFallo: videos.length ? videos : undefined,
+      archivosFallo: this.archivosFalloSubidos.length ? [...this.archivosFalloSubidos] : undefined
     };
 
     this.incidenteService.crearIncidente(registro).subscribe(creado => {
       this.incidentesMaquina = [creado, ...this.incidentesMaquina];
-      this.toastService.success('Reporte Creado', `Incidente ${creado.codigoIncidente} registrado en estado Pendiente.`);
+      this.toastService.success(
+        'Reporte Creado',
+        `Incidente ${creado.codigoIncidente} registrado con ${this.archivosFalloSubidos.length} evidencia(s).`
+      );
       this.modalReportarOpen = false;
     });
   }
 
   guardarProgramacionMantenimiento() {
     if (!this.maquinaSeleccionada) return;
-    if (!this.nuevoMantenimiento.descripcion.trim() || !this.nuevoMantenimiento.tecnico.trim()) {
-      this.toastService.warning('Campos Requeridos', 'Complete técnico y descripción del trabajo.');
+    this.erroresMant = { tecnico: '', duracionHoras: '', descripcion: '' };
+    let valido = true;
+
+    if (!this.nuevoMantenimiento.tecnico?.trim()) {
+      this.erroresMant.tecnico = 'Indique el técnico responsable.';
+      valido = false;
+    }
+    if (!this.nuevoMantenimiento.duracionHoras || this.nuevoMantenimiento.duracionHoras < 1) {
+      this.erroresMant.duracionHoras = 'La duración debe ser al menos 1 hora.';
+      valido = false;
+    }
+    if (!this.nuevoMantenimiento.descripcion?.trim()) {
+      this.erroresMant.descripcion = 'Describa el alcance del trabajo.';
+      valido = false;
+    }
+
+    if (!valido) {
+      this.toastService.warning('Campos Requeridos', 'Complete los campos marcados en rojo.');
       return;
     }
+
+    const fotos = this.multimediaMantSubida.filter(a => a.tipo === 'imagen').map(a => a.url);
+    const videos = this.multimediaMantSubida.filter(a => a.tipo === 'video').map(a => a.url);
 
     const registro: Omit<Mantenimiento, 'id'> = {
       maquina: this.maquinaSeleccionada.nombre,
@@ -769,9 +1378,13 @@ export class MaquinariaComponent implements OnInit {
       fecha: this.nuevoMantenimiento.fecha,
       tecnico: this.nuevoMantenimiento.tecnico.trim(),
       estado: 'Programado',
-      costo: Number(this.nuevoMantenimiento.costo) || 0,
+      duracionMin: (this.nuevoMantenimiento.duracionHoras || 2) * 60,
       descripcion: this.nuevoMantenimiento.descripcion.trim(),
-      agencia: this.maquinaSeleccionada.agencia
+      agencia: this.maquinaSeleccionada.agencia,
+      fotos: fotos.length ? fotos : undefined,
+      videos: videos.length ? videos : undefined,
+      archivos: this.multimediaMantSubida.length ? [...this.multimediaMantSubida] : undefined,
+      documentos: this.documentosMantSubidos.length ? [...this.documentosMantSubidos] : undefined
     };
 
     this.mantenimientoService.registrarMantenimiento(registro).subscribe(creado => {
@@ -779,5 +1392,14 @@ export class MaquinariaComponent implements OnInit {
       this.toastService.success('Mantenimiento Agendado', `Visita programada para ${creado.maquina} el ${creado.fecha}.`);
       this.modalProgramarOpen = false;
     });
+  }
+
+  getResponsableEquipo(sucursal: string): string {
+    const s = sucursal.toLowerCase();
+    if (s.includes('norte')) return 'Carlos Mendoza (Gerente) · Op. Roberto Gómez';
+    if (s.includes('sur')) return 'Esteban Paredes (Gerente) · Op. David Morales';
+    if (s.includes('cumbayá') || s.includes('cumbaya')) return 'Mateo Villacís (Gerente) · Op. Javier Ortiz';
+    if (s.includes('guayaquil')) return 'Diana Salazar (Gerente) · Op. Manuel Viteri';
+    return 'Gerencia General EasyDry';
   }
 }
