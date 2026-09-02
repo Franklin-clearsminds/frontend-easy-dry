@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, inject, OnInit, OnDestroy, ElementRef, HostListener } from '@angular/core';
+import { Component, Input, Output, EventEmitter, inject, OnInit, OnDestroy, OnChanges, SimpleChanges, ElementRef, HostListener } from '@angular/core';
 import { CommonModule, DOCUMENT } from '@angular/common';
 import { LucideAngularModule } from 'lucide-angular';
 
@@ -6,6 +6,10 @@ import { LucideAngularModule } from 'lucide-angular';
   selector: 'app-modal',
   standalone: true,
   imports: [CommonModule, LucideAngularModule],
+  host: {
+    '[style.zIndex]': 'isOpen ? hostZIndex : null',
+    '[style.position]': 'isOpen ? "relative" : null'
+  },
   template: `
     @if (isOpen) {
       <div
@@ -59,7 +63,7 @@ import { LucideAngularModule } from 'lucide-angular';
     }
   `
 })
-export class ModalComponent implements OnInit, OnDestroy {
+export class ModalComponent implements OnInit, OnChanges, OnDestroy {
   @Input() isOpen = false;
   @Input() title = '';
   @Input() icon = '';
@@ -74,14 +78,29 @@ export class ModalComponent implements OnInit, OnDestroy {
   private host = inject(ElementRef<HTMLElement>);
   private doc = inject(DOCUMENT);
 
+  get hostZIndex(): number {
+    const match = this.zClass.match(/(\d+)/);
+    return match ? Number(match[1]) : 9999;
+  }
+
   ngOnInit(): void {
-    this.doc.body.appendChild(this.host.nativeElement);
+    this.bringToFront();
+  }
+
+  ngOnChanges(changes: SimpleChanges): void {
+    if (changes['isOpen'] && this.isOpen) {
+      this.bringToFront();
+    }
   }
 
   ngOnDestroy(): void {
     if (this.host.nativeElement.parentNode) {
       this.host.nativeElement.parentNode.removeChild(this.host.nativeElement);
     }
+  }
+
+  private bringToFront(): void {
+    this.doc.body.appendChild(this.host.nativeElement);
   }
 
   @HostListener('window:keydown.escape', ['$event'])

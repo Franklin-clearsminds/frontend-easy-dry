@@ -2,26 +2,6 @@ import { Routes, Router } from '@angular/router';
 import { inject } from '@angular/core';
 import { LoginComponent } from './features/login/login.component';
 import { AdminLayoutComponent } from './shared/layouts/admin-layout.component';
-import { DashboardComponent } from './features/dashboard/dashboard.component';
-import { AgenciasComponent } from './features/agencias/agencias.component';
-import { ServiciosComponent } from './features/servicios/servicios.component';
-import { AprobacionesComponent } from './features/aprobaciones/aprobaciones.component';
-import { ProductividadComponent } from './features/productividad/productividad.component';
-import { ReportesComponent } from './features/reportes/reportes.component';
-import { MaquinariaComponent } from './features/maquinaria/maquinaria.component';
-import { TallerTecnicoComponent } from './features/taller-tecnico/taller-tecnico.component';
-import { UsuariosComponent } from './features/usuarios/usuarios.component';
-import { ConfiguracionComponent } from './features/configuracion/configuracion.component';
-import { CatalogoServiciosComponent } from './features/configuracion/catalogo-servicios/catalogo-servicios.component';
-import { SucursalesComponent } from './features/sucursales/sucursales.component';
-import { SucursalDetailComponent } from './features/sucursales/sucursal-detail.component';
-import { OperadoresComponent } from './features/operadores/operadores.component';
-import { AsignacionesComponent } from './features/asignaciones/asignaciones.component';
-import { MiBahiaComponent } from './features/mi-bahia/mi-bahia.component';
-import { UnauthorizedComponent } from './features/unauthorized/unauthorized.component';
-import { PerfilComponent } from './features/perfil/perfil.component';
-import { NotificacionesComponent } from './features/notificaciones/notificaciones.component';
-import { InventarioComponent } from './features/inventario/inventario.component';
 import { authGuard, roleGuard } from './core/guards/auth.guard';
 import { Role } from './core/models/roles.model';
 
@@ -37,29 +17,30 @@ export const routes: Routes = [
     children: [
       { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
 
-      // ── Páginas de sistema ──
       {
         path: 'unauthorized',
-        component: UnauthorizedComponent
+        loadComponent: () =>
+          import('./features/unauthorized/unauthorized.component').then(m => m.UnauthorizedComponent)
       },
 
-      // ── Acceso Universal / Perfil ──
       {
         path: 'perfil',
-        component: PerfilComponent,
+        loadComponent: () =>
+          import('./features/perfil/perfil.component').then(m => m.PerfilComponent),
         canActivate: [authGuard]
       },
 
       {
         path: 'notificaciones',
-        component: NotificacionesComponent,
+        loadComponent: () =>
+          import('./features/notificaciones/notificaciones.component').then(m => m.NotificacionesComponent),
         canActivate: [authGuard]
       },
 
-      // ── Dashboard Principal ──
       {
         path: 'dashboard',
-        component: DashboardComponent,
+        loadComponent: () =>
+          import('./features/dashboard/dashboard.component').then(m => m.DashboardComponent),
         canActivate: [
           authGuard,
           roleGuard([
@@ -79,10 +60,10 @@ export const routes: Routes = [
         ]
       },
 
-      // ── Área Operativa de Bahía ──
       {
         path: 'mi-bahia',
-        component: MiBahiaComponent,
+        loadComponent: () =>
+          import('./features/mi-bahia/mi-bahia.component').then(m => m.MiBahiaComponent),
         canActivate: [
           authGuard,
           roleGuard([
@@ -94,10 +75,10 @@ export const routes: Routes = [
         ]
       },
 
-      // ── Servicios de Lavado (OTs) ──
       {
         path: 'servicios',
-        component: ServiciosComponent,
+        loadComponent: () =>
+          import('./features/servicios/servicios.component').then(m => m.ServiciosComponent),
         canActivate: [
           authGuard,
           roleGuard([
@@ -113,10 +94,10 @@ export const routes: Routes = [
         ]
       },
 
-      // ── Aprobaciones y Cierres (SuperAdmin, Admin, Gerente y Jefe Especiales) ──
       {
         path: 'aprobaciones',
-        component: AprobacionesComponent,
+        loadComponent: () =>
+          import('./features/aprobaciones/aprobaciones.component').then(m => m.AprobacionesComponent),
         canActivate: [
           authGuard,
           roleGuard([
@@ -128,10 +109,10 @@ export const routes: Routes = [
         ]
       },
 
-      // ── Productividad & Reto EasyDry ──
       {
         path: 'productividad',
-        component: ProductividadComponent,
+        loadComponent: () =>
+          import('./features/productividad/productividad.component').then(m => m.ProductividadComponent),
         canActivate: [
           authGuard,
           roleGuard([
@@ -145,7 +126,6 @@ export const routes: Routes = [
         ]
       },
 
-      // ── Redirección unificada: Mapa Operativo hacia Sucursales (Pestaña Mapa) ──
       {
         path: 'mapa-operativo',
         redirectTo: () => {
@@ -154,10 +134,10 @@ export const routes: Routes = [
         }
       },
 
-      // ── Sucursales ──
       {
         path: 'sucursales',
-        component: SucursalesComponent,
+        loadComponent: () =>
+          import('./features/sucursales/sucursales.component').then(m => m.SucursalesComponent),
         canActivate: [
           authGuard,
           roleGuard([
@@ -170,7 +150,8 @@ export const routes: Routes = [
       },
       {
         path: 'sucursales/:id',
-        component: SucursalDetailComponent,
+        loadComponent: () =>
+          import('./features/sucursales/sucursal-detail.component').then(m => m.SucursalDetailComponent),
         canActivate: [
           authGuard,
           roleGuard([
@@ -182,10 +163,10 @@ export const routes: Routes = [
         ]
       },
 
-      // ── Gestión Unificada de Operadores (Punto 4) ──
       {
         path: 'operadores',
-        component: OperadoresComponent,
+        loadComponent: () =>
+          import('./features/operadores/operadores.component').then(m => m.OperadoresComponent),
         canActivate: [
           authGuard,
           roleGuard([
@@ -202,10 +183,10 @@ export const routes: Routes = [
         redirectTo: 'operadores'
       },
 
-      // ── Maquinaria & Equipos ──
       {
         path: 'maquinaria',
-        component: MaquinariaComponent,
+        loadComponent: () =>
+          import('./features/maquinaria/maquinaria.component').then(m => m.MaquinariaComponent),
         canActivate: [
           authGuard,
           roleGuard([
@@ -219,10 +200,10 @@ export const routes: Routes = [
         ]
       },
 
-      // ── Taller Técnico (Mantenimiento e Incidentes) ──
       {
         path: 'taller-tecnico',
-        component: TallerTecnicoComponent,
+        loadComponent: () =>
+          import('./features/taller-tecnico/taller-tecnico.component').then(m => m.TallerTecnicoComponent),
         canActivate: [
           authGuard,
           roleGuard([
@@ -235,10 +216,10 @@ export const routes: Routes = [
         ]
       },
 
-      // ── Inventario de Insumos & Bodega ──
       {
         path: 'inventario',
-        component: InventarioComponent,
+        loadComponent: () =>
+          import('./features/inventario/inventario.component').then(m => m.InventarioComponent),
         canActivate: [
           authGuard,
           roleGuard([
@@ -253,10 +234,10 @@ export const routes: Routes = [
         ]
       },
 
-      // ── Reportes Operativos ──
       {
         path: 'reportes',
-        component: ReportesComponent,
+        loadComponent: () =>
+          import('./features/reportes/reportes.component').then(m => m.ReportesComponent),
         canActivate: [
           authGuard,
           roleGuard([
@@ -268,20 +249,20 @@ export const routes: Routes = [
         ]
       },
 
-      // ── Agencias (Solo SuperAdmin) ──
       {
         path: 'agencias',
-        component: AgenciasComponent,
+        loadComponent: () =>
+          import('./features/agencias/agencias.component').then(m => m.AgenciasComponent),
         canActivate: [
           authGuard,
           roleGuard([Role.SUPER_ADMIN, Role.ADMIN], 'agencias')
         ]
       },
 
-      // ── Usuarios, Roles y Configuración Global (Solo SuperAdmin) ──
       {
         path: 'usuarios',
-        component: UsuariosComponent,
+        loadComponent: () =>
+          import('./features/usuarios/usuarios.component').then(m => m.UsuariosComponent),
         canActivate: [
           authGuard,
           roleGuard([Role.SUPER_ADMIN, Role.ADMIN], 'usuarios')
@@ -289,7 +270,8 @@ export const routes: Routes = [
       },
       {
         path: 'configuracion',
-        component: ConfiguracionComponent,
+        loadComponent: () =>
+          import('./features/configuracion/configuracion.component').then(m => m.ConfiguracionComponent),
         canActivate: [
           authGuard,
           roleGuard([Role.SUPER_ADMIN, Role.ADMIN], 'configuracion')
@@ -297,7 +279,8 @@ export const routes: Routes = [
       },
       {
         path: 'configuracion/servicios',
-        component: CatalogoServiciosComponent,
+        loadComponent: () =>
+          import('./features/configuracion/catalogo-servicios/catalogo-servicios.component').then(m => m.CatalogoServiciosComponent),
         canActivate: [
           authGuard,
           roleGuard([Role.SUPER_ADMIN, Role.ADMIN], 'configuracion/servicios')

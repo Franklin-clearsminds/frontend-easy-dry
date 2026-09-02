@@ -12,7 +12,7 @@ export class ServicioLavadoMockService {
   public servicios$ = this.serviciosSubject.asObservable();
 
   getServicios(): Observable<VehiculoServicio[]> {
-    return this.servicios$.pipe(delay(200));
+    return this.servicios$;
   }
 
   getServiciosPorSucursal(sucursal: string): Observable<VehiculoServicio[]> {

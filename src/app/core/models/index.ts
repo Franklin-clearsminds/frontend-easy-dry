@@ -229,11 +229,16 @@ export interface Mantenimiento {
   agencia?: string;
   fotos?: string[];
   videos?: string[];
+  documentos?: ArchivoAdjunto[];
+  archivos?: ArchivoAdjunto[];
   tecnicoAsignadoId?: number;
   tecnicoAsignadoNombre?: string;
   gestorAsignadorId?: number;
   gestorAsignadorNombre?: string;
   fechaAsignacion?: string;
+  observacionCierre?: string;
+  fechaCierre?: string;
+  cerradoPor?: string;
 }
 
 export interface ArchivoAdjunto {
