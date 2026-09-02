@@ -44,6 +44,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
         [showSucursal]="canTransfer" 
         [showOperador]="false"
         [showBahia]="true"
+        [showRegion]="true"
         [showEstado]="true"
         [showFechas]="false"
         [listaEstados]="['Todos', 'Operativa', 'Requiere Mantenimiento', 'En Reparación', 'Fuera de Servicio']"
@@ -406,11 +407,29 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
           <div class="grid grid-cols-2 gap-4">
             <div>
               <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Código Activo</label>
-              <input type="text" [(ngModel)]="nuevaMaquina.codigo" name="codigo" placeholder="ej. HD-006" class="w-full p-2.5 border rounded-xl text-sm font-mono" required>
+              <input type="text" [(ngModel)]="nuevaMaquina.codigo" name="codigo" placeholder="ej. HD-006" 
+                [ngClass]="erroresMaquina.codigo ? 'border-rose-400 ring-2 ring-rose-100' : 'border-slate-200'"
+                class="w-full p-2.5 border rounded-xl text-sm font-mono" required
+                (input)="erroresMaquina.codigo = ''">
+              @if (erroresMaquina.codigo) {
+                <p class="mt-1 text-[11px] font-bold text-rose-600 flex items-center gap-1">
+                  <i-lucide name="alert-circle" class="w-3.5 h-3.5"></i-lucide>
+                  {{ erroresMaquina.codigo }}
+                </p>
+              }
             </div>
             <div>
               <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Nombre del Equipo</label>
-              <input type="text" [(ngModel)]="nuevaMaquina.nombre" name="nombre" placeholder="Hidrolavadora HD-006" class="w-full p-2.5 border rounded-xl text-sm" required>
+              <input type="text" [(ngModel)]="nuevaMaquina.nombre" name="nombre" placeholder="Hidrolavadora HD-006" 
+                [ngClass]="erroresMaquina.nombre ? 'border-rose-400 ring-2 ring-rose-100' : 'border-slate-200'"
+                class="w-full p-2.5 border rounded-xl text-sm" required
+                (input)="erroresMaquina.nombre = ''">
+              @if (erroresMaquina.nombre) {
+                <p class="mt-1 text-[11px] font-bold text-rose-600 flex items-center gap-1">
+                  <i-lucide name="alert-circle" class="w-3.5 h-3.5"></i-lucide>
+                  {{ erroresMaquina.nombre }}
+                </p>
+              }
             </div>
           </div>
 
@@ -426,7 +445,16 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
             </div>
             <div>
               <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Bahía</label>
-              <input type="text" [(ngModel)]="nuevaMaquina.bahia" name="bahia" placeholder="Bahía 1" class="w-full p-2.5 border rounded-xl text-sm" required>
+              <input type="text" [(ngModel)]="nuevaMaquina.bahia" name="bahia" placeholder="Bahía 1" 
+                [ngClass]="erroresMaquina.bahia ? 'border-rose-400 ring-2 ring-rose-100' : 'border-slate-200'"
+                class="w-full p-2.5 border rounded-xl text-sm" required
+                (input)="erroresMaquina.bahia = ''">
+              @if (erroresMaquina.bahia) {
+                <p class="mt-1 text-[11px] font-bold text-rose-600 flex items-center gap-1">
+                  <i-lucide name="alert-circle" class="w-3.5 h-3.5"></i-lucide>
+                  {{ erroresMaquina.bahia }}
+                </p>
+              }
             </div>
           </div>
         </form>
@@ -484,8 +512,16 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                 name="descFallo"
                 rows="3"
                 placeholder="Describa el fallo observado en el equipo..."
+                [ngClass]="erroresFallo.descripcion ? 'border-rose-400 ring-2 ring-rose-100' : 'border-slate-200'"
                 class="w-full p-2.5 border rounded-xl text-sm"
+                (input)="erroresFallo.descripcion = ''"
                 required></textarea>
+              @if (erroresFallo.descripcion) {
+                <p class="mt-1 text-[11px] font-bold text-rose-600 flex items-center gap-1">
+                  <i-lucide name="alert-circle" class="w-3.5 h-3.5"></i-lucide>
+                  {{ erroresFallo.descripcion }}
+                </p>
+              }
             </div>
 
             <div class="border-2 border-dashed border-rose-200 bg-rose-50/40 rounded-2xl p-4 space-y-3">
@@ -574,11 +610,29 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Técnico / Especialista</label>
-                <input type="text" [(ngModel)]="nuevoMantenimiento.tecnico" name="tecnicoMant" placeholder="Ing. Esteban Torres" class="w-full p-2.5 border rounded-xl text-sm" required>
+                <input type="text" [(ngModel)]="nuevoMantenimiento.tecnico" name="tecnicoMant" placeholder="Ing. Esteban Torres" 
+                  [ngClass]="erroresMant.tecnico ? 'border-rose-400 ring-2 ring-rose-100' : 'border-slate-200'"
+                  class="w-full p-2.5 border rounded-xl text-sm" 
+                  (input)="erroresMant.tecnico = ''" required>
+                @if (erroresMant.tecnico) {
+                  <p class="mt-1 text-[11px] font-bold text-rose-600 flex items-center gap-1">
+                    <i-lucide name="alert-circle" class="w-3.5 h-3.5"></i-lucide>
+                    {{ erroresMant.tecnico }}
+                  </p>
+                }
               </div>
               <div>
                 <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Duración Estimada (Horas)</label>
-                <input type="number" [(ngModel)]="nuevoMantenimiento.duracionHoras" name="duracionMant" class="w-full p-2.5 border rounded-xl text-sm" min="1" required>
+                <input type="number" [(ngModel)]="nuevoMantenimiento.duracionHoras" name="duracionMant" 
+                  [ngClass]="erroresMant.duracionHoras ? 'border-rose-400 ring-2 ring-rose-100' : 'border-slate-200'"
+                  class="w-full p-2.5 border rounded-xl text-sm" min="1"
+                  (input)="erroresMant.duracionHoras = ''" required>
+                @if (erroresMant.duracionHoras) {
+                  <p class="mt-1 text-[11px] font-bold text-rose-600 flex items-center gap-1">
+                    <i-lucide name="alert-circle" class="w-3.5 h-3.5"></i-lucide>
+                    {{ erroresMant.duracionHoras }}
+                  </p>
+                }
               </div>
             </div>
 
@@ -589,8 +643,16 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                 name="descMant"
                 rows="3"
                 placeholder="Detalle de tareas, repuestos y alcance..."
+                [ngClass]="erroresMant.descripcion ? 'border-rose-400 ring-2 ring-rose-100' : 'border-slate-200'"
                 class="w-full p-2.5 border rounded-xl text-sm"
+                (input)="erroresMant.descripcion = ''"
                 required></textarea>
+              @if (erroresMant.descripcion) {
+                <p class="mt-1 text-[11px] font-bold text-rose-600 flex items-center gap-1">
+                  <i-lucide name="alert-circle" class="w-3.5 h-3.5"></i-lucide>
+                  {{ erroresMant.descripcion }}
+                </p>
+              }
             </div>
 
             <div class="border-2 border-dashed border-emerald-200 bg-emerald-50/40 rounded-2xl p-4 space-y-3">
@@ -841,6 +903,9 @@ export class MaquinariaComponent implements OnInit {
 
   filtrosGlobales: FilterState = { sucursal: 'Todas', operador: 'Todos', bahia: 'Todas', estado: 'Todos', fecha: 'Hoy' };
 
+  // Mapa sucursal -> región (para el filtro de región)
+  mapaRegionSucursal: Record<string, string> = {};
+
   aplicarNuevosFiltros(filtros: FilterState) {
     this.filtrosGlobales = filtros;
     this.aplicarFiltros();
@@ -865,6 +930,22 @@ export class MaquinariaComponent implements OnInit {
     imagen: 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=500&auto=format&fit=crop&q=80'
   };
 
+  erroresMaquina = {
+    codigo: '',
+    nombre: '',
+    bahia: ''
+  };
+
+  erroresFallo = {
+    descripcion: ''
+  };
+
+  erroresMant = {
+    tecnico: '',
+    duracionHoras: '',
+    descripcion: ''
+  };
+
   private maquinariaService = inject(MaquinariaMockService);
   private movimientoService = inject(MovimientoMaquinariaMockService);
   private sucursalService = inject(SucursalMockService);
@@ -881,6 +962,10 @@ export class MaquinariaComponent implements OnInit {
 
     this.sucursalService.getSucursales().subscribe(list => {
       this.sucursales = list;
+      this.mapaRegionSucursal = {};
+      list.forEach(s => {
+        if (s.nombre && s.regionNombre) this.mapaRegionSucursal[s.nombre] = s.regionNombre;
+      });
     });
   }
 
@@ -926,6 +1011,9 @@ export class MaquinariaComponent implements OnInit {
     }
     if (this.filtrosGlobales.bahia !== 'Todas') {
       resultados = resultados.filter(m => m.bahia === this.filtrosGlobales.bahia);
+    }
+    if (this.filtrosGlobales.region && this.filtrosGlobales.region !== 'Todas') {
+      resultados = resultados.filter(m => this.mapaRegionSucursal[m.agencia] === this.filtrosGlobales.region);
     }
 
     return resultados;
@@ -1004,8 +1092,24 @@ export class MaquinariaComponent implements OnInit {
   }
 
   guardarNuevaMaquinaria() {
-    if (!this.nuevaMaquina.codigo || !this.nuevaMaquina.nombre) {
-      this.toastService.warning('Datos Incompletos', 'Ingrese el código y el nombre del equipo.');
+    this.erroresMaquina = { codigo: '', nombre: '', bahia: '' };
+    let valido = true;
+
+    if (!this.nuevaMaquina.codigo?.trim()) {
+      this.erroresMaquina.codigo = 'El código del activo es obligatorio.';
+      valido = false;
+    }
+    if (!this.nuevaMaquina.nombre?.trim()) {
+      this.erroresMaquina.nombre = 'El nombre del equipo es obligatorio.';
+      valido = false;
+    }
+    if (!this.nuevaMaquina.bahia?.trim()) {
+      this.erroresMaquina.bahia = 'Indique la bahía de destino.';
+      valido = false;
+    }
+
+    if (!valido) {
+      this.toastService.warning('Campos Requeridos', 'Complete los campos marcados en rojo.');
       return;
     }
 
@@ -1022,6 +1126,7 @@ export class MaquinariaComponent implements OnInit {
       prioridad: 'Alta',
       descripcion: ''
     };
+    this.erroresFallo = { descripcion: '' };
     this.archivosFalloSubidos = [];
     this.modalReportarOpen = true;
   }
@@ -1038,6 +1143,7 @@ export class MaquinariaComponent implements OnInit {
     };
     this.multimediaMantSubida = [];
     this.documentosMantSubidos = [];
+    this.erroresMant = { tecnico: '', duracionHoras: '', descripcion: '' };
     this.modalProgramarOpen = true;
   }
 
@@ -1203,7 +1309,9 @@ export class MaquinariaComponent implements OnInit {
 
   guardarReporteFallo() {
     if (!this.maquinaSeleccionada) return;
-    if (!this.nuevoIncidente.descripcion.trim()) {
+    this.erroresFallo = { descripcion: '' };
+    if (!this.nuevoIncidente.descripcion?.trim()) {
+      this.erroresFallo.descripcion = 'Describa el fallo presentado por la máquina.';
       this.toastService.warning('Descripción Requerida', 'Escriba el fallo presentado por la máquina.');
       return;
     }
@@ -1240,8 +1348,24 @@ export class MaquinariaComponent implements OnInit {
 
   guardarProgramacionMantenimiento() {
     if (!this.maquinaSeleccionada) return;
-    if (!this.nuevoMantenimiento.descripcion.trim() || !this.nuevoMantenimiento.tecnico.trim()) {
-      this.toastService.warning('Campos Requeridos', 'Complete técnico y descripción del trabajo.');
+    this.erroresMant = { tecnico: '', duracionHoras: '', descripcion: '' };
+    let valido = true;
+
+    if (!this.nuevoMantenimiento.tecnico?.trim()) {
+      this.erroresMant.tecnico = 'Indique el técnico responsable.';
+      valido = false;
+    }
+    if (!this.nuevoMantenimiento.duracionHoras || this.nuevoMantenimiento.duracionHoras < 1) {
+      this.erroresMant.duracionHoras = 'La duración debe ser al menos 1 hora.';
+      valido = false;
+    }
+    if (!this.nuevoMantenimiento.descripcion?.trim()) {
+      this.erroresMant.descripcion = 'Describa el alcance del trabajo.';
+      valido = false;
+    }
+
+    if (!valido) {
+      this.toastService.warning('Campos Requeridos', 'Complete los campos marcados en rojo.');
       return;
     }
 

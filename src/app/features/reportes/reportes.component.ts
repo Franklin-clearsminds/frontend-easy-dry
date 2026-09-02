@@ -7,6 +7,7 @@ import { Reporte } from '../../core/models';
 import { ToastService } from '../../shared/services/toast.service';
 import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
 import { FilterBarComponent, FilterState } from '../../shared/components/filter-bar/filter-bar.component';
+import { resolverRangoFechas, soloFecha } from '../../core/utils/fecha-rango';
 
 @Component({
   selector: 'app-reportes',
@@ -208,6 +209,14 @@ export class ReportesComponent implements OnInit {
 
     if (this.filtrosGlobales.sucursal !== 'Todas') {
       resultados = resultados.filter(r => r.agencia === this.filtrosGlobales.sucursal);
+    }
+
+    const rango = resolverRangoFechas(this.filtrosGlobales);
+    if (rango) {
+      resultados = resultados.filter(r => {
+        const d = soloFecha(r.fechaGeneracion);
+        return d >= rango.inicio && d <= rango.fin;
+      });
     }
     
     return resultados;

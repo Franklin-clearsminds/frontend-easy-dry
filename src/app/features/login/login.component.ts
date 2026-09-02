@@ -152,31 +152,21 @@ import { environment } from '../../core/config/env';
           <!-- Resplandor sutil superior derecho en el interior de la tarjeta -->
           <div class="absolute -top-12 -right-12 w-36 h-36 bg-cyan-200/50 rounded-full blur-2xl pointer-events-none"></div>
 
-          <!-- Logo EasyDry Centrado (Gota azul-turquesa + texto easydry) -->
-          <div class="flex items-center justify-center gap-2 mb-3">
-            <!-- Icono Gota de Agua con Degradado Oficial -->
-            <svg class="w-8 h-8 flex-shrink-0" viewBox="0 0 100 100" fill="none">
-              <defs>
-                <linearGradient id="easyDropGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stop-color="#38BDF8" />
-                  <stop offset="45%" stop-color="#0284C7" />
-                  <stop offset="100%" stop-color="#0E7490" />
-                </linearGradient>
-              </defs>
-              <path d="M50 6 C50 6, 16 52, 16 70 C16 88, 31 96, 50 96 C69 96, 84 88, 84 70 C84 52, 50 6, 50 6 Z" fill="url(#easyDropGrad)" />
-            </svg>
-            <span class="text-2xl sm:text-[26px] font-extrabold tracking-tight text-[#0B2A4A] font-outfit lowercase leading-none">
-              easydry
-            </span>
+          <!-- Logo EasyDry: Solo Icono Gota de Agua -->
+          <div class="flex items-center justify-center mb-4">
+            <div class="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-white p-2.5 flex items-center justify-center shadow-lg">
+              <svg class="w-full h-full" viewBox="0 0 100 100" fill="none">
+                <defs>
+                  <linearGradient id="easyDropGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#38BDF8" />
+                    <stop offset="45%" stop-color="#0284C7" />
+                    <stop offset="100%" stop-color="#0E7490" />
+                  </linearGradient>
+                </defs>
+                <path d="M50 6 C50 6, 16 52, 16 70 C16 88, 31 96, 50 96 C69 96, 84 88, 84 70 C84 52, 50 6, 50 6 Z" fill="url(#easyDropGrad)" />
+              </svg>
+            </div>
           </div>
-
-          <!-- Título y Subtítulo Exactos -->
-          <h1 class="text-center font-black text-xs sm:text-[13px] tracking-wider text-[#0B2A4A] uppercase font-outfit">
-            BIENVENIDO AL SISTEMA EASYDRY
-          </h1>
-          <p class="text-center text-xs text-slate-500 font-medium mt-1 mb-5">
-            Identifícate para continuar
-          </p>
 
           <!-- Mensaje de Error en caso de credencial inválida -->
           @if (errorMessage) {
@@ -235,17 +225,8 @@ import { environment } from '../../core/config/env';
               </div>
             </div>
 
-            <!-- Opciones: Recuérdame y ¿Olvidaste tu contraseña? -->
-            <div class="flex items-center justify-between text-xs pt-0.5">
-              <label class="flex items-center gap-1.5 text-slate-700 font-medium cursor-pointer">
-                <input
-                  type="checkbox"
-                  [(ngModel)]="rememberMe"
-                  name="rememberMe"
-                  class="w-3.5 h-3.5 rounded border-slate-300 text-teal-600 focus:ring-teal-500/30 cursor-pointer">
-                <span class="text-[11px]">Recuérdame</span>
-              </label>
-
+            <!-- Opción: ¿Olvidaste tu contraseña? -->
+            <div class="flex items-center justify-end text-xs pt-0.5">
               <button
                 type="button"
                 (click)="onForgotPassword()"

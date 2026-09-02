@@ -46,6 +46,8 @@ import { Role } from '../../core/models/roles.model';
         [showOperador]="true"
         [showBahia]="true"
         [showEstado]="true"
+        [showBusqueda]="true"
+        [placeholderBusqueda]="'Buscar por placa, vehículo u operador...'"
         [showFechas]="false"
         [listaEstados]="['Todos', 'FINALIZADO', 'APROBADO', 'RECHAZADO']"
         (filterChange)="aplicarNuevosFiltros($event)">
@@ -269,6 +271,17 @@ export class AprobacionesComponent implements OnInit {
     }
     if (this.filtrosGlobales.operador && this.filtrosGlobales.operador !== 'Todos') {
       resultados = resultados.filter(s => s.empleado?.includes(this.filtrosGlobales.operador || ''));
+    }
+    if (this.filtrosGlobales.busqueda?.trim()) {
+      const b = this.filtrosGlobales.busqueda.trim().toLowerCase();
+      resultados = resultados.filter(s =>
+        (s.placa || '').toLowerCase().includes(b) ||
+        (s.marca || '').toLowerCase().includes(b) ||
+        (s.modelo || '').toLowerCase().includes(b) ||
+        (s.empleado || '').toLowerCase().includes(b) ||
+        (s.servicio || '').toLowerCase().includes(b) ||
+        (s.ordenTrabajoOT || '').toLowerCase().includes(b)
+      );
     }
 
     return resultados;

@@ -88,6 +88,8 @@ interface ModuloGrupo {
             [showOperador]="false"
             [showBahia]="false"
             [showEstado]="true"
+            [showBusqueda]="true"
+            [placeholderBusqueda]="'Buscar por nombre, correo o rol...'"
             [showFechas]="false"
             [listaEstados]="['Todos', 'Activo', 'Inactivo', 'Suspendido']"
             (filterChange)="aplicarNuevosFiltros($event)">
@@ -822,6 +824,17 @@ export class UsuariosComponent implements OnInit {
     }
     if (this.filtrosGlobales.sucursal !== 'Todas') {
       resultados = resultados.filter(u => u.agencia === this.filtrosGlobales.sucursal);
+    }
+    if (this.filtrosGlobales.busqueda?.trim()) {
+      const b = this.filtrosGlobales.busqueda.trim().toLowerCase();
+      resultados = resultados.filter(u =>
+        (u.nombre || '').toLowerCase().includes(b) ||
+        (u.apellido || '').toLowerCase().includes(b) ||
+        `${u.nombre || ''} ${u.apellido || ''}`.toLowerCase().includes(b) ||
+        (u.email || '').toLowerCase().includes(b) ||
+        (u.rol || '').toLowerCase().includes(b) ||
+        (u.agencia || '').toLowerCase().includes(b)
+      );
     }
     return resultados;
   }

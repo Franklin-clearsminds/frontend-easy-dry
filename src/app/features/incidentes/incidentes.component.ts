@@ -12,6 +12,7 @@ import { ModalComponent } from '../../shared/components/modal/modal.component';
 import { ToastService } from '../../shared/services/toast.service';
 import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
 import { FilterBarComponent, FilterState } from '../../shared/components/filter-bar/filter-bar.component';
+import { resolverRangoFechas, soloFecha } from '../../core/utils/fecha-rango';
 import { ModalPortalDirective } from '../../shared/directives/modal-portal.directive';
 
 @Component({
@@ -886,6 +887,14 @@ export class IncidentesComponent implements OnInit {
     }
     if (this.filtrosGlobales.sucursal !== 'Todas') {
       resultados = resultados.filter(inc => inc.agencia === this.filtrosGlobales.sucursal);
+    }
+
+    const rango = resolverRangoFechas(this.filtrosGlobales);
+    if (rango) {
+      resultados = resultados.filter(inc => {
+        const d = soloFecha(inc.fecha);
+        return d >= rango.inicio && d <= rango.fin;
+      });
     }
     
     return resultados;

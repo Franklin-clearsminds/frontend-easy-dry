@@ -65,6 +65,14 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
 
       </div>
 
+      <!-- Loader / Skeleton mientras cargan los datos -->
+      @if (cargando) {
+        <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry p-10 flex flex-col items-center justify-center gap-3">
+          <div class="w-10 h-10 border-4 border-easydry-blue border-t-transparent rounded-full animate-spin"></div>
+          <p class="text-xs font-bold text-slate-500">Cargando operadores...</p>
+        </div>
+      }
+
       <!-- Operadores Table (Punto 4) -->
       <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry overflow-hidden">
         <div class="overflow-x-auto">
@@ -348,6 +356,7 @@ export class OperadoresComponent implements OnInit {
 
   modalFichaOpen = false;
   modalAsignarBahiaOpen = false;
+  cargando = true;
   formAsignarBahia = {
     operadorId: 0,
     sucursalNombre: '',
@@ -365,6 +374,7 @@ export class OperadoresComponent implements OnInit {
     const user = this.authService.getCurrentUser();
     this.operadorService.getOperadores().subscribe(list => {
       this.operadores = list;
+      this.cargando = false;
     });
 
     this.sucursalService.getSucursales().subscribe(list => {

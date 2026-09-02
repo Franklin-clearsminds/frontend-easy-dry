@@ -1,10 +1,11 @@
-import { Component, inject, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef, signal } from '@angular/core';
+import { Component, inject, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { NavigationEnd, Router, RouterModule } from '@angular/router';
 import { LucideAngularModule } from 'lucide-angular';
 import { filter, Subscription } from 'rxjs';
 import { AuthService } from '../../../core/services/auth.service';
 import { PermissionService } from '../../../core/services/permission.service';
+import { UiStateService, SIDEBAR_INNER_W, SIDEBAR_RAIL_W } from '../../../core/services/ui-state.service';
 import { MenuItem } from '../../../core/config/menu.config';
 import { isMobileAppRole } from '../../../core/config/mobile-roles.config';
 
@@ -13,19 +14,23 @@ interface MenuGroup {
   items: MenuItem[];
 }
 
-/** Ancho interno expandido del sidebar (w-72 = 288px) */
-const SIDEBAR_INNER_W = '288px';
-const SIDEBAR_RAIL_W = '80px';
-
 @Component({
   selector: 'app-sidebar',
   standalone: true,
   imports: [CommonModule, RouterModule, LucideAngularModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <!-- En el flujo del layout: 80px colapsado / 288px expandido, sin tapar el contenido -->
+    <!-- Overlay backdrop when expanded -->
+    @if (isExpanded()) {
+      <div
+        class="fixed inset-0 bg-black/40 z-[998] animate-fade-in"
+        (click)="isExpanded.set(false)">
+      </div>
+    }
+
+    <!-- Sidebar flotante: fixed a la izquierda, sobrepone el contenido -->
     <div
-      class="h-screen flex-shrink-0 overflow-hidden transition-[width] duration-200 ease-in-out shadow-2xl z-50"
+      class="fixed top-0 left-0 h-screen overflow-hidden transition-[width] duration-200 ease-in-out shadow-2xl z-[999]"
       [style.width]="isExpanded() ? sidebarInnerW : sidebarRailW"
       (mouseenter)="isExpanded.set(true)"
       (mouseleave)="isExpanded.set(false)">
@@ -187,7 +192,9 @@ const SIDEBAR_RAIL_W = '80px';
   `]
 })
 export class SidebarComponent implements OnInit, OnDestroy {
-  isExpanded = signal(false);
+  readonly uiState = inject(UiStateService);
+  /** Signal compartido: el layout lo lee para reservar el espacio del rail. */
+  readonly isExpanded = this.uiState.sidebarExpanded;
   readonly sidebarInnerW = SIDEBAR_INNER_W;
   readonly sidebarRailW = SIDEBAR_RAIL_W;
 

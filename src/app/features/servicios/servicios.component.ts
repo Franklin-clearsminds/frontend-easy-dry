@@ -30,6 +30,7 @@ import { MaquinariaMockService } from '../../core/services/maquinaria-mock.servi
 import { IncidenteMockService } from '../../core/services/incidente-mock.service';
 import { PermissionService } from '../../core/services/permission.service';
 import { formatearPlaca, placasEquivalentes, validarPlaca } from '../../core/utils/placa.util';
+import { resolverRangoFechas, soloFecha } from '../../core/utils/fecha-rango';
 
 @Component({
   selector: 'app-servicios',
@@ -119,8 +120,13 @@ import { formatearPlaca, placasEquivalentes, validarPlaca } from '../../core/uti
         [showSucursal]="!isOperador" 
         [showOperador]="!isOperador"
         [showBahia]="!isOperador"
+        [showServicio]="true"
+        [showRegion]="true"
         [showEstado]="true"
+        [showBusqueda]="true"
         [showFechas]="true"
+        [placeholderBusqueda]="'Buscar por placa, vehículo u operador...'"
+        [listaServicios]="listaServiciosFiltro"
         [listaEstados]="['Todos', 'EN PROCESO', 'FINALIZADO', 'APROBADO', 'RECHAZADO']"
         (filterChange)="aplicarNuevosFiltros($event)">
       </app-filter-bar>
@@ -203,6 +209,9 @@ import { formatearPlaca, placasEquivalentes, validarPlaca } from '../../core/uti
                   <td class="py-3.5 px-4 text-xs font-mono">
                     <p class="text-slate-700 font-semibold">Ing: {{ item.horaIngreso || '08:30' }}</p>
                     <p class="text-slate-400">Sal: {{ item.horaSalida || '09:30' }}</p>
+                    <span class="mt-0.5 inline-block px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 text-[10px] font-bold">
+                      {{ calcularDuracion(item.horaIngreso || '', item.horaSalida || '') }}
+                    </span>
                   </td>
 
                   <td class="py-3.5 px-4 text-xs font-bold text-slate-800">
@@ -797,6 +806,12 @@ export class ServiciosComponent implements OnInit {
   // Guardamos el estado global
   filtrosGlobales: FilterState = { sucursal: 'Todas', operador: 'Todos', bahia: 'Todas', estado: 'Todos', fecha: 'Hoy' };
 
+  // Lista de servicios disponibles para el filtro de tipo de servicio
+  listaServiciosFiltro: string[] = ['Express', 'Completo', 'Deluxe', 'Retoque', 'Pulido', 'Micro pulido', 'Recubrimiento Cerámico', 'Lavado motor', 'Tratamientos especiales'];
+
+  // Mapa sucursal -> región (para poder filtrar servicios por región)
+  mapaRegionSucursal: Record<string, string> = {};
+
   aplicarNuevosFiltros(filtros: FilterState) {
     this.filtrosGlobales = filtros;
     this.aplicarFiltros();
@@ -983,13 +998,22 @@ export class ServiciosComponent implements OnInit {
 
     this.catalogoMock.getServiciosActivos().subscribe(cat => {
       this.catalogoCompleto = cat;
+      const nombres = cat.map(c => c.nombre).filter(Boolean);
+      if (nombres.length) this.listaServiciosFiltro = Array.from(new Set(nombres));
       this.onCategoriaChange();
     });
 
-    this.sucursalService.getSucursales().subscribe(() => {
+    this.sucursalService.getSucursales().subscribe(list => {
       const sucNombre = user?.sucursalNombre || user?.sucursal;
       const suc = this.sucursalService.getSucursalPorNombre(sucNombre);
       this.sucursalServicioIds = suc?.servicioIds?.length ? suc.servicioIds : null;
+
+      // Construir mapa sucursal -> región para el filtro de región
+      this.mapaRegionSucursal = {};
+      list.forEach(s => {
+        if (s.nombre && s.regionNombre) this.mapaRegionSucursal[s.nombre] = s.regionNombre;
+      });
+
       this.onCategoriaChange();
     });
 
@@ -1269,6 +1293,36 @@ export class ServiciosComponent implements OnInit {
     if (this.filtrosGlobales.operador !== 'Todos') {
       resultados = resultados.filter(s => s.empleado?.includes(this.filtrosGlobales.operador));
     }
+    if (this.filtrosGlobales.servicio && this.filtrosGlobales.servicio !== 'Todos') {
+      resultados = resultados.filter(s =>
+        s.servicio?.toLowerCase().includes(this.filtrosGlobales.servicio!.toLowerCase())
+      );
+    }
+    if (this.filtrosGlobales.region && this.filtrosGlobales.region !== 'Todas') {
+      resultados = resultados.filter(s =>
+        this.mapaRegionSucursal[s.agencia] === this.filtrosGlobales.region
+      );
+    }
+    if (this.filtrosGlobales.busqueda?.trim()) {
+      const b = this.filtrosGlobales.busqueda.trim().toLowerCase();
+      resultados = resultados.filter(s =>
+        s.placa?.toLowerCase().includes(b) ||
+        s.marca?.toLowerCase().includes(b) ||
+        s.modelo?.toLowerCase().includes(b) ||
+        s.empleado?.toLowerCase().includes(b) ||
+        s.servicio?.toLowerCase().includes(b) ||
+        s.ordenTrabajoOT?.toLowerCase().includes(b) ||
+        s.numeroOrden?.toLowerCase().includes(b)
+      );
+    }
+
+    const rango = resolverRangoFechas(this.filtrosGlobales);
+    if (rango) {
+      resultados = resultados.filter(s => {
+        const d = soloFecha(s.fecha);
+        return d >= rango.inicio && d <= rango.fin;
+      });
+    }
 
     this.serviciosFiltrados = resultados;
   }
@@ -1286,6 +1340,19 @@ export class ServiciosComponent implements OnInit {
   onPageSizeChange(size: number) {
     this.pageSize = size;
     this.currentPage = 1; // Reset to first page
+  }
+
+  calcularDuracion(inicio: string, fin: string): string {
+    if (!inicio || !fin) return '';
+    const parse = (t: string): number => {
+      const [h, m] = t.split(':').map(Number);
+      return (h || 0) * 60 + (m || 0);
+    };
+    let min = parse(fin) - parse(inicio);
+    if (min < 0) min += 24 * 60;
+    const h = Math.floor(min / 60);
+    const m = min % 60;
+    return h > 0 ? `${h}h ${m}min` : `${m}min`;
   }
 
   guardarHojaServicio() {

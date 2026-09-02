@@ -12,6 +12,7 @@ import { ModalComponent } from '../../shared/components/modal/modal.component';
 import { ToastService } from '../../shared/services/toast.service';
 import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
 import { FilterBarComponent, FilterState } from '../../shared/components/filter-bar/filter-bar.component';
+import { resolverRangoFechas, soloFecha } from '../../core/utils/fecha-rango';
 import { FileUploaderComponent } from '../../shared/components/file-uploader/file-uploader.component';
 import { ModalPortalDirective } from '../../shared/directives/modal-portal.directive';
 
@@ -114,6 +115,8 @@ import { ModalPortalDirective } from '../../shared/directives/modal-portal.direc
         [showOperador]="false"
         [showBahia]="true"
         [showEstado]="true"
+        [showBusqueda]="true"
+        [placeholderBusqueda]="'Buscar por maquinaria, técnico o código...'"
         [showFechas]="true"
         [listaEstados]="['Todos', 'Programado', 'En Proceso', 'Completado']"
         (filterChange)="aplicarNuevosFiltros($event)">
@@ -179,6 +182,12 @@ import { ModalPortalDirective } from '../../shared/directives/modal-portal.direc
                   </td>
                   <td class="py-3.5 px-4">
                     <div class="flex flex-col gap-1.5">
+                      <button
+                        (click)="abrirDetalle(m); $event.stopPropagation()"
+                        class="px-3 py-1.5 bg-easydry-blue/10 hover:bg-easydry-blue hover:text-white text-easydry-blue font-bold rounded-lg text-[10px] inline-flex items-center gap-1">
+                        <i-lucide name="eye" class="w-3 h-3"></i-lucide>
+                        Ver detalle
+                      </button>
                       @if (m.estado !== 'Completado' && m.estado !== 'Cancelado') {
                         @if (puedeAsignar) {
                           @if (m.tecnicoAsignadoNombre) {
@@ -259,6 +268,12 @@ import { ModalPortalDirective } from '../../shared/directives/modal-portal.direc
               </div>
               @if (m.estado !== 'Completado' && m.estado !== 'Cancelado') {
                 <div class="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-slate-100" (click)="$event.stopPropagation()">
+                  <button
+                    (click)="abrirDetalle(m)"
+                    class="px-3 py-1.5 bg-easydry-blue/10 hover:bg-easydry-blue hover:text-white text-easydry-blue font-bold rounded-lg text-[10px] inline-flex items-center gap-1">
+                    <i-lucide name="eye" class="w-3 h-3"></i-lucide>
+                    Ver detalle
+                  </button>
                   @if (puedeAsignar) {
                     <button
                       (click)="openModalAsignar(m)"
@@ -322,157 +337,286 @@ import { ModalPortalDirective } from '../../shared/directives/modal-portal.direc
                   }">
                   {{ m.estado }}
                 </span>
-                @if (m.costo) {
-                  <span class="px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200 font-mono">
-                    \${{ m.costo }} USD
+                <span class="px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                  {{ m.tipo }}
+                </span>
+              </div>
+            </div>
+
+            <!-- Pestañas de Detalle -->
+            <div class="flex items-center gap-2 bg-slate-100 p-1 rounded-xl">
+              <button
+                type="button"
+                (click)="detalleTab = 'resumen'"
+                class="flex-1 py-2 px-3 rounded-lg text-xs font-extrabold transition-all flex items-center justify-center gap-1.5"
+                [ngClass]="detalleTab === 'resumen' ? 'bg-white text-easydry-blue shadow-xs' : 'text-slate-500 hover:text-slate-700'">
+                <i-lucide name="clipboard-list" class="w-4 h-4"></i-lucide>
+                Resumen
+              </button>
+              <button
+                type="button"
+                (click)="detalleTab = 'tiempo'"
+                class="flex-1 py-2 px-3 rounded-lg text-xs font-extrabold transition-all flex items-center justify-center gap-1.5"
+                [ngClass]="detalleTab === 'tiempo' ? 'bg-white text-easydry-blue shadow-xs' : 'text-slate-500 hover:text-slate-700'">
+                <i-lucide name="history" class="w-4 h-4"></i-lucide>
+                Línea de Tiempo
+              </button>
+              <button
+                type="button"
+                (click)="detalleTab = 'evidencias'"
+                class="flex-1 py-2 px-3 rounded-lg text-xs font-extrabold transition-all flex items-center justify-center gap-1.5"
+                [ngClass]="detalleTab === 'evidencias' ? 'bg-white text-easydry-blue shadow-xs' : 'text-slate-500 hover:text-slate-700'">
+                <i-lucide name="camera" class="w-4 h-4"></i-lucide>
+                Evidencias
+                @if (tieneEvidencias(m)) {
+                  <span class="px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700 text-[9px] font-bold">
+                    {{ getFotosMantenimiento(m).length + getVideosMantenimiento(m).length + getDocumentosMantenimiento(m).length }}
                   </span>
                 }
-              </div>
+              </button>
             </div>
 
-            <!-- Sección 1: Programación -->
-            <div class="p-4 rounded-2xl border border-easydry-blue/20 bg-easydry-blue/5 space-y-3">
-              <div class="flex items-center justify-between border-b border-easydry-blue/20 pb-2">
-                <h4 class="font-bold text-easydry-blue text-xs uppercase flex items-center gap-1.5">
-                  <i-lucide name="calendar-clock" class="w-4 h-4"></i-lucide>
-                  1. Programación e Intervención
-                </h4>
-                <span class="text-[11px] text-slate-500">{{ m.tipo }}</span>
-              </div>
-
-              <div class="grid grid-cols-2 gap-3 text-xs">
-                <div>
-                  <span class="block text-[10px] text-slate-400 font-bold uppercase mb-0.5">Fecha Programada</span>
-                  <span class="font-mono font-extrabold text-easydry-blue">{{ m.fecha }}</span>
-                </div>
-                <div>
-                  <span class="block text-[10px] text-slate-400 font-bold uppercase mb-0.5">Técnico Asignado</span>
-                  <span class="font-bold text-slate-800">{{ m.tecnicoAsignadoNombre || m.tecnico }}</span>
-                </div>
-                @if (m.gestorAsignadorNombre) {
-                  <div>
-                    <span class="block text-[10px] text-slate-400 font-bold uppercase mb-0.5">Asignado por</span>
-                    <span class="font-semibold text-slate-700">{{ m.gestorAsignadorNombre }}</span>
-                  </div>
-                }
-                @if (m.fechaAsignacion) {
-                  <div>
-                    <span class="block text-[10px] text-slate-400 font-bold uppercase mb-0.5">Fecha Asignación</span>
-                    <span class="font-mono text-slate-700">{{ m.fechaAsignacion }}</span>
-                  </div>
-                }
-              </div>
-
-              <div class="pt-1">
-                <span class="block text-[10px] text-slate-400 font-bold uppercase mb-1">Descripción del Trabajo</span>
-                <p class="text-xs text-slate-800 leading-relaxed">{{ m.descripcion }}</p>
-              </div>
-            </div>
-
-            <!-- Sección 2: Cierre (solo completados) -->
-            @if (m.estado === 'Completado') {
-              <div class="p-4 rounded-2xl border border-emerald-200 bg-emerald-50/30 space-y-3">
-                <div class="flex items-center justify-between border-b border-emerald-200/60 pb-2 flex-wrap gap-2">
-                  <h4 class="font-bold text-emerald-900 text-xs uppercase flex items-center gap-1.5">
-                    <i-lucide name="check-circle-2" class="w-4 h-4 text-emerald-600"></i-lucide>
-                    2. Informe de Cierre Técnico
+            <!-- Pestaña: Resumen -->
+            @if (detalleTab === 'resumen') {
+              <div class="space-y-4">
+                <!-- Información General -->
+                <div class="p-4 rounded-2xl border border-easydry-blue/20 bg-easydry-blue/5 space-y-3">
+                  <h4 class="font-bold text-easydry-blue text-xs uppercase flex items-center gap-1.5 border-b border-easydry-blue/20 pb-2">
+                    <i-lucide name="info" class="w-4 h-4"></i-lucide>
+                    Información General
                   </h4>
-                  <span class="text-[11px] text-slate-500">
-                    Cerrado por: <strong>{{ m.cerradoPor || m.tecnico }}</strong>
-                    @if (m.fechaFin) { · {{ m.fechaFin }} @if (m.horaFin) { {{ m.horaFin }} } }
-                  </span>
+                  <div class="grid grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
+                    <div>
+                      <span class="block text-[10px] text-slate-400 font-bold uppercase mb-0.5">Código Mantenimiento</span>
+                      <span class="font-mono font-extrabold text-easydry-blue">MNT-{{ m.id }}</span>
+                    </div>
+                    <div>
+                      <span class="block text-[10px] text-slate-400 font-bold uppercase mb-0.5">Tipo</span>
+                      <span class="font-bold text-slate-800">{{ m.tipo }}</span>
+                    </div>
+                    <div>
+                      <span class="block text-[10px] text-slate-400 font-bold uppercase mb-0.5">Estado</span>
+                      <span class="font-bold text-slate-800">{{ m.estado }}</span>
+                    </div>
+                    <div>
+                      <span class="block text-[10px] text-slate-400 font-bold uppercase mb-0.5">Fecha Creación</span>
+                      <span class="font-mono text-slate-700">{{ m.fechaAsignacion || m.fecha }}</span>
+                    </div>
+                    <div>
+                      <span class="block text-[10px] text-slate-400 font-bold uppercase mb-0.5">Fecha Programación</span>
+                      <span class="font-mono text-slate-700">{{ m.fecha }}</span>
+                    </div>
+                    <div>
+                      <span class="block text-[10px] text-slate-400 font-bold uppercase mb-0.5">Fecha Ejecución</span>
+                      <span class="font-mono text-slate-700">{{ m.fechaInicio || m.fechaAsignacion || '—' }}</span>
+                    </div>
+                    <div>
+                      <span class="block text-[10px] text-slate-400 font-bold uppercase mb-0.5">Fecha Finalización</span>
+                      <span class="font-mono text-slate-700">{{ m.fechaFin || m.fechaCierre || '—' }}</span>
+                    </div>
+                  </div>
                 </div>
 
-                @if (m.observacionCierre) {
-                  <p class="text-xs text-slate-800 leading-relaxed font-medium">{{ m.observacionCierre }}</p>
-                } @else {
-                  <p class="text-xs text-slate-500 italic">Sin informe de cierre registrado.</p>
-                }
+                <!-- Maquinaria -->
+                <div class="p-4 rounded-2xl border border-purple-200 bg-purple-50/20 space-y-3">
+                  <h4 class="font-bold text-purple-900 text-xs uppercase flex items-center gap-1.5 border-b border-purple-200/60 pb-2">
+                    <i-lucide name="hard-drive" class="w-4 h-4 text-purple-600"></i-lucide>
+                    Maquinaria
+                  </h4>
+                  <div class="grid grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
+                    <div>
+                      <span class="block text-[10px] text-slate-400 font-bold uppercase mb-0.5">Equipo</span>
+                      <span class="font-bold text-slate-800">{{ m.maquina }}</span>
+                    </div>
+                    <div>
+                      <span class="block text-[10px] text-slate-400 font-bold uppercase mb-0.5">Agencia / Sucursal</span>
+                      <span class="font-semibold text-slate-700">{{ m.agencia || '—' }}</span>
+                    </div>
+                  </div>
+                </div>
 
-                @if (m.costo) {
-                  <p class="text-xs text-slate-700">
-                    <strong>Costo final:</strong>
-                    <span class="font-bold text-emerald-700 font-mono ml-1">\${{ m.costo }} USD</span>
-                  </p>
-                }
+                <!-- Responsables -->
+                <div class="p-4 rounded-2xl border border-emerald-200 bg-emerald-50/20 space-y-3">
+                  <h4 class="font-bold text-emerald-900 text-xs uppercase flex items-center gap-1.5 border-b border-emerald-200/60 pb-2">
+                    <i-lucide name="users" class="w-4 h-4 text-emerald-600"></i-lucide>
+                    Responsables
+                  </h4>
+                  <div class="grid grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
+                    <div>
+                      <span class="block text-[10px] text-slate-400 font-bold uppercase mb-0.5">Coordinador</span>
+                      <span class="font-bold text-slate-800">{{ m.gestorAsignadorNombre || '—' }}</span>
+                    </div>
+                    <div>
+                      <span class="block text-[10px] text-slate-400 font-bold uppercase mb-0.5">Técnico</span>
+                      <span class="font-bold text-slate-800">{{ m.tecnicoAsignadoNombre || m.tecnico }}</span>
+                    </div>
+                    <div>
+                      <span class="block text-[10px] text-slate-400 font-bold uppercase mb-0.5">Usuario Creador</span>
+                      <span class="font-bold text-slate-800">{{ m.gestorAsignadorNombre || m.cerradoPor || '—' }}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Intervención -->
+                <div class="p-4 rounded-2xl border border-slate-200 bg-slate-50/60 space-y-3">
+                  <h4 class="font-bold text-slate-900 text-xs uppercase flex items-center gap-1.5 border-b border-slate-200 pb-2">
+                    <i-lucide name="wrench" class="w-4 h-4 text-slate-600"></i-lucide>
+                    Intervención
+                  </h4>
+                  <div class="space-y-3 text-xs">
+                    <div>
+                      <span class="block text-[10px] text-slate-400 font-bold uppercase mb-1">Problema / Descripción</span>
+                      <p class="text-slate-800 leading-relaxed">{{ m.descripcion || 'Sin descripción.' }}</p>
+                    </div>
+                    @if (m.observacionCierre || m.estado === 'Completado') {
+                      <div>
+                        <span class="block text-[10px] text-slate-400 font-bold uppercase mb-1">Actividades Realizadas</span>
+                        <p class="text-slate-800 leading-relaxed">{{ m.observacionCierre || 'Sin informe de cierre registrado.' }}</p>
+                      </div>
+                    }
+                  </div>
+                </div>
               </div>
             }
 
-            <!-- Sección 3: Evidencias -->
-            @if (tieneEvidencias(m)) {
-              <div class="p-4 rounded-2xl border border-indigo-200 bg-indigo-50/20 space-y-4">
-                <div class="flex items-center justify-between border-b border-indigo-200/60 pb-2">
-                  <h4 class="font-bold text-indigo-900 text-xs uppercase flex items-center gap-1.5">
-                    <i-lucide name="camera" class="w-4 h-4 text-indigo-600"></i-lucide>
-                    {{ m.estado === 'Completado' ? '3. Evidencias del Mantenimiento Realizado' : '2. Evidencias Adjuntas' }}
-                  </h4>
-                  <span class="text-[10px] text-slate-500 font-mono">
-                    {{ getFotosMantenimiento(m).length }} foto(s) · {{ getVideosMantenimiento(m).length }} video(s) · {{ getDocumentosMantenimiento(m).length }} doc(s)
-                  </span>
+            <!-- Pestaña: Línea de Tiempo -->
+            @if (detalleTab === 'tiempo') {
+              <div class="p-4 rounded-2xl border border-slate-200 bg-white space-y-3">
+                <h4 class="font-bold text-slate-900 text-xs uppercase flex items-center gap-1.5 border-b border-slate-200 pb-2">
+                  <i-lucide name="history" class="w-4 h-4 text-easydry-blue"></i-lucide>
+                  Historial de Estados del Mantenimiento
+                </h4>
+
+                <div class="relative pl-5 space-y-4">
+                  <!-- Evento: Creación -->
+                  <div class="relative">
+                    <span class="absolute -left-[21px] top-1 w-3 h-3 rounded-full bg-easydry-blue ring-4 ring-easydry-blue/20"></span>
+                    <div>
+                      <p class="text-xs font-bold text-slate-900">Mantenimiento creado</p>
+                      <p class="text-[11px] text-slate-500">{{ m.fechaAsignacion || m.fecha }} · {{ m.gestorAsignadorNombre || 'Sistema' }}</p>
+                    </div>
+                  </div>
+
+                  <!-- Evento: Programación -->
+                  <div class="relative">
+                    <span class="absolute -left-[21px] top-1 w-3 h-3 rounded-full bg-amber-500 ring-4 ring-amber-500/20"></span>
+                    <div>
+                      <p class="text-xs font-bold text-slate-900">Programado</p>
+                      <p class="text-[11px] text-slate-500">{{ m.fecha }} · Estado: Programado</p>
+                    </div>
+                  </div>
+
+                  <!-- Evento: Asignación -->
+                  @if (m.gestorAsignadorNombre || m.fechaAsignacion) {
+                    <div class="relative">
+                      <span class="absolute -left-[21px] top-1 w-3 h-3 rounded-full bg-violet-500 ring-4 ring-violet-500/20"></span>
+                      <div>
+                        <p class="text-xs font-bold text-slate-900">Asignado a {{ m.tecnicoAsignadoNombre || m.tecnico }}</p>
+                        <p class="text-[11px] text-slate-500">{{ m.fechaAsignacion || m.fecha }} · {{ m.gestorAsignadorNombre || '—' }}</p>
+                      </div>
+                    </div>
+                  }
+
+                  <!-- Evento: En Proceso / Ejecución -->
+                  @if (m.estado === 'En Proceso' || m.estado === 'Completado') {
+                    <div class="relative">
+                      <span class="absolute -left-[21px] top-1 w-3 h-3 rounded-full bg-easydry-blue/80 ring-4 ring-easydry-blue/20"></span>
+                      <div>
+                        <p class="text-xs font-bold text-slate-900">Ejecución / En Proceso</p>
+                        <p class="text-[11px] text-slate-500">{{ m.fechaInicio || m.fechaAsignacion || '—' }}</p>
+                      </div>
+                    </div>
+                  }
+
+                  <!-- Evento: Finalización -->
+                  @if (m.estado === 'Completado') {
+                    <div class="relative">
+                      <span class="absolute -left-[21px] top-1 w-3 h-3 rounded-full bg-emerald-500 ring-4 ring-emerald-500/20"></span>
+                      <div>
+                        <p class="text-xs font-bold text-slate-900">Completado</p>
+                        <p class="text-[11px] text-slate-500">{{ m.fechaFin || m.fechaCierre || '—' }} {{ m.horaFin || '' }} · {{ m.cerradoPor || m.tecnico }}</p>
+                      </div>
+                    </div>
+                  }
                 </div>
-
-                @if (getFotosMantenimiento(m).length > 0) {
-                  <div>
-                    <p class="text-[10px] font-bold text-slate-500 uppercase mb-2">Fotografías:</p>
-                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                      @for (foto of getFotosMantenimiento(m); track foto) {
-                        <div class="relative group rounded-xl overflow-hidden border border-emerald-200 shadow-xs cursor-pointer" (click)="verMediaZoom(foto, 'imagen')">
-                          <img [src]="foto" alt="Evidencia mantenimiento" class="w-full h-28 object-cover group-hover:scale-105 transition-transform duration-200">
-                          <div class="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white">
-                            <i-lucide name="zoom-in" class="w-5 h-5"></i-lucide>
-                          </div>
-                        </div>
-                      }
-                    </div>
-                  </div>
-                }
-
-                @if (getVideosMantenimiento(m).length > 0) {
-                  <div>
-                    <p class="text-[10px] font-bold text-slate-500 uppercase mb-2">Vídeos de prueba operativa:</p>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      @for (video of getVideosMantenimiento(m); track video) {
-                        <div class="rounded-xl overflow-hidden border bg-black shadow-xs">
-                          <video [src]="video" controls class="w-full h-40 object-cover"></video>
-                        </div>
-                      }
-                    </div>
-                  </div>
-                }
-
-                @if (getDocumentosMantenimiento(m).length > 0) {
-                  <div class="pt-2 border-t border-indigo-200/50">
-                    <p class="text-[10px] font-bold text-indigo-900 uppercase mb-2 flex items-center gap-1">
-                      <i-lucide name="file-text" class="w-3.5 h-3.5 text-indigo-600"></i-lucide>
-                      Documentos (Informes / Facturas):
-                    </p>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      @for (doc of getDocumentosMantenimiento(m); track doc.id) {
-                        <div class="p-2.5 bg-white border border-indigo-100 rounded-xl flex items-center justify-between shadow-2xs">
-                          <div class="flex items-center gap-2 overflow-hidden min-w-0">
-                            <div class="p-1.5 rounded-lg bg-indigo-100 text-indigo-700 flex-shrink-0">
-                              <i-lucide name="file-text" class="w-4 h-4"></i-lucide>
-                            </div>
-                            <div class="overflow-hidden min-w-0">
-                              <p class="text-xs font-bold text-slate-800 truncate">{{ doc.nombre }}</p>
-                              <p class="text-[10px] text-slate-400 font-mono">{{ doc.tamanio || '1 MB' }} · {{ doc.extension || 'PDF' }}</p>
-                            </div>
-                          </div>
-                          <button type="button" (click)="descargarDocumento(doc)"
-                            class="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-bold flex items-center gap-1 flex-shrink-0">
-                            <i-lucide name="download" class="w-3.5 h-3.5"></i-lucide>
-                            <span>Descargar</span>
-                          </button>
-                        </div>
-                      }
-                    </div>
-                  </div>
-                }
               </div>
-            } @else if (m.estado === 'Completado') {
-              <div class="p-4 rounded-2xl border border-dashed border-slate-200 bg-slate-50 text-center">
-                <i-lucide name="image" class="w-8 h-8 text-slate-300 mx-auto mb-2"></i-lucide>
-                <p class="text-xs text-slate-500">Este mantenimiento no tiene evidencias multimedia adjuntas.</p>
+            }
+
+            <!-- Pestaña: Evidencias -->
+            @if (detalleTab === 'evidencias') {
+              <div class="space-y-4">
+                @if (tieneEvidencias(m)) {
+                  <div class="p-4 rounded-2xl border border-indigo-200 bg-indigo-50/20 space-y-4">
+                    <div class="flex items-center justify-between border-b border-indigo-200/60 pb-2">
+                      <span class="text-[10px] text-slate-500 font-mono">
+                        {{ getFotosMantenimiento(m).length }} foto(s) · {{ getVideosMantenimiento(m).length }} video(s) · {{ getDocumentosMantenimiento(m).length }} doc(s)
+                      </span>
+                    </div>
+
+                    @if (getFotosMantenimiento(m).length > 0) {
+                      <div>
+                        <p class="text-[10px] font-bold text-slate-500 uppercase mb-2">Fotografías:</p>
+                        <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                          @for (foto of getFotosMantenimiento(m); track foto) {
+                            <div class="relative group rounded-xl overflow-hidden border border-emerald-200 shadow-xs cursor-pointer" (click)="verMediaZoom(foto, 'imagen')">
+                              <img [src]="foto" alt="Evidencia mantenimiento" class="w-full h-28 object-cover group-hover:scale-105 transition-transform duration-200">
+                              <div class="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white">
+                                <i-lucide name="zoom-in" class="w-5 h-5"></i-lucide>
+                              </div>
+                            </div>
+                          }
+                        </div>
+                      </div>
+                    }
+
+                    @if (getVideosMantenimiento(m).length > 0) {
+                      <div>
+                        <p class="text-[10px] font-bold text-slate-500 uppercase mb-2">Vídeos de prueba operativa:</p>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          @for (video of getVideosMantenimiento(m); track video) {
+                            <div class="rounded-xl overflow-hidden border bg-black shadow-xs">
+                              <video [src]="video" controls class="w-full h-40 object-cover"></video>
+                            </div>
+                          }
+                        </div>
+                      </div>
+                    }
+
+                    @if (getDocumentosMantenimiento(m).length > 0) {
+                      <div class="pt-2 border-t border-indigo-200/50">
+                        <p class="text-[10px] font-bold text-indigo-900 uppercase mb-2 flex items-center gap-1">
+                          <i-lucide name="file-text" class="w-3.5 h-3.5 text-indigo-600"></i-lucide>
+                          Documentos (Informes / Facturas):
+                        </p>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          @for (doc of getDocumentosMantenimiento(m); track doc.id) {
+                            <div class="p-2.5 bg-white border border-indigo-100 rounded-xl flex items-center justify-between shadow-2xs">
+                              <div class="flex items-center gap-2 overflow-hidden min-w-0">
+                                <div class="p-1.5 rounded-lg bg-indigo-100 text-indigo-700 flex-shrink-0">
+                                  <i-lucide name="file-text" class="w-4 h-4"></i-lucide>
+                                </div>
+                                <div class="overflow-hidden min-w-0">
+                                  <p class="text-xs font-bold text-slate-800 truncate">{{ doc.nombre }}</p>
+                                  <p class="text-[10px] text-slate-400 font-mono">{{ doc.tamanio || '1 MB' }} · {{ doc.extension || 'PDF' }}</p>
+                                </div>
+                              </div>
+                              <button type="button" (click)="descargarDocumento(doc)"
+                                class="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-bold flex items-center gap-1 flex-shrink-0">
+                                <i-lucide name="download" class="w-3.5 h-3.5"></i-lucide>
+                                <span>Descargar</span>
+                              </button>
+                            </div>
+                          }
+                        </div>
+                      </div>
+                    }
+                  </div>
+                } @else {
+                  <div class="p-4 rounded-2xl border border-dashed border-slate-200 bg-slate-50 text-center">
+                    <i-lucide name="image" class="w-8 h-8 text-slate-300 mx-auto mb-2"></i-lucide>
+                    <p class="text-xs text-slate-500">Este mantenimiento no tiene evidencias multimedia adjuntas.</p>
+                  </div>
+                }
               </div>
             }
 
@@ -795,6 +939,29 @@ export class MantenimientoComponent implements OnInit {
     if (this.filtrosGlobales.estado !== 'Todos') {
       resultados = resultados.filter(m => m.estado === this.filtrosGlobales.estado);
     }
+    if (this.filtrosGlobales.sucursal && this.filtrosGlobales.sucursal !== 'Todas') {
+      resultados = resultados.filter(m =>
+        m.agencia && m.agencia.toLowerCase().includes(this.filtrosGlobales.sucursal.toLowerCase())
+      );
+    }
+    if (this.filtrosGlobales.busqueda?.trim()) {
+      const b = this.filtrosGlobales.busqueda.trim().toLowerCase();
+      resultados = resultados.filter(m =>
+        (m.maquina || '').toLowerCase().includes(b) ||
+        (m.tecnico || '').toLowerCase().includes(b) ||
+        (m.tecnicoAsignadoNombre || '').toLowerCase().includes(b) ||
+        (m.descripcion || '').toLowerCase().includes(b) ||
+        (m.tipo || '').toLowerCase().includes(b)
+      );
+    }
+
+    const rango = resolverRangoFechas(this.filtrosGlobales);
+    if (rango) {
+      resultados = resultados.filter(m => {
+        const d = soloFecha(m.fecha || m.fechaInicio);
+        return d >= rango.inicio && d <= rango.fin;
+      });
+    }
     
     return resultados;
   }
@@ -852,6 +1019,7 @@ export class MantenimientoComponent implements OnInit {
 
   modalDetalleOpen = false;
   mantenimientoDetalleSeleccionado?: Mantenimiento;
+  detalleTab: 'resumen' | 'tiempo' | 'evidencias' = 'resumen';
 
   currentPage = 1;
   pageSize = 5;
@@ -971,6 +1139,7 @@ export class MantenimientoComponent implements OnInit {
   abrirDetalle(mantenimiento: Mantenimiento) {
     this.mantenimientoDetalleSeleccionado =
       this.mantenimientos.find(m => m.id === mantenimiento.id) || mantenimiento;
+    this.detalleTab = 'resumen';
     this.modalDetalleOpen = true;
   }
 

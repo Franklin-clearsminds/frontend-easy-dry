@@ -199,7 +199,7 @@ import {
           <div class="bg-white p-3.5 rounded-2xl border border-slate-100 shadow-easydry flex flex-col lg:flex-row lg:items-center justify-between gap-3">
             <div class="flex items-center gap-2 flex-1 max-w-md">
               <div class="relative w-full">
-                <i-lucide name="search" class="w-4 h-4 absolute left-3 top-2.5 text-slate-400"></i-lucide>
+                <i-lucide name="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i-lucide>
                 <input
                   type="text"
                   [(ngModel)]="filtroTexto"
@@ -414,7 +414,7 @@ import {
           <div class="bg-white p-3.5 rounded-2xl border border-slate-100 shadow-easydry flex flex-col md:flex-row md:items-center justify-between gap-3">
             <div class="flex items-center gap-2 flex-1 max-w-md">
               <div class="relative w-full">
-                <i-lucide name="search" class="w-4 h-4 absolute left-3 top-2.5 text-slate-400"></i-lucide>
+                <i-lucide name="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i-lucide>
                 <input
                   type="text"
                   [(ngModel)]="filtroTexto"
@@ -1544,6 +1544,42 @@ export class InventarioComponent implements OnInit {
   }
 
   get itemsFiltrados(): InventarioItem[] {
+    const sucursalSel = this.filtroSucursal;
+    const sucursalDeBahia = this.sucursalDeBahiaSeleccionada();
+
+    return this.inventarioItems.filter(item => {
+      const matchText = !this.filtroTexto.trim() ||
+        item.producto.nombre.toLowerCase().includes(this.filtroTexto.toLowerCase()) ||
+        item.producto.codigoSKU.toLowerCase().includes(this.filtroTexto.toLowerCase()) ||
+        (item.producto.unidadMedida && item.producto.unidadMedida.toLowerCase().includes(this.filtroTexto.toLowerCase()));
+
+      const matchEstado = this.filtroEstado === 'Todos' || item.estadoGeneral === this.filtroEstado;
+
+      // Sucursal: stock real reportado en esa sucursal (0 o ausente = sin existencias).
+      let matchSucursal = true;
+      const sc = (sucursalSel !== 'Todas') ? sucursalSel : sucursalDeBahia;
+      if (sc) {
+        matchSucursal = (item.stockPorSucursal?.[sc] ?? 0) > 0;
+      }
+
+      return matchText && matchEstado && matchSucursal;
+    });
+  }
+
+  /** Devuelve la sucursal a la que pertenece la bahía seleccionada (si aplica). */
+  private sucursalDeBahiaSeleccionada(): string {
+    if (this.filtroBahia === 'Todas') return '';
+    const map: Record<string, string> = {
+      'Bahía 1': 'EasyDry Quito Norte',
+      'Bahía 2': 'EasyDry Quito Sur',
+      'Bahía 3': 'EasyDry Cumbayá',
+      'Bahía 4': 'EasyDry Guayaquil',
+    };
+    return map[this.filtroBahia] || '';
+  }
+
+  /** Catálogo maestro: filtra por texto y estado, sin restricción de sucursal/bahía. */
+  get productosCatalogoFiltrados(): InventarioItem[] {
     return this.inventarioItems.filter(item => {
       const matchText = !this.filtroTexto.trim() ||
         item.producto.nombre.toLowerCase().includes(this.filtroTexto.toLowerCase()) ||

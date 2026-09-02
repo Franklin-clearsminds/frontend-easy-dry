@@ -28,6 +28,7 @@ import { Agencia } from '../../core/models';
 
       <!-- Filtros Completos (Punto 15: Agencia, Servicio, Operador, Fechas) -->
       <app-filter-bar 
+        [showRegion]="true"
         [showSucursal]="true" 
         [showOperador]="true"
         [showServicio]="true"
@@ -254,6 +255,18 @@ export class ProductividadComponent implements OnInit {
       res = res.filter(a => a.nombre.toLowerCase().includes(filtros.sucursal.toLowerCase()) ||
                             filtros.sucursal.toLowerCase().includes(a.nombre.toLowerCase()));
     }
+    if (filtros.region && filtros.region !== 'Todas') {
+      res = res.filter(a => this.regionDeCiudad(a.ciudad) === filtros.region);
+    }
     this.agencias = res.sort((a, b) => b.productividad - a.productividad);
+  }
+
+  /** Deriva la región a partir de la ciudad de la agencia. */
+  private regionDeCiudad(ciudad: string): string {
+    const c = (ciudad || '').toLowerCase();
+    if (c.includes('quito') || c.includes('cumbaya') || c.includes('cumbayá') || c.includes('sierra')) return 'Sierra';
+    if (c.includes('guayaquil') || c.includes('manta') || c.includes('costa') || c.includes('esmeraldas')) return 'Costa';
+    if (c.includes('cuenca') || c.includes('austro') || c.includes('loja') || c.includes('ambio')) return 'Austro';
+    return 'Costa';
   }
 }
