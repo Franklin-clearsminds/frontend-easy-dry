@@ -54,7 +54,7 @@ import { resolverRangoFechas, soloFecha } from '../../core/utils/fecha-rango';
             <button 
               (click)="generarReporte()" 
               [disabled]="generando"
-              class="w-full py-2.5 bg-easydry-blue hover:bg-easydry-blue-dark text-white font-bold rounded-xl text-xs transition-colors flex items-center justify-center gap-2 shadow-xs cursor-pointer">
+              class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
               @if (generando) {
                 <i-lucide name="refresh-cw" class="w-4 h-4 animate-spin"></i-lucide>
                 <span>Generando...</span>

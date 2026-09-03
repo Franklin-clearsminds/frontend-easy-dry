@@ -48,15 +48,15 @@ import {
             @if (puedeDespachar) {
               <button
                 (click)="abrirModalEntradaBodega()"
-                class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl text-xs whitespace-nowrap flex items-center gap-2 transition-colors shadow-2xs">
+                class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
                 <i-lucide name="arrow-down-circle" class="w-4 h-4 text-emerald-600"></i-lucide>
                 <span>+ Entrada Bodega (Compra)</span>
               </button>
 
               <button
                 (click)="abrirModalDespacho()"
-                class="px-3.5 py-2 bg-easydry-blue hover:bg-easydry-blue-dark text-white font-bold rounded-xl text-xs whitespace-nowrap flex items-center gap-2 transition-colors shadow-xs">
-                <i-lucide name="truck" class="w-4 h-4 text-easydry-lime"></i-lucide>
+                class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
+                <i-lucide name="truck" class="w-4 h-4"></i-lucide>
                 <span>Despachar a Sucursal</span>
               </button>
             }
@@ -64,13 +64,13 @@ import {
             @if (puedeGestionarCatalogo) {
               <button
                 (click)="abrirModalCrearBodega()"
-                class="px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-800 font-bold rounded-xl text-xs whitespace-nowrap flex items-center gap-2 transition-colors border border-slate-200 shadow-2xs">
+                class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
                 <i-lucide name="warehouse" class="w-4 h-4 text-easydry-blue"></i-lucide>
                 <span>+ Nueva Bodega</span>
               </button>
               <button
                 (click)="abrirModalCrearProducto()"
-                class="px-3.5 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs whitespace-nowrap flex items-center gap-2 transition-all shadow-glow-green">
+                class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
                 <i-lucide name="plus-circle" class="w-4 h-4"></i-lucide>
                 <span>+ Nuevo Insumo</span>
               </button>
@@ -426,7 +426,7 @@ import {
             @if (puedeGestionarCatalogo) {
               <button
                 (click)="abrirModalCrearProducto()"
-                class="px-3.5 py-1.5 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs flex items-center gap-1.5 shadow-2xs">
+                class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
                 <i-lucide name="plus" class="w-4 h-4"></i-lucide>
                 <span>+ Nuevo Insumo</span>
               </button>
@@ -559,7 +559,7 @@ import {
             @if (puedeGestionarCatalogo) {
               <button
                 (click)="abrirModalCrearBodega()"
-                class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs flex items-center gap-1.5">
+                class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
                 <i-lucide name="plus" class="w-4 h-4"></i-lucide>
                 + Nueva Bodega
               </button>
@@ -622,7 +622,7 @@ import {
                 Historial de Movimientos y Despachos Recientes
               </h3>
               @if (puedeDespachar) {
-                <button (click)="abrirModalDespacho()" class="px-4 py-2 bg-easydry-blue text-white rounded-xl text-xs font-bold flex items-center gap-1.5">
+                <button (click)="abrirModalDespacho()" class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
                   <i-lucide name="truck" class="w-4 h-4"></i-lucide>
                   Nuevo Despacho
                 </button>
@@ -692,7 +692,7 @@ import {
               <button
                 type="button"
                 (click)="abrirModalCrearEnvio()"
-                class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center gap-2 shadow-xs cursor-pointer">
+                class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
                 <i-lucide name="plus" class="w-4 h-4"></i-lucide>
                 <span>Crear Envío de Suministro</span>
               </button>
@@ -824,7 +824,7 @@ import {
             @if (puedeGestionarCatalogo) {
               <button 
                 (click)="abrirModalCrearEnvase()" 
-                class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs flex items-center gap-1.5 shadow-glow-green transition-all self-start md:self-auto">
+                class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
                 <i-lucide name="plus" class="w-4 h-4"></i-lucide>
                 <span>+ Crear Envase / Unidad</span>
               </button>
@@ -1145,7 +1145,7 @@ import {
 
         <div modal-footer>
           <button (click)="modalEntradaOpen = false" class="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs">Cancelar</button>
-          <button (click)="guardarEntradaBodega()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs">Registrar Ingreso de Stock</button>
+          <button (click)="guardarEntradaBodega()" class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">Registrar Ingreso de Stock</button>
         </div>
       </app-modal>
 
@@ -1181,7 +1181,7 @@ import {
 
         <div modal-footer>
           <button (click)="modalEnvaseOpen = false" class="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs">Cancelar</button>
-          <button (click)="guardarEnvase()" class="px-4 py-2 bg-easydry-blue text-white font-bold rounded-xl text-xs">Crear Envase</button>
+          <button (click)="guardarEnvase()" class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">Crear Envase</button>
         </div>
       </app-modal>
 
@@ -1261,7 +1261,7 @@ import {
         </form>
         <div modal-footer>
           <button (click)="modalBodegaOpen = false" class="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs">Cancelar</button>
-          <button (click)="guardarBodega()" class="px-4 py-2 bg-easydry-green text-slate-950 font-extrabold rounded-xl text-xs">Crear Bodega</button>
+          <button (click)="guardarBodega()" class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">Crear Bodega</button>
         </div>
       </app-modal>
 

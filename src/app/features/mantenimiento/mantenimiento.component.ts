@@ -211,7 +211,7 @@ import { ModalPortalDirective } from '../../shared/directives/modal-portal.direc
                         @if (puedeCompletar(m)) {
                           <button
                             (click)="abrirModalCompletar(m); $event.stopPropagation()"
-                            class="px-3 py-1.5 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-lg text-[10px] inline-flex items-center gap-1">
+                            class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
                             <i-lucide name="check-circle-2" class="w-3 h-3"></i-lucide>
                             Registrar realización
                           </button>
@@ -291,7 +291,7 @@ import { ModalPortalDirective } from '../../shared/directives/modal-portal.direc
                   @if (puedeCompletar(m)) {
                     <button
                       (click)="abrirModalCompletar(m)"
-                      class="px-3 py-1.5 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-lg text-[10px]">
+                      class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
                       Registrar realización
                     </button>
                   }
@@ -627,7 +627,7 @@ import { ModalPortalDirective } from '../../shared/directives/modal-portal.direc
           @if (mantenimientoDetalleSeleccionado && mantenimientoDetalleSeleccionado.estado !== 'Completado' && puedeCompletar(mantenimientoDetalleSeleccionado)) {
              <button
                 (click)="abrirModalCompletarDesdeDetalle()"
-                class="w-full px-4 py-2.5 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs flex items-center justify-center gap-2 shadow-sm">
+                class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
                 <i-lucide name="check-circle-2" class="w-4 h-4"></i-lucide> Registrar Mantenimiento Realizado
              </button>
           }

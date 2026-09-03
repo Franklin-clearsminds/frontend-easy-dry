@@ -38,7 +38,7 @@ import { ModalPortalDirective } from '../../shared/directives/modal-portal.direc
 
           <button 
             (click)="abrirModalReportar()"
-            class="px-4 py-3 bg-rose-600 hover:bg-rose-700 text-white font-extrabold rounded-xl text-xs transition-colors shadow-xs flex items-center gap-2">
+            class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
             <i-lucide name="plus" class="w-4 h-4"></i-lucide>
             <span>Reportar Nuevo Fallo</span>
           </button>
@@ -186,7 +186,7 @@ import { ModalPortalDirective } from '../../shared/directives/modal-portal.direc
                 @if (puedeSolucionar(inc)) {
                   <button 
                     (click)="openModalSolucionar(inc)"
-                    class="w-full py-2 px-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5 shadow-xs">
+                    class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
                     <i-lucide name="wrench" class="w-4 h-4 shrink-0"></i-lucide>
                     <span>Registrar Reparación</span>
                   </button>
@@ -313,7 +313,7 @@ import { ModalPortalDirective } from '../../shared/directives/modal-portal.direc
 
         <div modal-footer>
           <button (click)="modalReportarOpen = false" class="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs">Cancelar</button>
-          <button (click)="guardarReporte()" class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs">Registrar Reporte con Evidencias</button>
+          <button (click)="guardarReporte()" class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">Registrar Reporte con Evidencias</button>
         </div>
       </app-modal>
 

@@ -12,7 +12,7 @@ import { ModalPortalDirective } from '../../shared/directives/modal-portal.direc
   standalone: true,
   imports: [CommonModule, FormsModule, LucideAngularModule, ModalPortalDirective],
   template: `
-    <div class="max-w-4xl mx-auto space-y-6 animate-fade-in pb-12">
+    <div class="space-y-6 animate-fade-in pb-12">
       
       <!-- Top Title Bar -->
       <div class="bg-white p-6 rounded-3xl border border-slate-100 shadow-easydry flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -37,7 +37,7 @@ import { ModalPortalDirective } from '../../shared/directives/modal-portal.direc
             <button 
               type="button"
               (click)="activarEdicion()"
-              class="px-4 py-2 bg-easydry-blue hover:bg-easydry-blue-dark text-white font-bold rounded-xl text-xs transition-colors flex items-center gap-2 shadow-xs cursor-pointer">
+              class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
               <i-lucide name="edit-3" class="w-4 h-4"></i-lucide>
               <span>Editar Perfil</span>
             </button>

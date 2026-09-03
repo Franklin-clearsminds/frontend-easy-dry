@@ -43,14 +43,14 @@ interface ModuloGrupo {
           @if (activeTab === 'usuarios') {
             <button 
               (click)="abrirModalCrearUsuario()"
-              class="px-4 py-2.5 bg-easydry-blue hover:bg-easydry-blue-dark text-white font-bold rounded-xl text-xs transition-colors flex items-center gap-2 shadow-xs">
+              class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
               <i-lucide name="user-plus" class="w-4 h-4"></i-lucide>
               <span>Registrar Usuario</span>
             </button>
           } @else {
             <button 
               (click)="abrirModalCrearRol()"
-              class="px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl text-xs transition-colors flex items-center gap-2 shadow-xs">
+              class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
               <i-lucide name="shield-plus" class="w-4 h-4"></i-lucide>
               <span>Crear Nuevo Rol</span>
             </button>
@@ -526,7 +526,7 @@ interface ModuloGrupo {
 
         <div modal-footer>
           <button (click)="modalUsuarioOpen = false" class="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs">Cancelar</button>
-          <button (click)="guardarUsuario()" class="px-4 py-2 bg-easydry-blue hover:bg-easydry-blue-dark text-white font-bold rounded-xl text-xs">
+          <button (click)="guardarUsuario()" class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
             {{ editandoUsuario ? 'Actualizar Usuario' : 'Registrar y Enviar Invitación' }}
           </button>
         </div>
@@ -689,7 +689,7 @@ interface ModuloGrupo {
 
         <div modal-footer>
           <button (click)="modalRolOpen = false" class="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs">Cancelar</button>
-          <button (click)="guardarRol()" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl text-xs flex items-center gap-2">
+          <button (click)="guardarRol()" class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
             <i-lucide name="check" class="w-4 h-4"></i-lucide>
             <span>{{ editandoRol ? 'Guardar Cambios de Rol' : 'Crear Rol' }}</span>
           </button>
