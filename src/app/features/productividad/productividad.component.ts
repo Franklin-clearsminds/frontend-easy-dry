@@ -12,7 +12,7 @@ import { Agencia } from '../../core/models';
   standalone: true,
   imports: [CommonModule, LucideAngularModule, ChartCardComponent, FilterBarComponent],
   template: `
-    <div class="space-y-8 animate-fade-in">
+    <div class="space-y-6 animate-fade-in">
       
       <!-- Top Title Bar -->
       <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-easydry flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -113,7 +113,7 @@ import { Agencia } from '../../core/models';
         
         <!-- Ranking Agencias -->
         <div class="bg-white rounded-2xl p-6 border border-slate-100 shadow-easydry">
-          <div class="flex items-center justify-between mb-5">
+          <div class="flex items-center justify-between mb-5 px-6">
             <h3 class="font-bold text-slate-900 text-lg font-outfit flex items-center gap-2">
               <i-lucide name="building-2" class="w-5 h-5 text-easydry-blue"></i-lucide>
               <span>Ranking de Agencias por Productividad</span>
@@ -152,7 +152,7 @@ import { Agencia } from '../../core/models';
 
         <!-- Ranking Empleados -->
         <div class="bg-white rounded-2xl p-6 border border-slate-100 shadow-easydry">
-          <div class="flex items-center justify-between mb-5">
+          <div class="flex items-center justify-between mb-5 px-6">
             <h3 class="font-bold text-slate-900 text-lg font-outfit flex items-center gap-2">
               <i-lucide name="users" class="w-5 h-5 text-easydry-blue"></i-lucide>
               <span>Ranking de Personal Operativo</span>

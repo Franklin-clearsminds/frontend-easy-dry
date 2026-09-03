@@ -25,8 +25,9 @@ export interface FilterState {
   selector: 'app-filter-bar',
   standalone: true,
   imports: [CommonModule, FormsModule, LucideAngularModule],
+  host: { class: 'block' },
   template: `
-    <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-easydry flex flex-wrap gap-4 items-end z-20 relative animate-fade-in mb-6">
+    <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-easydry flex flex-wrap gap-4 items-end z-20 relative animate-fade-in">
 
       <!-- Búsqueda por texto -->
       @if (showBusqueda) {

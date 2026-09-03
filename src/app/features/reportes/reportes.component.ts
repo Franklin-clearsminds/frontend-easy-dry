@@ -54,7 +54,7 @@ import { resolverRangoFechas, soloFecha } from '../../core/utils/fecha-rango';
             <button 
               (click)="generarReporte()" 
               [disabled]="generando"
-              class="w-full py-2.5 bg-easydry-blue hover:bg-easydry-blue-dark text-white font-bold rounded-xl text-xs transition-colors flex items-center justify-center gap-2 shadow-xs cursor-pointer">
+              class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
               @if (generando) {
                 <i-lucide name="refresh-cw" class="w-4 h-4 animate-spin"></i-lucide>
                 <span>Generando...</span>
@@ -157,19 +157,17 @@ import { resolverRangoFechas, soloFecha } from '../../core/utils/fecha-rango';
                       <!-- Export Excel -->
                       <button 
                         (click)="exportarExcel(rep)" 
-                        title="Exportar a Excel" 
-                        class="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold rounded-lg text-xs flex items-center gap-1">
-                        <i-lucide name="file-spreadsheet" class="w-3.5 h-3.5 text-emerald-600"></i-lucide>
-                        <span>Excel</span>
+                        title="Exportar Excel" 
+                        class="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg transition-colors cursor-pointer flex items-center justify-center">
+                        <i-lucide name="file-spreadsheet" class="w-4 h-4"></i-lucide>
                       </button>
 
                       <!-- Export PDF -->
                       <button 
                         (click)="exportarPDF(rep)" 
-                        title="Exportar a PDF" 
-                        class="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-800 font-bold rounded-lg text-xs flex items-center gap-1">
-                        <i-lucide name="file-text" class="w-3.5 h-3.5 text-rose-600"></i-lucide>
-                        <span>PDF</span>
+                        title="Exportar PDF" 
+                        class="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg transition-colors cursor-pointer flex items-center justify-center">
+                        <i-lucide name="file-text" class="w-4 h-4"></i-lucide>
                       </button>
                     </div>
                   </td>

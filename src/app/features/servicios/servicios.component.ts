@@ -61,7 +61,7 @@ import { resolverRangoFechas, soloFecha } from '../../core/utils/fecha-rango';
           }
           <button
             (click)="abrirModalNuevaOT()"
-            class="px-4 py-3 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
+            class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
             <i-lucide name="plus" class="w-4 h-4"></i-lucide>
             <span>{{ tabActiva === 'especiales' ? 'Nueva OT (Especial)' : 'Nueva Hoja de Control (OT)' }}</span>
           </button>
@@ -235,9 +235,9 @@ import { resolverRangoFechas, soloFecha } from '../../core/utils/fecha-rango';
                     @if (item.video || item.videoUrl) {
                       <button 
                         (click)="verVideoEvidencia(item)"
-                        class="p-2 bg-slate-100 hover:bg-easydry-blue hover:text-white text-easydry-blue rounded-xl text-xs transition-colors inline-flex items-center gap-1 font-bold shadow-2xs">
-                        <i-lucide name="film" class="w-4 h-4 text-easydry-green"></i-lucide>
-                        <span>Ver Vídeo</span>
+                        title="Ver video evidencia"
+                        class="p-1.5 bg-slate-100 hover:bg-easydry-blue hover:text-white text-easydry-blue rounded-lg transition-colors cursor-pointer inline-flex items-center justify-center">
+                        <i-lucide name="film" class="w-4 h-4"></i-lucide>
                       </button>
                     } @else {
                       <span class="text-[11px] text-slate-400 italic">Sin vídeo</span>
@@ -249,23 +249,24 @@ import { resolverRangoFechas, soloFecha } from '../../core/utils/fecha-rango';
                       @if (canFinalizar(item)) {
                         <button
                           (click)="finalizarServicio(item)"
-                          class="px-3 py-1.5 bg-easydry-blue text-white font-bold rounded-lg text-xs hover:bg-easydry-blue-dark transition-colors">
-                          Finalizar Servicio
+                          title="Finalizar servicio"
+                          class="p-1.5 bg-easydry-blue hover:bg-easydry-blue-dark text-white rounded-lg transition-colors cursor-pointer flex items-center justify-center">
+                          <i-lucide name="check-circle" class="w-4 h-4"></i-lucide>
                         </button>
                       }
 
                       @if (item.estado === 'FINALIZADO' && canApprove) {
                         <button
                           (click)="aprobarServicio(item)"
-                          class="px-3 py-1.5 bg-easydry-green text-slate-950 font-extrabold rounded-lg text-xs hover:bg-easydry-green-dark transition-colors shadow-xs">
-                          Aprobar
+                          title="Aprobar servicio"
+                          class="p-1.5 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 rounded-lg transition-colors shadow-xs cursor-pointer flex items-center justify-center">
+                          <i-lucide name="check" class="w-4 h-4"></i-lucide>
                         </button>
                       }
 
                       @if (item.estado === 'APROBADO') {
-                        <span class="px-2.5 py-1 rounded-lg bg-green-100 text-green-700 text-[10px] font-bold flex items-center gap-1">
-                          <i-lucide name="check-circle-2" class="w-3.5 h-3.5"></i-lucide>
-                          Aprobado
+                        <span class="p-1.5 rounded-lg bg-green-100 text-green-700 flex items-center justify-center">
+                          <i-lucide name="check-circle-2" class="w-4 h-4"></i-lucide>
                         </span>
                       }
                     </div>
@@ -594,7 +595,7 @@ import { resolverRangoFechas, soloFecha } from '../../core/utils/fecha-rango';
               <button 
                 type="button" 
                 (click)="agregarInsumoExtra(selectInsumoExtra.value); selectInsumoExtra.value = ''"
-                class="px-3 py-2 bg-easydry-blue text-white rounded-xl text-xs font-bold whitespace-nowrap">
+                class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
                 + Agregar
               </button>
             </div>

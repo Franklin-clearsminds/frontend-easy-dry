@@ -39,7 +39,7 @@ export const MENU_CONFIG: MenuItem[] = [
     icon: 'bell',
     moduloCodigo: 'notificaciones',
     group: 'Panel Principal',
-    badge: '3',
+    badge: '!',
     badgeColor: 'bg-rose-500 text-white'
   },
 
@@ -49,9 +49,7 @@ export const MENU_CONFIG: MenuItem[] = [
     route: '/sucursales',
     icon: 'building-2',
     moduloCodigo: 'sucursales',
-    group: 'Operación & Sucursales',
-    badge: 'Live',
-    badgeColor: 'bg-easydry-green text-slate-950'
+    group: 'Operación & Sucursales'
   },
   {
     label: 'Gestión de Operadores',
@@ -74,26 +72,21 @@ export const MENU_CONFIG: MenuItem[] = [
     route: '/servicios',
     icon: 'car',
     moduloCodigo: 'servicios',
-    group: 'Servicios de Lavado',
-    badge: 'Hoy'
+    group: 'Servicios de Lavado'
   },
   {
     label: 'Aprobaciones del Día',
     route: '/aprobaciones',
     icon: 'shield-check',
     moduloCodigo: 'aprobaciones',
-    group: 'Servicios de Lavado',
-    badge: 'Gerencia',
-    badgeColor: 'bg-easydry-green text-slate-950'
+    group: 'Servicios de Lavado'
   },
   {
     label: 'Productividad & Reto',
     route: '/productividad',
     icon: 'trophy',
     moduloCodigo: 'productividad',
-    group: 'Servicios de Lavado',
-    badge: 'Reto',
-    badgeColor: 'bg-amber-400 text-slate-950'
+    group: 'Servicios de Lavado'
   },
 
   // ─── 4. ACTIVOS & TALLER ───────────────────────────────────────
@@ -110,7 +103,7 @@ export const MENU_CONFIG: MenuItem[] = [
     icon: 'wrench',
     moduloCodigo: 'taller-tecnico',
     group: 'Activos & Taller',
-    badge: '2',
+    badge: '!',
     badgeColor: 'bg-rose-500 text-white'
   },
   {
@@ -118,9 +111,7 @@ export const MENU_CONFIG: MenuItem[] = [
     route: '/inventario',
     icon: 'boxes',
     moduloCodigo: 'inventario',
-    group: 'Activos & Taller',
-    badge: 'Stock',
-    badgeColor: 'bg-easydry-blue/15 text-easydry-blue'
+    group: 'Activos & Taller'
   },
 
   // ─── 5. ADMINISTRACIÓN ─────────────────────────────────────────
@@ -145,11 +136,4 @@ export const MENU_CONFIG: MenuItem[] = [
     moduloCodigo: 'reportes',
     group: 'Administración'
   },
-  {
-    label: 'Configuración Global',
-    route: '/configuracion',
-    icon: 'settings',
-    moduloCodigo: 'configuracion',
-    group: 'Administración'
-  }
 ];

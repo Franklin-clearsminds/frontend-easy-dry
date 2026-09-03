@@ -22,7 +22,7 @@ import { ToastService } from '../../shared/services/toast.service';
         </div>
         <button 
           (click)="openModalNuevaAgencia()"
-          class="px-4 py-2.5 bg-easydry-blue hover:bg-easydry-blue-dark text-white font-bold rounded-xl text-xs transition-colors flex items-center gap-2 shadow-sm self-start sm:self-auto">
+          class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
           <i-lucide name="plus" class="w-4 h-4"></i-lucide>
           <span>Registrar Nueva Agencia</span>
         </button>

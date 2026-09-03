@@ -19,14 +19,14 @@
       <button
         *ngIf="tabActiva === 'generales'"
         (click)="abrirModalNuevo('GENERAL')"
-        class="bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold px-4 py-2.5 rounded-xl shadow-glow-green flex items-center gap-2 transition-all text-xs">
+        class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
         <i-lucide name="plus" class="w-4 h-4"></i-lucide>
         <span>Nuevo Servicio General</span>
       </button>
       <button
         *ngIf="tabActiva === 'especiales'"
         (click)="abrirModalNuevo('ESPECIAL')"
-        class="bg-amber-500 hover:bg-amber-600 text-slate-950 font-extrabold px-4 py-2.5 rounded-xl shadow flex items-center gap-2 transition-all text-xs">
+        class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
         <i-lucide name="star" class="w-4 h-4 fill-slate-950"></i-lucide>
         <span>Nuevo Servicio Especial</span>
       </button>
@@ -66,7 +66,7 @@
   <!-- TAB 1: SERVICIOS GENERALES                                             -->
   <!-- ====================================================================== -->
   @if (tabActiva === 'generales') {
-    <div class="space-y-4 animate-fade-in">
+    <div class="space-y-6 animate-fade-in">
       
       <!-- Barra de Filtros Generales -->
       <div class="bg-white p-4 rounded-2xl shadow-easydry border border-slate-100 flex flex-wrap gap-4 items-center justify-between">
@@ -186,7 +186,7 @@
   <!-- TAB 2: SERVICIOS ESPECIALES                                            -->
   <!-- ====================================================================== -->
   @if (tabActiva === 'especiales') {
-    <div class="space-y-4 animate-fade-in">
+    <div class="space-y-6 animate-fade-in">
       
       <!-- Barra de Filtros Especiales -->
       <div class="bg-white p-4 rounded-2xl shadow-easydry border border-slate-100 flex flex-wrap gap-4 items-center justify-between">
@@ -393,7 +393,7 @@
               }
             </select>
             <button type="button" (click)="agregarInsumoReceta(selectInsumoRecata.value); selectInsumoRecata.value = ''"
-              class="px-3 py-2 bg-easydry-blue hover:bg-easydry-blue-dark text-white rounded-xl text-xs font-bold whitespace-nowrap transition-colors">
+              class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
               + Agregar
             </button>
           </div>
@@ -413,3 +413,4 @@
     </div>
   </div>
 }
+

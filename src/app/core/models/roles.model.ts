@@ -184,16 +184,6 @@ export const MODULOS_SISTEMA: ModuloSistema[] = [
     rutaPrincipal: '/usuarios',
     grupo: 'Administración'
   },
-  {
-    id: 'mod_configuracion',
-    codigo: 'configuracion',
-    nombre: 'Configuración del Sistema',
-    descripcion: 'Parámetros corporativos, alertas y políticas globales de EasyDry',
-    icono: 'settings',
-    rutaPrincipal: '/configuracion',
-    grupo: 'Administración'
-  },
-
   // ── Mi Cuenta ──
   {
     id: 'mod_perfil',

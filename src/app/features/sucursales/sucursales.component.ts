@@ -328,7 +328,7 @@ import { CatalogoServiciosMockService } from '../../core/services/catalogo-servi
       @if (tabActiva === 'regiones') {
         <div class="flex items-center justify-between">
           <p class="text-xs text-slate-500">Crea regiones y luego pasa sucursales a cada una.</p>
-          <button (click)="abrirModalRegion()" class="px-4 py-2 bg-easydry-blue text-white font-bold rounded-xl text-xs flex items-center gap-1.5">
+          <button (click)="abrirModalRegion()" class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
             <i-lucide name="plus" class="w-3.5 h-3.5"></i-lucide> Nueva Región
           </button>
         </div>
@@ -395,7 +395,7 @@ import { CatalogoServiciosMockService } from '../../core/services/catalogo-servi
       @if (tabActiva === 'marcas') {
         <div class="flex items-center justify-between">
           <p class="text-xs text-slate-500">Crea marcas de sucursal y asígnalas o transfiérelas entre locales.</p>
-          <button (click)="abrirModalMarca()" class="px-4 py-2 bg-easydry-blue text-white font-bold rounded-xl text-xs flex items-center gap-1.5">
+          <button (click)="abrirModalMarca()" class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
             <i-lucide name="plus" class="w-3.5 h-3.5"></i-lucide> Nueva Marca
           </button>
         </div>
@@ -465,7 +465,7 @@ import { CatalogoServiciosMockService } from '../../core/services/catalogo-servi
       <!-- TAB 4: GESTIÓN DE GERENTES DE SUCURSAL (PUNTO 3)                       -->
       <!-- ====================================================================== -->
       @if (tabActiva === 'gerentes') {
-        <div class="space-y-4 animate-fade-in">
+        <div class="space-y-6 animate-fade-in">
           <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <div class="flex items-center gap-2">
@@ -636,7 +636,7 @@ import { CatalogoServiciosMockService } from '../../core/services/catalogo-servi
             <div>
               <div class="flex items-center justify-between mb-1">
                 <label class="block text-xs font-bold text-slate-700 uppercase">Región</label>
-                <button type="button" (click)="mostrarAltaRegion = !mostrarAltaRegion" class="text-[10px] font-extrabold text-easydry-blue">+ Crear región</button>
+                <button type="button" (click)="mostrarAltaRegion = !mostrarAltaRegion" class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">+ Crear región</button>
               </div>
               <select [(ngModel)]="nuevaSucursal.regionId" name="regionId" class="w-full p-2.5 border rounded-xl text-sm font-semibold" required>
                 <option [ngValue]="0">Seleccione región</option>
@@ -647,14 +647,14 @@ import { CatalogoServiciosMockService } from '../../core/services/catalogo-servi
               @if (mostrarAltaRegion) {
                 <div class="mt-2 flex gap-2">
                   <input type="text" [(ngModel)]="altaRapidaRegion" name="altaRapidaRegion" placeholder="Nombre de la región" class="flex-1 p-2 border rounded-xl text-xs">
-                  <button type="button" (click)="crearRegionRapida()" class="px-3 py-2 bg-easydry-blue text-white text-xs font-bold rounded-xl">Crear</button>
+                  <button type="button" (click)="crearRegionRapida()" class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">Crear</button>
                 </div>
               }
             </div>
             <div>
               <div class="flex items-center justify-between mb-1">
                 <label class="block text-xs font-bold text-slate-700 uppercase">Marca de sucursal</label>
-                <button type="button" (click)="mostrarAltaMarca = !mostrarAltaMarca" class="text-[10px] font-extrabold text-easydry-blue">+ Crear marca</button>
+                <button type="button" (click)="mostrarAltaMarca = !mostrarAltaMarca" class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">+ Crear marca</button>
               </div>
               <select [(ngModel)]="nuevaSucursal.marcaId" name="marcaId" class="w-full p-2.5 border rounded-xl text-sm font-semibold" required>
                 <option [ngValue]="0">Seleccione marca</option>
@@ -665,7 +665,7 @@ import { CatalogoServiciosMockService } from '../../core/services/catalogo-servi
               @if (mostrarAltaMarca) {
                 <div class="mt-2 flex gap-2">
                   <input type="text" [(ngModel)]="altaRapidaMarca" name="altaRapidaMarca" placeholder="Nombre de la marca" class="flex-1 p-2 border rounded-xl text-xs">
-                  <button type="button" (click)="crearMarcaRapida()" class="px-3 py-2 bg-easydry-blue text-white text-xs font-bold rounded-xl">Crear</button>
+                  <button type="button" (click)="crearMarcaRapida()" class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">Crear</button>
                 </div>
               }
             </div>
@@ -1454,3 +1454,4 @@ export class SucursalesComponent implements OnInit {
   }
 
 }
+

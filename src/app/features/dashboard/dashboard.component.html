@@ -1,4 +1,4 @@
-<div class="space-y-8 animate-fade-in">
+<div class="space-y-6 animate-fade-in">
 
   <!-- Encabezado dinámico por rol -->
   <div class="bg-gradient-to-r from-easydry-blue via-easydry-blue-dark to-easydry-blue-deep rounded-3xl p-6 lg:p-8 text-white shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-6 relative overflow-hidden">
@@ -74,14 +74,14 @@
       </div>
     </div>
 
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-      <app-stat-card title="Vehículos Atendidos" [value]="produccion?.totalVehiculos || 0" icon="car" change="12%" trend="up" description="Respecto a ayer" variant="primary"></app-stat-card>
-      <app-stat-card title="Ingresos Estimados" [value]="'$' + (produccion?.ingresosEstimados || 0)" icon="dollar-sign" change="8%" trend="up" description="Meta diaria" variant="success"></app-stat-card>
-      <app-stat-card title="Bahías Operativas" [value]="(produccion?.bahiasOcupadas || 0) + ' / ' + (produccion?.totalBahias || 0)" icon="shield-check" description="Capacidad instalada" variant="primary"></app-stat-card>
-      <app-stat-card title="Tiempo Promedio" [value]="(produccion?.tiempoPromedioMinutos || 0) + ' min'" icon="clock" change="-4 min" trend="up" description="Por vehículo" variant="warning"></app-stat-card>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+      <app-stat-card title="Vehículos Atendidos" [value]="produccion?.totalVehiculos || 0" icon="car" trend="12%" subtitle="Respecto a ayer" variant="primary"></app-stat-card>
+      <app-stat-card title="Ingresos Estimados" [value]="'$' + (produccion?.ingresosEstimados || 0)" icon="dollar-sign" trend="8%" subtitle="Meta diaria" variant="success"></app-stat-card>
+      <app-stat-card title="Bahías Operativas" [value]="(produccion?.bahiasOcupadas || 0) + ' / ' + (produccion?.totalBahias || 0)" icon="shield-check" subtitle="Capacidad instalada" variant="primary"></app-stat-card>
+      <app-stat-card title="Tiempo Promedio" [value]="(produccion?.tiempoPromedioMinutos || 0) + ' min'" icon="clock" trend="-4 min" subtitle="Por vehículo" variant="warning"></app-stat-card>
     </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
       <div class="lg:col-span-2">
         <app-chart-card title="Flujo Horario de Atención" subtitle="Vehículos procesados hoy" type="line" [data]="produccion?.flujoHorario"></app-chart-card>
       </div>
@@ -99,13 +99,13 @@
 
   <!-- ═══ DASHBOARD TÉCNICO ═══ -->
   @if (isTecnicoRole && tecnicoData) {
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
       <app-stat-card title="Incidentes Abiertos" [value]="tecnicoData.incidentesAbiertos" icon="alert-triangle" variant="warning"></app-stat-card>
       <app-stat-card title="Mantenimientos Pend." [value]="tecnicoData.mantenimientosPendientes" icon="calendar-clock" variant="primary"></app-stat-card>
       <app-stat-card title="Equipos Operativos" [value]="tecnicoData.equiposOperativos" icon="shield-check" variant="success"></app-stat-card>
       <app-stat-card title="Tiempo Medio Reparación" [value]="tecnicoData.tiempoMedioReparacionHrs + ' hrs'" icon="clock" variant="primary"></app-stat-card>
     </div>
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
       <app-chart-card title="Incidentes por Estado" type="doughnut" [data]="tecnicoData.chartIncidentesPorEstado"></app-chart-card>
       <app-chart-card title="Mantenimientos Semana" type="bar" [data]="tecnicoData.chartMantenimientosSemana"></app-chart-card>
       <app-chart-card title="Fallos por Tipo" type="doughnut" [data]="tecnicoData.chartFallosPorTipo"></app-chart-card>
@@ -114,13 +114,13 @@
 
   <!-- ═══ DASHBOARD OPERADOR ═══ -->
   @if (isOperador && operadorData) {
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
       <app-stat-card title="OTs Hoy" [value]="operadorData.otsHoy" icon="car" variant="primary"></app-stat-card>
       <app-stat-card title="En Proceso" [value]="operadorData.enProceso" icon="loader" variant="warning"></app-stat-card>
       <app-stat-card title="Finalizados" [value]="operadorData.finalizados" icon="check-circle" variant="success"></app-stat-card>
       <app-stat-card title="Tiempo Promedio" [value]="operadorData.tiempoPromedioMin + ' min'" icon="clock" [subtitle]="'Meta: ' + operadorData.metaDiaria + ' OTs'" variant="primary"></app-stat-card>
     </div>
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
       <app-chart-card title="OTs por Hora" subtitle="Ritmo de atención hoy" type="line" [data]="operadorData.chartOtsPorHora"></app-chart-card>
       <app-chart-card title="Mix de Servicios" subtitle="Generales vs Especiales" type="doughnut" [data]="operadorData.chartServiciosTipo"></app-chart-card>
     </div>
@@ -128,13 +128,13 @@
 
   <!-- ═══ DASHBOARD OPERADOR SERVICIOS ESPECIALES ═══ -->
   @if (isOperadorEspeciales && operadorEspecialesData) {
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
       <app-stat-card title="Pendientes" [value]="operadorEspecialesData.asignacionesPendientes" icon="clock" variant="warning"></app-stat-card>
       <app-stat-card title="En Proceso" [value]="operadorEspecialesData.enProceso" icon="loader" variant="primary"></app-stat-card>
       <app-stat-card title="Completadas Semana" [value]="operadorEspecialesData.completadasSemana" icon="check-circle" variant="success"></app-stat-card>
       <app-stat-card title="Calificación Prom." [value]="operadorEspecialesData.calificacionPromedio + '/5'" icon="star" [subtitle]="operadorEspecialesData.sucursalesActivas + ' sucursales'" variant="success"></app-stat-card>
     </div>
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
       <app-chart-card title="Cola por Prioridad" type="bar" [data]="operadorEspecialesData.chartColaPorPrioridad"></app-chart-card>
       <app-chart-card title="Completados esta Semana" type="bar" [data]="operadorEspecialesData.chartCompletadosSemana"></app-chart-card>
     </div>
@@ -142,13 +142,13 @@
 
   <!-- ═══ DASHBOARD COMERCIAL ═══ -->
   @if (isComercial && comercialData) {
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
       <app-stat-card title="Servicios del Mes" [value]="comercialData.serviciosMes" icon="bar-chart-2" variant="primary"></app-stat-card>
       <app-stat-card title="Ingresos Mes" [value]="'$' + comercialData.ingresosMesUSD" icon="dollar-sign" variant="success"></app-stat-card>
       <app-stat-card title="Tasa Aprobación" [value]="comercialData.tasaAprobacion + '%'" icon="check-circle" variant="success"></app-stat-card>
       <app-stat-card title="Especiales Vendidos" [value]="comercialData.especialesVendidos" icon="sparkles" variant="primary"></app-stat-card>
     </div>
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
       <app-chart-card title="Ingresos por Semana" type="line" [data]="comercialData.chartIngresosSemana"></app-chart-card>
       <app-chart-card title="Mix de Servicios" type="doughnut" [data]="comercialData.chartMixServicios"></app-chart-card>
     </div>
@@ -156,16 +156,17 @@
 
   <!-- ═══ DASHBOARD DISTRIBUIDOR ═══ -->
   @if (isBodega && distribuidorData) {
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
       <app-stat-card title="SKUs Críticos" [value]="distribuidorData.skusCriticos" icon="alert-triangle" variant="warning"></app-stat-card>
       <app-stat-card title="Pedidos Pendientes" [value]="distribuidorData.pedidosPendientes" icon="package" variant="primary"></app-stat-card>
       <app-stat-card title="Entregas Semana" [value]="distribuidorData.entregasSemana" icon="truck" variant="success"></app-stat-card>
       <app-stat-card title="Valor Inventario" [value]="'$' + distribuidorData.valorInventarioUSD" icon="dollar-sign" variant="primary"></app-stat-card>
     </div>
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
       <app-chart-card title="Consumo de Insumos" type="bar" [data]="distribuidorData.chartConsumoInsumos"></app-chart-card>
       <app-chart-card title="Estado de Stock" type="doughnut" [data]="distribuidorData.chartStockEstado"></app-chart-card>
     </div>
   }
 
 </div>
+

@@ -8,6 +8,7 @@ Chart.register(...registerables);
   selector: 'app-chart-card',
   standalone: true,
   imports: [CommonModule],
+  host: { class: 'block' },
   template: `
     <div class="bg-white rounded-2xl p-6 border border-slate-100 shadow-easydry flex flex-col h-full">
       <div class="flex items-center justify-between mb-4">
