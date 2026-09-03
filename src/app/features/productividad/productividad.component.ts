@@ -2,6 +2,7 @@ import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { LucideAngularModule } from 'lucide-angular';
 import { ChartCardComponent } from '../../shared/components/chart-card/chart-card.component';
+import { FilterBarComponent, FilterState } from '../../shared/components/filter-bar/filter-bar.component';
 import { AgenciaMockService } from '../../core/services/agencia-mock.service';
 import { AuthService } from '../../core/services/auth.service';
 import { Agencia } from '../../core/models';
@@ -9,9 +10,9 @@ import { Agencia } from '../../core/models';
 @Component({
   selector: 'app-productividad',
   standalone: true,
-  imports: [CommonModule, LucideAngularModule, ChartCardComponent],
+  imports: [CommonModule, LucideAngularModule, ChartCardComponent, FilterBarComponent],
   template: `
-    <div class="space-y-8 animate-fade-in">
+    <div class="space-y-6 animate-fade-in">
       
       <!-- Top Title Bar -->
       <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-easydry flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -24,6 +25,18 @@ import { Agencia } from '../../core/models';
           <span>Reto EasyDry Activo: Edición Julio 2026</span>
         </span>
       </div>
+
+      <!-- Filtros Completos (Punto 15: Agencia, Servicio, Operador, Fechas) -->
+      <app-filter-bar 
+        [showRegion]="true"
+        [showSucursal]="true" 
+        [showOperador]="true"
+        [showServicio]="true"
+        [showBahia]="false"
+        [showEstado]="false"
+        [showFechas]="true"
+        (filterChange)="aplicarFiltros($event)">
+      </app-filter-bar>
 
       <!-- RETO EASYDRY SPECIAL GAMIFIED SECTION -->
       <div class="bg-gradient-to-r from-easydry-blue-dark via-easydry-blue to-slate-900 rounded-3xl p-6 md:p-8 text-white shadow-2xl relative overflow-hidden">
@@ -100,7 +113,7 @@ import { Agencia } from '../../core/models';
         
         <!-- Ranking Agencias -->
         <div class="bg-white rounded-2xl p-6 border border-slate-100 shadow-easydry">
-          <div class="flex items-center justify-between mb-5">
+          <div class="flex items-center justify-between mb-5 px-6">
             <h3 class="font-bold text-slate-900 text-lg font-outfit flex items-center gap-2">
               <i-lucide name="building-2" class="w-5 h-5 text-easydry-blue"></i-lucide>
               <span>Ranking de Agencias por Productividad</span>
@@ -139,7 +152,7 @@ import { Agencia } from '../../core/models';
 
         <!-- Ranking Empleados -->
         <div class="bg-white rounded-2xl p-6 border border-slate-100 shadow-easydry">
-          <div class="flex items-center justify-between mb-5">
+          <div class="flex items-center justify-between mb-5 px-6">
             <h3 class="font-bold text-slate-900 text-lg font-outfit flex items-center gap-2">
               <i-lucide name="users" class="w-5 h-5 text-easydry-blue"></i-lucide>
               <span>Ranking de Personal Operativo</span>
@@ -209,6 +222,7 @@ import { Agencia } from '../../core/models';
 })
 export class ProductividadComponent implements OnInit {
   agencias: Agencia[] = [];
+  todasLasAgencias: Agencia[] = [];
 
   comparativaChartData = {
     labels: ['Mayo 2026', 'Junio 2026', 'Julio 2026'],
@@ -230,7 +244,29 @@ export class ProductividadComponent implements OnInit {
       if (user && user.role !== 'SUPER_ADMIN' && user.sucursalNombre) {
         filtered = list.filter(a => a.nombre.toLowerCase() === user.sucursalNombre!.toLowerCase());
       }
+      this.todasLasAgencias = [...filtered];
       this.agencias = filtered.sort((a, b) => b.productividad - a.productividad);
     });
+  }
+
+  aplicarFiltros(filtros: FilterState): void {
+    let res = [...this.todasLasAgencias];
+    if (filtros.sucursal && filtros.sucursal !== 'Todas') {
+      res = res.filter(a => a.nombre.toLowerCase().includes(filtros.sucursal.toLowerCase()) ||
+                            filtros.sucursal.toLowerCase().includes(a.nombre.toLowerCase()));
+    }
+    if (filtros.region && filtros.region !== 'Todas') {
+      res = res.filter(a => this.regionDeCiudad(a.ciudad) === filtros.region);
+    }
+    this.agencias = res.sort((a, b) => b.productividad - a.productividad);
+  }
+
+  /** Deriva la región a partir de la ciudad de la agencia. */
+  private regionDeCiudad(ciudad: string): string {
+    const c = (ciudad || '').toLowerCase();
+    if (c.includes('quito') || c.includes('cumbaya') || c.includes('cumbayá') || c.includes('sierra')) return 'Sierra';
+    if (c.includes('guayaquil') || c.includes('manta') || c.includes('costa') || c.includes('esmeraldas')) return 'Costa';
+    if (c.includes('cuenca') || c.includes('austro') || c.includes('loja') || c.includes('ambio')) return 'Austro';
+    return 'Costa';
   }
 }

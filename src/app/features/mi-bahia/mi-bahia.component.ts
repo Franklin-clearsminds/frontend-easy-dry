@@ -9,18 +9,21 @@ import { MaquinariaMockService } from '../../core/services/maquinaria-mock.servi
 import { IncidenteMockService } from '../../core/services/incidente-mock.service';
 import { PermissionService } from '../../core/services/permission.service';
 import { ToastService } from '../../shared/services/toast.service';
-import { ArchivoAdjunto, Incidente, Maquinaria, VehiculoServicio } from '../../core/models';
+import { SucursalMockService } from '../../core/services/sucursal-mock.service';
+import { BahiaMockService } from '../../core/services/bahia-mock.service';
+import { ArchivoAdjunto, Bahia, Incidente, Maquinaria, Sucursal, VehiculoServicio } from '../../core/models';
 import { Role } from '../../core/models/roles.model';
 import { ModalComponent } from '../../shared/components/modal/modal.component';
+import { DataTableComponent, TableColumn, TableAction } from '../../shared/components/data-table/data-table.component';
 
 @Component({
   selector: 'app-mi-bahia',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, LucideAngularModule, ModalComponent],
+  imports: [CommonModule, FormsModule, RouterModule, LucideAngularModule, ModalComponent, DataTableComponent],
   template: `
     <div class="space-y-6 animate-fade-in">
 
-      <!-- Encabezado de Contexto del Operador -->
+      <!-- Encabezado de Contexto del Operador / Super Admin -->
       <div class="bg-gradient-to-r from-easydry-blue via-easydry-blue-dark to-easydry-blue-deep rounded-3xl p-6 text-white relative overflow-hidden">
         <div class="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div>
@@ -30,17 +33,58 @@ import { ModalComponent } from '../../shared/components/modal/modal.component';
             </div>
             <h1 class="text-2xl font-extrabold font-outfit">{{ user.nombre }} {{ user.apellido }}</h1>
             <p class="text-easydry-lime font-semibold text-sm mt-1">
-              {{ isOperadorEspeciales ? 'Operador de Servicios Especiales' : 'Operador de Bahía' }}
+              {{ isOperadorEspeciales ? 'Operador de Servicios Especiales' : (isSuperAdmin ? 'Supervisión de Bahía' : 'Operador de Bahía') }}
             </p>
 
             <div class="flex items-center gap-4 mt-3 flex-wrap">
+              <!-- Chip Sucursal -->
               <div class="flex items-center gap-2 text-slate-200 text-sm">
                 <i-lucide name="building-2" class="w-4 h-4 text-easydry-green"></i-lucide>
-                <span class="font-semibold">{{ isOperadorEspeciales ? (user.modalidadPulidor === 'FIJO' ? (user.sucursalNombre || 'Sucursal asignada') : 'Red Nacional · Móvil') : (user.sucursalNombre || 'Sin sucursal') }}</span>
+                @if (isSuperAdmin) {
+                  <span class="font-semibold text-slate-300">Sucursal:</span>
+                  <select 
+                    [(ngModel)]="sucursalSeleccionada" 
+                    (ngModelChange)="onSucursalChange()"
+                    class="bg-white/15 hover:bg-white/25 text-white font-bold text-xs rounded-lg px-2.5 py-1 border border-white/20 focus:outline-none cursor-pointer transition-colors">
+                    <option value="Todas" class="bg-slate-900 text-white">Todas las Sucursales</option>
+                    @for (suc of listaSucursales; track suc.id) {
+                      <option [value]="suc.nombre" class="bg-slate-900 text-white">{{ suc.nombre }}</option>
+                    }
+                  </select>
+                } @else {
+                  <span class="font-semibold">{{ isOperadorEspeciales ? (user.modalidadPulidor === 'FIJO' ? (user.sucursalNombre || 'Sucursal asignada') : 'Red Nacional · Móvil') : (user.sucursalNombre || 'Sin sucursal') }}</span>
+                }
               </div>
+
+              <!-- Chip Bahía -->
               <div class="flex items-center gap-2 text-slate-200 text-sm">
-                <i-lucide name="hard-drive" class="w-4 h-4 text-easydry-lime"></i-lucide>
-                <span class="font-semibold">{{ isOperadorEspeciales ? (user.modalidadPulidor === 'FIJO' ? 'Pulidor fijo en sucursal' : 'Equipo móvil · Multi-sucursal') : (user.bahiaNombre || 'Sin bahía asignada') }}</span>
+                <i-lucide name="layout-grid" class="w-4 h-4 text-easydry-lime"></i-lucide>
+                @if (isSuperAdmin) {
+                  <span class="font-semibold text-slate-300">Bahía:</span>
+                  <select 
+                    [(ngModel)]="bahiaSeleccionada" 
+                    (ngModelChange)="onBahiaChange()"
+                    class="bg-white/15 hover:bg-white/25 text-white font-bold text-xs rounded-lg px-2.5 py-1 border border-white/20 focus:outline-none cursor-pointer transition-colors">
+                    <option value="Todas" class="bg-slate-900 text-white">Todas las Bahías</option>
+                    @for (bah of bahiasDisponibles; track bah.id) {
+                      <option [value]="bah.nombre" class="bg-slate-900 text-white">{{ bah.nombre }}</option>
+                    }
+                  </select>
+                } @else {
+                  <span class="font-semibold">Bahía: {{ isOperadorEspeciales ? (user.modalidadPulidor === 'FIJO' ? 'Pulidor fijo en sucursal' : 'Equipo móvil · Multi-sucursal') : (user.bahiaNombre || 'Bahía 1 (Lavado Ecológico)') }}</span>
+                }
+              </div>
+
+              <!-- Chip Responsable Agencia -->
+              <div class="flex items-center gap-2 text-slate-200 text-sm">
+                <i-lucide name="shield" class="w-4 h-4 text-purple-300"></i-lucide>
+                <span class="font-semibold">Responsable Agencia: {{ responsableAgencia }}</span>
+              </div>
+
+              <!-- Chip Operador -->
+              <div class="flex items-center gap-2 text-slate-200 text-sm">
+                <i-lucide name="user" class="w-4 h-4 text-cyan-300"></i-lucide>
+                <span class="font-semibold">Operador: {{ isSuperAdmin ? operadorAsignadoTexto : (user.nombre + ' ' + user.apellido) }}</span>
               </div>
             </div>
           </div>
@@ -91,8 +135,8 @@ import { ModalComponent } from '../../shared/components/modal/modal.component';
         </div>
 
         <div class="bg-white rounded-2xl p-5 border border-slate-100 shadow-easydry text-center">
-          <div class="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center mx-auto mb-2">
-            <i-lucide name="shield-check" class="w-5 h-5 text-indigo-600"></i-lucide>
+          <div class="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center mx-auto mb-2">
+            <i-lucide name="award" class="w-5 h-5 text-purple-600"></i-lucide>
           </div>
           <p class="text-2xl font-extrabold text-slate-900">{{ aprobados }}</p>
           <p class="text-xs text-slate-500 font-medium mt-0.5">Aprobados</p>
@@ -129,11 +173,14 @@ import { ModalComponent } from '../../shared/components/modal/modal.component';
       }
 
       <!-- Mis Servicios del Día -->
-      <div class="bg-white rounded-2xl p-6 border border-slate-100 shadow-easydry">
-        <div class="flex items-center justify-between mb-5">
+      <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry overflow-hidden">
+        <!-- Cabecera de la sección -->
+        <div class="p-6 pb-4 flex items-center justify-between border-b border-slate-100">
           <div>
-            <h3 class="font-bold text-slate-900 text-lg font-outfit">Mis Servicios del Día</h3>
-            <p class="text-xs text-slate-500">Solo ves tus registros en tu bahía asignada</p>
+            <h3 class="font-bold text-slate-900 text-lg font-outfit">Servicios del Día</h3>
+            <p class="text-xs text-slate-500 mt-0.5">
+              {{ isSuperAdmin ? 'Servicios registrados en la bahía y sucursal seleccionada' : 'Solo ves tus registros en tu bahía asignada' }}
+            </p>
           </div>
           <a routerLink="/servicios"
             class="px-4 py-2 bg-easydry-blue/10 text-easydry-blue font-bold rounded-xl text-xs hover:bg-easydry-blue/20 transition-colors flex items-center gap-1.5">
@@ -142,48 +189,17 @@ import { ModalComponent } from '../../shared/components/modal/modal.component';
           </a>
         </div>
 
-        @if (misServicios.length === 0) {
-          <div class="text-center py-12">
-            <i-lucide name="car" class="w-12 h-12 text-slate-300 mx-auto mb-3"></i-lucide>
-            <p class="text-slate-500 font-medium">No tienes servicios registrados hoy</p>
-            <p class="text-slate-400 text-xs mt-1">Usa el botón "Registrar Servicio" para comenzar</p>
-          </div>
-        } @else {
-          <div class="space-y-3">
-            @for (s of misServicios; track s.id) {
-              <div class="p-4 rounded-xl border border-slate-100 bg-white shadow-sm hover:shadow-md transition-all cursor-pointer" (click)="abrirDetalle(s)">
-                <div class="flex items-start justify-between mb-2">
-                  <div>
-                    <span class="font-mono font-extrabold text-xs text-easydry-blue bg-easydry-blue/10 px-2 py-0.5 rounded-md">
-                      {{ s.ordenTrabajoOT || 'OT-9800' }}
-                    </span>
-                    <div class="font-bold text-slate-900 text-sm mt-1.5">{{ s.marca }} {{ s.modelo }}</div>
-                    <div class="text-[11px] font-mono font-extrabold text-slate-500">{{ s.placa }}</div>
-                  </div>
-                  <span class="px-2.5 py-1 rounded-full text-[10px] font-extrabold text-center max-w-[80px]"
-                    [ngClass]="{
-                      'bg-amber-100 text-amber-800': s.estado === 'EN PROCESO',
-                      'bg-easydry-blue/15 text-easydry-blue': s.estado === 'FINALIZADO',
-                      'bg-easydry-green/20 text-easydry-green-dark': s.estado === 'APROBADO',
-                      'bg-rose-100 text-rose-800': s.estado === 'RECHAZADO'
-                    }">
-                    {{ s.estado }}
-                  </span>
-                </div>
-                
-                <div class="flex items-center justify-between mt-3 text-xs">
-                  <div class="flex items-center gap-1.5 text-slate-500">
-                    <i-lucide name="clock" class="w-3.5 h-3.5"></i-lucide>
-                    <span>{{ s.horaIngreso || '08:30' }}</span>
-                  </div>
-                  <div class="font-semibold text-slate-700">
-                    {{ s.servicio }}
-                  </div>
-                </div>
-              </div>
-            }
-          </div>
-        }
+        <!-- Tabla paginada -->
+        <app-data-table
+          [columns]="serviciosColumns"
+          [data]="misServiciosTabla"
+          [actions]="serviciosActions"
+          [pageSize]="8"
+          [searchable]="true"
+          searchPlaceholder="Buscar por placa, OT, servicio..."
+          [showToolbar]="true"
+          (actionClick)="onServicioAction($event)">
+        </app-data-table>
       </div>
 
       <!-- Modal Detalle Servicio (Mobile) -->
@@ -242,6 +258,47 @@ import { ModalComponent } from '../../shared/components/modal/modal.component';
                 }">{{ servicioDetalleSeleccionado.estado }}</span>
               </div>
             </div>
+            <!-- Evidencia multimedia -->
+            @if (servicioDetalleSeleccionado.foto || (servicioDetalleSeleccionado.fotos && servicioDetalleSeleccionado.fotos!.length > 0) || servicioDetalleSeleccionado.video || servicioDetalleSeleccionado.videoUrl) {
+              <div class="border-t border-slate-100 pt-3 space-y-3">
+                <span class="block text-[10px] text-slate-400 font-bold uppercase flex items-center gap-1.5">
+                  <i-lucide name="image" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide>
+                  Evidencia del Servicio
+                </span>
+
+                <!-- Fotos -->
+                @if (servicioDetalleSeleccionado.fotos && servicioDetalleSeleccionado.fotos!.length > 0) {
+                  <div class="grid grid-cols-3 gap-2">
+                    @for (fotoUrl of servicioDetalleSeleccionado.fotos!; track fotoUrl) {
+                      <a [href]="fotoUrl" target="_blank" class="block">
+                        <img [src]="fotoUrl" alt="Evidencia" class="w-full h-20 object-cover rounded-lg border border-slate-200 hover:opacity-90 transition-opacity">
+                      </a>
+                    }
+                  </div>
+                } @else if (servicioDetalleSeleccionado.foto) {
+                  <a [href]="servicioDetalleSeleccionado.foto" target="_blank" class="block">
+                    <img [src]="servicioDetalleSeleccionado.foto" alt="Evidencia" class="w-full h-32 object-cover rounded-xl border border-slate-200 hover:opacity-90 transition-opacity">
+                  </a>
+                }
+
+                <!-- Video -->
+                @if (servicioDetalleSeleccionado.video || servicioDetalleSeleccionado.videoUrl) {
+                  <div class="rounded-xl overflow-hidden border border-slate-200 bg-slate-900">
+                    <div class="flex items-center gap-2 px-3 py-2 bg-slate-800">
+                      <i-lucide name="film" class="w-4 h-4 text-purple-400"></i-lucide>
+                      <span class="text-xs font-bold text-slate-300">Video del servicio</span>
+                    </div>
+                    <video
+                      [src]="servicioDetalleSeleccionado.videoUrl || servicioDetalleSeleccionado.video"
+                      controls
+                      class="w-full max-h-56 bg-black"
+                      preload="metadata">
+                      Tu navegador no soporta la reproducción de video.
+                    </video>
+                  </div>
+                }
+              </div>
+            }
           </div>
         }
 
@@ -390,14 +447,62 @@ export class MiBahiaComponent implements OnInit {
   private serviciosService = inject(ServicioLavadoMockService);
   private maquinariaService = inject(MaquinariaMockService);
   private incidenteService = inject(IncidenteMockService);
+  private sucursalService = inject(SucursalMockService);
+  private bahiaService = inject(BahiaMockService);
   private permissions = inject(PermissionService);
   private toast = inject(ToastService);
 
   user = this.auth.getCurrentUser()!;
   misServicios: VehiculoServicio[] = [];
+
+  // ── Tabla paginada de servicios del día ──
+  misServiciosTabla: Record<string, unknown>[] = [];
+
+  serviciosColumns: TableColumn[] = [
+    { key: 'ot',      label: 'OT',       sortable: true,  width: '110px' },
+    { key: 'vehiculo',label: 'Vehículo', sortable: true },
+    { key: 'placa',   label: 'Placa',    sortable: true,  width: '110px' },
+    { key: 'servicio',label: 'Servicio', sortable: true },
+    { key: 'hora',    label: 'Hora',     sortable: false, width: '80px', align: 'center' },
+    { key: 'duracion',label: 'Duración', sortable: false, width: '90px', align: 'center' },
+    {
+      key: 'estado', label: 'Estado', sortable: true, type: 'badge', align: 'center', width: '110px',
+      badgeMap: {
+        'EN PROCESO': 'bg-amber-100 text-amber-800',
+        'FINALIZADO': 'bg-easydry-blue/15 text-easydry-blue',
+        'APROBADO':   'bg-easydry-green/20 text-easydry-green-dark',
+        'RECHAZADO':  'bg-rose-100 text-rose-800'
+      }
+    }
+  ];
+
+  serviciosActions: TableAction[] = [
+    { id: 'ver',   label: 'Ver detalle', icon: 'eye',  tooltip: 'Ver detalle del servicio',
+      colorClass: 'text-easydry-blue hover:bg-easydry-blue/10' },
+    { id: 'video', label: 'Ver video',   icon: 'film', tooltip: 'Ver video de evidencia',
+      colorClass: 'text-purple-600 hover:bg-purple-50' }
+  ];
+
+  onServicioAction(event: { actionId: string; row: Record<string, unknown> }): void {
+    const servicio = this.misServicios.find(s => s.id === event.row['_id']);
+    if (servicio) {
+      this.abrirDetalle(servicio);
+    }
+  }
+  todosLosServicios: VehiculoServicio[] = [];
+  todasLasBahias: Bahia[] = [];
+  responsableAgencia = 'Gerente Carlos Mendoza';
   enProceso = 0;
   finalizados = 0;
   aprobados = 0;
+
+  // ── Navegación Multi-Sucursal y Multi-Bahía para Super Admin ──
+  isSuperAdmin = false;
+  listaSucursales: Sucursal[] = [];
+  bahiasDisponibles: Bahia[] = [];
+  sucursalSeleccionada = 'Todas';
+  bahiaSeleccionada = 'Todas';
+  operadorAsignadoTexto = 'Múltiples Operadores';
 
   modalDetalleOpen = false;
   servicioDetalleSeleccionado?: VehiculoServicio;
@@ -425,9 +530,31 @@ export class MiBahiaComponent implements OnInit {
 
   ngOnInit(): void {
     this.user = this.auth.getCurrentUser()!;
+    this.isSuperAdmin = this.user.role === Role.SUPER_ADMIN || this.user.role === Role.ADMIN || this.user.role === Role.SUPERVISOR;
     this.isOperadorEspeciales = this.user.role === Role.OPERADOR_SERVICIOS_ESPECIALES
       || this.user.role === Role.COORD_SERVICIOS_ESPECIALES;
     this.puedeReportarFalla = this.permissions.canRegistrarIncidente();
+
+    // Cargar catálogo de sucursales para Super Admin
+    this.sucursalService.getSucursales().subscribe(sucursales => {
+      this.listaSucursales = sucursales;
+      this.actualizarBahiasDisponibles();
+
+      // Responsable de agencia inicial
+      const s = sucursales.find(suc =>
+        suc.nombre.toLowerCase().includes((this.user.sucursalNombre || '').toLowerCase()) ||
+        (this.user.sucursalNombre || '').toLowerCase().includes(suc.nombre.toLowerCase())
+      );
+      if (s && s.responsable) {
+        this.responsableAgencia = s.responsable;
+      }
+    });
+
+    // Cargar catálogo de bahías
+    this.bahiaService.getBahias().subscribe(list => {
+      this.todasLasBahias = list;
+      this.actualizarBahiasDisponibles();
+    });
 
     if (this.isOperadorEspeciales) {
       this.tiposFallaDisponibles = [
@@ -443,28 +570,130 @@ export class MiBahiaComponent implements OnInit {
     }
 
     this.serviciosService.getServicios().subscribe(list => {
-      this.misServicios = list.filter(s =>
-        s.empleado?.toLowerCase().includes(this.user?.nombre?.toLowerCase() ?? '')
-      );
-      this.recalcularKpis();
+      this.todosLosServicios = list;
+      this.filtrarServicios();
     });
 
-    if (this.puedeReportarFalla) {
-      this.maquinariaService.getMaquinaria().subscribe(list => {
-        this.maquinasBahia = this.isOperadorEspeciales
-          ? list.filter(m => this.esEquipoServiciosEspeciales(m))
-          : list.filter(m => {
-              const sucursal = this.user.sucursalNombre || this.user.sucursal || '';
-              const bahia = this.user.bahiaNombre || '';
-              const mismaSucursal = m.agencia === sucursal || m.sucursalNombre === sucursal;
-              if (!bahia) return mismaSucursal;
-              return mismaSucursal && (m.bahia === bahia || m.bahiaNombre === bahia);
-            });
-        if (this.maquinasBahia.length > 0) {
-          this.maquinaSeleccionadaId = this.maquinasBahia[0].id;
+    this.actualizarMaquinasBahia();
+  }
+
+  actualizarBahiasDisponibles(): void {
+    if (this.sucursalSeleccionada === 'Todas') {
+      const mapa = new Map<string, Bahia>();
+      this.todasLasBahias.forEach(b => {
+        if (!mapa.has(b.nombre)) {
+          mapa.set(b.nombre, b);
         }
       });
+      this.bahiasDisponibles = Array.from(mapa.values());
+    } else {
+      const suc = this.listaSucursales.find(s => s.nombre === this.sucursalSeleccionada);
+      if (suc) {
+        this.bahiasDisponibles = this.todasLasBahias.filter(b => b.sucursalId === suc.id || b.sucursalNombre === suc.nombre);
+      } else {
+        this.bahiasDisponibles = [];
+      }
     }
+  }
+
+  onSucursalChange(): void {
+    this.bahiaSeleccionada = 'Todas';
+    this.actualizarBahiasDisponibles();
+
+    if (this.sucursalSeleccionada !== 'Todas') {
+      const suc = this.listaSucursales.find(s => s.nombre === this.sucursalSeleccionada);
+      this.responsableAgencia = suc?.responsable || 'Gerente de Sede';
+    } else {
+      this.responsableAgencia = 'Supervisión Nacional';
+    }
+
+    this.operadorAsignadoTexto = 'Múltiples Operadores';
+    this.filtrarServicios();
+    this.actualizarMaquinasBahia();
+  }
+
+  onBahiaChange(): void {
+    if (this.bahiaSeleccionada !== 'Todas') {
+      const bah = this.bahiasDisponibles.find(b => b.nombre === this.bahiaSeleccionada);
+      this.operadorAsignadoTexto = bah?.operadorAsignado || 'Sin operador fijo asignado';
+    } else {
+      this.operadorAsignadoTexto = 'Múltiples Operadores';
+    }
+
+    this.filtrarServicios();
+    this.actualizarMaquinasBahia();
+  }
+
+  resetearSuperAdmin(): void {
+    this.sucursalSeleccionada = 'Todas';
+    this.bahiaSeleccionada = 'Todas';
+    this.actualizarBahiasDisponibles();
+    this.responsableAgencia = 'Supervisión Nacional';
+    this.operadorAsignadoTexto = 'Múltiples Operadores';
+    this.filtrarServicios();
+    this.actualizarMaquinasBahia();
+  }
+
+  filtrarServicios(): void {
+    if (this.isSuperAdmin) {
+      let res = this.todosLosServicios;
+      if (this.sucursalSeleccionada !== 'Todas') {
+        const suc = this.sucursalSeleccionada.toLowerCase();
+        res = res.filter(s => s.agencia?.toLowerCase().includes(suc) || suc.includes(s.agencia?.toLowerCase() || ''));
+      }
+      if (this.bahiaSeleccionada !== 'Todas') {
+        const bah = this.bahiaSeleccionada.toLowerCase();
+        res = res.filter(s => s.bahia?.toLowerCase().includes(bah) || bah.includes(s.bahia?.toLowerCase() || ''));
+      }
+      this.misServicios = res;
+    } else {
+      this.misServicios = this.todosLosServicios.filter(s =>
+        s.empleado?.toLowerCase().includes(this.user?.nombre?.toLowerCase() ?? '')
+      );
+    }
+    this.recalcularKpis();
+    this.construirTablaServicios();
+  }
+
+  private construirTablaServicios(): void {
+    this.misServiciosTabla = this.misServicios.map(s => ({
+      _id:      s.id,
+      ot:       s.ordenTrabajoOT || 'OT-????',
+      vehiculo: `${s.marca || ''} ${s.modelo || ''}`.trim(),
+      placa:    s.placa || '-',
+      servicio: s.servicio || '-',
+      hora:     s.horaInicio || s.horaIngreso || '-',
+      duracion: s.estado === 'EN PROCESO'
+                  ? `${this.calcularMinutosTranscurridos(s)} min ⏱`
+                  : `${s.duracionMin || 35} min`,
+      estado:   s.estado || '-'
+    }));
+  }
+
+  actualizarMaquinasBahia(): void {
+    if (!this.puedeReportarFalla) return;
+    this.maquinariaService.getMaquinaria().subscribe(list => {
+      if (this.isOperadorEspeciales) {
+        this.maquinasBahia = list.filter(m => this.esEquipoServiciosEspeciales(m));
+      } else if (this.isSuperAdmin) {
+        this.maquinasBahia = list.filter(m => {
+          const matchSuc = this.sucursalSeleccionada === 'Todas' || m.agencia === this.sucursalSeleccionada || m.sucursalNombre === this.sucursalSeleccionada;
+          const matchBah = this.bahiaSeleccionada === 'Todas' || m.bahia === this.bahiaSeleccionada || m.bahiaNombre === this.bahiaSeleccionada;
+          return matchSuc && matchBah;
+        });
+      } else {
+        this.maquinasBahia = list.filter(m => {
+          const sucursal = this.user.sucursalNombre || this.user.sucursal || '';
+          const bahia = this.user.bahiaNombre || '';
+          const mismaSucursal = m.agencia === sucursal || m.sucursalNombre === sucursal;
+          if (!bahia) return mismaSucursal;
+          return mismaSucursal && (m.bahia === bahia || m.bahiaNombre === bahia);
+        });
+      }
+      if (this.maquinasBahia.length > 0) {
+        this.maquinaSeleccionadaId = this.maquinasBahia[0].id;
+      }
+    });
   }
 
   private esEquipoServiciosEspeciales(m: Maquinaria): boolean {
@@ -574,5 +803,16 @@ export class MiBahiaComponent implements OnInit {
         this.recalcularKpis();
       }
     });
+  }
+
+  calcularMinutosTranscurridos(s: VehiculoServicio): number {
+    if (s.tiempoTranscurridoMin) return s.tiempoTranscurridoMin;
+    const hora = s.horaInicio || s.horaIngreso || '08:30';
+    const [h, m] = hora.split(':').map(Number);
+    const ahora = new Date();
+    const minutosInicio = (h || 8) * 60 + (m || 30);
+    const minutosAhora = ahora.getHours() * 60 + ahora.getMinutes();
+    const diff = minutosAhora - minutosInicio;
+    return diff > 0 && diff < 300 ? diff : 24;
   }
 }

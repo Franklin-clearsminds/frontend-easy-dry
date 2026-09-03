@@ -52,6 +52,18 @@ export class MantenimientoMockService {
     return of(actualizado).pipe(delay(300));
   }
 
+  actualizarMantenimiento(id: number, patch: Partial<Mantenimiento>): Observable<Mantenimiento | null> {
+    const current = this.mantenimientosSubject.value;
+    const idx = current.findIndex(m => m.id === id);
+    if (idx === -1) return of(null);
+
+    const actualizado: Mantenimiento = { ...current[idx], ...patch };
+    const next = [...current];
+    next[idx] = actualizado;
+    this.mantenimientosSubject.next(next);
+    return of(actualizado).pipe(delay(250));
+  }
+
   cancelarAsignacion(id: number): Observable<Mantenimiento | null> {
     const current = this.mantenimientosSubject.value;
     const idx = current.findIndex(m => m.id === id);

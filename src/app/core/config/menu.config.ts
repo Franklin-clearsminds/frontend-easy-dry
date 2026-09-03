@@ -15,9 +15,17 @@ export interface MenuItem {
  * Configuración declarativa del menú de navegación EasyDry®
  * Cada ítem está vinculado a un código de módulo del sistema.
  */
+/**
+ * Configuración declarativa del menú de navegación EasyDry®
+ * Organizado en los 4 grupos oficiales del sistema:
+ * - Operación
+ * - Administración
+ * - Reportes
+ * - Configuración
+ */
 export const MENU_CONFIG: MenuItem[] = [
 
-  // ─── Panel Principal ───────────────────────────────────────────
+  // ─── 1. PANEL PRINCIPAL ────────────────────────────────────────
   {
     label: 'Dashboard',
     route: '/dashboard',
@@ -26,125 +34,87 @@ export const MENU_CONFIG: MenuItem[] = [
     group: 'Panel Principal'
   },
   {
-    label: 'Mapa Operativo Red',
-    route: '/mapa-operativo',
-    icon: 'sliders',
-    moduloCodigo: 'mapa-operativo',
-    group: 'Panel Principal',
-    badge: 'Live',
-    badgeColor: 'bg-easydry-green text-slate-950'
-  },
-  {
     label: 'Notificaciones',
     route: '/notificaciones',
     icon: 'bell',
     moduloCodigo: 'notificaciones',
     group: 'Panel Principal',
-    badge: '3',
+    badge: '!',
     badgeColor: 'bg-rose-500 text-white'
   },
 
-  // ─── Operación & Sucursales ────────────────────────────────────
+  // ─── 2. OPERACIÓN & SUCURSALES ─────────────────────────────────
   {
-    label: 'Control de Sucursales',
+    label: 'Sucursales & Mapa Red',
     route: '/sucursales',
     icon: 'building-2',
     moduloCodigo: 'sucursales',
-    group: 'Operación & Sucursales',
-    badge: '4'
+    group: 'Operación & Sucursales'
   },
   {
-    label: 'Operadores de Bahía',
+    label: 'Gestión de Operadores',
     route: '/operadores',
     icon: 'user-check',
     moduloCodigo: 'operadores',
     group: 'Operación & Sucursales'
   },
   {
-    label: 'Asignaciones de Bahía',
-    route: '/asignaciones',
-    icon: 'check-circle-2',
-    moduloCodigo: 'asignaciones',
+    label: 'Mi Bahía',
+    route: '/mi-bahia',
+    icon: 'map-pin',
+    moduloCodigo: 'mi-bahia',
     group: 'Operación & Sucursales'
   },
 
-  // ─── Servicios de Lavado ───────────────────────────────────────
-  {
-    label: 'Catálogo de Servicios',
-    route: '/configuracion/servicios',
-    icon: 'file-text',
-    moduloCodigo: 'configuracion/servicios',
-    group: 'Servicios de Lavado'
-  },
+  // ─── 3. SERVICIOS DE LAVADO ────────────────────────────────────
   {
     label: 'Servicios de Lavado',
     route: '/servicios',
     icon: 'car',
     moduloCodigo: 'servicios',
-    group: 'Servicios de Lavado',
-    badge: 'Hoy'
+    group: 'Servicios de Lavado'
   },
   {
     label: 'Aprobaciones del Día',
     route: '/aprobaciones',
     icon: 'shield-check',
     moduloCodigo: 'aprobaciones',
-    group: 'Servicios de Lavado',
-    badge: 'Gerencia',
-    badgeColor: 'bg-easydry-green text-slate-950'
+    group: 'Servicios de Lavado'
   },
   {
     label: 'Productividad & Reto',
     route: '/productividad',
     icon: 'trophy',
     moduloCodigo: 'productividad',
-    group: 'Servicios de Lavado',
-    badge: 'Reto',
-    badgeColor: 'bg-amber-400 text-slate-950'
-  },
-  {
-    label: 'Mi Bahía',
-    route: '/mi-bahia',
-    icon: 'map-pin',
-    moduloCodigo: 'mi-bahia',
     group: 'Servicios de Lavado'
   },
 
-  // ─── Activos & Técnico ─────────────────────────────────────────
+  // ─── 4. ACTIVOS & TALLER ───────────────────────────────────────
   {
     label: 'Maquinaria & Equipos',
     route: '/maquinaria',
     icon: 'hard-drive',
     moduloCodigo: 'maquinaria',
-    group: 'Gestión de Activos'
+    group: 'Activos & Taller'
   },
   {
-    label: 'Taller y Reportes',
+    label: 'Taller Técnico',
     route: '/taller-tecnico',
     icon: 'wrench',
     moduloCodigo: 'taller-tecnico',
-    group: 'Gestión de Activos',
-    badge: '2',
+    group: 'Activos & Taller',
+    badge: '!',
     badgeColor: 'bg-rose-500 text-white'
   },
   {
-    label: 'Inventario de Insumos',
+    label: 'Inventario & Suministros',
     route: '/inventario',
     icon: 'boxes',
     moduloCodigo: 'inventario',
-    group: 'Gestión de Activos',
-    badge: 'Stock',
-    badgeColor: 'bg-easydry-blue/15 text-easydry-blue'
+    group: 'Activos & Taller'
   },
 
-  // ─── Administración ────────────────────────────────────────────
-  {
-    label: 'Reportes Operativos',
-    route: '/reportes',
-    icon: 'file-bar-chart',
-    moduloCodigo: 'reportes',
-    group: 'Administración'
-  },
+  // ─── 5. ADMINISTRACIÓN ─────────────────────────────────────────
   {
     label: 'Usuarios y Roles',
     route: '/usuarios',
@@ -153,10 +123,17 @@ export const MENU_CONFIG: MenuItem[] = [
     group: 'Administración'
   },
   {
-    label: 'Configuración',
-    route: '/configuracion',
-    icon: 'settings',
-    moduloCodigo: 'configuracion',
+    label: 'Catálogo de Servicios',
+    route: '/configuracion/servicios',
+    icon: 'file-text',
+    moduloCodigo: 'configuracion/servicios',
     group: 'Administración'
-  }
+  },
+  {
+    label: 'Reportes Operativos',
+    route: '/reportes',
+    icon: 'file-bar-chart',
+    moduloCodigo: 'reportes',
+    group: 'Administración'
+  },
 ];

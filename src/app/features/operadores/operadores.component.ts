@@ -21,8 +21,13 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
       <!-- Header -->
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-100 shadow-easydry">
         <div>
-          <h1 class="text-2xl font-extrabold text-slate-900 font-outfit">Directorio de Operadores de Bahía</h1>
-          <p class="text-slate-500 text-xs mt-1">Control del personal técnico asignado a bahías de lavado, trazabilidad de sucursales e historial de movimientos.</p>
+          <div class="flex items-center gap-2.5">
+            <span class="p-2 rounded-xl bg-easydry-blue/10 text-easydry-blue">
+              <i-lucide name="user-check" class="w-5 h-5"></i-lucide>
+            </span>
+            <h1 class="text-2xl font-extrabold text-slate-900 font-outfit">Gestión Unificada de Operadores</h1>
+          </div>
+          <p class="text-slate-500 text-xs mt-1">Directorio de personal técnico, asignación y cambio de bahías, productividad y trazabilidad histórica.</p>
         </div>
       </div>
 
@@ -37,7 +42,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
         (filterChange)="aplicarNuevosFiltros($event)">
       </app-filter-bar>
 
-      <!-- Filters Bar -->
+      <!-- Search and Counter Toolbar -->
       <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-xs flex flex-wrap items-center justify-between gap-4 mb-4">
         
         <div class="flex flex-wrap items-center gap-3 flex-1 min-w-[280px]">
@@ -49,78 +54,129 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
               type="text" 
               [(ngModel)]="filtroTexto" 
               (input)="aplicarFiltros()"
-              placeholder="Buscar por nombre o cédula..." 
-              class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold">
+              placeholder="Buscar por nombre, cédula o agencia..." 
+              class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-easydry-blue">
           </div>
         </div>
 
-        <div class="text-xs font-semibold text-slate-500">
+        <div class="text-xs font-bold text-slate-500">
           Operadores: <strong class="text-easydry-blue">{{ operadoresFiltrados.length }} Técnicos</strong>
         </div>
 
       </div>
 
-      <!-- Operadores Table -->
+      <!-- Loader / Skeleton mientras cargan los datos -->
+      @if (cargando) {
+        <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry p-10 flex flex-col items-center justify-center gap-3">
+          <div class="w-10 h-10 border-4 border-easydry-blue border-t-transparent rounded-full animate-spin"></div>
+          <p class="text-xs font-bold text-slate-500">Cargando operadores...</p>
+        </div>
+      }
+
+      <!-- Operadores Table (Punto 4) -->
       <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry overflow-hidden">
         <div class="overflow-x-auto">
-          <table class="w-full text-left text-sm">
-            <thead class="bg-slate-50 text-slate-500 text-xs font-bold uppercase tracking-wider border-b border-slate-200">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-slate-50 text-slate-500 text-[10px] font-extrabold uppercase tracking-wider border-b border-slate-200">
               <tr>
                 <th class="py-3.5 px-4">Operador</th>
-                <th class="py-3.5 px-4">Cédula</th>
-                <th class="py-3.5 px-4">Sucursal Asignada</th>
-                <th class="py-3.5 px-4">Bahía Actual</th>
-                <th class="py-3.5 px-4">Fecha Asignación</th>
-                <th class="py-3.5 px-4">Productividad</th>
+                <th class="py-3.5 px-4">Rol</th>
                 <th class="py-3.5 px-4">Estado</th>
-                <th class="py-3.5 px-4 text-right">Acción</th>
+                <th class="py-3.5 px-4">Agencia Asignada</th>
+                <th class="py-3.5 px-4">Bahía Asignada</th>
+                <th class="py-3.5 px-4">Productividad</th>
+                <th class="py-3.5 px-4 text-right">Acciones</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-slate-100">
+            <tbody class="divide-y divide-slate-100 font-medium">
               @for (op of paginatedOperadores; track op.id) {
                 <tr class="hover:bg-slate-50/80 transition-colors">
+                  <!-- Operador -->
                   <td class="py-3.5 px-4">
                     <div class="flex items-center gap-3">
-                      <img [src]="op.avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80'" alt="Avatar" class="w-9 h-9 rounded-full object-cover border-2 border-easydry-green">
+                      <img 
+                        [src]="op.avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80'" 
+                        (error)="onAvatarError($event)"
+                        alt="Avatar" 
+                        class="w-9 h-9 rounded-full object-cover border-2 border-easydry-green shrink-0">
                       <div>
                         <p class="font-bold text-slate-900 text-xs">{{ op.nombre }}</p>
-                        <p class="text-[10px] text-easydry-blue font-semibold">{{ op.rol }}</p>
+                        <p class="text-[10px] text-slate-400 font-mono">CI: {{ op.cedula }}</p>
                       </div>
                     </div>
                   </td>
-                  <td class="py-3.5 px-4 font-mono text-xs text-slate-600">
-                    {{ op.cedula }}
+
+                  <!-- Rol -->
+                  <td class="py-3.5 px-4 font-semibold text-slate-700 text-xs">
+                    {{ op.rol }}
                   </td>
-                  <td class="py-3.5 px-4 text-xs font-bold text-slate-800">
-                    {{ op.sucursal }}
-                  </td>
-                  <td class="py-3.5 px-4">
-                    <span class="px-2.5 py-1 rounded-lg bg-easydry-blue/10 text-easydry-blue font-bold text-xs">
-                      {{ op.bahia }}
-                    </span>
-                  </td>
-                  <td class="py-3.5 px-4 text-xs font-mono text-slate-500">
-                    {{ op.fechaAsignacion }}
-                  </td>
-                  <td class="py-3.5 px-4">
-                    <div class="text-xs">
-                      <span class="font-extrabold text-easydry-green-dark">{{ op.vehiculosAtendidos }} Vehículos</span>
-                      <p class="text-[10px] text-slate-400">Prom: {{ op.promedioDiario }}/día</p>
-                    </div>
-                  </td>
+
+                  <!-- Estado -->
                   <td class="py-3.5 px-4">
                     <span 
-                      class="px-2.5 py-1 rounded-full text-xs font-bold"
-                      [ngClass]="op.estado === 'Activo' ? 'bg-easydry-green/20 text-easydry-green-dark' : 'bg-slate-200 text-slate-700'">
+                      class="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold"
+                      [ngClass]="op.estado === 'Activo' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-slate-100 text-slate-700 border border-slate-200'">
                       {{ op.estado }}
                     </span>
                   </td>
+
+                  <!-- Agencia Asignada -->
+                  <td class="py-3.5 px-4 text-xs font-bold text-slate-800">
+                    {{ op.sucursal }}
+                  </td>
+
+                  <!-- Bahía Asignada -->
+                  <td class="py-3.5 px-4">
+                    @if (op.bahia && !op.bahia.includes('Sin')) {
+                      <span class="px-2.5 py-1 rounded-lg bg-easydry-blue/10 text-easydry-blue font-bold text-xs inline-flex items-center gap-1">
+                        <i-lucide name="layout-grid" class="w-3 h-3"></i-lucide>
+                        {{ op.bahia }}
+                      </span>
+                    } @else {
+                      <span class="text-slate-400 italic text-[11px]">Disponible</span>
+                    }
+                  </td>
+
+                  <!-- Productividad -->
+                  <td class="py-3.5 px-4">
+                    <div class="text-xs">
+                      <span class="font-extrabold text-easydry-green-dark">{{ op.vehiculosAtendidos }} Autos</span>
+                      <p class="text-[10px] text-slate-400">Prom: {{ op.promedioDiario }}/día · Ranking #{{ op.ranking }}</p>
+                    </div>
+                  </td>
+
+                  <!-- Acciones (Punto 4: Asignar, Cambiar, Desactivar, Ver Productividad) -->
                   <td class="py-3.5 px-4 text-right">
-                    <button 
-                      (click)="verFichaOperador(op)" 
-                      class="px-3 py-1.5 bg-slate-100 hover:bg-easydry-blue hover:text-white text-slate-700 font-bold rounded-lg text-xs transition-colors">
-                      Ver Historial & Ficha
-                    </button>
+                    <div class="flex items-center justify-end gap-1.5">
+                      <!-- Asignar o Cambiar Bahía -->
+                      <button 
+                        type="button"
+                        (click)="abrirModalAsignar(op)" 
+                        [title]="op.bahia && !op.bahia.includes('Sin') ? 'Cambiar bahía' : 'Asignar a bahía'"
+                        class="p-1.5 bg-easydry-blue/10 hover:bg-easydry-blue hover:text-white text-easydry-blue rounded-lg transition-colors cursor-pointer flex items-center justify-center">
+                        <i-lucide name="refresh-cw" class="w-3.5 h-3.5"></i-lucide>
+                      </button>
+
+                      <!-- Desactivar Asignación -->
+                      @if (op.bahia && !op.bahia.includes('Sin')) {
+                        <button 
+                          type="button"
+                          (click)="desactivarAsignacion(op)" 
+                          title="Desactivar asignación de bahía"
+                          class="p-1.5 bg-rose-50 hover:bg-rose-600 hover:text-white text-rose-600 font-bold rounded-lg text-xs transition-colors cursor-pointer flex items-center justify-center">
+                          <i-lucide name="user-x" class="w-3.5 h-3.5"></i-lucide>
+                        </button>
+                      }
+
+                      <!-- Ver Productividad & Ficha -->
+                      <button 
+                        type="button"
+                        (click)="verFichaOperador(op)" 
+                        title="Ver productividad y ficha técnica"
+                        class="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-xs transition-colors cursor-pointer flex items-center justify-center">
+                        <i-lucide name="bar-chart-2" class="w-3.5 h-3.5"></i-lucide>
+                      </button>
+                    </div>
                   </td>
                 </tr>
               }
@@ -137,11 +193,73 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
         </app-pagination>
       </div>
 
-      <!-- Modal Ficha de Operador -->
+      <!-- Modal Asignar / Cambiar Bahía (Punto 4) -->
+      <app-modal
+        [isOpen]="modalAsignarBahiaOpen"
+        [title]="'Asignar / Cambiar Bahía: ' + (operadorSeleccionado?.nombre || '')"
+        icon="layout-grid"
+        (close)="modalAsignarBahiaOpen = false">
+        @if (operadorSeleccionado) {
+          <div class="space-y-4">
+            <div class="p-3 bg-blue-50 rounded-xl border border-blue-200 text-blue-900 text-xs">
+              Ubicación actual del operador: <strong>{{ operadorSeleccionado.sucursal }}</strong> — <strong>{{ operadorSeleccionado.bahia }}</strong>
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Sucursal / Agencia</label>
+              <select
+                [(ngModel)]="formAsignarBahia.sucursalNombre"
+                (change)="onSucursalChange()"
+                class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800">
+                @for (s of sucursales; track s.id) {
+                  <option [value]="s.nombre">{{ s.nombre }} ({{ s.ciudad }})</option>
+                }
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Bahía de Destino</label>
+              <select
+                [(ngModel)]="formAsignarBahia.bahiaNombre"
+                class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800">
+                @for (b of listaBahiasDisponibles; track b) {
+                  <option [value]="b">{{ b }}</option>
+                }
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Motivo del Movimiento / Reasignación</label>
+              <input
+                type="text"
+                [(ngModel)]="formAsignarBahia.motivo"
+                placeholder="Ej. Cobertura por alta demanda, rotación periódica..."
+                class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800">
+            </div>
+          </div>
+        }
+
+        <div modal-footer class="flex items-center justify-end gap-2 w-full">
+          <button
+            type="button"
+            (click)="modalAsignarBahiaOpen = false"
+            class="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer">
+            Cancelar
+          </button>
+          <button
+            type="button"
+            (click)="guardarAsignacionBahia()"
+            class="px-4 py-2 rounded-xl text-xs font-bold bg-easydry-blue hover:bg-easydry-blue-dark text-white transition-colors cursor-pointer">
+            Confirmar Asignación
+          </button>
+        </div>
+      </app-modal>
+
+      <!-- Modal Ficha de Operador & Productividad -->
       <app-modal 
         [isOpen]="modalFichaOpen" 
-        [title]="'Ficha de Operador: ' + (operadorSeleccionado?.nombre || '')" 
-        icon="users"
+        [title]="'Ficha de Operador & Productividad: ' + (operadorSeleccionado?.nombre || '')" 
+        icon="trophy"
         (close)="modalFichaOpen = false">
         
         @if (operadorSeleccionado) {
@@ -236,15 +354,26 @@ export class OperadoresComponent implements OnInit {
   pageSize = 5;
 
   modalFichaOpen = false;
+  modalAsignarBahiaOpen = false;
+  cargando = true;
+  formAsignarBahia = {
+    operadorId: 0,
+    sucursalNombre: '',
+    bahiaNombre: '',
+    motivo: ''
+  };
+  listaBahiasDisponibles: string[] = ['Bahía 1 (Lavado Ecológico)', 'Bahía 2 (Lavado y Encerado)', 'Bahía 3 (Pulido Especial)', 'Bahía 4 (Secado y Acabado)', 'Bahía 5 (Móvil / Especiales)'];
 
   private operadorService = inject(OperadorMockService);
   private sucursalService = inject(SucursalMockService);
+  private toastService = inject(ToastService);
   public authService = inject(AuthService);
 
   ngOnInit(): void {
     const user = this.authService.getCurrentUser();
     this.operadorService.getOperadores().subscribe(list => {
       this.operadores = list;
+      this.cargando = false;
     });
 
     this.sucursalService.getSucursales().subscribe(list => {
@@ -252,57 +381,124 @@ export class OperadoresComponent implements OnInit {
     });
   }
 
-  get isSuperAdmin() {
-    return this.authService.isAdmin();
+  get isSuperAdmin(): boolean {
+    return this.authService.isSuperAdmin() || this.authService.hasRole('ADMIN');
   }
 
-  get userSucursal() {
-    return this.authService.getCurrentUser()?.sucursalNombre;
+  get isGerente(): boolean {
+    return this.authService.isGerente();
   }
 
-  get operadoresFiltrados() {
+  get userSucursal(): string | undefined {
+    return this.authService.getCurrentUser()?.sucursalNombre || this.authService.getCurrentUser()?.sucursal;
+  }
+
+  get operadoresFiltrados(): Operador[] {
     let resultados = this.operadores.filter(op => {
-      // ── Scope por Rol ──
+      // ── Scope estricto por Rol (SuperAdmin ve todo, Gerente solo ve su agencia) ──
       let matchScope = true;
-      if (!this.isSuperAdmin && this.userSucursal) {
-        matchScope = op.sucursal === this.userSucursal;
+      if (this.isGerente && this.userSucursal) {
+        matchScope = (op.sucursal || '').toLowerCase().includes(this.userSucursal.toLowerCase()) ||
+                     this.userSucursal.toLowerCase().includes((op.sucursal || '').toLowerCase());
+      } else if (!this.isSuperAdmin && this.userSucursal) {
+        matchScope = (op.sucursal || '').toLowerCase() === this.userSucursal.toLowerCase();
       }
       
-      const term = this.filtroTexto.toLowerCase();
-      const matchTexto = op.nombre.toLowerCase().includes(term) || op.cedula.toLowerCase().includes(term);
+      const term = (this.filtroTexto || '').trim().toLowerCase();
+      const matchTexto = !term ||
+                         (op.nombre || '').toLowerCase().includes(term) ||
+                         (op.cedula || '').toLowerCase().includes(term) ||
+                         (op.sucursal || '').toLowerCase().includes(term);
 
       return matchScope && matchTexto;
     });
 
-    if (this.filtrosGlobales.estado !== 'Todos') {
+    if (this.filtrosGlobales.estado && this.filtrosGlobales.estado !== 'Todos') {
       resultados = resultados.filter(op => op.estado === this.filtrosGlobales.estado);
     }
-    if (this.filtrosGlobales.sucursal !== 'Todas') {
-      resultados = resultados.filter(op => op.sucursal === this.filtrosGlobales.sucursal);
+    if (this.filtrosGlobales.sucursal && this.filtrosGlobales.sucursal !== 'Todas') {
+      const suc = this.filtrosGlobales.sucursal.toLowerCase();
+      resultados = resultados.filter(op => (op.sucursal || '').toLowerCase().includes(suc) || suc.includes((op.sucursal || '').toLowerCase()));
     }
-    if (this.filtrosGlobales.bahia !== 'Todas') {
-      resultados = resultados.filter(op => op.bahia === this.filtrosGlobales.bahia);
+    if (this.filtrosGlobales.bahia && this.filtrosGlobales.bahia !== 'Todas') {
+      const bah = this.filtrosGlobales.bahia.toLowerCase();
+      resultados = resultados.filter(op => (op.bahia || '').toLowerCase().includes(bah) || bah.includes((op.bahia || '').toLowerCase()));
     }
 
     return resultados;
   }
 
-  get paginatedOperadores() {
+  onAvatarError(event: Event): void {
+    const img = event.target as HTMLImageElement;
+    if (img) {
+      img.src = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80';
+    }
+  }
+
+  get paginatedOperadores(): Operador[] {
     const start = (this.currentPage - 1) * this.pageSize;
     const end = start + this.pageSize;
     return this.operadoresFiltrados.slice(start, end);
   }
 
-  onPageChange(page: number) {
+  onPageChange(page: number): void {
     this.currentPage = page;
   }
 
-  onPageSizeChange(size: number) {
+  onPageSizeChange(size: number): void {
     this.pageSize = size;
-    this.currentPage = 1; // Reset to first page
+    this.currentPage = 1;
   }
 
-  verFichaOperador(op: Operador) {
+  abrirModalAsignar(op: Operador): void {
+    this.operadorSeleccionado = op;
+    this.formAsignarBahia = {
+      operadorId: op.id,
+      sucursalNombre: op.sucursal || (this.sucursales[0]?.nombre || 'EasyDry Quito Norte'),
+      bahiaNombre: op.bahia && !op.bahia.includes('Sin') ? op.bahia : this.listaBahiasDisponibles[0],
+      motivo: ''
+    };
+    this.onSucursalChange();
+    this.modalAsignarBahiaOpen = true;
+  }
+
+  onSucursalChange(): void {
+    const suc = this.sucursales.find(s => s.nombre === this.formAsignarBahia.sucursalNombre);
+    const cant = suc?.cantidadBahias || 4;
+    this.listaBahiasDisponibles = Array.from({ length: cant }, (_, i) => `Bahía ${i + 1} (${this.formAsignarBahia.sucursalNombre})`);
+    if (!this.listaBahiasDisponibles.includes(this.formAsignarBahia.bahiaNombre)) {
+      this.formAsignarBahia.bahiaNombre = this.listaBahiasDisponibles[0];
+    }
+  }
+
+  guardarAsignacionBahia(): void {
+    if (!this.operadorSeleccionado) return;
+
+    const op = this.operadorSeleccionado;
+    op.sucursal = this.formAsignarBahia.sucursalNombre;
+    op.bahia = this.formAsignarBahia.bahiaNombre;
+    op.fechaAsignacion = new Date().toISOString().split('T')[0];
+
+    this.operadorService.actualizarOperador(op).subscribe();
+
+    this.modalAsignarBahiaOpen = false;
+    this.toastService.success(
+      'Asignación Confirmada',
+      `Operador ${op.nombre} asignado a ${op.bahia} (${op.sucursal}).`
+    );
+  }
+
+  desactivarAsignacion(op: Operador): void {
+    const anteriorBahia = op.bahia;
+    op.bahia = 'Sin Bahía Asignada';
+    this.operadorService.actualizarOperador(op).subscribe();
+    this.toastService.warning(
+      'Asignación Desactivada',
+      `Se desvinculó a ${op.nombre} de ${anteriorBahia}. Operador ahora disponible.`
+    );
+  }
+
+  verFichaOperador(op: Operador): void {
     this.operadorSeleccionado = op;
     this.operadorService.getHistorialPorOperador(op.id).subscribe(h => {
       this.historialOperador = h;

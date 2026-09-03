@@ -38,20 +38,6 @@ import { LucideAngularModule } from 'lucide-angular';
           <i-lucide [name]="icon" class="w-6 h-6"></i-lucide>
         </div>
       </div>
-
-      <!-- Trend / Subtitle -->
-      <div class="mt-4 flex items-center justify-between pt-3 border-t border-slate-100 text-xs">
-        @if (trend) {
-          <div class="flex items-center gap-1 font-bold"
-            [ngClass]="trendPositive ? 'text-easydry-green-dark' : 'text-rose-600'">
-            <i-lucide [name]="trendPositive ? 'trending-up' : 'alert-triangle'" class="w-3.5 h-3.5"></i-lucide>
-            <span>{{ trend }}</span>
-          </div>
-        }
-        
-        <span class="text-slate-400 font-medium truncate">{{ subtitle }}</span>
-      </div>
-
     </div>
   `
 })

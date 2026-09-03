@@ -18,7 +18,7 @@ import { AuthService } from '../../core/services/auth.service';
   standalone: true,
   imports: [CommonModule, RouterModule, LucideAngularModule, StatCardComponent, ModalComponent, FormsModule],
   template: `
-    <div class="space-y-8 animate-fade-in">
+    <div class="space-y-6 animate-fade-in">
       
       <!-- Back Link & Header -->
       <div>
@@ -403,3 +403,4 @@ export class SucursalDetailComponent implements OnInit {
     });
   }
 }
+

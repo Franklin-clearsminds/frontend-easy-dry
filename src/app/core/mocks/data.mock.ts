@@ -1,4 +1,18 @@
-import { Agencia, VehiculoServicio, Maquinaria, Mantenimiento, Incidente, Usuario, Reporte } from '../models';
+import { Agencia, VehiculoServicio, Maquinaria, Mantenimiento, Incidente, Usuario, Reporte, ArchivoAdjunto } from '../models';
+
+const DEMO_EVIDENCIAS_MANTENIMIENTO = {
+  fotos: [
+    'https://images.unsplash.com/photo-1581092918056-0c4c3acd3789?w=800&auto=format&fit=crop&q=80',
+    'https://images.unsplash.com/photo-1504917599217-d4dc5ebe6122?w=800&auto=format&fit=crop&q=80',
+  ],
+  videos: [
+    'https://assets.mixkit.co/videos/preview/mixkit-circuit-board-details-close-up-42289-large.mp4',
+  ],
+  documentos: [
+    { id: 'doc-m-1', nombre: 'informe_mantenimiento.pdf', tipo: 'documento' as const, extension: 'PDF', url: '#', tamanio: '1.4 MB', fechaSubida: '2026-07-12' },
+    { id: 'doc-m-2', nombre: 'factura_repuestos.pdf', tipo: 'documento' as const, extension: 'PDF', url: '#', tamanio: '890 KB', fechaSubida: '2026-07-12' },
+  ] satisfies ArchivoAdjunto[],
+};
 
 export const MOCK_AGENCIAS: Agencia[] = [
   {
@@ -159,6 +173,28 @@ export const MOCK_USUARIOS: Usuario[] = [
     email: 'operador.pulido.norte@easydry.com',
     avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150&auto=format&fit=crop&q=80',
     modalidadPulidor: 'FIJO'
+  },
+  {
+    id: 12,
+    nombre: 'Carlos',
+    apellido: 'Mendoza',
+    rol: 'Gerente de Sucursal',
+    agencia: 'EasyDry Quito Norte',
+    estado: 'Activo',
+    fechaAsignacion: '2024-02-01',
+    email: 'gerente.norte@easydry.com',
+    avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80'
+  },
+  {
+    id: 13,
+    nombre: 'Diana',
+    apellido: 'Salazar',
+    rol: 'Gerente de Sucursal',
+    agencia: 'EasyDry Guayaquil (Costa)',
+    estado: 'Activo',
+    fechaAsignacion: '2024-02-15',
+    email: 'diana.gerente@easydry.com',
+    avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&auto=format&fit=crop&q=80'
   },
   {
     id: 10,
@@ -473,17 +509,37 @@ export const MOCK_MANTENIMIENTOS: Mantenimiento[] = [
     descripcion: 'Mantenimiento delegado al técnico de campo.',
     agencia: 'EasyDry Quito Norte'
   },
-  ...Array.from({ length: 45 }).map((_, i) => ({
-    id: i + 2,
-    maquina: `Máquina HD-${String((i % 10) + 1).padStart(3, '0')}`,
-    tipo: i % 3 === 0 ? 'Correctivo' : 'Preventivo',
-    fecha: `2026-07-${String(Math.floor(Math.random() * 28) + 1).padStart(2, '0')}`,
-    tecnico: i % 2 === 0 ? 'Esteban Torres (Técnico)' : 'Pedro Martínez (Técnico)',
-    estado: i % 4 === 0 ? 'Programado' : (i % 5 === 0 ? 'En Proceso' : 'Completado'),
-    costo: Math.floor(Math.random() * 200) + 50,
-    descripcion: `Revisión y mantenimiento de componentes rutinarios (Orden #${202600 + i}).`,
-    agencia: i % 2 === 0 ? 'EasyDry Quito Norte' : 'EasyDry Quito Sur'
-  }))
+  ...Array.from({ length: 45 }).map((_, i) => {
+    const estado = i % 4 === 0 ? 'Programado' : (i % 5 === 0 ? 'En Proceso' : 'Completado');
+    const fecha = `2026-07-${String(Math.floor(Math.random() * 28) + 1).padStart(2, '0')}`;
+    const base: Mantenimiento = {
+      id: i + 2,
+      maquina: `Máquina HD-${String((i % 10) + 1).padStart(3, '0')}`,
+      tipo: i % 3 === 0 ? 'Correctivo' : 'Preventivo',
+      fecha,
+      tecnico: i % 2 === 0 ? 'Esteban Torres (Técnico)' : 'Pedro Martínez (Técnico)',
+      estado,
+      costo: Math.floor(Math.random() * 200) + 50,
+      descripcion: `Revisión y mantenimiento de componentes rutinarios (Orden #${202600 + i}).`,
+      agencia: i % 2 === 0 ? 'EasyDry Quito Norte' : 'EasyDry Quito Sur'
+    };
+    if (estado === 'Completado') {
+      const dia = Math.min(parseInt(fecha.split('-')[2], 10) + 1, 28);
+      const fechaFin = `2026-07-${String(dia).padStart(2, '0')}`;
+      return {
+        ...base,
+        observacionCierre: `Se ejecutó ${base.tipo.toLowerCase()} completo: lubricación de componentes, cambio de filtros, ajuste de presión y prueba operativa. Equipo en condiciones óptimas.`,
+        fechaFin,
+        horaFin: '15:45',
+        fechaCierre: fechaFin,
+        cerradoPor: base.tecnico,
+        fotos: [...DEMO_EVIDENCIAS_MANTENIMIENTO.fotos],
+        videos: [...DEMO_EVIDENCIAS_MANTENIMIENTO.videos],
+        documentos: DEMO_EVIDENCIAS_MANTENIMIENTO.documentos.map(d => ({ ...d, id: `${d.id}-${i}` })),
+      };
+    }
+    return base;
+  })
 ];
 
 export const MOCK_INCIDENTES: Incidente[] = [

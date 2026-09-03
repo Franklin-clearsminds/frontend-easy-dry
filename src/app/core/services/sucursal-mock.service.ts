@@ -57,7 +57,7 @@ export class SucursalMockService {
   }
 
   getSucursales(): Observable<Sucursal[]> {
-    return this.sucursales$.pipe(delay(200));
+    return this.sucursales$;
   }
 
   getSucursalById(id: number): Observable<Sucursal | undefined> {

@@ -9,7 +9,7 @@ export const environment: AppEnvironment = {
   environmentName: "test",
   cognito: {
     region: "us-east-2",
-    userPoolId: "us-east-2_TEST_POOL_ID",
-    clientId: "tu_test_client_id"
+    userPoolId: "",
+    clientId: ""
   }
 };

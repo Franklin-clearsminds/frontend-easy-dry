@@ -71,4 +71,14 @@ export class OperadorMockService {
 
     return of(null);
   }
+
+  actualizarOperador(op: Operador): Observable<Operador> {
+    const current = this.operadoresSubject.value;
+    const idx = current.findIndex(o => o.id === op.id);
+    if (idx !== -1) {
+      current[idx] = { ...op };
+      this.operadoresSubject.next([...current]);
+    }
+    return of(op).pipe(delay(200));
+  }
 }
