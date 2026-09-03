@@ -40,24 +40,18 @@
     <button
       (click)="tabActiva = 'generales'"
       [ngClass]="tabActiva === 'generales' ? 'bg-white text-easydry-blue shadow-md font-extrabold' : 'text-slate-600 hover:text-slate-900 font-semibold'"
-      class="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs transition-all">
+      class="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs transition-all cursor-pointer">
       <i-lucide name="droplet" class="w-4 h-4 text-easydry-blue"></i-lucide>
       <span>Servicios Generales</span>
-      <span class="bg-blue-100 text-blue-800 text-[10px] font-extrabold px-2 py-0.5 rounded-full">
-        {{ serviciosGenerales.length }}
-      </span>
     </button>
 
     <!-- Pestaña 2: Servicios Especiales -->
     <button
       (click)="tabActiva = 'especiales'"
       [ngClass]="tabActiva === 'especiales' ? 'bg-white text-amber-700 shadow-md font-extrabold' : 'text-slate-600 hover:text-slate-900 font-semibold'"
-      class="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs transition-all">
+      class="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs transition-all cursor-pointer">
       <i-lucide name="star" class="w-4 h-4 text-amber-500 fill-amber-500/20"></i-lucide>
       <span>Servicios Especiales</span>
-      <span class="bg-amber-100 text-amber-800 text-[10px] font-extrabold px-2 py-0.5 rounded-full">
-        {{ serviciosEspeciales.length }}
-      </span>
     </button>
 
   </div>

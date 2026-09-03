@@ -213,9 +213,8 @@ import { DataTableComponent, TableColumn, TableAction } from '../../shared/compo
           <div class="space-y-4">
             <div class="grid grid-cols-2 gap-3 text-xs">
               <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                <span class="block text-[10px] text-slate-400 font-bold uppercase mb-1">Orden / OT</span>
+                <span class="block text-[10px] text-slate-400 font-bold uppercase mb-1">Nº OT</span>
                 <span class="font-mono font-extrabold text-easydry-blue">{{ servicioDetalleSeleccionado.ordenTrabajoOT }}</span>
-                <span class="block text-[10px] text-slate-500 mt-0.5">{{ servicioDetalleSeleccionado.numeroOrden }}</span>
               </div>
               <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
                 <span class="block text-[10px] text-slate-400 font-bold uppercase mb-1">Vehículo</span>

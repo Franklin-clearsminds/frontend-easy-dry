@@ -78,9 +78,6 @@ import { resolverRangoFechas, soloFecha } from '../../core/utils/fecha-rango';
           class="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs transition-all cursor-pointer">
           <i-lucide name="droplet" class="w-4 h-4 text-easydry-blue"></i-lucide>
           <span>Servicios Generales</span>
-          <span class="bg-blue-100 text-blue-800 text-[10px] font-extrabold px-2 py-0.5 rounded-full">
-            {{ countServiciosGenerales }}
-          </span>
         </button>
 
         <!-- Pestaña 2: Servicios Especiales -->
@@ -90,9 +87,6 @@ import { resolverRangoFechas, soloFecha } from '../../core/utils/fecha-rango';
           class="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs transition-all cursor-pointer">
           <i-lucide name="star" class="w-4 h-4 text-amber-500 fill-amber-500/20"></i-lucide>
           <span>Servicios Especiales</span>
-          <span class="bg-amber-100 text-amber-800 text-[10px] font-extrabold px-2 py-0.5 rounded-full">
-            {{ countServiciosEspeciales }}
-          </span>
         </button>
 
       </div>
@@ -159,7 +153,7 @@ import { resolverRangoFechas, soloFecha } from '../../core/utils/fecha-rango';
           <table class="w-full text-left text-sm">
             <thead class="bg-slate-50 text-slate-500 text-xs font-bold uppercase tracking-wider border-b border-slate-200">
               <tr>
-                <th class="py-3.5 px-4">Orden & OT</th>
+                <th class="py-3.5 px-4">Nº OT</th>
                 <th class="py-3.5 px-4">Vehículo</th>
                 <th class="py-3.5 px-4">Categoría & Servicio</th>
                 <th class="py-3.5 px-4">Sucursal / Bahía</th>
@@ -177,7 +171,6 @@ import { resolverRangoFechas, soloFecha } from '../../core/utils/fecha-rango';
                     <span class="font-mono font-extrabold text-xs text-easydry-blue bg-easydry-blue/10 px-2.5 py-1 rounded-lg block w-fit">
                       {{ item.ordenTrabajoOT || 'OT-9800' }}
                     </span>
-                    <span class="text-[10px] text-slate-400 font-mono block mt-0.5">{{ item.numeroOrden || 'ORD-2026' }}</span>
                   </td>
 
                   <td class="py-3.5 px-4">
@@ -333,9 +326,8 @@ import { resolverRangoFechas, soloFecha } from '../../core/utils/fecha-rango';
           <div class="space-y-4">
             <div class="grid grid-cols-2 gap-3 text-xs">
               <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                <span class="block text-[10px] text-slate-400 font-bold uppercase mb-1">Orden / OT</span>
+                <span class="block text-[10px] text-slate-400 font-bold uppercase mb-1">Nº OT</span>
                 <span class="font-mono font-extrabold text-easydry-blue">{{ servicioDetalleSeleccionado.ordenTrabajoOT }}</span>
-                <span class="block text-[10px] text-slate-500 mt-0.5">{{ servicioDetalleSeleccionado.numeroOrden }}</span>
               </div>
               <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
                 <span class="block text-[10px] text-slate-400 font-bold uppercase mb-1">Vehículo</span>
@@ -453,14 +445,10 @@ import { resolverRangoFechas, soloFecha } from '../../core/utils/fecha-rango';
             <span class="font-mono">Fecha: {{ nuevoRegistro.fecha }}</span>
           </div>
 
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div>
-              <label class="block text-[11px] font-bold text-slate-700 uppercase mb-1">Nº Orden</label>
-              <input type="text" [(ngModel)]="nuevoRegistro.numeroOrden" name="numeroOrden" placeholder="ORD-2026-005" class="w-full p-2 border rounded-xl text-xs font-mono" required>
-            </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
               <label class="block text-[11px] font-bold text-slate-700 uppercase mb-1">Nº OT (Orden Trabajo)</label>
-              <input type="text" [(ngModel)]="nuevoRegistro.ordenTrabajoOT" name="ordenTrabajoOT" placeholder="OT-9840" class="w-full p-2 border rounded-xl text-xs font-mono" required>
+              <input type="text" [(ngModel)]="nuevoRegistro.ordenTrabajoOT" name="ordenTrabajoOT" placeholder="OT-9840" class="w-full p-2 border rounded-xl text-xs font-mono font-bold text-easydry-blue" required>
             </div>
             <div>
               <label class="block text-[11px] font-bold text-slate-700 uppercase mb-1">Placa Vehículo</label>

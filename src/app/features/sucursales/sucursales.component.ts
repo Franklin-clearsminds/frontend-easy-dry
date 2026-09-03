@@ -636,7 +636,7 @@ import { CatalogoServiciosMockService } from '../../core/services/catalogo-servi
             <div>
               <div class="flex items-center justify-between mb-1">
                 <label class="block text-xs font-bold text-slate-700 uppercase">Región</label>
-                <button type="button" (click)="mostrarAltaRegion = !mostrarAltaRegion" class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">+ Crear región</button>
+                <button type="button" (click)="mostrarAltaRegion = !mostrarAltaRegion" class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">Crear región</button>
               </div>
               <select [(ngModel)]="nuevaSucursal.regionId" name="regionId" class="w-full p-2.5 border rounded-xl text-sm font-semibold" required>
                 <option [ngValue]="0">Seleccione región</option>
@@ -654,7 +654,7 @@ import { CatalogoServiciosMockService } from '../../core/services/catalogo-servi
             <div>
               <div class="flex items-center justify-between mb-1">
                 <label class="block text-xs font-bold text-slate-700 uppercase">Marca de sucursal</label>
-                <button type="button" (click)="mostrarAltaMarca = !mostrarAltaMarca" class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">+ Crear marca</button>
+                <button type="button" (click)="mostrarAltaMarca = !mostrarAltaMarca" class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">Crear marca</button>
               </div>
               <select [(ngModel)]="nuevaSucursal.marcaId" name="marcaId" class="w-full p-2.5 border rounded-xl text-sm font-semibold" required>
                 <option [ngValue]="0">Seleccione marca</option>

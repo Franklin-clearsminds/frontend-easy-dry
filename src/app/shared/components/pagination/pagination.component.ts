@@ -10,7 +10,7 @@ import { LucideAngularModule } from 'lucide-angular';
   template: `
     <div class="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 border-t border-slate-100 bg-white rounded-b-2xl">
       <!-- Items per page selector -->
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-2 flex-wrap">
         <label class="text-xs font-bold text-slate-500">Mostrar:</label>
         <select 
           [(ngModel)]="pageSize" 
@@ -21,6 +21,10 @@ import { LucideAngularModule } from 'lucide-angular';
           }
         </select>
         <span class="text-xs font-bold text-slate-500">por página</span>
+        <span class="text-slate-300 mx-0.5">•</span>
+        <span class="text-xs font-semibold text-slate-600 bg-slate-100/90 px-2.5 py-0.5 rounded-full border border-slate-200/60">
+          Total: <strong class="text-easydry-blue font-extrabold">{{ totalItems }}</strong> {{ totalItems === 1 ? 'registro' : 'registros' }}
+        </span>
       </div>
 
       <!-- Pagination controls -->

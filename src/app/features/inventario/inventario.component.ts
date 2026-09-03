@@ -50,7 +50,7 @@ import {
                 (click)="abrirModalEntradaBodega()"
                 class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
                 <i-lucide name="arrow-down-circle" class="w-4 h-4 text-emerald-600"></i-lucide>
-                <span>+ Entrada Bodega (Compra)</span>
+                <span>Entrada Bodega (Compra)</span>
               </button>
 
               <button
@@ -66,13 +66,13 @@ import {
                 (click)="abrirModalCrearBodega()"
                 class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
                 <i-lucide name="warehouse" class="w-4 h-4 text-easydry-blue"></i-lucide>
-                <span>+ Nueva Bodega</span>
+                <span>Nueva Bodega</span>
               </button>
               <button
                 (click)="abrirModalCrearProducto()"
                 class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
                 <i-lucide name="plus-circle" class="w-4 h-4"></i-lucide>
-                <span>+ Nuevo Insumo</span>
+                <span>Nuevo Insumo</span>
               </button>
             }
           </div>
@@ -437,7 +437,7 @@ import {
                 (click)="abrirModalCrearProducto()"
                 class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
                 <i-lucide name="plus" class="w-4 h-4"></i-lucide>
-                <span>+ Nuevo Insumo</span>
+                <span>Nuevo Insumo</span>
               </button>
             }
           </div>
@@ -835,7 +835,7 @@ import {
                 (click)="abrirModalCrearEnvase()" 
                 class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
                 <i-lucide name="plus" class="w-4 h-4"></i-lucide>
-                <span>+ Crear Envase / Unidad</span>
+                <span>Crear Envase / Unidad</span>
               </button>
             }
           </div>
