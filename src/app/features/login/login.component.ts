@@ -7,142 +7,187 @@ import { AuthService } from '../../core/services/auth.service';
 import { ToastService } from '../../shared/services/toast.service';
 import { environment } from '../../core/config/env';
 
-interface FloatingParticle {
-  id: number;
-  top?: string;
-  bottom?: string;
-  left?: string;
-  right?: string;
-  size: number;
-  duration: number;
-  delay: number;
-  color: string;
-}
-
 @Component({
   selector: 'app-login',
   standalone: true,
   imports: [CommonModule, FormsModule, LucideAngularModule],
   styles: [`
-    @keyframes floatParticle {
-      0%, 100% { transform: translateY(0); }
-      50% { transform: translateY(-26px); }
+    /* Animación de Ondas Fluidas */
+    @keyframes waveSlow1 {
+      0% { transform: translateY(0) scale(1) rotate(0deg); }
+      50% { transform: translateY(-25px) scale(1.05) rotate(1.5deg); }
+      100% { transform: translateY(0) scale(1) rotate(0deg); }
     }
-    @keyframes pulseHalo {
-      0%, 100% { opacity: 0.35; transform: scale(0.99); }
-      50% { opacity: 0.75; transform: scale(1.02); }
+    @keyframes waveSlow2 {
+      0% { transform: translateY(0) scale(1) rotate(0deg); }
+      50% { transform: translateY(30px) scale(1.06) rotate(-2deg); }
+      100% { transform: translateY(0) scale(1) rotate(0deg); }
     }
-    @keyframes waveSlowH1 {
-      0% { transform: translateX(0); }
-      50% { transform: translateX(-40px); }
-      100% { transform: translateX(0); }
+    @keyframes oceanSurge {
+      0% { transform: translateX(0) translateY(0); }
+      50% { transform: translateX(-30px) translateY(-15px); }
+      100% { transform: translateX(0) translateY(0); }
     }
-    @keyframes waveSlowH2 {
-      0% { transform: translateX(0); }
-      50% { transform: translateX(35px); }
-      100% { transform: translateX(0); }
-    }
-    @keyframes shake {
-      0%, 100% { transform: translateX(0); }
-      20%, 60% { transform: translateX(-6px); }
-      40%, 80% { transform: translateX(6px); }
-    }
+
     .anim-wave-1 {
-      animation: waveSlowH1 12s ease-in-out infinite;
+      animation: waveSlow1 12s ease-in-out infinite;
     }
     .anim-wave-2 {
-      animation: waveSlowH2 10s ease-in-out infinite;
+      animation: waveSlow2 16s ease-in-out infinite;
     }
-    .anim-halo {
-      animation: pulseHalo 3.5s ease-in-out infinite;
+    .anim-wave-bottom {
+      animation: oceanSurge 10s ease-in-out infinite;
     }
-    .animate-shake {
-      animation: shake 0.4s ease-in-out;
+
+    /* Animaciones Flotantes Orgánicas de Burbujas de Agua */
+    @keyframes floatBubbleA {
+      0% { transform: translateY(0px) translateX(0px) scale(1); }
+      33% { transform: translateY(-16px) translateX(5px) scale(1.05); }
+      66% { transform: translateY(-30px) translateX(-4px) scale(0.97); }
+      100% { transform: translateY(0px) translateX(0px) scale(1); }
     }
+    @keyframes floatBubbleB {
+      0% { transform: translateY(0px) translateX(0px) scale(1); }
+      40% { transform: translateY(-26px) translateX(-6px) scale(1.08); }
+      75% { transform: translateY(-12px) translateX(4px) scale(0.95); }
+      100% { transform: translateY(0px) translateX(0px) scale(1); }
+    }
+    @keyframes floatBubbleC {
+      0% { transform: translateY(0px) translateX(0px) scale(1); }
+      50% { transform: translateY(-38px) translateX(7px) scale(1.1); }
+      100% { transform: translateY(0px) translateX(0px) scale(1); }
+    }
+
+    .anim-bubble-1 { animation: floatBubbleA 6s ease-in-out infinite; }
+    .anim-bubble-2 { animation: floatBubbleB 7.5s ease-in-out infinite 0.8s; }
+    .anim-bubble-3 { animation: floatBubbleC 9s ease-in-out infinite 1.5s; }
+    .anim-bubble-4 { animation: floatBubbleA 8s ease-in-out infinite 2.2s; }
+    .anim-bubble-5 { animation: floatBubbleB 6.8s ease-in-out infinite 1.2s; }
+    .anim-bubble-6 { animation: floatBubbleC 10s ease-in-out infinite 0.5s; }
   `],
   template: `
-    <!-- Contenedor Principal: Fondo Oceánico con Gradiente Idéntico a Mobile -->
-    <div class="min-h-screen w-full relative flex flex-col items-center justify-center p-4 sm:p-6 overflow-hidden bg-gradient-to-br from-[#000d1a] via-[#001f3f] to-[#000b14] select-none">
+    <!-- Contenedor Principal: Fondo Oceánico Profundo con Ondas y Burbujas de Agua en Movimiento -->
+    <div class="min-h-screen w-full relative flex flex-col items-center justify-center p-4 sm:p-6 overflow-hidden bg-gradient-to-b from-[#023E73] via-[#012E57] to-[#011C38] select-none">
       
-      <!-- Ambient Glow Orbs -->
-      <div class="absolute -top-16 -left-16 w-80 h-80 rounded-full bg-cyan-400/20 blur-3xl pointer-events-none"></div>
-      <div class="absolute -bottom-16 -right-16 w-80 h-80 rounded-full bg-teal-400/15 blur-3xl pointer-events-none"></div>
-
-      <!-- Fluid Animated SVG Water Waves in Background (Bottom) -->
-      <div class="absolute bottom-0 left-0 right-0 h-64 overflow-hidden pointer-events-none">
-        <div class="absolute bottom-0 left-0 w-[200%] h-60 opacity-20 anim-wave-1">
-          <svg viewBox="0 0 1440 320" fill="none" class="w-full h-full text-cyan-500" preserveAspectRatio="none">
-            <path fill="currentColor" d="M0,192L48,197.3C96,203,192,213,288,229.3C384,245,480,267,576,250.7C672,235,768,181,864,170.7C960,160,1056,192,1152,197.3C1248,203,1344,181,1392,170.7L1440,160L1440,320L0,320Z"></path>
-          </svg>
-        </div>
-        <div class="absolute bottom-0 left-0 w-[200%] h-52 opacity-25 anim-wave-2">
-          <svg viewBox="0 0 1440 320" fill="none" class="w-full h-full text-teal-400" preserveAspectRatio="none">
-            <path fill="currentColor" d="M0,96L48,128C96,160,192,224,288,229.3C384,235,480,181,576,170.7C672,160,768,192,864,208C960,224,1056,224,1152,197.3C1248,171,1344,117,1392,90.7L1440,64L1440,320L0,320Z"></path>
-          </svg>
-        </div>
+      <!-- ================================================================= -->
+      <!-- ONDAS ORGÁNICAS DE AGUA EN EL FONDO (LATERALES Y EN MOVIMIENTO)   -->
+      <!-- ================================================================= -->
+      <!-- Ondas laterales izquierda animadas -->
+      <div class="absolute -left-28 top-0 w-[600px] h-full pointer-events-none opacity-35 anim-wave-1">
+        <svg viewBox="0 0 500 1000" fill="none" class="w-full h-full text-cyan-400" preserveAspectRatio="none">
+          <path d="M0,0 C150,200 50,450 180,650 C260,780 120,900 0,1000 L0,0 Z" fill="currentColor" fill-opacity="0.18"></path>
+          <path d="M0,50 C220,250 80,500 240,750 C320,880 180,950 0,1000 L0,50 Z" fill="#006699" fill-opacity="0.25"></path>
+        </svg>
       </div>
 
-      <!-- Wrapper de la Tarjeta con Halo y Partículas Flotantes -->
-      <div class="w-full max-w-[420px] relative z-10 animate-fade-in-up my-auto">
+      <!-- Ondas laterales derecha animadas -->
+      <div class="absolute -right-28 top-0 w-[600px] h-full pointer-events-none opacity-35 anim-wave-2">
+        <svg viewBox="0 0 500 1000" fill="none" class="w-full h-full text-teal-400" preserveAspectRatio="none">
+          <path d="M500,0 C350,180 450,420 320,620 C240,750 380,880 500,1000 L500,0 Z" fill="currentColor" fill-opacity="0.15"></path>
+          <path d="M500,80 C280,280 420,520 260,770 C180,900 320,960 500,1000 L500,80 Z" fill="#007799" fill-opacity="0.22"></path>
+        </svg>
+      </div>
+
+      <!-- Marea ondulatoria inferior -->
+      <div class="absolute -bottom-10 left-0 right-0 h-72 pointer-events-none opacity-20 anim-wave-bottom">
+        <svg viewBox="0 0 1440 320" fill="none" class="w-full h-full text-cyan-500" preserveAspectRatio="none">
+          <path fill="currentColor" d="M0,192L48,186.7C96,181,192,171,288,181.3C384,192,480,224,576,213.3C672,203,768,149,864,138.7C960,128,1056,160,1152,176C1248,192,1344,192,1392,192L1440,192L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,968,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"></path>
+        </svg>
+      </div>
+
+      <!-- ================================================================= -->
+      <!-- BURBUJAS DE AGUA FLOTANTES CON ANIMACIÓN REALISTA                -->
+      <!-- ================================================================= -->
+      <!-- Burbujas lado izquierdo -->
+      <div class="absolute left-[8%] top-[28%] w-8 h-8 rounded-full border border-white/60 bg-gradient-to-tr from-cyan-400/20 via-white/40 to-white/80 shadow-[0_0_14px_rgba(56,189,248,0.6),inset_0_0_6px_rgba(255,255,255,0.8)] backdrop-blur-xs pointer-events-none anim-bubble-1">
+        <div class="w-1.5 h-1.5 rounded-full bg-white/90 absolute top-1.5 left-2"></div>
+      </div>
+      <div class="absolute left-[13%] top-[35%] w-4 h-4 rounded-full border border-white/60 bg-white/40 shadow-[0_0_8px_rgba(56,189,248,0.5)] pointer-events-none anim-bubble-2">
+        <div class="w-0.5 h-0.5 rounded-full bg-white absolute top-1 left-1"></div>
+      </div>
+      <div class="absolute left-[10%] top-[45%] w-6 h-6 rounded-full border border-white/50 bg-gradient-to-tr from-cyan-400/30 to-white/70 shadow-[0_0_10px_rgba(56,189,248,0.5)] pointer-events-none anim-bubble-3">
+        <div class="w-1 h-1 rounded-full bg-white/90 absolute top-1 left-1.5"></div>
+      </div>
+      <div class="absolute left-[15%] top-[52%] w-3 h-3 rounded-full border border-white/60 bg-white/50 pointer-events-none anim-bubble-4"></div>
+      <div class="absolute left-[7%] top-[60%] w-9 h-9 rounded-full border border-white/50 bg-gradient-to-tr from-teal-400/20 via-white/30 to-white/70 shadow-[0_0_14px_rgba(45,212,191,0.5)] pointer-events-none anim-bubble-5">
+        <div class="w-1.5 h-1.5 rounded-full bg-white/90 absolute top-2 left-2.5"></div>
+      </div>
+      <div class="absolute left-[12%] top-[68%] w-5 h-5 rounded-full border border-white/50 bg-white/40 shadow-[0_0_8px_rgba(56,189,248,0.4)] pointer-events-none anim-bubble-6"></div>
+
+      <!-- Burbujas lado derecho -->
+      <div class="absolute right-[9%] top-[25%] w-5 h-5 rounded-full border border-white/50 bg-white/50 shadow-[0_0_10px_rgba(56,189,248,0.5)] pointer-events-none anim-bubble-2">
+        <div class="w-1 h-1 rounded-full bg-white/90 absolute top-1 left-1.5"></div>
+      </div>
+      <div class="absolute right-[14%] top-[32%] w-8 h-8 rounded-full border border-white/60 bg-gradient-to-tr from-cyan-400/20 via-white/40 to-white/80 shadow-[0_0_14px_rgba(56,189,248,0.6),inset_0_0_6px_rgba(255,255,255,0.8)] pointer-events-none anim-bubble-1">
+        <div class="w-1.5 h-1.5 rounded-full bg-white/90 absolute top-1.5 left-2"></div>
+      </div>
+      <div class="absolute right-[8%] top-[42%] w-4 h-4 rounded-full border border-white/60 bg-white/40 pointer-events-none anim-bubble-4"></div>
+      <div class="absolute right-[15%] top-[48%] w-7 h-7 rounded-full border border-white/50 bg-gradient-to-tr from-cyan-400/30 to-white/70 shadow-[0_0_10px_rgba(56,189,248,0.5)] pointer-events-none anim-bubble-3">
+        <div class="w-1 h-1 rounded-full bg-white/90 absolute top-1.5 left-2"></div>
+      </div>
+      <div class="absolute right-[11%] top-[58%] w-4 h-4 rounded-full border border-white/50 bg-white/40 pointer-events-none anim-bubble-5"></div>
+      <div class="absolute right-[13%] top-[65%] w-6 h-6 rounded-full border border-white/40 bg-gradient-to-tr from-teal-400/20 via-white/30 to-white/70 shadow-[0_0_10px_rgba(45,212,191,0.4)] pointer-events-none anim-bubble-6">
+        <div class="w-1 h-1 rounded-full bg-white absolute top-1 left-1.5"></div>
+      </div>
+
+      <!-- ================================================================= -->
+      <!-- TARJETA DE LOGIN CON BORDE NEÓN CYAN Y GLASSMORPHISM             -->
+      <!-- ================================================================= -->
+      <div class="w-full max-w-[390px] relative z-10 animate-fade-in-up">
         
-        <!-- Ambient Aqua Halo behind Card -->
-        <div class="absolute -inset-3 rounded-[36px] bg-cyan-500/25 blur-xl pointer-events-none anim-halo"></div>
-
-        <!-- Floating Bubble Particles around Card (12 exact particles from mobile app) -->
-        @for (p of particles; track p.id) {
-          <div
-            class="absolute pointer-events-none z-20 flex items-center justify-center rounded-full"
-            [style.top]="p.top || 'auto'"
-            [style.bottom]="p.bottom || 'auto'"
-            [style.left]="p.left || 'auto'"
-            [style.right]="p.right || 'auto'"
-            [style.width.px]="p.size"
-            [style.height.px]="p.size"
-            [style.backgroundColor]="p.color"
-            [style.boxShadow]="'0 0 14px ' + p.color"
-            [style.animation]="'floatParticle ' + p.duration + 's ease-in-out infinite ' + p.delay + 's'">
-            <div class="w-[35%] h-[35%] rounded-full bg-white/90 mt-[15%] ml-[15%]"></div>
-          </div>
-        }
-
-        <!-- Tarjeta Principal Glassmorphic Idéntica a la App -->
         <div
-          class="relative rounded-[24px] bg-white/[0.96] border-[1.5px] border-white/80 shadow-[0_16px_35px_rgba(6,182,212,0.35)] overflow-hidden pt-6 px-6 pb-7 sm:pt-7 sm:px-8 sm:pb-8">
-          
-          <!-- Top Accent Gradient Line -->
-          <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#004282] via-[#22d3ee] to-[#2dd4bf]"></div>
+          class="rounded-[1.75rem] p-7 sm:p-8 transition-all duration-300 relative overflow-hidden"
+          style="
+            background: rgba(220, 233, 245, 0.82);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 2px solid rgba(125, 211, 252, 0.85);
+            box-shadow: 
+              0 0 35px rgba(56, 189, 248, 0.45),
+              0 0 15px rgba(56, 189, 248, 0.25),
+              inset 0 0 20px rgba(255, 255, 255, 0.45),
+              0 25px 60px rgba(0, 0, 0, 0.5);
+          ">
 
-          <!-- Logo Section: easydry-logo-stacked.png -->
-          <div class="flex items-center justify-center pt-2 pb-1 mb-2">
-            <img
-              src="assets/images/easydry-logo-stacked.png"
-              alt="EasyDry®"
-              class="h-24 sm:h-28 w-auto object-contain">
+          <!-- Resplandor sutil superior derecho en el interior de la tarjeta -->
+          <div class="absolute -top-12 -right-12 w-36 h-36 bg-cyan-200/50 rounded-full blur-2xl pointer-events-none"></div>
+
+          <!-- Logo EasyDry: Solo Icono Gota de Agua -->
+          <div class="flex items-center justify-center mb-4">
+            <div class="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-white p-2.5 flex items-center justify-center shadow-lg">
+              <svg class="w-full h-full" viewBox="0 0 100 100" fill="none">
+                <defs>
+                  <linearGradient id="easyDropGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#38BDF8" />
+                    <stop offset="45%" stop-color="#0284C7" />
+                    <stop offset="100%" stop-color="#0E7490" />
+                  </linearGradient>
+                </defs>
+                <path d="M50 6 C50 6, 16 52, 16 70 C16 88, 31 96, 50 96 C69 96, 84 88, 84 70 C84 52, 50 6, 50 6 Z" fill="url(#easyDropGrad)" />
+              </svg>
+            </div>
           </div>
 
-          <!-- Title Section -->
-          <h1 class="text-[19px] sm:text-xl font-black text-[#0F172A] text-center tracking-tight mb-5 font-outfit">
-            Bienvenido al Sistema EasyDry
-          </h1>
-
-          <!-- Error Alert Box -->
+          <!-- Mensaje de Error en caso de credencial inválida -->
           @if (errorMessage) {
-            <div class="mb-4 py-2.5 px-3 bg-[#FFF1F2] border border-[#FECDD3] rounded-xl flex items-start gap-2.5 text-[#BE123C] text-xs font-semibold animate-shake">
-              <i-lucide name="alert-circle" class="w-4 h-4 text-[#BE123C] flex-shrink-0 mt-0.5"></i-lucide>
-              <span class="flex-1 leading-snug">{{ errorMessage }}</span>
+            <div class="mb-4 p-2.5 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2 text-rose-800 text-xs animate-shake">
+              <i-lucide name="alert-circle" class="w-4 h-4 text-rose-600 flex-shrink-0"></i-lucide>
+              <p class="font-bold flex-1 text-[11px]">{{ errorMessage }}</p>
             </div>
           }
 
           <!-- Formulario -->
-          <form (ngSubmit)="onLogin()" novalidate class="space-y-4">
+          <form (ngSubmit)="onLogin()" novalidate class="space-y-3.5">
             
             <!-- Campo 1: Correo Corporativo -->
             <div>
-              <label class="block text-[10px] font-extrabold uppercase tracking-[0.6px] text-[#334155] mb-1.5">
+              <label class="block text-[10px] font-extrabold uppercase tracking-wider text-slate-600 mb-1">
                 CORREO CORPORATIVO
               </label>
-              <div class="h-[50px] bg-[#F8FAFC] border border-[#E2E8F0] focus-within:border-[#06b6d4] focus-within:bg-white focus-within:shadow-[0_0_8px_rgba(6,182,212,0.25)] rounded-[14px] px-3 flex items-center transition-all">
-                <i-lucide name="mail" class="w-[18px] h-[18px] text-slate-400 mr-2.5 flex-shrink-0"></i-lucide>
+              <div class="relative">
+                <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400 pointer-events-none">
+                  <i-lucide name="mail" class="w-4 h-4"></i-lucide>
+                </span>
                 <input
                   type="email"
                   [(ngModel)]="email"
@@ -150,25 +195,19 @@ interface FloatingParticle {
                   required
                   placeholder="usuario@easydry.com"
                   (input)="errorMessage = ''"
-                  class="w-full bg-transparent text-sm font-semibold text-[#0F172A] placeholder:text-slate-400 placeholder:font-normal outline-none">
+                  class="w-full pl-9 pr-3 py-2 bg-slate-100/90 border border-teal-500/60 focus:border-teal-600 focus:ring-2 focus:ring-teal-400/25 rounded-xl text-xs font-medium text-slate-800 placeholder:text-slate-400 outline-none transition-all shadow-inner">
               </div>
             </div>
 
             <!-- Campo 2: Contraseña -->
             <div>
-              <div class="flex items-center justify-between mb-1.5">
-                <label class="text-[10px] font-extrabold uppercase tracking-[0.6px] text-[#334155]">
-                  CONTRASEÑA
-                </label>
-                <button
-                  type="button"
-                  (click)="onForgotPassword()"
-                  class="text-[11px] font-bold text-[#0e7490] hover:text-[#0891b2] transition-colors cursor-pointer">
-                  ¿Olvidaste tu contraseña?
-                </button>
-              </div>
-              <div class="h-[50px] bg-[#F8FAFC] border border-[#E2E8F0] focus-within:border-[#06b6d4] focus-within:bg-white focus-within:shadow-[0_0_8px_rgba(6,182,212,0.25)] rounded-[14px] px-3 flex items-center transition-all relative">
-                <i-lucide name="lock" class="w-[18px] h-[18px] text-slate-400 mr-2.5 flex-shrink-0"></i-lucide>
+              <label class="block text-[10px] font-extrabold uppercase tracking-wider text-slate-600 mb-1">
+                CONTRASEÑA
+              </label>
+              <div class="relative">
+                <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400 pointer-events-none">
+                  <i-lucide name="lock" class="w-4 h-4"></i-lucide>
+                </span>
                 <input
                   [type]="showPassword ? 'text' : 'password'"
                   [(ngModel)]="password"
@@ -176,48 +215,59 @@ interface FloatingParticle {
                   required
                   placeholder="••••••••••••"
                   (input)="errorMessage = ''"
-                  class="w-full bg-transparent text-sm font-semibold text-[#0F172A] placeholder:text-slate-400 placeholder:font-normal outline-none pr-8">
+                  class="w-full pl-9 pr-9 py-2 bg-slate-100/90 border border-slate-200/90 focus:border-teal-600 focus:ring-2 focus:ring-teal-400/25 rounded-xl text-xs font-medium text-slate-800 placeholder:text-slate-400 outline-none transition-all shadow-inner">
                 <button
                   type="button"
                   (click)="showPassword = !showPassword"
-                  class="absolute right-3 text-slate-400 hover:text-slate-600 p-1 cursor-pointer flex items-center justify-center">
-                  <i-lucide [name]="showPassword ? 'eye-off' : 'eye'" class="w-[18px] h-[18px]"></i-lucide>
+                  class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 transition-colors cursor-pointer">
+                  <i-lucide [name]="showPassword ? 'eye-off' : 'eye'" class="w-4 h-4"></i-lucide>
                 </button>
               </div>
             </div>
 
-            <!-- Botón Principal con Degradado -->
+            <!-- Opción: ¿Olvidaste tu contraseña? -->
+            <div class="flex items-center justify-end text-xs pt-0.5">
+              <button
+                type="button"
+                (click)="onForgotPassword()"
+                class="text-[11px] font-semibold text-blue-600 hover:text-blue-700 hover:underline transition-colors cursor-pointer">
+                ¿Olvidaste tu contraseña?
+              </button>
+            </div>
+
+            <!-- Botón Principal: Ingresar al Sistema -->
             <button
               type="submit"
               [disabled]="loading"
-              class="w-full mt-2 h-[52px] rounded-[14px] bg-gradient-to-r from-[#004282] via-[#0891b2] to-[#14b8a6] hover:opacity-95 active:scale-[0.99] text-white font-black text-sm tracking-wide shadow-[0_8px_16px_rgba(8,145,178,0.35)] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-65 disabled:cursor-not-allowed">
+              class="w-full mt-2.5 py-2.5 px-4 bg-gradient-to-r from-[#0E6D68] via-[#107F79] to-[#128C7E] hover:from-[#0C5A56] hover:to-[#0F756A] active:scale-[0.99] text-white font-bold rounded-xl shadow-[0_4px_14px_rgba(14,109,104,0.4)] transition-all flex items-center justify-center gap-2 text-xs sm:text-sm cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed">
               @if (loading) {
                 <i-lucide name="refresh-cw" class="w-4 h-4 animate-spin text-white"></i-lucide>
-                <span>Ingresando al Sistema...</span>
+                <span>Validando credenciales...</span>
               } @else {
+                <i-lucide name="log-in" class="w-4 h-4 text-cyan-200"></i-lucide>
                 <span>Ingresar al Sistema</span>
-                <i-lucide name="arrow-right" class="w-[18px] h-[18px] text-white"></i-lucide>
               }
             </button>
           </form>
 
         </div>
 
-        <!-- Footer Idéntico a Mobile -->
-        <div class="text-center mt-6 space-y-1 text-xs">
-          <p class="text-[11px] text-white/45">
-            © 2026 EasyDry® Ecuador. Todos los derechos reservados.
+        <!-- =============================================================== -->
+        <!-- PIE DE PÁGINA (EXACTO COMO LA IMAGEN)                           -->
+        <!-- =============================================================== -->
+        <div class="text-center mt-4 space-y-0.5 text-xs text-white/80 font-normal">
+          <p class="text-[11px]">
+            © 2026 EasyDry® Red Nacional. Acceso Seguro RBAC. Todos los derechos reservados.
           </p>
-          <div class="flex items-center justify-center gap-1.5 text-[11px]">
-            <span class="font-bold text-[#22d3ee]/80">Red Nacional v2.4.0</span>
-            <span class="text-white/30">·</span>
+          <p class="text-[11px]">
+            Todos los derechos reservados en la 
             <button
               type="button"
               (click)="onPrivacyPolicy()"
-              class="text-white/65 hover:text-white underline transition-colors cursor-pointer">
-              Política de Privacidad
-            </button>
-          </div>
+              class="underline hover:text-white transition-colors cursor-pointer">
+              página de la política de Privacidad
+            </button>.
+          </p>
         </div>
 
       </div>
@@ -234,21 +284,6 @@ export class LoginComponent implements OnInit {
   showPassword = false;
   loading = false;
   errorMessage = '';
-
-  readonly particles: FloatingParticle[] = [
-    { id: 1, top: '-15px', left: '25px', size: 9, duration: 4.2, delay: 0, color: 'rgba(34, 211, 238, 0.85)' },
-    { id: 2, top: '-22px', left: '42%', size: 12, duration: 4.8, delay: 0.8, color: 'rgba(45, 212, 191, 0.9)' },
-    { id: 3, top: '-12px', right: '22%', size: 8, duration: 3.9, delay: 1.6, color: 'rgba(56, 189, 248, 0.8)' },
-    { id: 4, top: '60px', left: '-16px', size: 10, duration: 5.2, delay: 0.4, color: 'rgba(45, 212, 191, 0.85)' },
-    { id: 5, top: '180px', left: '-20px', size: 13, duration: 4.4, delay: 2.0, color: 'rgba(34, 211, 238, 0.95)' },
-    { id: 6, top: '310px', left: '-14px', size: 8, duration: 4.9, delay: 1.1, color: 'rgba(125, 211, 252, 0.75)' },
-    { id: 7, top: '70px', right: '-16px', size: 11, duration: 4.6, delay: 1.4, color: 'rgba(34, 211, 238, 0.9)' },
-    { id: 8, top: '210px', right: '-20px', size: 12, duration: 5.4, delay: 0.3, color: 'rgba(45, 212, 191, 0.85)' },
-    { id: 9, top: '350px', right: '-16px', size: 9, duration: 3.8, delay: 2.4, color: 'rgba(56, 189, 248, 0.8)' },
-    { id: 10, bottom: '-15px', left: '40px', size: 10, duration: 4.5, delay: 0.7, color: 'rgba(34, 211, 238, 0.85)' },
-    { id: 11, bottom: '-22px', left: '46%', size: 14, duration: 4.3, delay: 1.9, color: 'rgba(45, 212, 191, 0.9)' },
-    { id: 12, bottom: '-16px', right: '70px', size: 8, duration: 5.0, delay: 0.35, color: 'rgba(125, 211, 252, 0.8)' },
-  ];
 
   private authService = inject(AuthService);
   private toastService = inject(ToastService);
@@ -315,6 +350,7 @@ export class LoginComponent implements OnInit {
           const targetRoute = this.authService.getDefaultRouteForRole(res.user.role);
           this.router.navigateByUrl(targetRoute);
         } else {
+          // Errores específicos preparados para Amazon Cognito
           const rawMsg = res.message || '';
           if (rawMsg.toLowerCase().includes('no registrado') || rawMsg.toLowerCase().includes('no encontrado')) {
             this.errorMessage = 'Usuario no encontrado en el directorio corporativo (UserNotFoundException).';
@@ -338,15 +374,12 @@ export class LoginComponent implements OnInit {
 
   onForgotPassword(): void {
     this.toastService.info(
-      'Recuperación de Acceso',
-      'Por políticas de seguridad institucional, contacta a tu Administrador de Red o envía un correo a soporte@easydry.com.'
+      'Recuperación de Acceso (Cognito)',
+      'Por directiva corporativa, solicite el restablecimiento de su clave a Soporte TI (soporte@easydry.com) o su administrador.'
     );
   }
 
   onPrivacyPolicy(): void {
-    this.toastService.info(
-      'Política de Privacidad',
-      'Plataforma corporativa EasyDry® protegida con cifrado TLS 1.3 y autenticación basada en roles (RBAC).'
-    );
+    this.toastService.info('Política de Privacidad', 'Consulta el manual de seguridad y privacidad en el repositorio corporativo.');
   }
 }
