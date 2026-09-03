@@ -188,6 +188,10 @@ export class AuthService {
     return null;
   }
 
+  get currentUserValue(): UsuarioAuth | null {
+    return this.currentUserSubject.value;
+  }
+
   get legacyUser() {
     const u = this.currentUserSubject.value;
     if (!u) return null;

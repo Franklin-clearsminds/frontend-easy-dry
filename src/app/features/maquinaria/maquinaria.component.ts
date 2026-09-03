@@ -7,8 +7,9 @@ import { MovimientoMaquinariaMockService } from '../../core/services/movimiento-
 import { SucursalMockService } from '../../core/services/sucursal-mock.service';
 import { IncidenteMockService } from '../../core/services/incidente-mock.service';
 import { MantenimientoMockService } from '../../core/services/mantenimiento-mock.service';
+import { BahiaMockService } from '../../core/services/bahia-mock.service';
 import { AuthService } from '../../core/services/auth.service';
-import { Maquinaria, MovimientoMaquinaria, Sucursal, Incidente, Mantenimiento, ArchivoAdjunto } from '../../core/models';
+import { Maquinaria, MovimientoMaquinaria, Sucursal, Incidente, Mantenimiento, ArchivoAdjunto, Bahia } from '../../core/models';
 import { Role } from '../../core/models/roles.model';
 import { ModalComponent } from '../../shared/components/modal/modal.component';
 import { ToastService } from '../../shared/services/toast.service';
@@ -30,7 +31,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
         </div>
         @if (canCreate) {
           <button 
-            (click)="modalCrearOpen = true"
+            (click)="abrirModalCrear()"
             class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
             <i-lucide name="plus" class="w-4 h-4"></i-lucide>
             <span>Registrar Nuevo Activo</span>
@@ -370,7 +371,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
             <div class="grid grid-cols-2 gap-4">
               <div>
                 <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Sucursal Destino</label>
-                <select [(ngModel)]="transferencia.sucursalNueva" name="sucursalNueva" class="w-full p-2.5 border rounded-xl text-sm font-semibold">
+                <select [(ngModel)]="transferencia.sucursalNueva" (ngModelChange)="onCambioSucursalTransferencia($event)" name="sucursalNueva" class="w-full p-2.5 border rounded-xl text-sm font-semibold bg-white cursor-pointer">
                   @for (s of sucursales; track s.id) {
                     <option [value]="s.nombre">{{ s.nombre }}</option>
                   }
@@ -379,7 +380,11 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
 
               <div>
                 <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Bahía Destino</label>
-                <input type="text" [(ngModel)]="transferencia.bahiaNueva" name="bahiaNueva" placeholder="Bahía 1" class="w-full p-2.5 border rounded-xl text-sm" required>
+                <select [(ngModel)]="transferencia.bahiaNueva" name="bahiaNueva" class="w-full p-2.5 border rounded-xl text-sm font-semibold bg-white cursor-pointer" required>
+                  @for (b of getBahiasDisponibles(transferencia.sucursalNueva); track b) {
+                    <option [value]="b">{{ b }}</option>
+                  }
+                </select>
               </div>
             </div>
 
@@ -400,7 +405,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
       <app-modal 
         [isOpen]="modalCrearOpen" 
         title="Registrar Nuevo Activo de Maquinaria" 
-        icon="plus"
+        icon="hard-drive"
         (close)="modalCrearOpen = false">
         
         <form (ngSubmit)="guardarNuevaMaquinaria()" class="space-y-4">
@@ -436,19 +441,29 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
           <div class="grid grid-cols-2 gap-4">
             <div>
               <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Sucursal Asignada</label>
-              <select [(ngModel)]="nuevaMaquina.agencia" name="agencia" class="w-full p-2.5 border rounded-xl text-sm">
-                <option value="EasyDry Quito Norte">EasyDry Quito Norte</option>
-                <option value="EasyDry Quito Sur">EasyDry Quito Sur</option>
-                <option value="EasyDry Cumbayá">EasyDry Cumbayá</option>
-                <option value="EasyDry Guayaquil">EasyDry Guayaquil</option>
+              <select [(ngModel)]="nuevaMaquina.agencia" (ngModelChange)="onCambioSucursalNuevaMaquina($event)" name="agencia" class="w-full p-2.5 border rounded-xl text-sm font-semibold bg-white cursor-pointer">
+                @if (sucursales.length > 0) {
+                  @for (s of sucursales; track s.id) {
+                    <option [value]="s.nombre">{{ s.nombre }}</option>
+                  }
+                } @else {
+                  <option value="EasyDry Quito Norte">EasyDry Quito Norte</option>
+                  <option value="EasyDry Quito Sur">EasyDry Quito Sur</option>
+                  <option value="EasyDry Cumbayá">EasyDry Cumbayá</option>
+                  <option value="EasyDry Guayaquil">EasyDry Guayaquil</option>
+                }
               </select>
             </div>
             <div>
               <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Bahía</label>
-              <input type="text" [(ngModel)]="nuevaMaquina.bahia" name="bahia" placeholder="Bahía 1" 
+              <select [(ngModel)]="nuevaMaquina.bahia" name="bahia" 
                 [ngClass]="erroresMaquina.bahia ? 'border-rose-400 ring-2 ring-rose-100' : 'border-slate-200'"
-                class="w-full p-2.5 border rounded-xl text-sm" required
-                (input)="erroresMaquina.bahia = ''">
+                class="w-full p-2.5 border rounded-xl text-sm font-semibold bg-white cursor-pointer" required
+                (change)="erroresMaquina.bahia = ''">
+                @for (b of getBahiasDisponibles(nuevaMaquina.agencia); track b) {
+                  <option [value]="b">{{ b }}</option>
+                }
+              </select>
               @if (erroresMaquina.bahia) {
                 <p class="mt-1 text-[11px] font-bold text-rose-600 flex items-center gap-1">
                   <i-lucide name="alert-circle" class="w-3.5 h-3.5"></i-lucide>
@@ -457,11 +472,84 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
               }
             </div>
           </div>
+
+          <!-- SECCIÓN: FOTO DE LA MÁQUINA (OBLIGATORIA) -->
+          <div class="space-y-2 pt-2 border-t border-slate-100">
+            <label class="block text-xs font-bold text-slate-700 uppercase flex items-center justify-between">
+              <span class="flex items-center gap-1.5">
+                <i-lucide name="camera" class="w-4 h-4 text-easydry-blue"></i-lucide>
+                Foto de la Máquina <span class="text-rose-500">*</span>
+              </span>
+              <span class="text-[10px] text-slate-400 font-normal">PNG, JPG o WebP (máx. 5 MB)</span>
+            </label>
+
+            @if (nuevaMaquina.imagen) {
+              <!-- Preview de Foto Cargada -->
+              <div class="p-3 bg-slate-50 rounded-2xl border border-slate-200 flex flex-col sm:flex-row items-center gap-4 animate-fade-in">
+                <div class="relative w-full sm:w-36 h-28 rounded-xl overflow-hidden border border-slate-200 shadow-2xs flex-shrink-0 bg-slate-900">
+                  <img [src]="nuevaMaquina.imagen" alt="Foto de la Máquina" class="w-full h-full object-cover">
+                  <div class="absolute bottom-1 right-1 px-1.5 py-0.5 rounded bg-black/70 text-[9px] text-white font-bold backdrop-blur-xs">
+                    Foto lista
+                  </div>
+                </div>
+                <div class="space-y-2 flex-1 w-full text-left">
+                  <div class="flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                    <p class="text-xs font-bold text-slate-800">Foto cargada exitosamente</p>
+                  </div>
+                  <p class="text-[11px] text-slate-500">Puedes cambiar la foto subiendo un nuevo archivo desde tu dispositivo.</p>
+                  <div class="flex items-center gap-2 flex-wrap pt-1">
+                    <button 
+                      type="button" 
+                      (click)="fotoMaquinaInput.click()"
+                      class="px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-bold rounded-xl text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs">
+                      <i-lucide name="upload" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide>
+                      <span>Subir Otra Foto</span>
+                    </button>
+                    <button 
+                      type="button" 
+                      (click)="eliminarFotoMaquina()"
+                      class="px-3 py-1.5 bg-rose-50 border border-rose-200 hover:bg-rose-100 text-rose-700 font-bold rounded-xl text-xs flex items-center gap-1.5 transition-colors cursor-pointer">
+                      <i-lucide name="trash-2" class="w-3.5 h-3.5"></i-lucide>
+                      <span>Quitar</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            } @else {
+              <!-- Uploader sin foto -->
+              <div 
+                (click)="fotoMaquinaInput.click()" 
+                [ngClass]="erroresMaquina.imagen ? 'border-rose-400 bg-rose-50/40 ring-2 ring-rose-100' : 'border-slate-200 hover:border-easydry-blue bg-slate-50/70 hover:bg-blue-50/20'"
+                class="border-2 border-dashed rounded-2xl p-5 text-center cursor-pointer transition-all group">
+                <div class="w-12 h-12 mx-auto rounded-2xl bg-white border border-slate-200 group-hover:border-blue-300 flex items-center justify-center text-slate-400 group-hover:text-easydry-blue transition-colors shadow-2xs mb-2">
+                  <i-lucide name="camera" class="w-6 h-6"></i-lucide>
+                </div>
+                <p class="text-xs font-bold text-slate-800 group-hover:text-easydry-blue transition-colors">
+                  Haz clic aquí para subir la foto de la máquina
+                </p>
+                <p class="text-[11px] text-slate-400 mt-0.5">Sube la foto del equipo desde tu computadora o dispositivo móvil</p>
+              </div>
+              @if (erroresMaquina.imagen) {
+                <p class="mt-1 text-[11px] font-bold text-rose-600 flex items-center gap-1">
+                  <i-lucide name="alert-circle" class="w-3.5 h-3.5"></i-lucide>
+                  {{ erroresMaquina.imagen }}
+                </p>
+              }
+            }
+
+            <input 
+              type="file" 
+              #fotoMaquinaInput 
+              (change)="onSubirFotoMaquina($event)" 
+              accept="image/*" 
+              class="hidden">
+          </div>
         </form>
 
         <div modal-footer>
-          <button (click)="modalCrearOpen = false" class="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs">Cancelar</button>
-          <button (click)="guardarNuevaMaquinaria()" class="px-4 py-2 bg-easydry-blue hover:bg-easydry-blue-dark text-white font-bold rounded-xl text-xs">Guardar Activo</button>
+          <button (click)="modalCrearOpen = false" class="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs cursor-pointer">Cancelar</button>
+          <button (click)="guardarNuevaMaquinaria()" class="px-4 py-2 bg-easydry-blue hover:bg-easydry-blue-dark text-white font-bold rounded-xl text-xs cursor-pointer">Guardar Activo</button>
         </div>
       </app-modal>
 
@@ -927,13 +1015,14 @@ export class MaquinariaComponent implements OnInit {
     bahia: 'Bahía 1',
     estado: 'Operativa' as Maquinaria['estado'],
     fechaMantenimiento: '2026-08-30',
-    imagen: 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=500&auto=format&fit=crop&q=80'
+    imagen: ''
   };
 
   erroresMaquina = {
     codigo: '',
     nombre: '',
-    bahia: ''
+    bahia: '',
+    imagen: ''
   };
 
   erroresFallo = {
@@ -946,11 +1035,14 @@ export class MaquinariaComponent implements OnInit {
     descripcion: ''
   };
 
+  todasLasBahias: Bahia[] = [];
+
   private maquinariaService = inject(MaquinariaMockService);
   private movimientoService = inject(MovimientoMaquinariaMockService);
   private sucursalService = inject(SucursalMockService);
   private incidenteService = inject(IncidenteMockService);
   private mantenimientoService = inject(MantenimientoMockService);
+  private bahiaService = inject(BahiaMockService);
   private toastService = inject(ToastService);
   public authService = inject(AuthService);
 
@@ -966,6 +1058,10 @@ export class MaquinariaComponent implements OnInit {
       list.forEach(s => {
         if (s.nombre && s.regionNombre) this.mapaRegionSucursal[s.nombre] = s.regionNombre;
       });
+    });
+
+    this.bahiaService.getBahias().subscribe(list => {
+      this.todasLasBahias = list;
     });
   }
 
@@ -1062,6 +1158,8 @@ export class MaquinariaComponent implements OnInit {
 
   openModalTransferir(maq: Maquinaria) {
     this.maquinaSeleccionada = maq;
+    const bahias = this.getBahiasDisponibles(this.transferencia.sucursalNueva);
+    this.transferencia.bahiaNueva = bahias[0] || 'Bahía 1';
     this.modalTransferirOpen = true;
   }
 
@@ -1091,8 +1189,78 @@ export class MaquinariaComponent implements OnInit {
     });
   }
 
+  getBahiasDisponibles(sucursalNombre: string): string[] {
+    if (!sucursalNombre) return ['Bahía 1'];
+    const deMock = this.todasLasBahias
+      .filter(b => b.sucursalNombre === sucursalNombre)
+      .map(b => b.nombre);
+    if (deMock.length > 0) {
+      return deMock;
+    }
+    const suc = this.sucursales.find(s => s.nombre === sucursalNombre);
+    const cant = suc?.cantidadBahias || 4;
+    return Array.from({ length: cant }, (_, i) => `Bahía ${i + 1}`);
+  }
+
+  onCambioSucursalNuevaMaquina(sucursalNombre: string): void {
+    this.nuevaMaquina.agencia = sucursalNombre;
+    const bahias = this.getBahiasDisponibles(sucursalNombre);
+    this.nuevaMaquina.bahia = bahias[0] || 'Bahía 1';
+    this.erroresMaquina.bahia = '';
+  }
+
+  onCambioSucursalTransferencia(sucursalNombre: string): void {
+    this.transferencia.sucursalNueva = sucursalNombre;
+    const bahias = this.getBahiasDisponibles(sucursalNombre);
+    this.transferencia.bahiaNueva = bahias[0] || 'Bahía 1';
+  }
+
+  abrirModalCrear() {
+    const sucursalInicial = this.sucursales[0]?.nombre || 'EasyDry Quito Norte';
+    const bahiasIniciales = this.getBahiasDisponibles(sucursalInicial);
+    this.nuevaMaquina = {
+      codigo: '',
+      nombre: '',
+      marca: 'Kärcher Professional',
+      modelo: 'HD 2026',
+      agencia: sucursalInicial,
+      bahia: bahiasIniciales[0] || 'Bahía 1',
+      estado: 'Operativa',
+      fechaMantenimiento: new Date().toISOString().substring(0, 10),
+      imagen: ''
+    };
+    this.erroresMaquina = { codigo: '', nombre: '', bahia: '', imagen: '' };
+    this.modalCrearOpen = true;
+  }
+
+  onSubirFotoMaquina(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    if (input.files && input.files[0]) {
+      const file = input.files[0];
+      if (file.size > 5 * 1024 * 1024) {
+        this.toastService.warning('Tamaño Excedido', 'La imagen no debe superar los 5 MB.');
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const base64 = e.target?.result as string;
+        if (base64) {
+          this.nuevaMaquina.imagen = base64;
+          this.erroresMaquina.imagen = '';
+          this.toastService.success('Foto Cargada', 'Se ha cargado la foto de la máquina.');
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  }
+
+  eliminarFotoMaquina(): void {
+    this.nuevaMaquina.imagen = '';
+  }
+
   guardarNuevaMaquinaria() {
-    this.erroresMaquina = { codigo: '', nombre: '', bahia: '' };
+    this.erroresMaquina = { codigo: '', nombre: '', bahia: '', imagen: '' };
     let valido = true;
 
     if (!this.nuevaMaquina.codigo?.trim()) {
@@ -1105,6 +1273,10 @@ export class MaquinariaComponent implements OnInit {
     }
     if (!this.nuevaMaquina.bahia?.trim()) {
       this.erroresMaquina.bahia = 'Indique la bahía de destino.';
+      valido = false;
+    }
+    if (!this.nuevaMaquina.imagen?.trim()) {
+      this.erroresMaquina.imagen = 'Debes subir la foto de la máquina obligatoriamente.';
       valido = false;
     }
 
