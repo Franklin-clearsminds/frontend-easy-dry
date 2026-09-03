@@ -122,7 +122,7 @@ import {
         </div>
 
         <!-- Pestañas de Navegación -->
-        <div class="flex items-center gap-4 sm:gap-6 mt-4 border-b border-slate-200 overflow-x-auto">
+        <div class="flex items-center gap-4 sm:gap-6 mt-4 pt-2 border-b border-slate-200 overflow-x-auto">
           <button
             (click)="activeTab = 'matriz'"
             class="pb-2.5 text-xs font-bold border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
@@ -166,23 +166,32 @@ import {
           <button
             (click)="activeTab = 'envios'"
             class="pb-2.5 text-xs font-bold border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
-            [ngClass]="activeTab === 'envios' ? 'border-easydry-blue text-easydry-blue' : 'border-transparent text-slate-500 hover:text-slate-700'">
+            [ngClass]="activeTab === 'envios' ? 'border-emerald-500 text-emerald-600' : 'border-transparent text-slate-500 hover:text-slate-700'">
             <i-lucide name="send" class="w-4 h-4 text-emerald-600"></i-lucide>
-            Envíos & Confirmación (Punto 9)
-            <span class="px-1.5 py-0.2 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">
-              {{ envios.length }}
-            </span>
+            <span>Envíos & Confirmación (Punto 9)</span>
+            @if (envios.length > 0) {
+              <span class="inline-flex items-center justify-center -translate-y-1 ml-0.5">
+                <svg class="w-3.5 h-3.5 shrink-0 drop-shadow-xs" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <circle cx="12" cy="12" r="12" fill="#10B981"/>
+                  <path d="M8 12.5l2.8 2.8 5.4-5.4" stroke="white" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </span>
+            }
           </button>
 
           <button
             (click)="activeTab = 'alertas'"
-            class="pb-2.5 text-xs font-bold border-b-2 transition-colors flex items-center gap-1.5 relative whitespace-nowrap cursor-pointer"
+            class="pb-2.5 text-xs font-bold border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
             [ngClass]="activeTab === 'alertas' ? 'border-rose-500 text-rose-600' : 'border-transparent text-slate-500 hover:text-slate-700'">
             <i-lucide name="alert-circle" class="w-4 h-4"></i-lucide>
-            Alertas de Reabastecimiento
+            <span>Alertas de Reabastecimiento</span>
             @if (alertas.length > 0) {
-              <span class="px-1.5 py-0.2 rounded-full bg-rose-500 text-white text-[10px] font-bold">
-                {{ alertas.length }}
+              <span class="inline-flex items-center justify-center -translate-y-1 ml-0.5">
+                <svg class="w-3.5 h-3.5 shrink-0 drop-shadow-xs" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <circle cx="12" cy="12" r="12" fill="#FF2B2B"/>
+                  <path d="M10.2 6.4C10.2 5.4 11 4.6 12 4.6C13 4.6 13.8 5.4 13.8 6.4L13.4 14.2C13.4 15 12.8 15.6 12 15.6C11.2 15.6 10.6 15 10.6 14.2L10.2 6.4Z" fill="white"/>
+                  <circle cx="12" cy="18.6" r="1.6" fill="white"/>
+                </svg>
               </span>
             }
           </button>
