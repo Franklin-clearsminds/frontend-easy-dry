@@ -15,11 +15,9 @@ import { UiStateService } from '../../core/services/ui-state.service';
       <!-- Sidebar flotante (fixed, rail retraído reserva 80px, al expandir flota con overlay) -->
       <app-sidebar></app-sidebar>
 
-      <!-- Main Layout Body: reserva el espacio del rail retraído vía margin-left.
-           Al expandir, el sidebar flota sobre el contenido (reserva 0). -->
+      <!-- Main Layout Body: permanentemente fijo a 80px (ml-20). El fondo nunca se mueve. -->
       <div
-        class="flex flex-col min-w-0 h-screen overflow-hidden transition-[margin] duration-200 ease-in-out"
-        [style.margin-left]="uiState.sidebarReservedWidth()">
+        class="flex flex-col min-w-0 h-screen overflow-hidden ml-20">
         <!-- EasyDry Corporate Header -->
         <app-header></app-header>
 

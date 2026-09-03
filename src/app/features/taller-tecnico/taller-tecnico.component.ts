@@ -27,7 +27,7 @@ import { MantenimientoComponent } from '../mantenimiento/mantenimiento.component
         </div>
 
         <!-- Tabs Navigation -->
-        <div class="flex items-center gap-6 mt-6 border-b border-slate-200">
+        <div class="flex items-center gap-6 mt-6 pt-2 border-b border-slate-200">
           <button 
             (click)="activeTab = 'mantenimiento'"
             class="pb-3 text-sm font-bold border-b-2 transition-colors flex items-center gap-2"
@@ -38,12 +38,17 @@ import { MantenimientoComponent } from '../mantenimiento/mantenimiento.component
           
           <button 
             (click)="activeTab = 'incidentes'"
-            class="pb-3 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 relative"
+            class="pb-3 text-sm font-bold border-b-2 transition-colors flex items-center gap-1.5"
             [ngClass]="activeTab === 'incidentes' ? 'border-rose-500 text-rose-600' : 'border-transparent text-slate-500 hover:text-slate-700'">
             <i-lucide name="alert-triangle" class="w-4 h-4"></i-lucide>
-            Registro de Incidentes
-            <!-- Badge Notification -->
-            <span class="absolute -top-1 -right-3 w-4 h-4 rounded-full bg-rose-500 text-white text-[9px] flex items-center justify-center">2</span>
+            <span>Registro de Incidentes</span>
+            <span class="inline-flex items-center justify-center -translate-y-1 ml-0.5">
+              <svg class="w-3.5 h-3.5 shrink-0 drop-shadow-xs" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="12" cy="12" r="12" fill="#FF2B2B"/>
+                <path d="M10.2 6.4C10.2 5.4 11 4.6 12 4.6C13 4.6 13.8 5.4 13.8 6.4L13.4 14.2C13.4 15 12.8 15.6 12 15.6C11.2 15.6 10.6 15 10.6 14.2L10.2 6.4Z" fill="white"/>
+                <circle cx="12" cy="18.6" r="1.6" fill="white"/>
+              </svg>
+            </span>
           </button>
         </div>
       </div>

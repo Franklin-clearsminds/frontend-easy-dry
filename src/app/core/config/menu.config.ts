@@ -7,6 +7,7 @@ export interface MenuItem {
   roles?: Role[] | string[];
   moduloCodigo: string; // Código del módulo asociado
   badge?: string;
+  badgeIcon?: string; // Icono para badges gráficos (ej. 'alert-triangle')
   badgeColor?: string;
   group?: string;
 }
@@ -39,7 +40,7 @@ export const MENU_CONFIG: MenuItem[] = [
     icon: 'bell',
     moduloCodigo: 'notificaciones',
     group: 'Panel Principal',
-    badge: '!',
+    badgeIcon: 'alert-circle-filled',
     badgeColor: 'bg-rose-500 text-white'
   },
 
@@ -103,7 +104,7 @@ export const MENU_CONFIG: MenuItem[] = [
     icon: 'wrench',
     moduloCodigo: 'taller-tecnico',
     group: 'Activos & Taller',
-    badge: '!',
+    badgeIcon: 'alert-circle-filled',
     badgeColor: 'bg-rose-500 text-white'
   },
   {
