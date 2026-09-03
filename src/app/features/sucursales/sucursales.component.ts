@@ -465,7 +465,7 @@ import { CatalogoServiciosMockService } from '../../core/services/catalogo-servi
       <!-- TAB 4: GESTIÓN DE GERENTES DE SUCURSAL (PUNTO 3)                       -->
       <!-- ====================================================================== -->
       @if (tabActiva === 'gerentes') {
-        <div class="space-y-4 animate-fade-in">
+        <div class="space-y-6 animate-fade-in">
           <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <div class="flex items-center gap-2">
@@ -1454,3 +1454,4 @@ export class SucursalesComponent implements OnInit {
   }
 
 }
+

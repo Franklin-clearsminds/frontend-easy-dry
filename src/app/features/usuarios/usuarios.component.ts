@@ -296,8 +296,9 @@ interface ModuloGrupo {
                       <td class="py-3.5 px-4 text-right">
                         <button
                           (click)="abrirModalEditarRol(rol)"
-                          class="px-3 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-bold border border-purple-200">
-                          Configurar
+                          title="Configurar permisos"
+                          class="p-1.5 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 transition-colors cursor-pointer flex items-center justify-center">
+                          <i-lucide name="settings" class="w-4 h-4"></i-lucide>
                         </button>
                       </td>
                     </tr>

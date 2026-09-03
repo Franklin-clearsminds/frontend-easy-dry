@@ -157,19 +157,17 @@ import { resolverRangoFechas, soloFecha } from '../../core/utils/fecha-rango';
                       <!-- Export Excel -->
                       <button 
                         (click)="exportarExcel(rep)" 
-                        title="Exportar a Excel" 
-                        class="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold rounded-lg text-xs flex items-center gap-1">
-                        <i-lucide name="file-spreadsheet" class="w-3.5 h-3.5 text-emerald-600"></i-lucide>
-                        <span>Excel</span>
+                        title="Exportar Excel" 
+                        class="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg transition-colors cursor-pointer flex items-center justify-center">
+                        <i-lucide name="file-spreadsheet" class="w-4 h-4"></i-lucide>
                       </button>
 
                       <!-- Export PDF -->
                       <button 
                         (click)="exportarPDF(rep)" 
-                        title="Exportar a PDF" 
-                        class="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-800 font-bold rounded-lg text-xs flex items-center gap-1">
-                        <i-lucide name="file-text" class="w-3.5 h-3.5 text-rose-600"></i-lucide>
-                        <span>PDF</span>
+                        title="Exportar PDF" 
+                        class="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg transition-colors cursor-pointer flex items-center justify-center">
+                        <i-lucide name="file-text" class="w-4 h-4"></i-lucide>
                       </button>
                     </div>
                   </td>

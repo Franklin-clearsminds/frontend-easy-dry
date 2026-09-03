@@ -181,47 +181,44 @@ import { ModalPortalDirective } from '../../shared/directives/modal-portal.direc
                     {{ m.descripcion }}
                   </td>
                   <td class="py-3.5 px-4">
-                    <div class="flex flex-col gap-1.5">
+                    <div class="flex items-center gap-1.5">
                       <button
                         (click)="abrirDetalle(m); $event.stopPropagation()"
-                        class="px-3 py-1.5 bg-easydry-blue/10 hover:bg-easydry-blue hover:text-white text-easydry-blue font-bold rounded-lg text-[10px] inline-flex items-center gap-1">
-                        <i-lucide name="eye" class="w-3 h-3"></i-lucide>
-                        Ver detalle
+                        title="Ver detalle"
+                        class="p-1.5 bg-easydry-blue/10 hover:bg-easydry-blue hover:text-white text-easydry-blue rounded-lg transition-colors cursor-pointer inline-flex items-center justify-center">
+                        <i-lucide name="eye" class="w-3.5 h-3.5"></i-lucide>
                       </button>
                       @if (m.estado !== 'Completado' && m.estado !== 'Cancelado') {
                         @if (puedeAsignar) {
-                          @if (m.tecnicoAsignadoNombre) {
-                            <span class="text-[10px] font-semibold text-violet-700">{{ m.tecnicoAsignadoNombre }}</span>
-                          }
-                          <div class="flex flex-wrap gap-1">
+                          <button
+                            (click)="openModalAsignar(m); $event.stopPropagation()"
+                            [title]="m.tecnicoAsignadoId ? 'Reasignar técnico' : 'Asignar técnico'"
+                            class="p-1.5 bg-violet-600 hover:bg-violet-700 text-white rounded-lg transition-colors cursor-pointer flex items-center justify-center">
+                            <i-lucide name="user-plus" class="w-3.5 h-3.5"></i-lucide>
+                          </button>
+                          @if (m.tecnicoAsignadoId) {
                             <button
-                              (click)="openModalAsignar(m); $event.stopPropagation()"
-                              class="px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-lg text-[10px]">
-                              {{ m.tecnicoAsignadoId ? 'Reasignar' : 'Asignar' }}
+                              (click)="cancelarAsignacionMantenimiento(m); $event.stopPropagation()"
+                              title="Cancelar asignación"
+                              class="p-1.5 bg-rose-100 hover:bg-rose-200 text-rose-800 rounded-lg transition-colors cursor-pointer flex items-center justify-center">
+                              <i-lucide name="x-circle" class="w-3.5 h-3.5"></i-lucide>
                             </button>
-                            @if (m.tecnicoAsignadoId) {
-                              <button
-                                (click)="cancelarAsignacionMantenimiento(m); $event.stopPropagation()"
-                                class="px-3 py-1.5 bg-rose-100 hover:bg-rose-200 text-rose-800 font-bold rounded-lg text-[10px]">
-                                Cancelar
-                              </button>
-                            }
-                          </div>
+                          }
                         }
                         @if (puedeCompletar(m)) {
                           <button
                             (click)="abrirModalCompletar(m); $event.stopPropagation()"
-                            class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
-                            <i-lucide name="check-circle-2" class="w-3 h-3"></i-lucide>
-                            Registrar realización
+                            title="Marcar completado"
+                            class="p-1.5 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 rounded-lg transition-colors shadow-glow-green flex items-center justify-center cursor-pointer">
+                            <i-lucide name="check-circle-2" class="w-3.5 h-3.5"></i-lucide>
                           </button>
                         }
                       } @else if (m.estado === 'Completado') {
                         <button
                           (click)="abrirDetalle(m); $event.stopPropagation()"
-                          class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-lg text-[10px] inline-flex items-center gap-1">
-                          <i-lucide name="eye" class="w-3 h-3"></i-lucide>
-                          Ver cierre
+                          title="Ver cierre"
+                          class="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg transition-colors cursor-pointer inline-flex items-center justify-center">
+                          <i-lucide name="eye" class="w-3.5 h-3.5"></i-lucide>
                         </button>
                       }
                     </div>

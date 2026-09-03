@@ -153,9 +153,8 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                         type="button"
                         (click)="abrirModalAsignar(op)" 
                         [title]="op.bahia && !op.bahia.includes('Sin') ? 'Cambiar bahía' : 'Asignar a bahía'"
-                        class="px-2.5 py-1.5 bg-easydry-blue/10 hover:bg-easydry-blue hover:text-white text-easydry-blue font-bold rounded-lg text-xs transition-colors cursor-pointer flex items-center gap-1">
+                        class="p-1.5 bg-easydry-blue/10 hover:bg-easydry-blue hover:text-white text-easydry-blue rounded-lg transition-colors cursor-pointer flex items-center justify-center">
                         <i-lucide name="refresh-cw" class="w-3.5 h-3.5"></i-lucide>
-                        <span>{{ op.bahia && !op.bahia.includes('Sin') ? 'Cambiar' : 'Asignar' }}</span>
                       </button>
 
                       <!-- Desactivar Asignación -->

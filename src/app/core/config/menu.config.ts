@@ -136,11 +136,4 @@ export const MENU_CONFIG: MenuItem[] = [
     moduloCodigo: 'reportes',
     group: 'Administración'
   },
-  {
-    label: 'Configuración Global',
-    route: '/configuracion',
-    icon: 'settings',
-    moduloCodigo: 'configuracion',
-    group: 'Administración'
-  }
 ];

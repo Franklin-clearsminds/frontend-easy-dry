@@ -23,7 +23,7 @@ import {
   standalone: true,
   imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent],
   template: `
-    <div class="space-y-4 animate-fade-in pb-12">
+    <div class="space-y-6 animate-fade-in pb-12">
 
       <!-- ============================================================== -->
       <!-- HEADER PRINCIPAL & ACCIONES EN FILA                            -->
@@ -193,7 +193,7 @@ import {
       <!-- PESTAÑA 1: MATRIZ DE STOCK GLOBAL & SUCURSALES (TABLA VISIBLE) -->
       <!-- ============================================================== -->
       @if (activeTab === 'matriz') {
-        <div class="space-y-4 animate-fade-in">
+        <div class="space-y-6 animate-fade-in">
           
           <!-- Filtros, Selector Sucursal/Bahía y Búsqueda Directa (Punto 7 y Punto 18) -->
           <div class="bg-white p-3.5 rounded-2xl border border-slate-100 shadow-easydry flex flex-col lg:flex-row lg:items-center justify-between gap-3">
@@ -408,7 +408,7 @@ import {
       <!-- PESTAÑA 2: CATÁLOGO DE INSUMOS (TABLA COMPLETA DE PRODUCTOS)   -->
       <!-- ============================================================== -->
       @if (activeTab === 'catalogo') {
-        <div class="space-y-4 animate-fade-in">
+        <div class="space-y-6 animate-fade-in">
           
           <!-- Filtros de Catálogo -->
           <div class="bg-white p-3.5 rounded-2xl border border-slate-100 shadow-easydry flex flex-col md:flex-row md:items-center justify-between gap-3">
@@ -522,15 +522,15 @@ import {
                         <div class="flex items-center justify-end gap-1.5">
                           <button
                             (click)="editarProducto(item.producto)"
-                            class="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-bold transition-colors flex items-center gap-1">
+                            title="Editar insumo"
+                            class="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors cursor-pointer flex items-center justify-center">
                             <i-lucide name="edit-3" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide>
-                            <span>Editar</span>
                           </button>
                           <button
                             (click)="abrirDespachoDirecto(item)"
-                            class="px-2.5 py-1.5 bg-easydry-blue hover:bg-easydry-blue-dark text-white rounded-lg text-xs font-bold transition-colors flex items-center gap-1">
-                            <i-lucide name="truck" class="w-3.5 h-3.5 text-easydry-lime"></i-lucide>
-                            <span>Despachar</span>
+                            title="Despachar"
+                            class="p-1.5 bg-easydry-blue/10 hover:bg-easydry-blue text-easydry-blue hover:text-white rounded-lg transition-colors cursor-pointer flex items-center justify-center">
+                            <i-lucide name="truck" class="w-3.5 h-3.5"></i-lucide>
                           </button>
                         </div>
                       </td>
@@ -548,7 +548,7 @@ import {
       <!-- PESTAÑA: BODEGAS (Central fija + satélites)                    -->
       <!-- ============================================================== -->
       @if (activeTab === 'bodegas') {
-        <div class="space-y-4 animate-fade-in">
+        <div class="space-y-6 animate-fade-in">
           <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-easydry flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <h3 class="font-extrabold text-slate-900 text-base font-outfit">Red de Bodegas</h3>
@@ -805,7 +805,7 @@ import {
       <!-- PESTAÑA 4: ENVASES & UNIDADES DE MEDIDA                        -->
       <!-- ============================================================== -->
       @if (activeTab === 'tipos_envases') {
-        <div class="space-y-4 animate-fade-in">
+        <div class="space-y-6 animate-fade-in">
           
           <!-- Encabezado de Envases & Unidades -->
           <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-easydry flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -913,7 +913,7 @@ import {
       <!-- PESTAÑA 5: ALERTAS DE REABASTECIMIENTO                         -->
       <!-- ============================================================== -->
       @if (activeTab === 'alertas') {
-        <div class="space-y-4 animate-fade-in">
+        <div class="space-y-6 animate-fade-in">
           <div class="bg-amber-50 border border-amber-200 rounded-3xl p-5 flex items-center justify-between">
             <div class="flex items-center gap-3">
               <div class="p-2.5 rounded-2xl bg-amber-500 text-white shadow-xs">
@@ -1980,4 +1980,5 @@ export class InventarioComponent implements OnInit {
     );
   }
 }
+
 
