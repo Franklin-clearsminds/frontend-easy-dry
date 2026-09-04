@@ -7,6 +7,7 @@ import { StatCardComponent } from '../../shared/components/stat-card/stat-card.c
 import { ChartCardComponent } from '../../shared/components/chart-card/chart-card.component';
 import { DashboardOperativoService } from '../../core/services/dashboard-operativo.service';
 import { AuthService } from '../../core/services/auth.service';
+import { MarcaSucursalMockService } from '../../core/services/marca-sucursal-mock.service';
 import { Role, ROLE_LABELS } from '../../core/models/roles.model';
 import { AlertasWidgetComponent } from './components/alertas-widget.component';
 import { RankingOperadoresWidgetComponent } from './components/ranking-operadores-widget.component';
@@ -31,6 +32,7 @@ import { AprobacionesWidgetComponent } from './components/aprobaciones-widget.co
 })
 export class DashboardComponent implements OnInit {
   private dashboardService = inject(DashboardOperativoService);
+  private marcaService = inject(MarcaSucursalMockService);
   public auth = inject(AuthService);
 
   produccion: any;
@@ -49,6 +51,7 @@ export class DashboardComponent implements OnInit {
   private baseServiciosData: any;
 
   sucursalFilter = 'Todas';
+  marcaFilter = 'Todas';
   modeloFilter = 'Todos';
   colorFilter = 'Todos';
   fechaFilter = 'Hoy';
@@ -56,6 +59,7 @@ export class DashboardComponent implements OnInit {
   fechaFin = '';
 
   listaSucursales = ['Todas', 'Quito Norte', 'Quito Sur', 'Cumbayá', 'Guayaquil'];
+  listaMarcas: string[] = [];
   listaModelos = ['Todos', 'Sedán', 'SUV', 'Camioneta', 'Hatchback', 'Moto'];
   listaColores = ['Todos', 'Blanco', 'Negro', 'Plata', 'Gris', 'Rojo', 'Azul'];
   listaFechas = ['Hoy', 'Esta Semana', 'Este Mes', 'Este Año', 'Personalizado'];
@@ -97,6 +101,7 @@ export class DashboardComponent implements OnInit {
         };
       });
       this.dashboardService.getAlertas().subscribe(d => this.alertas = d);
+      this.listaMarcas = ['Todas', ...this.marcaService.getActivas().map(m => m.nombre)];
     }
 
     if (this.isTecnicoRole) {
@@ -152,6 +157,7 @@ export class DashboardComponent implements OnInit {
     if (!this.baseProduccion || !this.baseServiciosData) return;
     let factor = 1.0;
     if (this.sucursalFilter !== 'Todas') factor *= 0.25;
+    if (this.marcaFilter !== 'Todas') factor *= 0.3;
     if (this.modeloFilter !== 'Todos') factor *= 0.3;
     if (this.colorFilter !== 'Todos') factor *= 0.15;
     if (this.fechaFilter === 'Esta Semana') factor *= 5;
@@ -176,6 +182,7 @@ export class DashboardComponent implements OnInit {
 
   resetFiltros() {
     this.sucursalFilter = 'Todas';
+    this.marcaFilter = 'Todas';
     this.modeloFilter = 'Todos';
     this.colorFilter = 'Todos';
     this.fechaFilter = 'Hoy';

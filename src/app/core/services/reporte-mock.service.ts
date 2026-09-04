@@ -24,7 +24,6 @@ export class ReporteMockService {
       agencia,
       fechaGeneracion: new Date().toISOString().split('T')[0],
       totalServicios: Math.floor(Math.random() * 200) + 50,
-      ingresosTotales: Math.floor(Math.random() * 8000) + 2000,
       eficienciaGeneral: parseFloat((90 + Math.random() * 8).toFixed(1))
     };
     this.reportesSubject.next([nuevo, ...current]);

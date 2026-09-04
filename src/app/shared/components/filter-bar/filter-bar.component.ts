@@ -6,10 +6,13 @@ import { SucursalMockService } from '../../../core/services/sucursal-mock.servic
 import { BahiaMockService } from '../../../core/services/bahia-mock.service';
 import { OperadorMockService } from '../../../core/services/operador-mock.service';
 import { RegionMockService } from '../../../core/services/region-mock.service';
+import { MarcaSucursalMockService } from '../../../core/services/marca-sucursal-mock.service';
+import { MarcaSucursal } from '../../../core/models';
 
 export interface FilterState {
   sucursal: string;
   region?: string;
+  marca?: string;
   operador: string;
   servicio?: string;
   bahia: string;
@@ -27,7 +30,7 @@ export interface FilterState {
   imports: [CommonModule, FormsModule, LucideAngularModule],
   host: { class: 'block' },
   template: `
-    <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-easydry flex flex-wrap gap-4 items-end z-20 relative animate-fade-in">
+    <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-easydry flex flex-wrap gap-3 items-end z-20 relative animate-fade-in">
 
       <!-- Búsqueda por texto -->
       @if (showBusqueda) {
@@ -72,14 +75,29 @@ export interface FilterState {
         </div>
       }
 
-      <!-- Sucursal -->
+      <!-- Marca -->
+      @if (showMarca) {
+        <div class="flex-1 min-w-[170px]">
+          <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+            <i-lucide name="tag" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide> Marca
+          </label>
+          <select [(ngModel)]="filters.marca" (change)="emitFilters()" class="w-full bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-xl px-3 py-2 focus:ring-2 focus:ring-easydry-blue transition-colors appearance-none font-semibold cursor-pointer">
+            <option value="Todas">Todas las Marcas</option>
+            @for (m of listaMarcas; track m) {
+              <option [value]="m">{{ m }}</option>
+            }
+          </select>
+        </div>
+      }
+
+      <!-- Agencia -->
       @if (showSucursal) {
         <div class="flex-1 min-w-[190px]">
           <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-            <i-lucide name="map-pin" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide> Sucursal / Agencia
+            <i-lucide name="map-pin" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide> Agencia
           </label>
           <select [(ngModel)]="filters.sucursal" (change)="emitFilters()" class="w-full bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-xl px-3 py-2 focus:ring-2 focus:ring-easydry-blue transition-colors appearance-none font-semibold cursor-pointer">
-            <option value="Todas">Todas las Sucursales</option>
+            <option value="Todas">Todas las Agencias</option>
             @for (suc of listaSucursales; track suc) {
               <option [value]="suc">{{ suc }}</option>
             }
@@ -89,7 +107,7 @@ export interface FilterState {
 
       <!-- Operador -->
       @if (showOperador) {
-        <div class="flex-1 min-w-[180px]">
+        <div class="flex-1 min-w-[190px]">
           <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
             <i-lucide name="users" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide> Operador Técnico
           </label>
@@ -119,7 +137,7 @@ export interface FilterState {
 
       <!-- Bahía -->
       @if (showBahia) {
-        <div class="flex-1 min-w-[140px]">
+        <div class="flex-1 min-w-[130px]">
           <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
             <i-lucide name="layout-grid" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide> Bahía
           </label>
@@ -149,7 +167,7 @@ export interface FilterState {
 
       <!-- Período / Fechas -->
       @if (showFechas) {
-        <div class="flex-1 min-w-[150px]">
+        <div class="flex-1 min-w-[130px]">
           <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
             <i-lucide name="calendar-days" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide> Rango
           </label>
@@ -159,8 +177,10 @@ export interface FilterState {
             }
           </select>
         </div>
-
-        <div class="flex-1 min-w-[280px] flex items-end gap-2">
+      }
+      
+      @if (showFechas && (filters.fecha === 'Rango Personalizado' || filters.fecha === 'Personalizado')) {
+        <div class="flex-1 min-w-[260px] flex items-end gap-2">
           <div class="flex-1">
             <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Desde</label>
             <input type="date" [value]="filters.fechaInicio || ''" (input)="onDesdeCambio($event)" class="w-full bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-xl px-3 py-2 focus:ring-2 focus:ring-easydry-blue transition-colors font-medium">
@@ -172,8 +192,9 @@ export interface FilterState {
         </div>
       }
 
-      <!-- Botón Limpiar Filtros con Icono y Estado Activo -->
-      <div class="w-auto flex items-center self-end pb-0.5">
+      <!-- Botones Inyectados y Limpiar Filtros -->
+      <div class="flex-1 flex flex-wrap items-center justify-end gap-2 pb-0.5 mt-2 sm:mt-0 min-w-fit">
+        <ng-content select="[filter-actions]"></ng-content>
         <button
           type="button"
           (click)="resetFilters()"
@@ -189,6 +210,7 @@ export interface FilterState {
 })
 export class FilterBarComponent implements OnInit {
   @Input() showRegion = false;
+  @Input() showMarca = false;
   @Input() showSucursal = true;
   @Input() showOperador = false;
   @Input() showServicio = false;
@@ -201,6 +223,8 @@ export class FilterBarComponent implements OnInit {
 
   @Input() set listaRegiones(v: string[]) { this._listaRegiones = v; this.customRegiones = true; }
   get listaRegiones(): string[] { return this._listaRegiones; }
+  @Input() set listaMarcas(v: string[]) { this._listaMarcas = v; this.customMarcas = true; }
+  get listaMarcas(): string[] { return this._listaMarcas; }
   @Input() set listaSucursales(v: string[]) { this._listaSucursales = v; this.customSucursales = true; }
   get listaSucursales(): string[] { return this._listaSucursales; }
   @Input() set listaOperadores(v: string[]) { this._listaOperadores = v; this.customOperadores = true; }
@@ -219,8 +243,10 @@ export class FilterBarComponent implements OnInit {
   private bahiaService = inject(BahiaMockService);
   private operadorService = inject(OperadorMockService);
   private regionService = inject(RegionMockService);
+  private marcaService = inject(MarcaSucursalMockService);
 
   private _listaRegiones: string[] = ['Región Sierra', 'Región Costa', 'Región Austro'];
+  private _listaMarcas: string[] = ['EasyDry', 'EasyDry Premium', 'EasyDry Express'];
   private _listaSucursales: string[] = ['Quito Norte', 'Quito Sur', 'Cumbayá', 'Guayaquil', 'Cuenca'];
   private _listaOperadores: string[] = ['Carlos Torres', 'Marta Ruiz', 'Luis Mendez', 'Ana Gómez', 'Diego Pulido Norte'];
   private _listaServicios: string[] = ['Express', 'Completo', 'Deluxe', 'Pulido Especial', 'Micro pulido', 'Recubrimiento Cerámico', 'Lavado motor'];
@@ -231,12 +257,14 @@ export class FilterBarComponent implements OnInit {
   private customBahias = false;
   private customOperadores = false;
   private customRegiones = false;
+  private customMarcas = false;
   private customServicios = false;
   private customEstados = false;
 
   filters: FilterState = {
     sucursal: 'Todas',
     region: 'Todas',
+    marca: 'Todas',
     operador: 'Todos',
     servicio: 'Todos',
     bahia: 'Todas',
@@ -248,12 +276,11 @@ export class FilterBarComponent implements OnInit {
   };
 
   ngOnInit(): void {
-    // Para mantener compatibilidad, solo se autocompletan las listas que el
-    // componente padre NO haya configurado con un valor personalizado.
     if (!this.customSucursales) this.cargarSucursales();
     if (!this.customBahias) this.cargarBahias();
     if (!this.customOperadores) this.cargarOperadores();
     if (!this.customRegiones) this.cargarRegiones();
+    if (!this.customMarcas) this.cargarMarcas();
     if (!this.customServicios) this.cargarServicios();
     if (!this.customEstados) this.cargarEstados();
   }
@@ -282,6 +309,12 @@ export class FilterBarComponent implements OnInit {
   cargarRegiones(): void {
     const nombres = this.regionService.getActivas().map(r => r.nombre).filter(Boolean);
     if (nombres.length) this._listaRegiones = [...new Set(nombres)];
+  }
+
+  cargarMarcas(): void {
+    const marcas = this.marcaService.getActivas();
+    const nombres = marcas.map((m: MarcaSucursal) => m.nombre).filter(Boolean);
+    if (nombres.length) this._listaMarcas = [...new Set(nombres)];
   }
 
   cargarServicios(): void {
@@ -397,6 +430,7 @@ export class FilterBarComponent implements OnInit {
     this.filters = {
       sucursal: 'Todas',
       region: 'Todas',
+      marca: 'Todas',
       operador: 'Todos',
       servicio: 'Todos',
       bahia: 'Todas',

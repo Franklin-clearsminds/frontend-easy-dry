@@ -56,8 +56,6 @@ export interface ProductoInsumo {
   stockAlertaSucursal: number; // Umbral de alerta en Sucursal
   stockMinimoGlobal?: number; // Compatibilidad
   stockOptimoGlobal?: number; // Nivel recomendado
-  costoUnitarioUSD?: number;
-  proveedorPrincipal: string;
   imagen: string;
   activo: boolean;
   fechaCreacion: string;
@@ -111,7 +109,6 @@ export interface MovimientoStock {
   unidad: string;
   responsable: string;
   observaciones?: string;
-  costoTotalUSD?: number;
 }
 
 /** Resumen de Alertas de Reabastecimiento */
@@ -135,8 +132,6 @@ export interface InsumoConsumidoServicio {
   productoNombre: string;
   unidadMedida: string;
   cantidad: number;
-  costoUnitarioUSD?: number;
-  costoTotalUSD?: number;
 }
 
 /** Insumo configurado como receta predeterminada en el catálogo */

@@ -36,6 +36,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
         [showSucursal]="isSuperAdmin" 
         [showOperador]="false"
         [showBahia]="true"
+        [showMarca]="true"
         [showEstado]="true"
         [showFechas]="false"
         [listaEstados]="['Todos', 'Activo', 'Inactivo', 'En Capacitación']"
@@ -339,7 +340,7 @@ export class OperadoresComponent implements OnInit {
   historialOperador: HistorialAsignacionOperador[] = [];
 
   filtroTexto = '';
-  filtrosGlobales: FilterState = { sucursal: 'Todas', operador: 'Todos', bahia: 'Todas', estado: 'Todos', fecha: 'Hoy' };
+  filtrosGlobales: FilterState = { sucursal: 'Todas', region: 'Todas', marca: 'Todas', operador: 'Todos', bahia: 'Todas', estado: 'Todos', fecha: 'Hoy' };
 
   aplicarNuevosFiltros(filtros: FilterState) {
     this.filtrosGlobales = filtros;
@@ -423,6 +424,12 @@ export class OperadoresComponent implements OnInit {
     if (this.filtrosGlobales.bahia && this.filtrosGlobales.bahia !== 'Todas') {
       const bah = this.filtrosGlobales.bahia.toLowerCase();
       resultados = resultados.filter(op => (op.bahia || '').toLowerCase().includes(bah) || bah.includes((op.bahia || '').toLowerCase()));
+    }
+    if (this.filtrosGlobales.marca && this.filtrosGlobales.marca !== 'Todas') {
+      resultados = resultados.filter(op => {
+        const suc = this.sucursalService.getSucursalPorNombre(op.sucursal);
+        return suc?.marcaNombre === this.filtrosGlobales.marca;
+      });
     }
 
     return resultados;

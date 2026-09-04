@@ -9,6 +9,7 @@ import { ModalComponent } from '../../shared/components/modal/modal.component';
 import { ToastService } from '../../shared/services/toast.service';
 import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
 import { FilterBarComponent, FilterState } from '../../shared/components/filter-bar/filter-bar.component';
+import { SucursalMockService } from '../../core/services/sucursal-mock.service';
 
 import { Role } from '../../core/models/roles.model';
 
@@ -30,14 +31,6 @@ import { Role } from '../../core/models/roles.model';
           <p class="text-slate-500 text-xs mt-1">Revisión de vehículos atendidos hoy, evidencias en video, horarios y confirmación para cierre diario de operaciones.</p>
         </div>
 
-        <div class="flex items-center gap-3">
-          <button 
-            (click)="aprobarTodos()"
-            class="px-5 py-3 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
-            <i-lucide name="check-circle-2" class="w-4 h-4"></i-lucide>
-            <span>Aprobar Todos los Servicios en Filtro</span>
-          </button>
-        </div>
       </div>
 
       <!-- Global Filter Bar -->
@@ -46,9 +39,9 @@ import { Role } from '../../core/models/roles.model';
         [showOperador]="true"
         [showBahia]="true"
         [showEstado]="true"
-        [showBusqueda]="true"
-        [placeholderBusqueda]="'Buscar por placa, vehículo u operador...'"
         [showFechas]="false"
+        [showMarca]="true"
+        [showBusqueda]="true"
         [listaEstados]="['Todos', 'FINALIZADO', 'APROBADO', 'RECHAZADO']"
         (filterChange)="aplicarNuevosFiltros($event)">
       </app-filter-bar>
@@ -77,9 +70,17 @@ import { Role } from '../../core/models/roles.model';
           </p>
         </div>
 
-        <div class="text-right">
-          <span class="text-3xl font-extrabold font-outfit text-easydry-lime">{{ totalAprobados }} / {{ serviciosFiltrados.length }}</span>
-          <span class="text-xs text-slate-300 block font-semibold">Servicios Aprobados</span>
+        <div class="text-right flex flex-col items-end gap-3">
+          <div>
+            <span class="text-3xl font-extrabold font-outfit text-easydry-lime">{{ totalAprobados }} / {{ serviciosFiltrados.length }}</span>
+            <span class="text-xs text-slate-300 block font-semibold">Servicios Aprobados</span>
+          </div>
+          <button 
+            (click)="aprobarTodos()"
+            class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
+            <i-lucide name="check-circle-2" class="w-4 h-4"></i-lucide>
+            <span>Aprobar Todos en Filtro</span>
+          </button>
         </div>
       </div>
 
@@ -248,12 +249,14 @@ export class AprobacionesComponent implements OnInit {
   private servicioService = inject(ServicioLavadoMockService);
   private authService = inject(AuthService);
   private toastService = inject(ToastService);
+  private sucursalService = inject(SucursalMockService);
 
   get totalAprobados() {
     return this.serviciosFiltrados.filter(s => s.estado === 'APROBADO').length;
   }
 
-  filtrosGlobales: FilterState = { sucursal: 'Todas', operador: 'Todos', bahia: 'Todas', estado: 'Todos', fecha: 'Hoy' };
+  filtrosGlobales: FilterState = { sucursal: 'Todas', operador: 'Todos', bahia: 'Todas', estado: 'Todos', fecha: 'Hoy', marca: 'Todas' };
+  filtroTexto = '';
 
   get serviciosFiltrados() {
     let resultados = this.serviciosDelDia;
@@ -265,6 +268,12 @@ export class AprobacionesComponent implements OnInit {
       const suc = this.filtrosGlobales.sucursal.toLowerCase();
       resultados = resultados.filter(s => s.agencia?.toLowerCase().includes(suc) || suc.includes(s.agencia?.toLowerCase() || ''));
     }
+    if (this.filtrosGlobales.marca && this.filtrosGlobales.marca !== 'Todas') {
+      resultados = resultados.filter(item => {
+        const suc = this.sucursalService.getSucursalPorNombre(item.agencia);
+        return suc?.marcaNombre === this.filtrosGlobales.marca;
+      });
+    }
     if (this.filtrosGlobales.bahia && this.filtrosGlobales.bahia !== 'Todas') {
       const bah = this.filtrosGlobales.bahia.toLowerCase();
       resultados = resultados.filter(s => s.bahia?.toLowerCase().includes(bah) || bah.includes(s.bahia?.toLowerCase() || ''));
@@ -272,8 +281,8 @@ export class AprobacionesComponent implements OnInit {
     if (this.filtrosGlobales.operador && this.filtrosGlobales.operador !== 'Todos') {
       resultados = resultados.filter(s => s.empleado?.includes(this.filtrosGlobales.operador || ''));
     }
-    if (this.filtrosGlobales.busqueda?.trim()) {
-      const b = this.filtrosGlobales.busqueda.trim().toLowerCase();
+    if (this.filtroTexto.trim()) {
+      const b = this.filtroTexto.trim().toLowerCase();
       resultados = resultados.filter(s =>
         (s.placa || '').toLowerCase().includes(b) ||
         (s.marca || '').toLowerCase().includes(b) ||
@@ -293,6 +302,14 @@ export class AprobacionesComponent implements OnInit {
 
   aplicarNuevosFiltros(filtros: FilterState) {
     this.filtrosGlobales = filtros;
+    if (filtros.busqueda !== undefined) {
+      this.filtroTexto = filtros.busqueda;
+    }
+    this.currentPage = 1;
+    this.aplicarFiltros();
+  }
+
+  aplicarFiltros() {
     this.currentPage = 1;
   }
 

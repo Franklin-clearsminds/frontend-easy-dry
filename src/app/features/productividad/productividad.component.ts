@@ -6,6 +6,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
 import { AgenciaMockService } from '../../core/services/agencia-mock.service';
 import { AuthService } from '../../core/services/auth.service';
 import { Agencia } from '../../core/models';
+import { SucursalMockService } from '../../core/services/sucursal-mock.service';
 
 @Component({
   selector: 'app-productividad',
@@ -25,18 +26,6 @@ import { Agencia } from '../../core/models';
           <span>Reto EasyDry Activo: Edición Julio 2026</span>
         </span>
       </div>
-
-      <!-- Filtros Completos (Punto 15: Agencia, Servicio, Operador, Fechas) -->
-      <app-filter-bar 
-        [showRegion]="true"
-        [showSucursal]="true" 
-        [showOperador]="true"
-        [showServicio]="true"
-        [showBahia]="false"
-        [showEstado]="false"
-        [showFechas]="true"
-        (filterChange)="aplicarFiltros($event)">
-      </app-filter-bar>
 
       <!-- RETO EASYDRY SPECIAL GAMIFIED SECTION -->
       <div class="bg-gradient-to-r from-easydry-blue-dark via-easydry-blue to-slate-900 rounded-3xl p-6 md:p-8 text-white shadow-2xl relative overflow-hidden">
@@ -107,6 +96,19 @@ import { Agencia } from '../../core/models';
         </div>
 
       </div>
+
+      <!-- Filtros Completos (Punto 15: Agencia, Servicio, Operador, Fechas) -->
+      <app-filter-bar 
+        [showRegion]="true"
+        [showSucursal]="true" 
+        [showOperador]="true"
+        [showServicio]="true"
+        [showBahia]="false"
+        [showEstado]="false"
+        [showMarca]="true"
+        [showFechas]="true"
+        (filterChange)="aplicarFiltros($event)">
+      </app-filter-bar>
 
       <!-- Rankings Grid -->
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -236,6 +238,7 @@ export class ProductividadComponent implements OnInit {
 
   private agenciaService = inject(AgenciaMockService);
   public authService = inject(AuthService);
+  private sucursalService = inject(SucursalMockService);
 
   ngOnInit(): void {
     const user = this.authService.getCurrentUser();
@@ -257,6 +260,12 @@ export class ProductividadComponent implements OnInit {
     }
     if (filtros.region && filtros.region !== 'Todas') {
       res = res.filter(a => this.regionDeCiudad(a.ciudad) === filtros.region);
+    }
+    if (filtros.marca && filtros.marca !== 'Todas') {
+      res = res.filter(item => {
+        const suc = this.sucursalService.getSucursalPorNombre(item.nombre);
+        return suc?.marcaNombre === filtros.marca;
+      });
     }
     this.agencias = res.sort((a, b) => b.productividad - a.productividad);
   }

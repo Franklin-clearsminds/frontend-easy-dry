@@ -90,7 +90,6 @@ export const MOCK_DASHBOARD_DISTRIBUIDOR = {
   skusCriticos: 3,
   pedidosPendientes: 7,
   entregasSemana: 24,
-  valorInventarioUSD: 18450,
   chartConsumoInsumos: {
     labels: ['Shampoo', 'Cera', 'Químicos', 'Repuestos'],
     datasets: [{
@@ -112,20 +111,8 @@ export const MOCK_DASHBOARD_DISTRIBUIDOR = {
 
 export const MOCK_DASHBOARD_COMERCIAL = {
   serviciosMes: 842,
-  ingresosMesUSD: 28400,
   tasaAprobacion: 94,
   especialesVendidos: 156,
-  chartIngresosSemana: {
-    labels: ['Sem 1', 'Sem 2', 'Sem 3', 'Sem 4'],
-    datasets: [{
-      label: 'USD',
-      data: [6200, 7100, 6800, 8300],
-      borderColor: '#9BCB3B',
-      backgroundColor: 'rgba(155, 203, 59, 0.2)',
-      tension: 0.3,
-      fill: true
-    }]
-  },
   chartMixServicios: {
     labels: ['Generales', 'Especiales Premium'],
     datasets: [{

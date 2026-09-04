@@ -8,6 +8,7 @@ import { ToastService } from '../../shared/services/toast.service';
 import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
 import { FilterBarComponent, FilterState } from '../../shared/components/filter-bar/filter-bar.component';
 import { resolverRangoFechas, soloFecha } from '../../core/utils/fecha-rango';
+import { SucursalMockService } from '../../core/services/sucursal-mock.service';
 
 @Component({
   selector: 'app-reportes',
@@ -21,49 +22,6 @@ import { resolverRangoFechas, soloFecha } from '../../core/utils/fecha-rango';
         <div>
           <h1 class="text-2xl font-extrabold text-slate-900 font-outfit">Centro de Reportes Operativos</h1>
           <p class="text-slate-500 text-xs mt-1">Generación de informes consolidados de servicios, ingresos y productividad de agencias.</p>
-        </div>
-      </div>
-
-      <!-- Generator Filter Card -->
-      <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-easydry space-y-4">
-        <h3 class="font-bold text-slate-900 text-sm font-outfit uppercase tracking-wider">Generar Nuevo Reporte</h3>
-        
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Tipo de Reporte</label>
-            <select [(ngModel)]="nuevoTipo" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold">
-              <option value="Diario">Reporte Diario</option>
-              <option value="Mensual">Reporte Mensual</option>
-              <option value="Productividad">Reporte de Productividad</option>
-              <option value="Servicios Especiales">Reporte de Servicios Especiales</option>
-            </select>
-          </div>
-
-          <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Agencia / Sucursal</label>
-            <select [(ngModel)]="nuevaAgencia" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold">
-              <option value="Todas las Agencias">Todas las Agencias (Consolidado)</option>
-              <option value="EasyDry Quito Norte">EasyDry Quito Norte</option>
-              <option value="EasyDry Quito Sur">EasyDry Quito Sur</option>
-              <option value="EasyDry Cumbayá">EasyDry Cumbayá</option>
-              <option value="EasyDry Guayaquil">EasyDry Guayaquil</option>
-            </select>
-          </div>
-
-          <div class="flex items-end">
-            <button 
-              (click)="generarReporte()" 
-              [disabled]="generando"
-              class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
-              @if (generando) {
-                <i-lucide name="refresh-cw" class="w-4 h-4 animate-spin"></i-lucide>
-                <span>Generando...</span>
-              } @else {
-                <i-lucide name="file-text" class="w-4 h-4"></i-lucide>
-                <span>Generar Informe Ahora</span>
-              }
-            </button>
-          </div>
         </div>
       </div>
 
@@ -106,15 +64,30 @@ import { resolverRangoFechas, soloFecha } from '../../core/utils/fecha-rango';
         [showOperador]="false"
         [showBahia]="false"
         [showEstado]="false"
+        [showMarca]="true"
         [showFechas]="true"
         (filterChange)="aplicarNuevosFiltros($event)">
       </app-filter-bar>
 
       <!-- Generated Reports List -->
       <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry overflow-hidden">
-        <div class="p-6 border-b border-slate-100 flex items-center justify-between">
-          <h3 class="font-bold text-slate-900 text-base font-outfit">Historial de Reportes Generados</h3>
-          <span class="text-xs text-slate-500 font-medium">Exportables en PDF & Excel</span>
+        <div class="p-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h3 class="font-bold text-slate-900 text-base font-outfit">Historial de Reportes Generados</h3>
+            <span class="text-xs text-slate-500 font-medium">Exportables en PDF & Excel</span>
+          </div>
+          <button 
+            (click)="generarReporte()" 
+            [disabled]="generando"
+            class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
+            @if (generando) {
+              <i-lucide name="refresh-cw" class="w-4 h-4 animate-spin"></i-lucide>
+              <span>Generando...</span>
+            } @else {
+              <i-lucide name="file-text" class="w-4 h-4"></i-lucide>
+              <span>Generar Informe Ahora</span>
+            }
+          </button>
         </div>
 
         <div class="overflow-x-auto">
@@ -195,7 +168,7 @@ export class ReportesComponent implements OnInit {
   nuevaAgencia = 'Todas las Agencias';
   generando = false;
   
-  filtrosGlobales: FilterState = { sucursal: 'Todas', operador: 'Todos', bahia: 'Todas', estado: 'Todos', fecha: 'Hoy' };
+  filtrosGlobales: FilterState = { sucursal: 'Todas', operador: 'Todos', bahia: 'Todas', estado: 'Todos', fecha: 'Hoy', marca: 'Todas' };
 
   aplicarNuevosFiltros(filtros: FilterState) {
     this.filtrosGlobales = filtros;
@@ -207,6 +180,12 @@ export class ReportesComponent implements OnInit {
 
     if (this.filtrosGlobales.sucursal !== 'Todas') {
       resultados = resultados.filter(r => r.agencia === this.filtrosGlobales.sucursal);
+    }
+    if (this.filtrosGlobales.marca && this.filtrosGlobales.marca !== 'Todas') {
+      resultados = resultados.filter(item => {
+        const suc = this.sucursalService.getSucursalPorNombre(item.agencia);
+        return suc?.marcaNombre === this.filtrosGlobales.marca;
+      });
     }
 
     const rango = resolverRangoFechas(this.filtrosGlobales);
@@ -225,6 +204,7 @@ export class ReportesComponent implements OnInit {
 
   private reporteService = inject(ReporteMockService);
   private toastService = inject(ToastService);
+  private sucursalService = inject(SucursalMockService);
 
   ngOnInit(): void {
     this.reporteService.getReportes().subscribe(list => {
@@ -256,8 +236,8 @@ export class ReportesComponent implements OnInit {
 
   exportarExcel(reporte: Reporte) {
     const csvContent = "data:text/csv;charset=utf-8," 
-      + `ID,Título,Tipo,Agencia,Fecha,Total Servicios,Ingresos,Eficiencia\n`
-      + `${reporte.id},"${reporte.titulo}",${reporte.tipo},"${reporte.agencia}",${reporte.fechaGeneracion},${reporte.totalServicios},${reporte.ingresosTotales},${reporte.eficienciaGeneral}%\n`;
+      + `ID,Título,Tipo,Agencia,Fecha,Total Servicios,Eficiencia\n`
+      + `${reporte.id},"${reporte.titulo}",${reporte.tipo},"${reporte.agencia}",${reporte.fechaGeneracion},${reporte.totalServicios},${reporte.eficienciaGeneral}%\n`;
     
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");

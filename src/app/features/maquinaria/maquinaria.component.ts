@@ -29,15 +29,6 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
           <h1 class="text-2xl font-extrabold text-slate-900 font-outfit">Inventario & Movimientos de Maquinaria</h1>
           <p class="text-slate-500 text-xs mt-1">Control de activos industriales, asignación a sucursales/bahías y trazabilidad de transferencias.</p>
         </div>
-        @if (canCreate) {
-          <button 
-            (click)="abrirModalCrear()"
-            class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
-            <i-lucide name="plus" class="w-4 h-4"></i-lucide>
-            <span>Registrar Nuevo Activo</span>
-          </button>
-        }
-
       </div>
 
       <!-- Global Filter Bar -->
@@ -46,8 +37,10 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
         [showOperador]="false"
         [showBahia]="true"
         [showRegion]="true"
+        [showMarca]="true"
         [showEstado]="true"
         [showFechas]="false"
+        [showBusqueda]="true"
         [listaEstados]="['Todos', 'Operativa', 'Requiere Mantenimiento', 'En Reparación', 'Fuera de Servicio']"
         (filterChange)="aplicarNuevosFiltros($event)">
       </app-filter-bar>
@@ -74,24 +67,23 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
         </div>
       }
 
-      <!-- Search Bar -->
-      <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-xs flex flex-wrap items-center justify-between gap-4 mb-4">
-        <div class="flex flex-wrap items-center gap-3 flex-1 min-w-[280px]">
-          <div class="relative flex-1 min-w-[200px]">
-            <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
-              <i-lucide name="search" class="w-4 h-4"></i-lucide>
-            </span>
-            <input 
-              type="text" 
-              [(ngModel)]="filtroTexto" 
-              (input)="aplicarFiltros()"
-              placeholder="Buscar activo por código, nombre o serie..." 
-              class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold outline-none focus:ring-2 focus:ring-easydry-blue">
-          </div>
+      <!-- Encabezado de Lista de Activos -->
+      <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-easydry flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h3 class="font-bold text-slate-900 text-base font-outfit">Inventario Físico y Maquinaria Asignada</h3>
+          <p class="text-xs text-slate-500 mt-1">
+            Visualización y control de estado de todos los equipos registrados en el sistema.
+          </p>
         </div>
-        <div class="text-xs font-semibold text-slate-500">
-          Equipos: <strong class="text-easydry-blue">{{ maquinasFiltradas.length }}</strong>
-        </div>
+        @if (canCreate) {
+          <button
+            (click)="abrirModalCrear()"
+            class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
+            <i-lucide name="plus" class="w-4 h-4"></i-lucide>
+            <span class="hidden sm:inline">Registrar Nuevo Activo</span>
+            <span class="sm:hidden">Registrar Activo</span>
+          </button>
+        }
       </div>
 
       <!-- Equipment Grid -->
@@ -989,13 +981,19 @@ export class MaquinariaComponent implements OnInit {
 
   filtroTexto = '';
 
-  filtrosGlobales: FilterState = { sucursal: 'Todas', operador: 'Todos', bahia: 'Todas', estado: 'Todos', fecha: 'Hoy' };
+  filtrosGlobales: FilterState = { sucursal: 'Todas', region: 'Todas', marca: 'Todas', operador: 'Todos', bahia: 'Todas', estado: 'Todos', fecha: 'Hoy' };
 
   // Mapa sucursal -> región (para el filtro de región)
   mapaRegionSucursal: Record<string, string> = {};
+  // Mapa sucursal -> marca (para el filtro de marca)
+  mapaMarcaSucursal: Record<string, string> = {};
 
   aplicarNuevosFiltros(filtros: FilterState) {
     this.filtrosGlobales = filtros;
+    if (filtros.busqueda !== undefined) {
+      this.filtroTexto = filtros.busqueda;
+    }
+    this.currentPage = 1;
     this.aplicarFiltros();
   }
 
@@ -1055,8 +1053,10 @@ export class MaquinariaComponent implements OnInit {
     this.sucursalService.getSucursales().subscribe(list => {
       this.sucursales = list;
       this.mapaRegionSucursal = {};
+      this.mapaMarcaSucursal = {};
       list.forEach(s => {
         if (s.nombre && s.regionNombre) this.mapaRegionSucursal[s.nombre] = s.regionNombre;
+        if (s.nombre && s.marcaNombre) this.mapaMarcaSucursal[s.nombre] = s.marcaNombre;
       });
     });
 
@@ -1110,6 +1110,9 @@ export class MaquinariaComponent implements OnInit {
     }
     if (this.filtrosGlobales.region && this.filtrosGlobales.region !== 'Todas') {
       resultados = resultados.filter(m => this.mapaRegionSucursal[m.agencia] === this.filtrosGlobales.region);
+    }
+    if (this.filtrosGlobales.marca && this.filtrosGlobales.marca !== 'Todas') {
+      resultados = resultados.filter(m => this.mapaMarcaSucursal[m.agencia] === this.filtrosGlobales.marca);
     }
 
     return resultados;

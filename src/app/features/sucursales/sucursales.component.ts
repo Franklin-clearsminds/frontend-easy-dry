@@ -9,15 +9,16 @@ import { MarcaSucursalMockService } from '../../core/services/marca-sucursal-moc
 import { BahiaMockService } from '../../core/services/bahia-mock.service';
 import { UsuarioMockService } from '../../core/services/usuario-mock.service';
 import { AuthService } from '../../core/services/auth.service';
-import { MarcaSucursal, MovimientoRedSucursal, RegionOperativa, Sucursal, CatalogoServicio, Bahia, Usuario } from '../../core/models';
+import { Sucursal, CatalogoServicio, Bahia, Usuario, MarcaSucursal, MovimientoRedSucursal, RegionOperativa } from '../../core/models';
 import { ModalComponent } from '../../shared/components/modal/modal.component';
 import { ToastService } from '../../shared/services/toast.service';
 import { CatalogoServiciosMockService } from '../../core/services/catalogo-servicios-mock.service';
+import { FilterBarComponent, FilterState } from '../../shared/components/filter-bar/filter-bar.component';
 
 @Component({
   selector: 'app-sucursales',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, LucideAngularModule, ModalComponent],
+  imports: [CommonModule, FormsModule, RouterModule, LucideAngularModule, ModalComponent, FilterBarComponent],
   template: `
     <div class="space-y-6 animate-fade-in">
 
@@ -30,14 +31,13 @@ import { CatalogoServiciosMockService } from '../../core/services/catalogo-servi
           <h1 class="text-2xl font-extrabold text-slate-900 font-outfit">Sucursales & Mapa de Red EasyDry®</h1>
           <p class="text-slate-500 text-xs mt-1">Control administrativo de sedes, regiones operativas, marcas y trazabilidad jerárquica de bahías en tiempo real.</p>
         </div>
-        <div class="flex items-center gap-3 flex-wrap">
-          <button
-            (click)="abrirModalCrearSucursal()"
-            class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
-            <i-lucide name="plus" class="w-4 h-4"></i-lucide>
-            <span>Registrar Sucursal</span>
-          </button>
-        </div>
+        <button
+          *ngIf="tabActiva === 'sucursales'"
+          (click)="abrirModalCrearSucursal()"
+          class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
+          <i-lucide name="plus" class="w-4 h-4"></i-lucide>
+          <span>Registrar Sucursal</span>
+        </button>
       </div>
 
       <div class="flex flex-wrap gap-2">
@@ -204,21 +204,18 @@ import { CatalogoServiciosMockService } from '../../core/services/catalogo-servi
       }
 
       @if (tabActiva === 'sucursales') {
-        <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-xs flex flex-wrap items-center gap-3">
-          <select [(ngModel)]="filtroRegionId" class="bg-slate-50 border border-slate-200 text-xs font-bold rounded-xl px-3 py-2">
-            <option [ngValue]="0">Todas las regiones</option>
-            @for (r of regiones; track r.id) {
-              <option [ngValue]="r.id">{{ r.nombre }}</option>
-            }
-          </select>
-          <select [(ngModel)]="filtroMarcaId" class="bg-slate-50 border border-slate-200 text-xs font-bold rounded-xl px-3 py-2">
-            <option [ngValue]="0">Todas las marcas</option>
-            @for (m of marcas; track m.id) {
-              <option [ngValue]="m.id">{{ m.nombre }}</option>
-            }
-          </select>
-          <span class="text-xs text-slate-500 font-semibold ml-auto">{{ sucursalesFiltradas.length }} sucursales</span>
-        </div>
+        <app-filter-bar
+          [showRegion]="true"
+          [showMarca]="true"
+          [showSucursal]="false"
+          [showOperador]="false"
+          [showBahia]="false"
+          [showEstado]="true"
+          [listaEstados]="['Todos', 'Activo', 'Mantenimiento', 'Inactivo']"
+          [showFechas]="false"
+          [showBusqueda]="false"
+          (filterChange)="aplicarNuevosFiltros($event)">
+        </app-filter-bar>
 
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           @for (suc of sucursalesFiltradas; track suc.id) {
@@ -922,6 +919,7 @@ export class SucursalesComponent implements OnInit {
 
   filtroRegionId = 0;
   filtroMarcaId = 0;
+  filtrosGlobales: FilterState = { sucursal: 'Todas', region: 'Todas', marca: 'Todas', operador: 'Todos', bahia: 'Todas', estado: 'Todos', fecha: 'Mes' };
   filtroSucursalMapaId = 0;
   regionSeleccionada: RegionOperativa | null = null;
   marcaSeleccionada: MarcaSucursal | null = null;
@@ -1000,16 +998,20 @@ export class SucursalesComponent implements OnInit {
     const userScope = this.auth.getSucursalScope();
 
     return this.sucursales.filter(s => {
-      // Alcance estricto para Gerente de Agencia (Punto 6)
       if (isGer && userScope) {
         const matches = s.nombre.toLowerCase().includes(userScope.toLowerCase()) ||
                         userScope.toLowerCase().includes(s.nombre.toLowerCase());
         if (!matches) return false;
       }
-      const okRegion = this.filtroRegionId === 0 || s.regionId === this.filtroRegionId;
-      const okMarca = this.filtroMarcaId === 0 || s.marcaId === this.filtroMarcaId;
-      return okRegion && okMarca;
+      const okRegion = this.filtrosGlobales.region === 'Todas' || s.regionNombre === this.filtrosGlobales.region;
+      const okMarca = this.filtrosGlobales.marca === 'Todas' || s.marcaNombre === this.filtrosGlobales.marca;
+      const okEstado = this.filtrosGlobales.estado === 'Todos' || s.estado === this.filtrosGlobales.estado;
+      return okRegion && okMarca && okEstado;
     });
+  }
+
+  aplicarNuevosFiltros(filtros: FilterState): void {
+    this.filtrosGlobales = filtros;
   }
 
   ngOnInit(): void {

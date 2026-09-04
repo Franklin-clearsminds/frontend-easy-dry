@@ -55,19 +55,25 @@
   <!-- ═══ DASHBOARD EJECUTIVO (Admin / Supervisor / Gerente) ═══ -->
   @if (isExecutive) {
     <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-easydry flex flex-col lg:flex-row gap-4 items-end">
-      <div class="w-full lg:w-1/4">
+      <div class="w-full lg:w-1/5">
         <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">Sucursal</label>
         <select [(ngModel)]="sucursalFilter" (change)="aplicarFiltros()" class="w-full bg-slate-50 border border-slate-200 text-sm rounded-xl px-3 py-2 font-medium">
           @for (suc of listaSucursales; track suc) { <option [value]="suc">{{ suc }}</option> }
         </select>
       </div>
-      <div class="w-full lg:w-1/4">
+      <div class="w-full lg:w-1/5">
+        <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">Marca</label>
+        <select [(ngModel)]="marcaFilter" (change)="aplicarFiltros()" class="w-full bg-slate-50 border border-slate-200 text-sm rounded-xl px-3 py-2 font-medium">
+          @for (mar of listaMarcas; track mar) { <option [value]="mar">{{ mar }}</option> }
+        </select>
+      </div>
+      <div class="w-full lg:w-1/5">
         <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">Período</label>
         <select [(ngModel)]="fechaFilter" (change)="aplicarFiltros()" class="w-full bg-slate-50 border border-slate-200 text-sm rounded-xl px-3 py-2 font-medium">
           @for (fec of listaFechas; track fec) { <option [value]="fec">{{ fec }}</option> }
         </select>
       </div>
-      <div class="w-full lg:w-1/4">
+      <div class="w-full lg:w-1/5 lg:ml-auto">
         <button (click)="resetFiltros()" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm py-2 px-4 rounded-xl flex items-center justify-center gap-2">
           <i-lucide name="rotate-ccw" class="w-4 h-4"></i-lucide> Limpiar
         </button>
@@ -76,7 +82,7 @@
 
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
       <app-stat-card title="Vehículos Atendidos" [value]="produccion?.totalVehiculos || 0" icon="car" trend="12%" subtitle="Respecto a ayer" variant="primary"></app-stat-card>
-      <app-stat-card title="Ingresos Estimados" [value]="'$' + (produccion?.ingresosEstimados || 0)" icon="dollar-sign" trend="8%" subtitle="Meta diaria" variant="success"></app-stat-card>
+
       <app-stat-card title="Bahías Operativas" [value]="(produccion?.bahiasOcupadas || 0) + ' / ' + (produccion?.totalBahias || 0)" icon="shield-check" subtitle="Capacidad instalada" variant="primary"></app-stat-card>
       <app-stat-card title="Tiempo Promedio" [value]="(produccion?.tiempoPromedioMinutos || 0) + ' min'" icon="clock" trend="-4 min" subtitle="Por vehículo" variant="warning"></app-stat-card>
     </div>
@@ -144,12 +150,12 @@
   @if (isComercial && comercialData) {
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
       <app-stat-card title="Servicios del Mes" [value]="comercialData.serviciosMes" icon="bar-chart-2" variant="primary"></app-stat-card>
-      <app-stat-card title="Ingresos Mes" [value]="'$' + comercialData.ingresosMesUSD" icon="dollar-sign" variant="success"></app-stat-card>
+
       <app-stat-card title="Tasa Aprobación" [value]="comercialData.tasaAprobacion + '%'" icon="check-circle" variant="success"></app-stat-card>
       <app-stat-card title="Especiales Vendidos" [value]="comercialData.especialesVendidos" icon="sparkles" variant="primary"></app-stat-card>
     </div>
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-      <app-chart-card title="Ingresos por Semana" type="line" [data]="comercialData.chartIngresosSemana"></app-chart-card>
+
       <app-chart-card title="Mix de Servicios" type="doughnut" [data]="comercialData.chartMixServicios"></app-chart-card>
     </div>
   }
@@ -160,7 +166,7 @@
       <app-stat-card title="SKUs Críticos" [value]="distribuidorData.skusCriticos" icon="alert-triangle" variant="warning"></app-stat-card>
       <app-stat-card title="Pedidos Pendientes" [value]="distribuidorData.pedidosPendientes" icon="package" variant="primary"></app-stat-card>
       <app-stat-card title="Entregas Semana" [value]="distribuidorData.entregasSemana" icon="truck" variant="success"></app-stat-card>
-      <app-stat-card title="Valor Inventario" [value]="'$' + distribuidorData.valorInventarioUSD" icon="dollar-sign" variant="primary"></app-stat-card>
+
     </div>
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
       <app-chart-card title="Consumo de Insumos" type="bar" [data]="distribuidorData.chartConsumoInsumos"></app-chart-card>

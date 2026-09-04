@@ -6,6 +6,7 @@ import { InventarioMockService } from '../../core/services/inventario-mock.servi
 import { AuthService } from '../../core/services/auth.service';
 import { ToastService } from '../../shared/services/toast.service';
 import { ModalComponent } from '../../shared/components/modal/modal.component';
+import { FilterBarComponent, FilterState } from '../../shared/components/filter-bar/filter-bar.component';
 import { EnvioSuministro } from '../../core/models';
 import {
   EnvaseUnidad,
@@ -21,7 +22,7 @@ import {
 @Component({
   selector: 'app-inventario',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent],
+  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, FilterBarComponent],
   template: `
     <div class="space-y-6 animate-fade-in pb-12">
 
@@ -43,39 +44,6 @@ import {
             </p>
           </div>
 
-          <!-- BOTONES ORGANIZADOS EN UNA SOLA FILA -->
-          <div class="flex items-center gap-2.5 flex-nowrap shrink-0 overflow-x-auto pb-1 xl:pb-0">
-            @if (puedeDespachar) {
-              <button
-                (click)="abrirModalEntradaBodega()"
-                class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
-                <i-lucide name="arrow-down-circle" class="w-4 h-4 text-emerald-600"></i-lucide>
-                <span>Entrada Bodega (Compra)</span>
-              </button>
-
-              <button
-                (click)="abrirModalDespacho()"
-                class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
-                <i-lucide name="truck" class="w-4 h-4"></i-lucide>
-                <span>Despachar a Sucursal</span>
-              </button>
-            }
-
-            @if (puedeGestionarCatalogo) {
-              <button
-                (click)="abrirModalCrearBodega()"
-                class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
-                <i-lucide name="warehouse" class="w-4 h-4 text-easydry-blue"></i-lucide>
-                <span>Nueva Bodega</span>
-              </button>
-              <button
-                (click)="abrirModalCrearProducto()"
-                class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
-                <i-lucide name="plus-circle" class="w-4 h-4"></i-lucide>
-                <span>Nuevo Insumo</span>
-              </button>
-            }
-          </div>
         </div>
 
         <!-- 4 Tarjetas de Métricas Compactas -->
@@ -141,7 +109,7 @@ import {
 
           <button
             (click)="activeTab = 'bodegas'"
-            class="pb-2.5 text-xs font-bold border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
+            class="pb-2.5 text-xs font-bold border-b-2 transition-colors hidden md:flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
             [ngClass]="activeTab === 'bodegas' ? 'border-easydry-blue text-easydry-blue' : 'border-transparent text-slate-500 hover:text-slate-700'">
             <i-lucide name="warehouse" class="w-4 h-4"></i-lucide>
             Bodegas
@@ -205,55 +173,19 @@ import {
         <div class="space-y-6 animate-fade-in">
           
           <!-- Filtros, Selector Sucursal/Bahía y Búsqueda Directa (Punto 7 y Punto 18) -->
-          <div class="bg-white p-3.5 rounded-2xl border border-slate-100 shadow-easydry flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-            <div class="flex items-center gap-2 flex-1 max-w-md">
-              <div class="relative w-full">
-                <i-lucide name="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i-lucide>
-                <input
-                  type="text"
-                  [(ngModel)]="filtroTexto"
-                  placeholder="Buscar por insumo, SKU o presentación..."
-                  class="w-full pl-9 pr-4 py-1.5 bg-slate-50 border rounded-xl text-xs focus:ring-2 focus:ring-easydry-blue">
-              </div>
-            </div>
+          <app-filter-bar
+            [showSucursal]="true"
+            [showMarca]="true"
+            [showEstado]="true"
+            [showRegion]="false"
+            [showOperador]="false"
+            [showBahia]="false"
+            [showFechas]="false"
+            [showBusqueda]="true"
+            (filterChange)="aplicarNuevosFiltros($event)">
+          </app-filter-bar>
 
-            <div class="flex items-center gap-2.5 flex-wrap">
-              <!-- Selector Sucursal (Punto 7) -->
-              <select [(ngModel)]="filtroSucursal" class="py-1.5 px-3 border rounded-xl text-xs font-semibold bg-slate-50 text-slate-700">
-                <option value="Todas">Todas las Sucursales</option>
-                <option value="EasyDry Quito Norte">EasyDry Quito Norte</option>
-                <option value="EasyDry Quito Sur">EasyDry Quito Sur</option>
-                <option value="EasyDry Cumbayá">EasyDry Cumbayá</option>
-                <option value="EasyDry Guayaquil">EasyDry Guayaquil</option>
-              </select>
 
-              <!-- Selector Bahía (Punto 7) -->
-              <select [(ngModel)]="filtroBahia" class="py-1.5 px-3 border rounded-xl text-xs font-semibold bg-slate-50 text-slate-700">
-                <option value="Todas">Todas las Bahías</option>
-                <option value="Bahía 1">Bahía 1 (Lavado Ecológico)</option>
-                <option value="Bahía 2">Bahía 2 (Lavado y Encerado)</option>
-                <option value="Bahía 3">Bahía 3 (Pulido Especial)</option>
-                <option value="Bahía 4">Bahía 4 (Secado y Acabado)</option>
-              </select>
-
-              <select [(ngModel)]="filtroEstado" class="py-1.5 px-3 border rounded-xl text-xs font-medium bg-slate-50 text-slate-700">
-                <option value="Todos">Todos los Estados</option>
-                <option value="Optimo">Stock Óptimo</option>
-                <option value="Bajo">Stock Bajo</option>
-                <option value="Critico">Stock Crítico</option>
-              </select>
-
-              <!-- Botón Limpiar Filtros con Icono (Punto 18) -->
-              <button
-                type="button"
-                (click)="limpiarFiltrosMatriz()"
-                title="Restablecer filtros de inventario"
-                class="px-3 py-1.5 bg-slate-100 hover:bg-rose-50 hover:text-rose-600 border border-slate-200 text-slate-600 font-bold rounded-xl text-xs flex items-center gap-1.5 cursor-pointer transition-colors">
-                <i-lucide name="rotate-ccw" class="w-3.5 h-3.5"></i-lucide>
-                <span>Limpiar filtros</span>
-              </button>
-            </div>
-          </div>
 
           <!-- Ficha de Selección Sucursal -> Bahía (Punto 7: Responsable, Ubicación, Estado) -->
           @if (filtroSucursal !== 'Todas' || filtroBahia !== 'Todas') {
@@ -279,6 +211,17 @@ import {
 
           <!-- Tabla de Matriz de Stock -->
           <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry overflow-hidden">
+            <div class="p-6 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100">
+              <h3 class="font-bold text-slate-900 text-lg font-outfit">Matriz de Stock Red & Sucursales</h3>
+              @if (puedeDespachar) {
+                <button
+                  (click)="abrirModalEntradaBodega()"
+                  class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
+                  <i-lucide name="arrow-down-circle" class="w-4 h-4 text-emerald-600"></i-lucide>
+                  <span>Entrada Bodega (Compra)</span>
+                </button>
+              }
+            </div>
             <div class="overflow-x-auto">
               <table class="w-full text-left border-collapse text-xs">
                 <thead>
@@ -419,31 +362,28 @@ import {
       @if (activeTab === 'catalogo') {
         <div class="space-y-6 animate-fade-in">
           
-          <!-- Filtros de Catálogo -->
-          <div class="bg-white p-3.5 rounded-2xl border border-slate-100 shadow-easydry flex flex-col md:flex-row md:items-center justify-between gap-3">
-            <div class="flex items-center gap-2 flex-1 max-w-md">
-              <div class="relative w-full">
-                <i-lucide name="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i-lucide>
-                <input
-                  type="text"
-                  [(ngModel)]="filtroTexto"
-                  placeholder="Buscar en el catálogo por SKU o nombre..."
-                  class="w-full pl-9 pr-4 py-1.5 bg-slate-50 border rounded-xl text-xs focus:ring-2 focus:ring-easydry-blue">
-              </div>
-            </div>
-
-            @if (puedeGestionarCatalogo) {
-              <button
-                (click)="abrirModalCrearProducto()"
-                class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
-                <i-lucide name="plus" class="w-4 h-4"></i-lucide>
-                <span>Nuevo Insumo</span>
-              </button>
-            }
-          </div>
+          <app-filter-bar
+            [showEstado]="true"
+            [showBusqueda]="true"
+            [placeholderBusqueda]="'Buscar en el catálogo por SKU o nombre...'"
+            [showSucursal]="false"
+            [showFechas]="false"
+            (filterChange)="aplicarNuevosFiltros($event)">
+          </app-filter-bar>
 
           <!-- TABLA PRINCIPAL DEL CATÁLOGO DE INSUMOS -->
           <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry overflow-hidden">
+            <div class="p-6 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100">
+              <h3 class="font-bold text-slate-900 text-lg font-outfit">Catálogo Oficial de Insumos</h3>
+              @if (puedeGestionarCatalogo) {
+                <button
+                  (click)="abrirModalCrearProducto()"
+                  class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
+                  <i-lucide name="plus-circle" class="w-4 h-4"></i-lucide>
+                  <span>Nuevo Insumo</span>
+                </button>
+              }
+            </div>
             <div class="overflow-x-auto">
               <table class="w-full text-left border-collapse text-xs">
                 <thead>
@@ -558,6 +498,13 @@ import {
       <!-- ============================================================== -->
       @if (activeTab === 'bodegas') {
         <div class="space-y-6 animate-fade-in">
+          <app-filter-bar
+            [showRegion]="true"
+            [showEstado]="true"
+            [showSucursal]="false"
+            [showFechas]="false"
+            (filterChange)="aplicarNuevosFiltros($event)">
+          </app-filter-bar>
           <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-easydry flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <h3 class="font-extrabold text-slate-900 text-base font-outfit">Red de Bodegas</h3>
@@ -570,7 +517,7 @@ import {
                 (click)="abrirModalCrearBodega()"
                 class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
                 <i-lucide name="plus" class="w-4 h-4"></i-lucide>
-                + Nueva Bodega
+                <span>Nueva Bodega</span>
               </button>
             }
           </div>
@@ -624,6 +571,13 @@ import {
       @if (activeTab === 'despachos') {
         <div class="space-y-6 animate-fade-in">
           
+          <app-filter-bar
+            [showFechas]="true"
+            [showSucursal]="true"
+            [showEstado]="true"
+            (filterChange)="aplicarNuevosFiltros($event)">
+          </app-filter-bar>
+          
           <div class="bg-white p-6 rounded-3xl border border-slate-100 shadow-easydry">
             <div class="flex items-center justify-between mb-4">
               <h3 class="font-bold text-slate-900 text-base font-outfit flex items-center gap-2">
@@ -633,7 +587,7 @@ import {
               @if (puedeDespachar) {
                 <button (click)="abrirModalDespacho()" class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
                   <i-lucide name="truck" class="w-4 h-4"></i-lucide>
-                  Nuevo Despacho
+                  <span>Nuevo Despacho</span>
                 </button>
               }
             </div>
@@ -684,6 +638,12 @@ import {
       <!-- ============================================================== -->
       @if (activeTab === 'envios') {
         <div class="space-y-6 animate-fade-in">
+          <app-filter-bar
+            [showFechas]="true"
+            [showSucursal]="true"
+            [showEstado]="true"
+            (filterChange)="aplicarNuevosFiltros($event)">
+          </app-filter-bar>
           <div class="bg-white p-6 rounded-3xl border border-slate-100 shadow-easydry flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <div class="flex items-center gap-2 mb-1">
@@ -696,7 +656,6 @@ import {
                 Control logístico de envíos desde Bodega/Distribuidor hacia Agencias receptoras con validación de estado y tiempos.
               </p>
             </div>
-
             @if (puedeDespachar) {
               <button
                 type="button"
@@ -816,6 +775,14 @@ import {
       @if (activeTab === 'tipos_envases') {
         <div class="space-y-6 animate-fade-in">
           
+          <app-filter-bar
+            [showBusqueda]="true"
+            [placeholderBusqueda]="'Buscar envase...'"
+            [showFechas]="false"
+            [showSucursal]="false"
+            (filterChange)="aplicarNuevosFiltros($event)">
+          </app-filter-bar>
+          
           <!-- Encabezado de Envases & Unidades -->
           <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-easydry flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
@@ -829,9 +796,8 @@ import {
                 Presentaciones oficiales para compras, almacenamiento en Bodega Central, recetas de servicios y despacho a sucursales.
               </p>
             </div>
-
             @if (puedeGestionarCatalogo) {
-              <button 
+              <button
                 (click)="abrirModalCrearEnvase()" 
                 class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
                 <i-lucide name="plus" class="w-4 h-4"></i-lucide>
@@ -923,6 +889,12 @@ import {
       <!-- ============================================================== -->
       @if (activeTab === 'alertas') {
         <div class="space-y-6 animate-fade-in">
+          <app-filter-bar
+            [showSucursal]="true"
+            [showEstado]="true"
+            [showFechas]="false"
+            (filterChange)="aplicarNuevosFiltros($event)">
+          </app-filter-bar>
           <div class="bg-amber-50 border border-amber-200 rounded-3xl p-5 flex items-center justify-between">
             <div class="flex items-center gap-3">
               <div class="p-2.5 rounded-2xl bg-amber-500 text-white shadow-xs">
@@ -996,7 +968,7 @@ import {
         icon="package-plus"
         (close)="modalProductoOpen = false">
         
-        <form (ngSubmit)="guardarProducto()" class="space-y-4">
+        <form id="formProducto" (ngSubmit)="guardarProducto()" class="space-y-4">
           <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
               <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Código SKU</label>
@@ -1016,10 +988,6 @@ import {
                   <option [value]="e.id">{{ e.nombre }} ({{ e.abreviatura }})</option>
                 }
               </select>
-            </div>
-            <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Proveedor Principal</label>
-              <input type="text" [(ngModel)]="productoForm.proveedorPrincipal" name="proveedorPrincipal" placeholder="ej. EcoChemicals Ecuador S.A." class="w-full p-2.5 border rounded-xl text-xs font-medium">
             </div>
           </div>
 
@@ -1045,11 +1013,21 @@ import {
             <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Descripción de Uso</label>
             <textarea [(ngModel)]="productoForm.descripcion" name="descripcion" rows="2" placeholder="Indicaciones de dilución, uso en bahía, etc." class="w-full p-2.5 border rounded-xl text-xs font-medium"></textarea>
           </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Imagen del Insumo</label>
+            <div class="flex items-center gap-4">
+              @if (productoForm.imagen) {
+                <img [src]="productoForm.imagen" class="w-12 h-12 rounded-xl object-cover border border-slate-200">
+              }
+              <input type="file" accept="image/*" (change)="onImageSelected($event)" class="w-full p-2 border rounded-xl text-xs font-bold" [required]="!productoForm.imagen">
+            </div>
+          </div>
         </form>
 
         <div modal-footer>
           <button (click)="modalProductoOpen = false" class="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs">Cancelar</button>
-          <button (click)="guardarProducto()" class="px-4 py-2 bg-easydry-green text-slate-950 font-extrabold rounded-xl text-xs">Guardar Insumo</button>
+          <button type="submit" form="formProducto" class="px-4 py-2 bg-easydry-green text-slate-950 font-extrabold rounded-xl text-xs">Guardar Insumo</button>
         </div>
       </app-modal>
 
@@ -1405,6 +1383,14 @@ export class InventarioComponent implements OnInit {
   filtroEstado = 'Todos';
   filtroSucursal = 'Todas';
   filtroBahia = 'Todas';
+  filtrosGlobales: FilterState = {
+    sucursal: 'Todas',
+    marca: 'Todas',
+    estado: 'Todos',
+    operador: 'Todos',
+    bahia: 'Todas',
+    fecha: ''
+  };
   bodegaCentralId = BODEGA_CENTRAL_ID;
 
   // Envíos y Confirmación (Punto 9)
@@ -1500,7 +1486,6 @@ export class InventarioComponent implements OnInit {
     stockAlertaBodega: 10,
     stockAlertaSucursal: 2,
     stockInicialBodega: 15,
-    proveedorPrincipal: 'EcoChemicals Ecuador S.A.',
     descripcion: '',
     imagen: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500&auto=format&fit=crop&q=80'
   };
@@ -1657,11 +1642,21 @@ export class InventarioComponent implements OnInit {
       stockAlertaBodega: 10,
       stockAlertaSucursal: 2,
       stockInicialBodega: 12,
-      proveedorPrincipal: 'EcoChemicals Ecuador S.A.',
       descripcion: '',
-      imagen: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500&auto=format&fit=crop&q=80'
+      imagen: ''
     };
     this.modalProductoOpen = true;
+  }
+
+  onImageSelected(event: any) {
+    const file = event.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e: any) => {
+        this.productoForm.imagen = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
   }
 
   editarProducto(prod: ProductoInsumo) {
@@ -1673,7 +1668,6 @@ export class InventarioComponent implements OnInit {
       stockAlertaBodega: prod.stockAlertaBodega ?? 10,
       stockAlertaSucursal: prod.stockAlertaSucursal ?? 2,
       stockInicialBodega: 0,
-      proveedorPrincipal: prod.proveedorPrincipal,
       descripcion: prod.descripcion,
       imagen: prod.imagen
     };
@@ -1697,12 +1691,12 @@ export class InventarioComponent implements OnInit {
         unidadMedida: envaseObj?.abreviatura || envaseObj?.nombre || 'Unidad',
         stockAlertaBodega: this.productoForm.stockAlertaBodega,
         stockAlertaSucursal: this.productoForm.stockAlertaSucursal,
-        proveedorPrincipal: this.productoForm.proveedorPrincipal,
         descripcion: this.productoForm.descripcion,
         imagen: this.productoForm.imagen
       }).subscribe(() => {
         this.toastService.success('Insumo Actualizado', `Insumo ${this.productoForm.nombre} actualizado.`);
         this.modalProductoOpen = false;
+        this.inventarioService.getItems().subscribe(items => this.inventarioItems = items);
       });
     } else {
       this.inventarioService.crearProducto({
@@ -1714,12 +1708,12 @@ export class InventarioComponent implements OnInit {
         descripcion: this.productoForm.descripcion,
         stockAlertaBodega: this.productoForm.stockAlertaBodega,
         stockAlertaSucursal: this.productoForm.stockAlertaSucursal,
-        proveedorPrincipal: this.productoForm.proveedorPrincipal,
         imagen: this.productoForm.imagen,
         activo: true
       }, this.productoForm.stockInicialBodega).subscribe(() => {
         this.toastService.success('Insumo Registrado', `Insumo ${this.productoForm.nombre} registrado con éxito.`);
         this.modalProductoOpen = false;
+        this.inventarioService.getItems().subscribe(items => this.inventarioItems = items);
       });
     }
   }
@@ -1783,7 +1777,6 @@ export class InventarioComponent implements OnInit {
     this.inventarioService.registrarEntradaBodega(
       Number(this.entradaForm.productoId),
       Number(this.entradaForm.cantidad),
-      0,
       this.entradaForm.proveedor,
       this.auth.getCurrentUser()?.nombre || 'Operación Bodega',
       '',
@@ -1896,7 +1889,25 @@ export class InventarioComponent implements OnInit {
     this.filtroEstado = 'Todos';
     this.filtroSucursal = 'Todas';
     this.filtroBahia = 'Todas';
+    this.filtrosGlobales = {
+      sucursal: 'Todas',
+      marca: 'Todas',
+      estado: 'Todos',
+      operador: 'Todos',
+      bahia: 'Todas',
+      fecha: ''
+    };
     this.toastService.info('Filtros Restablecidos', 'Se limpiaron los filtros de búsqueda e inventario.');
+  }
+
+  aplicarNuevosFiltros(filtros: FilterState): void {
+    this.filtrosGlobales = filtros;
+    this.filtroSucursal = filtros.sucursal || 'Todas';
+    this.filtroEstado = filtros.estado || 'Todos';
+  }
+
+  aplicarFiltros(): void {
+    // Triggers re-evaluation of itemsFiltrados getter
   }
 
   getResponsableSucursal(sucursal: string): string {
