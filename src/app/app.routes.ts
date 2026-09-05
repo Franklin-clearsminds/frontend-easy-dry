@@ -235,6 +235,26 @@ export const routes: Routes = [
       },
 
       {
+        path: 'envios',
+        loadComponent: () =>
+          import('./features/envios/envios.component').then(m => m.EnviosComponent),
+        canActivate: [
+          authGuard,
+          roleGuard([
+            Role.SUPER_ADMIN,
+            Role.ADMIN,
+            Role.SUPERVISOR,
+            Role.COORD_MANTENIMIENTO,
+            Role.OPERADOR,
+            Role.COORD_SERVICIOS_ESPECIALES,
+            Role.OPERADOR_SERVICIOS_ESPECIALES,
+            Role.DISTRIBUIDOR,
+            Role.ASISTENTE_BODEGA
+          ], 'envios')
+        ]
+      },
+
+      {
         path: 'reportes',
         loadComponent: () =>
           import('./features/reportes/reportes.component').then(m => m.ReportesComponent),

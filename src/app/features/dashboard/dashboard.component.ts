@@ -41,11 +41,70 @@ export class DashboardComponent implements OnInit {
   maquinaria: any;
   alertas: any[] = [];
 
+  // Nuevos KPIs Estratégicos
+  kpiRechazoOTs = '4.2%';
+  kpiMttrMaquinaria = '2.5 hrs';
+  kpiStockCritico = '8 ítems';
+
+  // Datos para Nuevos Gráficos
+  chartCalidadOTs: any = {
+    labels: ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'],
+    datasets: [
+      { label: 'Aprobadas', data: [45, 52, 48, 60, 65, 80, 75], backgroundColor: '#9BCB3B' },
+      { label: 'Rechazadas', data: [2, 4, 1, 3, 5, 8, 4], backgroundColor: '#E11D48' }
+    ]
+  };
+
+  chartBodegaConsumo: any = {
+    labels: ['Shampoo Cera', 'Desengrasante', 'Silicona', 'Cera Express', 'Microfibras'],
+    datasets: [{
+      data: [120, 85, 60, 45, 30],
+      backgroundColor: ['#004282', '#005bb5', '#0074e8', '#3392ff', '#66afff']
+    }]
+  };
+
+  // Nuevos Datos Analítica
+  chartTiemposPromedio: any = {
+    labels: ['Lavado Express', 'Lavado Premium', 'Desinfección', 'Pulido'],
+    datasets: [{
+      label: 'Minutos Promedio',
+      data: [15, 35, 20, 120],
+      backgroundColor: ['#9BCB3B', '#F59E0B', '#3B82F6', '#8B5CF6']
+    }]
+  };
+
+  chartEficienciaSucursales: any = {
+    labels: ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'],
+    datasets: [
+      { label: 'Quito Norte', data: [85, 88, 90, 87, 92, 95, 96], borderColor: '#004282', fill: false, tension: 0.4 },
+      { label: 'Quito Sur', data: [80, 82, 85, 83, 88, 90, 92], borderColor: '#9BCB3B', fill: false, tension: 0.4 },
+      { label: 'Cumbayá', data: [90, 92, 95, 93, 96, 98, 99], borderColor: '#E11D48', fill: false, tension: 0.4 }
+    ]
+  };
+
+  // Nuevos Datos Bodega/Inventario
+  chartPromedioConsumoDiario: any = {
+    labels: ['L', 'M', 'M', 'J', 'V', 'S', 'D'],
+    datasets: [
+      { label: 'Shampoo (L)', data: [5, 4.5, 6, 5.5, 8, 12, 10], backgroundColor: '#3B82F6' },
+      { label: 'Silicona (L)', data: [2, 1.8, 2.5, 2.2, 3, 5, 4], backgroundColor: '#8B5CF6' }
+    ]
+  };
+
+  productosAgotandose = [
+    { nombre: 'Cera Express 5L', stock: 2, minimo: 5, estado: 'crítico' },
+    { nombre: 'Microfibras Premium', stock: 15, minimo: 30, estado: 'crítico' },
+    { nombre: 'Desengrasante Motor', stock: 8, minimo: 15, estado: 'advertencia' },
+    { nombre: 'Aromatizante', stock: 5, minimo: 10, estado: 'advertencia' }
+  ];
+
+  activeTab = 'general';
   tecnicoData: any;
   operadorData: any;
   operadorEspecialesData: any;
   distribuidorData: any;
   comercialData: any;
+  resumenEjecutivo: any;
 
   private baseProduccion: any;
   private baseServiciosData: any;
@@ -101,6 +160,7 @@ export class DashboardComponent implements OnInit {
         };
       });
       this.dashboardService.getAlertas().subscribe(d => this.alertas = d);
+      this.dashboardService.getResumenEjecutivo().subscribe(d => this.resumenEjecutivo = d);
       this.listaMarcas = ['Todas', ...this.marcaService.getActivas().map(m => m.nombre)];
     }
 

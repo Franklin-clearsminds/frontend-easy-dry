@@ -53,4 +53,5 @@ export class PermissionService {
   canVerProductividadGlobal(): boolean { return this.can('verProductividadGlobal'); }
   canVerConfiguracion(): boolean { return this.can('verConfiguracion'); }
   canVerTodosServicios(): boolean { return this.can('verTodosServicios'); }
+  canAccionesEnvios(): boolean { return this.can('accionesEnvios'); }
 }

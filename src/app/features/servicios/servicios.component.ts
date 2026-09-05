@@ -26,6 +26,7 @@ import { ServiciosExtrasMockService } from '../../core/services/servicios-extras
 import { OperadorMockService } from '../../core/services/operador-mock.service';
 import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
 import { FilterBarComponent, FilterState } from '../../shared/components/filter-bar/filter-bar.component';
+import { ServiciosToolbarComponent } from '../../shared/components/servicios-toolbar/servicios-toolbar.component';
 import { MaquinariaMockService } from '../../core/services/maquinaria-mock.service';
 import { IncidenteMockService } from '../../core/services/incidente-mock.service';
 import { PermissionService } from '../../core/services/permission.service';
@@ -35,7 +36,7 @@ import { resolverRangoFechas, soloFecha } from '../../core/utils/fecha-rango';
 @Component({
   selector: 'app-servicios',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, PaginationComponent, FilterBarComponent],
+  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, PaginationComponent, FilterBarComponent, ServiciosToolbarComponent],
   template: `
     <div class="space-y-6 animate-fade-in">
       
@@ -48,6 +49,24 @@ import { resolverRangoFechas, soloFecha } from '../../core/utils/fecha-rango';
           </div>
           <h1 class="text-2xl font-extrabold text-slate-900 font-outfit">Control y Registro de Servicios de Lavado</h1>
           <p class="text-slate-500 text-xs mt-1">Digitalización del proceso físico: OT, placa, evidencias en vídeo/fotos y flujo de aprobación por Gerencia.</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          @if (puedeReportarFalla) {
+            <button
+              (click)="abrirModalReportarFalla()"
+              class="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white font-extrabold rounded-xl text-xs transition-all flex items-center gap-2 cursor-pointer shadow-xs">
+              <i-lucide name="alert-triangle" class="w-4 h-4"></i-lucide>
+              <span class="hidden sm:inline">Reportar Falla / Avería</span>
+              <span class="sm:hidden">Falla</span>
+            </button>
+          }
+          <button
+            (click)="abrirModalNuevaOT()"
+            class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
+            <i-lucide name="plus" class="w-4 h-4"></i-lucide>
+            <span class="hidden sm:inline">{{ tabActiva === 'especiales' ? 'Nueva OT (Especial)' : 'Nueva Hoja de Control (OT)' }}</span>
+            <span class="sm:hidden">Nueva OT</span>
+          </button>
         </div>
       </div>
 
@@ -102,20 +121,22 @@ import { resolverRangoFechas, soloFecha } from '../../core/utils/fecha-rango';
         [showMarca]="true"
         [showEstado]="true"
         [showFechas]="false"
-        [showBusqueda]="true"
-        [placeholderBusqueda]="tabActiva === 'generales' ? 'Buscar placa (ej. PBX-8932) u Orden OT...' : 'Buscar placa u OT especial...'"
+        [showBusqueda]="false"
         [listaServicios]="listaServiciosFiltro"
         [listaEstados]="['Todos', 'EN PROCESO', 'FINALIZADO', 'APROBADO', 'RECHAZADO']"
         (filterChange)="aplicarNuevosFiltros($event)">
       </app-filter-bar>
 
-      <!-- Additional Category Counters -->
-      <div class="flex justify-end mb-4">
-        <div class="text-xs font-semibold text-slate-500 bg-white px-4 py-2 rounded-xl border border-slate-100 shadow-xs">
-          {{ tabActiva === 'generales' ? 'Servicios Generales Registrados:' : 'OTs de Servicios Especiales:' }}
-          <strong [ngClass]="tabActiva === 'generales' ? 'text-easydry-blue' : 'text-amber-700'">{{ serviciosFiltrados.length }} Vehículos</strong>
-        </div>
-      </div>
+      <!-- Search & Counter Toolbar -->
+      <app-servicios-toolbar
+        [count]="serviciosFiltrados.length"
+        [label]="tabActiva === 'generales' ? 'Servicios Generales' : 'OTs Especiales'"
+        [countLabel]="'Vehículos'"
+        [labelColor]="tabActiva === 'generales' ? 'text-easydry-blue' : 'text-amber-700'"
+        [placeholder]="tabActiva === 'generales' ? 'Buscar placa (ej. PBX-8932) u Orden OT...' : 'Buscar placa u OT especial...'"
+        [searchValue]="filtroTexto"
+        (searchChange)="onToolbarSearchChange($event)">
+      </app-servicios-toolbar>
 
       <!-- Services List / Table -->
       <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry overflow-hidden">
@@ -124,24 +145,6 @@ import { resolverRangoFechas, soloFecha } from '../../core/utils/fecha-rango';
         <div class="p-6 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100">
           <div>
             <h3 class="font-bold text-slate-900 text-lg font-outfit">{{ tabActiva === 'generales' ? 'Servicios Generales' : 'Servicios Especiales' }}</h3>
-          </div>
-          <div class="flex flex-wrap items-center gap-2">
-            @if (puedeReportarFalla) {
-              <button
-                (click)="abrirModalReportarFalla()"
-                class="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white font-extrabold rounded-xl text-xs transition-all flex items-center gap-2 cursor-pointer shadow-xs">
-                <i-lucide name="alert-triangle" class="w-4 h-4"></i-lucide>
-                <span class="hidden sm:inline">Reportar Falla / Avería</span>
-                <span class="sm:hidden">Falla</span>
-              </button>
-            }
-            <button
-              (click)="abrirModalNuevaOT()"
-              class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
-              <i-lucide name="plus" class="w-4 h-4"></i-lucide>
-              <span class="hidden sm:inline">{{ tabActiva === 'especiales' ? 'Nueva OT (Especial)' : 'Nueva Hoja de Control (OT)' }}</span>
-              <span class="sm:hidden">Nueva OT</span>
-            </button>
           </div>
         </div>
 
@@ -805,6 +808,12 @@ export class ServiciosComponent implements OnInit {
     if (filtros.busqueda !== undefined) {
       this.filtroTexto = filtros.busqueda;
     }
+    this.aplicarFiltros();
+  }
+
+  onToolbarSearchChange(valor: string) {
+    this.filtroTexto = valor;
+    this.filtrosGlobales.busqueda = valor;
     this.aplicarFiltros();
   }
 

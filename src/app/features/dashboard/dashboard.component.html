@@ -80,27 +80,105 @@
       </div>
     </div>
 
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+    <!-- Sección: Visión General -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 mb-8">
       <app-stat-card title="Vehículos Atendidos" [value]="produccion?.totalVehiculos || 0" icon="car" trend="12%" subtitle="Respecto a ayer" variant="primary"></app-stat-card>
-
       <app-stat-card title="Bahías Operativas" [value]="(produccion?.bahiasOcupadas || 0) + ' / ' + (produccion?.totalBahias || 0)" icon="shield-check" subtitle="Capacidad instalada" variant="primary"></app-stat-card>
       <app-stat-card title="Tiempo Promedio" [value]="(produccion?.tiempoPromedioMinutos || 0) + ' min'" icon="clock" trend="-4 min" subtitle="Por vehículo" variant="warning"></app-stat-card>
+      <app-stat-card title="Eficiencia" [value]="resumenEjecutivo?.kpis?.[1]?.value || '87%'" icon="trending-up" trend="+5%" subtitle="Respecto a ayer" variant="success"></app-stat-card>
     </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-      <div class="lg:col-span-2">
-        <app-chart-card title="Flujo Horario de Atención" subtitle="Vehículos procesados hoy" type="line" [data]="produccion?.flujoHorario"></app-chart-card>
-      </div>
-      <app-alertas-widget [alertas]="alertas"></app-alertas-widget>
-      <app-chart-card title="Distribución por Bahía" subtitle="Productividad por bahía" type="bar" [data]="produccion?.distribucionModelos"></app-chart-card>
-      <app-ranking-operadores-widget [ranking]="operadores?.ranking || []"></app-ranking-operadores-widget>
-      <app-chart-card title="Disponibilidad de Equipos" subtitle="Estado de maquinaria" type="doughnut" [data]="maquinaria?.distribucionEstado"></app-chart-card>
-      <app-chart-card title="Servicios Generales" subtitle="Mix de servicios" type="doughnut" [data]="serviciosData?.distribucionGenerales"></app-chart-card>
-      <div class="lg:col-span-2">
-        <app-chart-card title="Servicios Especiales" subtitle="Pulido, cerámico, motor" type="bar" [data]="serviciosData?.distribucionEspeciales"></app-chart-card>
+    <!-- Sección: Analítica y Productividad -->
+    <div class="mb-4 mt-8">
+      <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2 mb-1"><i-lucide name="bar-chart-2" class="w-5 h-5 text-easydry-green"></i-lucide> Analítica y Productividad</h2>
+      <p class="text-sm text-slate-500 mb-6">Métricas de eficiencia y tiempos de atención</p>
+      
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <app-chart-card class="lg:col-span-2" title="Flujo Horario de Atención" subtitle="Vehículos procesados hoy" type="line" [data]="produccion?.flujoHorario"></app-chart-card>
+        <app-chart-card title="Distribución por Bahía" subtitle="Productividad por bahía" type="bar" [data]="produccion?.distribucionModelos"></app-chart-card>
+        
+        <app-chart-card class="lg:col-span-3" title="Eficiencia Comparativa por Sucursal" subtitle="Histórico de los últimos 7 días" type="line" [data]="chartEficienciaSucursales"></app-chart-card>
+        
+        <app-chart-card title="Tiempos Promedio por Servicio" subtitle="Minutos de atención estimados" type="bar" [data]="chartTiemposPromedio"></app-chart-card>
+        <div class="lg:col-span-2">
+          <app-ranking-operadores-widget [ranking]="operadores?.ranking || []"></app-ranking-operadores-widget>
+        </div>
       </div>
     </div>
-    <app-aprobaciones-widget [aprobaciones]="serviciosData?.aprobacionesPendientes || []"></app-aprobaciones-widget>
+
+    <!-- Sección: Auditoría y Calidad -->
+    <div class="mb-4 mt-12">
+      <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2 mb-1"><i-lucide name="shield-check" class="w-5 h-5 text-easydry-green"></i-lucide> Auditoría y Calidad</h2>
+      <p class="text-sm text-slate-500 mb-6">Aprobaciones, rechazos, alertas y estado de equipos</p>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 mb-8">
+        <app-stat-card title="Rechazo OTs" [value]="kpiRechazoOTs" icon="x-circle" trend="-0.5%" subtitle="Calidad General" variant="warning"></app-stat-card>
+        <app-stat-card title="MTTR Equipos" [value]="kpiMttrMaquinaria" icon="wrench" trend="-15 min" subtitle="Tiempo medio reparación" variant="primary"></app-stat-card>
+        <app-stat-card title="Especiales Hoy" value="14" icon="sparkles" trend="+2" subtitle="Cerámicos y pulidos" variant="success"></app-stat-card>
+        <app-stat-card title="Alertas Activas" [value]="alertas.length" icon="bell-ring" subtitle="Nivel crítico" variant="warning"></app-stat-card>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+        <app-chart-card class="lg:col-span-2" title="Calidad de OTs (Auditoría)" subtitle="Aprobadas vs Rechazadas" type="bar" [data]="chartCalidadOTs"></app-chart-card>
+        <app-alertas-widget [alertas]="alertas"></app-alertas-widget>
+        <app-chart-card title="Disponibilidad de Equipos" subtitle="Estado de maquinaria" type="doughnut" [data]="maquinaria?.distribucionEstado"></app-chart-card>
+        <app-chart-card title="Servicios Generales" subtitle="Mix de servicios" type="doughnut" [data]="serviciosData?.distribucionGenerales"></app-chart-card>
+        <app-chart-card title="Servicios Especiales" subtitle="Pulido, cerámico, motor" type="bar" [data]="serviciosData?.distribucionEspeciales"></app-chart-card>
+      </div>
+      <app-aprobaciones-widget [aprobaciones]="serviciosData?.aprobacionesPendientes || []"></app-aprobaciones-widget>
+    </div>
+
+    <!-- Sección: Consumo e Inventario -->
+    <div class="mb-4 mt-12">
+      <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2 mb-1"><i-lucide name="package" class="w-5 h-5 text-easydry-green"></i-lucide> Consumo e Inventario</h2>
+      <p class="text-sm text-slate-500 mb-6">Bodega, ítems despachados y alertas de stock</p>
+
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-8 mb-8">
+        <app-stat-card title="Alertas de Stock" [value]="kpiStockCritico" icon="package-minus" subtitle="Ítems críticos Bodega" variant="warning"></app-stat-card>
+        <app-stat-card title="Costo Promedio" value="$42.50" icon="dollar-sign" subtitle="Consumo por OT" variant="primary"></app-stat-card>
+        <app-stat-card title="Índice de Rotación" value="4.2x" icon="refresh-cw" subtitle="Mensual" variant="success"></app-stat-card>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <app-chart-card class="lg:col-span-2" title="Promedio Diario de Consumo" subtitle="Evolución de consumos críticos en la última semana" type="bar" [data]="chartPromedioConsumoDiario"></app-chart-card>
+        <app-chart-card title="Top Consumo Histórico" subtitle="Ítems más despachados" type="doughnut" [data]="chartBodegaConsumo"></app-chart-card>
+        
+        <div class="lg:col-span-3 bg-white p-6 rounded-3xl border border-slate-100 shadow-easydry">
+          <div class="flex items-center gap-3 mb-6">
+            <div class="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center">
+              <i-lucide name="alert-triangle" class="w-5 h-5 text-orange-600"></i-lucide>
+            </div>
+            <div>
+              <h3 class="font-extrabold text-slate-800 tracking-wide text-lg">Productos que más rápido se agotan</h3>
+              <p class="text-xs font-medium text-slate-500">Ítems que requieren resurtido urgente</p>
+            </div>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+            @for (prod of productosAgotandose; track prod.nombre) {
+              <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-col justify-between hover:shadow-md transition-shadow">
+                <div class="flex items-start justify-between mb-2">
+                  <span class="text-sm font-bold text-slate-800">{{ prod.nombre }}</span>
+                  @if (prod.estado === 'crítico') {
+                    <span class="w-2.5 h-2.5 rounded-full bg-red-500 shadow-glow-red mt-1 shrink-0"></span>
+                  } @else {
+                    <span class="w-2.5 h-2.5 rounded-full bg-orange-500 mt-1 shrink-0"></span>
+                  }
+                </div>
+                <div>
+                  <div class="flex justify-between text-[10px] font-bold uppercase text-slate-500 mb-1">
+                    <span>Stock: <span [ngClass]="prod.estado === 'crítico' ? 'text-red-600' : 'text-orange-600'">{{ prod.stock }}</span></span>
+                    <span>Min: {{ prod.minimo }}</span>
+                  </div>
+                  <div class="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
+                    <div class="h-full rounded-full" [ngClass]="prod.estado === 'crítico' ? 'bg-red-500' : 'bg-orange-500'" [style.width.%]="(prod.stock / prod.minimo) * 100"></div>
+                  </div>
+                </div>
+              </div>
+            }
+          </div>
+        </div>
+      </div>
+    </div>
   }
 
   <!-- ═══ DASHBOARD TÉCNICO ═══ -->
