@@ -253,6 +253,7 @@ export const MODULOS_POR_ROL: Record<string, string[]> = {
     'notificaciones',
     'mi-bahia',
     'servicios',
+    'envios',
     'perfil'
   ],
 
@@ -274,6 +275,7 @@ export const MODULOS_POR_ROL: Record<string, string[]> = {
     'asignaciones',
     'productividad',
     'maquinaria',
+    'envios',
     'perfil'
   ],
 
@@ -282,6 +284,7 @@ export const MODULOS_POR_ROL: Record<string, string[]> = {
     'notificaciones',
     'servicios',
     'mi-bahia',
+    'envios',
     'perfil'
   ],
 
@@ -526,6 +529,7 @@ export interface PermisosRol {
   verConfiguracion: boolean;
   gestionarInventario: boolean;
   despacharSuministros: boolean;
+  accionesEnvios: boolean;
 }
 
 export const PERMISOS_POR_ROL: Record<string, PermisosRol> = {
@@ -550,7 +554,8 @@ export const PERMISOS_POR_ROL: Record<string, PermisosRol> = {
     verProductividadGlobal: true,
     verConfiguracion: true,
     gestionarInventario: true,
-    despacharSuministros: true
+    despacharSuministros: true,
+    accionesEnvios: true
   },
 
   [Role.ADMIN]: {
@@ -574,7 +579,8 @@ export const PERMISOS_POR_ROL: Record<string, PermisosRol> = {
     verProductividadGlobal: true,
     verConfiguracion: true,
     gestionarInventario: true,
-    despacharSuministros: true
+    despacharSuministros: true,
+    accionesEnvios: true
   },
 
   [Role.GERENTE]: {
@@ -598,7 +604,8 @@ export const PERMISOS_POR_ROL: Record<string, PermisosRol> = {
     verProductividadGlobal: true,
     verConfiguracion: false,
     gestionarInventario: false,
-    despacharSuministros: false
+    despacharSuministros: false,
+    accionesEnvios: false
   },
 
   [Role.SUPERVISOR]: {
@@ -622,7 +629,8 @@ export const PERMISOS_POR_ROL: Record<string, PermisosRol> = {
     verProductividadGlobal: false,
     verConfiguracion: false,
     gestionarInventario: false,
-    despacharSuministros: false
+    despacharSuministros: false,
+    accionesEnvios: false
   },
 
   [Role.COORD_MANTENIMIENTO]: {
@@ -646,7 +654,8 @@ export const PERMISOS_POR_ROL: Record<string, PermisosRol> = {
     verProductividadGlobal: false,
     verConfiguracion: false,
     gestionarInventario: true,
-    despacharSuministros: false
+    despacharSuministros: false,
+    accionesEnvios: false
   },
 
   [Role.TECNICO]: {
@@ -670,7 +679,8 @@ export const PERMISOS_POR_ROL: Record<string, PermisosRol> = {
     verProductividadGlobal: false,
     verConfiguracion: false,
     gestionarInventario: false,
-    despacharSuministros: false
+    despacharSuministros: false,
+    accionesEnvios: false
   },
 
   [Role.OPERADOR]: {
@@ -694,7 +704,8 @@ export const PERMISOS_POR_ROL: Record<string, PermisosRol> = {
     verProductividadGlobal: false,
     verConfiguracion: false,
     gestionarInventario: false,
-    despacharSuministros: false
+    despacharSuministros: false,
+    accionesEnvios: true
   },
 
   [Role.COORD_COMERCIAL]: {
@@ -718,7 +729,8 @@ export const PERMISOS_POR_ROL: Record<string, PermisosRol> = {
     verProductividadGlobal: true,
     verConfiguracion: false,
     gestionarInventario: false,
-    despacharSuministros: false
+    despacharSuministros: false,
+    accionesEnvios: false
   },
 
   [Role.COORD_SERVICIOS_ESPECIALES]: {
@@ -742,7 +754,8 @@ export const PERMISOS_POR_ROL: Record<string, PermisosRol> = {
     verProductividadGlobal: true,
     verConfiguracion: false,
     gestionarInventario: false,
-    despacharSuministros: false
+    despacharSuministros: false,
+    accionesEnvios: false
   },
 
   [Role.OPERADOR_SERVICIOS_ESPECIALES]: {
@@ -754,7 +767,7 @@ export const PERMISOS_POR_ROL: Record<string, PermisosRol> = {
     verOtrosSucursales: false,
     cambiarSucursalOperador: false,
     cambiarBahiaOperador: false,
-    aprobarServicios: false, // NO aprueba, solo ejecuta
+    aprobarServicios: false,
     rechazarServicios: false,
     cerrarDia: false,
     registrarServicio: true,
@@ -766,7 +779,8 @@ export const PERMISOS_POR_ROL: Record<string, PermisosRol> = {
     verProductividadGlobal: false,
     verConfiguracion: false,
     gestionarInventario: false,
-    despacharSuministros: false
+    despacharSuministros: false,
+    accionesEnvios: true
   },
 
   [Role.DISTRIBUIDOR]: {
@@ -790,7 +804,8 @@ export const PERMISOS_POR_ROL: Record<string, PermisosRol> = {
     verProductividadGlobal: false,
     verConfiguracion: false,
     gestionarInventario: true,
-    despacharSuministros: true
+    despacharSuministros: true,
+    accionesEnvios: false
   },
 
   [Role.ASISTENTE_BODEGA]: {
@@ -814,7 +829,8 @@ export const PERMISOS_POR_ROL: Record<string, PermisosRol> = {
     verProductividadGlobal: false,
     verConfiguracion: false,
     gestionarInventario: false,
-    despacharSuministros: true
+    despacharSuministros: true,
+    accionesEnvios: false
   }
 };
 

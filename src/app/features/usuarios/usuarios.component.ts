@@ -38,24 +38,6 @@ interface ModuloGrupo {
             Administra el equipo de trabajo y define roles dinámicos con asignación granular de acceso a cada módulo del sistema.
           </p>
         </div>
-
-        <div class="flex items-center gap-3">
-          @if (activeTab === 'usuarios') {
-            <button 
-              (click)="abrirModalCrearUsuario()"
-              class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
-              <i-lucide name="user-plus" class="w-4 h-4"></i-lucide>
-              <span>Registrar Usuario</span>
-            </button>
-          } @else {
-            <button 
-              (click)="abrirModalCrearRol()"
-              class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
-              <i-lucide name="shield-plus" class="w-4 h-4"></i-lucide>
-              <span>Crear Nuevo Rol</span>
-            </button>
-          }
-        </div>
       </div>
 
       <!-- Navigation Tabs (Usuarios vs Roles) -->
@@ -87,24 +69,32 @@ interface ModuloGrupo {
             [showSucursal]="true" 
             [showOperador]="false"
             [showBahia]="false"
+            [showMarca]="true"
             [showEstado]="true"
-            [showBusqueda]="true"
-            [placeholderBusqueda]="'Buscar por nombre, correo o rol...'"
             [showFechas]="false"
+            [showBusqueda]="true"
             [listaEstados]="['Todos', 'Activo', 'Inactivo', 'Suspendido']"
             (filterChange)="aplicarNuevosFiltros($event)">
           </app-filter-bar>
 
           <!-- Users Grid / Table -->
           <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry overflow-hidden">
-            <div class="p-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div class="p-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <h3 class="font-bold text-slate-900 text-base font-outfit">Directorio de Colaboradores EasyDry</h3>
                 <p class="text-xs text-slate-500">Personal asignado a sedes con roles dinámicos del sistema</p>
               </div>
-              <span class="text-xs text-slate-500 font-bold bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200">
-                {{ usuariosFiltrados.length }} Usuarios Encontrados
-              </span>
+              <div class="flex items-center gap-3">
+                <span class="text-xs text-slate-500 font-bold bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200">
+                  {{ usuariosFiltrados.length }} Usuarios Encontrados
+                </span>
+                <button
+                  (click)="abrirModalCrearUsuario()"
+                  class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
+                  <i-lucide name="user-plus" class="w-4 h-4"></i-lucide>
+                  <span>Registrar Usuario</span>
+                </button>
+              </div>
             </div>
 
             <div class="overflow-x-auto">
@@ -237,9 +227,17 @@ interface ModuloGrupo {
                 <h3 class="font-bold text-slate-900 text-base font-outfit">Roles Activos en la Plataforma</h3>
                 <p class="text-xs text-slate-500">Perfiles del sistema RBAC en uso con cuentas demo y módulos habilitados</p>
               </div>
-              <span class="text-xs font-bold text-purple-700 bg-purple-50 px-3 py-1.5 rounded-xl border border-purple-200">
-                {{ roles.length }} roles configurados
-              </span>
+              <div class="flex items-center gap-3">
+                <span class="text-xs font-bold text-purple-700 bg-purple-50 px-3 py-1.5 rounded-xl border border-purple-200">
+                  {{ roles.length }} roles configurados
+                </span>
+                <button 
+                  (click)="abrirModalCrearRol()"
+                  class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
+                  <i-lucide name="shield-plus" class="w-4 h-4"></i-lucide>
+                  <span>Crear Nuevo Rol</span>
+                </button>
+              </div>
             </div>
 
             <div class="overflow-x-auto">
@@ -709,7 +707,8 @@ export class UsuariosComponent implements OnInit {
   modulosDisponibles: ModuloSistema[] = MODULOS_SISTEMA;
   modulosAgrupados: ModuloGrupo[] = [];
 
-  filtrosGlobales: FilterState = { sucursal: 'Todas', operador: 'Todos', bahia: 'Todas', estado: 'Todos', fecha: 'Hoy' };
+  filtrosGlobales: FilterState = { sucursal: 'Todas', region: 'Todas', marca: 'Todas', operador: 'Todos', bahia: 'Todas', estado: 'Todos', fecha: 'Hoy' };
+  filtroTexto = '';
 
   currentPage = 1;
   pageSize = 5;
@@ -815,6 +814,13 @@ export class UsuariosComponent implements OnInit {
 
   aplicarNuevosFiltros(filtros: FilterState) {
     this.filtrosGlobales = filtros;
+    if (filtros.busqueda !== undefined) {
+      this.filtroTexto = filtros.busqueda;
+    }
+    this.currentPage = 1;
+  }
+
+  aplicarFiltros() {
     this.currentPage = 1;
   }
 
@@ -826,8 +832,14 @@ export class UsuariosComponent implements OnInit {
     if (this.filtrosGlobales.sucursal !== 'Todas') {
       resultados = resultados.filter(u => u.agencia === this.filtrosGlobales.sucursal);
     }
-    if (this.filtrosGlobales.busqueda?.trim()) {
-      const b = this.filtrosGlobales.busqueda.trim().toLowerCase();
+    if (this.filtrosGlobales.marca && this.filtrosGlobales.marca !== 'Todas') {
+      resultados = resultados.filter(u => {
+        const suc = this.sucursalService.getSucursalPorNombre(u.agencia);
+        return suc?.marcaNombre === this.filtrosGlobales.marca;
+      });
+    }
+    if (this.filtroTexto.trim()) {
+      const b = this.filtroTexto.trim().toLowerCase();
       resultados = resultados.filter(u =>
         (u.nombre || '').toLowerCase().includes(b) ||
         (u.apellido || '').toLowerCase().includes(b) ||

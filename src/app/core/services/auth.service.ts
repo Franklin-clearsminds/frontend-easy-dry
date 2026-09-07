@@ -59,6 +59,36 @@ export const DEMO_CREDENTIALS: DemoUserCredential[] = [
     avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80'
   },
   {
+    nombre: 'Gerente Sucursal Quito Sur',
+    email: 'gerente.sur@easydry.com',
+    passwordPlain: 'Admin123*',
+    role: Role.GERENTE,
+    rolNombre: 'Gerente de Sucursal',
+    sucursal: 'EasyDry Quito Sur',
+    region: 'Región Sierra',
+    avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&auto=format&fit=crop&q=80'
+  },
+  {
+    nombre: 'Gerente Sucursal Cumbayá',
+    email: 'roberto.cumbaya@easydry.com',
+    passwordPlain: 'Admin123*',
+    role: Role.GERENTE,
+    rolNombre: 'Gerente de Sucursal',
+    sucursal: 'EasyDry Cumbayá',
+    region: 'Región Sierra',
+    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80'
+  },
+  {
+    nombre: 'Gerente Sucursal Guayaquil',
+    email: 'sofia.guayaquil@easydry.com',
+    passwordPlain: 'Admin123*',
+    role: Role.GERENTE,
+    rolNombre: 'Gerente de Sucursal',
+    sucursal: 'EasyDry Guayaquil',
+    region: 'Región Costa',
+    avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80'
+  },
+  {
     nombre: 'Supervisor Costa',
     email: 'supervisor.costa@easydry.com',
     passwordPlain: 'Admin123*',
@@ -115,8 +145,8 @@ export const DEMO_CREDENTIALS: DemoUserCredential[] = [
     passwordPlain: 'Admin123*',
     role: Role.COORD_SERVICIOS_ESPECIALES,
     rolNombre: 'Jefe Servicios Especiales',
-    sucursal: 'Red Especializada',
-    region: 'Costa / Sierra',
+    sucursal: 'EasyDry Quito Norte',
+    region: 'Región Sierra',
     avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&auto=format&fit=crop&q=80'
   },
   {
@@ -125,8 +155,8 @@ export const DEMO_CREDENTIALS: DemoUserCredential[] = [
     passwordPlain: 'Admin123*',
     role: Role.OPERADOR_SERVICIOS_ESPECIALES,
     rolNombre: 'Operador de Servicios Especiales',
-    sucursal: 'Red Nacional · Móvil',
-    region: 'Costa / Sierra / Austro',
+    sucursal: 'EasyDry Quito Sur',
+    region: 'Región Sierra',
     modalidadPulidor: 'MOVIL',
     avatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=150&auto=format&fit=crop&q=80'
   },

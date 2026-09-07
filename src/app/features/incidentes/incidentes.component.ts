@@ -14,6 +14,7 @@ import { PaginationComponent } from '../../shared/components/pagination/paginati
 import { FilterBarComponent, FilterState } from '../../shared/components/filter-bar/filter-bar.component';
 import { resolverRangoFechas, soloFecha } from '../../core/utils/fecha-rango';
 import { ModalPortalDirective } from '../../shared/directives/modal-portal.directive';
+import { SucursalMockService } from '../../core/services/sucursal-mock.service';
 
 @Component({
   selector: 'app-incidentes',
@@ -35,13 +36,6 @@ import { ModalPortalDirective } from '../../shared/directives/modal-portal.direc
               Registro de fallos con fotos/videos de evidencia, y resolución con fotos de reparación, videos de prueba y documentos adjuntos (PDF/facturas).
             </p>
           </div>
-
-          <button 
-            (click)="abrirModalReportar()"
-            class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
-            <i-lucide name="plus" class="w-4 h-4"></i-lucide>
-            <span>Reportar Nuevo Fallo</span>
-          </button>
         </div>
       }
 
@@ -51,9 +45,19 @@ import { ModalPortalDirective } from '../../shared/directives/modal-portal.direc
         [showOperador]="false"
         [showBahia]="false"
         [showEstado]="true"
+        [showBusqueda]="true"
+        [placeholderBusqueda]="'Buscar por máquina, código o prioridad...'"
+        [showMarca]="true"
         [showFechas]="true"
         [listaEstados]="['Todos', 'Pendiente', 'En Solución', 'Solucionado']"
         (filterChange)="aplicarNuevosFiltros($event)">
+        <button filter-actions
+          (click)="abrirModalReportar()"
+          class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
+          <i-lucide name="plus" class="w-4 h-4"></i-lucide>
+          <span class="hidden sm:inline">Reportar Nuevo Fallo</span>
+          <span class="sm:hidden">Reportar Fallo</span>
+        </button>
       </app-filter-bar>
 
       <!-- Incident Cards Grid (Optimized for PC/Laptop) -->
@@ -126,9 +130,6 @@ import { ModalPortalDirective } from '../../shared/directives/modal-portal.direc
                       <i-lucide name="check-circle-2" class="w-3.5 h-3.5"></i-lucide>
                       Equipo Reparado
                     </span>
-                    @if (inc.costoReparacion) {
-                      <span class="font-extrabold text-slate-900 text-xs font-mono">\${{ inc.costoReparacion }}</span>
-                    }
                   </div>
                   <p class="text-slate-800 font-medium line-clamp-2">{{ inc.observacionSolucion }}</p>
                   
@@ -347,23 +348,16 @@ import { ModalPortalDirective } from '../../shared/directives/modal-portal.direc
             </textarea>
           </div>
 
-          <!-- Repuestos y Costo -->
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Repuestos Utilizados</label>
-              <input 
-                type="text" 
+          <!-- Repuestos -->
+          <div class="mt-4 p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-4">
+            <div class="grid grid-cols-1 gap-4">
+              <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Repuestos Utilizados</label>
+                <input type="text" 
                 [(ngModel)]="solucionForm.repuestosUtilizados" 
-                placeholder="ej. O-ring Viton 1/2, Válvula de retorno" 
-                class="w-full p-2.5 border rounded-xl text-xs">
-            </div>
-            <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Costo de Reparación ($ USD)</label>
-              <input 
-                type="number" 
-                [(ngModel)]="solucionForm.costoReparacion" 
-                placeholder="45.00" 
-                class="w-full p-2.5 border rounded-xl text-xs font-mono font-bold">
+                placeholder="Ej: Empaques O-Ring, Acoples M22" 
+                class="w-full p-2.5 border rounded-xl text-sm font-medium">
+              </div>
             </div>
           </div>
 
@@ -578,9 +572,6 @@ import { ModalPortalDirective } from '../../shared/directives/modal-portal.direc
                   @if (incidenteDetalle.repuestosUtilizados) {
                     <p class="text-slate-700"><strong>Repuestos Utilizados:</strong> {{ incidenteDetalle.repuestosUtilizados }}</p>
                   }
-                  @if (incidenteDetalle.costoReparacion) {
-                    <p class="text-slate-700"><strong>Costo Total:</strong> <span class="font-bold text-emerald-700 font-mono">\${{ incidenteDetalle.costoReparacion }} USD</span></p>
-                  }
                 </div>
 
                 <!-- Galería de Fotos del Equipo Reparado -->
@@ -759,7 +750,7 @@ export class IncidentesComponent implements OnInit {
   mediaZoomUrl: string | null = null;
   mediaZoomTipo: 'imagen' | 'video' = 'imagen';
 
-  filtrosGlobales: FilterState = { sucursal: 'Todas', operador: 'Todos', bahia: 'Todas', estado: 'Todos', fecha: 'Hoy' };
+  filtrosGlobales: FilterState = { sucursal: 'Todas', operador: 'Todos', bahia: 'Todas', estado: 'Todos', fecha: 'Hoy', marca: 'Todas' };
 
   nuevoIncidente = {
     maquina: 'Aspiradora Industrial AS-002',
@@ -774,7 +765,6 @@ export class IncidentesComponent implements OnInit {
   solucionForm = {
     observacionSolucion: '',
     repuestosUtilizados: '',
-    costoReparacion: 45,
     multimedia: [] as ArchivoAdjunto[],
     documentos: [] as ArchivoAdjunto[]
   };
@@ -783,6 +773,7 @@ export class IncidentesComponent implements OnInit {
   private maquinariaService = inject(MaquinariaMockService);
   private authService = inject(AuthService);
   private toastService = inject(ToastService);
+  private sucursalService = inject(SucursalMockService);
 
   ngOnInit(): void {
     const user = this.authService.getCurrentUser();
@@ -887,6 +878,12 @@ export class IncidentesComponent implements OnInit {
     }
     if (this.filtrosGlobales.sucursal !== 'Todas') {
       resultados = resultados.filter(inc => inc.agencia === this.filtrosGlobales.sucursal);
+    }
+    if (this.filtrosGlobales.marca && this.filtrosGlobales.marca !== 'Todas') {
+      resultados = resultados.filter(item => {
+        const suc = this.sucursalService.getSucursalPorNombre(item.agencia);
+        return suc?.marcaNombre === this.filtrosGlobales.marca;
+      });
     }
 
     const rango = resolverRangoFechas(this.filtrosGlobales);
@@ -1003,7 +1000,6 @@ export class IncidentesComponent implements OnInit {
     this.solucionForm = {
       observacionSolucion: '',
       repuestosUtilizados: '',
-      costoReparacion: 45,
       multimedia: [],
       documentos: []
     };
@@ -1116,7 +1112,6 @@ export class IncidentesComponent implements OnInit {
     this.incidenteSolucionar.solucionadoPor = usuario;
     this.incidenteSolucionar.fechaSolucion = hoy;
     this.incidenteSolucionar.observacionSolucion = this.solucionForm.observacionSolucion;
-    this.incidenteSolucionar.costoReparacion = this.solucionForm.costoReparacion;
     this.incidenteSolucionar.repuestosUtilizados = this.solucionForm.repuestosUtilizados || 'Ajustes y calibración general';
     this.incidenteSolucionar.fotosReparacion = fotos.length > 0 ? fotos : ['https://images.unsplash.com/photo-1504917599217-d4dc5ebe6122?w=800&auto=format&fit=crop&q=80'];
     this.incidenteSolucionar.videosReparacion = videos;

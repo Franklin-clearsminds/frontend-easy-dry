@@ -60,6 +60,10 @@ export class SucursalMockService {
     return this.sucursales$;
   }
 
+  getActivas(): Sucursal[] {
+    return this.sucursalesSubject.value;
+  }
+
   getSucursalById(id: number): Observable<Sucursal | undefined> {
     return this.sucursales$.pipe(
       map(list => list.find(s => s.id === id)),

@@ -147,6 +147,8 @@ export interface Agencia {
   estado: 'Operativa' | 'Capacidad Máxima' | 'Mantenimiento' | 'Inactiva' | string;
   direccion?: string;
   gerenteAsignado?: string;
+  marcaId?: number;
+  marcaNombre?: string;
 }
 
 export interface VehiculoServicio {
@@ -180,7 +182,6 @@ export interface VehiculoServicio {
   fechaFin?: string;
   horaFin?: string;
   tiempoTranscurridoMin?: number;
-  costo?: number;
   notas?: string;
   insumosUtilizados?: InsumoConsumidoServicio[];
   observacionGerente?: string;
@@ -224,7 +225,6 @@ export interface Mantenimiento {
   tiempoTranscurridoMin?: number;
   tecnico: string;
   estado: 'Programado' | 'En Proceso' | 'Completado' | 'Cancelado' | string;
-  costo?: number;
   descripcion: string;
   agencia?: string;
   fotos?: string[];
@@ -309,7 +309,6 @@ export interface Incidente {
   fechaSolucion?: string;
   solucionadoPor?: string;
   observacionSolucion?: string;
-  costoReparacion?: number;
   repuestosUtilizados?: string;
   fotosReparacion?: string[];
   videosReparacion?: string[];
@@ -323,7 +322,6 @@ export interface Reporte {
   agencia: string;
   fechaGeneracion: string;
   totalServicios: number;
-  ingresosTotales: number;
   eficienciaGeneral: number;
 }
 

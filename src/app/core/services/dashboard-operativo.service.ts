@@ -14,6 +14,41 @@ import {
   MOCK_DASHBOARD_COMERCIAL
 } from '../mocks/dashboard-roles.mock';
 
+const MOCK_RESUMEN_EJECUTIVO = {
+  kpis: [
+    { label: 'Ingresos', value: '$4,200', icon: 'dollar-sign', trend: '+12%', trendPositive: true, variant: 'success' },
+    { label: 'Eficiencia', value: '87%', icon: 'trending-up', trend: '+5%', trendPositive: true, variant: 'primary' },
+    { label: 'OTs Completadas', value: '42', icon: 'check-circle', trend: '+8', trendPositive: true, variant: 'success' },
+    { label: 'Tiempo Prom.', value: '22 min', icon: 'clock', trend: '-4 min', trendPositive: true, variant: 'warning' }
+  ],
+  tendencia: {
+    labels: ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00'],
+    datasets: [
+      {
+        label: 'OTs',
+        data: [5, 12, 18, 15, 22, 19],
+        borderColor: '#004282',
+        backgroundColor: 'rgba(0, 66, 130, 0.1)',
+        fill: true
+      },
+      {
+        label: 'Meta',
+        data: [8, 14, 16, 16, 18, 18],
+        borderColor: '#9BCB3B',
+        borderDash: [5, 5],
+        backgroundColor: 'transparent',
+        fill: false
+      }
+    ]
+  },
+  sugerencias: [
+    { texto: 'Abrir bahía 7 para reducir cola de espera', icono: 'plus-circle', prioridad: 'alta' },
+    { texto: 'Reabastecer shampú en Quito Norte (stock bajo)', icono: 'package', prioridad: 'media' },
+    { texto: 'Revisar equipo #3 - mantenimiento pendiente', icono: 'wrench', prioridad: 'media' },
+    { texto: 'Considerar turno extra mañana (demanda estimada +20%)', icono: 'calendar', prioridad: 'baja' }
+  ]
+};
+
 @Injectable({
   providedIn: 'root'
 })
@@ -62,5 +97,9 @@ export class DashboardOperativoService {
 
   getDashboardComercial(): Observable<typeof MOCK_DASHBOARD_COMERCIAL> {
     return of(MOCK_DASHBOARD_COMERCIAL).pipe(delay(180));
+  }
+
+  getResumenEjecutivo(): Observable<typeof MOCK_RESUMEN_EJECUTIVO> {
+    return of(MOCK_RESUMEN_EJECUTIVO).pipe(delay(120));
   }
 }
