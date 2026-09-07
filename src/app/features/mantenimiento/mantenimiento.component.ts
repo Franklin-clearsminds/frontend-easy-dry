@@ -907,7 +907,7 @@ export class MantenimientoComponent implements OnInit {
   documentosCompletar: ArchivoAdjunto[] = [];
   mediaZoomUrl: string | null = null;
 
-  gestorActual = { id: 0, nombreCompleto: '' };
+  gestorActual: { id: string | number; nombreCompleto: string } = { id: 0, nombreCompleto: '' };
 
   tecnicosDisponibles = DEMO_CREDENTIALS
     .filter(c => c.role === Role.TECNICO)
@@ -1001,7 +1001,7 @@ export class MantenimientoComponent implements OnInit {
     this.modalAsignarOpen = true;
   }
 
-  asignarMantenimientoAEjecutor(tecnicoId: number, tecnicoNombre: string) {
+  asignarMantenimientoAEjecutor(tecnicoId: string | number, tecnicoNombre: string) {
     const user = this.authService.getCurrentUser();
     if (!this.mantenimientoAsignar || !user) return;
 

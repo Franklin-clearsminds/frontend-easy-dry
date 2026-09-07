@@ -927,7 +927,10 @@ export class SucursalesComponent implements OnInit {
 
   gerentesUsuarios: Usuario[] = [];
   modalAsignarGerenteOpen = false;
-  formAsignarGerente = {
+  formAsignarGerente: {
+    gerenteId: string | number;
+    sucursalId: number;
+  } = {
     gerenteId: 0,
     sucursalId: 0
   };
@@ -1044,7 +1047,7 @@ export class SucursalesComponent implements OnInit {
   }
 
   guardarAsignacionGerente(): void {
-    const ger = this.gerentesUsuarios.find(g => g.id === this.formAsignarGerente.gerenteId);
+    const ger = this.gerentesUsuarios.find(g => String(g.id) === String(this.formAsignarGerente.gerenteId));
     const suc = this.sucursales.find(s => s.id === this.formAsignarGerente.sucursalId);
     if (!ger || !suc) {
       this.toastService.warning('Campos requeridos', 'Selecciona un usuario gerente y una sucursal.');

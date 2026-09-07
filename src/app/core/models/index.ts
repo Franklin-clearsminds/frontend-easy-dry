@@ -5,7 +5,7 @@ export * from './inventario.model';
 export type ModalidadPulidor = 'FIJO' | 'MOVIL';
 
 export interface Usuario {
-  id: number;
+  id: string | number;
   nombre: string;
   apellido: string;
   rol: 'SuperAdmin' | 'Gerente' | 'Supervisor' | 'Técnico' | 'OPERADOR' | string;
@@ -217,7 +217,7 @@ export interface Maquinaria {
 }
 
 export interface Mantenimiento {
-  id: number;
+  id: string | number;
   maquina: string;
   tipo: 'Preventivo' | 'Correctivo' | 'Calibración' | string;
   fecha: string;
@@ -235,9 +235,9 @@ export interface Mantenimiento {
   videos?: string[];
   documentos?: ArchivoAdjunto[];
   archivos?: ArchivoAdjunto[];
-  tecnicoAsignadoId?: number;
+  tecnicoAsignadoId?: string | number;
   tecnicoAsignadoNombre?: string;
-  gestorAsignadorId?: number;
+  gestorAsignadorId?: string | number;
   gestorAsignadorNombre?: string;
   fechaAsignacion?: string;
   observacionCierre?: string;
@@ -287,7 +287,7 @@ export interface EnvioSuministro {
 }
 
 export interface Incidente {
-  id: number;
+  id: string | number;
   codigoIncidente: string;
   maquina: string;
   agencia: string;
@@ -298,9 +298,9 @@ export interface Incidente {
   descripcion: string;
   reportadoPor: string;
 
-  tecnicoAsignadoId?: number;
+  tecnicoAsignadoId?: string | number;
   tecnicoAsignadoNombre?: string;
-  gestorAsignadorId?: number;
+  gestorAsignadorId?: string | number;
   gestorAsignadorNombre?: string;
   fechaAsignacion?: string;
 

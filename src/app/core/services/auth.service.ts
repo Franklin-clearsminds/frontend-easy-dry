@@ -1,7 +1,8 @@
 import { Injectable, inject } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { BehaviorSubject, Observable, of } from 'rxjs';
-import { delay } from 'rxjs/operators';
+import { delay, map, catchError } from 'rxjs/operators';
 import {
   Role,
   UsuarioAuth,
@@ -12,7 +13,7 @@ import {
   DEFAULT_ROUTE_POR_ROL
 } from '../models/roles.model';
 import { RolMockService } from './rol-mock.service';
-import { isMockMode } from '../config/env';
+import { isMockMode, apiUrl } from '../config/env';
 
 export interface DemoUserCredential {
   nombre: string;
@@ -49,41 +50,41 @@ export const DEMO_CREDENTIALS: DemoUserCredential[] = [
     avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
   },
   {
-    nombre: 'Gerente Sucursal Quito Norte',
+    nombre: 'Aprobador de Agencia Quito Norte',
     email: 'gerente.norte@easydry.com',
     passwordPlain: 'Admin123*',
-    role: Role.GERENTE,
-    rolNombre: 'Gerente de Sucursal',
+    role: Role.APROBADOR,
+    rolNombre: 'Aprobador de Agencia',
     sucursal: 'EasyDry Quito Norte',
     region: 'Región Sierra',
     avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80'
   },
   {
-    nombre: 'Gerente Sucursal Quito Sur',
+    nombre: 'Aprobador Quito Sur',
     email: 'gerente.sur@easydry.com',
     passwordPlain: 'Admin123*',
-    role: Role.GERENTE,
-    rolNombre: 'Gerente de Sucursal',
+    role: Role.APROBADOR,
+    rolNombre: 'Aprobador de Agencia',
     sucursal: 'EasyDry Quito Sur',
     region: 'Región Sierra',
     avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&auto=format&fit=crop&q=80'
   },
   {
-    nombre: 'Gerente Sucursal Cumbayá',
+    nombre: 'Aprobador Cumbayá',
     email: 'roberto.cumbaya@easydry.com',
     passwordPlain: 'Admin123*',
-    role: Role.GERENTE,
-    rolNombre: 'Gerente de Sucursal',
+    role: Role.APROBADOR,
+    rolNombre: 'Aprobador de Agencia',
     sucursal: 'EasyDry Cumbayá',
     region: 'Región Sierra',
     avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80'
   },
   {
-    nombre: 'Gerente Sucursal Guayaquil',
+    nombre: 'Aprobador Guayaquil',
     email: 'sofia.guayaquil@easydry.com',
     passwordPlain: 'Admin123*',
-    role: Role.GERENTE,
-    rolNombre: 'Gerente de Sucursal',
+    role: Role.APROBADOR,
+    rolNombre: 'Aprobador de Agencia',
     sucursal: 'EasyDry Guayaquil',
     region: 'Región Costa',
     avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80'
@@ -119,11 +120,11 @@ export const DEMO_CREDENTIALS: DemoUserCredential[] = [
     avatar: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?w=150&auto=format&fit=crop&q=80'
   },
   {
-    nombre: 'Operador Bahía 01',
+    nombre: 'Líder de Agencia Quito Norte',
     email: 'operador.bahia01@easydry.com',
     passwordPlain: 'Admin123*',
-    role: Role.OPERADOR,
-    rolNombre: 'Operador de Bahía',
+    role: Role.LIDER_AGENCIA,
+    rolNombre: 'Líder de Agencia',
     sucursal: 'EasyDry Quito Norte',
     region: 'Región Sierra',
     bahiaNombre: 'Bahía 1 (Lavado Ecológico)',
@@ -150,33 +151,33 @@ export const DEMO_CREDENTIALS: DemoUserCredential[] = [
     avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&auto=format&fit=crop&q=80'
   },
   {
-    nombre: 'Operador Pulido',
+    nombre: 'Pulidor Móvil',
     email: 'operador.especial@easydry.com',
     passwordPlain: 'Admin123*',
-    role: Role.OPERADOR_SERVICIOS_ESPECIALES,
-    rolNombre: 'Operador de Servicios Especiales',
+    role: Role.PULIDOR_MOVIL,
+    rolNombre: 'Pulidor Móvil',
     sucursal: 'EasyDry Quito Sur',
     region: 'Región Sierra',
     modalidadPulidor: 'MOVIL',
     avatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=150&auto=format&fit=crop&q=80'
   },
   {
-    nombre: 'Operador Pulido Quito Norte',
+    nombre: 'Pulidor Fijo Quito Norte',
     email: 'operador.pulido.norte@easydry.com',
     passwordPlain: 'Admin123*',
-    role: Role.OPERADOR_SERVICIOS_ESPECIALES,
-    rolNombre: 'Operador de Servicios Especiales',
+    role: Role.PULIDOR_FIJO,
+    rolNombre: 'Pulidor Fijo',
     sucursal: 'EasyDry Quito Norte',
     region: 'Región Sierra',
     modalidadPulidor: 'FIJO',
     avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150&auto=format&fit=crop&q=80'
   },
   {
-    nombre: 'Gestor de Inventario',
+    nombre: 'Coordinador de Bodega',
     email: 'distribuidor@easydry.com',
     passwordPlain: 'Admin123*',
-    role: Role.DISTRIBUIDOR,
-    rolNombre: 'Gestor de Inventario',
+    role: Role.COORD_BODEGA,
+    rolNombre: 'Coordinador de Bodega',
     sucursal: 'Bodega Central',
     region: 'Nacional',
     avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150&auto=format&fit=crop&q=80'
@@ -200,10 +201,37 @@ const STORAGE_KEY = 'easydry_auth_user_v5';
 })
 export class AuthService {
   private router = inject(Router);
+  private http = inject(HttpClient);
   private rolService = inject(RolMockService);
 
   private currentUserSubject = new BehaviorSubject<UsuarioAuth | null>(this.getStoredUser());
   public currentUser$ = this.currentUserSubject.asObservable();
+
+  /** Mapea el roleCode del backend al enum Role local */
+  private mapBackendRole(backendRole: string): Role {
+    const roleMap: Record<string, Role> = {
+      'SUPER_ADMIN': Role.SUPER_ADMIN,
+      'ADMIN': Role.ADMIN,
+      'SUPERVISOR': Role.SUPERVISOR,
+      'JEFE_COMERCIAL': Role.JEFE_COMERCIAL,
+      'COORD_COMERCIAL': Role.COORD_COMERCIAL,
+      'APROBADOR': Role.APROBADOR,
+      'LIDER_AGENCIA': Role.LIDER_AGENCIA,
+      'COORD_SERVICIOS_ESPECIALES': Role.COORD_SERVICIOS_ESPECIALES,
+      'PULIDOR_FIJO': Role.PULIDOR_FIJO,
+      'PULIDOR_MOVIL': Role.PULIDOR_MOVIL,
+      'COORD_MANTENIMIENTO': Role.COORD_MANTENIMIENTO,
+      'TECNICO': Role.TECNICO,
+      'COORD_BODEGA': Role.COORD_BODEGA,
+      'ASISTENTE_BODEGA': Role.ASISTENTE_BODEGA,
+      // Aliases legacy (pueden venir del backend en datos viejos)
+      'GERENTE': Role.APROBADOR,
+      'OPERADOR': Role.LIDER_AGENCIA,
+      'DISTRIBUIDOR': Role.COORD_BODEGA,
+      'OPERADOR_SERVICIOS_ESPECIALES': Role.PULIDOR_MOVIL,
+    };
+    return roleMap[backendRole] ?? Role.LIDER_AGENCIA;
+  }
 
   private getStoredUser(): UsuarioAuth | null {
     try {
@@ -249,10 +277,72 @@ export class AuthService {
     }
 
     if (!isMockMode()) {
-      return of({
-        success: false,
-        message: 'API remota aún no configurada. Defina NG_APP_API_BASE_URL y NG_APP_USE_MOCKS=false cuando exista backend.'
-      }).pipe(delay(200));
+      // ── LOGIN HTTP REAL ────────────────────────────────────────────────────
+      return this.http.post<{
+        success: boolean;
+        accessToken: string;
+        refreshToken: string;
+        user: {
+          id: string;
+          name: string;
+          lastname: string;
+          nombre: string;
+          email: string;
+          role: string;
+          rolNombre: string;
+          permisos: string[];
+          agenciaId: string | number;
+          agencia: { id: string | number; codigo: string; nombre: string };
+          sucursal: string;
+          sucursalNombre: string;
+          regionId: string | number;
+          region: { id: string | number; codigo: string; nombre: string };
+          regionNombre: string;
+          estado: number;
+        };
+      }>(apiUrl('/auth/login'), { email: normalizedEmail, password: normalizedPass }).pipe(
+        map(res => {
+          if (!res.success) return { success: false, message: 'Credenciales incorrectas.' };
+
+          const role = this.mapBackendRole(res.user.role);
+          const rolConfig = this.rolService.getRolPorCodigo(role);
+          const modulosPermitidos =
+            role === Role.SUPER_ADMIN
+              ? MODULOS_POR_ROL[Role.SUPER_ADMIN]
+              : (rolConfig?.modulos?.length ? rolConfig.modulos : MODULOS_POR_ROL[role] || []);
+          const permisos = PERMISOS_POR_ROL[role] || PERMISOS_POR_ROL[Role.LIDER_AGENCIA];
+
+          const authenticatedUser: UsuarioAuth = {
+            id: res.user.id,
+            nombre: res.user.name,
+            apellido: res.user.lastname,
+            email: res.user.email,
+            role,
+            rolNombre: ROLE_LABELS[role] || res.user.rolNombre || res.user.role,
+            modulosPermitidos,
+            sucursal: res.user.sucursal || res.user.agencia?.nombre,
+            sucursalNombre: res.user.sucursalNombre || res.user.agencia?.nombre,
+            region: res.user.regionNombre || res.user.region?.nombre,
+            agenciaId: res.user.agenciaId,
+            regionId: res.user.regionId,
+            estado: res.user.estado === 1 ? 'Activo' : 'Inactivo',
+            token: res.accessToken,
+            refreshToken: res.refreshToken,
+            permisos,
+          };
+
+          // Persistir tokens en localStorage
+          localStorage.setItem('easydry_access_token', res.accessToken);
+          localStorage.setItem('easydry_refresh_token', res.refreshToken);
+          this.setUser(authenticatedUser);
+
+          return { success: true, user: authenticatedUser };
+        }),
+        catchError(err => of({
+          success: false,
+          message: err?.error?.message || 'Error al conectar con el servidor. Verifique su conexión.'
+        }))
+      );
     }
 
     const demoMatch = DEMO_CREDENTIALS.find(

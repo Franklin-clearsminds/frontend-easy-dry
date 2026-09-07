@@ -19,7 +19,7 @@ export class UsuarioMockService {
     const current = this.usuariosSubject.value;
     const nuevo: Usuario = {
       ...usr,
-      id: Math.max(...current.map(u => u.id), 0) + 1
+      id: Math.max(...current.map(u => typeof u.id === 'number' ? u.id : 0), 0) + 1
     };
     this.usuariosSubject.next([...current, nuevo]);
     return of(nuevo).pipe(delay(400));
@@ -27,7 +27,7 @@ export class UsuarioMockService {
 
   actualizarUsuario(usr: Usuario): Observable<Usuario> {
     const current = this.usuariosSubject.value;
-    const idx = current.findIndex(u => u.id === usr.id);
+    const idx = current.findIndex(u => String(u.id) === String(usr.id));
     if (idx !== -1) {
       current[idx] = { ...usr };
       this.usuariosSubject.next([...current]);
