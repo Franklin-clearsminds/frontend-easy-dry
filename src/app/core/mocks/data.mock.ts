@@ -24,7 +24,9 @@ export const MOCK_AGENCIAS: Agencia[] = [
     productividad: 96.4,
     estado: 'Operativa',
     direccion: 'Av. de los Granados N39-102 y 6 de Diciembre',
-    gerenteAsignado: 'Carlos Mendoza'
+    gerenteAsignado: 'Carlos Mendoza',
+    marcaId: 1,
+    marcaNombre: 'EasyDry'
   },
   {
     id: 2,
@@ -35,7 +37,9 @@ export const MOCK_AGENCIAS: Agencia[] = [
     productividad: 91.8,
     estado: 'Operativa',
     direccion: 'Av. Maldonado S12-45 y Moraspungo',
-    gerenteAsignado: 'Diana Salazar'
+    gerenteAsignado: 'Diana Salazar',
+    marcaId: 1,
+    marcaNombre: 'EasyDry'
   },
   {
     id: 3,
@@ -46,7 +50,9 @@ export const MOCK_AGENCIAS: Agencia[] = [
     productividad: 98.2,
     estado: 'Capacidad Máxima',
     direccion: 'Av. Interoceánica Km 11.5 y Pampite',
-    gerenteAsignado: 'Roberto Benítez'
+    gerenteAsignado: 'Roberto Benítez',
+    marcaId: 2,
+    marcaNombre: 'EasyDry Premium'
   },
   {
     id: 4,
@@ -57,7 +63,9 @@ export const MOCK_AGENCIAS: Agencia[] = [
     productividad: 94.0,
     estado: 'Operativa',
     direccion: 'Av. Samborondón Km 2.5 Plaza Batán',
-    gerenteAsignado: 'Sofía Larrea'
+    gerenteAsignado: 'Sofía Larrea',
+    marcaId: 1,
+    marcaNombre: 'EasyDry'
   }
 ];
 
@@ -190,11 +198,33 @@ export const MOCK_USUARIOS: Usuario[] = [
     nombre: 'Diana',
     apellido: 'Salazar',
     rol: 'Gerente de Sucursal',
-    agencia: 'EasyDry Guayaquil (Costa)',
+    agencia: 'EasyDry Quito Sur',
     estado: 'Activo',
     fechaAsignacion: '2024-02-15',
     email: 'diana.gerente@easydry.com',
     avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&auto=format&fit=crop&q=80'
+  },
+  {
+    id: 14,
+    nombre: 'Roberto',
+    apellido: 'Benítez',
+    rol: 'Gerente de Sucursal',
+    agencia: 'EasyDry Cumbayá',
+    estado: 'Activo',
+    fechaAsignacion: '2024-03-10',
+    email: 'roberto.cumbaya@easydry.com',
+    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80'
+  },
+  {
+    id: 15,
+    nombre: 'Sofía',
+    apellido: 'Larrea',
+    rol: 'Gerente de Sucursal',
+    agencia: 'EasyDry Guayaquil',
+    estado: 'Activo',
+    fechaAsignacion: '2024-01-20',
+    email: 'sofia.guayaquil@easydry.com',
+    avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80'
   },
   {
     id: 10,
@@ -249,7 +279,6 @@ export const MOCK_SERVICIOS: VehiculoServicio[] = [
     video: 'https://assets.mixkit.co/videos/preview/mixkit-car-wash-in-a-machine-41484-large.mp4',
     videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-car-wash-in-a-machine-41484-large.mp4',
     tiempoEstimadoMin: 120,
-    costo: 180.00,
     notas: 'Aplicación de tratamiento cerámico titanio a presión Eco-Dry'
   },
   {
@@ -275,7 +304,6 @@ export const MOCK_SERVICIOS: VehiculoServicio[] = [
     video: 'https://assets.mixkit.co/videos/preview/mixkit-man-cleaning-a-car-interior-with-a-vacuum-cleaner-41487-large.mp4',
     videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-man-cleaning-a-car-interior-with-a-vacuum-cleaner-41487-large.mp4',
     tiempoEstimadoMin: 45,
-    costo: 35.00,
     notas: 'Servicio concluido, listo para inspección y aprobación del Gerente'
   },
   {
@@ -301,7 +329,6 @@ export const MOCK_SERVICIOS: VehiculoServicio[] = [
     video: 'https://assets.mixkit.co/videos/preview/mixkit-car-wash-in-a-machine-41484-large.mp4',
     videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-car-wash-in-a-machine-41484-large.mp4',
     tiempoEstimadoMin: 90,
-    costo: 120.00,
     observacionGerente: 'Trabajo impecable. Acabado espejo confirmado.',
     aprobadoPor: 'Carlos Mendoza (Gerente)',
     fechaAprobacion: '2026-07-22 09:30',
@@ -329,7 +356,6 @@ export const MOCK_SERVICIOS: VehiculoServicio[] = [
     foto: 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=800&auto=format&fit=crop&q=80',
     video: '',
     tiempoEstimadoMin: 25,
-    costo: 18.00,
     observacionGerente: 'Servicio Express OK',
     aprobadoPor: 'Diana Salazar (Gerente)',
     fechaAprobacion: '2026-07-22 08:40',
@@ -358,8 +384,159 @@ export const MOCK_SERVICIOS: VehiculoServicio[] = [
     video: 'https://assets.mixkit.co/videos/preview/mixkit-car-wash-in-a-machine-41484-large.mp4',
     videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-car-wash-in-a-machine-41484-large.mp4',
     tiempoEstimadoMin: 45,
-    costo: 45.00,
     notas: 'Servicio Extra programado: Desengrase a fondo de motor y chasis'
+  },
+  {
+    id: 106,
+    numeroOrden: 'ORD-2026-006',
+    ordenTrabajoOT: 'OT-3321',
+    placa: 'PCC-3321',
+    marca: 'Chevrolet',
+    modelo: 'Spark GT',
+    anio: 2023,
+    color: 'Blanco Sentido',
+    categoriaServicio: 'Servicios Generales',
+    servicio: 'Completo',
+    categoria: 'Hatchback',
+    agencia: 'EasyDry Cumbayá',
+    bahia: 'Bahía 1 (Lavado Express)',
+    empleado: 'Andrea López',
+    fecha: '2026-07-22',
+    horaIngreso: '09:00',
+    horaSalida: '10:00',
+    estado: 'FINALIZADO',
+    foto: 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=800&auto=format&fit=crop&q=80',
+    video: 'https://assets.mixkit.co/videos/preview/mixkit-car-wash-in-a-machine-41484-large.mp4',
+    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-car-wash-in-a-machine-41484-large.mp4',
+    tiempoEstimadoMin: 55,
+    notas: 'Lavado completo exterior e interior con aspirado profundo'
+  },
+  {
+    id: 107,
+    numeroOrden: 'ORD-2026-007',
+    ordenTrabajoOT: 'OT-4455',
+    placa: 'PBH-4455',
+    marca: 'Toyota',
+    modelo: 'Corolla Cross',
+    anio: 2025,
+    color: 'Gris Platinum',
+    categoriaServicio: 'Servicios Especiales',
+    servicio: 'Recubrimiento Cerámico 1 año',
+    categoria: 'SUV',
+    agencia: 'EasyDry Cumbayá',
+    bahia: 'Bahía 2 (Cerámico & Detallado)',
+    empleado: 'Marco Paredes',
+    fecha: '2026-07-22',
+    horaIngreso: '08:30',
+    horaSalida: '11:30',
+    estado: 'APROBADO',
+    foto: 'https://images.unsplash.com/photo-1555215695-3004980ad54e?w=800&auto=format&fit=crop&q=80',
+    video: '',
+    tiempoEstimadoMin: 180,
+    observacionGerente: 'Cerámica aplicada correctamente. Brillo espejo confirmado.',
+    aprobadoPor: 'Roberto Benítez (Gerente)',
+    fechaAprobacion: '2026-07-22 11:45',
+    notas: 'Aplicación de recubrimiento cerámico 1 año - acabado premium'
+  },
+  {
+    id: 108,
+    numeroOrden: 'ORD-2026-008',
+    ordenTrabajoOT: 'OT-5566',
+    placa: 'PEI-5566',
+    marca: 'Mazda',
+    modelo: 'CX-5',
+    anio: 2024,
+    color: 'Rojo Soul Red',
+    categoriaServicio: 'Servicios Generales',
+    servicio: 'Lavado Completo',
+    categoria: 'SUV',
+    agencia: 'EasyDry Cumbayá',
+    bahia: 'Bahía 1 (Lavado Express)',
+    empleado: 'Andrea López',
+    fecha: '2026-07-22',
+    horaIngreso: '13:00',
+    horaSalida: '13:50',
+    estado: 'EN PROCESO',
+    foto: 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=800&auto=format&fit=crop&q=80',
+    video: '',
+    tiempoEstimadoMin: 50,
+    notas: 'Lavado completo estándar con cera líquida'
+  },
+  {
+    id: 109,
+    numeroOrden: 'ORD-2026-009',
+    ordenTrabajoOT: 'OT-6677',
+    placa: 'PGK-6677',
+    marca: 'Kia',
+    modelo: 'Cerato',
+    anio: 2023,
+    color: 'Azul Gravity',
+    categoriaServicio: 'Servicios Generales',
+    servicio: 'Express',
+    categoria: 'Sedán',
+    agencia: 'EasyDry Guayaquil',
+    bahia: 'Bahía 1 (Lavado Express)',
+    empleado: 'Carlos Villacís',
+    fecha: '2026-07-22',
+    horaIngreso: '07:30',
+    horaSalida: '08:00',
+    estado: 'APROBADO',
+    foto: 'https://images.unsplash.com/photo-1552519507-da3b142c6e3d?w=800&auto=format&fit=crop&q=80',
+    video: '',
+    tiempoEstimadoMin: 25,
+    observacionGerente: 'Lavado express correcto. Vehículo en buen estado.',
+    aprobadoPor: 'Sofía Larrea (Gerente)',
+    fechaAprobacion: '2026-07-22 08:15',
+    notas: 'Lavado rápido exterior con desinfección'
+  },
+  {
+    id: 110,
+    numeroOrden: 'ORD-2026-010',
+    ordenTrabajoOT: 'OT-7788',
+    placa: 'PGL-7788',
+    marca: 'Hyundai',
+    modelo: 'Accent',
+    anio: 2024,
+    color: 'Negro Abyss',
+    categoriaServicio: 'Servicios Generales',
+    servicio: 'Completo',
+    categoria: 'Sedán',
+    agencia: 'EasyDry Guayaquil',
+    bahia: 'Bahía 2 (Completo Interior)',
+    empleado: 'Miguel Torres',
+    fecha: '2026-07-22',
+    horaIngreso: '09:15',
+    horaSalida: '10:10',
+    estado: 'FINALIZADO',
+    foto: 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=800&auto=format&fit=crop&q=80',
+    video: 'https://assets.mixkit.co/videos/preview/mixkit-car-wash-in-a-machine-41484-large.mp4',
+    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-car-wash-in-a-machine-41484-large.mp4',
+    tiempoEstimadoMin: 55,
+    notas: 'Lavado completo con aspirado interior y aromatización'
+  },
+  {
+    id: 111,
+    numeroOrden: 'ORD-2026-011',
+    ordenTrabajoOT: 'OT-8899',
+    placa: 'PBM-8899',
+    marca: 'Suzuki',
+    modelo: 'Vitara',
+    anio: 2025,
+    color: 'Verde Kinetic',
+    categoriaServicio: 'Servicios Especiales',
+    servicio: 'Pulido',
+    categoria: 'SUV',
+    agencia: 'EasyDry Guayaquil',
+    bahia: 'Bahía 3 (Cerámico & Detallado)',
+    empleado: 'Carlos Villacís',
+    fecha: '2026-07-22',
+    horaIngreso: '10:30',
+    horaSalida: '12:00',
+    estado: 'EN PROCESO',
+    foto: 'https://images.unsplash.com/photo-1555215695-3004980ad54e?w=800&auto=format&fit=crop&q=80',
+    video: '',
+    tiempoEstimadoMin: 90,
+    notas: 'Pulido completo con corrección de pintura y acabado espejo'
   }
 ];
 
@@ -489,7 +666,6 @@ export const MOCK_MANTENIMIENTOS: Mantenimiento[] = [
     fecha: '2026-08-28',
     tecnico: 'Sin asignar',
     estado: 'Programado',
-    costo: 85.00,
     descripcion: 'Cambio de sellos cerámicos de bomba y aceite hidráulico. Pendiente de asignación.',
     agencia: 'EasyDry Quito Norte'
   },
@@ -505,7 +681,6 @@ export const MOCK_MANTENIMIENTOS: Mantenimiento[] = [
     gestorAsignadorNombre: 'Gestor Técnico',
     fechaAsignacion: '2026-08-28 07:30',
     estado: 'En Proceso',
-    costo: 25.00,
     descripcion: 'Mantenimiento delegado al técnico de campo.',
     agencia: 'EasyDry Quito Norte'
   },
@@ -519,7 +694,6 @@ export const MOCK_MANTENIMIENTOS: Mantenimiento[] = [
       fecha,
       tecnico: i % 2 === 0 ? 'Esteban Torres (Técnico)' : 'Pedro Martínez (Técnico)',
       estado,
-      costo: Math.floor(Math.random() * 200) + 50,
       descripcion: `Revisión y mantenimiento de componentes rutinarios (Orden #${202600 + i}).`,
       agencia: i % 2 === 0 ? 'EasyDry Quito Norte' : 'EasyDry Quito Sur'
     };
@@ -602,7 +776,6 @@ export const MOCK_INCIDENTES: Incidente[] = [
     fechaSolucion: '2026-07-15 14:20',
     solucionadoPor: 'Esteban Torres (Taller Central)',
     observacionSolucion: 'Sustitución completa del juego de empaques O-ring reforzados de alta presión y acople de bronce industrial. Se realizaron pruebas a 180 BAR durante 15 minutos sin goteo.',
-    costoReparacion: 45.00,
     repuestosUtilizados: 'Empaques O-Ring Viton 1/2", Acople Rápido M22 Bronce',
     fotosReparacion: [
       'https://images.unsplash.com/photo-1504917599217-d4dc5ebe6122?w=800&auto=format&fit=crop&q=80',
@@ -658,7 +831,6 @@ export const MOCK_INCIDENTES: Incidente[] = [
     fechaSolucion: '2026-07-19 11:00',
     solucionadoPor: 'Esteban Torres (Taller Central)',
     observacionSolucion: 'Reemplazo de placa cerámica de alta tensión y fusible cerámico de 10A.',
-    costoReparacion: 65.00,
     repuestosUtilizados: 'Placa Cerámica Ozono 10g/h, Fusible Cerámico 10A',
     fotosReparacion: [
       'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=800&auto=format&fit=crop&q=80'
@@ -705,7 +877,6 @@ export const MOCK_REPORTES: Reporte[] = [
     agencia: 'EasyDry Quito Norte',
     fechaGeneracion: '2026-07-22',
     totalServicios: 24,
-    ingresosTotales: 890.00,
     eficienciaGeneral: 96.5
   }
 ];

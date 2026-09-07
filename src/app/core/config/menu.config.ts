@@ -114,6 +114,15 @@ export const MENU_CONFIG: MenuItem[] = [
     moduloCodigo: 'inventario',
     group: 'Activos & Taller'
   },
+  {
+    label: 'Envíos & Confirmación',
+    route: '/envios',
+    icon: 'send',
+    moduloCodigo: 'envios',
+    group: 'Activos & Taller',
+    badgeIcon: 'alert-circle-filled',
+    badgeColor: 'bg-amber-500 text-white'
+  },
 
   // ─── 5. ADMINISTRACIÓN ─────────────────────────────────────────
   {

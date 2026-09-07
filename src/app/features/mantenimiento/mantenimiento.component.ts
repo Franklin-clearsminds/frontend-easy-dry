@@ -15,6 +15,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
 import { resolverRangoFechas, soloFecha } from '../../core/utils/fecha-rango';
 import { FileUploaderComponent } from '../../shared/components/file-uploader/file-uploader.component';
 import { ModalPortalDirective } from '../../shared/directives/modal-portal.directive';
+import { SucursalMockService } from '../../core/services/sucursal-mock.service';
 
 @Component({
   selector: 'app-mantenimiento',
@@ -30,12 +31,6 @@ import { ModalPortalDirective } from '../../shared/directives/modal-portal.direc
             <h1 class="text-2xl font-extrabold text-slate-900 font-outfit">Plan de Mantenimiento Preventivo & Correctivo</h1>
             <p class="text-slate-500 text-xs mt-1">Programación de intervenciones técnicas, calendario de visitas y presupuesto de repuestos.</p>
           </div>
-          <button 
-            (click)="modalCrearOpen = true"
-            class="px-4 py-2.5 bg-easydry-blue hover:bg-easydry-blue-dark text-white font-bold rounded-xl text-xs transition-colors flex items-center gap-2 shadow-xs self-start sm:self-auto cursor-pointer">
-            <i-lucide name="calendar-clock" class="w-4 h-4"></i-lucide>
-            <span>Agendar Mantenimiento</span>
-          </button>
         </div>
       }
 
@@ -115,9 +110,9 @@ import { ModalPortalDirective } from '../../shared/directives/modal-portal.direc
         [showOperador]="false"
         [showBahia]="true"
         [showEstado]="true"
-        [showBusqueda]="true"
-        [placeholderBusqueda]="'Buscar por maquinaria, técnico o código...'"
         [showFechas]="true"
+        [showMarca]="true"
+        [showBusqueda]="true"
         [listaEstados]="['Todos', 'Programado', 'En Proceso', 'Completado']"
         (filterChange)="aplicarNuevosFiltros($event)">
       </app-filter-bar>
@@ -125,8 +120,17 @@ import { ModalPortalDirective } from '../../shared/directives/modal-portal.direc
       <!-- Mantenimientos Table -->
       <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry overflow-hidden">
         <div class="p-6 border-b border-slate-100 flex items-center justify-between">
-          <h3 class="font-bold text-slate-900 text-base font-outfit">Registro General de Mantenimientos</h3>
-          <span class="text-xs text-slate-500 font-semibold">Total programado: {{ mantenimientosFiltrados.length }}</span>
+          <div>
+            <h3 class="font-bold text-slate-900 text-base font-outfit">Registro General de Mantenimientos</h3>
+            <span class="text-xs text-slate-500 font-semibold">Total programado: {{ mantenimientosFiltrados.length }}</span>
+          </div>
+          <button
+            (click)="modalCrearOpen = true"
+            class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
+            <i-lucide name="calendar-clock" class="w-4 h-4"></i-lucide>
+            <span class="hidden sm:inline">Agendar Mantenimiento</span>
+            <span class="sm:hidden">Agendar</span>
+          </button>
         </div>
 
         <!-- Desktop Table View -->
@@ -786,10 +790,6 @@ import { ModalPortalDirective } from '../../shared/directives/modal-portal.direc
                 <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Fecha de Finalización</label>
                 <input type="date" [(ngModel)]="completarForm.fechaFin" class="w-full p-2.5 border rounded-xl text-sm">
               </div>
-              <div>
-                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Costo Real ($ USD)</label>
-                <input type="number" [(ngModel)]="completarForm.costo" min="0" step="0.01" placeholder="85.00" class="w-full p-2.5 border rounded-xl text-sm font-mono font-bold">
-              </div>
             </div>
 
             <div class="border-2 border-dashed border-emerald-200 bg-emerald-50/40 rounded-2xl p-4 space-y-3">
@@ -901,8 +901,7 @@ export class MantenimientoComponent implements OnInit {
 
   completarForm = {
     observacionCierre: '',
-    fechaFin: new Date().toISOString().substring(0, 10),
-    costo: 0
+    fechaFin: new Date().toISOString().substring(0, 10)
   };
   multimediaCompletar: ArchivoAdjunto[] = [];
   documentosCompletar: ArchivoAdjunto[] = [];
@@ -918,10 +917,19 @@ export class MantenimientoComponent implements OnInit {
       email: c.email,
     }));
   
-  filtrosGlobales: FilterState = { sucursal: 'Todas', operador: 'Todos', bahia: 'Todas', estado: 'Todos', fecha: 'Hoy' };
+  filtrosGlobales: FilterState = { sucursal: 'Todas', operador: 'Todos', bahia: 'Todas', estado: 'Todos', fecha: 'Hoy', marca: 'Todas' };
+  filtroTexto = '';
 
   aplicarNuevosFiltros(filtros: FilterState) {
     this.filtrosGlobales = filtros;
+    if (filtros.busqueda !== undefined) {
+      this.filtroTexto = filtros.busqueda;
+    }
+    this.currentPage = 1;
+    this.aplicarFiltros();
+  }
+
+  aplicarFiltros() {
     this.currentPage = 1;
   }
 
@@ -941,8 +949,14 @@ export class MantenimientoComponent implements OnInit {
         m.agencia && m.agencia.toLowerCase().includes(this.filtrosGlobales.sucursal.toLowerCase())
       );
     }
-    if (this.filtrosGlobales.busqueda?.trim()) {
-      const b = this.filtrosGlobales.busqueda.trim().toLowerCase();
+    if (this.filtrosGlobales.marca && this.filtrosGlobales.marca !== 'Todas') {
+      resultados = resultados.filter(item => {
+        const suc = this.sucursalService.getSucursalPorNombre(item.agencia);
+        return suc?.marcaNombre === this.filtrosGlobales.marca;
+      });
+    }
+    if (this.filtroTexto.trim()) {
+      const b = this.filtroTexto.trim().toLowerCase();
       resultados = resultados.filter(m =>
         (m.maquina || '').toLowerCase().includes(b) ||
         (m.tecnico || '').toLowerCase().includes(b) ||
@@ -1048,6 +1062,7 @@ export class MantenimientoComponent implements OnInit {
   private maquinariaService = inject(MaquinariaMockService);
   private toastService = inject(ToastService);
   public authService = inject(AuthService);
+  private sucursalService = inject(SucursalMockService);
 
   /** Roles con alcance de red/taller nacional: no filtrar por agencia exacta. */
   private debeFiltrarPorSucursal(user: ReturnType<AuthService['getCurrentUser']>): boolean {
@@ -1124,7 +1139,6 @@ export class MantenimientoComponent implements OnInit {
       duracionMin: (this.nuevoMantenimiento.duracionHoras || 2) * 60,
       archivos: this.evidenciasSubidas.length > 0 ? [...this.evidenciasSubidas] : undefined
     };
-    delete payload.costo;
 
     this.mantenimientoService.registrarMantenimiento(payload).subscribe(creado => {
       this.toastService.success('Mantenimiento Agendado', `Visita agendada para ${creado.maquina} el ${creado.fecha}`);
@@ -1193,8 +1207,7 @@ export class MantenimientoComponent implements OnInit {
     this.mantenimientoCompletar = m;
     this.completarForm = {
       observacionCierre: '',
-      fechaFin: new Date().toISOString().substring(0, 10),
-      costo: m.costo || 0
+      fechaFin: new Date().toISOString().substring(0, 10)
     };
     this.multimediaCompletar = [];
     this.documentosCompletar = [];
@@ -1303,7 +1316,6 @@ export class MantenimientoComponent implements OnInit {
       cerradoPor: user ? `${user.nombre} ${user.apellido}`.trim() : 'Usuario',
       fechaFin: this.completarForm.fechaFin,
       horaFin,
-      costo: this.completarForm.costo || this.mantenimientoCompletar.costo,
       fotos: fotos.length ? fotos : undefined,
       videos: videos.length ? videos : undefined,
       archivos: this.multimediaCompletar.length ? [...this.multimediaCompletar] : undefined,

@@ -144,8 +144,6 @@ export const PRODUCTOS_INICIALES: InventarioItem[] = [
       stockAlertaSucursal: 3,
       stockMinimoGlobal: 10,
       stockOptimoGlobal: 30,
-      costoUnitarioUSD: 42.50,
-      proveedorPrincipal: 'EcoChemicals Ecuador S.A.',
       imagen: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500&auto=format&fit=crop&q=80',
       activo: true,
       fechaCreacion: '2026-01-10'
@@ -176,8 +174,6 @@ export const PRODUCTOS_INICIALES: InventarioItem[] = [
       stockAlertaSucursal: 3,
       stockMinimoGlobal: 15,
       stockOptimoGlobal: 40,
-      costoUnitarioUSD: 28.00,
-      proveedorPrincipal: 'CarDetail Pro Distributors',
       imagen: 'https://images.unsplash.com/photo-1615906655593-ad0386982a0f?w=500&auto=format&fit=crop&q=80',
       activo: true,
       fechaCreacion: '2026-01-12'
@@ -208,8 +204,6 @@ export const PRODUCTOS_INICIALES: InventarioItem[] = [
       stockAlertaSucursal: 2,
       stockMinimoGlobal: 12,
       stockOptimoGlobal: 25,
-      costoUnitarioUSD: 36.00,
-      proveedorPrincipal: 'EcoChemicals Ecuador S.A.',
       imagen: 'https://images.unsplash.com/photo-1585421514738-01798e348b17?w=500&auto=format&fit=crop&q=80',
       activo: true,
       fechaCreacion: '2026-01-15'
@@ -240,8 +234,6 @@ export const PRODUCTOS_INICIALES: InventarioItem[] = [
       stockAlertaSucursal: 3,
       stockMinimoGlobal: 10,
       stockOptimoGlobal: 30,
-      costoUnitarioUSD: 22.50,
-      proveedorPrincipal: 'CarDetail Pro Distributors',
       imagen: 'https://images.unsplash.com/photo-1607860108855-64acf2078ed9?w=500&auto=format&fit=crop&q=80',
       activo: true,
       fechaCreacion: '2026-01-20'
@@ -272,8 +264,6 @@ export const PRODUCTOS_INICIALES: InventarioItem[] = [
       stockAlertaSucursal: 3,
       stockMinimoGlobal: 20,
       stockOptimoGlobal: 60,
-      costoUnitarioUSD: 14.00,
-      proveedorPrincipal: 'Textiles Industriales del Pacífico',
       imagen: 'https://images.unsplash.com/photo-1583947215259-38e31be8751f?w=500&auto=format&fit=crop&q=80',
       activo: true,
       fechaCreacion: '2026-01-22'
@@ -304,8 +294,6 @@ export const PRODUCTOS_INICIALES: InventarioItem[] = [
       stockAlertaSucursal: 4,
       stockMinimoGlobal: 15,
       stockOptimoGlobal: 45,
-      costoUnitarioUSD: 9.80,
-      proveedorPrincipal: 'Seguridad Industrial Andina',
       imagen: 'https://images.unsplash.com/photo-1584744982491-665216d95f8b?w=500&auto=format&fit=crop&q=80',
       activo: true,
       fechaCreacion: '2026-01-25'
@@ -336,8 +324,6 @@ export const PRODUCTOS_INICIALES: InventarioItem[] = [
       stockAlertaSucursal: 4,
       stockMinimoGlobal: 15,
       stockOptimoGlobal: 50,
-      costoUnitarioUSD: 6.50,
-      proveedorPrincipal: 'CarDetail Pro Distributors',
       imagen: 'https://images.unsplash.com/photo-1585421514284-efb74c2b69ba?w=500&auto=format&fit=crop&q=80',
       activo: true,
       fechaCreacion: '2026-02-01'
@@ -384,8 +370,7 @@ export const MOVIMIENTOS_INICIALES: MovimientoStock[] = [
     cantidad: 20,
     unidad: 'Caja x50',
     responsable: 'Franklin Administrador',
-    observaciones: 'Compra mensual de insumos de protección.',
-    costoTotalUSD: 196.00
+    observaciones: 'Compra mensual de insumos de protección.'
   },
   {
     id: 3,
@@ -792,7 +777,6 @@ export class InventarioMockService {
   registrarEntradaBodega(
     productoId: number,
     cantidad: number,
-    costoTotalUSD = 0,
     proveedor = '',
     responsable = 'Franklin Administrador',
     observacion = '',
@@ -816,12 +800,11 @@ export class InventarioMockService {
       productoId: item.producto.id,
       productoNombre: item.producto.nombre,
       productoSKU: item.producto.codigoSKU,
-      origen: proveedor || item.producto.proveedorPrincipal || 'Proveedor',
+      origen: proveedor || 'Proveedor',
       destino: bodega.nombre,
       cantidad,
       unidad: item.producto.unidadMedida,
       responsable,
-      costoTotalUSD,
       observaciones: observacion || `Ingreso de compra a ${bodega.nombre}.`
     });
 

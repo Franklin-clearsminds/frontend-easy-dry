@@ -26,6 +26,7 @@ import { ServiciosExtrasMockService } from '../../core/services/servicios-extras
 import { OperadorMockService } from '../../core/services/operador-mock.service';
 import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
 import { FilterBarComponent, FilterState } from '../../shared/components/filter-bar/filter-bar.component';
+import { ServiciosToolbarComponent } from '../../shared/components/servicios-toolbar/servicios-toolbar.component';
 import { MaquinariaMockService } from '../../core/services/maquinaria-mock.service';
 import { IncidenteMockService } from '../../core/services/incidente-mock.service';
 import { PermissionService } from '../../core/services/permission.service';
@@ -35,7 +36,7 @@ import { resolverRangoFechas, soloFecha } from '../../core/utils/fecha-rango';
 @Component({
   selector: 'app-servicios',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, PaginationComponent, FilterBarComponent],
+  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, PaginationComponent, FilterBarComponent, ServiciosToolbarComponent],
   template: `
     <div class="space-y-6 animate-fade-in">
       
@@ -49,21 +50,22 @@ import { resolverRangoFechas, soloFecha } from '../../core/utils/fecha-rango';
           <h1 class="text-2xl font-extrabold text-slate-900 font-outfit">Control y Registro de Servicios de Lavado</h1>
           <p class="text-slate-500 text-xs mt-1">Digitalización del proceso físico: OT, placa, evidencias en vídeo/fotos y flujo de aprobación por Gerencia.</p>
         </div>
-
-        <div class="flex items-center gap-3 flex-wrap">
+        <div class="flex flex-wrap items-center gap-2">
           @if (puedeReportarFalla) {
             <button
               (click)="abrirModalReportarFalla()"
-              class="px-4 py-3 bg-rose-500 hover:bg-rose-600 text-white font-extrabold rounded-xl text-xs transition-all flex items-center gap-2 cursor-pointer shadow-xs">
+              class="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white font-extrabold rounded-xl text-xs transition-all flex items-center gap-2 cursor-pointer shadow-xs">
               <i-lucide name="alert-triangle" class="w-4 h-4"></i-lucide>
-              <span>Reportar Falla / Avería</span>
+              <span class="hidden sm:inline">Reportar Falla / Avería</span>
+              <span class="sm:hidden">Falla</span>
             </button>
           }
           <button
             (click)="abrirModalNuevaOT()"
             class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
             <i-lucide name="plus" class="w-4 h-4"></i-lucide>
-            <span>{{ tabActiva === 'especiales' ? 'Nueva OT (Especial)' : 'Nueva Hoja de Control (OT)' }}</span>
+            <span class="hidden sm:inline">{{ tabActiva === 'especiales' ? 'Nueva OT (Especial)' : 'Nueva Hoja de Control (OT)' }}</span>
+            <span class="sm:hidden">Nueva OT</span>
           </button>
         </div>
       </div>
@@ -116,38 +118,36 @@ import { resolverRangoFechas, soloFecha } from '../../core/utils/fecha-rango';
         [showBahia]="!isOperador"
         [showServicio]="true"
         [showRegion]="true"
+        [showMarca]="true"
         [showEstado]="true"
-        [showBusqueda]="true"
-        [showFechas]="true"
-        [placeholderBusqueda]="'Buscar por placa, vehículo u operador...'"
+        [showFechas]="false"
+        [showBusqueda]="false"
         [listaServicios]="listaServiciosFiltro"
         [listaEstados]="['Todos', 'EN PROCESO', 'FINALIZADO', 'APROBADO', 'RECHAZADO']"
         (filterChange)="aplicarNuevosFiltros($event)">
       </app-filter-bar>
 
-      <!-- Additional Search and Categories -->
-      <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-xs flex flex-wrap items-center justify-between gap-4 mb-4">
-        <div class="flex-1 min-w-[240px] relative">
-          <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
-            <i-lucide name="search" class="w-4 h-4"></i-lucide>
-          </span>
-          <input 
-            type="text" 
-            [(ngModel)]="filtroTexto" 
-            (input)="aplicarFiltros()"
-            [placeholder]="tabActiva === 'generales' ? 'Buscar por placa (ej. PBX-8932) u Orden OT...' : 'Buscar por placa (ej. PBX-8932) u Orden OT especial...'" 
-            class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:ring-2"
-            [ngClass]="tabActiva === 'generales' ? 'focus:ring-easydry-blue' : 'focus:ring-amber-500'">
-        </div>
-
-        <div class="text-xs font-semibold text-slate-500">
-          {{ tabActiva === 'generales' ? 'Servicios Generales Registrados:' : 'OTs de Servicios Especiales:' }}
-          <strong [ngClass]="tabActiva === 'generales' ? 'text-easydry-blue' : 'text-amber-700'">{{ serviciosFiltrados.length }} Vehículos</strong>
-        </div>
-      </div>
+      <!-- Search & Counter Toolbar -->
+      <app-servicios-toolbar
+        [count]="serviciosFiltrados.length"
+        [label]="tabActiva === 'generales' ? 'Servicios Generales' : 'OTs Especiales'"
+        [countLabel]="'Vehículos'"
+        [labelColor]="tabActiva === 'generales' ? 'text-easydry-blue' : 'text-amber-700'"
+        [placeholder]="tabActiva === 'generales' ? 'Buscar placa (ej. PBX-8932) u Orden OT...' : 'Buscar placa u OT especial...'"
+        [searchValue]="filtroTexto"
+        (searchChange)="onToolbarSearchChange($event)">
+      </app-servicios-toolbar>
 
       <!-- Services List / Table -->
       <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry overflow-hidden">
+        
+        <!-- Cabecera de la sección -->
+        <div class="p-6 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100">
+          <div>
+            <h3 class="font-bold text-slate-900 text-lg font-outfit">{{ tabActiva === 'generales' ? 'Servicios Generales' : 'Servicios Especiales' }}</h3>
+          </div>
+        </div>
+
         <!-- Desktop Table View -->
         <div class="hidden lg:block overflow-x-auto">
           <table class="w-full text-left text-sm">
@@ -793,16 +793,27 @@ export class ServiciosComponent implements OnInit {
   filtroCategoria = 'Todas';
   
   // Guardamos el estado global
-  filtrosGlobales: FilterState = { sucursal: 'Todas', operador: 'Todos', bahia: 'Todas', estado: 'Todos', fecha: 'Hoy' };
+  filtrosGlobales: FilterState = { sucursal: 'Todas', region: 'Todas', marca: 'Todas', operador: 'Todos', bahia: 'Todas', estado: 'Todos', fecha: 'Hoy' };
 
   // Lista de servicios disponibles para el filtro de tipo de servicio
   listaServiciosFiltro: string[] = ['Express', 'Completo', 'Deluxe', 'Retoque', 'Pulido', 'Micro pulido', 'Recubrimiento Cerámico', 'Lavado motor', 'Tratamientos especiales'];
 
   // Mapa sucursal -> región (para poder filtrar servicios por región)
   mapaRegionSucursal: Record<string, string> = {};
+  // Mapa sucursal -> marca (para poder filtrar servicios por marca)
+  mapaMarcaSucursal: Record<string, string> = {};
 
   aplicarNuevosFiltros(filtros: FilterState) {
     this.filtrosGlobales = filtros;
+    if (filtros.busqueda !== undefined) {
+      this.filtroTexto = filtros.busqueda;
+    }
+    this.aplicarFiltros();
+  }
+
+  onToolbarSearchChange(valor: string) {
+    this.filtroTexto = valor;
+    this.filtrosGlobales.busqueda = valor;
     this.aplicarFiltros();
   }
 
@@ -999,8 +1010,10 @@ export class ServiciosComponent implements OnInit {
 
       // Construir mapa sucursal -> región para el filtro de región
       this.mapaRegionSucursal = {};
+      this.mapaMarcaSucursal = {};
       list.forEach(s => {
         if (s.nombre && s.regionNombre) this.mapaRegionSucursal[s.nombre] = s.regionNombre;
+        if (s.nombre && s.marcaNombre) this.mapaMarcaSucursal[s.nombre] = s.marcaNombre;
       });
 
       this.onCategoriaChange();
@@ -1290,6 +1303,11 @@ export class ServiciosComponent implements OnInit {
     if (this.filtrosGlobales.region && this.filtrosGlobales.region !== 'Todas') {
       resultados = resultados.filter(s =>
         this.mapaRegionSucursal[s.agencia] === this.filtrosGlobales.region
+      );
+    }
+    if (this.filtrosGlobales.marca && this.filtrosGlobales.marca !== 'Todas') {
+      resultados = resultados.filter(s =>
+        this.mapaMarcaSucursal[s.agencia] === this.filtrosGlobales.marca
       );
     }
     if (this.filtrosGlobales.busqueda?.trim()) {

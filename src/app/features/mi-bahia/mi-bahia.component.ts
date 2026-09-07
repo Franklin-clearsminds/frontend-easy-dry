@@ -15,11 +15,13 @@ import { ArchivoAdjunto, Bahia, Incidente, Maquinaria, Sucursal, VehiculoServici
 import { Role } from '../../core/models/roles.model';
 import { ModalComponent } from '../../shared/components/modal/modal.component';
 import { DataTableComponent, TableColumn, TableAction } from '../../shared/components/data-table/data-table.component';
+import { FilterBarComponent, FilterState } from '../../shared/components/filter-bar/filter-bar.component';
+import { StatCardComponent } from '../../shared/components/stat-card/stat-card.component';
 
 @Component({
   selector: 'app-mi-bahia',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, LucideAngularModule, ModalComponent, DataTableComponent],
+  imports: [CommonModule, FormsModule, RouterModule, LucideAngularModule, ModalComponent, DataTableComponent, FilterBarComponent, StatCardComponent],
   template: `
     <div class="space-y-6 animate-fade-in">
 
@@ -35,142 +37,44 @@ import { DataTableComponent, TableColumn, TableAction } from '../../shared/compo
             <p class="text-easydry-lime font-semibold text-sm mt-1">
               {{ isOperadorEspeciales ? 'Operador de Servicios Especiales' : (isSuperAdmin ? 'Supervisión de Bahía' : 'Operador de Bahía') }}
             </p>
-
-            <div class="flex items-center gap-4 mt-3 flex-wrap">
-              <!-- Chip Sucursal -->
-              <div class="flex items-center gap-2 text-slate-200 text-sm">
-                <i-lucide name="building-2" class="w-4 h-4 text-easydry-green"></i-lucide>
-                @if (isSuperAdmin) {
-                  <span class="font-semibold text-slate-300">Sucursal:</span>
-                  <select 
-                    [(ngModel)]="sucursalSeleccionada" 
-                    (ngModelChange)="onSucursalChange()"
-                    class="bg-white/15 hover:bg-white/25 text-white font-bold text-xs rounded-lg px-2.5 py-1 border border-white/20 focus:outline-none cursor-pointer transition-colors">
-                    <option value="Todas" class="bg-slate-900 text-white">Todas las Sucursales</option>
-                    @for (suc of listaSucursales; track suc.id) {
-                      <option [value]="suc.nombre" class="bg-slate-900 text-white">{{ suc.nombre }}</option>
-                    }
-                  </select>
-                } @else {
-                  <span class="font-semibold">{{ isOperadorEspeciales ? (user.modalidadPulidor === 'FIJO' ? (user.sucursalNombre || 'Sucursal asignada') : 'Red Nacional · Móvil') : (user.sucursalNombre || 'Sin sucursal') }}</span>
-                }
-              </div>
-
-              <!-- Chip Bahía -->
-              <div class="flex items-center gap-2 text-slate-200 text-sm">
-                <i-lucide name="layout-grid" class="w-4 h-4 text-easydry-lime"></i-lucide>
-                @if (isSuperAdmin) {
-                  <span class="font-semibold text-slate-300">Bahía:</span>
-                  <select 
-                    [(ngModel)]="bahiaSeleccionada" 
-                    (ngModelChange)="onBahiaChange()"
-                    class="bg-white/15 hover:bg-white/25 text-white font-bold text-xs rounded-lg px-2.5 py-1 border border-white/20 focus:outline-none cursor-pointer transition-colors">
-                    <option value="Todas" class="bg-slate-900 text-white">Todas las Bahías</option>
-                    @for (bah of bahiasDisponibles; track bah.id) {
-                      <option [value]="bah.nombre" class="bg-slate-900 text-white">{{ bah.nombre }}</option>
-                    }
-                  </select>
-                } @else {
-                  <span class="font-semibold">Bahía: {{ isOperadorEspeciales ? (user.modalidadPulidor === 'FIJO' ? 'Pulidor fijo en sucursal' : 'Equipo móvil · Multi-sucursal') : (user.bahiaNombre || 'Bahía 1 (Lavado Ecológico)') }}</span>
-                }
-              </div>
-
-              <!-- Chip Responsable Agencia -->
-              <div class="flex items-center gap-2 text-slate-200 text-sm">
-                <i-lucide name="shield" class="w-4 h-4 text-purple-300"></i-lucide>
-                <span class="font-semibold">Responsable Agencia: {{ responsableAgencia }}</span>
-              </div>
-
-              <!-- Chip Operador -->
-              <div class="flex items-center gap-2 text-slate-200 text-sm">
-                <i-lucide name="user" class="w-4 h-4 text-cyan-300"></i-lucide>
-                <span class="font-semibold">Operador: {{ isSuperAdmin ? operadorAsignadoTexto : (user.nombre + ' ' + user.apellido) }}</span>
-              </div>
-            </div>
           </div>
 
-          <div class="flex items-center gap-3 flex-wrap">
-            <a routerLink="/servicios"
-              class="px-5 py-3 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-bold rounded-xl text-sm transition-all shadow-glow-green flex items-center gap-2">
-              <i-lucide name="plus-circle" class="w-4 h-4"></i-lucide>
-              <span>Registrar Servicio</span>
-            </a>
-            @if (puedeReportarFalla) {
-              <button
-                (click)="abrirModalReportarFalla()"
-                class="px-5 py-3 bg-rose-500 hover:bg-rose-600 text-white font-bold rounded-xl text-sm transition-all flex items-center gap-2">
-                <i-lucide name="alert-triangle" class="w-4 h-4"></i-lucide>
-                <span>Reportar Falla / Avería</span>
-              </button>
-            }
+          <div class="flex items-center gap-4 mt-3 flex-wrap">
+            <!-- Chip Responsable Agencia -->
+            <div class="flex items-center gap-2 text-slate-200 text-sm">
+              <i-lucide name="shield" class="w-4 h-4 text-purple-300"></i-lucide>
+              <span class="font-semibold">Responsable Agencia: {{ responsableAgencia }}</span>
+            </div>
+
+            <!-- Chip Operador -->
+            <div class="flex items-center gap-2 text-slate-200 text-sm">
+              <i-lucide name="user" class="w-4 h-4 text-cyan-300"></i-lucide>
+              <span class="font-semibold">Operador: {{ isSuperAdmin ? operadorAsignadoTexto : (user.nombre + ' ' + user.apellido) }}</span>
+            </div>
           </div>
         </div>
         <div class="absolute -right-16 -bottom-16 w-72 h-72 bg-easydry-green/10 rounded-full blur-2xl pointer-events-none"></div>
       </div>
 
       <!-- KPIs del Operador -->
-      <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div class="bg-white rounded-2xl p-5 border border-slate-100 shadow-easydry text-center">
-          <div class="w-10 h-10 rounded-xl bg-easydry-blue/10 flex items-center justify-center mx-auto mb-2">
-            <i-lucide name="car" class="w-5 h-5 text-easydry-blue"></i-lucide>
-          </div>
-          <p class="text-2xl font-extrabold text-slate-900">{{ misServicios.length }}</p>
-          <p class="text-xs text-slate-500 font-medium mt-0.5">Servicios Hoy</p>
-        </div>
-
-        <div class="bg-white rounded-2xl p-5 border border-slate-100 shadow-easydry text-center">
-          <div class="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center mx-auto mb-2">
-            <i-lucide name="clock" class="w-5 h-5 text-amber-600"></i-lucide>
-          </div>
-          <p class="text-2xl font-extrabold text-slate-900">{{ enProceso }}</p>
-          <p class="text-xs text-slate-500 font-medium mt-0.5">En Proceso</p>
-        </div>
-
-        <div class="bg-white rounded-2xl p-5 border border-slate-100 shadow-easydry text-center">
-          <div class="w-10 h-10 rounded-xl bg-easydry-green/15 flex items-center justify-center mx-auto mb-2">
-            <i-lucide name="check-circle-2" class="w-5 h-5 text-easydry-green-dark"></i-lucide>
-          </div>
-          <p class="text-2xl font-extrabold text-slate-900">{{ finalizados }}</p>
-          <p class="text-xs text-slate-500 font-medium mt-0.5">Finalizados</p>
-        </div>
-
-        <div class="bg-white rounded-2xl p-5 border border-slate-100 shadow-easydry text-center">
-          <div class="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center mx-auto mb-2">
-            <i-lucide name="award" class="w-5 h-5 text-purple-600"></i-lucide>
-          </div>
-          <p class="text-2xl font-extrabold text-slate-900">{{ aprobados }}</p>
-          <p class="text-xs text-slate-500 font-medium mt-0.5">Aprobados</p>
-        </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+        <app-stat-card title="Servicios Hoy" [value]="misServicios.length" icon="car" variant="primary"></app-stat-card>
+        <app-stat-card title="En Proceso" [value]="enProceso" icon="clock" variant="warning"></app-stat-card>
+        <app-stat-card title="Finalizados" [value]="finalizados" icon="check-circle-2" variant="success"></app-stat-card>
+        <app-stat-card title="Aprobados" [value]="aprobados" icon="award" variant="primary"></app-stat-card>
       </div>
 
-      <!-- Reporte de maquinaria (solo creación) -->
-      @if (puedeReportarFalla) {
-        <div class="bg-white rounded-2xl p-6 border border-rose-100 shadow-easydry">
-          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div class="flex items-start gap-3">
-              <div class="w-11 h-11 rounded-xl bg-rose-100 flex items-center justify-center flex-shrink-0">
-                <i-lucide name="alert-triangle" class="w-5 h-5 text-rose-600"></i-lucide>
-              </div>
-              <div>
-                <h3 class="font-bold text-slate-900 text-lg font-outfit">Reportar Falla o Avería</h3>
-                <p class="text-xs text-slate-500 mt-0.5">
-                  @if (isOperadorEspeciales) {
-                    Registra un desperfecto de tu equipo móvil (pulidora, lámpara, extractor). El Gestor Técnico recibirá el reporte.
-                  } @else {
-                    Registra un desperfecto del equipo de tu bahía. El Gestor Técnico recibirá el reporte para asignarlo.
-                  }
-                </p>
-              </div>
-            </div>
-            <button
-              (click)="abrirModalReportarFalla()"
-              class="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 self-start sm:self-center">
-              <i-lucide name="upload" class="w-3.5 h-3.5"></i-lucide>
-              <span>Subir Reporte</span>
-            </button>
-          </div>
-        </div>
-      }
+      <!-- Filtros de Marca -->
+      <app-filter-bar
+        [showMarca]="true"
+        [showRegion]="true"
+        [showSucursal]="true"
+        [showBahia]="true"
+        [showEstado]="false"
+        [showFechas]="false"
+        [showBusqueda]="true"
+        (filterChange)="aplicarNuevosFiltros($event)">
+      </app-filter-bar>
 
       <!-- Mis Servicios del Día -->
       <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry overflow-hidden">
@@ -182,11 +86,23 @@ import { DataTableComponent, TableColumn, TableAction } from '../../shared/compo
               {{ isSuperAdmin ? 'Servicios registrados en la bahía y sucursal seleccionada' : 'Solo ves tus registros en tu bahía asignada' }}
             </p>
           </div>
-          <a routerLink="/servicios"
-            class="px-4 py-2 bg-easydry-blue/10 text-easydry-blue font-bold rounded-xl text-xs hover:bg-easydry-blue/20 transition-colors flex items-center gap-1.5">
-            <i-lucide name="plus" class="w-3.5 h-3.5"></i-lucide>
-            <span>Nuevo Servicio</span>
-          </a>
+          <div class="flex flex-wrap items-center gap-2 mt-2 sm:mt-0">
+            @if (puedeReportarFalla) {
+              <button
+                (click)="abrirModalReportarFalla()"
+                class="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white font-extrabold rounded-xl text-xs transition-all flex items-center gap-2 shadow-xs cursor-pointer">
+                <i-lucide name="alert-triangle" class="w-4 h-4"></i-lucide>
+                <span class="hidden sm:inline">Reportar Falla</span>
+                <span class="sm:hidden">Falla</span>
+              </button>
+            }
+            <a routerLink="/servicios"
+              class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
+              <i-lucide name="plus-circle" class="w-4 h-4"></i-lucide>
+              <span class="hidden sm:inline">Registrar Servicio</span>
+              <span class="sm:hidden">Servicio</span>
+            </a>
+          </div>
         </div>
 
         <!-- Tabla paginada -->
@@ -195,7 +111,7 @@ import { DataTableComponent, TableColumn, TableAction } from '../../shared/compo
           [data]="misServiciosTabla"
           [actions]="serviciosActions"
           [pageSize]="8"
-          [searchable]="true"
+          [searchable]="false"
           searchPlaceholder="Buscar por placa, OT, servicio..."
           [showToolbar]="true"
           (actionClick)="onServicioAction($event)">
@@ -527,6 +443,17 @@ export class MiBahiaComponent implements OnInit {
     descripcion: ''
   };
 
+  filtrosGlobales: FilterState = { sucursal: '', operador: '', bahia: '', estado: '', fecha: '' };
+  filtroTexto = '';
+
+  aplicarNuevosFiltros(filtros: FilterState): void {
+    this.filtrosGlobales = filtros;
+    if (filtros.busqueda !== undefined) {
+      this.filtroTexto = filtros.busqueda;
+    }
+    this.filtrarServicios();
+  }
+
   ngOnInit(): void {
     this.user = this.auth.getCurrentUser()!;
     this.isSuperAdmin = this.user.role === Role.SUPER_ADMIN || this.user.role === Role.ADMIN || this.user.role === Role.SUPERVISOR;
@@ -644,10 +571,33 @@ export class MiBahiaComponent implements OnInit {
         const bah = this.bahiaSeleccionada.toLowerCase();
         res = res.filter(s => s.bahia?.toLowerCase().includes(bah) || bah.includes(s.bahia?.toLowerCase() || ''));
       }
+      if (this.filtrosGlobales.region && this.filtrosGlobales.region !== 'Todas') {
+        const region = this.filtrosGlobales.region.toLowerCase();
+        res = res.filter(s => {
+          const suc = this.sucursalService.getSucursalPorNombre(s.agencia);
+          return suc?.regionNombre?.toLowerCase().includes(region);
+        });
+      }
+      if (this.filtrosGlobales.marca && this.filtrosGlobales.marca !== 'Todas') {
+        res = res.filter(s => {
+          const suc = this.sucursalService.getSucursalPorNombre(s.agencia);
+          return suc?.marcaNombre === this.filtrosGlobales.marca;
+        });
+      }
       this.misServicios = res;
     } else {
       this.misServicios = this.todosLosServicios.filter(s =>
         s.empleado?.toLowerCase().includes(this.user?.nombre?.toLowerCase() ?? '')
+      );
+    }
+    if (this.filtroTexto?.trim()) {
+      const term = this.filtroTexto.trim().toLowerCase();
+      this.misServicios = this.misServicios.filter(s =>
+        (s.placa || '').toLowerCase().includes(term) ||
+        (s.ordenTrabajoOT || '').toLowerCase().includes(term) ||
+        (s.servicio || '').toLowerCase().includes(term) ||
+        (s.marca || '').toLowerCase().includes(term) ||
+        (s.modelo || '').toLowerCase().includes(term)
       );
     }
     this.recalcularKpis();
