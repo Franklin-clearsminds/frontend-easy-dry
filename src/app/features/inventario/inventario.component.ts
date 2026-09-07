@@ -7,6 +7,8 @@ import { AuthService } from '../../core/services/auth.service';
 import { ToastService } from '../../shared/services/toast.service';
 import { ModalComponent } from '../../shared/components/modal/modal.component';
 import { FilterBarComponent, FilterState } from '../../shared/components/filter-bar/filter-bar.component';
+import { SucursalMockService } from '../../core/services/sucursal-mock.service';
+import { Sucursal } from '../../core/models';
 import {
   EnvaseUnidad,
   ProductoInsumo,
@@ -155,12 +157,14 @@ import {
       @if (activeTab === 'matriz') {
         <div class="space-y-6 animate-fade-in">
           
-          <!-- Filtros, Selector Sucursal/Bahía y Búsqueda Directa (Punto 7 y Punto 18) -->
+          <!-- Filtros Combinados: Región, Marca, Agencia y Bodega (Requerimiento 7) -->
           <app-filter-bar
-            [showSucursal]="true"
+            [showRegion]="true"
             [showMarca]="true"
+            [showSucursal]="true"
+            [showBodega]="true"
+            [listaBodegas]="nombresBodegas"
             [showEstado]="true"
-            [showRegion]="false"
             [showOperador]="false"
             [showBahia]="false"
             [showFechas]="false"
@@ -864,7 +868,7 @@ import {
           </div>
 
           <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Imagen del Insumo</label>
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Imagen del Insumo <span class="text-rose-500 font-extrabold">* (Obligatorio)</span></label>
             <div class="flex items-center gap-4">
               @if (productoForm.imagen) {
                 <img [src]="productoForm.imagen" class="w-12 h-12 rounded-xl object-cover border border-slate-200">
@@ -1127,7 +1131,9 @@ export class InventarioComponent implements OnInit {
   filtroBahia = 'Todas';
   filtrosGlobales: FilterState = {
     sucursal: 'Todas',
+    region: 'Todas',
     marca: 'Todas',
+    bodega: 'Todas',
     estado: 'Todos',
     operador: 'Todos',
     bahia: 'Todas',
@@ -1198,7 +1204,13 @@ export class InventarioComponent implements OnInit {
   };
 
   private inventarioService = inject(InventarioMockService);
+  private sucursalService = inject(SucursalMockService);
   public authService = inject(AuthService);
+  listaSucursales: Sucursal[] = [];
+
+  get nombresBodegas(): string[] {
+    return this.bodegas.map(b => b.nombre);
+  }
 
   ngOnInit(): void {
     if (!this.puedeGestionarCatalogo && this.puedeDespachar) {
@@ -1209,11 +1221,15 @@ export class InventarioComponent implements OnInit {
     this.inventarioService.getItems().subscribe(items => this.inventarioItems = items);
     this.inventarioService.getMovimientos().subscribe(m => this.movimientos = m);
     this.inventarioService.getAlertasReabastecimiento().subscribe(a => this.alertas = a);
+    this.sucursalService.getSucursales().subscribe(s => this.listaSucursales = s);
   }
 
   get itemsFiltrados(): InventarioItem[] {
     const sucursalSel = this.filtroSucursal;
     const sucursalDeBahia = this.sucursalDeBahiaSeleccionada();
+    const regionSel = this.filtrosGlobales.region;
+    const marcaSel = this.filtrosGlobales.marca;
+    const bodegaSel = this.filtrosGlobales.bodega;
 
     return this.inventarioItems.filter(item => {
       const matchText = !this.filtroTexto.trim() ||
@@ -1223,14 +1239,41 @@ export class InventarioComponent implements OnInit {
 
       const matchEstado = this.filtroEstado === 'Todos' || item.estadoGeneral === this.filtroEstado;
 
-      // Sucursal: stock real reportado en esa sucursal (0 o ausente = sin existencias).
+      // Sucursal / Agencia
       let matchSucursal = true;
       const sc = (sucursalSel !== 'Todas') ? sucursalSel : sucursalDeBahia;
       if (sc) {
         matchSucursal = (item.stockPorSucursal?.[sc] ?? 0) > 0;
       }
 
-      return matchText && matchEstado && matchSucursal;
+      // Región
+      let matchRegion = true;
+      if (regionSel && regionSel !== 'Todas') {
+        const sucursalesEnRegion = this.listaSucursales
+          .filter(s => s.regionNombre?.toLowerCase() === regionSel.toLowerCase())
+          .map(s => s.nombre);
+        matchRegion = sucursalesEnRegion.length === 0 || sucursalesEnRegion.some(suc => (item.stockPorSucursal?.[suc] ?? 0) > 0);
+      }
+
+      // Marca
+      let matchMarca = true;
+      if (marcaSel && marcaSel !== 'Todas') {
+        const sucursalesDeMarca = this.listaSucursales
+          .filter(s => s.marcaNombre?.toLowerCase() === marcaSel.toLowerCase())
+          .map(s => s.nombre);
+        matchMarca = sucursalesDeMarca.length === 0 || sucursalesDeMarca.some(suc => (item.stockPorSucursal?.[suc] ?? 0) > 0);
+      }
+
+      // Bodega
+      let matchBodega = true;
+      if (bodegaSel && bodegaSel !== 'Todas') {
+        const bodegaObj = this.bodegas.find(b => b.nombre.toLowerCase() === bodegaSel.toLowerCase());
+        if (bodegaObj) {
+          matchBodega = stockEnBodega(item, bodegaObj.id) > 0;
+        }
+      }
+
+      return matchText && matchEstado && matchSucursal && matchRegion && matchMarca && matchBodega;
     });
   }
 
@@ -1351,6 +1394,11 @@ export class InventarioComponent implements OnInit {
   guardarProducto() {
     if (!this.productoForm.nombre.trim() || !this.productoForm.codigoSKU.trim()) {
       this.toastService.warning('Campos Requeridos', 'Ingrese el nombre y código SKU del insumo.');
+      return;
+    }
+
+    if (!this.productoForm.imagen) {
+      this.toastService.warning('Foto Requerida', 'Es obligatorio adjuntar una fotografía o imagen del insumo.');
       return;
     }
 

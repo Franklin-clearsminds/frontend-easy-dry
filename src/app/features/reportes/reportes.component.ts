@@ -21,7 +21,7 @@ import { SucursalMockService } from '../../core/services/sucursal-mock.service';
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-100 shadow-easydry">
         <div>
           <h1 class="text-2xl font-extrabold text-slate-900 font-outfit">Centro de Reportes Operativos</h1>
-          <p class="text-slate-500 text-xs mt-1">Generación de informes consolidados de servicios, ingresos y productividad de agencias.</p>
+          <p class="text-slate-500 text-xs mt-1">Generación de informes consolidados de servicios, tiempos de ciclo y productividad de agencias.</p>
         </div>
       </div>
 

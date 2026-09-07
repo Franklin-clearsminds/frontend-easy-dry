@@ -187,6 +187,10 @@ export interface VehiculoServicio {
   observacionGerente?: string;
   aprobadoPor?: string;
   fechaAprobacion?: string;
+  servicios?: string[];
+  regionNombre?: string;
+  sucursalNombre?: string;
+  documentos?: ArchivoAdjunto[];
 }
 
 export interface Maquinaria {

@@ -35,7 +35,7 @@ import { StatCardComponent } from '../../shared/components/stat-card/stat-card.c
             </div>
             <h1 class="text-2xl font-extrabold font-outfit">{{ user.nombre }} {{ user.apellido }}</h1>
             <p class="text-easydry-lime font-semibold text-sm mt-1">
-              {{ isOperadorEspeciales ? 'Operador de Servicios Especiales' : (isSuperAdmin ? 'Supervisión de Bahía' : 'Operador de Bahía') }}
+              {{ isOperadorEspeciales ? 'Operador de Servicios Especiales' : (isGerente ? 'Líder de Agencia · Gestión Exclusiva de Bahías' : (isSuperAdmin ? 'Supervisión de Bahía' : 'Operador de Bahía')) }}
             </p>
           </div>
 
@@ -55,6 +55,36 @@ import { StatCardComponent } from '../../shared/components/stat-card/stat-card.c
         </div>
         <div class="absolute -right-16 -bottom-16 w-72 h-72 bg-easydry-green/10 rounded-full blur-2xl pointer-events-none"></div>
       </div>
+
+      <!-- Gestión Exclusiva de Bahías para Líder de Agencia (Req 3) -->
+      @if (isGerente) {
+        <div class="bg-white rounded-2xl p-4 border border-purple-200 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center font-bold">
+              <i-lucide name="shield-check" class="w-5 h-5"></i-lucide>
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="text-[11px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-purple-100 text-purple-800">Líder de Agencia Exclusivo</span>
+                <span class="text-xs font-bold text-slate-700">{{ user.sucursalNombre }}</span>
+              </div>
+              <p class="text-xs text-slate-500 mt-0.5">Control y gestión operativa de las bahías asignadas a tu sede.</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-3 w-full md:w-auto">
+            <label class="text-xs font-bold text-slate-700 whitespace-nowrap">Filtrar Bahía:</label>
+            <select
+              [(ngModel)]="bahiaSeleccionada"
+              (change)="onBahiaChange()"
+              class="flex-1 md:w-64 bg-slate-50 border border-purple-200 text-slate-800 text-xs font-bold rounded-xl px-3 py-2 focus:ring-2 focus:ring-purple-500">
+              <option value="Todas">Todas las Bahías de mi Agencia ({{ bahiasDisponibles.length }})</option>
+              @for (b of bahiasDisponibles; track b.id) {
+                <option [value]="b.nombre">{{ b.nombre }} ({{ b.estado }})</option>
+              }
+            </select>
+          </div>
+        </div>
+      }
 
       <!-- KPIs del Operador -->
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
@@ -411,8 +441,9 @@ export class MiBahiaComponent implements OnInit {
   finalizados = 0;
   aprobados = 0;
 
-  // ── Navegación Multi-Sucursal y Multi-Bahía para Super Admin ──
+  // ── Navegación Multi-Sucursal y Multi-Bahía para Super Admin / Gerente ──
   isSuperAdmin = false;
+  isGerente = false;
   listaSucursales: Sucursal[] = [];
   bahiasDisponibles: Bahia[] = [];
   sucursalSeleccionada = 'Todas';
@@ -457,9 +488,15 @@ export class MiBahiaComponent implements OnInit {
   ngOnInit(): void {
     this.user = this.auth.getCurrentUser()!;
     this.isSuperAdmin = this.user.role === Role.SUPER_ADMIN || this.user.role === Role.ADMIN || this.user.role === Role.SUPERVISOR;
+    this.isGerente = this.user.role === Role.GERENTE;
     this.isOperadorEspeciales = this.user.role === Role.OPERADOR_SERVICIOS_ESPECIALES
       || this.user.role === Role.COORD_SERVICIOS_ESPECIALES;
     this.puedeReportarFalla = this.permissions.canRegistrarIncidente();
+
+    if (this.isGerente) {
+      this.sucursalSeleccionada = this.user.sucursalNombre || 'EasyDry Quito Norte';
+      this.responsableAgencia = `${this.user.nombre} ${this.user.apellido} (Líder de Agencia)`;
+    }
 
     // Cargar catálogo de sucursales para Super Admin
     this.sucursalService.getSucursales().subscribe(sucursales => {
@@ -467,12 +504,14 @@ export class MiBahiaComponent implements OnInit {
       this.actualizarBahiasDisponibles();
 
       // Responsable de agencia inicial
-      const s = sucursales.find(suc =>
-        suc.nombre.toLowerCase().includes((this.user.sucursalNombre || '').toLowerCase()) ||
-        (this.user.sucursalNombre || '').toLowerCase().includes(suc.nombre.toLowerCase())
-      );
-      if (s && s.responsable) {
-        this.responsableAgencia = s.responsable;
+      if (!this.isGerente) {
+        const s = sucursales.find(suc =>
+          suc.nombre.toLowerCase().includes((this.user.sucursalNombre || '').toLowerCase()) ||
+          (this.user.sucursalNombre || '').toLowerCase().includes(suc.nombre.toLowerCase())
+        );
+        if (s && s.responsable) {
+          this.responsableAgencia = s.responsable;
+        }
       }
     });
 
@@ -504,7 +543,14 @@ export class MiBahiaComponent implements OnInit {
   }
 
   actualizarBahiasDisponibles(): void {
-    if (this.sucursalSeleccionada === 'Todas') {
+    if (this.isGerente) {
+      const agencia = (this.user.sucursalNombre || '').toLowerCase();
+      this.bahiasDisponibles = this.todasLasBahias.filter(b =>
+        (b.sucursalNombre || '').toLowerCase().includes(agencia) ||
+        agencia.includes((b.sucursalNombre || '').toLowerCase()) ||
+        b.sucursalId === this.user.sucursalId
+      );
+    } else if (this.sucursalSeleccionada === 'Todas') {
       const mapa = new Map<string, Bahia>();
       this.todasLasBahias.forEach(b => {
         if (!mapa.has(b.nombre)) {
@@ -561,7 +607,19 @@ export class MiBahiaComponent implements OnInit {
   }
 
   filtrarServicios(): void {
-    if (this.isSuperAdmin) {
+    if (this.isGerente) {
+      const agencia = (this.user.sucursalNombre || '').toLowerCase();
+      let res = this.todosLosServicios.filter(s =>
+        (s.agencia || '').toLowerCase().includes(agencia) ||
+        agencia.includes((s.agencia || '').toLowerCase()) ||
+        (s.sucursalNombre || '').toLowerCase().includes(agencia)
+      );
+      if (this.bahiaSeleccionada !== 'Todas') {
+        const bah = this.bahiaSeleccionada.toLowerCase();
+        res = res.filter(s => (s.bahia || '').toLowerCase().includes(bah) || bah.includes((s.bahia || '').toLowerCase()));
+      }
+      this.misServicios = res;
+    } else if (this.isSuperAdmin) {
       let res = this.todosLosServicios;
       if (this.sucursalSeleccionada !== 'Todas') {
         const suc = this.sucursalSeleccionada.toLowerCase();

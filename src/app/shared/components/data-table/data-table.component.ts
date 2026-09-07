@@ -7,7 +7,7 @@ export interface TableColumn {
   key: string;
   label: string;
   sortable?: boolean;
-  type?: 'text' | 'badge' | 'date' | 'number' | 'currency' | 'custom';
+  type?: 'text' | 'badge' | 'date' | 'number' | 'custom';
   badgeMap?: Record<string, string>;
   align?: 'left' | 'center' | 'right';
   width?: string;
@@ -118,11 +118,6 @@ export interface TableAction {
                         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-extrabold tracking-wide"
                           [ngClass]="getBadgeClass(col, row[col.key])">
                           {{ row[col.key] || 'N/A' }}
-                        </span>
-                      }
-                      @case ('currency') {
-                        <span class="font-bold text-slate-900 font-mono">
-                          \${{ (row[col.key] || 0) | number:'1.2-2' }}
                         </span>
                       }
                       @default {
