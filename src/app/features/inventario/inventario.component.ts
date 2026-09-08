@@ -1870,41 +1870,52 @@ export class InventarioComponent implements OnInit {
     this.productosFiltrados = list;
   }
 
+  private alertaStockCache = new WeakMap<ProductoInsumo, { nivel: string; label: string; badgeClass: string; icon: string }>();
+
   public getInfoAlertaStock(p: ProductoInsumo): { nivel: string; label: string; badgeClass: string; icon: string } {
+    if (!p) {
+      return { nivel: 'optimo', label: 'Stock Óptimo', badgeClass: 'bg-emerald-50 text-emerald-700 border border-emerald-200', icon: 'check-circle' };
+    }
+    const cached = this.alertaStockCache.get(p);
+    if (cached) return cached;
+
     const stock = Number(p.stockActual) || 0;
     const min = Number(p.stockMinimoBodega) || 0;
     const opt = Number(p.stockOptimoBodega) || (min * 2) || 10;
 
+    let res: { nivel: string; label: string; badgeClass: string; icon: string };
     if (stock <= 0) {
-      return {
+      res = {
         nivel: 'agotado',
         label: 'Agotado (Sin Existencias)',
         badgeClass: 'bg-rose-100 text-rose-800 border border-rose-200',
         icon: 'x-circle',
       };
-    }
-    if (stock <= min) {
-      return {
+    } else if (stock <= min) {
+      res = {
         nivel: 'bajo_minimo',
         label: 'Bajo Mínimo (Crítico)',
         badgeClass: 'bg-rose-50 text-rose-700 border border-rose-200',
         icon: 'alert-triangle',
       };
-    }
-    if (stock < opt) {
-      return {
+    } else if (stock < opt) {
+      res = {
         nivel: 'moderado',
         label: 'Stock Moderado',
         badgeClass: 'bg-amber-50 text-amber-700 border border-amber-200',
         icon: 'alert-circle',
       };
+    } else {
+      res = {
+        nivel: 'optimo',
+        label: 'Stock Óptimo',
+        badgeClass: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
+        icon: 'check-circle',
+      };
     }
-    return {
-      nivel: 'optimo',
-      label: 'Stock Óptimo',
-      badgeClass: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
-      icon: 'check-circle',
-    };
+
+    this.alertaStockCache.set(p, res);
+    return res;
   }
 
   public cargarDashboardResumen(): void {
