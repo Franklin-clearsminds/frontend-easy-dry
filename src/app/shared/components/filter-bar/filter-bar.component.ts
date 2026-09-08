@@ -75,21 +75,6 @@ export interface FilterState {
         </div>
       }
 
-      <!-- Marca -->
-      @if (showMarca) {
-        <div class="flex-1 min-w-[170px]">
-          <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-            <i-lucide name="tag" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide> Marca
-          </label>
-          <select [(ngModel)]="filters.marca" (change)="emitFilters()" class="w-full bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-xl px-3 py-2 focus:ring-2 focus:ring-easydry-blue transition-colors appearance-none font-semibold cursor-pointer">
-            <option value="Todas">Todas las Marcas</option>
-            @for (m of listaMarcas; track m) {
-              <option [value]="m">{{ m }}</option>
-            }
-          </select>
-        </div>
-      }
-
       <!-- Agencia -->
       @if (showSucursal) {
         <div class="flex-1 min-w-[190px]">
@@ -100,6 +85,21 @@ export interface FilterState {
             <option value="Todas">Todas las Agencias</option>
             @for (suc of listaSucursales; track suc) {
               <option [value]="suc">{{ suc }}</option>
+            }
+          </select>
+        </div>
+      }
+
+      <!-- Marca -->
+      @if (showMarca) {
+        <div class="flex-1 min-w-[170px]">
+          <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+            <i-lucide name="tag" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide> Marca
+          </label>
+          <select [(ngModel)]="filters.marca" (change)="emitFilters()" class="w-full bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-xl px-3 py-2 focus:ring-2 focus:ring-easydry-blue transition-colors appearance-none font-semibold cursor-pointer">
+            <option value="Todas">Todas las Marcas</option>
+            @for (m of listaMarcas; track m) {
+              <option [value]="m">{{ m }}</option>
             }
           </select>
         </div>

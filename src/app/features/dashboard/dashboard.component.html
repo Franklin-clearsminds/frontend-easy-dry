@@ -54,42 +54,52 @@
 
   <!-- ═══ DASHBOARD EJECUTIVO (Admin / Supervisor / Gerente) ═══ -->
   @if (isExecutive) {
-    <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-easydry flex flex-col lg:flex-row gap-4 items-end">
-      <div class="w-full lg:w-1/5">
-        <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">Sucursal</label>
-        <select [(ngModel)]="sucursalFilter" (change)="aplicarFiltros()" class="w-full bg-slate-50 border border-slate-200 text-sm rounded-xl px-3 py-2 font-medium">
-          @for (suc of listaSucursales; track suc) { <option [value]="suc">{{ suc }}</option> }
-        </select>
-      </div>
-      <div class="w-full lg:w-1/5">
-        <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">Marca</label>
-        <select [(ngModel)]="marcaFilter" (change)="aplicarFiltros()" class="w-full bg-slate-50 border border-slate-200 text-sm rounded-xl px-3 py-2 font-medium">
-          @for (mar of listaMarcas; track mar) { <option [value]="mar">{{ mar }}</option> }
-        </select>
-      </div>
-      <div class="w-full lg:w-1/5">
-        <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">Período</label>
-        <select [(ngModel)]="fechaFilter" (change)="aplicarFiltros()" class="w-full bg-slate-50 border border-slate-200 text-sm rounded-xl px-3 py-2 font-medium">
-          @for (fec of listaFechas; track fec) { <option [value]="fec">{{ fec }}</option> }
-        </select>
-      </div>
-      <div class="w-full lg:w-1/5 lg:ml-auto">
-        <button (click)="resetFiltros()" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm py-2 px-4 rounded-xl flex items-center justify-center gap-2">
-          <i-lucide name="rotate-ccw" class="w-4 h-4"></i-lucide> Limpiar
-        </button>
-      </div>
-    </div>
+    <!-- Barra de Filtros Global -->
+    <app-filter-bar
+      [showRegion]="true" 
+      [showSucursal]="isExecutive" 
+      [showOperador]="false"
+      [showBahia]="false"
+      [showMarca]="true"
+      [showEstado]="false"
+      [showFechas]="true"
+      (filterChange)="aplicarNuevosFiltros($event)">
+    </app-filter-bar>
 
-    <!-- Sección: Visión General -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 mb-8">
-      <app-stat-card title="Vehículos Atendidos" [value]="produccion?.totalVehiculos || 0" icon="car" trend="12%" subtitle="Respecto a ayer" variant="primary"></app-stat-card>
-      <app-stat-card title="Bahías Operativas" [value]="(produccion?.bahiasOcupadas || 0) + ' / ' + (produccion?.totalBahias || 0)" icon="shield-check" subtitle="Capacidad instalada" variant="primary"></app-stat-card>
-      <app-stat-card title="Tiempo Promedio" [value]="(produccion?.tiempoPromedioMinutos || 0) + ' min'" icon="clock" trend="-4 min" subtitle="Por vehículo" variant="warning"></app-stat-card>
-      <app-stat-card title="Eficiencia" [value]="resumenEjecutivo?.kpis?.[1]?.value || '87%'" icon="trending-up" trend="+5%" subtitle="Respecto a ayer" variant="success"></app-stat-card>
+    <!-- Tabs Navigation -->
+    <div class="flex flex-wrap items-center gap-4 lg:gap-6 mt-2 mb-6 pt-2 border-b border-slate-200">
+      <button 
+        (click)="activeExecutiveTab = 'analitica'"
+        class="pb-3 text-sm font-bold border-b-2 transition-colors flex items-center gap-2"
+        [ngClass]="activeExecutiveTab === 'analitica' ? 'border-easydry-blue text-easydry-blue' : 'border-transparent text-slate-500 hover:text-slate-700'">
+        <i-lucide name="bar-chart-2" class="w-4 h-4"></i-lucide>
+        Analítica y Productividad
+      </button>
+      <button 
+        (click)="activeExecutiveTab = 'auditoria'"
+        class="pb-3 text-sm font-bold border-b-2 transition-colors flex items-center gap-2"
+        [ngClass]="activeExecutiveTab === 'auditoria' ? 'border-easydry-blue text-easydry-blue' : 'border-transparent text-slate-500 hover:text-slate-700'">
+        <i-lucide name="shield-check" class="w-4 h-4"></i-lucide>
+        Auditoría y Calidad
+      </button>
+      <button 
+        (click)="activeExecutiveTab = 'inventario'"
+        class="pb-3 text-sm font-bold border-b-2 transition-colors flex items-center gap-2"
+        [ngClass]="activeExecutiveTab === 'inventario' ? 'border-easydry-blue text-easydry-blue' : 'border-transparent text-slate-500 hover:text-slate-700'">
+        <i-lucide name="package" class="w-4 h-4"></i-lucide>
+        Consumo e Inventario
+      </button>
     </div>
 
     <!-- Sección: Analítica y Productividad -->
-    <div class="mb-4 mt-8">
+    <div class="mb-4" [class.hidden]="activeExecutiveTab !== 'analitica'">
+      <!-- Sección: Visión General -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 mb-8">
+        <app-stat-card title="Vehículos Atendidos" [value]="produccion?.totalVehiculos || 0" icon="car" trend="12%" subtitle="Respecto a ayer" variant="primary"></app-stat-card>
+        <app-stat-card title="Bahías Operativas" [value]="(produccion?.bahiasOcupadas || 0) + ' / ' + (produccion?.totalBahias || 0)" icon="shield-check" subtitle="Capacidad instalada" variant="primary"></app-stat-card>
+        <app-stat-card title="Tiempo Promedio" [value]="(produccion?.tiempoPromedioMinutos || 0) + ' min'" icon="clock" trend="-4 min" subtitle="Por vehículo" variant="warning"></app-stat-card>
+        <app-stat-card title="Eficiencia" [value]="resumenEjecutivo?.kpis?.[1]?.value || '87%'" icon="trending-up" trend="+5%" subtitle="Respecto a ayer" variant="success"></app-stat-card>
+      </div>
       <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2 mb-1"><i-lucide name="bar-chart-2" class="w-5 h-5 text-easydry-green"></i-lucide> Analítica y Productividad</h2>
       <p class="text-sm text-slate-500 mb-6">Métricas de eficiencia y tiempos de atención</p>
       
@@ -107,7 +117,7 @@
     </div>
 
     <!-- Sección: Auditoría y Calidad -->
-    <div class="mb-4 mt-12">
+    <div class="mb-4" [class.hidden]="activeExecutiveTab !== 'auditoria'">
       <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2 mb-1"><i-lucide name="shield-check" class="w-5 h-5 text-easydry-green"></i-lucide> Auditoría y Calidad</h2>
       <p class="text-sm text-slate-500 mb-6">Aprobaciones, rechazos, alertas y estado de equipos</p>
 
@@ -129,7 +139,7 @@
     </div>
 
     <!-- Sección: Consumo e Inventario -->
-    <div class="mb-4 mt-12">
+    <div class="mb-4" [class.hidden]="activeExecutiveTab !== 'inventario'">
       <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2 mb-1"><i-lucide name="package" class="w-5 h-5 text-easydry-green"></i-lucide> Consumo e Inventario</h2>
       <p class="text-sm text-slate-500 mb-6">Bodega, ítems despachados y alertas de stock</p>
 

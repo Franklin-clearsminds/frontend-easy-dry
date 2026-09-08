@@ -12,6 +12,7 @@ import { Role, ROLE_LABELS } from '../../core/models/roles.model';
 import { AlertasWidgetComponent } from './components/alertas-widget.component';
 import { RankingOperadoresWidgetComponent } from './components/ranking-operadores-widget.component';
 import { AprobacionesWidgetComponent } from './components/aprobaciones-widget.component';
+import { FilterBarComponent, FilterState } from '../../shared/components/filter-bar/filter-bar.component';
 
 @Component({
   selector: 'app-dashboard',
@@ -26,6 +27,7 @@ import { AprobacionesWidgetComponent } from './components/aprobaciones-widget.co
     AlertasWidgetComponent,
     RankingOperadoresWidgetComponent,
     AprobacionesWidgetComponent,
+    FilterBarComponent,
     DatePipe
   ],
   templateUrl: './dashboard.component.html'
@@ -211,6 +213,15 @@ export class DashboardComponent implements OnInit {
       flujoHorario: d.flujoHorario ?? d.produccionPorHora,
       distribucionModelos: d.distribucionModelos ?? d.productividadBahias
     };
+  }
+
+  activeExecutiveTab: 'analitica' | 'auditoria' | 'inventario' = 'analitica';
+
+  aplicarNuevosFiltros(filtros: FilterState) {
+    this.sucursalFilter = filtros.sucursal;
+    this.marcaFilter = filtros.marca || 'Todas';
+    this.fechaFilter = filtros.fecha;
+    this.aplicarFiltros();
   }
 
   aplicarFiltros() {
