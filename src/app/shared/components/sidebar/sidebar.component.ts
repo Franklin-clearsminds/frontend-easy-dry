@@ -24,7 +24,7 @@ interface MenuGroup {
     @if (isExpanded()) {
       <div
         class="fixed inset-0 bg-slate-950/30 backdrop-blur-[1.5px] z-[990] transition-opacity duration-300 animate-fade-in cursor-pointer"
-        (click)="isExpanded.set(false)">
+        (click)="closeSidebar()">
       </div>
     }
 
@@ -32,11 +32,12 @@ interface MenuGroup {
     <div
       class="fixed top-0 left-0 h-screen overflow-hidden transition-[width] duration-200 ease-in-out shadow-2xl z-[999]"
       [style.width]="isExpanded() ? sidebarInnerW : sidebarRailW"
-      (mouseenter)="isExpanded.set(true)"
-      (mouseleave)="isExpanded.set(false)">
+      (mouseenter)="onMouseEnter()"
+      (mousemove)="onMouseMove()"
+      (mouseleave)="onMouseLeave()">
 
       <aside
-        class="h-full w-72 bg-gradient-to-b from-easydry-blue via-easydry-blue-dark to-easydry-blue-deep text-white flex flex-col select-none overflow-hidden border-r border-white/10">
+        class="h-full w-[296px] bg-gradient-to-b from-easydry-blue via-easydry-blue-dark to-easydry-blue-deep text-white flex flex-col select-none overflow-hidden border-r border-white/10">
 
         <!-- Rail 80px: isotipo fijo a la izquierda. Expandido: wordmark + plataforma -->
         <div class="relative h-24 flex-shrink-0 border-b border-white/15 bg-easydry-blue-dark/60">
@@ -81,7 +82,7 @@ interface MenuGroup {
                   [style.grid-template-rows]="isExpanded() ? '1fr' : '0fr'"
                   [class.opacity-100]="isExpanded()"
                   [class.opacity-0]="!isExpanded()">
-                  <div class="overflow-hidden" [style.min-width]="sidebarInnerW">
+                  <div class="overflow-hidden w-full">
                     <div class="flex h-6 items-center">
                       <div class="w-20 flex-shrink-0"></div>
                       <span class="text-[10px] font-extrabold text-easydry-lime/90 uppercase tracking-widest whitespace-nowrap pr-4">
@@ -98,8 +99,8 @@ interface MenuGroup {
                       routerLinkActive="bg-white/15 text-easydry-green shadow-md font-bold"
                       #rla="routerLinkActive"
                       [routerLinkActiveOptions]="{ exact: item.route === '/dashboard' }"
-                      class="flex items-center h-10 rounded-xl text-slate-200 hover:text-white hover:bg-white/10 transition-colors duration-200 group text-xs relative"
-                      [style.min-width]="sidebarInnerW">
+                      class="flex items-center h-10 rounded-xl text-slate-200 hover:text-white hover:bg-white/10 transition-colors duration-200 group text-xs relative w-full pr-3 cursor-pointer"
+                      (click)="closeSidebar()">
 
                       @if (rla.isActive) {
                         <span class="absolute left-0 top-1.5 bottom-1.5 w-1 rounded-r-full bg-easydry-green shadow-xs"></span>
@@ -116,7 +117,7 @@ interface MenuGroup {
                       </div>
 
                       <span
-                        class="flex-1 whitespace-nowrap font-medium text-xs pr-2 transition-opacity duration-300 ease-in-out"
+                        class="flex-1 whitespace-nowrap font-medium text-xs pr-2 truncate transition-opacity duration-300 ease-in-out"
                         [class.opacity-100]="isExpanded()"
                         [class.opacity-0]="!isExpanded()">
                         {{ item.label }}
@@ -124,7 +125,7 @@ interface MenuGroup {
 
                       @if (item.badgeIcon || item.badge) {
                         <span
-                          class="mr-3 flex-shrink-0 whitespace-nowrap transition-opacity duration-300 ease-in-out flex items-center justify-center"
+                          class="mr-1 flex-shrink-0 whitespace-nowrap transition-opacity duration-300 ease-in-out flex items-center justify-center ml-auto"
                           [class.opacity-100]="isExpanded()"
                           [class.opacity-0]="!isExpanded()">
                           @if (item.badgeIcon === 'alert-circle-filled' || item.badgeIcon === 'alert-triangle' || item.badge === '!') {
@@ -174,8 +175,8 @@ interface MenuGroup {
             routerLinkActive="bg-white/15 text-easydry-green shadow-md font-bold"
             #rlaPerfil="routerLinkActive"
             [title]="!isExpanded() ? 'Configuración de Perfil' : ''"
-            class="flex items-center h-10 rounded-xl text-slate-300 hover:text-white hover:bg-white/10 transition-colors duration-200 text-xs font-medium relative"
-            [style.min-width]="sidebarInnerW">
+            class="flex items-center h-10 rounded-xl text-slate-300 hover:text-white hover:bg-white/10 transition-colors duration-200 text-xs font-medium relative w-full pr-3 cursor-pointer"
+            (click)="closeSidebar()">
             @if (rlaPerfil.isActive) {
               <span class="absolute left-0 top-1.5 bottom-1.5 w-1 rounded-r-full bg-easydry-green shadow-xs"></span>
             }
@@ -192,8 +193,7 @@ interface MenuGroup {
           <button
             (click)="authService.logout()"
             [title]="!isExpanded() ? 'Cerrar Sesión' : ''"
-            class="flex items-center h-10 rounded-xl text-rose-400 hover:text-rose-300 hover:bg-rose-400/10 transition-colors duration-200 text-xs font-medium w-full"
-            [style.min-width]="sidebarInnerW">
+            class="flex items-center h-10 rounded-xl text-rose-400 hover:text-rose-300 hover:bg-rose-400/10 transition-colors duration-200 text-xs font-medium w-full pr-3 cursor-pointer">
             <div class="w-20 flex-shrink-0 flex items-center justify-center">
               <i-lucide name="log-out" class="w-5 h-5"></i-lucide>
             </div>
@@ -264,6 +264,34 @@ export class SidebarComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.subs.unsubscribe();
+  }
+
+  public onMouseEnter(): void {
+    if (!this.isExpanded()) {
+      this.isExpanded.set(true);
+      this.cdr.markForCheck();
+    }
+  }
+
+  public onMouseMove(): void {
+    if (!this.isExpanded()) {
+      this.isExpanded.set(true);
+      this.cdr.markForCheck();
+    }
+  }
+
+  public onMouseLeave(): void {
+    if (this.isExpanded()) {
+      this.isExpanded.set(false);
+      this.cdr.markForCheck();
+    }
+  }
+
+  public closeSidebar(): void {
+    if (this.isExpanded()) {
+      this.isExpanded.set(false);
+      this.cdr.markForCheck();
+    }
   }
 
   private refreshMenu(): void {

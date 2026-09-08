@@ -33,10 +33,12 @@ import { PermissionService } from '../../core/services/permission.service';
 import { formatearPlaca, placasEquivalentes, validarPlaca } from '../../core/utils/placa.util';
 import { resolverRangoFechas, soloFecha } from '../../core/utils/fecha-rango';
 
+import { RouterModule } from '@angular/router';
+
 @Component({
   selector: 'app-servicios',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, PaginationComponent, FilterBarComponent, ServiciosToolbarComponent],
+  imports: [CommonModule, RouterModule, FormsModule, LucideAngularModule, ModalComponent, PaginationComponent, FilterBarComponent, ServiciosToolbarComponent],
   template: `
     <div class="space-y-6 animate-fade-in">
       
@@ -51,6 +53,14 @@ import { resolverRangoFechas, soloFecha } from '../../core/utils/fecha-rango';
           <p class="text-slate-500 text-xs mt-1">Digitalización del proceso físico: OT, placa, evidencias en vídeo/fotos y flujo de aprobación por Gerencia.</p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
+          <a
+            routerLink="/configuracion/servicios"
+            class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold rounded-xl text-xs transition-all flex items-center gap-2 cursor-pointer shadow-2xs border border-slate-200">
+            <i-lucide name="layout-list" class="w-4 h-4 text-easydry-blue"></i-lucide>
+            <span class="hidden sm:inline">Catálogo & Crear Servicios</span>
+            <span class="sm:hidden">Catálogo</span>
+          </a>
+
           @if (puedeReportarFalla) {
             <button
               (click)="abrirModalReportarFalla()"
@@ -829,7 +839,7 @@ export class ServiciosComponent implements OnInit {
   modalVideoOpen = false;
   modalReportarFallaOpen = false;
   maquinasReporte: Maquinaria[] = [];
-  maquinaSeleccionadaId = 0;
+  maquinaSeleccionadaId: number | string = 0;
   archivosFalloSubidos: ArchivoAdjunto[] = [];
   tiposFallaDisponibles: string[] = [
     'Falla eléctrica',
@@ -1019,7 +1029,7 @@ export class ServiciosComponent implements OnInit {
       this.onCategoriaChange();
     });
 
-    this.inventarioService.getItems().subscribe(items => {
+    this.inventarioService.getItems().subscribe((items: any) => {
       this.productosInventario = items;
     });
 
@@ -1226,7 +1236,7 @@ export class ServiciosComponent implements OnInit {
     }
   }
 
-  getStockDisponible(productoId: number): number {
+  getStockDisponible(productoId: number | string): number {
     return this.inventarioService.getStockDisponibleSucursal(productoId, this.nuevoRegistro.agencia);
   }
 
@@ -1400,10 +1410,10 @@ export class ServiciosComponent implements OnInit {
         this.nuevoRegistro.placa,
         this.insumosConsumoForm,
         this.nuevoRegistro.empleado
-      ).subscribe(res => {
+      ).subscribe((res: any) => {
         // Disparar toasts de alerta si algún insumo cayó en nivel bajo/crítico
         if (res.alertasGeneradas && res.alertasGeneradas.length > 0) {
-          res.alertasGeneradas.forEach(msg => {
+          res.alertasGeneradas.forEach((msg: string) => {
             this.toastService.warning('Alerta de Stock Insumos', msg);
           });
         }

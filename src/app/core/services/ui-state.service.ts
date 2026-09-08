@@ -1,7 +1,7 @@
 import { Injectable, signal, computed, type WritableSignal } from '@angular/core';
 
-/** Ancho interno expandido del sidebar (w-72 = 288px) */
-export const SIDEBAR_INNER_W = '288px';
+/** Ancho interno expandido del sidebar (296px para permitir scrollbar sin recortar badges) */
+export const SIDEBAR_INNER_W = '296px';
 /** Ancho del rail retraído del sidebar (80px) */
 export const SIDEBAR_RAIL_W = '80px';
 

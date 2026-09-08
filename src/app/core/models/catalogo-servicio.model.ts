@@ -7,8 +7,10 @@ export interface CatalogoServicio {
   categoria: 'GENERAL' | 'ESPECIAL' | 'EXTRA' | string;
   descripcion: string;
   estado: 'Activo' | 'Inactivo';
-  requiereFoto: boolean;
-  requiereVideo: boolean;
+  requiereFoto?: boolean;
+  requiereVideo?: boolean;
   insumosReceta?: RecetaInsumoServicio[];
   fechaCreacion?: string;
+  precio?: number;
+  tiempoEstimadoMin?: number;
 }

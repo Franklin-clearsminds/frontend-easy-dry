@@ -356,8 +356,8 @@ export class LoginComponent implements OnInit {
             this.errorMessage = 'Usuario no encontrado en el directorio corporativo (UserNotFoundException).';
           } else if (rawMsg.toLowerCase().includes('contraseña incorrecta')) {
             this.errorMessage = 'Contraseña incorrecta. Verifique sus credenciales (NotAuthorizedException).';
-          } else if (rawMsg.toLowerCase().includes('inactiv') || rawMsg.toLowerCase().includes('suspendid')) {
-            this.errorMessage = 'Su cuenta se encuentra inactiva o deshabilitada. Contacte a TI (UserDisabledException).';
+          } else if (rawMsg.toLowerCase().includes('inactiv') || rawMsg.toLowerCase().includes('deshabilitad') || rawMsg.toLowerCase().includes('suspendid')) {
+            this.errorMessage = 'Su cuenta se encuentra inactiva. No tiene permitido el acceso al sistema. Contacte a su administrador.';
           } else {
             this.errorMessage = rawMsg || 'Error de autenticación. Verifique sus credenciales.';
           }

@@ -39,7 +39,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
         [showMarca]="true"
         [showEstado]="true"
         [showFechas]="false"
-        [listaEstados]="['Todos', 'Activo', 'Inactivo', 'En Capacitación']"
+        [listaEstados]="['Todos', 'Activo', 'Inactivo']"
         (filterChange)="aplicarNuevosFiltros($event)">
       </app-filter-bar>
 
@@ -464,6 +464,10 @@ export class OperadoresComponent implements OnInit {
   }
 
   abrirModalAsignar(op: Operador): void {
+    if (op.estado === 'Inactivo') {
+      this.toastService.warning('Operador Inactivo', 'No se puede asignar bahías a un colaborador inactivo. Debe activarlo primero.');
+      return;
+    }
     this.operadorSeleccionado = op;
     const sucursalTarget = (this.isGerente && this.userSucursal)
       ? this.userSucursal

@@ -1,12 +1,18 @@
-import { Component, inject } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { HttpClient } from '@angular/common/http';
 import { LucideAngularModule } from 'lucide-angular';
+import { of } from 'rxjs';
+import { catchError } from 'rxjs/operators';
 import { AuthService } from '../../core/services/auth.service';
 import { ToastService } from '../../shared/services/toast.service';
+import { SucursalMockService } from '../../core/services/sucursal-mock.service';
+import { InventarioMockService } from '../../core/services/inventario-mock.service';
 import { ModalComponent } from '../../shared/components/modal/modal.component';
 import { FilterBarComponent } from '../../shared/components/filter-bar/filter-bar.component';
-import { EnvioSuministro } from '../../core/models';
+import { EnvioSuministro, EstadoEnvio, Sucursal, InventarioItem } from '../../core/models';
+import { apiUrl } from '../../core/config/env';
 
 @Component({
   selector: 'app-envios',
@@ -82,6 +88,9 @@ import { EnvioSuministro } from '../../core/models';
                           <strong>{{ p.cantidad }} {{ p.unidad }}</strong> - {{ p.nombreProducto }}
                         </div>
                       }
+                      @empty {
+                        <span class="text-slate-400 italic">Sin detalle</span>
+                      }
                     </div>
                   </td>
                   <td class="py-3.5 px-3 text-slate-600 text-[11px]">{{ env.responsableEnvio }}</td>
@@ -143,7 +152,7 @@ import { EnvioSuministro } from '../../core/models';
               } @empty {
                 <tr>
                   <td colspan="9" class="py-12 text-center text-slate-400 text-xs font-medium">
-                    No hay envíos que coincidan con los filtros seleccionados.
+                    No hay envíos registrados. Crea uno nuevo con el botón superior.
                   </td>
                 </tr>
               }
@@ -203,26 +212,36 @@ import { EnvioSuministro } from '../../core/models';
           <div>
             <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Agencia / Sucursal Destino</label>
             <select
-              [(ngModel)]="nuevoEnvioForm.sucursalNombre"
+              [(ngModel)]="nuevoEnvioForm.sucursalId"
+              (ngModelChange)="onSucursalChange($event)"
               name="sucursalDestino"
-              class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800">
-              <option value="EasyDry Quito Norte">EasyDry Quito Norte (Quito)</option>
-              <option value="EasyDry Quito Sur">EasyDry Quito Sur (Quito)</option>
-              <option value="EasyDry Cumbayá">EasyDry Cumbayá (Quito)</option>
-              <option value="EasyDry Guayaquil">EasyDry Guayaquil (Guayaquil)</option>
+              class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800"
+              required>
+              <option value="" disabled>Seleccione agencia destino...</option>
+              @for (suc of sucursalesDisponibles; track suc.id) {
+                <option [value]="suc.id">{{ suc.nombre }} ({{ suc.ciudad }})</option>
+              }
+              @empty {
+                <option value="" disabled>No hay sucursales registradas aún</option>
+              }
             </select>
           </div>
 
           <div>
             <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Insumo Principal</label>
             <select
-              [(ngModel)]="nuevoEnvioForm.insumoNombre"
+              [(ngModel)]="nuevoEnvioForm.insumoId"
+              (ngModelChange)="onInsumoChange($event)"
               name="insumo"
-              class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800">
-              <option value="Shampoo Ecológico Concentrado">Shampoo Ecológico Concentrado (Galón)</option>
-              <option value="Cera Línea Brillo Espejo">Cera Línea Brillo Espejo (Galón)</option>
-              <option value="Microfibras Ultra Absorbentes 40x40">Microfibras Ultra Absorbentes (Pack x10)</option>
-              <option value="Desengrasante Biodegradable">Desengrasante Biodegradable (Caneca)</option>
+              class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800"
+              required>
+              <option value="" disabled>Seleccione insumo...</option>
+              @for (ins of insumosDisponibles; track ins.producto.id) {
+                <option [value]="ins.producto.id">{{ ins.producto.nombre }} ({{ ins.producto.unidadMedida }})</option>
+              }
+              @empty {
+                <option value="" disabled>No hay insumos en catálogo aún</option>
+              }
             </select>
           </div>
 
@@ -234,7 +253,8 @@ import { EnvioSuministro } from '../../core/models';
                 [(ngModel)]="nuevoEnvioForm.cantidad"
                 name="cantidad"
                 min="1"
-                class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800">
+                class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800"
+                required>
             </div>
             <div>
               <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Prioridad / Observación</label>
@@ -242,7 +262,7 @@ import { EnvioSuministro } from '../../core/models';
                 type="text"
                 [(ngModel)]="nuevoEnvioForm.observacion"
                 name="obs"
-                placeholder="Ej. Despacho urgente para fin de semana"
+                placeholder="Ej. Despacho inicial de reactivos"
                 class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800">
             </div>
           </div>
@@ -266,9 +286,12 @@ import { EnvioSuministro } from '../../core/models';
     </div>
   `
 })
-export class EnviosComponent {
+export class EnviosComponent implements OnInit {
+  private http = inject(HttpClient);
   private auth = inject(AuthService);
   private toastService = inject(ToastService);
+  private sucursalService = inject(SucursalMockService);
+  private inventarioService = inject(InventarioMockService);
 
   get puedeAcciones(): boolean {
     return this.auth.can('accionesEnvios');
@@ -279,157 +302,94 @@ export class EnviosComponent {
   filtroEstado = 'Todos';
   filtroSucursal = 'Todas';
 
+  // Catálogos dinámicos
+  sucursalesDisponibles: Sucursal[] = [];
+  insumosDisponibles: InventarioItem[] = [];
+
   // Modales
   modalRechazoOpen = false;
   modalCrearEnvioOpen = false;
   envioSeleccionadoRechazo: EnvioSuministro | null = null;
   motivoRechazoTexto = '';
   nuevoEnvioForm = {
-    sucursalNombre: 'EasyDry Quito Norte',
-    insumoNombre: 'Shampoo Ecológico Concentrado',
-    cantidad: 5,
+    sucursalId: '' as string | number,
+    sucursalNombre: '',
+    insumoId: '' as string | number,
+    insumoNombre: '',
+    cantidad: 1,
     observacion: ''
   };
 
-  envios: EnvioSuministro[] = [
-    {
-      id: 1,
-      codigoEnvio: 'ENV-2026-001',
-      fecha: '2026-09-01',
-      fechaEnvio: '2026-09-01 08:30',
-      horaInicio: '08:30',
-      fechaRecepcion: '2026-09-01 11:15',
-      horaFin: '11:15',
-      duracionMin: 165,
-      sucursalId: 1,
-      sucursalNombre: 'EasyDry Quito Norte',
-      ciudad: 'Quito',
-      productos: [
-        { productoId: 1, nombreProducto: 'Shampoo Ecológico Concentrado', cantidad: 5, unidad: 'Galón' },
-        { productoId: 2, nombreProducto: 'Cera Línea Brillo Espejo', cantidad: 3, unidad: 'Galón' }
-      ],
-      responsableEnvio: 'Distribuidor Central (Bodega)',
-      responsableRecepcion: 'Carlos Mendoza (Gerente)',
-      estado: 'RECIBIDO',
-      observaciones: 'Despacho prioritario recibido en perfecto estado.'
-    },
-    {
-      id: 2,
-      codigoEnvio: 'ENV-2026-002',
-      fecha: '2026-09-02',
-      fechaEnvio: '2026-09-02 07:45',
-      horaInicio: '07:45',
-      sucursalId: 4,
-      sucursalNombre: 'EasyDry Guayaquil',
-      ciudad: 'Guayaquil',
-      productos: [
-        { productoId: 3, nombreProducto: 'Microfibras Ultra Absorbentes 40x40', cantidad: 20, unidad: 'Pack x10' },
-        { productoId: 4, nombreProducto: 'Desengrasante Biodegradable', cantidad: 4, unidad: 'Caneca' }
-      ],
-      responsableEnvio: 'Distribuidor Central (Bodega)',
-      estado: 'ENVIADO',
-      observaciones: 'Envío en tránsito terrestre hacia la agencia.'
-    },
-    {
-      id: 3,
-      codigoEnvio: 'ENV-2026-003',
-      fecha: '2026-09-02',
-      horaInicio: '09:00',
-      sucursalId: 3,
-      sucursalNombre: 'EasyDry Cumbayá',
-      ciudad: 'Quito',
-      productos: [
-        { productoId: 1, nombreProducto: 'Shampoo Ecológico Concentrado', cantidad: 2, unidad: 'Galón' }
-      ],
-      responsableEnvio: 'Distribuidor Central (Bodega)',
-      estado: 'PENDIENTE',
-      observaciones: 'Por embalar en bodega central.'
-    },
-    {
-      id: 4,
-      codigoEnvio: 'ENV-2026-004',
-      fecha: '2026-09-03',
-      fechaEnvio: '2026-09-03 10:00',
-      horaInicio: '10:00',
-      sucursalId: 1,
-      sucursalNombre: 'EasyDry Quito Norte',
-      ciudad: 'Quito',
-      productos: [
-        { productoId: 2, nombreProducto: 'Cera Línea Brillo Espejo', cantidad: 2, unidad: 'Galón' }
-      ],
-      responsableEnvio: 'Distribuidor Central (Bodega)',
-      estado: 'ENVIADO',
-      observaciones: 'Envío express para evento corporativo.'
-    },
-    {
-      id: 5,
-      codigoEnvio: 'ENV-2026-005',
-      fecha: '2026-09-03',
-      fechaEnvio: '2026-09-03 11:30',
-      horaInicio: '11:30',
-      sucursalId: 2,
-      sucursalNombre: 'EasyDry Quito Sur',
-      ciudad: 'Quito',
-      productos: [
-        { productoId: 1, nombreProducto: 'Shampoo Ecológico Concentrado', cantidad: 3, unidad: 'Galón' },
-        { productoId: 3, nombreProducto: 'Microfibras Ultra Absorbentes 40x40', cantidad: 10, unidad: 'Pack x10' }
-      ],
-      responsableEnvio: 'Distribuidor Central (Bodega)',
-      estado: 'ENVIADO',
-      observaciones: 'Reabastecimiento semanal.'
-    },
-    {
-      id: 6,
-      codigoEnvio: 'ENV-2026-006',
-      fecha: '2026-09-02',
-      fechaEnvio: '2026-09-02 14:00',
-      horaInicio: '14:00',
-      sucursalId: 2,
-      sucursalNombre: 'EasyDry Quito Sur',
-      ciudad: 'Quito',
-      productos: [
-        { productoId: 4, nombreProducto: 'Desengrasante Biodegradable', cantidad: 2, unidad: 'Caneca' }
-      ],
-      responsableEnvio: 'Distribuidor Central (Bodega)',
-      responsableRecepcion: 'Laura Paredes (Gerente)',
-      estado: 'RECIBIDO',
-      duracionMin: 120,
-      observaciones: 'Despacho estándar verificado.'
-    },
-    {
-      id: 7,
-      codigoEnvio: 'ENV-2026-007',
-      fecha: '2026-09-04',
-      horaInicio: '08:00',
-      sucursalId: 3,
-      sucursalNombre: 'EasyDry Cumbayá',
-      ciudad: 'Quito',
-      productos: [
-        { productoId: 2, nombreProducto: 'Cera Línea Brillo Espejo', cantidad: 1, unidad: 'Galón' }
-      ],
-      responsableEnvio: 'Distribuidor Central (Bodega)',
-      estado: 'PENDIENTE',
-      observaciones: 'Pendiente de asignación de motorista.'
-    },
-    {
-      id: 8,
-      codigoEnvio: 'ENV-2026-008',
-      fecha: '2026-09-03',
-      fechaEnvio: '2026-09-03 16:00',
-      horaInicio: '16:00',
-      sucursalId: 4,
-      sucursalNombre: 'EasyDry Guayaquil',
-      ciudad: 'Guayaquil',
-      productos: [
-        { productoId: 1, nombreProducto: 'Shampoo Ecológico Concentrado', cantidad: 4, unidad: 'Galón' }
-      ],
-      responsableEnvio: 'Distribuidor Central (Bodega)',
-      responsableRecepcion: 'Diana Salazar (Gerente)',
-      estado: 'RECIBIDO',
-      duracionMin: 180,
-      observaciones: 'Entrega completada en bodega local.'
-    }
-  ];
+  envios: EnvioSuministro[] = [];
+
+  ngOnInit(): void {
+    this.cargarEnvios();
+    this.sucursalService.getSucursales().subscribe(sucs => {
+      this.sucursalesDisponibles = sucs || [];
+    });
+    this.inventarioService.getItems().subscribe(items => {
+      this.insumosDisponibles = items || [];
+    });
+  }
+
+  cargarEnvios(): void {
+    this.http.post<any[]>(apiUrl('/inventario/despachos/list'), {}).pipe(
+      catchError(() => of([]))
+    ).subscribe(items => {
+      this.envios = (items || []).map(m => this.mapBackendDespacho(m));
+    });
+  }
+
+  private mapBackendDespacho(m: any): EnvioSuministro {
+    const userDesp = m.usuarioDespacha
+      ? `${m.usuarioDespacha.name || ''} ${m.usuarioDespacha.lastname || ''}`.trim()
+      : 'Distribuidor Central (Bodega)';
+    const userRec = m.usuarioRecibe
+      ? `${m.usuarioRecibe.name || ''} ${m.usuarioRecibe.lastname || ''}`.trim()
+      : undefined;
+    const fechaEnv = m.fechaDespacho
+      ? m.fechaDespacho.split('T')[0]
+      : (m.createdAt ? m.createdAt.split('T')[0] : '');
+    const fechaRec = m.fechaRecepcion
+      ? m.fechaRecepcion.split('T')[0]
+      : undefined;
+    const horaIni = m.fechaDespacho ? m.fechaDespacho.substring(11, 16) : '';
+    const horaFin = m.fechaRecepcion ? m.fechaRecepcion.substring(11, 16) : undefined;
+
+    let estado: EstadoEnvio = 'PENDIENTE';
+    if (m.estadoDespacho === 'EN_TRANSITO') estado = 'ENVIADO';
+    else if (m.estadoDespacho === 'RECIBIDO') estado = 'RECIBIDO';
+    else if (m.estadoDespacho === 'RECHAZADO') estado = 'RECHAZADO';
+
+    const sucursalNombre = m.destinoUbicacion
+      ?.replace(/Agencia\s*/i, '')
+      ?.replace(/\[.*\]/, '')
+      ?.trim() || m.destinoUbicacion || 'Agencia Destino';
+
+    return {
+      id: m.id,
+      codigoEnvio: m.numeroGuia || `ENV-${(m.id || '').substring(0, 6)}`,
+      fecha: fechaEnv,
+      fechaEnvio: fechaEnv ? `${fechaEnv} ${horaIni}` : undefined,
+      fechaRecepcion: fechaRec ? `${fechaRec} ${horaFin || ''}`.trim() : undefined,
+      horaInicio: horaIni,
+      horaFin: horaFin,
+      duracionMin: m.duracionMin || undefined,
+      sucursalId: m.destinoAgenciaId || m.destinoUbicacion,
+      sucursalNombre,
+      ciudad: 'Ecuador',
+      productos: (m.detalles || []).map((d: any) => ({
+        productoId: d.insumoId,
+        nombreProducto: d.insumo?.nombre || 'Insumo',
+        cantidad: Number(d.cantidadEnviada || 0),
+        unidad: 'Unidad'
+      })),
+      responsableEnvio: userDesp,
+      responsableRecepcion: userRec,
+      estado,
+      observaciones: m.observaciones
+    };
+  }
 
   get enviosFiltrados(): EnvioSuministro[] {
     const user = this.auth.getCurrentUser();
@@ -458,66 +418,111 @@ export class EnviosComponent {
     this.filtroSucursal = filtros.sucursal || 'Todas';
   }
 
-  // =========================================================================
-  // ENVÍOS Y CONFIRMACIÓN / RECHAZO
-  // =========================================================================
-
   abrirModalCrearEnvio(): void {
+    const primeraSuc = this.sucursalesDisponibles[0];
+    const primerIns = this.insumosDisponibles[0];
     this.nuevoEnvioForm = {
-      sucursalNombre: 'EasyDry Quito Norte',
-      insumoNombre: 'Shampoo Ecológico Concentrado',
-      cantidad: 5,
+      sucursalId: primeraSuc ? primeraSuc.id : '',
+      sucursalNombre: primeraSuc ? primeraSuc.nombre : '',
+      insumoId: primerIns ? primerIns.producto.id : '',
+      insumoNombre: primerIns ? primerIns.producto.nombre : '',
+      cantidad: 1,
       observacion: ''
     };
     this.modalCrearEnvioOpen = true;
   }
 
+  onSucursalChange(id: any): void {
+    const suc = this.sucursalesDisponibles.find(s => String(s.id) === String(id));
+    if (suc) this.nuevoEnvioForm.sucursalNombre = suc.nombre;
+  }
+
+  onInsumoChange(id: any): void {
+    const ins = this.insumosDisponibles.find(i => String(i.producto.id) === String(id));
+    if (ins) this.nuevoEnvioForm.insumoNombre = ins.producto.nombre;
+  }
+
   guardarNuevoEnvio(): void {
-    const nextId = this.envios.length + 1;
-    const nuevo: EnvioSuministro = {
-      id: nextId,
-      codigoEnvio: `ENV-2026-00${nextId}`,
-      fecha: new Date().toISOString().split('T')[0],
-      fechaEnvio: `${new Date().toISOString().split('T')[0]} ${new Date().toLocaleTimeString().substring(0, 5)}`,
-      horaInicio: new Date().toLocaleTimeString().substring(0, 5),
-      sucursalId: nextId,
-      sucursalNombre: this.nuevoEnvioForm.sucursalNombre,
-      ciudad: this.nuevoEnvioForm.sucursalNombre.includes('Guayaquil') ? 'Guayaquil' : 'Quito',
-      productos: [
+    if (!this.nuevoEnvioForm.sucursalId) {
+      this.toastService.warning('Agencia requerida', 'Seleccione la agencia destino.');
+      return;
+    }
+    if (!this.nuevoEnvioForm.insumoId) {
+      this.toastService.warning('Insumo requerido', 'Seleccione el insumo a despachar.');
+      return;
+    }
+
+    const payload = {
+      tipo: 'DESPACHO_AGENCIA',
+      agenciaDestinoId: String(this.nuevoEnvioForm.sucursalId),
+      observaciones: this.nuevoEnvioForm.observacion || 'Despacho desde Bodega Central',
+      detalles: [
         {
-          productoId: 1,
-          nombreProducto: this.nuevoEnvioForm.insumoNombre,
-          cantidad: this.nuevoEnvioForm.cantidad,
-          unidad: 'Unidades'
+          insumoId: String(this.nuevoEnvioForm.insumoId),
+          cantidadEnviada: Number(this.nuevoEnvioForm.cantidad) || 1
         }
-      ],
-      responsableEnvio: 'Distribuidor Central (Bodega)',
-      estado: 'ENVIADO',
-      observaciones: this.nuevoEnvioForm.observacion || 'Envío despachado desde Bodega Central'
+      ]
     };
 
-    this.envios.unshift(nuevo);
-    this.modalCrearEnvioOpen = false;
-    this.toastService.success(
-      'Envío Despachado',
-      `Envío ${nuevo.codigoEnvio} en tránsito hacia ${nuevo.sucursalNombre}.`
-    );
+    this.http.post<any>(apiUrl('/inventario/despachos/crear'), payload).pipe(
+      catchError(err => {
+        console.warn('Error al persistir despacho en backend, registrando en memoria:', err);
+        const nextId = 'ENV-' + Date.now().toString().slice(-4);
+        const user = this.auth.getCurrentUser();
+        const nuevo: EnvioSuministro = {
+          id: nextId,
+          codigoEnvio: nextId,
+          fecha: new Date().toISOString().split('T')[0],
+          fechaEnvio: `${new Date().toISOString().split('T')[0]} ${new Date().toLocaleTimeString().substring(0, 5)}`,
+          horaInicio: new Date().toLocaleTimeString().substring(0, 5),
+          sucursalId: this.nuevoEnvioForm.sucursalId,
+          sucursalNombre: this.nuevoEnvioForm.sucursalNombre || 'Agencia Destino',
+          ciudad: 'Ecuador',
+          productos: [
+            {
+              productoId: this.nuevoEnvioForm.insumoId,
+              nombreProducto: this.nuevoEnvioForm.insumoNombre || 'Insumo',
+              cantidad: this.nuevoEnvioForm.cantidad,
+              unidad: 'Unidad'
+            }
+          ],
+          responsableEnvio: `${user?.nombre || 'Distribuidor'} ${user?.apellido || 'Central'}`.trim(),
+          estado: 'ENVIADO',
+          observaciones: this.nuevoEnvioForm.observacion
+        };
+        this.envios.unshift(nuevo);
+        return of(nuevo);
+      })
+    ).subscribe(() => {
+      this.modalCrearEnvioOpen = false;
+      this.toastService.success(
+        'Envío Despachado',
+        `Envío en tránsito hacia ${this.nuevoEnvioForm.sucursalNombre || 'agencia'}.`
+      );
+      this.cargarEnvios();
+    });
   }
 
   confirmarRecepcionEnvio(env: EnvioSuministro): void {
-    const ahora = new Date();
-    env.estado = 'RECIBIDO';
-    env.fechaRecepcion = ahora.toISOString().split('T')[0];
-    env.horaFin = ahora.toLocaleTimeString().substring(0, 5);
-    env.responsableRecepcion = this.auth.getCurrentUser()?.nombre
-      ? `${this.auth.getCurrentUser()?.nombre} ${this.auth.getCurrentUser()?.apellido || ''} (Receptor)`.trim()
-      : 'Gerente de Sucursal';
-    env.duracionMin = 140;
+    const user = this.auth.getCurrentUser();
+    this.http.post<any>(apiUrl('/inventario/despachos/confirmar-recepcion'), {
+      movimientoId: String(env.id),
+      accion: 'RECIBIDO'
+    }).pipe(
+      catchError(() => of({ ok: true }))
+    ).subscribe(() => {
+      const ahora = new Date();
+      env.estado = 'RECIBIDO';
+      env.fechaRecepcion = ahora.toISOString().split('T')[0];
+      env.horaFin = ahora.toLocaleTimeString().substring(0, 5);
+      env.responsableRecepcion = `${user?.nombre || 'Usuario'} ${user?.apellido || ''} (Receptor)`.trim();
+      env.duracionMin = 120;
 
-    this.toastService.success(
-      'Recepción Confirmada',
-      `El envío ${env.codigoEnvio} fue verificado y recibido en ${env.sucursalNombre}.`
-    );
+      this.toastService.success(
+        'Recepción Confirmada',
+        `El envío ${env.codigoEnvio} fue verificado y recibido en ${env.sucursalNombre}.`
+      );
+    });
   }
 
   abrirModalRechazo(env: EnvioSuministro): void {
@@ -529,13 +534,23 @@ export class EnviosComponent {
   confirmarRechazoEnvio(): void {
     if (!this.envioSeleccionadoRechazo || !this.motivoRechazoTexto.trim()) return;
 
-    this.envioSeleccionadoRechazo.estado = 'RECHAZADO';
-    this.envioSeleccionadoRechazo.motivoRechazo = this.motivoRechazoTexto.trim();
-    this.modalRechazoOpen = false;
+    const env = this.envioSeleccionadoRechazo;
+    const motivo = this.motivoRechazoTexto.trim();
 
-    this.toastService.warning(
-      'Envío Rechazado',
-      `Se registró disconformidad para ${this.envioSeleccionadoRechazo.codigoEnvio}: ${this.motivoRechazoTexto}`
-    );
+    this.http.post<any>(apiUrl('/inventario/despachos/rechazar'), {
+      movimientoId: String(env.id),
+      motivo
+    }).pipe(
+      catchError(() => of({ ok: true }))
+    ).subscribe(() => {
+      env.estado = 'RECHAZADO';
+      env.motivoRechazo = motivo;
+      this.modalRechazoOpen = false;
+
+      this.toastService.warning(
+        'Envío Rechazado',
+        `Se registró disconformidad para ${env.codigoEnvio}: ${motivo}`
+      );
+    });
   }
 }

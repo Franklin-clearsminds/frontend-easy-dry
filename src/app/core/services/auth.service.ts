@@ -32,7 +32,7 @@ export const DEMO_CREDENTIALS: DemoUserCredential[] = [
   {
     nombre: 'Super Administrador Easy Dry',
     email: 'superadmin@easydry.com',
-    passwordPlain: 'Admin123*',
+    passwordPlain: 'Super123*',
     role: Role.SUPER_ADMIN,
     rolNombre: 'Super Administrador',
     sucursal: 'EasyDry Corporativo',
@@ -353,6 +353,13 @@ export class AuthService {
       return of({
         success: false,
         message: 'Usuario no registrado en el sistema. Verifique su correo corporativo.'
+      }).pipe(delay(300));
+    }
+
+    if ((demoMatch as any).estado === 'Inactivo') {
+      return of({
+        success: false,
+        message: 'Usuario deshabilitado o inactivo. Contacte a su administrador.'
       }).pipe(delay(300));
     }
 

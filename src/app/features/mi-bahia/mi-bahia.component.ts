@@ -457,7 +457,7 @@ export class MiBahiaComponent implements OnInit {
   isOperadorEspeciales = false;
   modalReportarFallaOpen = false;
   maquinasBahia: Maquinaria[] = [];
-  maquinaSeleccionadaId = 0;
+  maquinaSeleccionadaId: number | string = 0;
   archivosFalloSubidos: ArchivoAdjunto[] = [];
   tiposFallaDisponibles: string[] = [
     'Falla eléctrica',

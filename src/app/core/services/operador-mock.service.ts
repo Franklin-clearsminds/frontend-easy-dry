@@ -2,34 +2,32 @@ import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable, of } from 'rxjs';
 import { delay, map } from 'rxjs/operators';
 import { Operador, HistorialAsignacionOperador } from '../models';
-import { MOCK_OPERADORES } from '../mocks/operadores.mock';
-import { MOCK_HISTORIAL_ASIGNACIONES_OPERADOR } from '../mocks/movimientos-maquinaria.mock';
 
 @Injectable({
   providedIn: 'root'
 })
 export class OperadorMockService {
-  private operadoresSubject = new BehaviorSubject<Operador[]>(MOCK_OPERADORES);
+  private operadoresSubject = new BehaviorSubject<Operador[]>([]);
   public operadores$ = this.operadoresSubject.asObservable();
 
-  private historialSubject = new BehaviorSubject<HistorialAsignacionOperador[]>(MOCK_HISTORIAL_ASIGNACIONES_OPERADOR);
+  private historialSubject = new BehaviorSubject<HistorialAsignacionOperador[]>([]);
   public historial$ = this.historialSubject.asObservable();
 
   getOperadores(): Observable<Operador[]> {
-    return this.operadores$.pipe(delay(200));
+    return this.operadores$.pipe(delay(100));
   }
 
   getOperadorById(id: number): Observable<Operador | undefined> {
     return this.operadores$.pipe(
       map(list => list.find(o => o.id === id)),
-      delay(150)
+      delay(100)
     );
   }
 
   getHistorialPorOperador(operadorId: number): Observable<HistorialAsignacionOperador[]> {
     return this.historial$.pipe(
       map(list => list.filter(h => h.operadorId === operadorId)),
-      delay(150)
+      delay(100)
     );
   }
 
@@ -66,7 +64,7 @@ export class OperadorMockService {
       op.fechaAsignacion = hoy;
       this.operadoresSubject.next([...currentOperadores]);
 
-      return of(op).pipe(delay(300));
+      return of(op).pipe(delay(150));
     }
 
     return of(null);
@@ -79,6 +77,6 @@ export class OperadorMockService {
       current[idx] = { ...op };
       this.operadoresSubject.next([...current]);
     }
-    return of(op).pipe(delay(200));
+    return of(op).pipe(delay(150));
   }
 }

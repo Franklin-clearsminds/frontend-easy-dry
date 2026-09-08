@@ -43,27 +43,152 @@ export interface EnvaseUnidad {
 
 /** Producto / Insumo Maestro del Sistema */
 export interface ProductoInsumo {
-  id: number;
+  id: number | string;
   codigoSKU: string;
   nombre: string;
+  categoria?: string;
   tipoId?: string;
   tipoNombre?: string;
-  envaseId: string;
-  envaseNombre: string;
+  tipoProductoId?: string;
+  tipoProducto?: TipoProductoCatalog;
   unidadMedida: string;
-  descripcion: string;
-  stockAlertaBodega: number; // Umbral de alerta en Bodega Central
-  stockAlertaSucursal: number; // Umbral de alerta en Sucursal
+  unidadMedidaId?: string;
+  unidadMedidaObj?: UnidadMedidaCatalog;
+  contenidoNeto?: number;
+  stockActual: number;
+  stockMinimoBodega?: number;
+  stockMinimoAgencia?: number;
+  stockOptimoBodega?: number;
+  descripcion?: string;
+  stockAlertaBodega?: number; // Umbral de alerta en Bodega Central
+  stockAlertaSucursal?: number; // Umbral de alerta en Sucursal
   stockMinimoGlobal?: number; // Compatibilidad
   stockOptimoGlobal?: number; // Nivel recomendado
-  imagen: string;
+  costoUnitarioUSD?: number;
+  proveedorPrincipal?: string;
+  imagen?: string;
+  imagenUrl?: string;
   activo: boolean;
-  fechaCreacion: string;
+  estado?: number;
+  fechaCreacion?: string;
+  createdAt?: string;
+  presentaciones?: PresentacionInsumoCatalog[];
+}
+
+/** Catálogo Dinámico de Tipos de Producto (Líquido, Polvo, Gel, Sólido, etc.) */
+export interface TipoProductoCatalog {
+  id: string;
+  codigo: string;
+  nombre: string;
+  descripcion?: string;
+  estado: number;
+  createdAt?: string;
+}
+
+/** Catálogo Dinámico de Unidades de Medida (ml, L, g, kg, und, gal, etc.) */
+export interface UnidadMedidaCatalog {
+  id: string;
+  codigo: string;
+  nombre: string;
+  simbolo: string;
+  tipo: string;
+  factorBase?: number;
+  estado: number;
+  createdAt?: string;
+}
+
+/** Presentación Comercial / Operativa de un Producto */
+export interface PresentacionInsumoCatalog {
+  id: string;
+  insumoId: string;
+  nombre: string;
+  unidadId: string;
+  unidad?: UnidadMedidaCatalog;
+  cantidad: number;
+  factorAUnidadBase: number;
+  estado: number;
+  createdAt?: string;
+}
+
+/** Tipo de Movimiento Configurable en BD (ENTRY, CONSUMPTION, etc.) */
+export interface TipoMovimientoCatalog {
+  id: string;
+  codigo: string;
+  nombre: string;
+  descripcion?: string;
+  esEntrada: boolean;
+  estado: number;
+}
+
+/** Motivo de Movimiento Configurable en BD */
+export interface MotivoMovimientoCatalog {
+  id: string;
+  tipoMovimientoId?: string;
+  tipoMovimiento?: TipoMovimientoCatalog;
+  codigo: string;
+  nombre: string;
+  descripcion?: string;
+  estado: number;
+}
+
+/** Registro de Kardex / Movimiento de Inventario Global */
+export interface MovimientoInventarioGlobalItem {
+  id: string;
+  numeroComprobante: string;
+  tipoMovimientoId: string;
+  tipoMovimiento: TipoMovimientoCatalog;
+  insumoId: string;
+  insumo: {
+    id: string;
+    codigoSKU: string;
+    nombre: string;
+    unidadMedida?: { simbolo: string; nombre: string };
+  };
+  cantidad: number;
+  unidadId: string;
+  unidad: { id: string; simbolo: string; nombre: string };
+  cantidadBase: number;
+  stockAnterior: number;
+  stockNuevo: number;
+  presentacionId?: string;
+  presentacion?: { id: string; nombre: string; factorAUnidadBase: number };
+  ubicacionId?: string;
+  responsableId?: string;
+  responsable?: { id: string; name: string; lastname: string; email: string };
+  motivoId?: string;
+  motivo?: { id: string; nombre: string; codigo: string };
+  referencia?: string;
+  observaciones?: string;
+  fechaMovimiento: string;
+  createdAt?: string;
+}
+
+/** Resumen para Dashboard de Inventario */
+export interface DashboardInventarioResumen {
+  totalProductos: number;
+  productosStockBajo: number;
+  entradasMes: number;
+  consumosMes: number;
+  totalMovimientosMes: number;
+  ultimosMovimientos: MovimientoInventarioGlobalItem[];
+}
+
+/** Payload para Registro Operativo de Movimiento */
+export interface RegistrarMovimientoPayload {
+  insumoId: string;
+  tipoMovimientoId: string;
+  cantidad: number;
+  unidadId: string;
+  presentacionId?: string;
+  motivoId?: string;
+  ubicacionId?: string;
+  referencia?: string;
+  observaciones?: string;
 }
 
 /** Estado de existencias de un insumo en una sucursal específica */
 export interface StockSucursal {
-  sucursalId: number;
+  sucursalId: number | string;
   sucursalNombre: string;
   cantidad: number;
   stockMinimo: number;
@@ -96,11 +221,11 @@ export function stockEnBodega(item: InventarioItem, bodegaId: string): number {
 
 /** Historial de Movimientos / Despachos / Transferencias de Stock */
 export interface MovimientoStock {
-  id: number;
+  id: number | string;
   codigoMovimiento: string;
   fecha: string;
   tipo: 'Entrada Bodega' | 'Despacho a Sucursal' | 'Consumo en Bahía' | 'Ajuste de Inventario' | string;
-  productoId: number;
+  productoId: number | string;
   productoNombre: string;
   productoSKU: string;
   origen: string;
@@ -113,7 +238,7 @@ export interface MovimientoStock {
 
 /** Resumen de Alertas de Reabastecimiento */
 export interface AlertaReabastecimiento {
-  productoId: number;
+  productoId: number | string;
   productoSKU: string;
   productoNombre: string;
   ubicacion: string; // 'Bodega Central' o nombre de la sucursal
@@ -127,7 +252,7 @@ export interface AlertaReabastecimiento {
 
 /** Insumo consumido en una Orden de Trabajo (OT) de servicio */
 export interface InsumoConsumidoServicio {
-  productoId: number;
+  productoId: number | string;
   productoSKU: string;
   productoNombre: string;
   unidadMedida: string;
@@ -136,10 +261,11 @@ export interface InsumoConsumidoServicio {
 
 /** Insumo configurado como receta predeterminada en el catálogo */
 export interface RecetaInsumoServicio {
-  productoId: number;
+  productoId: number | string;
   productoSKU: string;
   productoNombre: string;
   unidadMedida: string;
+  unidadMedidaId?: string;
   cantidadSugerida: number;
 }
 

@@ -9,9 +9,12 @@ export interface Usuario {
   nombre: string;
   apellido: string;
   rol: 'SuperAdmin' | 'Gerente' | 'Supervisor' | 'Técnico' | 'OPERADOR' | string;
+  rolNombre?: string;
   agencia: string;
-  estado: 'Activo' | 'Inactivo' | 'En Capacitación' | string;
-  fechaAsignacion: string;
+  sucursal?: string;
+  region?: string;
+  estado: 'Activo' | 'Inactivo';
+  fechaAsignacion?: string;
   email: string;
   avatar?: string;
   sucursalAsignada?: string;
@@ -21,7 +24,7 @@ export interface Usuario {
 }
 
 export interface Sucursal {
-  id: number;
+  id: number | string;
   nombre: string;
   ciudad: string;
   direccion: string;
@@ -31,9 +34,9 @@ export interface Sucursal {
   operadoresActivos?: number;
   maquinasAsignadasCount?: number;
   serviciosRealizadosMes?: number;
-  regionId?: number;
+  regionId?: number | string;
   regionNombre?: string;
-  marcaId?: number;
+  marcaId?: number | string;
   marcaNombre?: string;
   /** IDs del catálogo de servicios que esta sucursal ofrece. */
   servicioIds?: number[];
@@ -43,7 +46,7 @@ export interface Sucursal {
   /** Si los servicios completados requieren aprobación gerencial antes del cierre diario. */
   requiereAprobacion?: boolean;
   /** ID del usuario con rol GERENTE asignado como aprobador de esta sucursal. */
-  gerenteId?: number;
+  gerenteId?: number | string;
   /** Nombre denormalizado del gerente aprobador. */
   gerenteNombre?: string;
   /** Si la sucursal ofrece servicios especiales (pulido, cerámico, motor, etc.). */
@@ -52,26 +55,27 @@ export interface Sucursal {
 
 
 export interface RegionOperativa {
-  id: number;
+  id: number | string;
   codigo: string;
   nombre: string;
   descripcion?: string;
   responsable?: string;
-  estado: 'Activa' | 'Inactiva';
+  supervisorId?: string | number;
+  estado: 'Activa' | 'Inactiva' | string;
 }
 
 export interface MarcaSucursal {
-  id: number;
+  id: number | string;
   codigo: string;
   nombre: string;
   descripcion?: string;
   color: string;
-  estado: 'Activa' | 'Inactiva';
+  estado: 'Activa' | 'Inactiva' | string;
 }
 
 export interface MovimientoRedSucursal {
-  id: number;
-  sucursalId: number;
+  id: number | string;
+  sucursalId: number | string;
   sucursalNombre: string;
   tipo: 'REGION' | 'MARCA';
   valorAnterior: string;
@@ -82,18 +86,21 @@ export interface MovimientoRedSucursal {
 }
 
 export interface Bahia {
-  id: number;
+  id: number | string;
   codigo: string;
   nombre: string;
-  sucursalId: number;
-  sucursalNombre: string;
+  sucursalId?: number | string;
+  sucursalNombre?: string;
+  agenciaId?: string;
+  agenciaNombre?: string;
   estado: 'Disponible' | 'Ocupada' | 'Mantenimiento' | 'Inactiva' | string;
   tipo?: string;
   vehiculoActual?: string;
   operadorAsignado?: string;
-  operadorId?: number;
+  operadorId?: number | string;
   maquinariaAsignada?: string[];
 }
+
 
 export interface Operador {
   id: number;
@@ -138,7 +145,7 @@ export interface MovimientoMaquinaria {
 }
 
 export interface Agencia {
-  id: number;
+  id: number | string;
   nombre: string;
   ciudad: string;
   numeroBahias: number;
@@ -147,12 +154,12 @@ export interface Agencia {
   estado: 'Operativa' | 'Capacidad Máxima' | 'Mantenimiento' | 'Inactiva' | string;
   direccion?: string;
   gerenteAsignado?: string;
-  marcaId?: number;
+  marcaId?: number | string;
   marcaNombre?: string;
 }
 
 export interface VehiculoServicio {
-  id: number;
+  id: number | string;
   numeroOrden: string;
   ordenTrabajoOT: string;
   placa: string;
@@ -194,7 +201,7 @@ export interface VehiculoServicio {
 }
 
 export interface Maquinaria {
-  id: number;
+  id: number | string;
   codigo: string;
   nombre: string;
   tipo?: string;
@@ -203,9 +210,9 @@ export interface Maquinaria {
   numeroSerie?: string;
   agencia: string;
   bahia: string;
-  sucursalId?: number;
+  sucursalId?: number | string;
   sucursalNombre?: string;
-  bahiaId?: number;
+  bahiaId?: number | string;
   bahiaNombre?: string;
   operadorResponsable?: string;
   estado: 'Operativa' | 'Mantenimiento' | 'Dañada' | 'Fuera de Servicio' | 'Requiere Mantenimiento' | 'En Reparación' | string;
@@ -260,14 +267,14 @@ export interface ArchivoAdjunto {
 export type EstadoEnvio = 'PENDIENTE' | 'ENVIADO' | 'RECIBIDO' | 'RECHAZADO';
 
 export interface EnvioSuministroItem {
-  productoId: number;
+  productoId: number | string;
   nombreProducto: string;
   cantidad: number;
   unidad: string;
 }
 
 export interface EnvioSuministro {
-  id: number;
+  id: number | string;
   codigoEnvio: string;
   fecha: string;
   fechaEnvio?: string;
@@ -275,7 +282,7 @@ export interface EnvioSuministro {
   horaInicio?: string;
   horaFin?: string;
   duracionMin?: number;
-  sucursalId: number;
+  sucursalId?: number | string;
   sucursalNombre: string;
   ciudad: string;
   productos: EnvioSuministroItem[];

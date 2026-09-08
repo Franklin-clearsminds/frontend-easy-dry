@@ -76,6 +76,13 @@ export const MENU_CONFIG: MenuItem[] = [
     group: 'Servicios de Lavado'
   },
   {
+    label: 'Catálogo de Servicios',
+    route: '/configuracion/servicios',
+    icon: 'file-text',
+    moduloCodigo: 'configuracion/servicios',
+    group: 'Servicios de Lavado'
+  },
+  {
     label: 'Aprobaciones del Día',
     route: '/aprobaciones',
     icon: 'shield-check',
@@ -130,13 +137,6 @@ export const MENU_CONFIG: MenuItem[] = [
     route: '/usuarios',
     icon: 'users',
     moduloCodigo: 'usuarios',
-    group: 'Administración'
-  },
-  {
-    label: 'Catálogo de Servicios',
-    route: '/configuracion/servicios',
-    icon: 'file-text',
-    moduloCodigo: 'configuracion/servicios',
     group: 'Administración'
   },
   {

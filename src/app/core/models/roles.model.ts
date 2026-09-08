@@ -224,6 +224,7 @@ export const MODULOS_POR_ROL: Record<string, string[]> = {
     'sucursales',
     'operadores',
     'servicios',
+    'configuracion/servicios',
     'aprobaciones',
     'productividad',
     'maquinaria',
@@ -240,6 +241,7 @@ export const MODULOS_POR_ROL: Record<string, string[]> = {
     'operadores',
     'asignaciones',
     'servicios',
+    'configuracion/servicios',
     'productividad',
     'maquinaria',
     'taller-tecnico',
@@ -253,6 +255,7 @@ export const MODULOS_POR_ROL: Record<string, string[]> = {
     'notificaciones',
     'productividad',
     'servicios',
+    'configuracion/servicios',
     'reportes',
     'perfil'
   ],
@@ -262,6 +265,7 @@ export const MODULOS_POR_ROL: Record<string, string[]> = {
     'notificaciones',
     'productividad',
     'servicios',
+    'configuracion/servicios',
     'reportes',
     'perfil'
   ],
@@ -272,6 +276,7 @@ export const MODULOS_POR_ROL: Record<string, string[]> = {
     'notificaciones',
     'mi-bahia',
     'servicios',
+    'configuracion/servicios',
     'maquinaria',
     'inventario',
     'perfil'
@@ -281,6 +286,7 @@ export const MODULOS_POR_ROL: Record<string, string[]> = {
     'dashboard',
     'notificaciones',
     'servicios',
+    'configuracion/servicios',
     'aprobaciones',
     'operadores',
     'asignaciones',

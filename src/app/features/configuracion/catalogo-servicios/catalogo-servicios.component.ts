@@ -8,12 +8,14 @@ import { CatalogoServicio, RecetaInsumoServicio, InventarioItem } from '../../..
 import { PaginationComponent } from '../../../shared/components/pagination/pagination.component';
 import { ModalPortalDirective } from '../../../shared/directives/modal-portal.directive';
 
+import { RouterModule } from '@angular/router';
+
 const SUCURSALES_RED = ['EasyDry Quito Norte', 'EasyDry Quito Sur', 'EasyDry Cumbayá', 'EasyDry Guayaquil'];
 
 @Component({
   selector: 'app-catalogo-servicios',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule, PaginationComponent, ModalPortalDirective],
+  imports: [CommonModule, RouterModule, FormsModule, LucideAngularModule, PaginationComponent, ModalPortalDirective],
   templateUrl: './catalogo-servicios.component.html'
 })
 export class CatalogoServiciosComponent implements OnInit {
@@ -45,14 +47,55 @@ export class CatalogoServiciosComponent implements OnInit {
   servicioActual: Partial<CatalogoServicio> = {
     categoria: 'GENERAL',
     estado: 'Activo',
-    requiereFoto: false,
-    requiereVideo: false,
     insumosReceta: []
   };
+
+  // ── Selección temporal de insumos en modal ───────────────────────────────
+  insumoSeleccionadoId = '';
+  cantidadADescontar = 0.25;
+  busquedaInsumoReceta = '';
+
+  get insumosDisponiblesFiltrados(): InventarioItem[] {
+    if (!this.busquedaInsumoReceta || !this.busquedaInsumoReceta.trim()) {
+      return this.productosInventario;
+    }
+    const q = this.busquedaInsumoReceta.toLowerCase().trim();
+    return this.productosInventario.filter(item => {
+      const nom = (item.producto?.nombre || '').toLowerCase();
+      const sku = (item.producto?.codigoSKU || '').toLowerCase();
+      const uni = (item.producto?.unidadMedida || '').toLowerCase();
+      return nom.includes(q) || sku.includes(q) || uni.includes(q);
+    });
+  }
+
+  get insumoSeleccionadoActual(): InventarioItem | undefined {
+    if (!this.insumoSeleccionadoId) return undefined;
+    return this.productosInventario.find(i => String(i.producto.id) === String(this.insumoSeleccionadoId));
+  }
+
+  onInsumoSeleccionadoChange(id: string): void {
+    this.insumoSeleccionadoId = id;
+    const item = this.insumoSeleccionadoActual;
+    if (item) {
+      const u = (item.producto.unidadMedida || '').toLowerCase().trim();
+      if (u === 'l' || u === 'litro' || u === 'litros') {
+        this.cantidadADescontar = 0.25;
+      } else if (u === 'ml' || u === 'mililitro' || u === 'mililitros') {
+        this.cantidadADescontar = 100;
+      } else if (u === 'kg' || u === 'kilo' || u === 'kilos') {
+        this.cantidadADescontar = 0.1;
+      } else if (u === 'g' || u === 'gramo' || u === 'gramos') {
+        this.cantidadADescontar = 50;
+      } else {
+        this.cantidadADescontar = 1;
+      }
+    }
+  }
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
   ngOnInit() {
     this.cargarServicios();
+    this.inventarioService.cargarItems();
     this.inventarioService.getItems().subscribe(items => {
       this.productosInventario = items;
     });
@@ -69,6 +112,7 @@ export class CatalogoServiciosComponent implements OnInit {
 
   // ── Cargar servicios ─────────────────────────────────────────────────────
   cargarServicios() {
+    this.catalogoService.getServicios().subscribe();
     this.catalogoService.servicios$.subscribe(data => {
       this.servicios = data;
     });
@@ -125,10 +169,11 @@ export class CatalogoServiciosComponent implements OnInit {
       descripcion: '',
       categoria: categoria,
       estado: 'Activo',
-      requiereFoto: categoria === 'ESPECIAL',
-      requiereVideo: categoria === 'ESPECIAL',
       insumosReceta: []
     };
+    this.insumoSeleccionadoId = '';
+    this.cantidadADescontar = 0.25;
+    this.busquedaInsumoReceta = '';
     this.showModal = true;
   }
 
@@ -138,42 +183,62 @@ export class CatalogoServiciosComponent implements OnInit {
       ...servicio,
       insumosReceta: servicio.insumosReceta ? JSON.parse(JSON.stringify(servicio.insumosReceta)) : []
     };
+    this.insumoSeleccionadoId = '';
+    this.cantidadADescontar = 0.25;
+    this.busquedaInsumoReceta = '';
     this.showModal = true;
   }
 
   cerrarModal() { this.showModal = false; }
 
-  agregarInsumoReceta(productoIdStr: string) {
-    if (!productoIdStr) return;
-    const prodId = Number(productoIdStr);
-    const item = this.productosInventario.find(i => i.producto.id === prodId);
+  agregarInsumoReceta(productoIdStr?: string, cantidadManual?: number) {
+    const targetId = productoIdStr || this.insumoSeleccionadoId;
+    if (!targetId) return;
+
+    const item = this.productosInventario.find(i => String(i.producto.id) === String(targetId));
     if (!item) return;
-    if (!this.servicioActual.insumosReceta) this.servicioActual.insumosReceta = [];
-    const existe = this.servicioActual.insumosReceta.find(r => r.productoId === prodId);
+
+    const cant = cantidadManual !== undefined ? Number(cantidadManual) : (Number(this.cantidadADescontar) || 1);
+    if (cant <= 0) return;
+
+    if (!this.servicioActual.insumosReceta) {
+      this.servicioActual.insumosReceta = [];
+    }
+
+    const existe = this.servicioActual.insumosReceta.find(r => String(r.productoId) === String(targetId));
     if (existe) {
-      existe.cantidadSugerida += 1;
+      existe.cantidadSugerida = Math.round((Number(existe.cantidadSugerida) + cant) * 100) / 100;
     } else {
       this.servicioActual.insumosReceta.push({
         productoId: item.producto.id,
         productoSKU: item.producto.codigoSKU,
         productoNombre: item.producto.nombre,
-        unidadMedida: item.producto.unidadMedida,
-        cantidadSugerida: 1
+        unidadMedida: item.producto.unidadMedida || 'u',
+        unidadMedidaId: item.producto.unidadMedidaId,
+        cantidadSugerida: Math.round(cant * 100) / 100
       });
     }
+
+    // Reset selección temporal
+    this.insumoSeleccionadoId = '';
+    this.cantidadADescontar = 0.25;
   }
 
   aumentarCantidadReceta(index: number) {
     if (this.servicioActual.insumosReceta?.[index]) {
-      const actual = this.servicioActual.insumosReceta[index].cantidadSugerida;
-      this.servicioActual.insumosReceta[index].cantidadSugerida = Math.round((actual + 0.5) * 10) / 10;
+      const actual = Number(this.servicioActual.insumosReceta[index].cantidadSugerida || 0);
+      const step = actual < 1 ? 0.05 : 0.5;
+      this.servicioActual.insumosReceta[index].cantidadSugerida = Math.round((actual + step) * 100) / 100;
     }
   }
 
   disminuirCantidadReceta(index: number) {
     if (this.servicioActual.insumosReceta?.[index]) {
-      const actual = this.servicioActual.insumosReceta[index].cantidadSugerida;
-      if (actual > 0.5) this.servicioActual.insumosReceta[index].cantidadSugerida = Math.round((actual - 0.5) * 10) / 10;
+      const actual = Number(this.servicioActual.insumosReceta[index].cantidadSugerida || 0);
+      const step = actual <= 1 ? 0.05 : 0.5;
+      if (actual > step) {
+        this.servicioActual.insumosReceta[index].cantidadSugerida = Math.round((actual - step) * 100) / 100;
+      }
     }
   }
 
