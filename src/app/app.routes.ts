@@ -294,8 +294,22 @@ export const routes: Routes = [
           import('./features/configuracion/catalogo-servicios/catalogo-servicios.component').then(m => m.CatalogoServiciosComponent),
         canActivate: [
           authGuard,
-          roleGuard([Role.SUPER_ADMIN, Role.ADMIN], 'configuracion/servicios')
+          roleGuard([
+            Role.SUPER_ADMIN,
+            Role.ADMIN,
+            Role.APROBADOR,
+            Role.SUPERVISOR,
+            Role.JEFE_COMERCIAL,
+            Role.COORD_COMERCIAL,
+            Role.COORD_SERVICIOS_ESPECIALES,
+            Role.LIDER_AGENCIA
+          ], 'configuracion/servicios')
         ]
+      },
+      {
+        path: 'servicios/catalogo',
+        redirectTo: 'configuracion/servicios',
+        pathMatch: 'full'
       }
     ]
   },

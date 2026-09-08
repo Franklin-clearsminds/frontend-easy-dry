@@ -206,7 +206,6 @@ export class DashboardComponent implements OnInit {
     return {
       ...d,
       totalVehiculos: d.vehiculosHoy ?? d.totalVehiculos ?? 0,
-      ingresosEstimados: d.ingresosEstimados ?? 4200,
       bahiasOcupadas: d.bahiasOcupadas ?? 8,
       totalBahias: d.totalBahias ?? 10,
       tiempoPromedioMinutos: d.tiempoPromedioMinutos ?? 22,

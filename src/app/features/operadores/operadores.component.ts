@@ -39,7 +39,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
         [showMarca]="true"
         [showEstado]="true"
         [showFechas]="false"
-        [listaEstados]="['Todos', 'Activo', 'Inactivo', 'En Capacitación']"
+        [listaEstados]="['Todos', 'Activo', 'Inactivo']"
         (filterChange)="aplicarNuevosFiltros($event)">
       </app-filter-bar>
 
@@ -207,11 +207,17 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
             </div>
 
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Sucursal / Agencia</label>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">
+                Sucursal / Agencia
+                @if (isGerente) {
+                  <span class="text-purple-600 font-bold ml-1">(Exclusivo tu Agencia)</span>
+                }
+              </label>
               <select
                 [(ngModel)]="formAsignarBahia.sucursalNombre"
+                [disabled]="isGerente"
                 (change)="onSucursalChange()"
-                class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800">
+                class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 disabled:opacity-75 disabled:bg-slate-100">
                 @for (s of sucursales; track s.id) {
                   <option [value]="s.nombre">{{ s.nombre }} ({{ s.ciudad }})</option>
                 }
@@ -458,10 +464,18 @@ export class OperadoresComponent implements OnInit {
   }
 
   abrirModalAsignar(op: Operador): void {
+    if (op.estado === 'Inactivo') {
+      this.toastService.warning('Operador Inactivo', 'No se puede asignar bahías a un colaborador inactivo. Debe activarlo primero.');
+      return;
+    }
     this.operadorSeleccionado = op;
+    const sucursalTarget = (this.isGerente && this.userSucursal)
+      ? this.userSucursal
+      : (op.sucursal || (this.sucursales[0]?.nombre || 'EasyDry Quito Norte'));
+
     this.formAsignarBahia = {
       operadorId: op.id,
-      sucursalNombre: op.sucursal || (this.sucursales[0]?.nombre || 'EasyDry Quito Norte'),
+      sucursalNombre: sucursalTarget,
       bahiaNombre: op.bahia && !op.bahia.includes('Sin') ? op.bahia : this.listaBahiasDisponibles[0],
       motivo: ''
     };

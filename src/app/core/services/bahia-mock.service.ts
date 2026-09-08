@@ -1,102 +1,111 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
 import { BehaviorSubject, Observable, of } from 'rxjs';
-import { delay, map } from 'rxjs/operators';
+import { map, tap, catchError } from 'rxjs/operators';
 import { Bahia } from '../models';
-import { MOCK_BAHIAS } from '../mocks/bahias.mock';
+import { apiUrl } from '../config/env';
 
 @Injectable({
   providedIn: 'root'
 })
 export class BahiaMockService {
-  private bahiasSubject = new BehaviorSubject<Bahia[]>(MOCK_BAHIAS);
+  private http = inject(HttpClient);
+  private bahiasSubject = new BehaviorSubject<Bahia[]>([]);
   public bahias$ = this.bahiasSubject.asObservable();
 
-  getBahias(): Observable<Bahia[]> {
-    return this.bahias$;
+  private mapBackendBahia(b: any): Bahia {
+    return {
+      id: b.id,
+      codigo: b.codigo || '',
+      nombre: b.nombre || '',
+      sucursalId: b.agenciaId || b.agencia?.id || '',
+      sucursalNombre: b.agencia?.nombre || 'Agencia',
+      agenciaId: b.agenciaId || b.agencia?.id || '',
+      agenciaNombre: b.agencia?.nombre || 'Agencia',
+      estado: b.activa ? (b.operadorActual ? 'Ocupada' : 'Disponible') : 'Inactiva',
+      operadorAsignado: b.operadorActual ? `${b.operadorActual.name || ''} ${b.operadorActual.lastname || ''}`.trim() : 'Sin Asignar',
+      operadorId: b.operadorActualId || undefined,
+      maquinariaAsignada: []
+    };
   }
 
-  getBahiasPorSucursal(sucursalId: number): Observable<Bahia[]> {
-    return this.bahias$.pipe(
-      map(list => list.filter(b => b.sucursalId === sucursalId)),
-      delay(150)
+  getBahias(): Observable<Bahia[]> {
+    return this.http.post<any[]>(apiUrl('/agencias/bahias/list'), {}).pipe(
+      map(items => (items || []).map(b => this.mapBackendBahia(b))),
+      tap(mapped => this.bahiasSubject.next(mapped)),
+      catchError(() => of(this.bahiasSubject.value))
     );
   }
 
-  actualizarEstadoBahia(id: number, nuevoEstado: Bahia['estado']): Observable<Bahia | null> {
-    const current = this.bahiasSubject.value;
-    const item = current.find(b => b.id === id);
-    if (item) {
-      item.estado = nuevoEstado;
-      this.bahiasSubject.next([...current]);
-      return of(item).pipe(delay(200));
-    }
-    return of(null);
+  getBahiasPorSucursal(sucursalId: string | number): Observable<Bahia[]> {
+    const payload = sucursalId ? { agenciaId: String(sucursalId) } : {};
+    return this.http.post<any[]>(apiUrl('/agencias/bahias/list'), payload).pipe(
+      map(items => (items || []).map(b => this.mapBackendBahia(b))),
+      tap(mapped => {
+        const current = this.bahiasSubject.value;
+        const others = current.filter(c => c.sucursalId !== sucursalId && c.agenciaId !== sucursalId);
+        this.bahiasSubject.next([...others, ...mapped]);
+      }),
+      catchError(() => of(this.bahiasSubject.value.filter(b => b.sucursalId === sucursalId || b.agenciaId === sucursalId)))
+    );
   }
 
-  asignarOperadorABahia(bahiaId: number, operadorNombre: string, operadorId?: number): Observable<Bahia | null> {
-    const current = this.bahiasSubject.value;
-    
-    // Clear previous bay of this operator
-    current.forEach(b => {
-      if (b.operadorAsignado === operadorNombre) {
-        b.operadorAsignado = 'Sin Asignar';
-        b.operadorId = undefined;
-        if (b.estado === 'Ocupada') {
-          b.estado = 'Disponible';
+  actualizarEstadoBahia(id: string | number, nuevoEstado: Bahia['estado']): Observable<Bahia | null> {
+    const activa = nuevoEstado !== 'Inactiva';
+    return this.http.post<any>(apiUrl('/agencias/bahias/update'), { id: String(id), activa }).pipe(
+      map(updated => this.mapBackendBahia(updated)),
+      tap(mapped => {
+        const current = this.bahiasSubject.value;
+        const idx = current.findIndex(b => b.id === id);
+        if (idx !== -1) {
+          current[idx] = { ...current[idx], ...mapped, estado: nuevoEstado };
+          this.bahiasSubject.next([...current]);
         }
-      }
-    });
-
-    const target = current.find(b => b.id === bahiaId);
-    if (target) {
-      target.operadorAsignado = operadorNombre;
-      target.operadorId = operadorId;
-      target.estado = 'Ocupada';
-      this.bahiasSubject.next([...current]);
-      return of(target).pipe(delay(300));
-    }
-    return of(null);
+      }),
+      catchError(() => of(null))
+    );
   }
 
-  sincronizarBahias(sucursalId: number, sucursalNombre: string, nuevaCantidad: number): void {
-    const current = this.bahiasSubject.value;
-    const bahiasSucursal = current.filter(b => b.sucursalId === sucursalId);
-    
-    if (bahiasSucursal.length === nuevaCantidad) {
-      return; // Nada que hacer
+  asignarOperadorABahia(bahiaId: string | number, operadorNombre: string, operadorId?: string | number): Observable<Bahia | null> {
+    if (!operadorId) {
+      return of(null);
     }
+    return this.http.post<any>(apiUrl('/agencias/bahias/asignar-operador'), {
+      bahiaId: String(bahiaId),
+      operadorId: String(operadorId),
+      tipoAsignacion: 'TEMPORAL'
+    }).pipe(
+      map(updated => this.mapBackendBahia(updated)),
+      tap(mapped => {
+        const current = this.bahiasSubject.value;
+        const idx = current.findIndex(b => b.id === bahiaId);
+        if (idx !== -1) {
+          current[idx] = {
+            ...current[idx],
+            ...mapped,
+            operadorAsignado: operadorNombre,
+            operadorId,
+            estado: 'Ocupada'
+          };
+          this.bahiasSubject.next([...current]);
+        }
+      }),
+      catchError(() => of(null))
+    );
+  }
 
-    if (nuevaCantidad > bahiasSucursal.length) {
-      // Agregar nuevas bahías
-      const dif = nuevaCantidad - bahiasSucursal.length;
-      let nextId = Math.max(...current.map(b => b.id), 0) + 1;
-      let maxNum = 0;
-      bahiasSucursal.forEach(b => {
-        const num = parseInt(b.nombre.replace('Bahía ', ''));
-        if (!isNaN(num) && num > maxNum) maxNum = num;
-      });
+  crearBahia(dto: { agenciaId: string; codigo: string; nombre: string; activa?: boolean }): Observable<Bahia | null> {
+    return this.http.post<any>(apiUrl('/agencias/bahias/create'), dto).pipe(
+      map(created => this.mapBackendBahia(created)),
+      tap(mapped => {
+        const current = this.bahiasSubject.value;
+        this.bahiasSubject.next([...current, mapped]);
+      }),
+      catchError(() => of(null))
+    );
+  }
 
-      const nuevasBahias: Bahia[] = [];
-      for (let i = 1; i <= dif; i++) {
-        const num = maxNum + i;
-        nuevasBahias.push({
-          id: nextId++,
-          codigo: `B${sucursalId.toString().padStart(2, '0')}-${num.toString().padStart(2, '0')}`,
-          nombre: `Bahía ${num}`,
-          sucursalId,
-          sucursalNombre,
-          estado: 'Disponible',
-          operadorAsignado: 'Sin Asignar',
-          maquinariaAsignada: []
-        });
-      }
-      this.bahiasSubject.next([...current, ...nuevasBahias]);
-    } else {
-      // Eliminar bahías sobrantes (se quitarán las últimas creadas)
-      const dif = bahiasSucursal.length - nuevaCantidad;
-      const idsToRemove = bahiasSucursal.slice(-dif).map(b => b.id);
-      const filtered = current.filter(b => !idsToRemove.includes(b.id));
-      this.bahiasSubject.next(filtered);
-    }
+  sincronizarBahias(sucursalId: string | number, sucursalNombre: string, nuevaCantidad: number): void {
+    this.getBahiasPorSucursal(sucursalId).subscribe();
   }
 }

@@ -117,7 +117,7 @@ export class NotificacionesComponent implements OnInit {
   ];
 
   ngOnInit(): void {
-    this.notificaciones = MOCK_NOTIFICACIONES.map(n => ({ ...n }));
+    this.notificaciones = [];
   }
 
   get noLeidas(): number {

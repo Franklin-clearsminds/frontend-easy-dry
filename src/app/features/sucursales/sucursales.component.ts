@@ -347,7 +347,11 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                   </span>
                 </div>
                 <p class="text-xs text-slate-500 mt-1 line-clamp-2">{{ r.descripcion }}</p>
-                <p class="text-[11px] font-bold text-easydry-blue mt-2">{{ sucursalesDeRegion(r.id).length }} sucursales</p>
+                <p class="text-[11px] font-semibold text-slate-600 mt-1 flex items-center gap-1">
+                  <i-lucide name="user-check" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide>
+                  <span>Supervisor: <b class="text-slate-800">{{ r.responsable || 'Sin supervisor' }}</b></span>
+                </p>
+                <p class="text-[11px] font-bold text-easydry-blue mt-1">{{ sucursalesDeRegion(r.id).length }} sucursales</p>
               </button>
             }
           </div>
@@ -810,8 +814,39 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
             <input type="text" [(ngModel)]="formRegion.descripcion" name="regionDesc" class="w-full p-2.5 border rounded-xl text-sm">
           </div>
           <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Responsable</label>
-            <input type="text" [(ngModel)]="formRegion.responsable" name="regionResp" class="w-full p-2.5 border rounded-xl text-sm">
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1 flex items-center justify-between">
+              <span>
+                <i-lucide name="user-check" class="w-3.5 h-3.5 inline mr-1 text-easydry-blue"></i-lucide>
+                Responsable (Supervisor Regional)
+              </span>
+              @if (formRegion.responsable) {
+                <span class="text-[10px] font-semibold text-emerald-600 normal-case bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                  Asignado: {{ formRegion.responsable }}
+                </span>
+              }
+            </label>
+            <select
+              [(ngModel)]="formRegion.supervisorId"
+              (ngModelChange)="alCambiarSupervisorRegion($event)"
+              name="regionRespSelect"
+              class="w-full p-2.5 border border-slate-200 rounded-xl text-sm bg-white font-medium focus:ring-2 focus:ring-easydry-blue/30 focus:border-easydry-blue text-slate-800">
+              <option value="">— Seleccione un Supervisor Regional —</option>
+              @for (sup of supervisoresUsuarios; track sup.id) {
+                <option [value]="sup.id">
+                  {{ sup.nombre }} {{ sup.apellido }} · {{ sup.email }}
+                </option>
+              }
+            </select>
+            @if (!supervisoresUsuarios.length) {
+              <p class="text-[11px] text-amber-600 mt-1.5 flex items-center gap-1">
+                <i-lucide name="alert-triangle" class="w-3 h-3"></i-lucide>
+                No hay usuarios con rol Supervisor registrados aún en el sistema.
+              </p>
+            } @else {
+              <p class="text-[11px] text-slate-400 mt-1">
+                Seleccione el supervisor que estará a cargo de esta región operativa.
+              </p>
+            }
           </div>
           <div>
             <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Estado</label>
@@ -917,17 +952,20 @@ export class SucursalesComponent implements OnInit {
     { id: 'marcas' as const, label: '🏷️ Marcas' }
   ];
 
-  filtroRegionId = 0;
-  filtroMarcaId = 0;
+  filtroRegionId: number | string = 0;
+  filtroMarcaId: number | string = 0;
   filtrosGlobales: FilterState = { sucursal: 'Todas', region: 'Todas', marca: 'Todas', operador: 'Todos', bahia: 'Todas', estado: 'Todos', fecha: 'Mes' };
-  filtroSucursalMapaId = 0;
+  filtroSucursalMapaId: number | string = 0;
   regionSeleccionada: RegionOperativa | null = null;
   marcaSeleccionada: MarcaSucursal | null = null;
   bahiasTodas: Bahia[] = [];
 
   gerentesUsuarios: Usuario[] = [];
   modalAsignarGerenteOpen = false;
-  formAsignarGerente = {
+  formAsignarGerente: {
+    gerenteId: string | number;
+    sucursalId: string | number;
+  } = {
     gerenteId: 0,
     sucursalId: 0
   };
@@ -941,16 +979,18 @@ export class SucursalesComponent implements OnInit {
 
   modalRegionOpen = false;
   editandoRegion = false;
-  formRegion: Omit<RegionOperativa, 'id' | 'codigo'> & { id?: number; codigo?: string } = {
+  formRegion: Omit<RegionOperativa, 'id' | 'codigo'> & { id?: number | string; codigo?: string; supervisorId?: string | number } = {
     nombre: '',
     descripcion: '',
     responsable: '',
+    supervisorId: '',
     estado: 'Activa'
   };
+  supervisoresUsuarios: Usuario[] = [];
 
   modalMarcaOpen = false;
   editandoMarca = false;
-  formMarca: Omit<MarcaSucursal, 'id' | 'codigo'> & { id?: number; codigo?: string } = {
+  formMarca: Omit<MarcaSucursal, 'id' | 'codigo'> & { id?: number | string; codigo?: string } = {
     nombre: '',
     descripcion: '',
     color: '#004282',
@@ -959,9 +999,9 @@ export class SucursalesComponent implements OnInit {
 
   modalTransferirOpen = false;
   formTransfer = {
-    sucursalId: 0,
-    regionId: 0,
-    marcaId: 0,
+    sucursalId: 0 as number | string,
+    regionId: 0 as number | string,
+    marcaId: 0 as number | string,
     motivo: ''
   };
 
@@ -1044,7 +1084,7 @@ export class SucursalesComponent implements OnInit {
   }
 
   guardarAsignacionGerente(): void {
-    const ger = this.gerentesUsuarios.find(g => g.id === this.formAsignarGerente.gerenteId);
+    const ger = this.gerentesUsuarios.find(g => String(g.id) === String(this.formAsignarGerente.gerenteId));
     const suc = this.sucursales.find(s => s.id === this.formAsignarGerente.sucursalId);
     if (!ger || !suc) {
       this.toastService.warning('Campos requeridos', 'Selecciona un usuario gerente y una sucursal.');
@@ -1106,23 +1146,40 @@ export class SucursalesComponent implements OnInit {
     this.bahiaService.getBahias().subscribe(list => {
       this.bahiasTodas = list;
     });
+    this.usuarioService.usuarios$.subscribe(list => {
+      if (list && list.length) {
+        this.gerentesUsuarios = list.filter(u =>
+          (u.estado === 'Activo' || (u as any).estado === 1) &&
+          (u.rol === 'Gerente de Sucursal' || u.rol === 'GERENTE' || u.rol.toLowerCase().includes('gerente') || u.rol === 'APROBADOR')
+        );
+        this.supervisoresUsuarios = list.filter(u =>
+          (u.estado === 'Activo' || (u as any).estado === 1) &&
+          (u.rol === 'SUPERVISOR' || u.rol === 'Supervisor Regional' || u.rol.toLowerCase().includes('supervisor'))
+        );
+      }
+    });
     this.usuarioService.getUsuarios().subscribe(list => {
       this.gerentesUsuarios = list.filter(u =>
-        u.rol === 'Gerente de Sucursal' || u.rol === 'GERENTE' || u.rol.toLowerCase().includes('gerente')
+        (u.estado === 'Activo' || (u as any).estado === 1) &&
+        (u.rol === 'Gerente de Sucursal' || u.rol === 'GERENTE' || u.rol.toLowerCase().includes('gerente') || u.rol === 'APROBADOR')
+      );
+      this.supervisoresUsuarios = list.filter(u =>
+        (u.estado === 'Activo' || (u as any).estado === 1) &&
+        (u.rol === 'SUPERVISOR' || u.rol === 'Supervisor Regional' || u.rol.toLowerCase().includes('supervisor'))
       );
     });
   }
 
-  sucursalesDeRegion(regionId: number): Sucursal[] {
-    return this.sucursales.filter(s => s.regionId === regionId);
+  sucursalesDeRegion(regionId: number | string): Sucursal[] {
+    return this.sucursales.filter(s => String(s.regionId) === String(regionId));
   }
 
-  sucursalesDeMarca(marcaId: number): Sucursal[] {
-    return this.sucursales.filter(s => s.marcaId === marcaId);
+  sucursalesDeMarca(marcaId: number | string): Sucursal[] {
+    return this.sucursales.filter(s => String(s.marcaId) === String(marcaId));
   }
 
-  colorMarca(marcaId?: number): string {
-    return this.marcas.find(m => m.id === marcaId)?.color || '#004282';
+  colorMarca(marcaId?: number | string): string {
+    return this.marcas.find(m => String(m.id) === String(marcaId))?.color || '#004282';
   }
 
   verEnMapa(suc: Sucursal): void {
@@ -1131,12 +1188,12 @@ export class SucursalesComponent implements OnInit {
   }
 
   get sucursalesMapa(): Sucursal[] {
-    if (this.filtroSucursalMapaId === 0) return this.sucursales;
-    return this.sucursales.filter(s => s.id === this.filtroSucursalMapaId);
+    if (!this.filtroSucursalMapaId || this.filtroSucursalMapaId === 0 || this.filtroSucursalMapaId === '0') return this.sucursales;
+    return this.sucursales.filter(s => String(s.id) === String(this.filtroSucursalMapaId));
   }
 
-  getBahiasDeSucursal(sucursalId: number): Bahia[] {
-    return this.bahiasTodas.filter(b => b.sucursalId === sucursalId);
+  getBahiasDeSucursal(sucursalId: number | string): Bahia[] {
+    return this.bahiasTodas.filter(b => String(b.sucursalId) === String(sucursalId) || String(b.agenciaId) === String(sucursalId));
   }
 
   getEstadoBahiaBadge(estado: string): string {
@@ -1288,10 +1345,35 @@ export class SucursalesComponent implements OnInit {
 
   abrirModalRegion(region?: RegionOperativa): void {
     this.editandoRegion = !!region;
+    let supId: string | number = '';
+    if (region) {
+      if (region.supervisorId) {
+        supId = region.supervisorId;
+      } else if (region.responsable) {
+        const found = this.supervisoresUsuarios.find(s =>
+          `${s.nombre} ${s.apellido}`.trim().toLowerCase() === region.responsable?.trim().toLowerCase() ||
+          region.responsable?.toLowerCase().includes(s.nombre.toLowerCase())
+        );
+        if (found) supId = found.id;
+      }
+    }
     this.formRegion = region
-      ? { ...region }
-      : { nombre: '', descripcion: '', responsable: '', estado: 'Activa' };
+      ? { ...region, supervisorId: supId }
+      : { nombre: '', descripcion: '', responsable: '', supervisorId: '', estado: 'Activa' };
     this.modalRegionOpen = true;
+  }
+
+  alCambiarSupervisorRegion(supId: any): void {
+    if (!supId) {
+      this.formRegion.responsable = '';
+      this.formRegion.supervisorId = '';
+      return;
+    }
+    const sup = this.supervisoresUsuarios.find(s => String(s.id) === String(supId));
+    if (sup) {
+      this.formRegion.responsable = `${sup.nombre} ${sup.apellido}`.trim();
+      this.formRegion.supervisorId = sup.id;
+    }
   }
 
   guardarRegion(): void {
@@ -1361,7 +1443,7 @@ export class SucursalesComponent implements OnInit {
   }
 
   abrirAsignarARegion(region: RegionOperativa): void {
-    const candidata = this.sucursales.find(s => s.regionId !== region.id) || this.sucursales[0];
+    const candidata = this.sucursales.find(s => String(s.regionId) !== String(region.id)) || this.sucursales[0];
     this.formTransfer = {
       sucursalId: candidata?.id || 0,
       regionId: region.id,
@@ -1372,7 +1454,7 @@ export class SucursalesComponent implements OnInit {
   }
 
   abrirAsignarAMarca(marca: MarcaSucursal): void {
-    const candidata = this.sucursales.find(s => s.marcaId !== marca.id) || this.sucursales[0];
+    const candidata = this.sucursales.find(s => String(s.marcaId) !== String(marca.id)) || this.sucursales[0];
     this.formTransfer = {
       sucursalId: candidata?.id || 0,
       regionId: candidata?.regionId || 0,
@@ -1383,7 +1465,7 @@ export class SucursalesComponent implements OnInit {
   }
 
   guardarTransferencia(): void {
-    const suc = this.sucursales.find(s => s.id === this.formTransfer.sucursalId);
+    const suc = this.sucursales.find(s => String(s.id) === String(this.formTransfer.sucursalId));
     if (!suc) {
       this.toastService.warning('Sucursal requerida', 'Seleccione la sucursal a transferir.');
       return;

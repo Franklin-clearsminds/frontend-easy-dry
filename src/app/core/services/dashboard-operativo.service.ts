@@ -16,7 +16,7 @@ import {
 
 const MOCK_RESUMEN_EJECUTIVO = {
   kpis: [
-    { label: 'Ingresos', value: '$4,200', icon: 'dollar-sign', trend: '+12%', trendPositive: true, variant: 'success' },
+    { label: 'Cumplimiento Operativo', value: '98.5%', icon: 'shield-check', trend: '+2.1%', trendPositive: true, variant: 'success' },
     { label: 'Eficiencia', value: '87%', icon: 'trending-up', trend: '+5%', trendPositive: true, variant: 'primary' },
     { label: 'OTs Completadas', value: '42', icon: 'check-circle', trend: '+8', trendPositive: true, variant: 'success' },
     { label: 'Tiempo Prom.', value: '22 min', icon: 'clock', trend: '-4 min', trendPositive: true, variant: 'warning' }

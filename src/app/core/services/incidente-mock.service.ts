@@ -17,7 +17,7 @@ export class IncidenteMockService {
 
   crearIncidente(inc: Omit<Incidente, 'id'>): Observable<Incidente> {
     const current = this.incidentesSubject.value;
-    const nextId = Math.max(...current.map(i => i.id), 0) + 1;
+    const nextId = Math.max(...current.map(i => typeof i.id === 'number' ? i.id : 0), 0) + 1;
     const nuevo: Incidente = {
       ...inc,
       id: nextId,
@@ -43,10 +43,10 @@ export class IncidenteMockService {
   }
 
   asignarIncidente(
-    id: number,
-    tecnicoId: number,
+    id: string | number,
+    tecnicoId: string | number,
     tecnicoNombre: string,
-    gestorId: number,
+    gestorId: string | number,
     gestorNombre: string
   ): Observable<Incidente | null> {
     const current = this.incidentesSubject.value;
@@ -68,7 +68,7 @@ export class IncidenteMockService {
     return of(actualizado).pipe(delay(300));
   }
 
-  cancelarAsignacion(id: number): Observable<Incidente | null> {
+  cancelarAsignacion(id: string | number): Observable<Incidente | null> {
     const current = this.incidentesSubject.value;
     const idx = current.findIndex(i => i.id === id);
     if (idx === -1) return of(null);

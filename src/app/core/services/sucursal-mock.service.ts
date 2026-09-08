@@ -1,51 +1,58 @@
 import { Injectable, inject } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
 import { BehaviorSubject, Observable, of } from 'rxjs';
-import { delay, map } from 'rxjs/operators';
+import { map, tap, catchError } from 'rxjs/operators';
 import { MovimientoRedSucursal, Sucursal } from '../models';
-import { MOCK_MOVIMIENTOS_RED, MOCK_SUCURSALES } from '../mocks/sucursales.mock';
 import { RegionMockService } from './region-mock.service';
 import { MarcaSucursalMockService } from './marca-sucursal-mock.service';
+import { apiUrl } from '../config/env';
 
 @Injectable({
   providedIn: 'root'
 })
 export class SucursalMockService {
+  private http = inject(HttpClient);
   private regionService = inject(RegionMockService);
   private marcaService = inject(MarcaSucursalMockService);
   private readonly STORAGE_KEY = 'easydry_sucursales_v2';
 
-  private sucursalesSubject = new BehaviorSubject<Sucursal[]>(this.cargarSucursales());
+  private sucursalesSubject = new BehaviorSubject<Sucursal[]>([]);
   public sucursales$ = this.sucursalesSubject.asObservable();
 
-  private movimientosSubject = new BehaviorSubject<MovimientoRedSucursal[]>([...MOCK_MOVIMIENTOS_RED]);
+  private movimientosSubject = new BehaviorSubject<MovimientoRedSucursal[]>([]);
   public movimientos$ = this.movimientosSubject.asObservable();
 
-  private cargarSucursales(): Sucursal[] {
+  constructor() {
     try {
-      const raw = localStorage.getItem(this.STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw) as Sucursal[];
-        if (Array.isArray(parsed) && parsed.length) {
-          return parsed.map(s => this.hidratarServicios(s));
-        }
-      }
+      localStorage.removeItem(this.STORAGE_KEY);
     } catch {}
-    return MOCK_SUCURSALES.map(s => this.hidratarServicios({ ...s }));
   }
 
-  private hidratarServicios(s: Sucursal): Sucursal {
-    const mock = MOCK_SUCURSALES.find(m => m.id === s.id);
+  private mapBackendAgencia(a: any): Sucursal {
+    const ger = a.usuarios?.find((u: any) => u.role?.namerol === 'GERENTE' || u.role?.namerol?.includes('GERENTE'));
     return {
-      ...s,
-      servicioIds: Array.isArray(s.servicioIds) ? [...s.servicioIds] : [...(mock?.servicioIds || [])],
-      serviciosNombres: Array.isArray(s.serviciosNombres) ? [...s.serviciosNombres] : [...(mock?.serviciosNombres || [])]
+      id: a.id,
+      nombre: a.nombre,
+      ciudad: a.regionRel?.nombre || a.region || 'Quito',
+      direccion: a.direccion || '',
+      estado: a.estado === 1 ? 'Activo' : (a.estado === 0 ? 'Inactivo' : 'Mantenimiento'),
+      cantidadBahias: a.numeroBahias || (a.bahias?.length ?? a._count?.bahias ?? 0),
+      responsable: ger ? `${ger.name || ''} ${ger.lastname || ''}`.trim() : 'Sin Asignar',
+      operadoresActivos: a.usuarios?.filter((u: any) => u.estado === 1)?.length || a._count?.usuarios || 0,
+      maquinasAsignadasCount: 0,
+      serviciosRealizadosMes: 0,
+      regionId: a.regionId || a.regionRel?.id,
+      regionNombre: a.regionRel?.nombre || a.region || 'Sin región',
+      marcaId: a.marcaId || a.marca?.id,
+      marcaNombre: a.marca?.nombre || 'Sin marca',
+      servicioIds: [],
+      serviciosNombres: [],
+      telefono: a.telefono || '',
+      requiereAprobacion: false,
+      gerenteId: ger?.id,
+      gerenteNombre: ger ? `${ger.name} ${ger.lastname}`.trim() : undefined,
+      tieneServiciosEspeciales: false
     };
-  }
-
-  private persistir(): void {
-    try {
-      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.sucursalesSubject.value));
-    } catch {}
   }
 
   getSucursalPorNombre(nombre?: string): Sucursal | undefined {
@@ -57,121 +64,138 @@ export class SucursalMockService {
   }
 
   getSucursales(): Observable<Sucursal[]> {
-    return this.sucursales$;
+    return this.http.post<any[]>(apiUrl('/agencias/list'), {}).pipe(
+      map(items => (items || []).map(a => this.mapBackendAgencia(a))),
+      tap(mapped => this.sucursalesSubject.next(mapped)),
+      catchError(() => of(this.sucursalesSubject.value))
+    );
   }
 
   getActivas(): Sucursal[] {
     return this.sucursalesSubject.value;
   }
 
-  getSucursalById(id: number): Observable<Sucursal | undefined> {
-    return this.sucursales$.pipe(
-      map(list => list.find(s => s.id === id)),
-      delay(150)
+  getSucursalById(id: number | string): Observable<Sucursal | undefined> {
+    const existing = this.sucursalesSubject.value.find(s => String(s.id) === String(id));
+    if (existing) {
+      return of(existing);
+    }
+    return this.getSucursales().pipe(
+      map(list => list.find(s => String(s.id) === String(id)))
     );
   }
 
   getMovimientos(): Observable<MovimientoRedSucursal[]> {
-    return this.movimientos$.pipe(delay(120));
+    return this.movimientos$;
   }
 
   crearSucursal(suc: Omit<Sucursal, 'id'>): Observable<Sucursal> {
-    const current = this.sucursalesSubject.value;
-    const conCatalogo = this.aplicarCatalogo(suc);
-    const nueva: Sucursal = {
-      ...conCatalogo,
-      id: Math.max(...current.map(s => s.id), 0) + 1,
-      operadoresActivos: suc.operadoresActivos ?? 0,
-      maquinasAsignadasCount: suc.maquinasAsignadasCount ?? 0,
-      serviciosRealizadosMes: suc.serviciosRealizadosMes ?? 0
+    const slug = (suc.nombre || 'AGN').replace(/[^a-zA-Z0-9]/g, '').substring(0, 4).toUpperCase();
+    const codigo = `AGN-${slug}-${Date.now().toString().slice(-4)}`;
+    const payload = {
+      codigo,
+      nombre: suc.nombre,
+      region: suc.ciudad || 'Quito',
+      regionId: suc.regionId ? String(suc.regionId) : undefined,
+      direccion: suc.direccion || '',
+      telefono: suc.telefono || '',
+      numeroBahias: Number(suc.cantidadBahias) || 2,
+      marcaId: suc.marcaId ? String(suc.marcaId) : undefined,
+      estado: suc.estado === 'Inactivo' ? 0 : 1
     };
-    this.sucursalesSubject.next([...current, nueva]);
-    this.persistir();
-    return of(nueva).pipe(delay(300));
+
+    return this.http.post<any>(apiUrl('/agencias/create'), payload).pipe(
+      map(res => this.mapBackendAgencia(res)),
+      tap(nueva => {
+        const current = this.sucursalesSubject.value;
+        this.sucursalesSubject.next([...current, nueva]);
+      }),
+      catchError(err => {
+        console.error('Error al crear sucursal en backend:', err);
+        throw err;
+      })
+    );
   }
 
   actualizarSucursal(suc: Sucursal, auditoria?: { motivo?: string; realizadoPor?: string }): Observable<Sucursal> {
-    const actualizada = this.aplicarCatalogo(suc);
-    const current = this.sucursalesSubject.value;
-    const index = current.findIndex(s => s.id === suc.id);
-    if (index !== -1) {
-      const original = current[index];
-      this.registrarCambiosCatalogo(original, actualizada, auditoria);
-      current[index] = { ...actualizada };
-      this.sucursalesSubject.next([...current]);
-      this.persistir();
-    }
-    return of(actualizada).pipe(delay(200));
+    const payload = {
+      id: String(suc.id),
+      nombre: suc.nombre,
+      region: suc.ciudad,
+      regionId: suc.regionId ? String(suc.regionId) : undefined,
+      direccion: suc.direccion,
+      telefono: suc.telefono,
+      numeroBahias: Number(suc.cantidadBahias),
+      marcaId: suc.marcaId ? String(suc.marcaId) : undefined,
+      estado: suc.estado === 'Inactivo' ? 0 : 1
+    };
+
+    return this.http.post<any>(apiUrl('/agencias/update'), payload).pipe(
+      map(res => this.mapBackendAgencia(res)),
+      tap(actualizada => {
+        const current = this.sucursalesSubject.value;
+        const index = current.findIndex(s => String(s.id) === String(suc.id));
+        if (index !== -1) {
+          const original = current[index];
+          this.registrarCambiosCatalogo(original, actualizada, auditoria);
+          current[index] = { ...actualizada, servicioIds: suc.servicioIds, serviciosNombres: suc.serviciosNombres };
+          this.sucursalesSubject.next([...current]);
+        }
+      }),
+      catchError(() => of(suc))
+    );
   }
 
   transferirSucursal(params: {
-    sucursalId: number;
-    regionId?: number;
-    marcaId?: number;
+    sucursalId: number | string;
+    regionId?: number | string;
+    marcaId?: number | string;
     motivo: string;
     realizadoPor: string;
   }): Observable<Sucursal | null> {
     const current = this.sucursalesSubject.value;
-    const index = current.findIndex(s => s.id === params.sucursalId);
+    const index = current.findIndex(s => String(s.id) === String(params.sucursalId));
     if (index === -1) return of(null);
 
     const original = current[index];
     const next: Sucursal = { ...original };
-    const movimientos: MovimientoRedSucursal[] = [];
     const ahora = new Date().toISOString().replace('T', ' ').substring(0, 16);
-    let nextMovId = Math.max(...this.movimientosSubject.value.map(m => m.id), 0);
 
-    if (params.regionId && params.regionId !== original.regionId) {
-      const region = this.regionService.getById(params.regionId);
-      nextMovId += 1;
-      movimientos.push({
-        id: nextMovId,
-        sucursalId: original.id,
-        sucursalNombre: original.nombre,
-        tipo: 'REGION',
-        valorAnterior: original.regionNombre || 'Sin región',
-        valorNuevo: region?.nombre || 'Sin región',
-        motivo: params.motivo,
-        realizadoPor: params.realizadoPor,
-        fecha: ahora
-      });
-      next.regionId = region?.id;
-      next.regionNombre = region?.nombre;
-    }
+    const payload: any = { id: String(params.sucursalId) };
+    if (params.regionId) payload.regionId = String(params.regionId);
+    if (params.marcaId) payload.marcaId = String(params.marcaId);
 
-    if (params.marcaId && params.marcaId !== original.marcaId) {
-      const marca = this.marcaService.getById(params.marcaId);
-      nextMovId += 1;
-      movimientos.push({
-        id: nextMovId,
-        sucursalId: original.id,
-        sucursalNombre: original.nombre,
-        tipo: 'MARCA',
-        valorAnterior: original.marcaNombre || 'Sin marca',
-        valorNuevo: marca?.nombre || 'Sin marca',
-        motivo: params.motivo,
-        realizadoPor: params.realizadoPor,
-        fecha: ahora
-      });
-      next.marcaId = marca?.id;
-      next.marcaNombre = marca?.nombre;
-    }
-
-    current[index] = next;
-    this.sucursalesSubject.next([...current]);
-    this.persistir();
-    if (movimientos.length > 0) {
-      this.movimientosSubject.next([...movimientos, ...this.movimientosSubject.value]);
-    }
-    return of(next).pipe(delay(250));
+    return this.http.post<any>(apiUrl('/agencias/update'), payload).pipe(
+      map(res => this.mapBackendAgencia(res)),
+      tap(actualizada => {
+        current[index] = { ...actualizada };
+        this.sucursalesSubject.next([...current]);
+        const nextMovId = this.movimientosSubject.value.length + 1;
+        this.movimientosSubject.next([
+          {
+            id: nextMovId,
+            sucursalId: original.id,
+            sucursalNombre: original.nombre,
+            tipo: params.regionId ? 'REGION' : 'MARCA',
+            valorAnterior: original.regionNombre || original.marcaNombre || '',
+            valorNuevo: actualizada.regionNombre || actualizada.marcaNombre || '',
+            motivo: params.motivo,
+            realizadoPor: params.realizadoPor,
+            fecha: ahora
+          },
+          ...this.movimientosSubject.value
+        ]);
+      }),
+      catchError(() => of(next))
+    );
   }
 
   sincronizarNombresCatalogo(): void {
     const regiones = this.regionService.getActivas();
     const marcas = this.marcaService.getActivas();
     const actualizadas = this.sucursalesSubject.value.map(s => {
-      const region = regiones.find(r => r.id === s.regionId) || this.regionService.getById(s.regionId || 0);
-      const marca = marcas.find(m => m.id === s.marcaId) || this.marcaService.getById(s.marcaId || 0);
+      const region = regiones.find(r => String(r.id) === String(s.regionId)) || this.regionService.getById(s.regionId || 0);
+      const marca = marcas.find(m => String(m.id) === String(s.marcaId)) || this.marcaService.getById(s.marcaId || 0);
       return {
         ...s,
         regionNombre: region?.nombre || s.regionNombre,
@@ -179,7 +203,6 @@ export class SucursalMockService {
       };
     });
     this.sucursalesSubject.next(actualizadas);
-    this.persistir();
   }
 
   private registrarCambiosCatalogo(
@@ -190,7 +213,7 @@ export class SucursalMockService {
     const motivo = auditoria?.motivo || 'Actualización desde ficha de sucursal';
     const realizadoPor = auditoria?.realizadoPor || 'Sistema';
     const ahora = new Date().toISOString().replace('T', ' ').substring(0, 16);
-    let nextMovId = Math.max(...this.movimientosSubject.value.map(m => m.id), 0);
+    let nextMovId = this.movimientosSubject.value.length;
     const movimientos: MovimientoRedSucursal[] = [];
 
     if (actualizada.regionId && actualizada.regionId !== original.regionId) {
@@ -224,15 +247,5 @@ export class SucursalMockService {
     if (movimientos.length > 0) {
       this.movimientosSubject.next([...movimientos, ...this.movimientosSubject.value]);
     }
-  }
-
-  private aplicarCatalogo(suc: Sucursal | Omit<Sucursal, 'id'>): Sucursal {
-    const region = suc.regionId ? this.regionService.getById(suc.regionId) : undefined;
-    const marca = suc.marcaId ? this.marcaService.getById(suc.marcaId) : undefined;
-    return {
-      ...(suc as Sucursal),
-      regionNombre: region?.nombre || suc.regionNombre,
-      marcaNombre: marca?.nombre || suc.marcaNombre
-    };
   }
 }

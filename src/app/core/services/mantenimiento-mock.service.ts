@@ -19,17 +19,17 @@ export class MantenimientoMockService {
     const current = this.mantenimientosSubject.value;
     const nuevo: Mantenimiento = {
       ...mant,
-      id: Math.max(...current.map(m => m.id), 0) + 1
+      id: Math.max(...current.map(m => typeof m.id === 'number' ? m.id : 0), 0) + 1
     };
     this.mantenimientosSubject.next([nuevo, ...current]);
     return of(nuevo).pipe(delay(400));
   }
 
   asignarMantenimiento(
-    id: number,
-    tecnicoId: number,
+    id: string | number,
+    tecnicoId: string | number,
     tecnicoNombre: string,
-    gestorId: number,
+    gestorId: string | number,
     gestorNombre: string
   ): Observable<Mantenimiento | null> {
     const current = this.mantenimientosSubject.value;
@@ -52,7 +52,7 @@ export class MantenimientoMockService {
     return of(actualizado).pipe(delay(300));
   }
 
-  actualizarMantenimiento(id: number, patch: Partial<Mantenimiento>): Observable<Mantenimiento | null> {
+  actualizarMantenimiento(id: string | number, patch: Partial<Mantenimiento>): Observable<Mantenimiento | null> {
     const current = this.mantenimientosSubject.value;
     const idx = current.findIndex(m => m.id === id);
     if (idx === -1) return of(null);
@@ -64,7 +64,7 @@ export class MantenimientoMockService {
     return of(actualizado).pipe(delay(250));
   }
 
-  cancelarAsignacion(id: number): Observable<Mantenimiento | null> {
+  cancelarAsignacion(id: string | number): Observable<Mantenimiento | null> {
     const current = this.mantenimientosSubject.value;
     const idx = current.findIndex(m => m.id === id);
     if (idx === -1) return of(null);

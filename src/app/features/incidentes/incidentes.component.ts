@@ -745,7 +745,7 @@ export class IncidentesComponent implements OnInit {
       email: c.email,
     }));
 
-  gestorActual = { id: 0, nombreCompleto: '' };
+  gestorActual: { id: string | number; nombreCompleto: string } = { id: 0, nombreCompleto: '' };
 
   mediaZoomUrl: string | null = null;
   mediaZoomTipo: 'imagen' | 'video' = 'imagen';
@@ -835,7 +835,7 @@ export class IncidentesComponent implements OnInit {
     this.modalAsignarOpen = true;
   }
 
-  asignarAEjecutor(tecnicoId: number, tecnicoNombre: string) {
+  asignarAEjecutor(tecnicoId: string | number, tecnicoNombre: string) {
     const user = this.authService.getCurrentUser();
     if (!this.incidenteAsignar || !user) return;
 

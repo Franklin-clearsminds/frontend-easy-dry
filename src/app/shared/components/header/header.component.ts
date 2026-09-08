@@ -3,7 +3,6 @@ import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { LucideAngularModule } from 'lucide-angular';
 import { AuthService } from '../../../core/services/auth.service';
-import { MOCK_NOTIFICACIONES } from '../../../core/mocks/notificaciones.mock';
 import { environment } from '../../../core/config/env';
 
 @Component({
@@ -22,11 +21,7 @@ import { environment } from '../../../core/config/env';
             Red Nacional {{ env.appName }}
           </span>
         </div>
-        @if (!env.production) {
-          <span class="px-2 py-1 rounded-lg bg-amber-50 border border-amber-200 text-[10px] font-extrabold uppercase tracking-wider text-amber-800">
-            {{ env.environmentName }}
-          </span>
-        }
+
       </div>
 
       <!-- Right: User Context, Notifications & Profile -->
@@ -73,7 +68,7 @@ export class HeaderComponent {
   readonly env = environment;
   public authService = inject(AuthService);
 
-  unreadCount = MOCK_NOTIFICACIONES.filter(n => !n.leida).length;
+  unreadCount = 0;
 
   get user() { return this.authService.getCurrentUser(); }
 }

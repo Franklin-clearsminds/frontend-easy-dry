@@ -73,7 +73,7 @@ interface ModuloGrupo {
             [showEstado]="true"
             [showFechas]="false"
             [showBusqueda]="true"
-            [listaEstados]="['Todos', 'Activo', 'Inactivo', 'Suspendido']"
+            [listaEstados]="['Todos', 'Activo', 'Inactivo']"
             (filterChange)="aplicarNuevosFiltros($event)">
           </app-filter-bar>
 
@@ -112,12 +112,17 @@ interface ModuloGrupo {
                 </thead>
                 <tbody class="divide-y divide-slate-100">
                   @for (u of paginatedUsuarios; track u.id) {
-                    <tr class="hover:bg-slate-50/80 transition-colors">
+                    <tr class="hover:bg-slate-50/80 transition-colors" [ngClass]="{'opacity-60 bg-slate-50/40': u.estado === 'Inactivo'}">
                       <td class="py-3.5 px-4">
                         <div class="flex items-center gap-3">
-                          <img [src]="u.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'" alt="Avatar" class="w-9 h-9 rounded-full object-cover border-2 border-easydry-blue/20">
+                          <img [src]="u.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'" alt="Avatar" class="w-9 h-9 rounded-full object-cover border-2" [ngClass]="u.estado === 'Activo' ? 'border-easydry-blue/20' : 'border-slate-300 grayscale'">
                           <div>
-                            <p class="font-bold text-slate-900 text-xs">{{ u.nombre }} {{ u.apellido }}</p>
+                            <div class="flex items-center gap-1.5">
+                              <p class="font-bold text-slate-900 text-xs">{{ u.nombre }} {{ u.apellido }}</p>
+                              @if (u.estado === 'Inactivo') {
+                                <span class="text-[9px] font-bold px-1.5 py-0.2 bg-rose-100 text-rose-700 rounded border border-rose-200">Inactivo</span>
+                              }
+                            </div>
                             <p class="text-[10px] text-slate-400 font-mono">ID: USR-00{{ u.id }}</p>
                           </div>
                         </div>
@@ -150,24 +155,42 @@ interface ModuloGrupo {
                         {{ u.fechaAsignacion }}
                       </td>
                       <td class="py-3.5 px-4">
-                        <span 
-                          class="px-2.5 py-1 rounded-full text-xs font-bold"
-                          [ngClass]="u.estado === 'Activo' ? 'bg-easydry-green/20 text-easydry-green-dark' : 'bg-slate-200 text-slate-700'">
-                          {{ u.estado }}
-                        </span>
+                        <button
+                          type="button"
+                          (click)="toggleEstadoUsuario(u)"
+                          [title]="u.estado === 'Activo' ? 'Click para marcar como Inactivo (Bloqueará login y asignación)' : 'Click para activar usuario'"
+                          class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border transition-all cursor-pointer select-none"
+                          [ngClass]="u.estado === 'Activo' 
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300' 
+                            : 'bg-slate-100 text-slate-600 border-slate-300 hover:bg-slate-200'">
+                          <span class="w-2 h-2 rounded-full" [ngClass]="u.estado === 'Activo' ? 'bg-emerald-500' : 'bg-slate-400'"></span>
+                          <span>{{ u.estado }}</span>
+                        </button>
                       </td>
                       <td class="py-3.5 px-4 text-right">
-                        <button 
-                          (click)="editarUsuario(u)" 
-                          title="Editar Usuario"
-                          class="p-1.5 text-slate-400 hover:text-easydry-blue rounded-lg hover:bg-slate-100 transition-colors">
-                          <i-lucide name="edit-3" class="w-4 h-4"></i-lucide>
-                        </button>
+                        <div class="flex items-center justify-end gap-1">
+                          <button
+                            type="button"
+                            (click)="toggleEstadoUsuario(u)"
+                            [title]="u.estado === 'Activo' ? 'Desactivar usuario' : 'Activar usuario'"
+                            class="p-1.5 rounded-lg transition-colors cursor-pointer"
+                            [ngClass]="u.estado === 'Activo' ? 'text-slate-400 hover:text-rose-600 hover:bg-rose-50' : 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-50'">
+                            <i-lucide [name]="u.estado === 'Activo' ? 'user-x' : 'user-check'" class="w-4 h-4"></i-lucide>
+                          </button>
+                          <button 
+                            type="button"
+                            (click)="editarUsuario(u)" 
+                            title="Editar Usuario"
+                            class="p-1.5 text-slate-400 hover:text-easydry-blue rounded-lg hover:bg-slate-100 transition-colors cursor-pointer">
+                            <i-lucide name="edit-3" class="w-4 h-4"></i-lucide>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   }
                 </tbody>
               </table>
+
             </div>
             
             <app-pagination 
@@ -449,7 +472,6 @@ interface ModuloGrupo {
               <select [(ngModel)]="usuarioForm.estado" name="estado" class="w-full p-2.5 border rounded-xl text-sm font-semibold">
                 <option value="Activo">Activo</option>
                 <option value="Inactivo">Inactivo</option>
-                <option value="Suspendido">Suspendido</option>
               </select>
             </div>
           </div>
@@ -721,7 +743,7 @@ export class UsuariosComponent implements OnInit {
     apellido: string;
     rol: string;
     agencia: string;
-    estado: string;
+    estado: 'Activo' | 'Inactivo';
     email: string;
     modalidadPulidor: ModalidadPulidor;
   } = {
@@ -915,11 +937,34 @@ export class UsuariosComponent implements OnInit {
       apellido: u.apellido,
       rol: u.rol,
       agencia: u.agencia,
-      estado: u.estado,
+      estado: u.estado === 'Inactivo' ? 'Inactivo' : 'Activo',
       email: u.email,
       modalidadPulidor: u.modalidadPulidor || (esRolOperadorEspeciales(u.rol) ? 'MOVIL' : 'MOVIL')
     };
     this.modalUsuarioOpen = true;
+  }
+
+  toggleEstadoUsuario(u: Usuario) {
+    const nuevoEstado: 'Activo' | 'Inactivo' = u.estado === 'Activo' ? 'Inactivo' : 'Activo';
+    this.usuarioService.toggleEstado(u.id, nuevoEstado).subscribe({
+      next: () => {
+        u.estado = nuevoEstado;
+        if (nuevoEstado === 'Inactivo') {
+          this.toastService.warning(
+            'Usuario Desactivado',
+            `${u.nombre} ${u.apellido} ha sido marcado como Inactivo. No podrá iniciar sesión ni aparecerá en listas de asignación.`
+          );
+        } else {
+          this.toastService.success(
+            'Usuario Reactivado',
+            `${u.nombre} ${u.apellido} ahora está Activo y disponible para iniciar sesión y ser asignado.`
+          );
+        }
+      },
+      error: () => {
+        this.toastService.error('Error', 'No se pudo cambiar el estado del usuario.');
+      }
+    });
   }
 
   onRolUsuarioChange() {
@@ -964,19 +1009,24 @@ export class UsuariosComponent implements OnInit {
     const modalidad = this.payloadModalidad();
 
     if (this.editandoUsuario) {
+      const nuevoEstado: 'Activo' | 'Inactivo' = this.usuarioForm.estado === 'Inactivo' ? 'Inactivo' : 'Activo';
       const actualizado: Usuario = {
         ...this.editandoUsuario,
         nombre: this.usuarioForm.nombre,
         apellido: this.usuarioForm.apellido,
         rol: this.usuarioForm.rol,
         agencia: modalidad.agencia,
-        estado: this.usuarioForm.estado as Usuario['estado'],
+        estado: nuevoEstado,
         email: this.usuarioForm.email,
         modalidadPulidor: modalidad.modalidadPulidor
       };
 
       this.usuarioService.actualizarUsuario(actualizado).subscribe(() => {
-        this.toastService.success('Usuario Actualizado', `Perfil de ${actualizado.nombre} actualizado correctamente.`);
+        if (nuevoEstado === 'Inactivo') {
+          this.toastService.warning('Usuario Actualizado', `Perfil de ${actualizado.nombre} actualizado como Inactivo. Se bloqueará su login y no aparecerá en selectores de asignación.`);
+        } else {
+          this.toastService.success('Usuario Actualizado', `Perfil de ${actualizado.nombre} actualizado correctamente.`);
+        }
         this.modalUsuarioOpen = false;
       });
     } else {
@@ -985,7 +1035,7 @@ export class UsuariosComponent implements OnInit {
         apellido: this.usuarioForm.apellido,
         rol: this.usuarioForm.rol,
         agencia: modalidad.agencia,
-        estado: this.usuarioForm.estado as Usuario['estado'],
+        estado: this.usuarioForm.estado,
         email: this.usuarioForm.email,
         fechaAsignacion: new Date().toISOString().split('T')[0],
         avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',

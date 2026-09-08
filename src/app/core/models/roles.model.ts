@@ -1,20 +1,36 @@
 // =========================================================
 // EasyDry® - Sistema Oficial de Roles y Permisos RBAC
+// Sincronizado con backend-easydry y USUARIOS-DEMO.md (14 roles)
 // =========================================================
 
 export enum Role {
+  // ── Roles canónicos del backend (fuente de verdad) ──
   SUPER_ADMIN = 'SUPER_ADMIN',
   ADMIN = 'ADMIN',
-  GERENTE = 'GERENTE',
   SUPERVISOR = 'SUPERVISOR',
+  JEFE_COMERCIAL = 'JEFE_COMERCIAL',
+  COORD_COMERCIAL = 'COORD_COMERCIAL',
+  /** Aprobador de agencia — cierre diario y auditoría de evidencias */
+  APROBADOR = 'APROBADOR',
+  /** Líder de agencia — control de bahías y registro de servicios generales */
+  LIDER_AGENCIA = 'LIDER_AGENCIA',
+  COORD_SERVICIOS_ESPECIALES = 'COORD_SERVICIOS_ESPECIALES',
+  PULIDOR_FIJO = 'PULIDOR_FIJO',
+  PULIDOR_MOVIL = 'PULIDOR_MOVIL',
   COORD_MANTENIMIENTO = 'COORD_MANTENIMIENTO',
   TECNICO = 'TECNICO',
-  OPERADOR = 'OPERADOR',
-  COORD_COMERCIAL = 'COORD_COMERCIAL',
-  COORD_SERVICIOS_ESPECIALES = 'COORD_SERVICIOS_ESPECIALES',
-  OPERADOR_SERVICIOS_ESPECIALES = 'OPERADOR_SERVICIOS_ESPECIALES',
-  DISTRIBUIDOR = 'DISTRIBUIDOR',
+  /** Coordinador de bodega — inventario nacional y despachos */
+  COORD_BODEGA = 'COORD_BODEGA',
   ASISTENTE_BODEGA = 'ASISTENTE_BODEGA',
+  // ── Aliases de retrocompatibilidad (deprecated — usar roles canónicos) ──
+  /** @deprecated usar APROBADOR */
+  GERENTE = 'APROBADOR',
+  /** @deprecated usar LIDER_AGENCIA */
+  OPERADOR = 'LIDER_AGENCIA',
+  /** @deprecated usar COORD_BODEGA */
+  DISTRIBUIDOR = 'COORD_BODEGA',
+  /** @deprecated usar PULIDOR_MOVIL o PULIDOR_FIJO */
+  OPERADOR_SERVICIOS_ESPECIALES = 'PULIDOR_MOVIL',
   CUSTOM = 'CUSTOM'
 }
 
@@ -196,16 +212,19 @@ export const MODULOS_SISTEMA: ModuloSistema[] = [
   }
 ];
 
-/** Módulos por defecto asignados a cada uno de los 11 roles oficiales */
+/** Módulos por defecto asignados a cada uno de los 14 roles oficiales del MD */
 export const MODULOS_POR_ROL: Record<string, string[]> = {
   [Role.SUPER_ADMIN]: MODULOS_SISTEMA.map(m => m.codigo),
   [Role.ADMIN]: MODULOS_SISTEMA.map(m => m.codigo),
-  [Role.GERENTE]: [
+
+  /** Aprobador — cierre diario, auditoría de evidencias fotográficas */
+  [Role.APROBADOR]: [
     'dashboard',
     'notificaciones',
     'sucursales',
     'operadores',
     'servicios',
+    'configuracion/servicios',
     'aprobaciones',
     'productividad',
     'maquinaria',
@@ -213,7 +232,7 @@ export const MODULOS_POR_ROL: Record<string, string[]> = {
     'reportes',
     'perfil'
   ],
-  
+
   [Role.SUPERVISOR]: [
     'dashboard',
     'notificaciones',
@@ -222,11 +241,75 @@ export const MODULOS_POR_ROL: Record<string, string[]> = {
     'operadores',
     'asignaciones',
     'servicios',
+    'configuracion/servicios',
     'productividad',
     'maquinaria',
     'taller-tecnico',
     'inventario',
     'reportes',
+    'perfil'
+  ],
+
+  [Role.JEFE_COMERCIAL]: [
+    'dashboard',
+    'notificaciones',
+    'productividad',
+    'servicios',
+    'configuracion/servicios',
+    'reportes',
+    'perfil'
+  ],
+
+  [Role.COORD_COMERCIAL]: [
+    'dashboard',
+    'notificaciones',
+    'productividad',
+    'servicios',
+    'configuracion/servicios',
+    'reportes',
+    'perfil'
+  ],
+
+  /** Líder de agencia — control operativo de bahías y servicios generales */
+  [Role.LIDER_AGENCIA]: [
+    'dashboard',
+    'notificaciones',
+    'mi-bahia',
+    'servicios',
+    'configuracion/servicios',
+    'maquinaria',
+    'inventario',
+    'perfil'
+  ],
+
+  [Role.COORD_SERVICIOS_ESPECIALES]: [
+    'dashboard',
+    'notificaciones',
+    'servicios',
+    'configuracion/servicios',
+    'aprobaciones',
+    'operadores',
+    'asignaciones',
+    'productividad',
+    'maquinaria',
+    'perfil'
+  ],
+
+  [Role.PULIDOR_FIJO]: [
+    'dashboard',
+    'notificaciones',
+    'servicios',
+    'mi-bahia',
+    'inventario',
+    'perfil'
+  ],
+
+  [Role.PULIDOR_MOVIL]: [
+    'dashboard',
+    'notificaciones',
+    'servicios',
+    'mi-bahia',
+    'inventario',
     'perfil'
   ],
 
@@ -248,50 +331,12 @@ export const MODULOS_POR_ROL: Record<string, string[]> = {
     'perfil'
   ],
 
-  [Role.OPERADOR]: [
-    'dashboard',
-    'notificaciones',
-    'mi-bahia',
-    'servicios',
-    'envios',
-    'perfil'
-  ],
-
-  [Role.COORD_COMERCIAL]: [
-    'dashboard',
-    'notificaciones',
-    'productividad',
-    'servicios',
-    'reportes',
-    'perfil'
-  ],
-
-  [Role.COORD_SERVICIOS_ESPECIALES]: [
-    'dashboard',
-    'notificaciones',
-    'servicios',
-    'aprobaciones',
-    'operadores',
-    'asignaciones',
-    'productividad',
-    'maquinaria',
-    'envios',
-    'perfil'
-  ],
-
-  [Role.OPERADOR_SERVICIOS_ESPECIALES]: [
-    'dashboard',
-    'notificaciones',
-    'servicios',
-    'mi-bahia',
-    'envios',
-    'perfil'
-  ],
-
-  [Role.DISTRIBUIDOR]: [
+  /** Coordinador de bodega — inventario nacional, recepción y despachos multi-región */
+  [Role.COORD_BODEGA]: [
     'dashboard',
     'notificaciones',
     'inventario',
+    'reportes',
     'perfil'
   ],
 
@@ -303,19 +348,21 @@ export const MODULOS_POR_ROL: Record<string, string[]> = {
   ]
 };
 
-/** Ruta de inicio por defecto según rol */
+/** Ruta de inicio por defecto según rol — sincronizado con 14 roles del MD */
 export const DEFAULT_ROUTE_POR_ROL: Record<string, string> = {
   [Role.SUPER_ADMIN]: '/dashboard',
   [Role.ADMIN]: '/dashboard',
-  [Role.GERENTE]: '/dashboard',
+  [Role.APROBADOR]: '/dashboard',
   [Role.SUPERVISOR]: '/dashboard',
+  [Role.JEFE_COMERCIAL]: '/dashboard',
+  [Role.COORD_COMERCIAL]: '/dashboard',
+  [Role.LIDER_AGENCIA]: '/mi-bahia',
+  [Role.COORD_SERVICIOS_ESPECIALES]: '/dashboard',
+  [Role.PULIDOR_FIJO]: '/servicios',
+  [Role.PULIDOR_MOVIL]: '/servicios',
   [Role.COORD_MANTENIMIENTO]: '/taller-tecnico',
   [Role.TECNICO]: '/taller-tecnico',
-  [Role.OPERADOR]: '/mi-bahia',
-  [Role.COORD_COMERCIAL]: '/dashboard',
-  [Role.COORD_SERVICIOS_ESPECIALES]: '/dashboard',
-  [Role.OPERADOR_SERVICIOS_ESPECIALES]: '/servicios',
-  [Role.DISTRIBUIDOR]: '/inventario',
+  [Role.COORD_BODEGA]: '/inventario',
   [Role.ASISTENTE_BODEGA]: '/inventario'
 };
 
@@ -482,7 +529,8 @@ export const ROLES_INICIALES: RolPersonalizado[] = [
 
 /** Usuario autenticado con contexto completo */
 export interface UsuarioAuth {
-  id: number;
+  /** UUID string del backend o número entero en modo mock */
+  id: string | number;
   nombre: string;
   apellido: string;
   email: string;
@@ -502,7 +550,13 @@ export interface UsuarioAuth {
   modalidadPulidor?: 'FIJO' | 'MOVIL';
   estado: 'Activo' | 'Inactivo';
   avatar?: string;
+  /** Access token JWT (localStorage en web, SecureStore en móvil) */
   token?: string;
+  /** Refresh token para renovación automática de sesión */
+  refreshToken?: string;
+  /** ID de la agencia/sucursal asignada (UUID o entero según backend) */
+  agenciaId?: string | number;
+  regionId?: string | number;
   permisos?: PermisosRol;
 }
 
@@ -583,7 +637,8 @@ export const PERMISOS_POR_ROL: Record<string, PermisosRol> = {
     accionesEnvios: true
   },
 
-  [Role.GERENTE]: {
+  /** APROBADOR — potestad exclusiva de aprobar/cancelar servicios en su agencia */
+  [Role.APROBADOR]: {
     verTodasSucursales: false,
     crearSucursal: false,
     editarSucursal: false,
@@ -600,6 +655,32 @@ export const PERMISOS_POR_ROL: Record<string, PermisosRol> = {
     verMaquinaria: true,
     gestionarMantenimiento: false,
     registrarIncidente: true,
+    verReportes: true,
+    verProductividadGlobal: true,
+    verConfiguracion: false,
+    gestionarInventario: false,
+    despacharSuministros: false,
+    accionesEnvios: false
+  },
+
+  /** JEFE_COMERCIAL — visibilidad global de métricas y creación de retos nacionales */
+  [Role.JEFE_COMERCIAL]: {
+    verTodasSucursales: true,
+    crearSucursal: false,
+    editarSucursal: false,
+    crearUsuarios: false,
+    asignarRoles: false,
+    verOtrosSucursales: true,
+    cambiarSucursalOperador: false,
+    cambiarBahiaOperador: false,
+    aprobarServicios: false,
+    rechazarServicios: false,
+    cerrarDia: false,
+    registrarServicio: false,
+    verTodosServicios: true,
+    verMaquinaria: false,
+    gestionarMantenimiento: false,
+    registrarIncidente: false,
     verReportes: true,
     verProductividadGlobal: true,
     verConfiguracion: false,
@@ -683,7 +764,34 @@ export const PERMISOS_POR_ROL: Record<string, PermisosRol> = {
     accionesEnvios: false
   },
 
-  [Role.OPERADOR]: {
+  /** LIDER_AGENCIA — registro de OTs, control de bahías, incidentes y stock de su agencia */
+  [Role.LIDER_AGENCIA]: {
+    verTodasSucursales: false,
+    crearSucursal: false,
+    editarSucursal: false,
+    crearUsuarios: false,
+    asignarRoles: false,
+    verOtrosSucursales: false,
+    cambiarSucursalOperador: false,
+    cambiarBahiaOperador: true,
+    aprobarServicios: false,
+    rechazarServicios: false,
+    cerrarDia: false,
+    registrarServicio: true,
+    verTodosServicios: true,
+    verMaquinaria: true,
+    gestionarMantenimiento: false,
+    registrarIncidente: true,
+    verReportes: false,
+    verProductividadGlobal: false,
+    verConfiguracion: false,
+    gestionarInventario: true,
+    despacharSuministros: false,
+    accionesEnvios: true
+  },
+
+  /** PULIDOR_FIJO — servicios especiales en su sede fija */
+  [Role.PULIDOR_FIJO]: {
     verTodasSucursales: false,
     crearSucursal: false,
     editarSucursal: false,
@@ -703,7 +811,33 @@ export const PERMISOS_POR_ROL: Record<string, PermisosRol> = {
     verReportes: false,
     verProductividadGlobal: false,
     verConfiguracion: false,
-    gestionarInventario: false,
+    gestionarInventario: true,
+    despacharSuministros: false,
+    accionesEnvios: true
+  },
+
+  /** PULIDOR_MOVIL — servicios especiales multi-agencia */
+  [Role.PULIDOR_MOVIL]: {
+    verTodasSucursales: false,
+    crearSucursal: false,
+    editarSucursal: false,
+    crearUsuarios: false,
+    asignarRoles: false,
+    verOtrosSucursales: false,
+    cambiarSucursalOperador: false,
+    cambiarBahiaOperador: false,
+    aprobarServicios: false,
+    rechazarServicios: false,
+    cerrarDia: false,
+    registrarServicio: true,
+    verTodosServicios: false,
+    verMaquinaria: false,
+    gestionarMantenimiento: false,
+    registrarIncidente: true,
+    verReportes: false,
+    verProductividadGlobal: false,
+    verConfiguracion: false,
+    gestionarInventario: true,
     despacharSuministros: false,
     accionesEnvios: true
   },
@@ -758,32 +892,8 @@ export const PERMISOS_POR_ROL: Record<string, PermisosRol> = {
     accionesEnvios: false
   },
 
-  [Role.OPERADOR_SERVICIOS_ESPECIALES]: {
-    verTodasSucursales: false,
-    crearSucursal: false,
-    editarSucursal: false,
-    crearUsuarios: false,
-    asignarRoles: false,
-    verOtrosSucursales: false,
-    cambiarSucursalOperador: false,
-    cambiarBahiaOperador: false,
-    aprobarServicios: false,
-    rechazarServicios: false,
-    cerrarDia: false,
-    registrarServicio: true,
-    verTodosServicios: false,
-    verMaquinaria: false,
-    gestionarMantenimiento: false,
-    registrarIncidente: true,
-    verReportes: false,
-    verProductividadGlobal: false,
-    verConfiguracion: false,
-    gestionarInventario: false,
-    despacharSuministros: false,
-    accionesEnvios: true
-  },
-
-  [Role.DISTRIBUIDOR]: {
+  /** COORD_BODEGA — inventario nacional, recepción de compras y despachos multi-región */
+  [Role.COORD_BODEGA]: {
     verTodasSucursales: false,
     crearSucursal: false,
     editarSucursal: false,
@@ -800,7 +910,7 @@ export const PERMISOS_POR_ROL: Record<string, PermisosRol> = {
     verMaquinaria: false,
     gestionarMantenimiento: false,
     registrarIncidente: false,
-    verReportes: false,
+    verReportes: true,
     verProductividadGlobal: false,
     verConfiguracion: false,
     gestionarInventario: true,
@@ -838,15 +948,17 @@ export const ROLE_LABELS: Record<string, string> = {
   [Role.SUPER_ADMIN]: 'Super Administrador',
   [Role.ADMIN]: 'Administrador',
   [Role.SUPERVISOR]: 'Supervisor Regional',
-  [Role.COORD_MANTENIMIENTO]: 'Gestor Técnico',
-  [Role.TECNICO]: 'Técnico de Maquinaria',
-  [Role.OPERADOR]: 'Operador de Bahía',
+  [Role.JEFE_COMERCIAL]: 'Jefe Comercial',
   [Role.COORD_COMERCIAL]: 'Coordinador Comercial',
-  [Role.COORD_SERVICIOS_ESPECIALES]: 'Jefe Servicios Especiales',
-  [Role.OPERADOR_SERVICIOS_ESPECIALES]: 'Operador de Servicios Especiales',
-  [Role.DISTRIBUIDOR]: 'Gestor de Inventario',
+  [Role.APROBADOR]: 'Aprobador de Agencia',
+  [Role.LIDER_AGENCIA]: 'Líder de Agencia',
+  [Role.COORD_SERVICIOS_ESPECIALES]: 'Coordinador de Servicios Especiales',
+  [Role.PULIDOR_FIJO]: 'Pulidor Fijo',
+  [Role.PULIDOR_MOVIL]: 'Pulidor Móvil',
+  [Role.COORD_MANTENIMIENTO]: 'Coordinador de Mantenimiento',
+  [Role.TECNICO]: 'Técnico de Maquinaria',
+  [Role.COORD_BODEGA]: 'Coordinador de Bodega',
   [Role.ASISTENTE_BODEGA]: 'Asistente de Bodega',
-  [Role.GERENTE]: 'Gerente de Sucursal',
 };
 
 export const ROLE_COLORS: Record<string, string> = {

@@ -42,6 +42,22 @@ export class ToastService {
     this.show('info', title, message);
   }
 
+  showSuccess(message: string) {
+    this.success('Éxito', message);
+  }
+
+  showError(message: string) {
+    this.error('Error', message);
+  }
+
+  showWarning(message: string) {
+    this.warning('Advertencia', message);
+  }
+
+  showInfo(message: string) {
+    this.info('Información', message);
+  }
+
   remove(id: string) {
     const current = this.toastsSubject.value;
     this.toastsSubject.next(current.filter(t => t.id !== id));

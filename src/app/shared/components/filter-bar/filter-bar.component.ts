@@ -13,6 +13,7 @@ export interface FilterState {
   sucursal: string;
   region?: string;
   marca?: string;
+  bodega?: string;
   operador: string;
   servicio?: string;
   bahia: string;
@@ -100,6 +101,21 @@ export interface FilterState {
             <option value="Todas">Todas las Marcas</option>
             @for (m of listaMarcas; track m) {
               <option [value]="m">{{ m }}</option>
+            }
+          </select>
+        </div>
+      }
+
+      <!-- Bodega -->
+      @if (showBodega) {
+        <div class="flex-1 min-w-[170px]">
+          <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+            <i-lucide name="warehouse" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide> Bodega
+          </label>
+          <select [(ngModel)]="filters.bodega" (change)="emitFilters()" class="w-full bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-xl px-3 py-2 focus:ring-2 focus:ring-easydry-blue transition-colors appearance-none font-semibold cursor-pointer">
+            <option value="Todas">Todas las Bodegas</option>
+            @for (b of listaBodegas; track b) {
+              <option [value]="b">{{ b }}</option>
             }
           </select>
         </div>
@@ -212,6 +228,7 @@ export class FilterBarComponent implements OnInit {
   @Input() showRegion = false;
   @Input() showMarca = false;
   @Input() showSucursal = true;
+  @Input() showBodega = false;
   @Input() showOperador = false;
   @Input() showServicio = false;
   @Input() showBahia = false;
@@ -225,6 +242,8 @@ export class FilterBarComponent implements OnInit {
   get listaRegiones(): string[] { return this._listaRegiones; }
   @Input() set listaMarcas(v: string[]) { this._listaMarcas = v; this.customMarcas = true; }
   get listaMarcas(): string[] { return this._listaMarcas; }
+  @Input() set listaBodegas(v: string[]) { this._listaBodegas = v; }
+  get listaBodegas(): string[] { return this._listaBodegas; }
   @Input() set listaSucursales(v: string[]) { this._listaSucursales = v; this.customSucursales = true; }
   get listaSucursales(): string[] { return this._listaSucursales; }
   @Input() set listaOperadores(v: string[]) { this._listaOperadores = v; this.customOperadores = true; }
@@ -247,6 +266,7 @@ export class FilterBarComponent implements OnInit {
 
   private _listaRegiones: string[] = ['Región Sierra', 'Región Costa', 'Región Austro'];
   private _listaMarcas: string[] = ['EasyDry', 'EasyDry Premium', 'EasyDry Express'];
+  private _listaBodegas: string[] = ['Bodega Central', 'Bodega Norte', 'Bodega Sur'];
   private _listaSucursales: string[] = ['Quito Norte', 'Quito Sur', 'Cumbayá', 'Guayaquil', 'Cuenca'];
   private _listaOperadores: string[] = ['Carlos Torres', 'Marta Ruiz', 'Luis Mendez', 'Ana Gómez', 'Diego Pulido Norte'];
   private _listaServicios: string[] = ['Express', 'Completo', 'Deluxe', 'Pulido Especial', 'Micro pulido', 'Recubrimiento Cerámico', 'Lavado motor'];
@@ -265,6 +285,7 @@ export class FilterBarComponent implements OnInit {
     sucursal: 'Todas',
     region: 'Todas',
     marca: 'Todas',
+    bodega: 'Todas',
     operador: 'Todos',
     servicio: 'Todos',
     bahia: 'Todas',
@@ -431,6 +452,7 @@ export class FilterBarComponent implements OnInit {
       sucursal: 'Todas',
       region: 'Todas',
       marca: 'Todas',
+      bodega: 'Todas',
       operador: 'Todos',
       servicio: 'Todos',
       bahia: 'Todas',
