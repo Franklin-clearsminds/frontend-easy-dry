@@ -29,7 +29,7 @@ import { Reto } from '../../core/models/reto.model';
             <i-lucide name="trophy" class="w-4 h-4 text-amber-600"></i-lucide>
             <span>Reto EasyDry Activo: Edición Julio 2026</span>
           </span>
-          @if (canCreateReto) {
+          @if (canCreateReto && retosActivos.length > 0) {
             <button (click)="showCrearRetoModal = true" class="px-5 py-1.5 bg-easydry-green hover:bg-easydry-green-dark text-slate-900 font-bold rounded-xl text-sm flex items-center gap-2 transition-colors shadow-sm">
               <i-lucide name="plus-circle" class="w-4 h-4"></i-lucide> Crear Nuevo Reto
             </button>
@@ -37,7 +37,7 @@ import { Reto } from '../../core/models/reto.model';
         </div>
       </div>      <!-- RETO EASYDRY SPECIAL GAMIFIED SECTION -->
       @if (retosActivos.length > 0) {
-        <div class="w-full bg-gradient-to-r from-easydry-blue-dark via-easydry-blue to-slate-900 rounded-3xl p-6 md:p-8 text-white shadow-2xl relative overflow-hidden flex flex-col mb-8">
+        <div class="w-full bg-gradient-to-r from-easydry-blue-dark via-easydry-blue to-slate-900 rounded-3xl p-6 md:p-8 pb-12 md:pb-14 text-white shadow-2xl relative overflow-hidden flex flex-col mb-8">
             
             @if (retosActivos.length > 1) {
               <!-- Flecha Izquierda -->
@@ -50,10 +50,20 @@ import { Reto } from '../../core/models/reto.model';
                 <i-lucide name="chevron-right" class="w-6 h-6 text-white"></i-lucide>
               </button>
 
-              <!-- Indicador Numérico -->
-              <div class="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 px-3 py-1 rounded-full bg-black/30 backdrop-blur-md text-[10px] font-bold text-white border border-white/10">
-                {{ currentRetoIndex + 1 }} / {{ retosActivos.length }}
+              <!-- Indicador de Puntos (Dots) -->
+              <div class="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2">
+                @for (reto of retosActivos; track $index) {
+                  <span class="block w-2 h-2 rounded-full transition-all duration-300"
+                        [ngClass]="$index === currentRetoIndex ? 'bg-easydry-lime w-6 shadow-[0_0_8px_rgba(163,230,53,0.8)]' : 'bg-white/30'">
+                  </span>
+                }
               </div>
+            }
+
+            @if (canDeleteReto(retosActivos[currentRetoIndex])) {
+              <button (click)="iniciarEliminarReto(retosActivos[currentRetoIndex])" class="absolute bottom-4 right-4 z-20 p-2 rounded-full bg-red-500/20 hover:bg-red-500/40 border border-red-500/30 transition-colors" title="Eliminar Reto">
+                <i-lucide name="trash-2" class="w-4 h-4 text-red-200"></i-lucide>
+              </button>
             }
 
             <div class="flex items-center gap-3 mb-6 relative z-10 mt-2 px-6 md:px-10">
@@ -65,11 +75,6 @@ import { Reto } from '../../core/models/reto.model';
               <div class="flex-1">
                 <div class="flex items-center gap-3">
                   <h2 class="text-xl md:text-2xl font-extrabold font-outfit text-white tracking-wide">{{ retosActivos[currentRetoIndex].titulo }}</h2>
-                  @if (canDeleteReto(retosActivos[currentRetoIndex])) {
-                    <button (click)="iniciarEliminarReto(retosActivos[currentRetoIndex])" class="p-1.5 rounded-full bg-red-500/20 hover:bg-red-500/40 border border-red-500/30 transition-colors" title="Eliminar Reto">
-                      <i-lucide name="trash-2" class="w-4 h-4 text-red-200"></i-lucide>
-                    </button>
-                  }
                 </div>
                 <p class="text-xs text-easydry-lime font-medium mt-0.5">{{ retosActivos[currentRetoIndex].descripcion }}</p>
               </div>

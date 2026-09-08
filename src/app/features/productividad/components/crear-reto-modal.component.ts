@@ -121,12 +121,11 @@ export class CrearRetoModalComponent implements OnInit {
   canSelectGlobal = false;
 
   opcionesCriterios = [
-    'Mejora en Velocidad Promedio',
-    'Alta Calidad en Fotos y Videos',
-    'Cero Incidentes Técnicos',
-    'Alta Satisfacción del Cliente',
-    'Incremento de Ventas en Servicios Premium',
-    'Asistencia y Puntualidad Perfecta'
+    'Mejor Tiempo de Secado Promedio',
+    'Mayor Número de Vehículos Atendidos',
+    'Cero Incidentes de Daño',
+    'Aprobaciones de Calidad Perfectas',
+    'Menor Consumo de Químicos'
   ];
 
   private fb = inject(FormBuilder);
