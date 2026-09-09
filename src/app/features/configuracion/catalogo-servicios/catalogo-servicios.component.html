@@ -11,10 +11,37 @@
         <span>Parametrización & Catálogos EasyDry®</span>
       </div>
       <h1 class="text-2xl font-extrabold text-slate-900 font-outfit">Catálogo de Servicios</h1>
-      <p class="text-sm text-slate-500">Tabla maestra de servicios. Luego se asignan uno a uno a cada sucursal (al crear o al editar).</p>
+      <p class="text-sm text-slate-500">
+        {{ esUsuarioSucursal ? 'Servicios habilitados y recetas oficiales para tu sucursal operativa.' : 'Tabla maestra de servicios. Luego se asignan uno a uno a cada sucursal (al crear o al editar).' }}
+      </p>
     </div>
-
   </div>
+
+  <!-- Banner de Sede Asignada (Líder Operador / Personal de Sucursal) -->
+  @if (esUsuarioSucursal && sucursalUsuario) {
+    <div class="bg-gradient-to-r from-blue-50/90 via-sky-50/50 to-white border border-blue-200/80 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-2xs animate-fade-in">
+      <div class="flex items-center gap-3.5">
+        <div class="w-10 h-10 rounded-xl bg-easydry-blue text-white flex items-center justify-center font-extrabold shadow-sm shrink-0">
+          <i-lucide name="building-2" class="w-5 h-5"></i-lucide>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="font-extrabold text-sm text-slate-900">{{ sucursalUsuario.nombre }}</span>
+            <span class="px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[10px] font-extrabold">Tu Sede Asignada</span>
+          </div>
+          <p class="text-slate-500 text-xs mt-0.5">
+            Vista filtrada: únicamente se muestran los <strong class="text-slate-800 font-bold">{{ totalServiciosSucursal }} servicios</strong> autorizados para operar en tu sucursal.
+          </p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2 self-end sm:self-center shrink-0">
+        <span class="px-3 py-1.5 bg-white border border-blue-200 text-easydry-blue text-xs font-extrabold rounded-xl shadow-2xs flex items-center gap-1.5">
+          <i-lucide name="shield-check" class="w-3.5 h-3.5 text-emerald-600"></i-lucide>
+          <span>Catálogo de Sede</span>
+        </span>
+      </div>
+    </div>
+  }
 
   <!-- Tab Navigation: Generales y Especiales -->
   <div class="flex flex-wrap gap-2 p-1.5 bg-slate-200/80 rounded-2xl w-fit">
@@ -69,12 +96,14 @@
       <div class="bg-white rounded-2xl shadow-easydry border border-slate-100 overflow-hidden">
         <div class="p-6 border-b border-slate-100 flex items-center justify-between">
           <h3 class="font-bold text-slate-900 text-base font-outfit">Servicios Generales</h3>
-          <button
-            (click)="abrirModalNuevo('GENERAL')"
-            class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
-            <i-lucide name="plus" class="w-4 h-4"></i-lucide>
-            <span>Nuevo Servicio General</span>
-          </button>
+          @if (!esUsuarioSucursal) {
+            <button
+              (click)="abrirModalNuevo('GENERAL')"
+              class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
+              <i-lucide name="plus" class="w-4 h-4"></i-lucide>
+              <span>Nuevo Servicio General</span>
+            </button>
+          }
         </div>
         <table class="w-full text-left text-sm whitespace-nowrap">
           <thead class="bg-slate-50/80 text-slate-500 font-bold border-b border-slate-200 text-[11px] uppercase tracking-wider">
@@ -132,18 +161,26 @@
                   </div>
                 </td>
                 <td class="px-6 py-4">
-                  <button (click)="toggleEstado(srv)"
-                    class="px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border transition-colors cursor-pointer"
-                    [ngClass]="srv.estado === 'Activo' ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100' : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200'">
-                    {{ srv.estado }}
-                  </button>
+                  @if (!esUsuarioSucursal) {
+                    <button (click)="toggleEstado(srv)"
+                      class="px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border transition-colors cursor-pointer"
+                      [ngClass]="srv.estado === 'Activo' ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100' : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200'">
+                      {{ srv.estado }}
+                    </button>
+                  } @else {
+                    <span
+                      class="px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border inline-block"
+                      [ngClass]="srv.estado === 'Activo' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-500 border-slate-200'">
+                      {{ srv.estado }}
+                    </span>
+                  }
                 </td>
                 <td class="px-6 py-4 text-right">
                   <button 
                     (click)="abrirModalEditar(srv)" 
                     class="p-1.5 text-slate-500 hover:text-easydry-blue hover:bg-blue-50 rounded-lg transition-colors cursor-pointer" 
-                    title="Editar Servicio General">
-                    <i-lucide name="edit-3" class="w-4 h-4"></i-lucide>
+                    [title]="esUsuarioSucursal ? 'Ver Receta y Parámetros' : 'Editar Servicio General'">
+                    <i-lucide [name]="esUsuarioSucursal ? 'eye' : 'edit-3'" class="w-4 h-4"></i-lucide>
                   </button>
                 </td>
               </tr>
@@ -198,12 +235,14 @@
       <div class="bg-white rounded-2xl shadow-easydry border border-slate-100 overflow-hidden">
         <div class="p-6 border-b border-slate-100 flex items-center justify-between">
           <h3 class="font-bold text-slate-900 text-base font-outfit">Servicios Especiales</h3>
-          <button
-            (click)="abrirModalNuevo('ESPECIAL')"
-            class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
-            <i-lucide name="star" class="w-4 h-4 fill-slate-950"></i-lucide>
-            <span>Nuevo Servicio Especial</span>
-          </button>
+          @if (!esUsuarioSucursal) {
+            <button
+              (click)="abrirModalNuevo('ESPECIAL')"
+              class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
+              <i-lucide name="star" class="w-4 h-4 fill-slate-950"></i-lucide>
+              <span>Nuevo Servicio Especial</span>
+            </button>
+          }
         </div>
         <table class="w-full text-left text-sm whitespace-nowrap">
           <thead class="bg-slate-50/80 text-slate-500 font-bold border-b border-slate-200 text-[11px] uppercase tracking-wider">
@@ -265,18 +304,26 @@
                   </div>
                 </td>
                 <td class="px-6 py-4">
-                  <button (click)="toggleEstado(srv)"
-                    class="px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border transition-colors cursor-pointer"
-                    [ngClass]="srv.estado === 'Activo' ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100' : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200'">
-                    {{ srv.estado }}
-                  </button>
+                  @if (!esUsuarioSucursal) {
+                    <button (click)="toggleEstado(srv)"
+                      class="px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border transition-colors cursor-pointer"
+                      [ngClass]="srv.estado === 'Activo' ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100' : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200'">
+                      {{ srv.estado }}
+                    </button>
+                  } @else {
+                    <span
+                      class="px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border inline-block"
+                      [ngClass]="srv.estado === 'Activo' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-500 border-slate-200'">
+                      {{ srv.estado }}
+                    </span>
+                  }
                 </td>
                 <td class="px-6 py-4 text-right">
                   <button 
                     (click)="abrirModalEditar(srv)" 
                     class="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer" 
-                    title="Editar Servicio Especial">
-                    <i-lucide name="edit-3" class="w-4 h-4"></i-lucide>
+                    [title]="esUsuarioSucursal ? 'Ver Receta y Parámetros' : 'Editar Servicio Especial'">
+                    <i-lucide [name]="esUsuarioSucursal ? 'eye' : 'edit-3'" class="w-4 h-4"></i-lucide>
                   </button>
                 </td>
               </tr>
@@ -314,13 +361,15 @@
       <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/70 shrink-0">
         <div class="flex items-center gap-2.5">
           <div class="w-8 h-8 rounded-xl bg-easydry-blue/10 flex items-center justify-center text-easydry-blue">
-            <i-lucide [name]="isEditing ? 'edit-3' : 'plus'" class="w-4 h-4"></i-lucide>
+            <i-lucide [name]="esUsuarioSucursal ? 'eye' : (isEditing ? 'edit-3' : 'plus')" class="w-4 h-4"></i-lucide>
           </div>
           <div>
             <h3 class="font-extrabold text-base text-slate-900 leading-tight">
-              {{ isEditing ? 'Editar Servicio' : 'Nuevo Servicio' }}
+              {{ esUsuarioSucursal ? 'Detalle y Receta del Servicio' : (isEditing ? 'Editar Servicio' : 'Nuevo Servicio') }}
             </h3>
-            <p class="text-[11px] text-slate-500 font-medium">Configura los datos del catálogo y la receta de insumos</p>
+            <p class="text-[11px] text-slate-500 font-medium">
+              {{ esUsuarioSucursal ? 'Parámetros oficiales e insumos requeridos autorizados para tu sucursal' : 'Configura los datos del catálogo y la receta de insumos' }}
+            </p>
           </div>
         </div>
         <button (click)="cerrarModal()" class="text-slate-400 hover:text-slate-600 p-1.5 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer">
@@ -337,14 +386,16 @@
             <label class="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1.5">Código</label>
             <input 
               type="text" 
+              [disabled]="esUsuarioSucursal"
               [(ngModel)]="servicioActual.codigo" 
-              class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs font-bold text-slate-800 focus:bg-white focus:ring-2 focus:ring-easydry-blue">
+              class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs font-bold text-slate-800 focus:bg-white focus:ring-2 focus:ring-easydry-blue disabled:opacity-75 disabled:bg-slate-100">
           </div>
           <div>
             <label class="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1.5">Categoría</label>
             <select 
+              [disabled]="esUsuarioSucursal"
               [(ngModel)]="servicioActual.categoria" 
-              class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:ring-2 focus:ring-easydry-blue">
+              class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:ring-2 focus:ring-easydry-blue disabled:opacity-75 disabled:bg-slate-100">
               <option value="GENERAL">Servicio General</option>
               <option value="ESPECIAL">Servicio Especial</option>
             </select>
@@ -352,8 +403,9 @@
           <div>
             <label class="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1.5">Estado</label>
             <select 
+              [disabled]="esUsuarioSucursal"
               [(ngModel)]="servicioActual.estado" 
-              class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:ring-2 focus:ring-easydry-blue">
+              class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:ring-2 focus:ring-easydry-blue disabled:opacity-75 disabled:bg-slate-100">
               <option value="Activo">Activo</option>
               <option value="Inactivo">Inactivo</option>
             </select>
@@ -365,19 +417,21 @@
           <label class="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1.5">Nombre del Servicio</label>
           <input 
             type="text" 
+            [disabled]="esUsuarioSucursal"
             [(ngModel)]="servicioActual.nombre" 
             placeholder="Ej. Lavado Express con Cera, Desinfección de Tapicería..." 
-            class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:ring-2 focus:ring-easydry-blue">
+            class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:ring-2 focus:ring-easydry-blue disabled:opacity-75 disabled:bg-slate-100">
         </div>
 
         <!-- Fila 3: Descripción -->
         <div>
           <label class="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1.5">Descripción</label>
           <textarea 
+            [disabled]="esUsuarioSucursal"
             [(ngModel)]="servicioActual.descripcion" 
             rows="2" 
             placeholder="Describe brevemente en qué consiste este servicio..." 
-            class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 focus:bg-white focus:ring-2 focus:ring-easydry-blue"></textarea>
+            class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 focus:bg-white focus:ring-2 focus:ring-easydry-blue disabled:opacity-75 disabled:bg-slate-100"></textarea>
         </div>
 
         <!-- SECCION: INSUMOS Y CANTIDADES A DESCONTAR -->
@@ -416,42 +470,48 @@
 
                   <!-- Controles de Cantidad -->
                   <div class="flex items-center gap-2 shrink-0">
-                    <div class="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200">
-                      <button 
-                        type="button" 
-                        (click)="disminuirCantidadReceta(idx)" 
-                        title="Disminuir dosis"
-                        class="w-7 h-7 rounded-lg bg-white hover:bg-slate-200 text-slate-700 font-extrabold flex items-center justify-center cursor-pointer transition-colors shadow-2xs text-sm">
-                        -
-                      </button>
-                      
-                      <div class="flex items-center px-2">
-                        <input
-                          type="number"
-                          [(ngModel)]="ins.cantidadSugerida"
-                          min="0.01"
-                          step="0.05"
-                          class="w-16 text-center py-0.5 text-xs font-mono font-bold text-easydry-blue bg-transparent focus:outline-none"
-                          title="Cantidad a descontar según la unidad base">
-                        <span class="text-xs text-slate-700 font-extrabold ml-1.5 min-w-[20px] text-left">{{ ins.unidadMedida }}</span>
+                    @if (!esUsuarioSucursal) {
+                      <div class="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200">
+                        <button 
+                          type="button" 
+                          (click)="disminuirCantidadReceta(idx)" 
+                          title="Disminuir dosis"
+                          class="w-7 h-7 rounded-lg bg-white hover:bg-slate-200 text-slate-700 font-extrabold flex items-center justify-center cursor-pointer transition-colors shadow-2xs text-sm">
+                          -
+                        </button>
+                        
+                        <div class="flex items-center px-2">
+                          <input
+                            type="number"
+                            [(ngModel)]="ins.cantidadSugerida"
+                            min="0.01"
+                            step="0.05"
+                            class="w-16 text-center py-0.5 text-xs font-mono font-bold text-easydry-blue bg-transparent focus:outline-none"
+                            title="Cantidad a descontar según la unidad base">
+                          <span class="text-xs text-slate-700 font-extrabold ml-1.5 min-w-[20px] text-left">{{ ins.unidadMedida }}</span>
+                        </div>
+
+                        <button 
+                          type="button" 
+                          (click)="aumentarCantidadReceta(idx)" 
+                          title="Aumentar dosis"
+                          class="w-7 h-7 rounded-lg bg-white hover:bg-slate-200 text-slate-700 font-extrabold flex items-center justify-center cursor-pointer transition-colors shadow-2xs text-sm">
+                          +
+                        </button>
                       </div>
 
                       <button 
                         type="button" 
-                        (click)="aumentarCantidadReceta(idx)" 
-                        title="Aumentar dosis"
-                        class="w-7 h-7 rounded-lg bg-white hover:bg-slate-200 text-slate-700 font-extrabold flex items-center justify-center cursor-pointer transition-colors shadow-2xs text-sm">
-                        +
+                        (click)="eliminarInsumoReceta(idx)" 
+                        title="Eliminar insumo de la receta"
+                        class="p-2 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer border border-transparent hover:border-rose-100">
+                        <i-lucide name="trash-2" class="w-4 h-4"></i-lucide>
                       </button>
-                    </div>
-
-                    <button 
-                      type="button" 
-                      (click)="eliminarInsumoReceta(idx)" 
-                      title="Eliminar insumo de la receta"
-                      class="p-2 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer border border-transparent hover:border-rose-100">
-                      <i-lucide name="trash-2" class="w-4 h-4"></i-lucide>
-                    </button>
+                    } @else {
+                      <div class="px-3 py-1.5 bg-blue-50/80 border border-blue-200 rounded-xl font-mono text-xs font-bold text-easydry-blue">
+                        {{ ins.cantidadSugerida }} {{ ins.unidadMedida }}
+                      </div>
+                    }
                   </div>
                 </div>
               }
@@ -459,82 +519,84 @@
           }
 
           <!-- Panel para Buscar y Agregar Insumo a la Receta -->
-          <div class="p-3.5 bg-white rounded-xl border border-slate-200 space-y-2.5">
-            <div class="flex items-center justify-between">
-              <span class="text-[11px] font-bold text-slate-700 flex items-center gap-1.5">
-                <i-lucide name="plus-circle" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide>
-                Agregar insumo a la receta:
-              </span>
-              <span class="text-[10px] text-slate-500 font-medium">
-                {{ insumosDisponiblesFiltrados.length }} de {{ productosInventario.length }} insumos
-              </span>
-            </div>
-
-            <!-- Buscador en tiempo real de Insumos -->
-            <div class="relative">
-              <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400 pointer-events-none">
-                <i-lucide name="search" class="w-3.5 h-3.5"></i-lucide>
-              </span>
-              <input
-                type="text"
-                [(ngModel)]="busquedaInsumoReceta"
-                placeholder="Buscar insumo por nombre, código SKU o unidad de medida..."
-                class="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:ring-2 focus:ring-easydry-blue transition-all">
-              @if (busquedaInsumoReceta) {
-                <button
-                  type="button"
-                  (click)="busquedaInsumoReceta = ''"
-                  class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
-                  title="Limpiar búsqueda">
-                  <i-lucide name="x" class="w-3.5 h-3.5"></i-lucide>
-                </button>
-              }
-            </div>
-
-            <!-- Selector desplegable y Cantidad a descontar -->
-            <div class="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-center pt-1">
-              <!-- Select de Insumos Filtrados -->
-              <div class="sm:col-span-7">
-                <select
-                  [ngModel]="insumoSeleccionadoId"
-                  (ngModelChange)="onInsumoSeleccionadoChange($event)"
-                  class="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:bg-white focus:ring-2 focus:ring-easydry-blue">
-                  <option value="">-- Seleccionar insumo filtrado ({{ insumosDisponiblesFiltrados.length }}) --</option>
-                  @for (item of insumosDisponiblesFiltrados; track item.producto.id) {
-                    <option [value]="item.producto.id">
-                      {{ item.producto.nombre }} ({{ item.producto.unidadMedida }}) • SKU: {{ item.producto.codigoSKU }}
-                    </option>
-                  }
-                </select>
+          @if (!esUsuarioSucursal) {
+            <div class="p-3.5 bg-white rounded-xl border border-slate-200 space-y-2.5">
+              <div class="flex items-center justify-between">
+                <span class="text-[11px] font-bold text-slate-700 flex items-center gap-1.5">
+                  <i-lucide name="plus-circle" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide>
+                  Agregar insumo a la receta:
+                </span>
+                <span class="text-[10px] text-slate-500 font-medium">
+                  {{ insumosDisponiblesFiltrados.length }} de {{ productosInventario.length }} insumos
+                </span>
               </div>
 
-              <!-- Input Cantidad a Descontar y Botón Agregar -->
-              <div class="sm:col-span-5 flex items-center gap-2">
-                <div class="relative flex-1 flex items-center">
-                  <input
-                    type="number"
-                    [(ngModel)]="cantidadADescontar"
-                    min="0.01"
-                    step="0.05"
-                    placeholder="Cantidad"
-                    class="w-full py-2 pl-3 pr-12 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-800 focus:bg-white focus:ring-2 focus:ring-easydry-blue"
-                    title="Cantidad a descontar en la unidad base del insumo">
-                  <span class="absolute right-2 text-[10px] font-extrabold text-easydry-blue bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">
-                    {{ insumoSeleccionadoActual?.producto?.unidadMedida || 'und' }}
-                  </span>
+              <!-- Buscador en tiempo real de Insumos -->
+              <div class="relative">
+                <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400 pointer-events-none">
+                  <i-lucide name="search" class="w-3.5 h-3.5"></i-lucide>
+                </span>
+                <input
+                  type="text"
+                  [(ngModel)]="busquedaInsumoReceta"
+                  placeholder="Buscar insumo por nombre, código SKU o unidad de medida..."
+                  class="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:ring-2 focus:ring-easydry-blue transition-all">
+                @if (busquedaInsumoReceta) {
+                  <button
+                    type="button"
+                    (click)="busquedaInsumoReceta = ''"
+                    class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
+                    title="Limpiar búsqueda">
+                    <i-lucide name="x" class="w-3.5 h-3.5"></i-lucide>
+                  </button>
+                }
+              </div>
+
+              <!-- Selector desplegable y Cantidad a descontar -->
+              <div class="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-center pt-1">
+                <!-- Select de Insumos Filtrados -->
+                <div class="sm:col-span-7">
+                  <select
+                    [ngModel]="insumoSeleccionadoId"
+                    (ngModelChange)="onInsumoSeleccionadoChange($event)"
+                    class="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:bg-white focus:ring-2 focus:ring-easydry-blue">
+                    <option value="">-- Seleccionar insumo filtrado ({{ insumosDisponiblesFiltrados.length }}) --</option>
+                    @for (item of insumosDisponiblesFiltrados; track item.producto.id) {
+                      <option [value]="item.producto.id">
+                        {{ item.producto.nombre }} ({{ item.producto.unidadMedida }}) • SKU: {{ item.producto.codigoSKU }}
+                      </option>
+                    }
+                  </select>
                 </div>
 
-                <button
-                  type="button"
-                  [disabled]="!insumoSeleccionadoId || cantidadADescontar <= 0"
-                  (click)="agregarInsumoReceta()"
-                  class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark disabled:opacity-50 disabled:cursor-not-allowed text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0">
-                  <i-lucide name="plus" class="w-3.5 h-3.5"></i-lucide>
-                  <span>+ Agregar</span>
-                </button>
+                <!-- Input Cantidad a Descontar y Botón Agregar -->
+                <div class="sm:col-span-5 flex items-center gap-2">
+                  <div class="relative flex-1 flex items-center">
+                    <input
+                      type="number"
+                      [(ngModel)]="cantidadADescontar"
+                      min="0.01"
+                      step="0.05"
+                      placeholder="Cantidad"
+                      class="w-full py-2 pl-3 pr-12 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-800 focus:bg-white focus:ring-2 focus:ring-easydry-blue"
+                      title="Cantidad a descontar en la unidad base del insumo">
+                    <span class="absolute right-2 text-[10px] font-extrabold text-easydry-blue bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">
+                      {{ insumoSeleccionadoActual?.producto?.unidadMedida || 'und' }}
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    [disabled]="!insumoSeleccionadoId || cantidadADescontar <= 0"
+                    (click)="agregarInsumoReceta()"
+                    class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark disabled:opacity-50 disabled:cursor-not-allowed text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0">
+                    <i-lucide name="plus" class="w-3.5 h-3.5"></i-lucide>
+                    <span>+ Agregar</span>
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
+          }
 
         </div>
       </div>
@@ -544,14 +606,16 @@
         <button 
           (click)="cerrarModal()" 
           class="px-4 py-2 text-xs font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition-colors cursor-pointer">
-          Cancelar
+          {{ esUsuarioSucursal ? 'Cerrar' : 'Cancelar' }}
         </button>
-        <button 
-          (click)="guardarServicio()" 
-          class="px-5 py-2 text-xs font-extrabold text-slate-950 bg-easydry-green hover:bg-easydry-green-dark shadow-glow-green rounded-xl transition-all cursor-pointer flex items-center gap-1.5">
-          <i-lucide name="check" class="w-4 h-4"></i-lucide>
-          <span>Guardar Servicio</span>
-        </button>
+        @if (!esUsuarioSucursal) {
+          <button 
+            (click)="guardarServicio()" 
+            class="px-5 py-2 text-xs font-extrabold text-slate-950 bg-easydry-green hover:bg-easydry-green-dark shadow-glow-green rounded-xl transition-all cursor-pointer flex items-center gap-1.5">
+            <i-lucide name="check" class="w-4 h-4"></i-lucide>
+            <span>Guardar Servicio</span>
+          </button>
+        }
       </div>
 
     </div>

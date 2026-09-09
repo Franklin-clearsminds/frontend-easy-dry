@@ -4,13 +4,13 @@ import { FormsModule } from '@angular/forms';
 import { LucideAngularModule } from 'lucide-angular';
 import { CatalogoServiciosMockService } from '../../../core/services/catalogo-servicios-mock.service';
 import { InventarioMockService } from '../../../core/services/inventario-mock.service';
-import { CatalogoServicio, RecetaInsumoServicio, InventarioItem } from '../../../core/models';
+import { AuthService } from '../../../core/services/auth.service';
+import { SucursalMockService } from '../../../core/services/sucursal-mock.service';
+import { CatalogoServicio, RecetaInsumoServicio, InventarioItem, Sucursal, Role } from '../../../core/models';
 import { PaginationComponent } from '../../../shared/components/pagination/pagination.component';
 import { ModalPortalDirective } from '../../../shared/directives/modal-portal.directive';
 
 import { RouterModule } from '@angular/router';
-
-const SUCURSALES_RED = ['EasyDry Quito Norte', 'EasyDry Quito Sur', 'EasyDry Cumbayá', 'EasyDry Guayaquil'];
 
 @Component({
   selector: 'app-catalogo-servicios',
@@ -21,6 +21,15 @@ const SUCURSALES_RED = ['EasyDry Quito Norte', 'EasyDry Quito Sur', 'EasyDry Cum
 export class CatalogoServiciosComponent implements OnInit {
   private catalogoService = inject(CatalogoServiciosMockService);
   private inventarioService = inject(InventarioMockService);
+  public authService = inject(AuthService);
+  private sucursalService = inject(SucursalMockService);
+
+  // ── Scoping por sucursal (Líder Operador / Gerente) ──────────────────────
+  sucursalUsuario: Sucursal | null = null;
+  serviciosSucursalIds: number[] = [];
+  serviciosSucursalNombres: string[] = [];
+  esLiderOperador = false;
+  esUsuarioSucursal = false;
 
   // ── Tabs ──────────────────────────────────────────────────────────────────
   tabActiva: 'generales' | 'especiales' = 'generales';
@@ -94,6 +103,7 @@ export class CatalogoServiciosComponent implements OnInit {
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
   ngOnInit() {
+    this.detectarAmbitoUsuario();
     this.cargarServicios();
     this.inventarioService.cargarItems();
     this.inventarioService.getItems().subscribe(items => {
@@ -101,13 +111,80 @@ export class CatalogoServiciosComponent implements OnInit {
     });
   }
 
+  detectarAmbitoUsuario(): void {
+    const user = this.authService.getCurrentUser();
+    if (!user) return;
+
+    const esSuperAdmin = this.authService.isSuperAdmin();
+    const esAdmin = this.authService.isAdmin();
+
+    this.esLiderOperador = !esSuperAdmin && !esAdmin && (this.authService.isLiderOperador() || user.role === Role.LIDER_OPERADOR);
+    this.esUsuarioSucursal = !esSuperAdmin && !esAdmin && (this.esLiderOperador || !!(user.sucursalNombre || user.sucursal || user.agenciaId));
+
+    const aplicarSucursal = (sucursales: Sucursal[]) => {
+      if (!sucursales || sucursales.length === 0) return;
+      const sucNombre = (user.sucursalNombre || user.sucursal || (user as any).agencia || '').toLowerCase().trim();
+      const suc = sucursales.find(s =>
+        (user.agenciaId && String(s.id) === String(user.agenciaId)) ||
+        (s.nombre && s.nombre.toLowerCase() === sucNombre) ||
+        (s.nombre && sucNombre && (s.nombre.toLowerCase().includes(sucNombre) || sucNombre.includes(s.nombre.toLowerCase())))
+      );
+
+      if (suc) {
+        this.sucursalUsuario = suc;
+        this.serviciosSucursalIds = Array.isArray(suc.servicioIds) ? suc.servicioIds.map(Number) : [];
+        this.serviciosSucursalNombres = Array.isArray(suc.serviciosNombres) ? suc.serviciosNombres.map(n => n.toLowerCase().trim()) : [];
+        if (!esSuperAdmin && !esAdmin) {
+          this.esUsuarioSucursal = true;
+        }
+      }
+    };
+
+    const activas = this.sucursalService.getActivas();
+    if (activas && activas.length > 0) {
+      aplicarSucursal(activas);
+    }
+
+    this.sucursalService.getSucursales().subscribe(sucursales => {
+      aplicarSucursal(sucursales);
+    });
+  }
+
+  servicioCorrespondeASucursal(s: CatalogoServicio): boolean {
+    if (!this.esUsuarioSucursal) {
+      return true;
+    }
+    if (!this.sucursalUsuario) {
+      return false;
+    }
+    if (this.serviciosSucursalIds.length > 0 && this.serviciosSucursalIds.includes(Number(s.id))) {
+      return true;
+    }
+    if (this.serviciosSucursalNombres.length > 0 && this.serviciosSucursalNombres.includes(s.nombre.toLowerCase().trim())) {
+      return true;
+    }
+    return false;
+  }
+
+  get totalServiciosSucursal(): number {
+    return this.serviciosGenerales.length + this.serviciosEspeciales.length;
+  }
+
   // ── Getters de servicios por categoría ───────────────────────────────────
   get serviciosGenerales(): CatalogoServicio[] {
-    return this.servicios.filter(s => s.categoria === 'GENERAL');
+    let list = this.servicios.filter(s => s.categoria === 'GENERAL');
+    if (this.esUsuarioSucursal && this.sucursalUsuario) {
+      list = list.filter(s => this.servicioCorrespondeASucursal(s));
+    }
+    return list;
   }
 
   get serviciosEspeciales(): CatalogoServicio[] {
-    return this.servicios.filter(s => s.categoria === 'ESPECIAL' || s.categoria === 'EXTRA');
+    let list = this.servicios.filter(s => s.categoria === 'ESPECIAL' || s.categoria === 'EXTRA');
+    if (this.esUsuarioSucursal && this.sucursalUsuario) {
+      list = list.filter(s => this.servicioCorrespondeASucursal(s));
+    }
+    return list;
   }
 
   // ── Cargar servicios ─────────────────────────────────────────────────────

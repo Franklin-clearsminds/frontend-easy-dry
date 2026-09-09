@@ -7,7 +7,7 @@ import { apiUrl } from '../config/env';
 
 const INITIAL_CATALOGO_SERVICIOS: CatalogoServicio[] = [
   {
-    id: 1,
+    id: 6,
     codigo: 'SER-001',
     nombre: 'Lavado Express Ecológico',
     categoria: 'GENERAL',
@@ -22,7 +22,7 @@ const INITIAL_CATALOGO_SERVICIOS: CatalogoServicio[] = [
     fechaCreacion: '2026-09-01'
   },
   {
-    id: 2,
+    id: 7,
     codigo: 'SER-002',
     nombre: 'Lavado Completo con Cera Carnauba',
     categoria: 'GENERAL',
@@ -39,7 +39,7 @@ const INITIAL_CATALOGO_SERVICIOS: CatalogoServicio[] = [
     fechaCreacion: '2026-09-01'
   },
   {
-    id: 3,
+    id: 8,
     codigo: 'SER-003',
     nombre: 'Lavado y Desinfección de Interiores',
     categoria: 'GENERAL',
@@ -55,7 +55,7 @@ const INITIAL_CATALOGO_SERVICIOS: CatalogoServicio[] = [
     fechaCreacion: '2026-09-01'
   },
   {
-    id: 4,
+    id: 9,
     codigo: 'SER-004',
     nombre: 'Lavado de Chasis y Motor en Seco',
     categoria: 'GENERAL',
@@ -70,7 +70,7 @@ const INITIAL_CATALOGO_SERVICIOS: CatalogoServicio[] = [
     fechaCreacion: '2026-09-01'
   },
   {
-    id: 5,
+    id: 10,
     codigo: 'SER-005',
     nombre: 'Encerado Express y Protección UV',
     categoria: 'GENERAL',
@@ -85,7 +85,7 @@ const INITIAL_CATALOGO_SERVICIOS: CatalogoServicio[] = [
     fechaCreacion: '2026-09-01'
   },
   {
-    id: 6,
+    id: 11,
     codigo: 'SER-006',
     nombre: 'Tratamiento de Llantas y Parabrisas Pro',
     categoria: 'GENERAL',
@@ -101,7 +101,7 @@ const INITIAL_CATALOGO_SERVICIOS: CatalogoServicio[] = [
   },
   // EXACTAMENTE 3 SERVICIOS ESPECIALES
   {
-    id: 7,
+    id: 12,
     codigo: 'ESP-001',
     nombre: 'Corrección de Pintura y Pulido en 3 Pasos',
     categoria: 'ESPECIAL',
@@ -118,7 +118,7 @@ const INITIAL_CATALOGO_SERVICIOS: CatalogoServicio[] = [
     fechaCreacion: '2026-09-01'
   },
   {
-    id: 8,
+    id: 13,
     codigo: 'ESP-002',
     nombre: 'Tratamiento Cerámico 9H Diamond Coating',
     categoria: 'ESPECIAL',
@@ -134,7 +134,7 @@ const INITIAL_CATALOGO_SERVICIOS: CatalogoServicio[] = [
     fechaCreacion: '2026-09-01'
   },
   {
-    id: 9,
+    id: 14,
     codigo: 'ESP-003',
     nombre: 'Detallado Integral de Tapicería y Renovación de Cuero',
     categoria: 'ESPECIAL',

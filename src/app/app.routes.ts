@@ -50,7 +50,8 @@ export const routes: Routes = [
             Role.SUPERVISOR,
             Role.COORD_MANTENIMIENTO,
             Role.TECNICO,
-            Role.OPERADOR,
+            Role.LIDER_OPERADOR,
+            Role.LIDER_AGENCIA,
             Role.COORD_COMERCIAL,
             Role.COORD_SERVICIOS_ESPECIALES,
             Role.OPERADOR_SERVICIOS_ESPECIALES,
@@ -69,7 +70,8 @@ export const routes: Routes = [
           roleGuard([
             Role.SUPER_ADMIN,
             Role.ADMIN,
-            Role.OPERADOR,
+            Role.LIDER_OPERADOR,
+            Role.LIDER_AGENCIA,
             Role.OPERADOR_SERVICIOS_ESPECIALES
           ], 'mi-bahia')
         ]
@@ -86,7 +88,8 @@ export const routes: Routes = [
             Role.ADMIN,
             Role.GERENTE,
             Role.SUPERVISOR,
-            Role.OPERADOR,
+            Role.LIDER_OPERADOR,
+            Role.LIDER_AGENCIA,
             Role.COORD_COMERCIAL,
             Role.COORD_SERVICIOS_ESPECIALES,
             Role.OPERADOR_SERVICIOS_ESPECIALES
@@ -174,6 +177,8 @@ export const routes: Routes = [
             Role.ADMIN,
             Role.GERENTE,
             Role.SUPERVISOR,
+            Role.LIDER_OPERADOR,
+            Role.LIDER_AGENCIA,
             Role.COORD_SERVICIOS_ESPECIALES
           ], 'operadores')
         ]
@@ -195,6 +200,8 @@ export const routes: Routes = [
             Role.SUPERVISOR,
             Role.COORD_MANTENIMIENTO,
             Role.TECNICO,
+            Role.LIDER_OPERADOR,
+            Role.LIDER_AGENCIA,
             Role.COORD_SERVICIOS_ESPECIALES
           ], 'maquinaria')
         ]
@@ -228,6 +235,8 @@ export const routes: Routes = [
             Role.SUPERVISOR,
             Role.COORD_MANTENIMIENTO,
             Role.TECNICO,
+            Role.LIDER_OPERADOR,
+            Role.LIDER_AGENCIA,
             Role.DISTRIBUIDOR,
             Role.ASISTENTE_BODEGA
           ], 'inventario')
@@ -245,7 +254,8 @@ export const routes: Routes = [
             Role.ADMIN,
             Role.SUPERVISOR,
             Role.COORD_MANTENIMIENTO,
-            Role.OPERADOR,
+            Role.LIDER_OPERADOR,
+            Role.LIDER_AGENCIA,
             Role.COORD_SERVICIOS_ESPECIALES,
             Role.OPERADOR_SERVICIOS_ESPECIALES,
             Role.DISTRIBUIDOR,
@@ -302,6 +312,7 @@ export const routes: Routes = [
             Role.JEFE_COMERCIAL,
             Role.COORD_COMERCIAL,
             Role.COORD_SERVICIOS_ESPECIALES,
+            Role.LIDER_OPERADOR,
             Role.LIDER_AGENCIA
           ], 'configuracion/servicios')
         ]

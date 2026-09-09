@@ -8,7 +8,7 @@ import { LucideAngularModule } from 'lucide-angular';
   standalone: true,
   imports: [CommonModule, LucideAngularModule],
   template: `
-    <div class="fixed top-4 left-4 right-4 sm:top-6 sm:left-auto sm:right-6 z-[100] flex flex-col gap-3 sm:max-w-sm w-auto sm:w-full pointer-events-none">
+    <div class="fixed top-4 left-4 right-4 sm:top-6 sm:left-auto sm:right-6 z-[999999] flex flex-col gap-3 sm:max-w-sm w-auto sm:w-full pointer-events-none">
       @for (toast of toastService.toasts$ | async; track toast.id) {
         <div 
           class="pointer-events-auto flex items-start p-4 rounded-xl shadow-xl border animate-fade-in transition-all duration-300 bg-white text-slate-800"

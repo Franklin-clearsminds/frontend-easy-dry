@@ -69,10 +69,15 @@ import { AuthService } from '../../core/services/auth.service';
         <div class="bg-white p-6 rounded-3xl border border-slate-100 shadow-easydry">
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
             <div>
-              <h2 class="font-extrabold text-slate-900 font-outfit">Servicios de esta sucursal</h2>
+              <div class="flex items-center gap-2">
+                <h2 class="font-extrabold text-slate-900 font-outfit">Servicios de esta sucursal</h2>
+                <span class="px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-easydry-blue/10 text-easydry-blue border border-easydry-blue/20">
+                  {{ (sucursal.serviciosNombres || []).length || (sucursal.servicioIds || []).length || 0 }} activos
+                </span>
+              </div>
               <p class="text-xs text-slate-500">Catálogo asignado manualmente. Se puede editar en cualquier momento.</p>
             </div>
-            <button (click)="abrirModalServicios()" class="px-4 py-2 bg-easydry-blue text-white font-bold rounded-xl text-xs flex items-center gap-1.5">
+            <button (click)="abrirModalServicios()" class="px-4 py-2 bg-easydry-blue hover:bg-easydry-blue-dark text-white font-bold rounded-xl text-xs flex items-center gap-1.5 transition-colors cursor-pointer">
               <i-lucide name="pencil" class="w-3.5 h-3.5"></i-lucide>
               Editar servicios
             </button>
@@ -232,27 +237,43 @@ import { AuthService } from '../../core/services/auth.service';
         (close)="modalServiciosOpen = false">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-72 overflow-y-auto">
           <div class="border border-slate-200 rounded-xl p-3 bg-slate-50">
-            <p class="text-[10px] font-extrabold uppercase text-easydry-blue mb-2">Generales</p>
+            <div class="flex items-center justify-between mb-2">
+              <p class="text-[10px] font-extrabold uppercase text-easydry-blue">Generales</p>
+              <span class="text-[10px] font-bold text-easydry-blue bg-blue-100 px-2 py-0.5 rounded-full">
+                {{ cantidadGeneralesSeleccionadosEdit }} / {{ serviciosGenerales.length }}
+              </span>
+            </div>
             @for (s of serviciosGenerales; track s.id) {
-              <label class="flex items-start gap-2 py-1.5 cursor-pointer">
-                <input type="checkbox" class="mt-0.5" [checked]="servicioSeleccionado(s.id)" (change)="toggleServicio(s.id, s.nombre)">
+              <label class="flex items-start gap-2 py-1.5 cursor-pointer hover:bg-white/60 px-1.5 rounded-lg transition-colors">
+                <input type="checkbox" class="mt-0.5 rounded border-slate-300" [checked]="servicioSeleccionado(s.id)" (change)="toggleServicio(s.id, s.nombre)">
                 <span class="text-xs font-semibold text-slate-800">{{ s.nombre }}</span>
               </label>
             }
           </div>
           <div class="border border-amber-200 rounded-xl p-3 bg-amber-50/50">
-            <p class="text-[10px] font-extrabold uppercase text-amber-700 mb-2">Especiales</p>
+            <div class="flex items-center justify-between mb-2">
+              <p class="text-[10px] font-extrabold uppercase text-amber-700">Especiales</p>
+              <span class="text-[10px] font-bold text-amber-800 bg-amber-200 px-2 py-0.5 rounded-full">
+                {{ cantidadEspecialesSeleccionadosEdit }} / {{ serviciosEspeciales.length }}
+              </span>
+            </div>
             @for (s of serviciosEspeciales; track s.id) {
-              <label class="flex items-start gap-2 py-1.5 cursor-pointer">
-                <input type="checkbox" class="mt-0.5" [checked]="servicioSeleccionado(s.id)" (change)="toggleServicio(s.id, s.nombre)">
+              <label class="flex items-start gap-2 py-1.5 cursor-pointer hover:bg-amber-100/50 px-1.5 rounded-lg transition-colors">
+                <input type="checkbox" class="mt-0.5 rounded border-amber-300" [checked]="servicioSeleccionado(s.id)" (change)="toggleServicio(s.id, s.nombre)">
                 <span class="text-xs font-semibold text-slate-800">{{ s.nombre }}</span>
               </label>
             }
           </div>
         </div>
-        <div modal-footer>
-          <button (click)="modalServiciosOpen = false" class="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs">Cancelar</button>
-          <button (click)="guardarServiciosSucursal()" class="px-4 py-2 bg-easydry-blue text-white font-bold rounded-xl text-xs">Guardar servicios</button>
+        <div modal-footer class="w-full flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-easydry-blue/10 text-easydry-blue border border-easydry-blue/20 text-xs font-extrabold">
+            <i-lucide name="sparkles" class="w-4 h-4"></i-lucide>
+            <span>{{ idsServiciosEdit.length }} servicios seleccionados</span>
+          </div>
+          <div class="flex items-center gap-2 self-end sm:self-auto">
+            <button (click)="modalServiciosOpen = false" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl text-xs transition-colors cursor-pointer">Cancelar</button>
+            <button (click)="guardarServiciosSucursal()" class="px-4 py-2 bg-easydry-blue hover:bg-easydry-blue-dark text-white font-bold rounded-xl text-xs transition-colors cursor-pointer shadow-sm">Guardar servicios</button>
+          </div>
         </div>
       </app-modal>
 
@@ -287,6 +308,16 @@ export class SucursalDetailComponent implements OnInit {
 
   get serviciosEspeciales(): CatalogoServicio[] {
     return this.catalogoServicios.filter(s => (s.categoria === 'ESPECIAL' || s.categoria === 'EXTRA') && s.estado === 'Activo');
+  }
+
+  get cantidadGeneralesSeleccionadosEdit(): number {
+    const ids = new Set(this.idsServiciosEdit);
+    return this.serviciosGenerales.filter(s => ids.has(s.id)).length;
+  }
+
+  get cantidadEspecialesSeleccionadosEdit(): number {
+    const ids = new Set(this.idsServiciosEdit);
+    return this.serviciosEspeciales.filter(s => ids.has(s.id)).length;
   }
 
   ngOnInit(): void {

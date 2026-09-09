@@ -22,14 +22,80 @@ export class SucursalMockService {
   private movimientosSubject = new BehaviorSubject<MovimientoRedSucursal[]>([]);
   public movimientos$ = this.movimientosSubject.asObservable();
 
+  private readonly CONFIG_STORAGE_KEY = 'easydry_sucursal_config_map_v1';
+
   constructor() {
     try {
       localStorage.removeItem(this.STORAGE_KEY);
     } catch {}
   }
 
+  private getBranchConfigMap(): Record<string, any> {
+    try {
+      const raw = localStorage.getItem(this.CONFIG_STORAGE_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  }
+
+  private saveBranchConfig(id: string | number, config: any): void {
+    try {
+      const map = this.getBranchConfigMap();
+      map[String(id)] = {
+        ...(map[String(id)] || {}),
+        ...config
+      };
+      localStorage.setItem(this.CONFIG_STORAGE_KEY, JSON.stringify(map));
+    } catch {}
+  }
+
   private mapBackendAgencia(a: any): Sucursal {
-    const ger = a.usuarios?.find((u: any) => u.role?.namerol === 'GERENTE' || u.role?.namerol?.includes('GERENTE'));
+    const configMap = this.getBranchConfigMap();
+    const stored = configMap[String(a.id)] || {};
+
+    const ger = a.usuarios?.find((u: any) => {
+      const r = (u.role?.namerol || u.role || '').toUpperCase();
+      return r === 'GERENTE' || r === 'APROBADOR' || r.includes('GERENTE') || r.includes('APROBADOR') || r === 'LIDER_AGENCIA';
+    });
+
+    const responsable = ger
+      ? `${ger.name || ''} ${ger.lastname || ''}`.trim()
+      : (a.responsable && a.responsable !== 'Sin Asignar' ? a.responsable : (stored.responsable || 'Sin Asignar'));
+
+    const gerenteId = ger?.id || a.gerenteId || stored.gerenteId || undefined;
+    const gerenteNombre = ger
+      ? `${ger.name || ''} ${ger.lastname || ''}`.trim()
+      : (a.gerenteNombre || stored.gerenteNombre || (responsable !== 'Sin Asignar' ? responsable : undefined));
+
+    const lider = a.usuarios?.find((u: any) => {
+      const r = (u.role?.namerol || u.role || '').toUpperCase();
+      return r === 'LIDER_OPERADOR' || r.includes('LIDER_OPERADOR') || r.includes('LIDER') || r.includes('LÍDER');
+    });
+
+    const liderOperador = lider
+      ? `${lider.name || ''} ${lider.lastname || ''}`.trim()
+      : (a.liderOperador && a.liderOperador !== 'Sin Asignar' ? a.liderOperador : (stored.liderOperador || 'Sin Asignar'));
+
+    const tieneServiciosEspeciales = stored.tieneServiciosEspeciales !== undefined
+      ? Boolean(stored.tieneServiciosEspeciales)
+      : false;
+
+    let servicioIds: number[] = Array.isArray(stored.servicioIds)
+      ? Array.from(new Set(stored.servicioIds.map((id: any) => Number(id)).filter((n: number) => !isNaN(n) && n > 0)))
+      : [];
+
+    if (servicioIds.length === 0) {
+      servicioIds = tieneServiciosEspeciales ? [6, 7, 8, 9, 12, 13, 14] : [6, 7, 8, 9];
+    }
+
+    // Filtrar operadores estrictos (excluyendo roles directivos / gerenciales)
+    const operadores = (a.usuarios || []).filter((u: any) => {
+      const r = (u.role?.namerol || u.role || '').toUpperCase();
+      const esGestion = r === 'GERENTE' || r === 'APROBADOR' || r.includes('GERENTE') || r.includes('APROBADOR') || r.includes('ADMIN') || r.includes('SUPERVISOR') || r.includes('JEFE') || r.includes('COORD');
+      return (u.estado === 1 || u.estado === 'Activo') && !esGestion;
+    });
+
     return {
       id: a.id,
       nombre: a.nombre,
@@ -37,21 +103,24 @@ export class SucursalMockService {
       direccion: a.direccion || '',
       estado: a.estado === 1 ? 'Activo' : (a.estado === 0 ? 'Inactivo' : 'Mantenimiento'),
       cantidadBahias: a.numeroBahias || (a.bahias?.length ?? a._count?.bahias ?? 0),
-      responsable: ger ? `${ger.name || ''} ${ger.lastname || ''}`.trim() : 'Sin Asignar',
-      operadoresActivos: a.usuarios?.filter((u: any) => u.estado === 1)?.length || a._count?.usuarios || 0,
-      maquinasAsignadasCount: 0,
-      serviciosRealizadosMes: 0,
+      responsable,
+      liderOperador,
+      liderOperadorId: lider?.id || a.liderOperadorId || stored.liderOperadorId || undefined,
+      liderOperadorNombre: liderOperador !== 'Sin Asignar' ? liderOperador : undefined,
+      operadoresActivos: operadores.length,
+      maquinasAsignadasCount: a._count?.maquinarias || 0,
+      serviciosRealizadosMes: a._count?.solicitudesAprobacion || 0,
       regionId: a.regionId || a.regionRel?.id,
       regionNombre: a.regionRel?.nombre || a.region || 'Sin región',
       marcaId: a.marcaId || a.marca?.id,
       marcaNombre: a.marca?.nombre || 'Sin marca',
-      servicioIds: [],
-      serviciosNombres: [],
+      servicioIds,
+      serviciosNombres: stored.serviciosNombres || [],
       telefono: a.telefono || '',
-      requiereAprobacion: false,
-      gerenteId: ger?.id,
-      gerenteNombre: ger ? `${ger.name} ${ger.lastname}`.trim() : undefined,
-      tieneServiciosEspeciales: false
+      requiereAprobacion: stored.requiereAprobacion !== undefined ? stored.requiereAprobacion : (!!gerenteId || responsable !== 'Sin Asignar'),
+      gerenteId,
+      gerenteNombre,
+      tieneServiciosEspeciales
     };
   }
 
@@ -92,55 +161,102 @@ export class SucursalMockService {
   crearSucursal(suc: Omit<Sucursal, 'id'>): Observable<Sucursal> {
     const slug = (suc.nombre || 'AGN').replace(/[^a-zA-Z0-9]/g, '').substring(0, 4).toUpperCase();
     const codigo = `AGN-${slug}-${Date.now().toString().slice(-4)}`;
+
+    const regionIdStr = (suc.regionId && suc.regionId !== 0 && suc.regionId !== '0') ? String(suc.regionId) : undefined;
+    const marcaIdStr = (suc.marcaId && suc.marcaId !== 0 && suc.marcaId !== '0') ? String(suc.marcaId) : undefined;
+    const gerenteIdStr = suc.gerenteId ? String(suc.gerenteId) : undefined;
+
     const payload = {
       codigo,
-      nombre: suc.nombre,
+      nombre: suc.nombre?.trim(),
       region: suc.ciudad || 'Quito',
-      regionId: suc.regionId ? String(suc.regionId) : undefined,
+      regionId: regionIdStr,
       direccion: suc.direccion || '',
       telefono: suc.telefono || '',
       numeroBahias: Number(suc.cantidadBahias) || 2,
-      marcaId: suc.marcaId ? String(suc.marcaId) : undefined,
-      estado: suc.estado === 'Inactivo' ? 0 : 1
+      marcaId: marcaIdStr,
+      estado: suc.estado === 'Inactivo' ? 0 : 1,
+      gerenteId: gerenteIdStr
     };
 
     return this.http.post<any>(apiUrl('/agencias/create'), payload).pipe(
-      map(res => this.mapBackendAgencia(res)),
-      tap(nueva => {
+      map(res => {
+        this.saveBranchConfig(res.id, {
+          servicioIds: suc.servicioIds,
+          serviciosNombres: suc.serviciosNombres,
+          tieneServiciosEspeciales: suc.tieneServiciosEspeciales,
+          gerenteId: suc.gerenteId,
+          gerenteNombre: suc.gerenteNombre,
+          responsable: suc.responsable,
+          requiereAprobacion: suc.requiereAprobacion
+        });
+
+        const backendMapped = this.mapBackendAgencia(res);
+        if (suc.gerenteNombre) backendMapped.gerenteNombre = suc.gerenteNombre;
+        if (suc.gerenteId) backendMapped.gerenteId = suc.gerenteId;
+        if (suc.responsable) backendMapped.responsable = suc.responsable;
+        if (suc.requiereAprobacion !== undefined) backendMapped.requiereAprobacion = suc.requiereAprobacion;
+        if (suc.tieneServiciosEspeciales !== undefined) backendMapped.tieneServiciosEspeciales = suc.tieneServiciosEspeciales;
+        if (suc.servicioIds) backendMapped.servicioIds = suc.servicioIds;
+        if (suc.serviciosNombres) backendMapped.serviciosNombres = suc.serviciosNombres;
+
         const current = this.sucursalesSubject.value;
-        this.sucursalesSubject.next([...current, nueva]);
-      }),
-      catchError(err => {
-        console.error('Error al crear sucursal en backend:', err);
-        throw err;
+        this.sucursalesSubject.next([...current, backendMapped]);
+
+        return backendMapped;
       })
     );
   }
 
   actualizarSucursal(suc: Sucursal, auditoria?: { motivo?: string; realizadoPor?: string }): Observable<Sucursal> {
+    const regionIdStr = (suc.regionId && suc.regionId !== 0 && suc.regionId !== '0') ? String(suc.regionId) : undefined;
+    const marcaIdStr = (suc.marcaId && suc.marcaId !== 0 && suc.marcaId !== '0') ? String(suc.marcaId) : undefined;
+    const gerenteIdStr = suc.gerenteId ? String(suc.gerenteId) : (suc.requiereAprobacion === false ? '' : undefined);
+
     const payload = {
       id: String(suc.id),
       nombre: suc.nombre,
       region: suc.ciudad,
-      regionId: suc.regionId ? String(suc.regionId) : undefined,
+      regionId: regionIdStr,
       direccion: suc.direccion,
       telefono: suc.telefono,
       numeroBahias: Number(suc.cantidadBahias),
-      marcaId: suc.marcaId ? String(suc.marcaId) : undefined,
-      estado: suc.estado === 'Inactivo' ? 0 : 1
+      marcaId: marcaIdStr,
+      estado: suc.estado === 'Inactivo' ? 0 : 1,
+      gerenteId: gerenteIdStr
     };
 
+    this.saveBranchConfig(suc.id, {
+      servicioIds: suc.servicioIds,
+      serviciosNombres: suc.serviciosNombres,
+      tieneServiciosEspeciales: suc.tieneServiciosEspeciales,
+      gerenteId: suc.gerenteId,
+      gerenteNombre: suc.gerenteNombre,
+      responsable: suc.responsable,
+      requiereAprobacion: suc.requiereAprobacion
+    });
+
     return this.http.post<any>(apiUrl('/agencias/update'), payload).pipe(
-      map(res => this.mapBackendAgencia(res)),
-      tap(actualizada => {
+      map(res => {
+        const backendMapped = this.mapBackendAgencia(res);
+        if (suc.gerenteNombre) backendMapped.gerenteNombre = suc.gerenteNombre;
+        if (suc.gerenteId) backendMapped.gerenteId = suc.gerenteId;
+        if (suc.responsable) backendMapped.responsable = suc.responsable;
+        if (suc.requiereAprobacion !== undefined) backendMapped.requiereAprobacion = suc.requiereAprobacion;
+        if (suc.tieneServiciosEspeciales !== undefined) backendMapped.tieneServiciosEspeciales = suc.tieneServiciosEspeciales;
+        if (suc.servicioIds) backendMapped.servicioIds = suc.servicioIds;
+        if (suc.serviciosNombres) backendMapped.serviciosNombres = suc.serviciosNombres;
+
         const current = this.sucursalesSubject.value;
         const index = current.findIndex(s => String(s.id) === String(suc.id));
         if (index !== -1) {
           const original = current[index];
-          this.registrarCambiosCatalogo(original, actualizada, auditoria);
-          current[index] = { ...actualizada, servicioIds: suc.servicioIds, serviciosNombres: suc.serviciosNombres };
+          this.registrarCambiosCatalogo(original, backendMapped, auditoria);
+          current[index] = backendMapped;
           this.sucursalesSubject.next([...current]);
         }
+
+        return backendMapped;
       }),
       catchError(() => of(suc))
     );

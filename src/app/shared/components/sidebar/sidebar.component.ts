@@ -7,7 +7,6 @@ import { AuthService } from '../../../core/services/auth.service';
 import { PermissionService } from '../../../core/services/permission.service';
 import { UiStateService, SIDEBAR_INNER_W, SIDEBAR_RAIL_W } from '../../../core/services/ui-state.service';
 import { MenuItem } from '../../../core/config/menu.config';
-import { isMobileAppRole } from '../../../core/config/mobile-roles.config';
 
 interface MenuGroup {
   title: string;
@@ -39,37 +38,36 @@ interface MenuGroup {
         class="h-full w-[296px] bg-gradient-to-b from-easydry-blue via-easydry-blue-dark to-easydry-blue-deep text-white flex flex-col select-none overflow-hidden border-r border-white/10">
 
         <!-- Header / Logo -->
-        <div class="relative h-24 flex-shrink-0 border-b border-white/15 bg-easydry-blue-dark/60">
-          <!-- Rail 80px: Isotipo centrado -->
+        <div class="relative h-20 flex-shrink-0 border-b border-white/15 bg-easydry-blue-dark/60 flex items-center">
+          <!-- Rail 80px: Isotipo centrado con exactitud vertical -->
           <a
             [routerLink]="['/dashboard']"
-            class="absolute left-0 top-0 w-20 h-24 flex items-center justify-center transition-opacity duration-200"
+            class="absolute left-0 top-0 w-20 h-20 flex items-center justify-center transition-opacity duration-200"
             [class.opacity-0]="isExpanded()"
             [class.pointer-events-none]="isExpanded()"
             [attr.tabindex]="isExpanded() ? -1 : 0"
             aria-label="EasyDry®">
-            <div class="w-12 h-12 rounded-xl bg-white p-1 flex items-center justify-center shadow-sm">
+            <div class="w-12 h-12 rounded-xl bg-white p-1.5 flex items-center justify-center shadow-sm">
               <img
                 src="assets/images/easydry-logo-mark.png"
-                alt=""
+                alt="EasyDry"
                 class="w-full h-full object-contain">
             </div>
           </a>
-          <!-- Expandido: Wordmark horizontal completo -->
+          <!-- Expandido: Wordmark horizontal completo con letras azules (mismo eje vertical exacto h-12) -->
           <a
             [routerLink]="['/dashboard']"
-            class="absolute inset-0 flex flex-col items-center justify-center gap-1.5 px-3 transition-opacity duration-200"
+            class="absolute inset-0 flex items-center justify-center px-4 transition-opacity duration-200"
             [class.opacity-0]="!isExpanded()"
             [class.pointer-events-none]="!isExpanded()"
             [attr.tabindex]="isExpanded() ? 0 : -1"
             aria-label="EasyDry®">
-            <div class="bg-white rounded-lg px-3 py-2 shadow-xs">
+            <div class="h-12 w-full max-w-[240px] bg-white rounded-xl px-3.5 py-1 flex items-center justify-center shadow-sm">
               <img
                 src="assets/images/easydry-logo-horizontal.png"
-                alt=""
-                class="h-11 w-auto max-w-[230px] object-contain">
+                alt="EasyDry"
+                class="h-8 w-auto max-w-[210px] object-contain">
             </div>
-            <span class="text-[9px] tracking-widest text-slate-300 uppercase font-bold whitespace-nowrap">{{ platformLabel }}</span>
           </a>
         </div>
 
@@ -260,19 +258,23 @@ export class SidebarComponent implements OnInit, OnDestroy {
   private subs = new Subscription();
 
   menuGroups: MenuGroup[] = [];
+  private expandTimeout: ReturnType<typeof setTimeout> | null = null;
   private collapseTimeout: ReturnType<typeof setTimeout> | null = null;
+  private isNavigationCooldown = true;
 
-  get platformLabel(): string {
-    const role = this.authService.getRole();
-    return isMobileAppRole(role) ? 'App Móvil & Web' : 'Plataforma Admin';
-  }
 
   ngOnInit(): void {
+    this.closeSidebarImmediate();
     this.refreshMenu();
     this.cdr.markForCheck();
 
+    setTimeout(() => {
+      this.isNavigationCooldown = false;
+    }, 400);
+
     this.subs.add(
       this.authService.currentUser$.subscribe(() => {
+        this.closeSidebarImmediate();
         this.refreshMenu();
         this.cdr.markForCheck();
       })
@@ -281,11 +283,19 @@ export class SidebarComponent implements OnInit, OnDestroy {
     this.subs.add(
       this.router.events.pipe(filter(e => e instanceof NavigationEnd)).subscribe(() => {
         this.closeSidebarImmediate();
+        this.isNavigationCooldown = true;
+        setTimeout(() => {
+          this.isNavigationCooldown = false;
+        }, 400);
       })
     );
   }
 
   ngOnDestroy(): void {
+    if (this.expandTimeout) {
+      clearTimeout(this.expandTimeout);
+      this.expandTimeout = null;
+    }
     if (this.collapseTimeout) {
       clearTimeout(this.collapseTimeout);
       this.collapseTimeout = null;
@@ -294,17 +304,31 @@ export class SidebarComponent implements OnInit, OnDestroy {
   }
 
   public onMouseEnter(): void {
+    if (this.isNavigationCooldown) return;
+
     if (this.collapseTimeout) {
       clearTimeout(this.collapseTimeout);
       this.collapseTimeout = null;
     }
+
     if (!this.isExpanded()) {
-      this.isExpanded.set(true);
-      this.cdr.markForCheck();
+      if (this.expandTimeout) {
+        clearTimeout(this.expandTimeout);
+      }
+      this.expandTimeout = setTimeout(() => {
+        if (!this.isExpanded()) {
+          this.isExpanded.set(true);
+          this.cdr.markForCheck();
+        }
+      }, 70);
     }
   }
 
   public onMouseLeave(): void {
+    if (this.expandTimeout) {
+      clearTimeout(this.expandTimeout);
+      this.expandTimeout = null;
+    }
     if (this.collapseTimeout) {
       clearTimeout(this.collapseTimeout);
     }
@@ -325,6 +349,10 @@ export class SidebarComponent implements OnInit, OnDestroy {
   }
 
   private closeSidebarImmediate(): void {
+    if (this.expandTimeout) {
+      clearTimeout(this.expandTimeout);
+      this.expandTimeout = null;
+    }
     if (this.collapseTimeout) {
       clearTimeout(this.collapseTimeout);
       this.collapseTimeout = null;

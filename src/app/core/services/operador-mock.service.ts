@@ -1,82 +1,155 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
 import { BehaviorSubject, Observable, of } from 'rxjs';
-import { delay, map } from 'rxjs/operators';
+import { tap, catchError, map } from 'rxjs/operators';
 import { Operador, HistorialAsignacionOperador } from '../models';
+import { apiUrl } from '../config/env';
 
 @Injectable({
   providedIn: 'root'
 })
 export class OperadorMockService {
+  private http = inject(HttpClient);
   private operadoresSubject = new BehaviorSubject<Operador[]>([]);
   public operadores$ = this.operadoresSubject.asObservable();
 
   private historialSubject = new BehaviorSubject<HistorialAsignacionOperador[]>([]);
   public historial$ = this.historialSubject.asObservable();
 
-  getOperadores(): Observable<Operador[]> {
-    return this.operadores$.pipe(delay(100));
+  getOperadores(agenciaId?: string): Observable<Operador[]> {
+    const payload = agenciaId && agenciaId !== 'Todas' ? { agenciaId } : {};
+    return this.http.post<Operador[]>(apiUrl('/agencias/operadores/list'), payload).pipe(
+      tap(list => this.operadoresSubject.next(list || [])),
+      catchError(err => {
+        console.warn('Error al cargar operadores de BD:', err);
+        return of(this.operadoresSubject.value);
+      })
+    );
   }
 
-  getOperadorById(id: number): Observable<Operador | undefined> {
+  getOperadorById(id: number | string): Observable<Operador | undefined> {
     return this.operadores$.pipe(
-      map(list => list.find(o => o.id === id)),
-      delay(100)
+      map(list => list.find(o => String(o.id) === String(id)))
     );
   }
 
-  getHistorialPorOperador(operadorId: number): Observable<HistorialAsignacionOperador[]> {
-    return this.historial$.pipe(
-      map(list => list.filter(h => h.operadorId === operadorId)),
-      delay(100)
+  getHistorialPorOperador(operadorId: number | string): Observable<HistorialAsignacionOperador[]> {
+    return this.http.post<any>(apiUrl('/agencias/bahias/historial-asignaciones'), { operadorId: String(operadorId) }).pipe(
+      map(res => {
+        const rawItems = Array.isArray(res) ? res : (res?.data || []);
+        return rawItems.map((h: any, index: number) => ({
+          id: h.id || index + 1,
+          operadorId: h.operadorId,
+          operadorNombre: h.operador ? `${h.operador.name || ''} ${h.operador.lastname || ''}`.trim() : 'Operador',
+          fechaInicio: h.fechaInicio ? h.fechaInicio.split('T')[0] : '',
+          fechaFin: h.fechaFin ? h.fechaFin.split('T')[0] : undefined,
+          sucursal: h.bahia?.agencia?.nombre || 'Agencia',
+          bahia: h.bahia?.nombre || 'Bahía',
+          realizadoPor: h.asignadoPor ? `${h.asignadoPor.name || ''} ${h.asignadoPor.lastname || ''}`.trim() : 'Supervisor',
+          motivo: h.motivo || 'Asignación técnica'
+        }));
+      }),
+      tap(hist => this.historialSubject.next(hist)),
+      catchError(() => of([]))
     );
   }
 
-  reasignarOperador(operadorId: number, nuevaSucursal: string, nuevaBahia: string, motivo: string, usuarioAccion: string): Observable<Operador | null> {
-    const currentOperadores = this.operadoresSubject.value;
-    const op = currentOperadores.find(o => o.id === operadorId);
-    
-    if (op) {
-      const hoy = new Date().toISOString().split('T')[0];
+  getHistorialGeneral(agenciaId?: string): Observable<HistorialAsignacionOperador[]> {
+    const payload = agenciaId && agenciaId !== 'Todas' ? { agenciaId } : {};
+    return this.http.post<any>(apiUrl('/agencias/bahias/historial-asignaciones'), payload).pipe(
+      map(res => {
+        const rawItems = Array.isArray(res) ? res : (res?.data || []);
+        return rawItems.map((h: any, index: number) => ({
+          id: h.id || index + 1,
+          operadorId: h.operadorId,
+          operadorNombre: h.operador ? `${h.operador.name || ''} ${h.operador.lastname || ''}`.trim() : 'Operador',
+          fechaInicio: h.fechaInicio ? h.fechaInicio.split('T')[0] : (h.createdAt ? h.createdAt.split('T')[0] : ''),
+          fechaFin: h.fechaFin ? h.fechaFin.split('T')[0] : undefined,
+          sucursal: h.bahia?.agencia?.nombre || 'Agencia',
+          bahia: h.bahia?.nombre || 'Bahía',
+          realizadoPor: h.asignadoPor ? `${h.asignadoPor.name || ''} ${h.asignadoPor.lastname || ''}`.trim() : 'Supervisor',
+          motivo: h.motivo || 'Asignación técnica'
+        }));
+      }),
+      tap(hist => this.historialSubject.next(hist)),
+      catchError(() => of([]))
+    );
+  }
 
-      // Close previous assignment in history
-      const currentHistorial = this.historialSubject.value;
-      const activeHist = currentHistorial.find(h => h.operadorId === operadorId && !h.fechaFin);
-      if (activeHist) {
-        activeHist.fechaFin = hoy;
-      }
+  crearOperador(datos: Partial<Operador>): Observable<Operador> {
+    const payload = {
+      nombre: datos.nombre,
+      cedula: datos.cedula,
+      telefono: datos.telefono,
+      rol: datos.rol || 'OPERADOR',
+      agenciaId: datos.sucursalId ? String(datos.sucursalId) : datos.sucursal,
+      bahiaId: datos.bahiaId || (datos.bahia && !datos.bahia.includes('Sin') ? datos.bahia : undefined),
+      estado: datos.estado === 'Inactivo' ? 0 : 1
+    };
 
-      // Add new assignment record
-      const nuevoHist: HistorialAsignacionOperador = {
-        id: Math.max(...currentHistorial.map(h => h.id), 0) + 1,
-        operadorId: op.id,
-        operadorNombre: op.nombre,
-        fechaInicio: hoy,
-        sucursal: nuevaSucursal,
-        bahia: nuevaBahia,
-        realizadoPor: usuarioAccion,
-        motivo
-      };
-      this.historialSubject.next([nuevoHist, ...currentHistorial]);
+    return this.http.post<Operador>(apiUrl('/agencias/operadores/create'), payload).pipe(
+      tap(creado => {
+        const current = this.operadoresSubject.value;
+        this.operadoresSubject.next([creado, ...current.filter(o => o.id !== creado.id)]);
+      })
+    );
+  }
 
-      // Update operator state
-      op.sucursal = nuevaSucursal;
-      op.bahia = nuevaBahia;
-      op.fechaAsignacion = hoy;
-      this.operadoresSubject.next([...currentOperadores]);
+  reasignarOperador(
+    operadorId: number | string,
+    nuevaSucursal: string,
+    nuevaBahia: string,
+    motivo: string,
+    usuarioAccion: string,
+    bahiaIdTarget?: string
+  ): Observable<Operador | null> {
+    const payload = {
+      bahiaId: bahiaIdTarget || nuevaBahia,
+      operadorId: nuevaBahia && nuevaBahia.includes('Sin') ? null : String(operadorId),
+      notas: motivo || 'Reasignación operativa de bahía'
+    };
 
-      return of(op).pipe(delay(150));
-    }
-
-    return of(null);
+    return this.http.post<any>(apiUrl('/agencias/bahias/asignar-operador'), payload).pipe(
+      map(res => {
+        this.getOperadores().subscribe();
+        this.getHistorialGeneral().subscribe();
+        const current = this.operadoresSubject.value;
+        const op = current.find(o => String(o.id) === String(operadorId));
+        if (op) {
+          op.sucursal = nuevaSucursal;
+          op.bahia = nuevaBahia;
+        }
+        return op || null;
+      }),
+      catchError(err => {
+        console.error('Error al reasignar operador:', err);
+        return of(null);
+      })
+    );
   }
 
   actualizarOperador(op: Operador): Observable<Operador> {
-    const current = this.operadoresSubject.value;
-    const idx = current.findIndex(o => o.id === op.id);
-    if (idx !== -1) {
-      current[idx] = { ...op };
-      this.operadoresSubject.next([...current]);
-    }
-    return of(op).pipe(delay(150));
+    const payload = {
+      id: String(op.id),
+      nombre: op.nombre,
+      cedula: op.cedula,
+      telefono: op.telefono,
+      rol: op.rol,
+      agenciaId: op.sucursalId ? String(op.sucursalId) : op.sucursal,
+      bahiaId: op.bahiaId || op.bahia,
+      estado: op.estado === 'Inactivo' ? 0 : 1
+    };
+
+    return this.http.post<Operador>(apiUrl('/agencias/operadores/update'), payload).pipe(
+      tap(actualizado => {
+        const current = this.operadoresSubject.value;
+        const idx = current.findIndex(o => String(o.id) === String(actualizado.id));
+        if (idx !== -1) {
+          current[idx] = actualizado;
+          this.operadoresSubject.next([...current]);
+        }
+      }),
+      catchError(() => of(op))
+    );
   }
 }

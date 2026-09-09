@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { LucideAngularModule } from 'lucide-angular';
 import { AuthService } from '../../core/services/auth.service';
+import { UiStateService } from '../../core/services/ui-state.service';
 import { ToastService } from '../../shared/services/toast.service';
 import { environment } from '../../core/config/env';
 
@@ -152,19 +153,14 @@ import { environment } from '../../core/config/env';
           <!-- Resplandor sutil superior derecho en el interior de la tarjeta -->
           <div class="absolute -top-12 -right-12 w-36 h-36 bg-cyan-200/50 rounded-full blur-2xl pointer-events-none"></div>
 
-          <!-- Logo EasyDry: Solo Icono Gota de Agua -->
+          <!-- Logo EasyDry: Logo Stacked Oficial -->
           <div class="flex items-center justify-center mb-4">
-            <div class="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-white p-2.5 flex items-center justify-center shadow-lg">
-              <svg class="w-full h-full" viewBox="0 0 100 100" fill="none">
-                <defs>
-                  <linearGradient id="easyDropGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stop-color="#38BDF8" />
-                    <stop offset="45%" stop-color="#0284C7" />
-                    <stop offset="100%" stop-color="#0E7490" />
-                  </linearGradient>
-                </defs>
-                <path d="M50 6 C50 6, 16 52, 16 70 C16 88, 31 96, 50 96 C69 96, 84 88, 84 70 C84 52, 50 6, 50 6 Z" fill="url(#easyDropGrad)" />
-              </svg>
+            <div class="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-white flex items-center justify-center shadow-lg shadow-sky-950/15 overflow-hidden p-1">
+              <img
+                src="assets/images/easydry-logo-stacked.png"
+                alt="EasyDry Logo"
+                class="w-full h-full object-contain scale-[1.38]"
+              />
             </div>
           </div>
 
@@ -286,10 +282,13 @@ export class LoginComponent implements OnInit {
   errorMessage = '';
 
   private authService = inject(AuthService);
+  private uiState = inject(UiStateService);
   private toastService = inject(ToastService);
   private router = inject(Router);
 
   ngOnInit(): void {
+    this.uiState.setSidebarExpanded(false);
+
     // Si ya está autenticado, redirigir a su vista principal
     if (this.authService.isLoggedIn()) {
       const user = this.authService.getCurrentUser();
@@ -342,10 +341,13 @@ export class LoginComponent implements OnInit {
       localStorage.removeItem('easydry_remembered_email');
     }
 
+    this.uiState.setSidebarExpanded(false);
+
     this.authService.login(this.email, this.password).subscribe({
       next: (res) => {
         this.loading = false;
         if (res.success && res.user) {
+          this.uiState.setSidebarExpanded(false);
           this.toastService.success('Acceso Correcto', `Bienvenido(a) ${res.user.nombre} (${res.user.rolNombre})`);
           const targetRoute = this.authService.getDefaultRouteForRole(res.user.role);
           this.router.navigateByUrl(targetRoute);
@@ -374,7 +376,7 @@ export class LoginComponent implements OnInit {
 
   onForgotPassword(): void {
     this.toastService.info(
-      'Recuperación de Acceso (Cognito)',
+      'Recuperación de Contraseña',
       'Por directiva corporativa, solicite el restablecimiento de su clave a Soporte TI (soporte@easydry.com) o su administrador.'
     );
   }

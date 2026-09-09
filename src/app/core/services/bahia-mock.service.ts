@@ -14,6 +14,10 @@ export class BahiaMockService {
   public bahias$ = this.bahiasSubject.asObservable();
 
   private mapBackendBahia(b: any): Bahia {
+    const rawLastname = b.operadorActual?.lastname || '';
+    const cleanLastname = rawLastname.replace(/\(CI:[^)]+\)/, '').replace(/CI:[^)]+/, '').trim();
+    const nombreOp = b.operadorActual ? `${b.operadorActual.name || ''} ${cleanLastname}`.trim() : null;
+
     return {
       id: b.id,
       codigo: b.codigo || '',
@@ -23,8 +27,8 @@ export class BahiaMockService {
       agenciaId: b.agenciaId || b.agencia?.id || '',
       agenciaNombre: b.agencia?.nombre || 'Agencia',
       estado: b.activa ? (b.operadorActual ? 'Ocupada' : 'Disponible') : 'Inactiva',
-      operadorAsignado: b.operadorActual ? `${b.operadorActual.name || ''} ${b.operadorActual.lastname || ''}`.trim() : 'Sin Asignar',
-      operadorId: b.operadorActualId || undefined,
+      operadorAsignado: nombreOp || 'Sin Asignar',
+      operadorId: b.operadorActualId || b.operadorActual?.id || undefined,
       maquinariaAsignada: []
     };
   }

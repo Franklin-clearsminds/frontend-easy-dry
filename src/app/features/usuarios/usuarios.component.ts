@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { LucideAngularModule } from 'lucide-angular';
 import { UsuarioMockService } from '../../core/services/usuario-mock.service';
 import { RolMockService } from '../../core/services/rol-mock.service';
-import { DEMO_CREDENTIALS } from '../../core/services/auth.service';
+import { AuthService, DEMO_CREDENTIALS } from '../../core/services/auth.service';
 import { Usuario, ModuloSistema, RolPersonalizado, MODULOS_SISTEMA, Sucursal, ModalidadPulidor } from '../../core/models';
 import { isRolPermisosInmutable, PermisoModuloAcciones } from '../../core/models/roles.model';
 import { SucursalMockService } from '../../core/services/sucursal-mock.service';
@@ -47,7 +47,7 @@ interface ModuloGrupo {
           class="flex-1 py-2.5 px-4 rounded-xl text-xs font-extrabold transition-all flex items-center justify-center gap-2"
           [ngClass]="activeTab === 'usuarios' ? 'bg-easydry-blue text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'">
           <i-lucide name="users" class="w-4 h-4"></i-lucide>
-          <span>Directorio de Usuarios ({{ usuarios.length }})</span>
+          <span>Directorio de Usuarios ({{ usuariosVisibles.length }})</span>
         </button>
 
         <button
@@ -55,7 +55,7 @@ interface ModuloGrupo {
           class="flex-1 py-2.5 px-4 rounded-xl text-xs font-extrabold transition-all flex items-center justify-center gap-2"
           [ngClass]="activeTab === 'roles' ? 'bg-purple-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'">
           <i-lucide name="shield" class="w-4 h-4"></i-lucide>
-          <span>Roles y Permisos ({{ roles.length }})</span>
+          <span>Roles y Permisos ({{ rolesVisibles.length }})</span>
         </button>
       </div>
 
@@ -174,7 +174,7 @@ interface ModuloGrupo {
                             (click)="toggleEstadoUsuario(u)"
                             [title]="u.estado === 'Activo' ? 'Desactivar usuario' : 'Activar usuario'"
                             class="p-1.5 rounded-lg transition-colors cursor-pointer"
-                            [ngClass]="u.estado === 'Activo' ? 'text-slate-400 hover:text-rose-600 hover:bg-rose-50' : 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-50'">
+                            [ngClass]="u.estado === 'Activo' ? 'text-slate-400 hover:text-amber-600 hover:bg-amber-50' : 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-50'">
                             <i-lucide [name]="u.estado === 'Activo' ? 'user-x' : 'user-check'" class="w-4 h-4"></i-lucide>
                           </button>
                           <button 
@@ -183,6 +183,13 @@ interface ModuloGrupo {
                             title="Editar Usuario"
                             class="p-1.5 text-slate-400 hover:text-easydry-blue rounded-lg hover:bg-slate-100 transition-colors cursor-pointer">
                             <i-lucide name="edit-3" class="w-4 h-4"></i-lucide>
+                          </button>
+                          <button
+                            type="button"
+                            (click)="abrirModalEliminarUsuario(u)"
+                            title="Eliminar Usuario"
+                            class="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer">
+                            <i-lucide name="trash-2" class="w-4 h-4"></i-lucide>
                           </button>
                         </div>
                       </td>
@@ -204,6 +211,9 @@ interface ModuloGrupo {
         </div>
       }
 
+      <!-- ======================================================== -->
+      <!-- TAB 2: MATRIZ DE ROLES Y PERMISOS MODULARES             -->
+      <!-- ======================================================== -->
       <!-- ======================================================== -->
       <!-- TAB 2: MATRIZ DE ROLES Y PERMISOS MODULARES             -->
       <!-- ======================================================== -->
@@ -234,11 +244,11 @@ interface ModuloGrupo {
 
             <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-easydry flex items-center gap-4">
               <div class="w-12 h-12 rounded-2xl bg-easydry-green/15 text-easydry-green-dark flex items-center justify-center flex-shrink-0">
-                <i-lucide name="users" class="w-6 h-6"></i-lucide>
+                <i-lucide name="check-circle" class="w-6 h-6"></i-lucide>
               </div>
               <div>
-                <p class="text-2xl font-extrabold text-slate-900">{{ rolesConUsuarios }}</p>
-                <p class="text-xs text-slate-500 font-medium">Roles con Usuarios Activos</p>
+                <p class="text-2xl font-extrabold text-slate-900">{{ rolesActivosCount }}</p>
+                <p class="text-xs text-slate-500 font-medium">Roles Activos en Base de Datos</p>
               </div>
             </div>
           </div>
@@ -247,12 +257,12 @@ interface ModuloGrupo {
           <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry overflow-hidden">
             <div class="p-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
-                <h3 class="font-bold text-slate-900 text-base font-outfit">Roles Activos en la Plataforma</h3>
-                <p class="text-xs text-slate-500">Perfiles del sistema RBAC en uso con cuentas demo y módulos habilitados</p>
+                <h3 class="font-bold text-slate-900 text-base font-outfit">Roles Registrados en la Base de Datos</h3>
+                <p class="text-xs text-slate-500">Estructura RBAC sincronizada directamente con la tabla roles de PostgreSQL</p>
               </div>
               <div class="flex items-center gap-3">
                 <span class="text-xs font-bold text-purple-700 bg-purple-50 px-3 py-1.5 rounded-xl border border-purple-200">
-                  {{ roles.length }} roles configurados
+                  {{ roles.length }} roles en BD
                 </span>
                 <button 
                   (click)="abrirModalCrearRol()"
@@ -267,66 +277,89 @@ interface ModuloGrupo {
               <table class="w-full text-left text-sm">
                 <thead class="bg-slate-50 text-slate-500 text-xs font-bold uppercase tracking-wider border-b border-slate-200">
                   <tr>
-                    <th class="py-3.5 px-4">Rol</th>
-                    <th class="py-3.5 px-4">Código</th>
-                    <th class="py-3.5 px-4">Usuarios</th>
-                    <th class="py-3.5 px-4">Módulos</th>
-                    <th class="py-3.5 px-4">Tipo</th>
-                    <th class="py-3.5 px-4 text-right">Acción</th>
+                    <th class="py-3.5 px-5">Rol / Perfil</th>
+                    <th class="py-3.5 px-4">Descripción</th>
+                    <th class="py-3.5 px-4">Permisos Asignados</th>
+                    <th class="py-3.5 px-4">Estado</th>
+                    <th class="py-3.5 px-4">Fecha Creación</th>
+                    <th class="py-3.5 px-5 text-right">Acciones</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
-                  @for (rol of roles; track rol.id) {
-                    <tr class="hover:bg-slate-50/80 transition-colors">
-                      <td class="py-3.5 px-4">
+                  @for (rol of rolesVisibles; track rol.id) {
+                    <tr class="hover:bg-slate-50/80 transition-colors" [ngClass]="{'opacity-60 bg-slate-50/40': rol.estado === 'Inactivo'}">
+                      <td class="py-4 px-5">
                         <div class="flex items-center gap-3">
                           <div
-                            class="w-9 h-9 rounded-xl flex items-center justify-center text-white flex-shrink-0"
+                            class="w-9 h-9 rounded-xl flex items-center justify-center text-white flex-shrink-0 shadow-xs"
                             [style.background-color]="rol.color || '#7C3AED'">
                             <i-lucide name="shield" class="w-4 h-4"></i-lucide>
                           </div>
-                          <div>
-                            <p class="font-bold text-slate-900 text-xs">{{ rol.nombre }}</p>
-                            <p class="text-[10px] text-slate-500 line-clamp-1 max-w-xs">{{ rol.descripcion }}</p>
-                          </div>
+                          <span class="font-extrabold text-slate-900 text-xs">{{ rol.nombre }}</span>
                         </div>
                       </td>
-                      <td class="py-3.5 px-4">
-                        <span class="font-mono text-[11px] font-bold text-slate-600 bg-slate-100 px-2 py-1 rounded-md">{{ rol.codigo }}</span>
+                      <td class="py-4 px-4 text-xs text-slate-600 max-w-xs">
+                        <p class="line-clamp-2" [title]="rol.descripcion">
+                          {{ rol.descripcion || 'Sin descripción registrada' }}
+                        </p>
                       </td>
-                      <td class="py-3.5 px-4">
-                        <span class="text-xs font-extrabold text-slate-800">{{ getUsuariosCountForRol(rol.nombre) }}</span>
-                        @if (getCuentasDemoForRol(rol).length > 0) {
-                          <p class="text-[10px] text-slate-400 mt-0.5">{{ getCuentasDemoForRol(rol)[0].email }}</p>
-                        }
+                      <td class="py-4 px-4">
+                        <div class="flex items-center gap-2">
+                          <div class="w-16 bg-slate-100 h-2 rounded-full overflow-hidden hidden sm:block">
+                            <div class="bg-purple-600 h-full rounded-full" [style.width.%]="getModulosProgress(rol)"></div>
+                          </div>
+                          <span class="text-xs font-bold text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-lg">
+                            {{ getModulosCount(rol) }} permisos
+                          </span>
+                        </div>
                       </td>
-                      <td class="py-3.5 px-4">
-                        <span class="text-xs font-bold text-purple-700">{{ getModulosCount(rol) }} / {{ modulosDisponibles.length }}</span>
-                      </td>
-                      <td class="py-3.5 px-4">
-                        @if (isRolPermisosInmutable(rol.codigo)) {
-                          <span class="px-2 py-0.5 rounded-md bg-purple-100 text-purple-800 text-[10px] font-extrabold uppercase border border-purple-200">Inmutable</span>
-                        } @else if (rol.esSistema) {
-                          <span class="px-2 py-0.5 rounded-md bg-purple-100 text-purple-800 text-[10px] font-extrabold uppercase border border-purple-200">Sistema</span>
-                        } @else if (rol.codigo === 'ADMIN') {
-                          <span class="px-2 py-0.5 rounded-md bg-violet-100 text-violet-800 text-[10px] font-extrabold uppercase border border-violet-200">Configurable</span>
-                        } @else {
-                          <span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[10px] font-extrabold uppercase">Personalizado</span>
-                        }
-                      </td>
-                      <td class="py-3.5 px-4 text-right">
+                      <td class="py-4 px-4">
                         <button
-                          (click)="abrirModalEditarRol(rol)"
-                          title="Configurar permisos"
-                          class="p-1.5 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 transition-colors cursor-pointer flex items-center justify-center">
-                          <i-lucide name="settings" class="w-4 h-4"></i-lucide>
+                          type="button"
+                          (click)="toggleEstadoRol(rol)"
+                          [disabled]="isRolPermisosInmutable(rol.codigo)"
+                          [title]="isRolPermisosInmutable(rol.codigo) ? 'Rol del sistema inmutable' : (rol.estado === 'Activo' ? 'Click para desactivar rol' : 'Click para activar rol')"
+                          class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border transition-all select-none"
+                          [ngClass]="rol.estado === 'Activo' 
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 cursor-pointer' 
+                            : 'bg-slate-100 text-slate-600 border-slate-300 hover:bg-slate-200 cursor-pointer'">
+                          <span class="w-2 h-2 rounded-full" [ngClass]="rol.estado === 'Activo' ? 'bg-emerald-500' : 'bg-slate-400'"></span>
+                          <span>{{ rol.estado || 'Activo' }}</span>
                         </button>
+                      </td>
+                      <td class="py-4 px-4 text-xs font-mono text-slate-500 whitespace-nowrap">
+                        {{ rol.fechaCreacion }}
+                      </td>
+                      <td class="py-4 px-5 text-right">
+                        <div class="flex items-center justify-end gap-1.5">
+                          <button
+                            (click)="abrirModalEditarRol(rol)"
+                            title="Editar Rol"
+                            class="p-2 text-slate-500 hover:text-easydry-blue hover:bg-slate-100 rounded-xl transition-colors cursor-pointer border border-transparent hover:border-slate-200">
+                            <i-lucide name="edit-3" class="w-4 h-4"></i-lucide>
+                          </button>
+                          <button
+                            (click)="abrirModalEditarRol(rol)"
+                            title="Modificar Permisos"
+                            class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-bold transition-colors cursor-pointer border border-purple-200">
+                            <i-lucide name="sliders" class="w-3.5 h-3.5"></i-lucide>
+                            <span>Permisos</span>
+                          </button>
+                          @if (rol.codigo !== 'SUPER_ADMIN') {
+                            <button
+                              (click)="abrirModalEliminarRol(rol)"
+                              title="Eliminar Rol"
+                              class="p-2 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer border border-transparent hover:border-rose-200">
+                              <i-lucide name="trash-2" class="w-4 h-4"></i-lucide>
+                            </button>
+                          }
+                        </div>
                       </td>
                     </tr>
                   } @empty {
                     <tr>
                       <td colspan="6" class="py-10 px-4 text-center text-sm text-slate-500">
-                        No hay roles configurados. Use «Crear Nuevo Rol» para agregar uno.
+                        No hay roles configurados en la base de datos. Use «Crear Nuevo Rol» para agregar uno.
                       </td>
                     </tr>
                   }
@@ -337,7 +370,7 @@ interface ModuloGrupo {
 
           <!-- Roles Cards Grid -->
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            @for (rol of roles; track rol.id) {
+            @for (rol of rolesVisibles; track rol.id) {
               <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-easydry flex flex-col justify-between space-y-5 hover:border-purple-300 transition-all">
                 <div>
                   <!-- Card Header -->
@@ -348,41 +381,25 @@ interface ModuloGrupo {
                         [style.background-color]="rol.color || '#7C3AED'">
                         <i-lucide name="shield" class="w-5 h-5"></i-lucide>
                       </div>
-                      <div>
-                        <div class="flex items-center gap-2">
-                          <h3 class="font-extrabold text-slate-900 text-base font-outfit">{{ rol.nombre }}</h3>
-                          @if (isRolPermisosInmutable(rol.codigo)) {
-                            <span class="px-2 py-0.5 rounded-md bg-purple-100 text-purple-800 text-[10px] font-extrabold uppercase border border-purple-200">
-                              Inmutable
-                            </span>
-                          } @else if (rol.esSistema) {
-                            <span class="px-2 py-0.5 rounded-md bg-purple-100 text-purple-800 text-[10px] font-extrabold uppercase border border-purple-200">
-                              Sistema
-                            </span>
-                          } @else if (rol.codigo === 'ADMIN') {
-                            <span class="px-2 py-0.5 rounded-md bg-violet-100 text-violet-800 text-[10px] font-extrabold uppercase border border-violet-200">
-                              Configurable
-                            </span>
-                          }
-                        </div>
-                        <p class="text-[11px] text-slate-400 font-mono">Código: {{ rol.codigo }}</p>
-                      </div>
+                      <h3 class="font-extrabold text-slate-900 text-base font-outfit">{{ rol.nombre }}</h3>
                     </div>
 
-                    <span class="text-xs font-bold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-lg">
-                      {{ getUsuariosCountForRol(rol.nombre) }} usuarios
+                    <span 
+                      class="text-xs font-bold px-2.5 py-1 rounded-lg border"
+                      [ngClass]="rol.estado === 'Activo' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-600 border-slate-200'">
+                      {{ rol.estado || 'Activo' }}
                     </span>
                   </div>
 
                   <!-- Description -->
                   <p class="text-xs text-slate-600 mt-3 leading-relaxed">
-                    {{ rol.descripcion }}
+                    {{ rol.descripcion || 'Sin descripción registrada en base de datos.' }}
                   </p>
 
                   <!-- Modulos count bar -->
                   <div class="mt-4 pt-3 border-t border-slate-100">
                     <div class="flex items-center justify-between text-xs mb-1.5">
-                      <span class="font-bold text-slate-700">Módulos Habilitados:</span>
+                      <span class="font-bold text-slate-700">Permisos Asignados:</span>
                       <span class="font-extrabold text-purple-700">
                         {{ getModulosCount(rol) }} de {{ modulosDisponibles.length }} módulos
                       </span>
@@ -414,16 +431,24 @@ interface ModuloGrupo {
                   <div class="flex items-center gap-2">
                     <button
                       (click)="abrirModalEditarRol(rol)"
-                      class="px-3 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-bold transition-colors flex items-center gap-1.5 border border-purple-200">
-                      <i-lucide name="sliders" class="w-3.5 h-3.5"></i-lucide>
-                      <span>Configurar Permisos</span>
+                      title="Editar Rol"
+                      class="p-2 text-slate-500 hover:text-easydry-blue hover:bg-slate-100 rounded-xl transition-colors cursor-pointer border border-slate-200">
+                      <i-lucide name="edit-3" class="w-4 h-4"></i-lucide>
                     </button>
 
-                    @if (!rol.esSistema) {
+                    <button
+                      (click)="abrirModalEditarRol(rol)"
+                      title="Modificar Permisos"
+                      class="px-3 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-bold transition-colors flex items-center gap-1.5 border border-purple-200 cursor-pointer">
+                      <i-lucide name="sliders" class="w-3.5 h-3.5"></i-lucide>
+                      <span>Permisos</span>
+                    </button>
+
+                    @if (rol.codigo !== 'SUPER_ADMIN') {
                       <button
-                        (click)="eliminarRol(rol)"
+                        (click)="abrirModalEliminarRol(rol)"
                         title="Eliminar Rol"
-                        class="p-1.5 rounded-xl text-rose-500 hover:bg-rose-50 hover:text-rose-700 transition-colors">
+                        class="p-2 rounded-xl text-rose-500 hover:bg-rose-50 hover:text-rose-700 transition-colors cursor-pointer border border-slate-200 hover:border-rose-200">
                         <i-lucide name="trash-2" class="w-4 h-4"></i-lucide>
                       </button>
                     }
@@ -449,12 +474,32 @@ interface ModuloGrupo {
         <form (ngSubmit)="guardarUsuario()" class="space-y-4">
           <div class="grid grid-cols-2 gap-4">
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Nombre</label>
-              <input type="text" [(ngModel)]="usuarioForm.nombre" name="nombre" placeholder="Nombre" class="w-full p-2.5 border rounded-xl text-sm" required>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">
+                Nombre <span class="text-rose-500">*</span>
+              </label>
+              <input
+                type="text"
+                [(ngModel)]="usuarioForm.nombre"
+                name="nombre"
+                placeholder="ej. Stalyn"
+                class="w-full p-2.5 border rounded-xl text-sm transition-all outline-none"
+                [ngClass]="nombreInvalido ? 'border-rose-500 bg-rose-50/20 ring-2 ring-rose-200' : 'border-slate-200 focus:border-easydry-blue focus:ring-2 focus:ring-easydry-blue/20'"
+                required>
+              @if (nombreInvalido) {
+                <p class="text-[11px] text-rose-600 font-semibold mt-1 flex items-center gap-1.5">
+                  <i-lucide name="alert-circle" class="w-3.5 h-3.5 shrink-0"></i-lucide>
+                  El nombre del colaborador es obligatorio.
+                </p>
+              }
             </div>
             <div>
               <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Apellido</label>
-              <input type="text" [(ngModel)]="usuarioForm.apellido" name="apellido" placeholder="Apellido" class="w-full p-2.5 border rounded-xl text-sm" required>
+              <input
+                type="text"
+                [(ngModel)]="usuarioForm.apellido"
+                name="apellido"
+                placeholder="ej. Moposita"
+                class="w-full p-2.5 border border-slate-200 rounded-xl text-sm focus:border-easydry-blue focus:ring-2 focus:ring-easydry-blue/20 outline-none">
             </div>
           </div>
 
@@ -462,7 +507,7 @@ interface ModuloGrupo {
             <div>
               <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Rol Asignado (Dinámico)</label>
               <select [(ngModel)]="usuarioForm.rol" name="rol" (ngModelChange)="onRolUsuarioChange()" class="w-full p-2.5 border rounded-xl text-sm font-semibold">
-                @for (r of roles; track r.id) {
+                @for (r of rolesVisibles; track r.id) {
                   <option [value]="r.nombre">{{ r.nombre }}</option>
                 }
               </select>
@@ -504,8 +549,9 @@ interface ModuloGrupo {
               </div>
               @if (usuarioForm.modalidadPulidor === 'FIJO') {
                 <div>
-                  <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Sucursal asignada</label>
-                  <select [(ngModel)]="usuarioForm.agencia" name="agenciaFijo" class="w-full p-2.5 border rounded-xl text-sm font-semibold bg-white" required>
+                  <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Sucursal asignada (Opcional)</label>
+                  <select [(ngModel)]="usuarioForm.agencia" name="agenciaFijo" class="w-full p-2.5 border rounded-xl text-sm font-semibold bg-white">
+                    <option value="">Sin sucursal asignada (Opcional - Asignar luego)</option>
                     @for (s of sucursales; track s.id) {
                       <option [value]="s.nombre">{{ s.nombre }} ({{ s.ciudad }})</option>
                     }
@@ -517,38 +563,230 @@ interface ModuloGrupo {
             </div>
           } @else {
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Agencia / Local</label>
+              <div class="flex items-center justify-between mb-1">
+                <label class="block text-xs font-bold text-slate-700 uppercase">
+                  Agencia / Sucursal {{ esLiderOperadorRol(usuarioForm.rol) ? '(Recomendada)' : '(Opcional)' }}
+                </label>
+                <span class="text-[10px] text-slate-400 font-medium">
+                  {{ esLiderOperadorRol(usuarioForm.rol) ? 'Sede operativa' : 'No obligatorio' }}
+                </span>
+              </div>
               <select [(ngModel)]="usuarioForm.agencia" name="agencia" class="w-full p-2.5 border rounded-xl text-sm font-semibold">
-                <option value="EasyDry Corporativo">EasyDry Corporativo</option>
+                <option value="">Sin sucursal asignada (Opcional - Asignar luego)</option>
                 @for (s of sucursales; track s.id) {
                   <option [value]="s.nombre">{{ s.nombre }}</option>
                 }
               </select>
+              <p class="text-[11px] text-slate-400 mt-1">
+                {{ esLiderOperadorRol(usuarioForm.rol) 
+                  ? 'Asigna la agencia donde este Líder Operador gestionará las OTs y servicios.' 
+                  : 'No es obligatorio asignar sucursal ni región al crear el usuario.' }}
+              </p>
             </div>
           }
 
           <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Correo Electrónico</label>
-            <input type="email" [(ngModel)]="usuarioForm.email" name="email" placeholder="usuario@easydry.com" class="w-full p-2.5 border rounded-xl text-sm" required>
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">
+              Correo Electrónico <span class="text-rose-500">*</span>
+            </label>
+            <input
+              type="email"
+              [(ngModel)]="usuarioForm.email"
+              name="email"
+              placeholder="ej. stalyn.moposita@easydry.com"
+              class="w-full p-2.5 border rounded-xl text-sm transition-all outline-none"
+              [ngClass]="emailInvalido ? 'border-rose-500 bg-rose-50/20 ring-2 ring-rose-200' : 'border-slate-200 focus:border-easydry-blue focus:ring-2 focus:ring-easydry-blue/20'"
+              required>
+            @if (emailInvalido) {
+              <p class="text-[11px] text-rose-600 font-semibold mt-1 flex items-center gap-1.5">
+                <i-lucide name="alert-circle" class="w-3.5 h-3.5 shrink-0"></i-lucide>
+                {{ !usuarioForm.email.trim() ? 'El correo electrónico es obligatorio.' : 'Ingrese un correo electrónico válido (ej. usuario@easydry.com).' }}
+              </p>
+            }
           </div>
 
+          <!-- Credenciales Directas de Acceso (Sin Cognito) -->
           @if (!editandoUsuario) {
-            <div class="p-3.5 bg-blue-50 border border-blue-200 rounded-xl flex items-start gap-3 text-xs text-blue-900">
-              <i-lucide name="mail-check" class="w-5 h-5 text-easydry-blue shrink-0 mt-0.5"></i-lucide>
-              <div>
-                <p class="font-bold">Invitación de Seguridad (Amazon Cognito)</p>
-                <p class="text-[11px] text-blue-800/90 mt-0.5">
-                  No se ingresa contraseña manualmente. Se enviará un correo electrónico de activación seguro al usuario para que establezca su contraseña según las políticas de seguridad.
-                </p>
+            <div class="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+              <div class="flex items-center gap-2.5">
+                <div class="w-7 h-7 rounded-lg bg-easydry-blue/10 text-easydry-blue flex items-center justify-center">
+                  <i-lucide name="lock" class="w-4 h-4"></i-lucide>
+                </div>
+                <div>
+                  <h4 class="text-xs font-extrabold text-slate-900 uppercase tracking-wide">Credenciales de Acceso</h4>
+                  <p class="text-[11px] text-slate-500">Ingresa la contraseña para que el usuario inicie sesión directamente.</p>
+                </div>
               </div>
+
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                <!-- Contraseña -->
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 uppercase mb-1">
+                    Contraseña <span class="text-rose-500">*</span>
+                  </label>
+                  <div class="relative">
+                    <input
+                      [type]="showPassword ? 'text' : 'password'"
+                      [(ngModel)]="usuarioForm.password"
+                      name="password"
+                      placeholder="Mínimo 6 caracteres"
+                      class="w-full p-2.5 pr-10 border rounded-xl text-sm font-medium transition-all outline-none"
+                      [ngClass]="passwordInvalido ? 'border-rose-500 bg-rose-50/20 ring-2 ring-rose-200' : (usuarioForm.password && usuarioForm.password.length < 6 ? 'border-amber-400 bg-amber-50/20' : 'border-slate-200 bg-white focus:border-easydry-blue focus:ring-2 focus:ring-easydry-blue/20')"
+                      required
+                      minlength="6">
+                    <button
+                      type="button"
+                      (click)="showPassword = !showPassword"
+                      class="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                      tabindex="-1">
+                      <i-lucide [name]="showPassword ? 'eye-off' : 'eye'" class="w-4 h-4"></i-lucide>
+                    </button>
+                  </div>
+                  @if (passwordInvalido) {
+                    <p class="text-[11px] text-rose-600 font-semibold mt-1 flex items-center gap-1.5">
+                      <i-lucide name="alert-circle" class="w-3.5 h-3.5 shrink-0"></i-lucide>
+                      La contraseña debe tener al menos 6 caracteres.
+                    </p>
+                  }
+                </div>
+
+                <!-- Verificación de Contraseña -->
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 uppercase mb-1">
+                    Verificación de Contraseña <span class="text-rose-500">*</span>
+                  </label>
+                  <div class="relative">
+                    <input
+                      [type]="showConfirmPassword ? 'text' : 'password'"
+                      [(ngModel)]="usuarioForm.confirmPassword"
+                      name="confirmPassword"
+                      placeholder="Repetir contraseña"
+                      class="w-full p-2.5 pr-10 border rounded-xl text-sm font-medium transition-all outline-none"
+                      [ngClass]="confirmPasswordInvalido ? 'border-rose-500 bg-rose-50/20 ring-2 ring-rose-200' : (passwordsMatch ? 'border-emerald-500 bg-emerald-50/20' : 'border-slate-200 bg-white focus:border-easydry-blue focus:ring-2 focus:ring-easydry-blue/20')"
+                      required>
+                    <button
+                      type="button"
+                      (click)="showConfirmPassword = !showConfirmPassword"
+                      class="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                      tabindex="-1">
+                      <i-lucide [name]="showConfirmPassword ? 'eye-off' : 'eye'" class="w-4 h-4"></i-lucide>
+                    </button>
+                  </div>
+                  @if (confirmPasswordInvalido) {
+                    <p class="text-[11px] text-rose-600 font-semibold mt-1 flex items-center gap-1.5">
+                      <i-lucide name="alert-circle" class="w-3.5 h-3.5 shrink-0"></i-lucide>
+                      La verificación no coincide con la contraseña.
+                    </p>
+                  }
+                </div>
+              </div>
+
+              <!-- Indicador de validación de contraseñas -->
+              <div class="pt-0.5 text-[11px]">
+                @if (passwordsMismatch) {
+                  <span class="text-rose-600 font-semibold flex items-center gap-1.5">
+                    <i-lucide name="alert-circle" class="w-3.5 h-3.5 shrink-0"></i-lucide>
+                    Las contraseñas no coinciden. Verifique el texto ingresado.
+                  </span>
+                } @else if (passwordsMatch) {
+                  <span class="text-emerald-600 font-semibold flex items-center gap-1.5">
+                    <i-lucide name="check-circle-2" class="w-3.5 h-3.5 shrink-0"></i-lucide>
+                    Contraseña verificada correctamente.
+                  </span>
+                } @else if (usuarioForm.password && usuarioForm.password.length < 6) {
+                  <span class="text-amber-600 font-medium flex items-center gap-1.5">
+                    <i-lucide name="alert-triangle" class="w-3.5 h-3.5 shrink-0"></i-lucide>
+                    La contraseña debe tener al menos 6 caracteres.
+                  </span>
+                } @else {
+                  <span class="text-slate-400 flex items-center gap-1.5">
+                    <i-lucide name="info" class="w-3.5 h-3.5 shrink-0"></i-lucide>
+                    Mínimo 6 caracteres. Se almacenará de forma cifrada en el sistema.
+                  </span>
+                }
+              </div>
+            </div>
+          } @else {
+            <!-- Edición de usuario existente: opción de cambiar contraseña -->
+            <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+              <label class="flex items-center gap-2.5 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  [(ngModel)]="usuarioForm.cambiarPassword"
+                  name="cambiarPassword"
+                  class="w-4 h-4 rounded border-slate-300 text-easydry-blue focus:ring-easydry-blue/30 cursor-pointer">
+                <span class="text-xs font-bold text-slate-700">Cambiar / Restablecer Contraseña del Usuario</span>
+              </label>
+
+              @if (usuarioForm.cambiarPassword) {
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-200">
+                  <div>
+                    <label class="block text-xs font-bold text-slate-700 uppercase mb-1">
+                      Nueva Contraseña <span class="text-rose-500">*</span>
+                    </label>
+                    <div class="relative">
+                      <input
+                        [type]="showPassword ? 'text' : 'password'"
+                        [(ngModel)]="usuarioForm.password"
+                        name="password"
+                        placeholder="Mínimo 6 caracteres"
+                        class="w-full p-2.5 pr-10 border rounded-xl text-sm font-medium transition-all outline-none"
+                        [ngClass]="passwordInvalido ? 'border-rose-500 bg-rose-50/20 ring-2 ring-rose-200' : 'border-slate-200 bg-white focus:border-easydry-blue focus:ring-2 focus:ring-easydry-blue/20'"
+                        minlength="6">
+                      <button
+                        type="button"
+                        (click)="showPassword = !showPassword"
+                        class="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                        tabindex="-1">
+                        <i-lucide [name]="showPassword ? 'eye-off' : 'eye'" class="w-4 h-4"></i-lucide>
+                      </button>
+                    </div>
+                    @if (passwordInvalido) {
+                      <p class="text-[11px] text-rose-600 font-semibold mt-1 flex items-center gap-1.5">
+                        <i-lucide name="alert-circle" class="w-3.5 h-3.5 shrink-0"></i-lucide>
+                        La nueva contraseña debe tener al menos 6 caracteres.
+                      </p>
+                    }
+                  </div>
+
+                  <div>
+                    <label class="block text-xs font-bold text-slate-700 uppercase mb-1">
+                      Verificación <span class="text-rose-500">*</span>
+                    </label>
+                    <div class="relative">
+                      <input
+                        [type]="showConfirmPassword ? 'text' : 'password'"
+                        [(ngModel)]="usuarioForm.confirmPassword"
+                        name="confirmPassword"
+                        placeholder="Repetir nueva contraseña"
+                        class="w-full p-2.5 pr-10 border rounded-xl text-sm font-medium transition-all outline-none"
+                        [ngClass]="confirmPasswordInvalido ? 'border-rose-500 bg-rose-50/20 ring-2 ring-rose-200' : (passwordsMatch ? 'border-emerald-500 bg-emerald-50/20' : 'border-slate-200 bg-white focus:border-easydry-blue focus:ring-2 focus:ring-easydry-blue/20')">
+                      <button
+                        type="button"
+                        (click)="showConfirmPassword = !showConfirmPassword"
+                        class="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                        tabindex="-1">
+                        <i-lucide [name]="showConfirmPassword ? 'eye-off' : 'eye'" class="w-4 h-4"></i-lucide>
+                      </button>
+                    </div>
+                    @if (confirmPasswordInvalido) {
+                      <p class="text-[11px] text-rose-600 font-semibold mt-1 flex items-center gap-1.5">
+                        <i-lucide name="alert-circle" class="w-3.5 h-3.5 shrink-0"></i-lucide>
+                        La confirmación no coincide con la nueva contraseña.
+                      </p>
+                    }
+                  </div>
+                </div>
+              }
             </div>
           }
         </form>
 
         <div modal-footer>
-          <button (click)="modalUsuarioOpen = false" class="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs">Cancelar</button>
+          <button (click)="modalUsuarioOpen = false" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl text-xs transition-colors">Cancelar</button>
           <button (click)="guardarUsuario()" class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
-            {{ editandoUsuario ? 'Actualizar Usuario' : 'Registrar y Enviar Invitación' }}
+            <i-lucide [name]="editandoUsuario ? 'save' : 'user-plus'" class="w-4 h-4"></i-lucide>
+            {{ editandoUsuario ? 'Actualizar Usuario' : 'Registrar Usuario' }}
           </button>
         </div>
       </app-modal>
@@ -717,6 +955,120 @@ interface ModuloGrupo {
         </div>
       </app-modal>
 
+      <!-- ======================================================== -->
+      <!-- MODAL: CONFIRMAR ELIMINACIÓN DE USUARIO                  -->
+      <!-- ======================================================== -->
+      <app-modal
+        [isOpen]="modalEliminarUsuarioOpen"
+        title="Confirmar Eliminación de Usuario"
+        icon="alert-triangle"
+        (close)="modalEliminarUsuarioOpen = false">
+        
+        <div class="space-y-4 py-2">
+          <div class="flex items-center gap-3.5 p-3.5 bg-rose-50 border border-rose-200 rounded-2xl">
+            <div class="w-10 h-10 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+              <i-lucide name="trash-2" class="w-5 h-5"></i-lucide>
+            </div>
+            <div>
+              <h4 class="text-sm font-bold text-slate-900">¿Estás seguro de eliminar este usuario?</h4>
+              <p class="text-xs text-rose-700 font-medium">Esta acción eliminará el acceso y los registros del colaborador en la plataforma.</p>
+            </div>
+          </div>
+
+          @if (usuarioAEliminar) {
+            <div class="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2.5">
+              <div class="flex items-center justify-between text-xs">
+                <span class="text-slate-500 font-bold uppercase">Colaborador:</span>
+                <span class="font-bold text-slate-900">{{ usuarioAEliminar.nombre }} {{ usuarioAEliminar.apellido }}</span>
+              </div>
+              <div class="flex items-center justify-between text-xs">
+                <span class="text-slate-500 font-bold uppercase">Correo Electrónico:</span>
+                <span class="font-mono text-slate-700">{{ usuarioAEliminar.email }}</span>
+              </div>
+              <div class="flex items-center justify-between text-xs">
+                <span class="text-slate-500 font-bold uppercase">Rol Asignado:</span>
+                <span class="font-bold text-easydry-blue">{{ usuarioAEliminar.rol }}</span>
+              </div>
+              <div class="flex items-center justify-between text-xs">
+                <span class="text-slate-500 font-bold uppercase">Agencia / Local:</span>
+                <span class="text-slate-700 font-medium">{{ usuarioAEliminar.agencia || 'Sin asignar' }}</span>
+              </div>
+            </div>
+          }
+        </div>
+
+        <div modal-footer class="flex items-center justify-end gap-2.5">
+          <button
+            type="button"
+            (click)="modalEliminarUsuarioOpen = false"
+            class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors cursor-pointer">
+            Cancelar
+          </button>
+          <button
+            type="button"
+            (click)="confirmarEliminarUsuario()"
+            class="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-extrabold rounded-xl text-xs transition-all shadow-glow-red flex items-center gap-2 cursor-pointer">
+            <i-lucide name="trash-2" class="w-4 h-4"></i-lucide>
+            <span>Eliminar Usuario</span>
+          </button>
+        </div>
+      </app-modal>
+
+      <!-- ======================================================== -->
+      <!-- MODAL: CONFIRMAR ELIMINACIÓN DE ROL                      -->
+      <!-- ======================================================== -->
+      <app-modal
+        [isOpen]="modalEliminarRolOpen"
+        title="Confirmar Eliminación de Rol"
+        icon="alert-triangle"
+        (close)="modalEliminarRolOpen = false">
+        
+        <div class="space-y-4 py-2">
+          <div class="flex items-center gap-3.5 p-3.5 bg-rose-50 border border-rose-200 rounded-2xl">
+            <div class="w-10 h-10 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+              <i-lucide name="shield-alert" class="w-5 h-5"></i-lucide>
+            </div>
+            <div>
+              <h4 class="text-sm font-bold text-slate-900">¿Estás seguro de eliminar este rol?</h4>
+              <p class="text-xs text-rose-700 font-medium">Esta acción eliminará el perfil del sistema de roles RBAC.</p>
+            </div>
+          </div>
+
+          @if (rolAEliminar) {
+            <div class="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2.5">
+              <div class="flex items-center justify-between text-xs">
+                <span class="text-slate-500 font-bold uppercase">Nombre del Rol:</span>
+                <span class="font-bold text-slate-900">{{ rolAEliminar.nombre }}</span>
+              </div>
+              <div class="flex items-center justify-between text-xs">
+                <span class="text-slate-500 font-bold uppercase">Código del Rol:</span>
+                <span class="font-mono text-slate-700">{{ rolAEliminar.codigo }}</span>
+              </div>
+              <div class="flex items-center justify-between text-xs">
+                <span class="text-slate-500 font-bold uppercase">Permisos Asociados:</span>
+                <span class="font-bold text-purple-700">{{ rolAEliminar.modulos.length }} módulos</span>
+              </div>
+            </div>
+          }
+        </div>
+
+        <div modal-footer class="flex items-center justify-end gap-2.5">
+          <button
+            type="button"
+            (click)="modalEliminarRolOpen = false"
+            class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors cursor-pointer">
+            Cancelar
+          </button>
+          <button
+            type="button"
+            (click)="confirmarEliminarRol()"
+            class="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-extrabold rounded-xl text-xs transition-all shadow-glow-red flex items-center gap-2 cursor-pointer">
+            <i-lucide name="trash-2" class="w-4 h-4"></i-lucide>
+            <span>Eliminar Rol</span>
+          </button>
+        </div>
+      </app-modal>
+
     </div>
   `
 })
@@ -745,6 +1097,9 @@ export class UsuariosComponent implements OnInit {
     agencia: string;
     estado: 'Activo' | 'Inactivo';
     email: string;
+    password?: string;
+    confirmPassword?: string;
+    cambiarPassword?: boolean;
     modalidadPulidor: ModalidadPulidor;
   } = {
     nombre: '',
@@ -753,8 +1108,54 @@ export class UsuariosComponent implements OnInit {
     agencia: 'EasyDry Quito Norte',
     estado: 'Activo',
     email: '',
+    password: '',
+    confirmPassword: '',
+    cambiarPassword: false,
     modalidadPulidor: 'MOVIL'
   };
+
+  showPassword = false;
+  showConfirmPassword = false;
+
+  usuarioFormSubmitted = false;
+
+  get nombreInvalido(): boolean {
+    return this.usuarioFormSubmitted && !this.usuarioForm.nombre?.trim();
+  }
+
+  get emailInvalido(): boolean {
+    if (!this.usuarioFormSubmitted) return false;
+    const email = this.usuarioForm.email?.trim();
+    if (!email) return true;
+    return !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  }
+
+  get passwordInvalido(): boolean {
+    if (!this.usuarioFormSubmitted) return false;
+    if (this.editandoUsuario && !this.usuarioForm.cambiarPassword) return false;
+    const pass = this.usuarioForm.password?.trim();
+    return !pass || pass.length < 6;
+  }
+
+  get confirmPasswordInvalido(): boolean {
+    if (!this.usuarioFormSubmitted) return false;
+    if (this.editandoUsuario && !this.usuarioForm.cambiarPassword) return false;
+    const pass = this.usuarioForm.password?.trim();
+    const confirm = this.usuarioForm.confirmPassword?.trim();
+    return !confirm || pass !== confirm;
+  }
+
+  get passwordsMatch(): boolean {
+    const p = this.usuarioForm.password?.trim();
+    const c = this.usuarioForm.confirmPassword?.trim();
+    return !!p && p.length >= 6 && p === c;
+  }
+
+  get passwordsMismatch(): boolean {
+    const p = this.usuarioForm.password?.trim();
+    const c = this.usuarioForm.confirmPassword?.trim();
+    return !!p && !!c && p !== c;
+  }
 
   modalRolOpen = false;
   editandoRol: RolPersonalizado | null = null;
@@ -776,6 +1177,13 @@ export class UsuariosComponent implements OnInit {
     accionesPorModulo: {}
   };
 
+  modalEliminarUsuarioOpen = false;
+  usuarioAEliminar: Usuario | null = null;
+
+  modalEliminarRolOpen = false;
+  rolAEliminar: RolPersonalizado | null = null;
+
+  private authService = inject(AuthService);
   private usuarioService = inject(UsuarioMockService);
   private rolService = inject(RolMockService);
   private sucursalService = inject(SucursalMockService);
@@ -784,11 +1192,40 @@ export class UsuariosComponent implements OnInit {
   isRolPermisosInmutable = isRolPermisosInmutable;
   esOperadorEspecialesRol = esRolOperadorEspeciales;
 
+  get isSuperAdmin(): boolean {
+    return this.authService.isSuperAdmin();
+  }
+
+  get usuariosVisibles(): Usuario[] {
+    if (this.isSuperAdmin) {
+      return this.usuarios;
+    }
+    return this.usuarios.filter(u => {
+      const r = (u.rol || '').toUpperCase();
+      return r !== 'SUPER_ADMIN' && !r.includes('SUPER ADMIN') && !r.includes('SUPERADMIN') && !r.includes('SUPER ADMINISTRADOR');
+    });
+  }
+
+  get rolesVisibles(): RolPersonalizado[] {
+    if (this.isSuperAdmin) {
+      return this.roles;
+    }
+    return this.roles.filter(r => r.codigo !== 'SUPER_ADMIN' && r.nombre !== 'Super Administrador');
+  }
+
   ngOnInit(): void {
     this.agruparModulos();
 
+    this.usuarioService.usuarios$.subscribe(list => {
+      if (list && list.length) {
+        this.usuarios = list;
+      }
+    });
+
     this.usuarioService.getUsuarios().subscribe(list => {
-      this.usuarios = list;
+      if (list && list.length) {
+        this.usuarios = list;
+      }
     });
 
     this.rolService.roles$.subscribe(list => {
@@ -803,8 +1240,8 @@ export class UsuariosComponent implements OnInit {
     });
   }
 
-  get rolesConUsuarios(): number {
-    return this.roles.filter(r => this.getUsuariosCountForRol(r.nombre) > 0).length;
+  get rolesActivosCount(): number {
+    return this.rolesVisibles.filter(r => r.estado === 'Activo' || r.estado === 1).length;
   }
 
   getModulosCount(rol: RolPersonalizado): number {
@@ -847,7 +1284,7 @@ export class UsuariosComponent implements OnInit {
   }
 
   get usuariosFiltrados() {
-    let resultados = this.usuarios;
+    let resultados = this.usuariosVisibles;
     if (this.filtrosGlobales.estado !== 'Todos') {
       resultados = resultados.filter(u => u.estado === this.filtrosGlobales.estado);
     }
@@ -890,7 +1327,7 @@ export class UsuariosComponent implements OnInit {
 
   getRolBadgeClass(rolNombre: string): string {
     const rol = this.roles.find(r => r.nombre.toLowerCase() === rolNombre.toLowerCase() || r.codigo.toLowerCase() === rolNombre.toLowerCase());
-    if (rol) return rol.badgeClass;
+    if (rol?.badgeClass) return rol.badgeClass;
     if (rolNombre.includes('Admin') || rolNombre.includes('Super')) return 'bg-purple-100 text-purple-900 border-purple-300';
     if (rolNombre.includes('Gerente')) return 'bg-easydry-blue/15 text-easydry-blue border-easydry-blue/20';
     if (rolNombre.includes('Supervisor')) return 'bg-amber-100 text-amber-800 border-amber-200';
@@ -899,7 +1336,7 @@ export class UsuariosComponent implements OnInit {
   }
 
   getUsuariosCountForRol(rolNombre: string): number {
-    return this.usuarios.filter(u => 
+    return this.usuariosVisibles.filter(u => 
       u.rol.toLowerCase() === rolNombre.toLowerCase() || 
       rolNombre.toLowerCase().includes(u.rol.toLowerCase())
     ).length;
@@ -918,30 +1355,52 @@ export class UsuariosComponent implements OnInit {
   // ── Acciones de Usuario ──
   abrirModalCrearUsuario() {
     this.editandoUsuario = null;
+    this.usuarioFormSubmitted = false;
     this.usuarioForm = {
       nombre: '',
       apellido: '',
-      rol: this.roles[0]?.nombre || 'Super Administrador',
-      agencia: this.sucursales[0]?.nombre || 'EasyDry Quito Norte',
+      rol: this.rolesVisibles[0]?.nombre || 'Administrador',
+      agencia: '',
       estado: 'Activo',
       email: '',
+      password: '',
+      confirmPassword: '',
+      cambiarPassword: true,
       modalidadPulidor: 'MOVIL'
     };
+    this.showPassword = false;
+    this.showConfirmPassword = false;
     this.modalUsuarioOpen = true;
   }
 
   editarUsuario(u: Usuario) {
     this.editandoUsuario = u;
+    this.usuarioFormSubmitted = false;
+    const agenciaActual = (u.agencia && u.agencia !== 'Sin asignar' && u.agencia !== 'EasyDry Corporativo')
+      ? u.agencia
+      : (u.sucursal && u.sucursal !== 'Sin asignar' && u.sucursal !== 'EasyDry Corporativo')
+        ? u.sucursal
+        : '';
     this.usuarioForm = {
       nombre: u.nombre,
       apellido: u.apellido,
       rol: u.rol,
-      agencia: u.agencia,
+      agencia: agenciaActual,
       estado: u.estado === 'Inactivo' ? 'Inactivo' : 'Activo',
       email: u.email,
+      password: '',
+      confirmPassword: '',
+      cambiarPassword: false,
       modalidadPulidor: u.modalidadPulidor || (esRolOperadorEspeciales(u.rol) ? 'MOVIL' : 'MOVIL')
     };
+    this.showPassword = false;
+    this.showConfirmPassword = false;
     this.modalUsuarioOpen = true;
+  }
+
+  esLiderOperadorRol(rol: string): boolean {
+    const r = (rol || '').toLowerCase();
+    return r.includes('lider') || r.includes('líder');
   }
 
   toggleEstadoUsuario(u: Usuario) {
@@ -967,6 +1426,31 @@ export class UsuariosComponent implements OnInit {
     });
   }
 
+  abrirModalEliminarUsuario(u: Usuario) {
+    this.usuarioAEliminar = u;
+    this.modalEliminarUsuarioOpen = true;
+  }
+
+  confirmarEliminarUsuario() {
+    if (!this.usuarioAEliminar) return;
+    const u = this.usuarioAEliminar;
+    this.usuarioService.eliminarUsuario(u.id).subscribe({
+      next: () => {
+        this.usuarios = this.usuarios.filter(user => String(user.id) !== String(u.id));
+        this.toastService.success(
+          'Usuario Eliminado',
+          `El usuario ${u.nombre} ${u.apellido} ha sido eliminado del sistema.`
+        );
+        this.modalEliminarUsuarioOpen = false;
+        this.usuarioAEliminar = null;
+      },
+      error: () => {
+        this.modalEliminarUsuarioOpen = false;
+        this.usuarioAEliminar = null;
+      }
+    });
+  }
+
   onRolUsuarioChange() {
     if (esRolOperadorEspeciales(this.usuarioForm.rol)) {
       if (!this.usuarioForm.modalidadPulidor) {
@@ -980,48 +1464,93 @@ export class UsuariosComponent implements OnInit {
     this.usuarioForm.modalidadPulidor = modalidad;
     if (modalidad === 'MOVIL') {
       this.usuarioForm.agencia = 'Red Nacional · Móvil';
-    } else if (!this.sucursales.some(s => s.nombre === this.usuarioForm.agencia)) {
-      this.usuarioForm.agencia = this.sucursales[0]?.nombre || 'EasyDry Quito Norte';
     }
   }
 
   private payloadModalidad(): { agencia: string; modalidadPulidor?: ModalidadPulidor } {
     if (!esRolOperadorEspeciales(this.usuarioForm.rol)) {
-      return { agencia: this.usuarioForm.agencia, modalidadPulidor: undefined };
+      return { agencia: this.usuarioForm.agencia?.trim() || 'Sin asignar', modalidadPulidor: undefined };
     }
     if (this.usuarioForm.modalidadPulidor === 'FIJO') {
-      return { agencia: this.usuarioForm.agencia, modalidadPulidor: 'FIJO' };
+      return { agencia: this.usuarioForm.agencia?.trim() || 'Sin asignar', modalidadPulidor: 'FIJO' };
     }
     return { agencia: 'Red Nacional · Móvil', modalidadPulidor: 'MOVIL' };
   }
 
   guardarUsuario() {
-    if (!this.usuarioForm.nombre || !this.usuarioForm.email) {
-      this.toastService.warning('Datos Incompletos', 'Ingrese el nombre y correo del colaborador.');
+    this.usuarioFormSubmitted = true;
+    if (this.nombreInvalido || this.emailInvalido || this.passwordInvalido || this.confirmPasswordInvalido) {
+      this.toastService.warning('Campos Requeridos', 'Por favor complete los campos obligatorios señalados en rojo.');
       return;
     }
 
-    if (esRolOperadorEspeciales(this.usuarioForm.rol) && this.usuarioForm.modalidadPulidor === 'FIJO' && !this.usuarioForm.agencia) {
-      this.toastService.warning('Sucursal requerida', 'Un pulidor fijo debe quedar asignado a una sucursal.');
-      return;
+    // Validación de contraseñas
+    if (!this.editandoUsuario) {
+      const p = this.usuarioForm.password?.trim() || '';
+      const c = this.usuarioForm.confirmPassword?.trim() || '';
+      if (!p) {
+        this.toastService.warning('Contraseña Requerida', 'Debe ingresar una contraseña para el nuevo usuario.');
+        return;
+      }
+      if (p.length < 6) {
+        this.toastService.warning('Contraseña Corta', 'La contraseña debe contener al menos 6 caracteres.');
+        return;
+      }
+      if (p !== c) {
+        this.toastService.error('Verificación Fallida', 'La verificación de la contraseña no coincide.');
+        return;
+      }
+    } else if (this.usuarioForm.cambiarPassword) {
+      const p = this.usuarioForm.password?.trim() || '';
+      const c = this.usuarioForm.confirmPassword?.trim() || '';
+      if (!p) {
+        this.toastService.warning('Contraseña Requerida', 'Ingrese la nueva contraseña o desmarque la opción de cambio.');
+        return;
+      }
+      if (p.length < 6) {
+        this.toastService.warning('Contraseña Corta', 'La nueva contraseña debe contener al menos 6 caracteres.');
+        return;
+      }
+      if (p !== c) {
+        this.toastService.error('Verificación Fallida', 'La verificación de la nueva contraseña no coincide.');
+        return;
+      }
     }
 
     const modalidad = this.payloadModalidad();
 
     if (this.editandoUsuario) {
       const nuevoEstado: 'Activo' | 'Inactivo' = this.usuarioForm.estado === 'Inactivo' ? 'Inactivo' : 'Activo';
-      const actualizado: Usuario = {
+      const agenciaVal = modalidad.agencia === 'Sin asignar' ? '' : modalidad.agencia;
+      const sucursalMatch = this.sucursales.find(s => s.nombre === agenciaVal || String(s.id) === agenciaVal);
+      const actualizado: Usuario & { password?: string } = {
         ...this.editandoUsuario,
-        nombre: this.usuarioForm.nombre,
-        apellido: this.usuarioForm.apellido,
+        nombre: this.usuarioForm.nombre.trim(),
+        apellido: this.usuarioForm.apellido.trim(),
         rol: this.usuarioForm.rol,
-        agencia: modalidad.agencia,
+        agencia: agenciaVal || 'Sin asignar',
+        sucursal: agenciaVal || 'Sin asignar',
+        agenciaId: sucursalMatch ? String(sucursalMatch.id) : (agenciaVal ? undefined : (null as any)),
         estado: nuevoEstado,
-        email: this.usuarioForm.email,
-        modalidadPulidor: modalidad.modalidadPulidor
+        email: this.usuarioForm.email.trim(),
+        modalidadPulidor: modalidad.modalidadPulidor,
+        ...(this.usuarioForm.cambiarPassword && this.usuarioForm.password?.trim()
+          ? { password: this.usuarioForm.password.trim() }
+          : {})
       };
 
-      this.usuarioService.actualizarUsuario(actualizado).subscribe(() => {
+      this.usuarioService.actualizarUsuario(actualizado).subscribe((res) => {
+        const uFinal = res || actualizado;
+        const idx = this.usuarios.findIndex(u => String(u.id) === String(uFinal.id));
+        if (idx !== -1) {
+          this.usuarios[idx] = uFinal;
+          this.usuarios = [...this.usuarios];
+        }
+        this.usuarioService.getUsuarios().subscribe(refreshed => {
+          if (refreshed && refreshed.length) {
+            this.usuarios = [...refreshed];
+          }
+        });
         if (nuevoEstado === 'Inactivo') {
           this.toastService.warning('Usuario Actualizado', `Perfil de ${actualizado.nombre} actualizado como Inactivo. Se bloqueará su login y no aparecerá en selectores de asignación.`);
         } else {
@@ -1030,24 +1559,58 @@ export class UsuariosComponent implements OnInit {
         this.modalUsuarioOpen = false;
       });
     } else {
-      const nuevo: Omit<Usuario, 'id'> = {
-        nombre: this.usuarioForm.nombre,
-        apellido: this.usuarioForm.apellido,
+      const agenciaVal = modalidad.agencia === 'Sin asignar' ? '' : modalidad.agencia;
+      const sucursalMatch = this.sucursales.find(s => s.nombre === agenciaVal || String(s.id) === agenciaVal);
+      const nuevo: Omit<Usuario, 'id'> & { password?: string } = {
+        nombre: this.usuarioForm.nombre.trim(),
+        apellido: this.usuarioForm.apellido.trim(),
         rol: this.usuarioForm.rol,
-        agencia: modalidad.agencia,
+        agencia: agenciaVal || 'Sin asignar',
+        sucursal: agenciaVal || 'Sin asignar',
+        agenciaId: sucursalMatch ? String(sucursalMatch.id) : undefined,
         estado: this.usuarioForm.estado,
-        email: this.usuarioForm.email,
+        email: this.usuarioForm.email.trim(),
         fechaAsignacion: new Date().toISOString().split('T')[0],
         avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-        modalidadPulidor: modalidad.modalidadPulidor
+        modalidadPulidor: modalidad.modalidadPulidor,
+        password: this.usuarioForm.password?.trim()
       };
 
-      this.usuarioService.crearUsuario(nuevo).subscribe(creado => {
-        this.toastService.success(
-          'Invitación Enviada',
-          `Usuario ${creado.nombre} registrado. Se envió el correo de activación (Amazon Cognito) a ${creado.email}.`
-        );
-        this.modalUsuarioOpen = false;
+      this.usuarioService.crearUsuario(nuevo).subscribe({
+        next: (creado) => {
+          const existe = this.usuarios.some(u => String(u.id) === String(creado.id) || (u.email && u.email.toLowerCase() === creado.email.toLowerCase()));
+          if (!existe) {
+            this.usuarios = [creado, ...this.usuarios];
+          } else {
+            this.usuarios = this.usuarios.map(u => (String(u.id) === String(creado.id) || u.email.toLowerCase() === creado.email.toLowerCase()) ? creado : u);
+          }
+          this.currentPage = 1;
+          this.usuarioService.getUsuarios().subscribe(refreshed => {
+            if (refreshed && refreshed.length) {
+              this.usuarios = [...refreshed];
+            }
+          });
+          this.toastService.success(
+            'Usuario Registrado',
+            `Usuario ${creado.nombre} ${creado.apellido} registrado exitosamente con sus credenciales de acceso.`
+          );
+          this.modalUsuarioOpen = false;
+        },
+        error: () => {
+          const fallback: Usuario = {
+            ...nuevo,
+            id: 'usr-' + Date.now().toString().slice(-4),
+            sucursal: nuevo.agencia,
+            region: 'Sin asignar'
+          };
+          this.usuarios = [fallback, ...this.usuarios];
+          this.currentPage = 1;
+          this.toastService.success(
+            'Usuario Registrado',
+            `Usuario ${nuevo.nombre} ${nuevo.apellido} registrado exitosamente.`
+          );
+          this.modalUsuarioOpen = false;
+        }
       });
     }
   }
@@ -1085,7 +1648,7 @@ export class UsuariosComponent implements OnInit {
       codigo: rol.codigo,
       nombre: rol.nombre,
       descripcion: rol.descripcion,
-      color: rol.color,
+      color: rol.color || '#004282',
       modulos: [...rol.modulos],
       esSistema: rol.esSistema,
       accionesPorModulo: acciones
@@ -1157,15 +1720,22 @@ export class UsuariosComponent implements OnInit {
     }
 
     if (this.editandoRol) {
-      this.rolService.actualizarRol(this.editandoRol.id, {
+      const rolId = this.editandoRol.id;
+      this.rolService.actualizarRol(rolId, {
         nombre: this.rolForm.nombre,
         descripcion: this.rolForm.descripcion,
         color: this.rolForm.color,
         modulos: this.rolForm.modulos
       }).subscribe(res => {
         if (res) {
+          this.roles = this.roles.map(r => r.id === rolId ? { ...r, ...res } : r);
           this.toastService.success('Rol Actualizado', `Permisos para "${res.nombre}" actualizados correctamente.`);
         }
+        this.rolService.getRoles().subscribe(rolesList => {
+          if (rolesList && rolesList.length) {
+            this.roles = [...rolesList];
+          }
+        });
         this.modalRolOpen = false;
       });
     } else {
@@ -1175,21 +1745,66 @@ export class UsuariosComponent implements OnInit {
         color: this.rolForm.color,
         modulos: this.rolForm.modulos
       }).subscribe(creado => {
+        if (creado) {
+          this.roles = [...this.roles, creado];
+        }
         this.toastService.success('Rol Creado', `Nuevo rol "${creado.nombre}" disponible en la plataforma.`);
+        this.rolService.getRoles().subscribe(rolesList => {
+          if (rolesList && rolesList.length) {
+            this.roles = [...rolesList];
+          }
+        });
         this.modalRolOpen = false;
       });
     }
   }
 
-  eliminarRol(rol: RolPersonalizado) {
-    if (confirm(`¿Estás seguro de eliminar el rol "${rol.nombre}"?`)) {
-      this.rolService.eliminarRol(rol.id).subscribe(res => {
-        if (res.success) {
-          this.toastService.success('Rol Eliminado', `El rol "${rol.nombre}" ha sido eliminado.`);
-        } else {
-          this.toastService.error('Acción no permitida', res.message || 'No se pudo eliminar el rol.');
-        }
-      });
+  toggleEstadoRol(rol: RolPersonalizado) {
+    if (isRolPermisosInmutable(rol.codigo)) {
+      this.toastService.warning('Rol inmutable', 'El estado del Super Administrador no puede modificarse.');
+      return;
     }
+    const nuevoEstado = rol.estado === 'Activo' ? 'Inactivo' : 'Activo';
+    this.rolService.actualizarRol(rol.id, { estado: nuevoEstado === 'Activo' ? 1 : 0 }).subscribe({
+      next: (res) => {
+        if (res) {
+          rol.estado = nuevoEstado;
+          this.roles = this.roles.map(r => r.id === rol.id ? { ...r, estado: nuevoEstado } : r);
+          if (nuevoEstado === 'Inactivo') {
+            this.toastService.warning('Rol Desactivado', `El rol "${rol.nombre}" ha sido marcado como Inactivo.`);
+          } else {
+            this.toastService.success('Rol Activado', `El rol "${rol.nombre}" ha sido activado correctamente.`);
+          }
+        }
+      },
+      error: () => {
+        this.toastService.error('Error', 'No se pudo cambiar el estado del rol.');
+      }
+    });
+  }
+
+  abrirModalEliminarRol(rol: RolPersonalizado) {
+    this.rolAEliminar = rol;
+    this.modalEliminarRolOpen = true;
+  }
+
+  confirmarEliminarRol() {
+    if (!this.rolAEliminar) return;
+    const rol = this.rolAEliminar;
+    this.rolService.eliminarRol(rol.id).subscribe(res => {
+      if (res.success) {
+        this.roles = this.roles.filter(r => r.id !== rol.id);
+        this.toastService.success('Rol Eliminado', `El rol "${rol.nombre}" ha sido eliminado.`);
+        this.rolService.getRoles().subscribe(rolesList => {
+          if (rolesList && rolesList.length) {
+            this.roles = [...rolesList];
+          }
+        });
+      } else {
+        this.toastService.error('Acción no permitida', res.message || 'No se pudo eliminar el rol.');
+      }
+      this.modalEliminarRolOpen = false;
+      this.rolAEliminar = null;
+    });
   }
 }

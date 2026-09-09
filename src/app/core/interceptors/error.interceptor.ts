@@ -12,6 +12,8 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
   const toastService = inject(ToastService);
   const authService = inject(AuthService);
 
+  const isSilent = req.headers.has('X-Silent-Fallback') || req.headers.has('x-silent');
+
   return next(req).pipe(
     catchError((error: HttpErrorResponse) => {
       let userMessage = 'Ha ocurrido un inconveniente al procesar la solicitud.';
@@ -21,17 +23,21 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
         authService.logout();
       } else if (error.status === 403) {
         userMessage = 'No tiene permisos suficientes para ejecutar esta acción.';
+      } else if (error.error?.message) {
+        userMessage = Array.isArray(error.error.message)
+          ? error.error.message.join(', ')
+          : String(error.error.message);
       } else if (error.status === 404) {
         userMessage = 'El recurso solicitado no fue encontrado.';
       } else if (error.status === 409) {
         userMessage = 'Conflicto de concurrencia: el registro fue modificado recientemente.';
       } else if (error.status >= 500) {
         userMessage = 'Error interno del servidor. Por favor reintente en unos momentos.';
-      } else if (error.error?.message) {
-        userMessage = error.error.message;
       }
 
-      toastService.error('Error de Comunicación', userMessage);
+      if (!isSilent) {
+        toastService.error('Error de Comunicación', userMessage);
+      }
       return throwError(() => error);
     })
   );

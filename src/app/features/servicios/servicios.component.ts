@@ -15,7 +15,9 @@ import {
   Maquinaria,
   Operador,
   ServicioExtra,
-  RecetaInsumoServicio
+  RecetaInsumoServicio,
+  Bahia,
+  Sucursal
 } from '../../core/models';
 import { ModalComponent } from '../../shared/components/modal/modal.component';
 import { ToastService } from '../../shared/services/toast.service';
@@ -24,6 +26,7 @@ import { CatalogoServiciosMockService } from '../../core/services/catalogo-servi
 import { SucursalMockService } from '../../core/services/sucursal-mock.service';
 import { ServiciosExtrasMockService } from '../../core/services/servicios-extras-mock.service';
 import { OperadorMockService } from '../../core/services/operador-mock.service';
+import { BahiaMockService } from '../../core/services/bahia-mock.service';
 import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
 import { FilterBarComponent, FilterState } from '../../shared/components/filter-bar/filter-bar.component';
 import { ServiciosToolbarComponent } from '../../shared/components/servicios-toolbar/servicios-toolbar.component';
@@ -57,7 +60,7 @@ import { RouterModule } from '@angular/router';
             routerLink="/configuracion/servicios"
             class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold rounded-xl text-xs transition-all flex items-center gap-2 cursor-pointer shadow-2xs border border-slate-200">
             <i-lucide name="layout-list" class="w-4 h-4 text-easydry-blue"></i-lucide>
-            <span class="hidden sm:inline">Catálogo & Crear Servicios</span>
+            <span class="hidden sm:inline">{{ isLiderOperador ? 'Catálogo de Servicios' : 'Catálogo & Crear Servicios' }}</span>
             <span class="sm:hidden">Catálogo</span>
           </a>
 
@@ -455,6 +458,75 @@ import { RouterModule } from '@angular/router';
             <span class="font-mono">Fecha: {{ nuevoRegistro.fecha }}</span>
           </div>
 
+          <!-- Asignación Operativa: Sucursal, Bahía y Operador (Trazabilidad) -->
+          <div class="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold text-slate-800 uppercase flex items-center gap-1.5">
+                <i-lucide name="map-pin" class="w-4 h-4 text-easydry-blue"></i-lucide>
+                Asignación de Sucursal, Bahía & Operador
+              </span>
+              @if (isLiderOperador) {
+                <span class="px-2.5 py-0.5 rounded-full bg-teal-100 text-teal-800 text-[10px] font-extrabold border border-teal-200">
+                  Líder Operador: {{ userSucursal }}
+                </span>
+              }
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <!-- Sucursal -->
+              <div>
+                <label class="block text-[11px] font-bold text-slate-700 uppercase mb-1">Sucursal / Agencia</label>
+                <select
+                  [(ngModel)]="nuevoRegistro.agencia"
+                  name="agenciaSelect"
+                  (change)="onSucursalFormChange()"
+                  [disabled]="isLiderOperador || (!isAdmin && !isSuperAdmin && !!userSucursal)"
+                  class="w-full p-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 disabled:bg-slate-100 disabled:opacity-80">
+                  @for (suc of sucursales; track suc.id) {
+                    <option [value]="suc.nombre">{{ suc.nombre }}</option>
+                  }
+                </select>
+              </div>
+
+              <!-- Bahía -->
+              <div>
+                <label class="block text-[11px] font-bold text-slate-700 uppercase mb-1">Bahía de Atención</label>
+                <select
+                  [(ngModel)]="nuevoRegistro.bahia"
+                  name="bahiaSelect"
+                  (change)="onBahiaFormChange()"
+                  class="w-full p-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800">
+                  <option value="Sin Bahía Específica">Sin Bahía Específica</option>
+                  @for (b of bahiasSucursalForm; track b.id) {
+                    <option [value]="b.nombre">{{ b.nombre }} - {{ b.operadorAsignado ? b.operadorAsignado : 'Sin asignar' }}</option>
+                  }
+                </select>
+              </div>
+
+              <!-- Operador Técnico (Trazabilidad) -->
+              <div>
+                <label class="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                  Operador Técnico
+                  <span class="text-easydry-blue font-bold text-[10px]">(Trazabilidad)</span>
+                </label>
+                <select
+                  [(ngModel)]="nuevoRegistro.empleado"
+                  name="empleadoSelect"
+                  class="w-full p-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800">
+                  @for (op of operadoresSucursalForm; track op.id) {
+                    <option [value]="op.nombre">{{ op.nombre }} ({{ op.bahia }})</option>
+                  }
+                  @if (operadoresSucursalForm.length === 0) {
+                    <option [value]="nuevoRegistro.empleado">{{ nuevoRegistro.empleado }}</option>
+                  }
+                </select>
+              </div>
+            </div>
+            <p class="text-[11px] text-slate-500">
+              El servicio computará en la trazabilidad operativa y conteo de servicios del operador técnico seleccionado.
+            </p>
+          </div>
+
           <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
               <label class="block text-[11px] font-bold text-slate-700 uppercase mb-1">Nº OT (Orden Trabajo)</label>
@@ -783,6 +855,10 @@ export class ServiciosComponent implements OnInit {
 
   abrirModalNuevaOT() {
     this.nuevoRegistro.categoriaServicio = this.tabActiva === 'especiales' ? 'ESPECIAL' : 'GENERAL';
+    if (this.userSucursal) {
+      this.nuevoRegistro.agencia = this.userSucursal;
+    }
+    this.onSucursalFormChange();
     this.onCategoriaChange();
     this.modalNuevoRegistroOpen = true;
   }
@@ -917,6 +993,7 @@ export class ServiciosComponent implements OnInit {
   private sucursalService = inject(SucursalMockService);
   private extrasMock = inject(ServiciosExtrasMockService);
   private operadorService = inject(OperadorMockService);
+  private bahiaService = inject(BahiaMockService);
   private inventarioService = inject(InventarioMockService);
   private servicioService = inject(ServicioLavadoMockService);
   public authService = inject(AuthService);
@@ -928,6 +1005,8 @@ export class ServiciosComponent implements OnInit {
   // ── Servicios Extras / Asignaciones Especiales ──
   serviciosExtras: ServicioExtra[] = [];
   operadores: Operador[] = [];
+  sucursales: Sucursal[] = [];
+  bahiasSucursalForm: Bahia[] = [];
   sucursalesDisponibles: string[] = ['EasyDry Quito Norte', 'EasyDry Quito Sur', 'EasyDry Cumbayá', 'EasyDry Guayaquil'];
 
   busquedaExtras = '';
@@ -944,7 +1023,7 @@ export class ServiciosComponent implements OnInit {
   extraForm: {
     servicioNombre: string;
     servicioDescripcion: string;
-    operadorId: number;
+    operadorId: number | string;
     operadorNombre: string;
     sucursalesSeleccionadas: string[];
     insumosReceta: RecetaInsumoServicio[];
@@ -954,7 +1033,7 @@ export class ServiciosComponent implements OnInit {
   } = {
     servicioNombre: '',
     servicioDescripcion: '',
-    operadorId: 0,
+    operadorId: '' as number | string,
     operadorNombre: '',
     sucursalesSeleccionadas: [],
     insumosReceta: [],
@@ -965,14 +1044,18 @@ export class ServiciosComponent implements OnInit {
 
   // ── Role helpers ──
   get isOperador() { return this.authService.hasRole(Role.OPERADOR); }
+  get isLiderOperador() { return this.authService.isLiderOperador(); }
   get isOperadorEspeciales() {
     return this.authService.hasAnyRole([Role.OPERADOR_SERVICIOS_ESPECIALES, Role.COORD_SERVICIOS_ESPECIALES]);
   }
   get isGerente() { return this.authService.hasAnyRole([Role.SUPER_ADMIN, Role.ADMIN, Role.GERENTE]); }
   get isSuperAdmin() { return this.authService.hasRole(Role.SUPER_ADMIN); }
   get isAdmin() { return this.authService.isAdmin(); }
+  get userSucursal(): string | undefined {
+    return this.authService.getCurrentUser()?.sucursalNombre || this.authService.getCurrentUser()?.sucursal;
+  }
   get puedeReportarFalla() {
-    return this.authService.hasAnyRole([Role.OPERADOR, Role.OPERADOR_SERVICIOS_ESPECIALES])
+    return this.authService.hasAnyRole([Role.OPERADOR, Role.LIDER_OPERADOR, Role.LIDER_AGENCIA, Role.OPERADOR_SERVICIOS_ESPECIALES])
       && this.permissions.canRegistrarIncidente();
   }
 
@@ -1014,8 +1097,13 @@ export class ServiciosComponent implements OnInit {
     });
 
     this.sucursalService.getSucursales().subscribe(list => {
-      const sucNombre = user?.sucursalNombre || user?.sucursal;
-      const suc = this.sucursalService.getSucursalPorNombre(sucNombre);
+      this.sucursales = list;
+      const sucClean = (user?.sucursalNombre || user?.sucursal || (user as any)?.agencia || '').toLowerCase().trim();
+      const suc = list.find(s =>
+        (user?.agenciaId && String(s.id) === String(user.agenciaId)) ||
+        (s.nombre && s.nombre.toLowerCase() === sucClean) ||
+        (s.nombre && sucClean && (s.nombre.toLowerCase().includes(sucClean) || sucClean.includes(s.nombre.toLowerCase())))
+      ) || this.sucursalService.getSucursalPorNombre(user?.sucursalNombre || user?.sucursal);
       this.sucursalServicioIds = suc?.servicioIds?.length ? suc.servicioIds : null;
 
       // Construir mapa sucursal -> región para el filtro de región
@@ -1026,6 +1114,7 @@ export class ServiciosComponent implements OnInit {
         if (s.nombre && s.marcaNombre) this.mapaMarcaSucursal[s.nombre] = s.marcaNombre;
       });
 
+      this.onSucursalFormChange();
       this.onCategoriaChange();
     });
 
@@ -1248,6 +1337,42 @@ export class ServiciosComponent implements OnInit {
     }
   }
 
+  onSucursalFormChange(): void {
+    const suc = this.sucursales.find(s => s.nombre === this.nuevoRegistro.agencia || String(s.id) === this.nuevoRegistro.agencia);
+    if (suc?.servicioIds?.length) {
+      this.sucursalServicioIds = suc.servicioIds;
+    }
+    const sucId = suc ? String(suc.id) : this.nuevoRegistro.agencia;
+    if (sucId) {
+      this.bahiaService.getBahiasPorSucursal(sucId).subscribe(bahias => {
+        this.bahiasSucursalForm = bahias || [];
+        if (this.bahiasSucursalForm.length > 0) {
+          const matchBahia = this.bahiasSucursalForm.find(b => b.nombre === this.nuevoRegistro.bahia);
+          if (!matchBahia) {
+            this.nuevoRegistro.bahia = this.bahiasSucursalForm[0].nombre;
+            this.onBahiaFormChange();
+          }
+        }
+      });
+    }
+  }
+
+  onBahiaFormChange(): void {
+    const b = this.bahiasSucursalForm.find(x => x.nombre === this.nuevoRegistro.bahia);
+    if (b && b.operadorAsignado && b.operadorAsignado !== 'Sin Asignar') {
+      this.nuevoRegistro.empleado = b.operadorAsignado;
+    }
+  }
+
+  get operadoresSucursalForm(): Operador[] {
+    const agencia = (this.nuevoRegistro.agencia || '').toLowerCase();
+    const ops = this.operadores.filter(op => {
+      const opSuc = (op.sucursal || '').toLowerCase();
+      return !agencia || opSuc.includes(agencia) || agencia.includes(opSuc);
+    });
+    return ops.length > 0 ? ops : this.operadores;
+  }
+
   /**
    * Filtrado de servicios con scoping por rol:
    * - OPERADOR: solo ve sus propios servicios (filtrado por nombre)
@@ -1264,10 +1389,10 @@ export class ServiciosComponent implements OnInit {
       if (role === Role.OPERADOR && user) {
         const mismoOperador = s.empleado?.toLowerCase().includes(user.nombre.toLowerCase());
         if (!mismoOperador) return false;
-      } else if ((role === Role.GERENTE || role === Role.SUPERVISOR) && user?.sucursalNombre) {
-        const mismoSucursal = s.agencia?.toLowerCase().includes(
-          user.sucursalNombre!.replace('EasyDry ', '').toLowerCase()
-        );
+      } else if ((role === Role.GERENTE || role === Role.SUPERVISOR || this.isLiderOperador) && this.userSucursal) {
+        const sucUser = this.userSucursal.replace('EasyDry ', '').toLowerCase();
+        const mismoSucursal = (s.agencia || '').toLowerCase().includes(sucUser) ||
+                              (s.agencia || '').toLowerCase() === this.userSucursal.toLowerCase();
         if (!mismoSucursal) return false;
       }
 

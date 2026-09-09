@@ -21,16 +21,22 @@ export interface Usuario {
   bahiaAsignada?: string;
   /** Solo operadores de servicios especiales (pulidores): fijo en sucursal o móvil entre sedes. */
   modalidadPulidor?: ModalidadPulidor;
+  agenciaId?: string;
+  regionId?: string;
 }
 
 export interface Sucursal {
   id: number | string;
+  codigo?: string;
   nombre: string;
   ciudad: string;
   direccion: string;
   estado: 'Activo' | 'Mantenimiento' | 'Inactivo' | string;
   cantidadBahias: number;
   responsable: string;
+  liderOperador?: string;
+  liderOperadorId?: string | number;
+  liderOperadorNombre?: string;
   operadoresActivos?: number;
   maquinasAsignadasCount?: number;
   serviciosRealizadosMes?: number;
@@ -103,25 +109,30 @@ export interface Bahia {
 
 
 export interface Operador {
-  id: number;
+  id: number | string;
   nombre: string;
   cedula: string;
-  rol: 'OPERADOR';
+  rol: 'OPERADOR' | string;
   sucursal: string;
   bahia: string;
   estado: 'Activo' | 'Inactivo' | 'En Capacitación' | string;
   fechaAsignacion: string;
+  fechaCreacion?: string;
+  fechaModificacion?: string;
   vehiculosAtendidos: number;
   serviciosRealizados: number;
   promedioDiario: number;
   ranking: number;
   email: string;
   avatar?: string;
+  telefono?: string;
+  sucursalId?: string | number;
+  bahiaId?: string | null;
 }
 
 export interface HistorialAsignacionOperador {
-  id: number;
-  operadorId: number;
+  id: number | string;
+  operadorId: number | string;
   operadorNombre: string;
   fechaInicio: string;
   fechaFin?: string;
@@ -348,7 +359,7 @@ export interface ServicioExtra {
   codigoSE: string;                      // Ej: SE-2026-001
   servicioNombre: string;                // Nombre del servicio extra
   servicioDescripcion?: string;
-  operadorId: number;
+  operadorId: number | string;
   operadorNombre: string;
   sucursales: string[];                  // Lista de sucursales asignadas
   insumosReceta: RecetaInsumoServicio[]; // Insumos y cantidades

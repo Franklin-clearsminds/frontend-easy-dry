@@ -23,6 +23,28 @@ import { PaginationComponent } from '../../shared/components/pagination/paginati
         <p class="text-slate-500 text-xs mt-1">Matriz de asignación dinámica de personal técnico, cumplimiento de reglas de negocio y trazabilidad histórica.</p>
       </div>
 
+      <!-- Sede Operativa Badge para Líder Operador -->
+      @if (!isSuperAdmin) {
+        <div class="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-4 text-xs shadow-xs">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-xl bg-easydry-blue text-white flex items-center justify-center font-bold shrink-0">
+              <i-lucide name="shield-check" class="w-5 h-5 text-easydry-lime"></i-lucide>
+            </div>
+            <div>
+              <p class="font-extrabold text-slate-900">
+                Alcance Operativo: <span class="text-easydry-blue">{{ sucursalSeleccionadaNombre || authService.getCurrentUser()?.sucursalNombre || 'Agencia Asignada' }}</span>
+              </p>
+              <p class="text-slate-600 text-[11px] mt-0.5">
+                Como Líder Operador, su gestión está restringida al personal técnico y a los movimientos entre bahías de su propia sede.
+              </p>
+            </div>
+          </div>
+          <span class="px-3 py-1 bg-white border border-blue-200 rounded-full font-bold text-[11px] text-easydry-blue shadow-xs">
+            Líder de Agencia
+          </span>
+        </div>
+      }
+
       <!-- Assignment Form & Rules Card -->
       <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
         
@@ -61,7 +83,7 @@ import { PaginationComponent } from '../../shared/components/pagination/paginati
               <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Seleccionar Operador</label>
               <select [(ngModel)]="operadorIdSeleccionado" name="operadorId" class="w-full p-2.5 border rounded-xl text-sm font-semibold" required>
                 @for (op of operadores; track op.id) {
-                  <option [value]="op.id">{{ op.nombre }} (Actual: {{ op.sucursal }} - {{ op.bahia }})</option>
+                  <option [value]="op.id">{{ op.nombre }} (Actual: {{ op.sucursal }} — {{ getBahiaLabel(op) }})</option>
                 }
               </select>
             </div>
@@ -74,7 +96,7 @@ import { PaginationComponent } from '../../shared/components/pagination/paginati
                   [disabled]="!isSuperAdmin"
                   (change)="onSucursalChange()" 
                   name="sucursal" 
-                  class="w-full p-2.5 border rounded-xl text-sm font-semibold disabled:opacity-60 disabled:cursor-not-allowed">
+                  class="w-full p-2.5 border rounded-xl text-sm font-semibold disabled:bg-slate-100 disabled:text-slate-600 disabled:cursor-not-allowed">
                   @for (s of sucursales; track s.id) {
                     <option [value]="s.nombre">{{ s.nombre }} ({{ s.ciudad }})</option>
                   }
@@ -83,9 +105,11 @@ import { PaginationComponent } from '../../shared/components/pagination/paginati
 
               <div>
                 <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Bahía Destino</label>
-                <select [(ngModel)]="bahiaIdSeleccionada" name="bahia" class="w-full p-2.5 border rounded-xl text-sm font-semibold">
+                <select [(ngModel)]="bahiaIdSeleccionada" name="bahia" class="w-full p-2.5 border rounded-xl text-sm font-semibold" required>
                   @for (b of bahiasFiltradas; track b.id) {
-                    <option [value]="b.id">{{ b.nombre }} [{{ b.estado }}]</option>
+                    <option [value]="b.id">
+                      {{ b.nombre }} [{{ b.estado }}] — {{ (b.operadorAsignado && b.operadorAsignado !== 'Sin Asignar') ? ('Ocupada por: ' + b.operadorAsignado) : 'Disponible / Sin Asignar' }}
+                    </option>
                   }
                 </select>
               </div>
@@ -98,7 +122,7 @@ import { PaginationComponent } from '../../shared/components/pagination/paginati
 
             <button 
               type="submit"
-              class="w-full py-3 bg-easydry-blue hover:bg-easydry-blue-dark text-white font-extrabold rounded-xl text-xs transition-colors flex items-center justify-center gap-2 shadow-xs">
+              class="w-full py-3 bg-easydry-blue hover:bg-easydry-blue-dark text-white font-extrabold rounded-xl text-xs transition-colors flex items-center justify-center gap-2 shadow-xs cursor-pointer">
               <i-lucide name="user-check" class="w-4 h-4 text-easydry-green"></i-lucide>
               <span>Confirmar y Guardar Asignación</span>
             </button>
@@ -112,7 +136,7 @@ import { PaginationComponent } from '../../shared/components/pagination/paginati
         <div class="p-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-4">
           <div>
             <h3 class="font-bold text-slate-900 text-base font-outfit">Historial General de Cambios de Asignación</h3>
-            <span class="text-xs text-slate-500 font-bold">Registro Auditable</span>
+            <span class="text-xs text-slate-500 font-bold">Registro Auditable en Base de Datos</span>
           </div>
           
           <!-- Filtro de Sucursal para el Historial -->
@@ -149,7 +173,7 @@ import { PaginationComponent } from '../../shared/components/pagination/paginati
                     {{ h.operadorNombre }}
                   </td>
                   <td class="py-3.5 px-4 text-xs font-semibold text-easydry-blue">
-                    {{ h.sucursal }} — {{ h.bahia }}
+                    {{ h.sucursal }} — {{ (h.bahia && !h.bahia.includes('undefined') && !h.bahia.includes('null')) ? h.bahia : 'Bahía' }}
                   </td>
                   <td class="py-3.5 px-4 text-xs font-mono text-slate-600">
                     {{ h.fechaInicio }}
@@ -166,6 +190,12 @@ import { PaginationComponent } from '../../shared/components/pagination/paginati
                   </td>
                   <td class="py-3.5 px-4 text-xs text-slate-500 max-w-xs truncate">
                     {{ h.motivo }}
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="6" class="py-8 text-center text-xs text-slate-400 italic">
+                    No se registran cambios de asignación en la base de datos para los filtros seleccionados.
                   </td>
                 </tr>
               }
@@ -192,9 +222,9 @@ export class AsignacionesComponent implements OnInit {
   bahiasFiltradas: Bahia[] = [];
   historialGeneral: HistorialAsignacionOperador[] = [];
 
-  operadorIdSeleccionado = 1;
-  sucursalSeleccionadaNombre = 'EasyDry Quito Norte';
-  bahiaIdSeleccionada = 101;
+  operadorIdSeleccionado: string = '';
+  sucursalSeleccionadaNombre = '';
+  bahiaIdSeleccionada: string = '';
   motivoCambio = 'Reasignación operativa de rutina';
 
   filtroHistorialSucursal = 'Todas';
@@ -210,6 +240,13 @@ export class AsignacionesComponent implements OnInit {
 
   get isSuperAdmin() {
     return this.authService.isAdmin();
+  }
+
+  getBahiaLabel(op: Operador): string {
+    if (!op.bahia || op.bahia === 'undefined' || op.bahia === 'null' || op.bahia.toLowerCase().includes('sin')) {
+      return 'Sin Bahía Asignada';
+    }
+    return op.bahia;
   }
 
   get historialFiltrado() {
@@ -231,65 +268,122 @@ export class AsignacionesComponent implements OnInit {
 
   onPageSizeChange(size: number) {
     this.pageSize = size;
-    this.currentPage = 1; // Reset to first page
+    this.currentPage = 1;
   }
 
   ngOnInit(): void {
     const user = this.authService.getCurrentUser();
+    const userAgenciaId = user?.agenciaId ? String(user.agenciaId) : null;
+    const userSucursal = (user?.sucursalNombre || user?.sucursal || '').toLowerCase();
 
-    this.operadorService.getOperadores().subscribe(list => {
-      if (user && user.role !== 'SUPER_ADMIN' && user.sucursalNombre) {
-        this.operadores = list.filter(o => o.sucursal.toLowerCase() === user.sucursalNombre!.toLowerCase());
+    this.operadorService.historial$.subscribe(hist => {
+      if (user && !this.isSuperAdmin && (userAgenciaId || userSucursal)) {
+        this.historialGeneral = (hist || []).filter(h => 
+          (userSucursal && h.sucursal && (h.sucursal.toLowerCase().includes(userSucursal) || userSucursal.includes(h.sucursal.toLowerCase())))
+        );
+        this.filtroHistorialSucursal = user.sucursalNombre || user.sucursal || 'Todas';
       } else {
-        this.operadores = list;
-      }
-      if (this.operadores.length > 0) {
-        this.operadorIdSeleccionado = this.operadores[0].id;
+        this.historialGeneral = hist || [];
       }
     });
 
-    this.sucursalService.getSucursales().subscribe(list => {
-      if (user && user.role !== 'SUPER_ADMIN' && user.sucursalNombre) {
-        this.sucursales = list.filter(s => s.nombre.toLowerCase() === user.sucursalNombre!.toLowerCase());
+    this.cargarTodo();
+  }
+
+  cargarTodo(): void {
+    const user = this.authService.getCurrentUser();
+    const userAgenciaId = user?.agenciaId ? String(user.agenciaId) : null;
+    const userSucursal = (user?.sucursalNombre || user?.sucursal || '').toLowerCase();
+
+    // 1. Cargar operadores restringidos a la agencia del Líder Operador
+    this.operadorService.getOperadores(userAgenciaId || undefined).subscribe(list => {
+      if (user && !this.isSuperAdmin) {
+        this.operadores = (list || []).filter(o => 
+          (userAgenciaId && (String(o.sucursalId) === userAgenciaId || String((o as any).agenciaId) === userAgenciaId)) ||
+          (userSucursal && o.sucursal && (o.sucursal.toLowerCase().includes(userSucursal) || userSucursal.includes(o.sucursal.toLowerCase())))
+        );
       } else {
-        this.sucursales = list;
+        this.operadores = list || [];
+      }
+      if (this.operadores.length > 0 && (!this.operadorIdSeleccionado || !this.operadores.some(o => String(o.id) === String(this.operadorIdSeleccionado)))) {
+        this.operadorIdSeleccionado = String(this.operadores[0].id);
+      }
+    });
+
+    // 2. Cargar sucursales (Líder fijado exclusivamente a su sede)
+    this.sucursalService.getSucursales().subscribe(list => {
+      if (user && !this.isSuperAdmin) {
+        this.sucursales = (list || []).filter(s => 
+          (userAgenciaId && String(s.id) === userAgenciaId) ||
+          (userSucursal && s.nombre && (s.nombre.toLowerCase().includes(userSucursal) || userSucursal.includes(s.nombre.toLowerCase())))
+        );
+      } else {
+        this.sucursales = list || [];
       }
       
       if (this.sucursales.length > 0) {
-        this.sucursalSeleccionadaNombre = this.sucursales[0].nombre;
+        if (!this.sucursalSeleccionadaNombre || !this.sucursales.some(s => s.nombre === this.sucursalSeleccionadaNombre)) {
+          this.sucursalSeleccionadaNombre = this.sucursales[0].nombre;
+        }
         this.onSucursalChange();
       }
     });
 
+    // 3. Cargar bahías (Líder restringido a las bahías de su sede)
     this.bahiaService.getBahias().subscribe(list => {
-      this.todasLasBahias = list;
+      if (user && !this.isSuperAdmin) {
+        this.todasLasBahias = (list || []).filter(b => 
+          (userAgenciaId && (String(b.agenciaId) === userAgenciaId || String(b.sucursalId) === userAgenciaId)) ||
+          (userSucursal && ((b.sucursalNombre && b.sucursalNombre.toLowerCase().includes(userSucursal)) || 
+                            (b.agenciaNombre && b.agenciaNombre.toLowerCase().includes(userSucursal))))
+        );
+      } else {
+        this.todasLasBahias = list || [];
+      }
       this.onSucursalChange();
     });
 
-    this.operadorService.historial$.subscribe(hist => {
-      if (user && user.role !== 'SUPER_ADMIN' && user.sucursalNombre) {
-        this.historialGeneral = hist.filter(h => h.sucursal.toLowerCase() === user.sucursalNombre!.toLowerCase());
-        this.filtroHistorialSucursal = user.sucursalNombre;
-      } else {
-        this.historialGeneral = hist;
-      }
-    });
+    this.operadorService.getHistorialGeneral(userAgenciaId || undefined).subscribe();
   }
 
   onSucursalChange() {
-    this.bahiasFiltradas = this.todasLasBahias.filter(b => b.sucursalNombre === this.sucursalSeleccionadaNombre);
+    const sucNorm = (this.sucursalSeleccionadaNombre || '').trim().toLowerCase();
+    this.bahiasFiltradas = this.todasLasBahias.filter(b => 
+      (b.sucursalNombre && b.sucursalNombre.trim().toLowerCase() === sucNorm) || 
+      (b.agenciaNombre && b.agenciaNombre.trim().toLowerCase() === sucNorm)
+    );
     if (this.bahiasFiltradas.length > 0) {
-      this.bahiaIdSeleccionada = this.bahiasFiltradas[0].id;
+      if (!this.bahiaIdSeleccionada || !this.bahiasFiltradas.some(b => String(b.id) === String(this.bahiaIdSeleccionada))) {
+        this.bahiaIdSeleccionada = String(this.bahiasFiltradas[0].id);
+      }
+    } else {
+      this.bahiaIdSeleccionada = '';
     }
   }
 
   ejecutarAsignacion() {
-    const op = this.operadores.find(o => o.id === Number(this.operadorIdSeleccionado));
-    const bahiaTarget = this.todasLasBahias.find(b => b.id === Number(this.bahiaIdSeleccionada));
+    const op = this.operadores.find(o => String(o.id) === String(this.operadorIdSeleccionado));
+    const bahiaTarget = this.todasLasBahias.find(b => String(b.id) === String(this.bahiaIdSeleccionada));
 
     if (!op || !bahiaTarget) {
-      this.toastService.warning('Selección Invalida', 'Seleccione un operador y una bahía válidos.');
+      this.toastService.warning('Selección Inválida', 'Seleccione un operador y una bahía válidos.');
       return;
+    }
+
+    const user = this.authService.getCurrentUser();
+    const userAgenciaId = user?.agenciaId ? String(user.agenciaId) : null;
+    const userSucursal = (user?.sucursalNombre || user?.sucursal || '').toLowerCase();
+
+    // Restricción de seguridad para Líder Operador
+    if (!this.isSuperAdmin && user) {
+      const bahiaValida = 
+        (userAgenciaId && (String(bahiaTarget.agenciaId) === userAgenciaId || String(bahiaTarget.sucursalId) === userAgenciaId)) ||
+        (userSucursal && ((bahiaTarget.sucursalNombre && bahiaTarget.sucursalNombre.toLowerCase().includes(userSucursal)) ||
+                          (bahiaTarget.agenciaNombre && bahiaTarget.agenciaNombre.toLowerCase().includes(userSucursal))));
+      if (!bahiaValida) {
+        this.toastService.error('Permiso Denegado', 'Como Líder Operador solo puede mover operadores entre bahías de su propia agencia.');
+        return;
+      }
     }
 
     if (!this.motivoCambio.trim()) {
@@ -297,7 +391,25 @@ export class AsignacionesComponent implements OnInit {
       return;
     }
 
-    const user = this.authService.getCurrentUser();
+    // Alerta si la bahía ya tiene un operador asignado diferente
+    const tieneOtroOperador = bahiaTarget.operadorAsignado &&
+      bahiaTarget.operadorAsignado !== 'Sin Asignar' &&
+      bahiaTarget.operadorId &&
+      String(bahiaTarget.operadorId) !== String(op.id);
+
+    if (tieneOtroOperador) {
+      const confirmado = window.confirm(
+        `⚠️ ADVERTENCIA DE ASIGNACIÓN:\n\n` +
+        `La ${bahiaTarget.nombre} ya tiene asignado al operador "${bahiaTarget.operadorAsignado}".\n\n` +
+        `Si continúas con la asignación, "${bahiaTarget.operadorAsignado}" quedará sin bahía asignada y "${op.nombre}" pasará a ocupar su lugar.\n\n` +
+        `¿Deseas confirmar el cambio sabiendo que el otro operador se quedará sin bahía?`
+      );
+
+      if (!confirmado) {
+        return;
+      }
+    }
+
     const autor = user ? `${user.nombre} (${this.authService.getRolLabel(user.role)})` : 'Admin';
 
     this.operadorService.reasignarOperador(
@@ -305,11 +417,14 @@ export class AsignacionesComponent implements OnInit {
       this.sucursalSeleccionadaNombre, 
       bahiaTarget.nombre, 
       this.motivoCambio, 
-      autor
+      autor,
+      String(bahiaTarget.id)
     ).subscribe(res => {
       if (res) {
-        this.bahiaService.asignarOperadorABahia(bahiaTarget.id, op.nombre, op.id).subscribe();
-        this.toastService.success('Asignación Éxitosa', `${op.nombre} reasignado a ${bahiaTarget.nombre} (${this.sucursalSeleccionadaNombre})`);
+        this.toastService.success('Asignación Exitosa', `${op.nombre} asignado a ${bahiaTarget.nombre} (${this.sucursalSeleccionadaNombre})`);
+        this.cargarTodo();
+      } else {
+        this.toastService.error('Error', 'No se pudo registrar la asignación en la base de datos.');
       }
     });
   }

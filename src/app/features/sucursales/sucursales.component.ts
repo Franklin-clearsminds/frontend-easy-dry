@@ -103,7 +103,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                         </span>
                       </div>
                       <p class="text-xs text-slate-500 font-medium mt-0.5">
-                        {{ suc.ciudad }} · Responsable: <strong class="text-slate-700">{{ suc.responsable }}</strong> · Tel: {{ suc.telefono }}
+                        {{ suc.ciudad }} · Responsable: <strong class="text-slate-700">{{ suc.responsable }}</strong> · Líder Op: <strong class="text-easydry-blue">{{ getLiderOperador(suc) }}</strong> · Tel: {{ suc.telefono }}
                       </p>
                     </div>
                   </div>
@@ -257,7 +257,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                   </span>
                   <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-slate-100 text-slate-700 text-[10px] font-extrabold uppercase">
                     <i-lucide name="sparkles" class="w-3 h-3"></i-lucide>
-                    {{ (suc.servicioIds || []).length }} servicios
+                    {{ contarServiciosSucursal(suc) }} servicios
                   </span>
                 </div>
                 <p class="text-xs text-slate-400 mt-2 line-clamp-2">{{ suc.direccion }}</p>
@@ -271,12 +271,21 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                   </div>
                   <div class="p-2 bg-slate-50 rounded-xl">
                     <span class="text-[10px] text-slate-400 uppercase font-bold block">Operadores</span>
-                    <span class="font-extrabold text-easydry-green-dark text-sm">{{ suc.operadoresActivos || 4 }} Activos</span>
+                    <span class="font-extrabold text-easydry-green-dark text-sm">{{ suc.operadoresActivos ?? 0 }} Activos</span>
                   </div>
                 </div>
-                <div class="flex items-center justify-between text-xs pt-1">
-                  <span class="text-slate-500">Responsable:</span>
-                  <span class="font-bold text-slate-800">{{ suc.responsable }}</span>
+
+                <div class="space-y-1 pt-1 border-t border-slate-100 mt-1">
+                  <div class="flex items-center justify-between text-xs">
+                    <span class="text-slate-500">Responsable:</span>
+                    <span class="font-bold text-slate-800">{{ suc.responsable || 'Sin Asignar' }}</span>
+                  </div>
+                  <div class="flex items-center justify-between text-xs">
+                    <span class="text-slate-500">Líder Operador:</span>
+                    <span class="font-bold" [ngClass]="getLiderOperador(suc) !== 'Sin Asignar' ? 'text-easydry-blue' : 'text-slate-400'">
+                      {{ getLiderOperador(suc) }}
+                    </span>
+                  </div>
                 </div>
                 <div class="flex items-center gap-2 mt-2">
                   <button
@@ -476,7 +485,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                 <h2 class="text-lg font-extrabold text-slate-900 font-outfit">Gestión Exclusiva de Gerentes de Agencia</h2>
               </div>
               <p class="text-xs text-slate-500 mt-1">
-                Asignación de agencias y sucursales restringida exclusivamente a usuarios con rol <strong class="text-purple-700">GERENTE</strong>.
+                Asignación de agencias y sucursales restringida a usuarios con rol <strong class="text-purple-700">GERENTE DE SUCURSAL</strong> (Aprobador de servicios y calidad).
               </p>
             </div>
 
@@ -506,7 +515,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                       </div>
                     </div>
                     <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-purple-50 text-purple-800 border border-purple-200">
-                      Rol: GERENTE
+                      Rol: {{ ger.rolNombre || ger.rol || 'GERENTE' }}
                     </span>
                   </div>
 
@@ -524,30 +533,34 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                         </span>
                       </div>
                     } @else {
-                      <span class="text-xs text-rose-600 font-bold italic">Sin agencia asignada</span>
+                      <span class="text-xs text-amber-600 font-semibold italic">Sin sucursal asignada</span>
                     }
                   </div>
                 </div>
 
                 <!-- Acciones de Gestión de Gerente -->
-                <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
-                  <span class="text-[11px] font-medium text-slate-400">
-                    Estado: <strong class="text-slate-700">{{ ger.estado }}</strong>
-                  </span>
+                <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                  <div class="flex items-center gap-1.5 text-[11px] text-slate-500">
+                    <i-lucide name="check-circle" class="w-3.5 h-3.5 text-emerald-600"></i-lucide>
+                    <span>Aprobador Oficial</span>
+                  </div>
+
                   <div class="flex items-center gap-1.5">
                     <button
                       type="button"
                       (click)="abrirModalReasignar(ger)"
-                      class="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-easydry-blue hover:text-white text-slate-700 text-[11px] font-bold transition-colors cursor-pointer">
-                      Reasignar
+                      class="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-easydry-blue hover:text-white text-slate-700 text-[11px] font-bold transition-colors cursor-pointer inline-flex items-center gap-1">
+                      <i-lucide name="refresh-cw" class="w-3.5 h-3.5"></i-lucide>
+                      <span>Reasignar</span>
                     </button>
                     @if (ger.agencia) {
                       <button
                         type="button"
                         (click)="desasignarGerente(ger)"
-                        class="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-600 hover:text-white text-rose-700 text-[11px] font-bold transition-colors cursor-pointer"
+                        class="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-600 hover:text-white text-rose-700 text-[11px] font-bold transition-colors cursor-pointer inline-flex items-center gap-1"
                         title="Remover asignación">
-                        Remover
+                        <i-lucide name="user-x" class="w-3.5 h-3.5"></i-lucide>
+                        <span>Remover</span>
                       </button>
                     }
                   </div>
@@ -555,8 +568,12 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
 
               </div>
             } @empty {
-              <div class="col-span-full p-8 text-center bg-white rounded-2xl border border-slate-100 text-slate-400">
-                No hay usuarios con rol GERENTE dados de alta en el directorio.
+              <div class="col-span-full p-8 text-center bg-white rounded-2xl border border-slate-100 text-slate-400 space-y-3">
+                <p>No hay usuarios con rol Gerente de Sucursal dados de alta en el directorio.</p>
+                <a routerLink="/usuarios" class="inline-flex items-center gap-2 px-4 py-2 bg-purple-100 hover:bg-purple-200 text-purple-800 font-bold rounded-xl text-xs transition-colors">
+                  <i-lucide name="user-plus" class="w-4 h-4"></i-lucide>
+                  <span>Crear Gerente de Sucursal en Directorio</span>
+                </a>
               </div>
             }
           </div>
@@ -693,8 +710,8 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
           <div class="rounded-2xl border-2 transition-all"
                [ngClass]="nuevaSucursal.requiereAprobacion ? 'border-easydry-green bg-easydry-green/5' : 'border-slate-200 bg-slate-50'">
             <div class="flex items-center justify-between p-4 cursor-pointer select-none"
-                 (click)="nuevaSucursal.requiereAprobacion = !nuevaSucursal.requiereAprobacion">
-              <div class="flex items-center gap-3">
+                 (click)="alCambiarToggleAprobacion(!nuevaSucursal.requiereAprobacion)">
+               <div class="flex items-center gap-3">
                 <div class="w-8 h-8 rounded-xl flex items-center justify-center"
                      [ngClass]="nuevaSucursal.requiereAprobacion ? 'bg-easydry-green/20 text-easydry-green-dark' : 'bg-slate-200 text-slate-500'">
                   <i-lucide name="shield-check" class="w-4 h-4"></i-lucide>
@@ -718,7 +735,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                   <i-lucide name="user-check" class="w-3.5 h-3.5 inline mr-1 text-easydry-green-dark"></i-lucide>
                   Gerente Aprobador
                 </label>
-                <select [(ngModel)]="nuevaSucursal.gerenteId" name="gerenteId"
+                <select [(ngModel)]="nuevaSucursal.gerenteId" (ngModelChange)="alCambiarGerente($event)" name="gerenteId"
                         class="w-full p-2.5 border border-easydry-green/30 rounded-xl text-sm font-semibold bg-white focus:ring-2 focus:ring-easydry-green/30">
                   <option [ngValue]="undefined">— Seleccione un Gerente —</option>
                   @for (ger of gerentesUsuarios; track ger.id) {
@@ -739,14 +756,21 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
           <div class="rounded-2xl border-2 transition-all"
                [ngClass]="nuevaSucursal.tieneServiciosEspeciales ? 'border-amber-400 bg-amber-50/60' : 'border-slate-200 bg-slate-50'">
             <div class="flex items-center justify-between p-4 cursor-pointer select-none"
-                 (click)="nuevaSucursal.tieneServiciosEspeciales = !nuevaSucursal.tieneServiciosEspeciales">
+                 (click)="alCambiarToggleServiciosEspeciales(!nuevaSucursal.tieneServiciosEspeciales)">
               <div class="flex items-center gap-3">
                 <div class="w-8 h-8 rounded-xl flex items-center justify-center"
                      [ngClass]="nuevaSucursal.tieneServiciosEspeciales ? 'bg-amber-200 text-amber-700' : 'bg-slate-200 text-slate-500'">
                   <i-lucide name="star" class="w-4 h-4"></i-lucide>
                 </div>
                 <div>
-                  <p class="text-xs font-extrabold text-slate-800 uppercase">Cuenta con Servicios Especiales</p>
+                  <div class="flex items-center gap-2">
+                    <p class="text-xs font-extrabold text-slate-800 uppercase">Cuenta con Servicios Especiales</p>
+                    @if (nuevaSucursal.tieneServiciosEspeciales) {
+                      <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-200 text-amber-900 border border-amber-300">
+                        {{ cantidadEspecialesSeleccionados }} de {{ serviciosEspeciales.length }} activos
+                      </span>
+                    }
+                  </div>
                   <p class="text-[11px] text-slate-500">Pulido, tratamiento cerámico, limpieza de motor y otros servicios premium</p>
                 </div>
               </div>
@@ -760,7 +784,17 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
             <!-- Selección de servicios especiales (solo si toggle activo) -->
             @if (nuevaSucursal.tieneServiciosEspeciales) {
               <div class="px-4 pb-4 border-t border-amber-200 pt-3">
-                <p class="text-[11px] text-amber-700 font-bold uppercase mb-2">Seleccione los servicios especiales disponibles en esta sucursal</p>
+                <div class="flex items-center justify-between mb-2">
+                  <p class="text-[11px] text-amber-700 font-bold uppercase">Seleccione los servicios especiales disponibles en esta sucursal</p>
+                  <div class="flex items-center gap-2">
+                    <span class="text-[11px] font-extrabold text-amber-800 bg-amber-200/80 px-2 py-0.5 rounded-md">
+                      {{ cantidadEspecialesSeleccionados }} / {{ serviciosEspeciales.length }} seleccionados
+                    </span>
+                    <button type="button" (click)="seleccionarTodosEspeciales($event)" class="text-[10px] text-amber-700 font-bold hover:underline cursor-pointer">Todos</button>
+                    <span class="text-amber-300 text-xs">|</span>
+                    <button type="button" (click)="deseleccionarTodosEspeciales($event)" class="text-[10px] text-amber-700 font-bold hover:underline cursor-pointer">Ninguno</button>
+                  </div>
+                </div>
                 <div class="grid grid-cols-1 gap-1 max-h-36 overflow-y-auto pr-1">
                   @for (s of serviciosEspeciales; track s.id) {
                     <label class="flex items-center gap-2.5 py-1.5 px-2 rounded-lg hover:bg-amber-100/60 cursor-pointer transition-colors">
@@ -779,26 +813,59 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
 
           <!-- ─── Servicios Generales del Catálogo ─── -->
           <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Servicios Generales de esta Sucursal</label>
+            <div class="flex items-center justify-between mb-1">
+              <label class="block text-xs font-bold text-slate-700 uppercase">Servicios Generales de esta Sucursal</label>
+              <div class="flex items-center gap-2">
+                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-easydry-blue/10 text-easydry-blue border border-easydry-blue/20">
+                  <i-lucide name="check" class="w-3 h-3"></i-lucide>
+                  {{ cantidadGeneralesSeleccionados }} de {{ serviciosGenerales.length }} seleccionados
+                </span>
+                <button type="button" (click)="seleccionarTodosGenerales()" class="text-[10px] text-easydry-blue font-bold hover:underline cursor-pointer">Todos</button>
+                <span class="text-slate-300 text-xs">|</span>
+                <button type="button" (click)="deseleccionarTodosGenerales()" class="text-[10px] text-slate-500 font-bold hover:underline cursor-pointer">Ninguno</button>
+              </div>
+            </div>
             <p class="text-[11px] text-slate-500 mb-2">Del catálogo corporativo. Márquelos ahora; podrá editarlos después.</p>
             <div class="border border-slate-200 rounded-xl p-3 bg-slate-50/80 max-h-48 overflow-y-auto">
               @for (s of serviciosGenerales; track s.id) {
-                <label class="flex items-start gap-2 py-1.5 cursor-pointer">
-                  <input type="checkbox" class="mt-0.5 rounded border-slate-300" [checked]="servicioSeleccionado(s.id)" (change)="toggleServicio(s.id, s.nombre)">
+                <label class="flex items-start gap-2 py-1.5 cursor-pointer hover:bg-slate-100/80 px-2 rounded-lg transition-colors">
+                  <input type="checkbox" class="mt-0.5 rounded border-slate-300 text-easydry-blue focus:ring-easydry-blue" [checked]="servicioSeleccionado(s.id)" (change)="toggleServicio(s.id, s.nombre)">
                   <span class="text-xs font-semibold text-slate-800">{{ s.nombre }}</span>
                 </label>
               }
             </div>
-            <p class="text-[11px] font-bold text-slate-600 mt-2">{{ (nuevaSucursal.servicioIds || []).length }} seleccionados en total</p>
+            
+            <!-- Resumen de servicios visibles dentro del formulario -->
+            <div class="mt-2.5 p-2.5 rounded-xl bg-slate-100/80 border border-slate-200 flex items-center justify-between text-xs">
+              <div class="flex items-center gap-1.5 text-slate-700 font-bold">
+                <i-lucide name="sparkles" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide>
+                <span>Total asignados a la sucursal:</span>
+              </div>
+              <span class="font-extrabold text-easydry-blue bg-white px-2.5 py-0.5 rounded-lg border border-slate-200 shadow-xs">
+                {{ totalServiciosSeleccionados }} servicios ({{ cantidadGeneralesSeleccionados }} generales, {{ cantidadEspecialesSeleccionados }} especiales)
+              </span>
+            </div>
           </div>
         </form>
 
 
-        <div modal-footer>
-          <button (click)="cerrarModal()" class="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs">Cancelar</button>
-          <button (click)="guardarSucursal()" class="px-4 py-2 bg-easydry-blue hover:bg-easydry-blue-dark text-white font-bold rounded-xl text-xs">
-            {{ editandoSucursal ? 'Guardar Cambios' : 'Guardar Sucursal' }}
-          </button>
+        <div modal-footer class="w-full flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div class="flex items-center gap-2">
+            <div class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-easydry-blue/10 text-easydry-blue border border-easydry-blue/20">
+              <i-lucide name="sparkles" class="w-4 h-4 text-easydry-blue"></i-lucide>
+              <span class="text-xs font-extrabold">{{ totalServiciosSeleccionados }} servicios seleccionados</span>
+            </div>
+            <span class="text-[11px] text-slate-500 font-semibold hidden md:inline">
+              ({{ cantidadGeneralesSeleccionados }} generales + {{ cantidadEspecialesSeleccionados }} especiales)
+            </span>
+          </div>
+
+          <div class="flex items-center gap-2 self-end sm:self-auto">
+            <button type="button" (click)="cerrarModal()" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl text-xs transition-colors cursor-pointer">Cancelar</button>
+            <button type="button" (click)="guardarSucursal()" class="px-4 py-2 bg-easydry-blue hover:bg-easydry-blue-dark text-white font-bold rounded-xl text-xs transition-colors cursor-pointer shadow-sm">
+              {{ editandoSucursal ? 'Guardar Cambios' : 'Guardar Sucursal' }}
+            </button>
+          </div>
         </div>
       </app-modal>
 
@@ -959,6 +1026,7 @@ export class SucursalesComponent implements OnInit {
   regionSeleccionada: RegionOperativa | null = null;
   marcaSeleccionada: MarcaSucursal | null = null;
   bahiasTodas: Bahia[] = [];
+  todosLosUsuarios: Usuario[] = [];
 
   gerentesUsuarios: Usuario[] = [];
   modalAsignarGerenteOpen = false;
@@ -1018,11 +1086,13 @@ export class SucursalesComponent implements OnInit {
   private route = inject(ActivatedRoute);
 
   get regionesActivas(): RegionOperativa[] {
-    return this.regiones.filter(r => r.estado === 'Activa');
+    const list = this.regiones.filter(r => r.estado === 'Activa' || (r as any).estado === 1 || (r as any).estado === 'Activo' || !r.estado);
+    return list.length ? list : this.regiones;
   }
 
   get marcasActivas(): MarcaSucursal[] {
-    return this.marcas.filter(m => m.estado === 'Activa');
+    const list = this.marcas.filter(m => m.estado === 'Activa' || (m as any).estado === 1 || (m as any).estado === 'Activo' || !m.estado);
+    return list.length ? list : this.marcas;
   }
 
   get serviciosGenerales(): CatalogoServicio[] {
@@ -1091,8 +1161,9 @@ export class SucursalesComponent implements OnInit {
       return;
     }
 
-    if (!ger.rol.toLowerCase().includes('gerente')) {
-      this.toastService.error('Violación RBAC', 'Solo usuarios con rol GERENTE pueden ser designados como responsables.');
+    const rolLower = (ger.rol || ger.rolNombre || '').toLowerCase();
+    if (!rolLower.includes('gerente') && !rolLower.includes('aprobador')) {
+      this.toastService.error('Violación RBAC', 'Solo usuarios con rol GERENTE o Aprobador de Sucursal pueden ser designados como responsables.');
       return;
     }
 
@@ -1148,10 +1219,12 @@ export class SucursalesComponent implements OnInit {
     });
     this.usuarioService.usuarios$.subscribe(list => {
       if (list && list.length) {
-        this.gerentesUsuarios = list.filter(u =>
-          (u.estado === 'Activo' || (u as any).estado === 1) &&
-          (u.rol === 'Gerente de Sucursal' || u.rol === 'GERENTE' || u.rol.toLowerCase().includes('gerente') || u.rol === 'APROBADOR')
-        );
+        this.todosLosUsuarios = list;
+        this.gerentesUsuarios = list.filter(u => {
+          const r = (u.rol || u.rolNombre || '').toLowerCase();
+          const activo = u.estado === 'Activo' || (u as any).estado === 1;
+          return activo && (r.includes('gerente') || r.includes('aprobador'));
+        });
         this.supervisoresUsuarios = list.filter(u =>
           (u.estado === 'Activo' || (u as any).estado === 1) &&
           (u.rol === 'SUPERVISOR' || u.rol === 'Supervisor Regional' || u.rol.toLowerCase().includes('supervisor'))
@@ -1159,15 +1232,40 @@ export class SucursalesComponent implements OnInit {
       }
     });
     this.usuarioService.getUsuarios().subscribe(list => {
-      this.gerentesUsuarios = list.filter(u =>
-        (u.estado === 'Activo' || (u as any).estado === 1) &&
-        (u.rol === 'Gerente de Sucursal' || u.rol === 'GERENTE' || u.rol.toLowerCase().includes('gerente') || u.rol === 'APROBADOR')
-      );
-      this.supervisoresUsuarios = list.filter(u =>
-        (u.estado === 'Activo' || (u as any).estado === 1) &&
-        (u.rol === 'SUPERVISOR' || u.rol === 'Supervisor Regional' || u.rol.toLowerCase().includes('supervisor'))
-      );
+      if (list && list.length) {
+        this.todosLosUsuarios = list;
+        this.gerentesUsuarios = list.filter(u => {
+          const r = (u.rol || u.rolNombre || '').toLowerCase();
+          const activo = u.estado === 'Activo' || (u as any).estado === 1;
+          return activo && (r.includes('gerente') || r.includes('aprobador'));
+        });
+        this.supervisoresUsuarios = list.filter(u =>
+          (u.estado === 'Activo' || (u as any).estado === 1) &&
+          (u.rol === 'SUPERVISOR' || u.rol === 'Supervisor Regional' || u.rol.toLowerCase().includes('supervisor'))
+        );
+      }
     });
+  }
+
+  getLiderOperador(suc: Sucursal): string {
+    if (suc.liderOperador && suc.liderOperador !== 'Sin Asignar' && suc.liderOperador !== 'Sin asignar') {
+      return suc.liderOperador;
+    }
+    const lider = this.todosLosUsuarios.find(u => {
+      const r = (u.rol || u.rolNombre || '').toLowerCase();
+      const esLider = r.includes('lider') || r.includes('líder');
+      const activo = u.estado === 'Activo' || (u as any).estado === 1;
+      const coincideSucursal =
+        String(u.agenciaId) === String(suc.id) ||
+        (u.agencia && (u.agencia.toLowerCase() === suc.nombre.toLowerCase() || suc.nombre.toLowerCase().includes(u.agencia.toLowerCase()))) ||
+        (u.sucursal && (u.sucursal.toLowerCase() === suc.nombre.toLowerCase() || suc.nombre.toLowerCase().includes(u.sucursal.toLowerCase())));
+      return esLider && activo && coincideSucursal;
+    });
+
+    if (lider) {
+      return `${lider.nombre} ${lider.apellido}`.trim() || lider.nombre;
+    }
+    return suc.liderOperador || 'Sin Asignar';
   }
 
   sucursalesDeRegion(regionId: number | string): Sucursal[] {
@@ -1211,21 +1309,120 @@ export class SucursalesComponent implements OnInit {
   abrirModalCrearSucursal(): void {
     this.editandoSucursal = false;
     this.nuevaSucursal = this.sucursalVacia();
+    // Pre-cargar servicios generales
+    if (this.serviciosGenerales.length > 0) {
+      this.nuevaSucursal.servicioIds = this.serviciosGenerales.map(s => s.id);
+    }
     this.modalCrearOpen = true;
   }
 
   abrirModalEditar(suc: Sucursal): void {
     this.editandoSucursal = true;
+
+    // Normalizar IDs existentes contra el catálogo activo
+    const catalogoIds = new Set(this.catalogoServicios.map(s => Number(s.id)));
+    const idsEspeciales = new Set(this.serviciosEspeciales.map(s => Number(s.id)));
+
+    let sIds = (suc.servicioIds || [])
+      .map(id => Number(id))
+      .filter(id => catalogoIds.size === 0 || catalogoIds.has(id));
+
+    // Determinar si la sucursal tiene servicios especiales activos
+    const tieneEsp = suc.tieneServiciosEspeciales !== undefined
+      ? Boolean(suc.tieneServiciosEspeciales)
+      : sIds.some(id => idsEspeciales.has(id));
+
+    if (sIds.length === 0) {
+      sIds = this.serviciosGenerales.map(s => Number(s.id));
+      if (tieneEsp) {
+        sIds = [...sIds, ...this.serviciosEspeciales.map(s => Number(s.id))];
+      }
+    }
+
+    if (!tieneEsp) {
+      sIds = sIds.filter(id => !idsEspeciales.has(id));
+    } else {
+      // Si tiene servicios especiales activo pero no tiene ninguno seleccionado, cargar todos los especiales
+      const tieneAlgunEsp = sIds.some(id => idsEspeciales.has(id));
+      if (!tieneAlgunEsp && this.serviciosEspeciales.length > 0) {
+        sIds = [...sIds, ...this.serviciosEspeciales.map(s => Number(s.id))];
+      }
+    }
+
+    sIds = Array.from(new Set(sIds));
+    suc.servicioIds = sIds;
+    suc.tieneServiciosEspeciales = tieneEsp;
+
+    const tieneGer = !!suc.gerenteId || (!!suc.responsable && suc.responsable !== 'Sin Asignar' && !suc.responsable.toLowerCase().includes('operación directa'));
+
+    let gId = suc.gerenteId;
+    let gNombre = suc.gerenteNombre;
+    if (!gId && suc.responsable && suc.responsable !== 'Sin Asignar') {
+      const g = this.gerentesUsuarios.find(u => `${u.nombre} ${u.apellido || ''}`.trim().toLowerCase() === suc.responsable.trim().toLowerCase());
+      if (g) {
+        gId = g.id;
+        gNombre = `${g.nombre} ${g.apellido || ''}`.trim();
+      }
+    }
+
     this.nuevaSucursal = {
       ...suc,
-      servicioIds: [...(suc.servicioIds || [])],
-      serviciosNombres: [...(suc.serviciosNombres || [])],
-      requiereAprobacion: suc.requiereAprobacion ?? false,
-      gerenteId: suc.gerenteId,
-      gerenteNombre: suc.gerenteNombre,
-      tieneServiciosEspeciales: suc.tieneServiciosEspeciales ?? false
+      ciudad: suc.ciudad || suc.regionNombre || 'Quito',
+      direccion: suc.direccion || '',
+      cantidadBahias: suc.cantidadBahias || 4,
+      servicioIds: sIds,
+      serviciosNombres: this.catalogoServicios.filter(s => sIds.includes(Number(s.id))).map(s => s.nombre),
+      requiereAprobacion: suc.requiereAprobacion !== undefined ? suc.requiereAprobacion : tieneGer,
+      gerenteId: gId,
+      gerenteNombre: gNombre || (suc.responsable !== 'Sin Asignar' ? suc.responsable : undefined),
+      responsable: suc.responsable || 'Sin Asignar',
+      tieneServiciosEspeciales: tieneEsp
     };
     this.modalCrearOpen = true;
+  }
+
+  alCambiarToggleServiciosEspeciales(activo: boolean): void {
+    this.nuevaSucursal.tieneServiciosEspeciales = activo;
+    const idsEspeciales = new Set(this.serviciosEspeciales.map(s => Number(s.id)));
+    if (activo) {
+      const actuales = new Set((this.nuevaSucursal.servicioIds || []).map(Number));
+      const tieneAlguno = (this.nuevaSucursal.servicioIds || []).some(id => idsEspeciales.has(Number(id)));
+      if (!tieneAlguno) {
+        this.serviciosEspeciales.forEach(s => actuales.add(Number(s.id)));
+      }
+      this.nuevaSucursal.servicioIds = Array.from(actuales);
+    } else {
+      this.nuevaSucursal.servicioIds = (this.nuevaSucursal.servicioIds || [])
+        .map(Number)
+        .filter(id => !idsEspeciales.has(id));
+    }
+    this.actualizarNombresServicios();
+  }
+
+  alCambiarToggleAprobacion(activo: boolean): void {
+    this.nuevaSucursal.requiereAprobacion = activo;
+    if (!activo) {
+      this.nuevaSucursal.gerenteId = undefined;
+      this.nuevaSucursal.gerenteNombre = undefined;
+      this.nuevaSucursal.responsable = 'Sin Asignar';
+    } else if (!this.nuevaSucursal.gerenteId && this.gerentesUsuarios.length > 0) {
+      this.nuevaSucursal.gerenteId = this.gerentesUsuarios[0].id;
+      this.nuevaSucursal.gerenteNombre = `${this.gerentesUsuarios[0].nombre} ${this.gerentesUsuarios[0].apellido || ''}`.trim();
+      this.nuevaSucursal.responsable = this.nuevaSucursal.gerenteNombre;
+    }
+  }
+
+  alCambiarGerente(gerId: any): void {
+    if (gerId) {
+      const ger = this.gerentesUsuarios.find(g => String(g.id) === String(gerId));
+      if (ger) {
+        this.nuevaSucursal.gerenteNombre = `${ger.nombre} ${ger.apellido || ''}`.trim();
+        this.nuevaSucursal.responsable = this.nuevaSucursal.gerenteNombre;
+      }
+    } else {
+      this.nuevaSucursal.gerenteNombre = undefined;
+      this.nuevaSucursal.responsable = this.nuevaSucursal.requiereAprobacion ? 'Por Asignar' : 'Sin Asignar';
+    }
   }
 
   cerrarModal(): void {
@@ -1277,49 +1474,86 @@ export class SucursalesComponent implements OnInit {
   }
 
   guardarSucursal(): void {
-    if (!this.nuevaSucursal.nombre) {
+    if (!this.nuevaSucursal.nombre?.trim()) {
       this.toastService.warning('Datos Incompletos', 'Ingrese el nombre de la sucursal.');
       return;
     }
-    if (!this.nuevaSucursal.regionId) {
-      this.toastService.warning('Región requerida', 'Seleccione o cree una región.');
-      return;
-    }
-    if (!this.nuevaSucursal.marcaId) {
-      this.toastService.warning('Marca requerida', 'Seleccione o cree una marca de sucursal.');
-      return;
-    }
-    if (!(this.nuevaSucursal.servicioIds || []).length) {
-      this.toastService.warning('Servicios requeridos', 'Asigne al menos un servicio del catálogo a esta sucursal.');
-      return;
-    }
-    // Validar gerente si requiere aprobación
-    if (this.nuevaSucursal.requiereAprobacion && !this.nuevaSucursal.gerenteId) {
-      this.toastService.warning('Gerente requerido', 'Seleccione el gerente aprobador para esta sucursal.');
-      return;
+
+    // Auto-asignar primera región si no está definida
+    if (!this.nuevaSucursal.regionId || this.nuevaSucursal.regionId === 0 || this.nuevaSucursal.regionId === '0') {
+      const defaultReg = this.regionesActivas[0]?.id || this.regiones[0]?.id;
+      if (defaultReg) {
+        this.nuevaSucursal.regionId = defaultReg;
+      }
     }
 
-    // Denormalizar nombres
+    // Auto-asignar primera marca si no está definida
+    if (!this.nuevaSucursal.marcaId || this.nuevaSucursal.marcaId === 0 || this.nuevaSucursal.marcaId === '0') {
+      const defaultMarca = this.marcasActivas[0]?.id || this.marcas[0]?.id;
+      if (defaultMarca) {
+        this.nuevaSucursal.marcaId = defaultMarca;
+      }
+    }
+
+    // Sincronizar nombres de región y marca
+    const regObj = this.regiones.find(r => String(r.id) === String(this.nuevaSucursal.regionId));
+    if (regObj) this.nuevaSucursal.regionNombre = regObj.nombre;
+
+    const marcaObj = this.marcas.find(m => String(m.id) === String(this.nuevaSucursal.marcaId));
+    if (marcaObj) this.nuevaSucursal.marcaNombre = marcaObj.nombre;
+
+    // Normalizar y filtrar servicios estrictamente al catálogo activo
+    const catalogoIds = new Set(this.catalogoServicios.map(s => Number(s.id)));
+    const idsEspeciales = new Set(this.serviciosEspeciales.map(s => Number(s.id)));
+
+    let serviciosLimpios = (this.nuevaSucursal.servicioIds || [])
+      .map(id => Number(id))
+      .filter(id => catalogoIds.size === 0 || catalogoIds.has(id));
+
+    if (!this.nuevaSucursal.tieneServiciosEspeciales) {
+      serviciosLimpios = serviciosLimpios.filter(id => !idsEspeciales.has(id));
+    } else {
+      const tieneEsp = serviciosLimpios.some(id => idsEspeciales.has(id));
+      if (!tieneEsp && this.serviciosEspeciales.length > 0) {
+        this.serviciosEspeciales.forEach(s => serviciosLimpios.push(Number(s.id)));
+      }
+    }
+
+    if (serviciosLimpios.length === 0) {
+      serviciosLimpios = this.serviciosGenerales.map(s => Number(s.id));
+      if (this.nuevaSucursal.tieneServiciosEspeciales) {
+        serviciosLimpios = [...serviciosLimpios, ...this.serviciosEspeciales.map(s => Number(s.id))];
+      }
+    }
+
+    this.nuevaSucursal.servicioIds = Array.from(new Set(serviciosLimpios));
     this.nuevaSucursal.serviciosNombres = this.catalogoServicios
-      .filter(s => (this.nuevaSucursal.servicioIds || []).includes(s.id))
+      .filter(s => this.nuevaSucursal.servicioIds!.includes(Number(s.id)))
       .map(s => s.nombre);
 
-    // Denormalizar nombre del gerente
+    // Caso 1 y 2: Manejo de Gerente Aprobador (con o sin gerente)
     if (this.nuevaSucursal.requiereAprobacion && this.nuevaSucursal.gerenteId) {
-      const ger = this.gerentesUsuarios.find(g => g.id === this.nuevaSucursal.gerenteId);
-      this.nuevaSucursal.gerenteNombre = ger ? `${ger.nombre} ${ger.apellido ?? ''}`.trim() : undefined;
+      const ger = this.gerentesUsuarios.find(g => String(g.id) === String(this.nuevaSucursal.gerenteId));
+      this.nuevaSucursal.gerenteNombre = ger ? `${ger.nombre} ${ger.apellido ?? ''}`.trim() : (this.nuevaSucursal.gerenteNombre || 'Gerente Asignado');
+      this.nuevaSucursal.responsable = this.nuevaSucursal.gerenteNombre;
+    } else if (this.nuevaSucursal.requiereAprobacion) {
+      this.nuevaSucursal.gerenteId = undefined;
+      this.nuevaSucursal.gerenteNombre = undefined;
+      this.nuevaSucursal.responsable = 'Por Asignar';
     } else {
       this.nuevaSucursal.gerenteId = undefined;
       this.nuevaSucursal.gerenteNombre = undefined;
+      this.nuevaSucursal.responsable = 'Sin Asignar';
     }
 
-    // Si no tiene especiales, limpiar servicios especiales del listado
-    if (!this.nuevaSucursal.tieneServiciosEspeciales) {
-      const idsEspeciales = new Set(this.serviciosEspeciales.map(s => s.id));
-      this.nuevaSucursal.servicioIds = (this.nuevaSucursal.servicioIds || []).filter(id => !idsEspeciales.has(id));
-      this.nuevaSucursal.serviciosNombres = this.catalogoServicios
-        .filter(s => (this.nuevaSucursal.servicioIds || []).includes(s.id))
-        .map(s => s.nombre);
+    if (!this.nuevaSucursal.ciudad?.trim()) {
+      this.nuevaSucursal.ciudad = 'Quito';
+    }
+    if (!this.nuevaSucursal.direccion?.trim()) {
+      this.nuevaSucursal.direccion = 'Sede Principal';
+    }
+    if (!this.nuevaSucursal.cantidadBahias || this.nuevaSucursal.cantidadBahias <= 0) {
+      this.nuevaSucursal.cantidadBahias = 4;
     }
 
     if (this.editandoSucursal) {
@@ -1327,18 +1561,28 @@ export class SucursalesComponent implements OnInit {
       this.sucursalService.actualizarSucursal(this.nuevaSucursal, {
         motivo: 'Actualización desde ficha de sucursal',
         realizadoPor: `${user.nombre} ${user.apellido}`.trim()
-      }).subscribe(actualizada => {
-        this.bahiaService.sincronizarBahias(actualizada.id, actualizada.nombre, actualizada.cantidadBahias);
-        this.toastService.success('Sucursal Actualizada', `Se guardaron los cambios para ${actualizada.nombre}.`);
-        this.cerrarModal();
-        this.cargarTodo();
+      }).subscribe({
+        next: (actualizada) => {
+          this.bahiaService.sincronizarBahias(actualizada.id, actualizada.nombre, actualizada.cantidadBahias);
+          this.toastService.success('Sucursal Actualizada', `Se guardaron los cambios para ${actualizada.nombre}.`);
+          this.cerrarModal();
+          this.cargarTodo();
+        },
+        error: () => {
+          this.toastService.error('Error', 'No se pudo actualizar la sucursal.');
+        }
       });
     } else {
-      this.sucursalService.crearSucursal(this.nuevaSucursal).subscribe(creada => {
-        this.bahiaService.sincronizarBahias(creada.id, creada.nombre, creada.cantidadBahias);
-        this.toastService.success('Sucursal Registrada', `Se configuró ${creada.nombre} en ${creada.regionNombre} · ${creada.marcaNombre}.`);
-        this.cerrarModal();
-        this.cargarTodo();
+      this.sucursalService.crearSucursal(this.nuevaSucursal).subscribe({
+        next: (creada) => {
+          this.bahiaService.sincronizarBahias(creada.id, creada.nombre, creada.cantidadBahias);
+          this.toastService.success('Sucursal Registrada', `Se configuró ${creada.nombre} correctamente.`);
+          this.cerrarModal();
+          this.cargarTodo();
+        },
+        error: () => {
+          this.toastService.error('Error', 'No se pudo registrar la sucursal.');
+        }
       });
     }
   }
@@ -1497,27 +1741,105 @@ export class SucursalesComponent implements OnInit {
     });
   }
 
-  servicioSeleccionado(id: number): boolean {
-    return (this.nuevaSucursal.servicioIds || []).includes(id);
+  servicioSeleccionado(id: number | string): boolean {
+    const numId = Number(id);
+    return (this.nuevaSucursal.servicioIds || []).some(x => Number(x) === numId);
   }
 
-  toggleServicio(id: number, nombre: string): void {
-    const ids = [...(this.nuevaSucursal.servicioIds || [])];
-    const nombres = [...(this.nuevaSucursal.serviciosNombres || [])];
-    const idx = ids.indexOf(id);
+  toggleServicio(id: number | string, nombre: string): void {
+    const numId = Number(id);
+    const ids = (this.nuevaSucursal.servicioIds || []).map(Number);
+    const idx = ids.indexOf(numId);
     if (idx >= 0) {
       ids.splice(idx, 1);
-      const ni = nombres.indexOf(nombre);
-      if (ni >= 0) nombres.splice(ni, 1);
     } else {
-      ids.push(id);
-      nombres.push(nombre);
+      ids.push(numId);
     }
-    this.nuevaSucursal.servicioIds = ids;
-    this.nuevaSucursal.serviciosNombres = nombres;
+    this.nuevaSucursal.servicioIds = Array.from(new Set(ids));
+    this.actualizarNombresServicios();
+  }
+
+  get totalServiciosSeleccionados(): number {
+    return this.cantidadGeneralesSeleccionados + this.cantidadEspecialesSeleccionados;
+  }
+
+  get cantidadGeneralesSeleccionados(): number {
+    const ids = new Set((this.nuevaSucursal.servicioIds || []).map(Number));
+    return this.serviciosGenerales.filter(s => ids.has(Number(s.id))).length;
+  }
+
+  get cantidadEspecialesSeleccionados(): number {
+    if (!this.nuevaSucursal.tieneServiciosEspeciales) return 0;
+    const ids = new Set((this.nuevaSucursal.servicioIds || []).map(Number));
+    return this.serviciosEspeciales.filter(s => ids.has(Number(s.id))).length;
+  }
+
+  seleccionarTodosGenerales(): void {
+    const ids = new Set((this.nuevaSucursal.servicioIds || []).map(Number));
+    this.serviciosGenerales.forEach(s => ids.add(Number(s.id)));
+    this.nuevaSucursal.servicioIds = Array.from(ids);
+    this.actualizarNombresServicios();
+  }
+
+  deseleccionarTodosGenerales(): void {
+    const genIds = new Set(this.serviciosGenerales.map(s => Number(s.id)));
+    this.nuevaSucursal.servicioIds = (this.nuevaSucursal.servicioIds || [])
+      .map(Number)
+      .filter(id => !genIds.has(id));
+    this.actualizarNombresServicios();
+  }
+
+  seleccionarTodosEspeciales(event?: Event): void {
+    if (event) event.stopPropagation();
+    const ids = new Set((this.nuevaSucursal.servicioIds || []).map(Number));
+    this.serviciosEspeciales.forEach(s => ids.add(Number(s.id)));
+    this.nuevaSucursal.servicioIds = Array.from(ids);
+    this.actualizarNombresServicios();
+  }
+
+  deseleccionarTodosEspeciales(event?: Event): void {
+    if (event) event.stopPropagation();
+    const espIds = new Set(this.serviciosEspeciales.map(s => Number(s.id)));
+    this.nuevaSucursal.servicioIds = (this.nuevaSucursal.servicioIds || [])
+      .map(Number)
+      .filter(id => !espIds.has(id));
+    this.actualizarNombresServicios();
+  }
+
+  private actualizarNombresServicios(): void {
+    const ids = new Set((this.nuevaSucursal.servicioIds || []).map(Number));
+    this.nuevaSucursal.serviciosNombres = this.catalogoServicios
+      .filter(s => ids.has(Number(s.id)))
+      .map(s => s.nombre);
+  }
+
+  contarServiciosSucursal(suc: Sucursal): number {
+    if (!suc) return 0;
+    const ids = (suc.servicioIds || []).map(Number);
+    const idsSet = new Set(ids);
+
+    if (this.catalogoServicios && this.catalogoServicios.length > 0) {
+      const generales = this.serviciosGenerales.filter(s => idsSet.has(Number(s.id))).length;
+      const especiales = this.serviciosEspeciales.filter(s => idsSet.has(Number(s.id))).length;
+      const tieneEsp = suc.tieneServiciosEspeciales !== false && (suc.tieneServiciosEspeciales || especiales > 0);
+      const total = generales + (tieneEsp ? especiales : 0);
+      if (total > 0) return total;
+    }
+
+    if (suc.serviciosNombres && suc.serviciosNombres.length > 0) {
+      return suc.serviciosNombres.length;
+    }
+
+    return suc.tieneServiciosEspeciales ? 7 : 4;
   }
 
   private sucursalVacia(): Sucursal {
+    const defaultReg = this.regionesActivas[0]?.id || (this.regiones[0]?.id ? this.regiones[0].id : undefined);
+    const defaultMarca = this.marcasActivas[0]?.id || (this.marcas[0]?.id ? this.marcas[0].id : undefined);
+    const serviciosGenIds = this.serviciosGenerales.length 
+      ? this.serviciosGenerales.map(s => s.id) 
+      : (this.catalogoServicios.length ? this.catalogoServicios.map(s => s.id) : [1, 2, 3]);
+
     return {
       id: 0,
       nombre: '',
@@ -1525,11 +1847,13 @@ export class SucursalesComponent implements OnInit {
       direccion: '',
       cantidadBahias: 4,
       estado: 'Activo',
-      responsable: '',
-      regionId: this.regionesActivas[0]?.id || 0,
-      marcaId: this.marcasActivas[0]?.id || 0,
-      servicioIds: [],
-      serviciosNombres: [],
+      responsable: 'Operación Directa',
+      regionId: defaultReg,
+      regionNombre: this.regionesActivas[0]?.nombre || '',
+      marcaId: defaultMarca,
+      marcaNombre: this.marcasActivas[0]?.nombre || '',
+      servicioIds: [...serviciosGenIds],
+      serviciosNombres: this.catalogoServicios.filter(s => serviciosGenIds.includes(s.id)).map(s => s.nombre),
       requiereAprobacion: false,
       gerenteId: undefined,
       gerenteNombre: undefined,

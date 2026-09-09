@@ -35,7 +35,7 @@ export const DEMO_CREDENTIALS: DemoUserCredential[] = [
     passwordPlain: 'Super123*',
     role: Role.SUPER_ADMIN,
     rolNombre: 'Super Administrador',
-    sucursal: 'EasyDry Corporativo',
+    sucursal: 'Sede Central (Nacional)',
     region: 'Nacional',
     avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
   },
@@ -45,7 +45,7 @@ export const DEMO_CREDENTIALS: DemoUserCredential[] = [
     passwordPlain: 'Admin123*',
     role: Role.ADMIN,
     rolNombre: 'Administrador',
-    sucursal: 'EasyDry Corporativo',
+    sucursal: 'Sede Central (Nacional)',
     region: 'Nacional',
     avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
   },
@@ -136,7 +136,7 @@ export const DEMO_CREDENTIALS: DemoUserCredential[] = [
     passwordPlain: 'Admin123*',
     role: Role.COORD_COMERCIAL,
     rolNombre: 'Coordinador Comercial',
-    sucursal: 'EasyDry Corporativo',
+    sucursal: 'Sede Central (Nacional)',
     region: 'Nacional',
     avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80'
   },
@@ -194,6 +194,15 @@ export const DEMO_CREDENTIALS: DemoUserCredential[] = [
   }
 ];
 
+export function registerDemoCredential(cred: DemoUserCredential): void {
+  const existingIndex = DEMO_CREDENTIALS.findIndex(c => c.email.toLowerCase() === cred.email.toLowerCase());
+  if (existingIndex !== -1) {
+    DEMO_CREDENTIALS[existingIndex] = { ...DEMO_CREDENTIALS[existingIndex], ...cred };
+  } else {
+    DEMO_CREDENTIALS.push(cred);
+  }
+}
+
 const STORAGE_KEY = 'easydry_auth_user_v5';
 
 @Injectable({
@@ -216,7 +225,9 @@ export class AuthService {
       'JEFE_COMERCIAL': Role.JEFE_COMERCIAL,
       'COORD_COMERCIAL': Role.COORD_COMERCIAL,
       'APROBADOR': Role.APROBADOR,
-      'LIDER_AGENCIA': Role.LIDER_AGENCIA,
+      'LIDER_OPERADOR': Role.LIDER_OPERADOR,
+      'LIDER_AGENCIA': Role.LIDER_OPERADOR,
+      'OPERADOR': Role.OPERADOR,
       'COORD_SERVICIOS_ESPECIALES': Role.COORD_SERVICIOS_ESPECIALES,
       'PULIDOR_FIJO': Role.PULIDOR_FIJO,
       'PULIDOR_MOVIL': Role.PULIDOR_MOVIL,
@@ -226,11 +237,10 @@ export class AuthService {
       'ASISTENTE_BODEGA': Role.ASISTENTE_BODEGA,
       // Aliases legacy (pueden venir del backend en datos viejos)
       'GERENTE': Role.APROBADOR,
-      'OPERADOR': Role.LIDER_AGENCIA,
       'DISTRIBUIDOR': Role.COORD_BODEGA,
       'OPERADOR_SERVICIOS_ESPECIALES': Role.PULIDOR_MOVIL,
     };
-    return roleMap[backendRole] ?? Role.LIDER_AGENCIA;
+    return roleMap[backendRole] ?? Role.LIDER_OPERADOR;
   }
 
   private getStoredUser(): UsuarioAuth | null {
@@ -256,7 +266,7 @@ export class AuthService {
     return {
       ...u,
       rol: u.rolNombre || 'Super Administrador',
-      agencia: u.sucursal || u.sucursalNombre || 'EasyDry Corporativo',
+      agencia: u.sucursal || u.sucursalNombre || 'Sin sucursal asignada',
       sucursalAsignada: u.sucursal || u.sucursalNombre,
       bahiaAsignada: u.bahiaNombre
     };
@@ -452,8 +462,8 @@ export class AuthService {
       role: Role.ADMIN,
       rolNombre: 'Administrador',
       modulosPermitidos: MODULOS_POR_ROL[Role.ADMIN],
-      sucursal: 'EasyDry Corporativo',
-      sucursalNombre: 'EasyDry Corporativo',
+      sucursal: 'Sede Central (Nacional)',
+      sucursalNombre: 'Sede Central (Nacional)',
       region: 'Nacional',
       estado: 'Activo',
       avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
@@ -473,6 +483,14 @@ export class AuthService {
   isAdmin(): boolean {
     const role = this.currentUserSubject.value?.role;
     return role === Role.SUPER_ADMIN || role === Role.ADMIN;
+  }
+
+  isLiderOperador(): boolean {
+    return this.hasAnyRole([Role.LIDER_OPERADOR, Role.LIDER_AGENCIA]);
+  }
+
+  isOperador(): boolean {
+    return this.currentUserSubject.value?.role === Role.OPERADOR;
   }
 
   hasRole(role: Role | string): boolean {

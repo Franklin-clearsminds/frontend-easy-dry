@@ -12,8 +12,11 @@ export enum Role {
   COORD_COMERCIAL = 'COORD_COMERCIAL',
   /** Aprobador de agencia — cierre diario y auditoría de evidencias */
   APROBADOR = 'APROBADOR',
-  /** Líder de agencia — control de bahías y registro de servicios generales */
+  /** Líder Operador — acceso a plataforma, registro de OTs/servicios de su sucursal y control de bahías */
+  LIDER_OPERADOR = 'LIDER_OPERADOR',
   LIDER_AGENCIA = 'LIDER_AGENCIA',
+  /** Operador técnico de bahía — registro en BD para constancia y trazabilidad de productividad */
+  OPERADOR = 'OPERADOR',
   COORD_SERVICIOS_ESPECIALES = 'COORD_SERVICIOS_ESPECIALES',
   PULIDOR_FIJO = 'PULIDOR_FIJO',
   PULIDOR_MOVIL = 'PULIDOR_MOVIL',
@@ -25,8 +28,6 @@ export enum Role {
   // ── Aliases de retrocompatibilidad (deprecated — usar roles canónicos) ──
   /** @deprecated usar APROBADOR */
   GERENTE = 'APROBADOR',
-  /** @deprecated usar LIDER_AGENCIA */
-  OPERADOR = 'LIDER_AGENCIA',
   /** @deprecated usar COORD_BODEGA */
   DISTRIBUIDOR = 'COORD_BODEGA',
   /** @deprecated usar PULIDOR_MOVIL o PULIDOR_FIJO */
@@ -270,7 +271,19 @@ export const MODULOS_POR_ROL: Record<string, string[]> = {
     'perfil'
   ],
 
-  /** Líder de agencia — control operativo de bahías y servicios generales */
+  /** Líder Operador / Líder de Agencia — acceso a plataforma, registro de OTs y control de bahías */
+  [Role.LIDER_OPERADOR]: [
+    'dashboard',
+    'notificaciones',
+    'mi-bahia',
+    'servicios',
+    'configuracion/servicios',
+    'maquinaria',
+    'inventario',
+    'operadores',
+    'asignaciones',
+    'perfil'
+  ],
   [Role.LIDER_AGENCIA]: [
     'dashboard',
     'notificaciones',
@@ -279,6 +292,13 @@ export const MODULOS_POR_ROL: Record<string, string[]> = {
     'configuracion/servicios',
     'maquinaria',
     'inventario',
+    'operadores',
+    'asignaciones',
+    'perfil'
+  ],
+
+  /** Operador — registro técnico en bahía para trazabilidad de productividad */
+  [Role.OPERADOR]: [
     'perfil'
   ],
 
@@ -356,7 +376,9 @@ export const DEFAULT_ROUTE_POR_ROL: Record<string, string> = {
   [Role.SUPERVISOR]: '/dashboard',
   [Role.JEFE_COMERCIAL]: '/dashboard',
   [Role.COORD_COMERCIAL]: '/dashboard',
-  [Role.LIDER_AGENCIA]: '/mi-bahia',
+  [Role.LIDER_OPERADOR]: '/servicios',
+  [Role.LIDER_AGENCIA]: '/servicios',
+  [Role.OPERADOR]: '/perfil',
   [Role.COORD_SERVICIOS_ESPECIALES]: '/dashboard',
   [Role.PULIDOR_FIJO]: '/servicios',
   [Role.PULIDOR_MOVIL]: '/servicios',
@@ -381,12 +403,14 @@ export interface RolPersonalizado {
   codigo: string;
   nombre: string;
   descripcion: string;
-  color: string;
-  badgeClass: string;
+  color?: string;
+  badgeClass?: string;
   modulos: string[];
   accionesModulos?: Record<string, { ver: boolean; crear: boolean; editar: boolean; configurar: boolean }>;
+  estado?: string | number;
   esSistema: boolean;
   fechaCreacion: string;
+  fechaModificacion?: string;
   usuariosCount?: number;
 }
 
@@ -416,6 +440,19 @@ export const ROLES_INICIALES: RolPersonalizado[] = [
     esSistema: false,
     fechaCreacion: '2026-01-01',
     usuariosCount: 1
+  },
+  {
+    id: 'rol_gerente',
+    codigo: Role.APROBADOR,
+    nombre: 'Gerente de Sucursal',
+    descripcion:
+      'Aprobador y responsable de agencia. Supervisa la operación de la sede, audita evidencias fotográficas y aprueba los servicios de lavado realizados.',
+    color: '#6366F1',
+    badgeClass: 'bg-indigo-100 text-indigo-800 border-indigo-200',
+    modulos: MODULOS_POR_ROL[Role.APROBADOR],
+    esSistema: true,
+    fechaCreacion: '2026-01-01',
+    usuariosCount: 4
   },
   {
     id: 'rol_supervisor',
@@ -454,10 +491,22 @@ export const ROLES_INICIALES: RolPersonalizado[] = [
     usuariosCount: 1
   },
   {
+    id: 'rol_lider_operador',
+    codigo: Role.LIDER_OPERADOR,
+    nombre: 'Líder Operador',
+    descripcion: 'Líder con acceso a la plataforma para registrar servicios y OTs de su sucursal y coordinar bahías e inventario.',
+    color: '#0D9488',
+    badgeClass: 'bg-teal-100 text-teal-800 border-teal-200',
+    modulos: MODULOS_POR_ROL[Role.LIDER_OPERADOR],
+    esSistema: true,
+    fechaCreacion: '2026-01-01',
+    usuariosCount: 1
+  },
+  {
     id: 'rol_operador',
     codigo: Role.OPERADOR,
-    nombre: 'Operador de Bahía',
-    descripcion: 'Operación diaria de lavado, digitalización de OTs, fotos y evidencias en bahía.',
+    nombre: 'Operador',
+    descripcion: 'Personal técnico de bahía registrado para control, constancia de asignación y trazabilidad de productividad.',
     color: '#059669',
     badgeClass: 'bg-emerald-100 text-emerald-800 border-emerald-200',
     modulos: MODULOS_POR_ROL[Role.OPERADOR],
@@ -764,7 +813,32 @@ export const PERMISOS_POR_ROL: Record<string, PermisosRol> = {
     accionesEnvios: false
   },
 
-  /** LIDER_AGENCIA — registro de OTs, control de bahías, incidentes y stock de su agencia */
+  /** LIDER_OPERADOR / LIDER_AGENCIA — registro de OTs, control de bahías, incidentes y stock de su agencia */
+  [Role.LIDER_OPERADOR]: {
+    verTodasSucursales: false,
+    crearSucursal: false,
+    editarSucursal: false,
+    crearUsuarios: false,
+    asignarRoles: false,
+    verOtrosSucursales: false,
+    cambiarSucursalOperador: false,
+    cambiarBahiaOperador: true,
+    aprobarServicios: false,
+    rechazarServicios: false,
+    cerrarDia: false,
+    registrarServicio: true,
+    verTodosServicios: true,
+    verMaquinaria: true,
+    gestionarMantenimiento: false,
+    registrarIncidente: true,
+    verReportes: false,
+    verProductividadGlobal: false,
+    verConfiguracion: false,
+    gestionarInventario: true,
+    despacharSuministros: false,
+    accionesEnvios: true
+  },
+
   [Role.LIDER_AGENCIA]: {
     verTodasSucursales: false,
     crearSucursal: false,
@@ -788,6 +862,32 @@ export const PERMISOS_POR_ROL: Record<string, PermisosRol> = {
     gestionarInventario: true,
     despacharSuministros: false,
     accionesEnvios: true
+  },
+
+  /** OPERADOR — perfil técnico registrado en bahía para trazabilidad de productividad */
+  [Role.OPERADOR]: {
+    verTodasSucursales: false,
+    crearSucursal: false,
+    editarSucursal: false,
+    crearUsuarios: false,
+    asignarRoles: false,
+    verOtrosSucursales: false,
+    cambiarSucursalOperador: false,
+    cambiarBahiaOperador: false,
+    aprobarServicios: false,
+    rechazarServicios: false,
+    cerrarDia: false,
+    registrarServicio: false,
+    verTodosServicios: false,
+    verMaquinaria: false,
+    gestionarMantenimiento: false,
+    registrarIncidente: false,
+    verReportes: false,
+    verProductividadGlobal: false,
+    verConfiguracion: false,
+    gestionarInventario: false,
+    despacharSuministros: false,
+    accionesEnvios: false
   },
 
   /** PULIDOR_FIJO — servicios especiales en su sede fija */
@@ -947,11 +1047,13 @@ export const PERMISOS_POR_ROL: Record<string, PermisosRol> = {
 export const ROLE_LABELS: Record<string, string> = {
   [Role.SUPER_ADMIN]: 'Super Administrador',
   [Role.ADMIN]: 'Administrador',
+  [Role.APROBADOR]: 'Gerente de Sucursal',
   [Role.SUPERVISOR]: 'Supervisor Regional',
   [Role.JEFE_COMERCIAL]: 'Jefe Comercial',
   [Role.COORD_COMERCIAL]: 'Coordinador Comercial',
-  [Role.APROBADOR]: 'Aprobador de Agencia',
-  [Role.LIDER_AGENCIA]: 'Líder de Agencia',
+  [Role.LIDER_OPERADOR]: 'Líder Operador',
+  [Role.LIDER_AGENCIA]: 'Líder Operador',
+  [Role.OPERADOR]: 'Operador (Trazabilidad Bahía)',
   [Role.COORD_SERVICIOS_ESPECIALES]: 'Coordinador de Servicios Especiales',
   [Role.PULIDOR_FIJO]: 'Pulidor Fijo',
   [Role.PULIDOR_MOVIL]: 'Pulidor Móvil',
@@ -964,9 +1066,12 @@ export const ROLE_LABELS: Record<string, string> = {
 export const ROLE_COLORS: Record<string, string> = {
   [Role.SUPER_ADMIN]: 'bg-purple-100 text-purple-800 border-purple-200',
   [Role.ADMIN]: 'bg-violet-100 text-violet-800 border-violet-200',
+  [Role.APROBADOR]: 'bg-indigo-100 text-indigo-800 border-indigo-200',
   [Role.SUPERVISOR]: 'bg-blue-100 text-blue-800 border-blue-200',
   [Role.COORD_MANTENIMIENTO]: 'bg-amber-100 text-amber-800 border-amber-200',
   [Role.TECNICO]: 'bg-orange-100 text-orange-800 border-orange-200',
+  [Role.LIDER_OPERADOR]: 'bg-teal-100 text-teal-800 border-teal-200',
+  [Role.LIDER_AGENCIA]: 'bg-teal-100 text-teal-800 border-teal-200',
   [Role.OPERADOR]: 'bg-emerald-100 text-emerald-800 border-emerald-200',
   [Role.COORD_COMERCIAL]: 'bg-sky-100 text-sky-800 border-sky-200',
   [Role.COORD_SERVICIOS_ESPECIALES]: 'bg-cyan-100 text-cyan-800 border-cyan-200',
@@ -982,6 +1087,8 @@ export const ROLES_OFICIALES_NO_ELIMINABLES: string[] = [
   Role.SUPERVISOR,
   Role.COORD_MANTENIMIENTO,
   Role.TECNICO,
+  Role.LIDER_OPERADOR,
+  Role.LIDER_AGENCIA,
   Role.OPERADOR,
   Role.COORD_COMERCIAL,
   Role.COORD_SERVICIOS_ESPECIALES,

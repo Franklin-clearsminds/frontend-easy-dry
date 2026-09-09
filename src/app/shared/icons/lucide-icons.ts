@@ -102,7 +102,16 @@ import {
   ZoomIn,
   ClipboardList,
   DollarSign,
-  Send
+  Send,
+  BarChart2,
+  UserCircle,
+  BellOff,
+  Gift,
+  ShieldX,
+  ShieldAlert,
+  Circle,
+  PackageCheck,
+  PackageMinus
 } from 'lucide-angular';
 
 export const EASYDRY_ICONS = {
@@ -211,6 +220,15 @@ export const EASYDRY_ICONS = {
   ClipboardList,
   DollarSign,
   Send,
+  BarChart2,
+  UserCircle,
+  BellOff,
+  Gift,
+  ShieldX,
+  ShieldAlert,
+  Circle,
+  PackageCheck,
+  PackageMinus,
 
   // Kebab-case mappings
   'layout-dashboard': LayoutDashboard,
@@ -317,5 +335,13 @@ export const EASYDRY_ICONS = {
   'zoom-in': ZoomIn,
   'clipboard-list': ClipboardList,
   'dollar-sign': DollarSign,
-  'send': Send
+  'send': Send,
+  'user-circle': UserCircle,
+  'bell-off': BellOff,
+  'gift': Gift,
+  'shield-x': ShieldX,
+  'shield-alert': ShieldAlert,
+  'circle': Circle,
+  'package-check': PackageCheck,
+  'package-minus': PackageMinus
 };
