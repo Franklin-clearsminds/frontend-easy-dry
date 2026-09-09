@@ -11,6 +11,6 @@ export interface Reto {
   creadoPorId: number;
   creadorNombre: string;
   creadorRol: string;
-  estado: 'ACTIVO' | 'FINALIZADO' | 'PENDIENTE';
+  estado: 'ACTIVO' | 'FINALIZADO' | 'PENDIENTE' | 'INACTIVO';
   criterios: string[]; // Ej: ['Velocidad promedio < 40 min', '0 Reclamos']
 }

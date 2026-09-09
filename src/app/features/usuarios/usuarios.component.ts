@@ -66,6 +66,7 @@ interface ModuloGrupo {
         <div class="space-y-6">
           <!-- Global Filter Bar -->
           <app-filter-bar 
+            [showRegion]="true"
             [showSucursal]="true" 
             [showOperador]="false"
             [showBahia]="false"
@@ -73,6 +74,7 @@ interface ModuloGrupo {
             [showEstado]="true"
             [showFechas]="false"
             [showBusqueda]="true"
+            placeholderBusqueda="Buscar por nombre, apellido, correo o rol..."
             [listaEstados]="['Todos', 'Activo', 'Inactivo']"
             (filterChange)="aplicarNuevosFiltros($event)">
           </app-filter-bar>
@@ -867,8 +869,7 @@ export class UsuariosComponent implements OnInit {
         (u.apellido || '').toLowerCase().includes(b) ||
         `${u.nombre || ''} ${u.apellido || ''}`.toLowerCase().includes(b) ||
         (u.email || '').toLowerCase().includes(b) ||
-        (u.rol || '').toLowerCase().includes(b) ||
-        (u.agencia || '').toLowerCase().includes(b)
+        (u.rol || '').toLowerCase().includes(b)
       );
     }
     return resultados;

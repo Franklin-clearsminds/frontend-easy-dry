@@ -47,17 +47,17 @@ import { Role } from '../../core/models/roles.model';
       </app-filter-bar>
 
       <!-- Day Status Summary Card -->
-      <div class="bg-gradient-to-r from-easydry-blue to-easydry-blue-dark p-6 rounded-2xl text-white shadow-xl flex items-center justify-between">
+      <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-easydry flex items-center justify-between">
         <div class="space-y-1">
-          <p class="text-xs text-slate-300 uppercase font-bold tracking-wider">Estado de Cierre Operativo</p>
+          <p class="text-xs text-slate-500 uppercase font-bold tracking-wider">Estado de Cierre Operativo</p>
           <h3 class="text-xl font-bold font-outfit">
             @if (esDiaCerrado) {
-              <span class="text-easydry-lime font-extrabold flex items-center gap-2">
+              <span class="text-emerald-600 font-extrabold flex items-center gap-2">
                 <i-lucide name="check-circle-2" class="w-6 h-6"></i-lucide>
                 DÍA CERRADO (100% SERVICIOS APROBADOS)
               </span>
             } @else {
-              <span class="text-amber-300 font-extrabold flex items-center gap-2">
+              <span class="text-amber-600 font-extrabold flex items-center gap-2">
                 <i-lucide name="clock" class="w-6 h-6 animate-pulse"></i-lucide>
                 DÍA EN REVISIÓN (PENDIENTE APROBACIÓN DE GERENCIA)
               </span>

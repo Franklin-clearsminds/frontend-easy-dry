@@ -26,35 +26,32 @@ import { StatCardComponent } from '../../shared/components/stat-card/stat-card.c
     <div class="space-y-6 animate-fade-in">
 
       <!-- Encabezado de Contexto del Operador / Super Admin -->
-      <div class="bg-gradient-to-r from-easydry-blue via-easydry-blue-dark to-easydry-blue-deep rounded-3xl p-6 text-white relative overflow-hidden">
-        <div class="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <div>
-            <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-easydry-green/20 text-easydry-lime border border-easydry-green/40 text-xs font-bold mb-3">
-              <i-lucide name="map-pin" class="w-3.5 h-3.5"></i-lucide>
-              <span>Mi Área de Trabajo</span>
-            </div>
-            <h1 class="text-2xl font-extrabold font-outfit">{{ user.nombre }} {{ user.apellido }}</h1>
-            <p class="text-easydry-lime font-semibold text-sm mt-1">
-              {{ isOperadorEspeciales ? 'Operador de Servicios Especiales' : (isGerente ? 'Líder de Agencia · Gestión Exclusiva de Bahías' : (isSuperAdmin ? 'Supervisión de Bahía' : 'Operador de Bahía')) }}
-            </p>
+      <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-easydry flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div class="relative z-10">
+          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-easydry-blue/10 text-easydry-blue text-xs font-bold mb-2">
+            <i-lucide name="map-pin" class="w-3.5 h-3.5"></i-lucide>
+            <span>Mi Área de Trabajo</span>
           </div>
+          <h1 class="text-2xl font-extrabold font-outfit text-slate-900">{{ user.nombre }} {{ user.apellido }}</h1>
+          <p class="text-slate-500 font-semibold text-xs mt-1">
+            {{ isOperadorEspeciales ? 'Operador de Servicios Especiales' : (isGerente ? 'Líder de Agencia · Gestión Exclusiva de Bahías' : (isSuperAdmin ? 'Supervisión de Bahía' : 'Operador de Bahía')) }}
+          </p>
+        </div>
 
           <div class="flex items-center gap-4 mt-3 flex-wrap">
             <!-- Chip Responsable Agencia -->
-            <div class="flex items-center gap-2 text-slate-200 text-sm">
-              <i-lucide name="shield" class="w-4 h-4 text-purple-300"></i-lucide>
+            <div class="flex items-center gap-2 text-slate-600 text-xs">
+              <i-lucide name="shield" class="w-4 h-4 text-purple-600"></i-lucide>
               <span class="font-semibold">Responsable Agencia: {{ responsableAgencia }}</span>
             </div>
 
             <!-- Chip Operador -->
-            <div class="flex items-center gap-2 text-slate-200 text-sm">
-              <i-lucide name="user" class="w-4 h-4 text-cyan-300"></i-lucide>
+            <div class="flex items-center gap-2 text-slate-600 text-xs">
+              <i-lucide name="user" class="w-4 h-4 text-easydry-blue"></i-lucide>
               <span class="font-semibold">Operador: {{ isSuperAdmin ? operadorAsignadoTexto : (user.nombre + ' ' + user.apellido) }}</span>
             </div>
           </div>
         </div>
-        <div class="absolute -right-16 -bottom-16 w-72 h-72 bg-easydry-green/10 rounded-full blur-2xl pointer-events-none"></div>
-      </div>
 
       <!-- Gestión Exclusiva de Bahías para Líder de Agencia (Req 3) -->
       @if (isGerente) {

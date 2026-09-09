@@ -31,7 +31,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
         </div>
       </div>
 
-      <!-- Global Filter Bar -->
+      <!-- Global Filter Bar (Filtros y Búsqueda Unificados) -->
       <app-filter-bar 
         [showSucursal]="isSuperAdmin" 
         [showOperador]="false"
@@ -39,32 +39,11 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
         [showMarca]="true"
         [showEstado]="true"
         [showFechas]="false"
+        [showBusqueda]="true"
+        placeholderBusqueda="Buscar por nombre, apellido o cédula..."
         [listaEstados]="['Todos', 'Activo', 'Inactivo']"
         (filterChange)="aplicarNuevosFiltros($event)">
       </app-filter-bar>
-
-      <!-- Search and Counter Toolbar -->
-      <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-xs flex flex-wrap items-center justify-between gap-4 mb-4">
-        
-        <div class="flex flex-wrap items-center gap-3 flex-1 min-w-[280px]">
-          <div class="relative flex-1 min-w-[200px]">
-            <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
-              <i-lucide name="search" class="w-4 h-4"></i-lucide>
-            </span>
-            <input 
-              type="text" 
-              [(ngModel)]="filtroTexto" 
-              (input)="aplicarFiltros()"
-              placeholder="Buscar por nombre, cédula o agencia..." 
-              class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-easydry-blue">
-          </div>
-        </div>
-
-        <div class="text-xs font-bold text-slate-500">
-          Operadores: <strong class="text-easydry-blue">{{ operadoresFiltrados.length }} Técnicos</strong>
-        </div>
-
-      </div>
 
       <!-- Loader / Skeleton mientras cargan los datos -->
       @if (cargando) {
@@ -146,16 +125,15 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                     </div>
                   </td>
 
-                  <!-- Acciones (Punto 4: Asignar, Cambiar, Desactivar, Ver Productividad) -->
                   <td class="py-3.5 px-4 text-right">
-                    <div class="flex items-center justify-end gap-1.5">
+                    <div class="flex items-center justify-end gap-1">
                       <!-- Asignar o Cambiar Bahía -->
                       <button 
                         type="button"
                         (click)="abrirModalAsignar(op)" 
                         [title]="op.bahia && !op.bahia.includes('Sin') ? 'Cambiar bahía' : 'Asignar a bahía'"
-                        class="p-1.5 bg-easydry-blue/10 hover:bg-easydry-blue hover:text-white text-easydry-blue rounded-lg transition-colors cursor-pointer flex items-center justify-center">
-                        <i-lucide name="refresh-cw" class="w-3.5 h-3.5"></i-lucide>
+                        class="p-1.5 text-slate-400 hover:text-easydry-blue hover:bg-slate-100 rounded-lg transition-colors cursor-pointer flex items-center justify-center">
+                        <i-lucide name="refresh-cw" class="w-4 h-4"></i-lucide>
                       </button>
 
                       <!-- Desactivar Asignación -->
@@ -164,8 +142,8 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                           type="button"
                           (click)="desactivarAsignacion(op)" 
                           title="Desactivar asignación de bahía"
-                          class="p-1.5 bg-rose-50 hover:bg-rose-600 hover:text-white text-rose-600 font-bold rounded-lg text-xs transition-colors cursor-pointer flex items-center justify-center">
-                          <i-lucide name="user-x" class="w-3.5 h-3.5"></i-lucide>
+                          class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer flex items-center justify-center">
+                          <i-lucide name="user-x" class="w-4 h-4"></i-lucide>
                         </button>
                       }
 
@@ -174,8 +152,8 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                         type="button"
                         (click)="verFichaOperador(op)" 
                         title="Ver productividad y ficha técnica"
-                        class="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-xs transition-colors cursor-pointer flex items-center justify-center">
-                        <i-lucide name="bar-chart-2" class="w-3.5 h-3.5"></i-lucide>
+                        class="p-1.5 text-slate-400 hover:text-easydry-blue hover:bg-slate-100 rounded-lg transition-colors cursor-pointer flex items-center justify-center">
+                        <i-lucide name="bar-chart-2" class="w-4 h-4"></i-lucide>
                       </button>
                     </div>
                   </td>
@@ -350,6 +328,9 @@ export class OperadoresComponent implements OnInit {
 
   aplicarNuevosFiltros(filtros: FilterState) {
     this.filtrosGlobales = filtros;
+    if (filtros.busqueda !== undefined) {
+      this.filtroTexto = filtros.busqueda;
+    }
     this.aplicarFiltros();
   }
 
@@ -415,7 +396,7 @@ export class OperadoresComponent implements OnInit {
       const matchTexto = !term ||
                          (op.nombre || '').toLowerCase().includes(term) ||
                          (op.cedula || '').toLowerCase().includes(term) ||
-                         (op.sucursal || '').toLowerCase().includes(term);
+                         (op.email || '').toLowerCase().includes(term);
 
       return matchScope && matchTexto;
     });

@@ -35,87 +35,87 @@ import { Reto } from '../../core/models/reto.model';
             </button>
           }
         </div>
-      </div>      <!-- RETO EASYDRY SPECIAL GAMIFIED SECTION -->
+      </div>
+
+      <!-- RETO EASYDRY SPECIAL GAMIFIED SECTION -->
       @if (retosActivos.length > 0) {
-        <div class="w-full bg-gradient-to-r from-easydry-blue-dark via-easydry-blue to-slate-900 rounded-3xl p-6 md:p-8 pb-12 md:pb-14 text-white shadow-2xl relative overflow-hidden flex flex-col mb-8">
+        <div class="w-full bg-gradient-to-br from-slate-900 via-slate-900 to-zinc-900 rounded-3xl p-6 md:p-8 pb-12 md:pb-14 border border-slate-700/60 shadow-xl relative overflow-hidden flex flex-col mb-8 text-white">
             
             @if (retosActivos.length > 1) {
-              <!-- Flecha Izquierda -->
-              <button (click)="prevReto()" class="absolute left-2 md:left-4 top-1/2 -translate-y-1/2 z-20 p-2 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 transition-colors backdrop-blur-md shadow-lg">
-                <i-lucide name="chevron-left" class="w-6 h-6 text-white"></i-lucide>
-              </button>
-              
-              <!-- Flecha Derecha -->
-              <button (click)="nextReto()" class="absolute right-2 md:right-4 top-1/2 -translate-y-1/2 z-20 p-2 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 transition-colors backdrop-blur-md shadow-lg">
-                <i-lucide name="chevron-right" class="w-6 h-6 text-white"></i-lucide>
-              </button>
+              <!-- Controles del Carrusel (Flechas + Viñetas) -->
+              <div class="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-3 bg-slate-950/80 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-slate-700/80 shadow-md">
+                <!-- Flecha Izquierda -->
+                <button (click)="prevReto()" class="p-1 rounded-full hover:bg-slate-800 text-slate-300 hover:text-white transition-colors cursor-pointer" title="Anterior">
+                  <i-lucide name="chevron-left" class="w-4 h-4"></i-lucide>
+                </button>
 
-              <!-- Indicador de Puntos (Dots) -->
-              <div class="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2">
-                @for (reto of retosActivos; track $index) {
-                  <span class="block w-2 h-2 rounded-full transition-all duration-300"
-                        [ngClass]="$index === currentRetoIndex ? 'bg-easydry-lime w-6 shadow-[0_0_8px_rgba(163,230,53,0.8)]' : 'bg-white/30'">
-                  </span>
-                }
+                <!-- Indicador de Puntos (Dots) -->
+                <div class="flex items-center gap-1.5">
+                  @for (reto of retosActivos; track $index) {
+                    <span class="block h-2 rounded-full transition-all duration-300 cursor-pointer"
+                          (click)="currentRetoIndex = $index; resetCarousel()"
+                          [ngClass]="$index === currentRetoIndex ? 'bg-amber-400 w-6 shadow-[0_0_8px_rgba(251,191,36,0.6)]' : 'bg-slate-700 w-2 hover:bg-slate-600'">
+                    </span>
+                  }
+                </div>
+
+                <!-- Flecha Derecha -->
+                <button (click)="nextReto()" class="p-1 rounded-full hover:bg-slate-800 text-slate-300 hover:text-white transition-colors cursor-pointer" title="Siguiente">
+                  <i-lucide name="chevron-right" class="w-4 h-4"></i-lucide>
+                </button>
               </div>
             }
 
-            @if (canDeleteReto(retosActivos[currentRetoIndex])) {
-              <button (click)="iniciarEliminarReto(retosActivos[currentRetoIndex])" class="absolute bottom-4 right-4 z-20 p-2 rounded-full bg-red-500/20 hover:bg-red-500/40 border border-red-500/30 transition-colors" title="Eliminar Reto">
-                <i-lucide name="trash-2" class="w-4 h-4 text-red-200"></i-lucide>
-              </button>
-            }
-
-            <div class="flex items-center gap-3 mb-6 relative z-10 mt-2 px-6 md:px-10">
-              <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-400 to-easydry-lime p-0.5 shadow-glow-green shrink-0">
-                <div class="w-full h-full bg-easydry-blue-deep rounded-[14px] flex items-center justify-center">
-                  <i-lucide name="trophy" class="w-7 h-7 text-amber-300"></i-lucide>
+            <div class="flex items-center gap-3.5 mb-6 relative z-10 mt-1 px-2 md:px-4">
+              <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500 to-amber-300 p-0.5 shadow-md shrink-0">
+                <div class="w-full h-full bg-slate-950 rounded-[14px] flex items-center justify-center">
+                  <i-lucide name="trophy" class="w-6 h-6 text-amber-400"></i-lucide>
                 </div>
               </div>
               <div class="flex-1">
                 <div class="flex items-center gap-3">
                   <h2 class="text-xl md:text-2xl font-extrabold font-outfit text-white tracking-wide">{{ retosActivos[currentRetoIndex].titulo }}</h2>
                 </div>
-                <p class="text-xs text-easydry-lime font-medium mt-0.5">{{ retosActivos[currentRetoIndex].descripcion }}</p>
+                <p class="text-xs text-amber-300 font-semibold mt-0.5">{{ retosActivos[currentRetoIndex].descripcion }}</p>
               </div>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 relative z-10 flex-1 px-6 md:px-10">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 relative z-10 flex-1 px-2 md:px-4">
               
               <!-- Detalles del Premio -->
-              <div class="bg-white/10 backdrop-blur-md rounded-2xl p-5 border border-white/15 flex flex-col justify-start items-center text-center">
-                <i-lucide name="gift" class="w-8 h-8 text-amber-300 mb-2"></i-lucide>
-                <h3 class="text-sm font-bold font-outfit text-white mb-1">El Premio</h3>
-                <p class="text-lg font-extrabold text-easydry-lime">{{ retosActivos[currentRetoIndex].premio }}</p>
-                <div class="w-full h-px bg-white/10 my-3"></div>
-                <p class="text-[10px] text-slate-300 flex items-center justify-center gap-1.5 w-full">
-                  <i-lucide name="calendar" class="w-3 h-3"></i-lucide>
+              <div class="bg-gradient-to-b from-slate-800/80 via-slate-800/60 to-slate-900/70 backdrop-blur-md rounded-2xl p-5 border border-amber-500/30 shadow-md flex flex-col justify-start items-center text-center">
+                <i-lucide name="gift" class="w-7 h-7 text-amber-400 mb-2"></i-lucide>
+                <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">El Premio</h3>
+                <p class="text-base font-extrabold text-amber-300 font-outfit">{{ retosActivos[currentRetoIndex].premio }}</p>
+                <div class="w-full h-px bg-slate-700/70 my-3"></div>
+                <p class="text-[11px] text-slate-300 font-medium flex items-center justify-center gap-1.5 w-full">
+                  <i-lucide name="calendar" class="w-3.5 h-3.5 text-amber-400"></i-lucide>
                   <span>{{ retosActivos[currentRetoIndex].fechaInicio }} a {{ retosActivos[currentRetoIndex].fechaFin }}</span>
                 </p>
-                <p class="text-[10px] text-slate-300 flex items-center justify-center gap-1.5 w-full mt-1.5">
-                  <i-lucide name="user" class="w-3 h-3"></i-lucide>
-                  <span>Reto por: <span class="font-bold text-white">{{ retosActivos[currentRetoIndex].creadorNombre || 'Administración' }}</span></span>
+                <p class="text-[11px] text-slate-300 font-medium flex items-center justify-center gap-1.5 w-full mt-1.5">
+                  <i-lucide name="user" class="w-3.5 h-3.5 text-amber-400"></i-lucide>
+                  <span>Reto por: <strong class="text-white">{{ retosActivos[currentRetoIndex].creadorNombre || 'Administración' }}</strong></span>
                 </p>
               </div>
 
               <!-- Criterios -->
-              <div class="bg-white/10 backdrop-blur-md rounded-2xl p-5 border border-white/15">
-                <span class="text-[10px] font-extrabold uppercase tracking-widest text-slate-300">Criterios de Evaluación</span>
-                <ul class="mt-2 space-y-1.5 text-xs text-slate-200">
+              <div class="bg-gradient-to-b from-slate-800/80 via-slate-800/60 to-slate-900/70 backdrop-blur-md rounded-2xl p-5 border border-slate-700/80 shadow-md">
+                <span class="text-[10px] font-extrabold uppercase tracking-wider text-easydry-lime">Criterios de Evaluación</span>
+                <ul class="mt-2.5 space-y-2 text-xs text-slate-200 font-medium">
                   @for (crit of retosActivos[currentRetoIndex].criterios; track crit) {
                     <li class="flex items-center gap-2">
-                      <i-lucide name="check" class="w-3.5 h-3.5 text-easydry-lime shrink-0"></i-lucide>
-                      <span class="line-clamp-2">{{ crit }}</span>
+                      <i-lucide name="check-circle" class="w-3.5 h-3.5 text-easydry-lime shrink-0"></i-lucide>
+                      <span class="line-clamp-2 text-slate-200">{{ crit }}</span>
                     </li>
                   }
                   @if (retosActivos[currentRetoIndex].sucursalesIds && retosActivos[currentRetoIndex].sucursalesIds.length > 0) {
-                    <li class="flex items-center gap-2 mt-3 text-amber-300 border-t border-white/10 pt-2">
-                      <i-lucide name="map-pin" class="w-3.5 h-3.5 shrink-0"></i-lucide>
+                    <li class="flex items-center gap-2 mt-3 text-amber-300 font-bold border-t border-slate-700/70 pt-2">
+                      <i-lucide name="map-pin" class="w-3.5 h-3.5 shrink-0 text-amber-400"></i-lucide>
                       <span>Aplica a agencias seleccionadas.</span>
                     </li>
                   } @else {
-                    <li class="flex items-center gap-2 mt-3 text-easydry-lime border-t border-white/10 pt-2">
-                      <i-lucide name="globe" class="w-3.5 h-3.5 shrink-0"></i-lucide>
+                    <li class="flex items-center gap-2 mt-3 text-sky-300 font-bold border-t border-slate-700/70 pt-2">
+                      <i-lucide name="globe" class="w-3.5 h-3.5 shrink-0 text-sky-400"></i-lucide>
                       <span>Reto Global para toda la Red.</span>
                     </li>
                   }
@@ -123,19 +123,19 @@ import { Reto } from '../../core/models/reto.model';
               </div>
 
               <!-- Ranking Posiciones (Top 3) integrado -->
-              <div class="bg-white/5 backdrop-blur-md rounded-2xl p-4 border border-white/15 flex flex-col">
-                <h3 class="font-bold text-easydry-lime text-xs uppercase tracking-widest mb-3 flex items-center gap-2 font-outfit">
-                  <i-lucide name="bar-chart-2" class="w-4 h-4"></i-lucide> Posiciones Actuales
+              <div class="bg-gradient-to-b from-slate-800/80 via-slate-800/60 to-slate-900/70 backdrop-blur-md rounded-2xl p-4 border border-slate-700/80 shadow-md flex flex-col">
+                <h3 class="font-extrabold text-slate-300 text-xs uppercase tracking-wider mb-3 flex items-center gap-2 font-outfit">
+                  <i-lucide name="bar-chart-2" class="w-4 h-4 text-easydry-lime"></i-lucide> Posiciones Actuales
                 </h3>
                 
                 <ul class="space-y-2 overflow-y-auto flex-1">
                   @for (agencia of getRankingParaReto(); track agencia.nombre; let i = $index) {
-                    <li class="flex items-center justify-between p-2.5 rounded-xl transition-all" [ngClass]="i === 0 ? 'bg-amber-400/20 border border-amber-300/30' : 'bg-white/5'">
+                    <li class="flex items-center justify-between p-2.5 rounded-xl transition-all" [ngClass]="i === 0 ? 'bg-amber-500/20 border border-amber-400/40 shadow-2xs' : 'bg-slate-900/50 border border-slate-700/50'">
                       <div class="flex items-center gap-2.5">
-                        <span class="font-extrabold text-sm" [ngClass]="i === 0 ? 'text-amber-300' : 'text-slate-300'">#{{i + 1}}</span>
+                        <span class="font-extrabold text-xs font-mono" [ngClass]="i === 0 ? 'text-amber-300' : 'text-slate-400'">#{{i + 1}}</span>
                         <div>
                           <p class="text-xs font-bold text-white line-clamp-1" [title]="agencia.nombre">{{ agencia.nombre }}</p>
-                          <p class="text-[9px] font-medium text-slate-300">{{ agencia.empleados }} empleados</p>
+                          <p class="text-[10px] font-medium text-slate-400">{{ agencia.empleados }} empleados</p>
                         </div>
                       </div>
                       <div class="text-right shrink-0">
@@ -253,7 +253,7 @@ import { Reto } from '../../core/models/reto.model';
                 </div>
 
                 <div class="text-right">
-                  <span class="text-base font-extrabold text-easydry-green-dark font-outfit">{{ agencia.productividad }}%</span>
+                  <span class="text-base font-extrabold text-easydry-blue font-outfit">{{ agencia.productividad }}%</span>
                   <p class="text-[10px] text-slate-400">Eficiencia Operativa</p>
                 </div>
               </div>
@@ -273,9 +273,9 @@ import { Reto } from '../../core/models/reto.model';
 
           <div class="space-y-4">
             
-            <div class="p-4 border border-slate-100 rounded-xl flex items-center justify-between bg-gradient-to-r from-easydry-green/10 to-white">
+            <div class="p-4 border border-slate-100 rounded-xl flex items-center justify-between bg-gradient-to-r from-easydry-blue/5 to-white">
               <div class="flex items-center gap-3">
-                <img src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80" alt="Avatar" class="w-10 h-10 rounded-full object-cover border-2 border-easydry-green">
+                <img src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80" alt="Avatar" class="w-10 h-10 rounded-full object-cover border-2 border-easydry-blue">
                 <div>
                   <h4 class="font-bold text-slate-900 text-sm">Esteban Torres</h4>
                   <p class="text-xs text-slate-500">Técnico • EasyDry Quito Norte</p>
@@ -283,7 +283,7 @@ import { Reto } from '../../core/models/reto.model';
               </div>
               <div class="text-right">
                 <span class="text-sm font-extrabold text-easydry-blue">68 Lavados</span>
-                <p class="text-[10px] text-easydry-green-dark font-bold">100% Calificación</p>
+                <p class="text-[10px] text-easydry-blue font-bold">100% Calificación</p>
               </div>
             </div>
 
@@ -297,7 +297,7 @@ import { Reto } from '../../core/models/reto.model';
               </div>
               <div class="text-right">
                 <span class="text-sm font-extrabold text-easydry-blue">62 Lavados</span>
-                <p class="text-[10px] text-easydry-green-dark font-bold">99.2% Calificación</p>
+                <p class="text-[10px] text-easydry-blue font-bold">99.2% Calificación</p>
               </div>
             </div>
 
@@ -311,13 +311,90 @@ import { Reto } from '../../core/models/reto.model';
               </div>
               <div class="text-right">
                 <span class="text-sm font-extrabold text-easydry-blue">54 Lavados</span>
-                <p class="text-[10px] text-easydry-green-dark font-bold">98.5% Calificación</p>
+                <p class="text-[10px] text-easydry-blue font-bold">98.5% Calificación</p>
               </div>
             </div>
 
           </div>
         </div>
 
+      </div>
+
+      <!-- Tabla de Retos Comercial & Operativo (Todos los Retos) -->
+      <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry overflow-hidden flex flex-col">
+        <div class="p-6 pb-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h3 class="font-bold text-slate-900 text-lg font-outfit flex items-center gap-2">
+              <i-lucide name="trophy" class="w-5 h-5 text-amber-500"></i-lucide>
+              <span>Directorio de Retos Empresariales</span>
+            </h3>
+            <p class="text-slate-500 text-xs mt-0.5">Listado completo de retos activos, inactivos y finalizados en la plataforma.</p>
+          </div>
+          <span class="text-xs font-semibold text-slate-600 bg-slate-100 px-3 py-1 rounded-full border border-slate-200 self-start sm:self-auto">
+            Total: <strong class="text-easydry-blue font-extrabold">{{ todosLosRetos.length }}</strong> retos registrados
+          </span>
+        </div>
+
+        <div class="overflow-x-auto flex-1">
+          <table class="w-full text-left text-sm">
+            <thead class="bg-slate-50 text-slate-500 text-xs font-bold uppercase tracking-wider border-b border-slate-200">
+              <tr>
+                <th class="py-3.5 px-4">Reto & Descripción</th>
+                <th class="py-3.5 px-4">Premio</th>
+                <th class="py-3.5 px-4">Vigencia</th>
+                <th class="py-3.5 px-4">Región / Sucursal</th>
+                <th class="py-3.5 px-4">Estado</th>
+                <th class="py-3.5 px-4 text-right">Acciones</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              @for (reto of todosLosRetos; track reto.id) {
+                <tr class="hover:bg-slate-50/80 transition-colors">
+                  <td class="py-3.5 px-4">
+                    <div class="font-bold text-slate-900 text-xs">{{ reto.titulo }}</div>
+                    <div class="text-[11px] text-slate-500 font-medium line-clamp-1">{{ reto.descripcion }}</div>
+                  </td>
+                  <td class="py-3.5 px-4">
+                    <span class="font-extrabold text-xs text-amber-600 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200 inline-block">
+                      🏆 {{ reto.premio }}
+                    </span>
+                  </td>
+                  <td class="py-3.5 px-4 text-xs font-mono text-slate-600">
+                    <div>{{ reto.fechaInicio }}</div>
+                    <div class="text-slate-400 text-[10px]">hasta {{ reto.fechaFin }}</div>
+                  </td>
+                  <td class="py-3.5 px-4 text-xs font-semibold text-slate-700">
+                    <span>{{ reto.regiones && reto.regiones.length ? reto.regiones.join(', ') : 'Todas' }}</span>
+                  </td>
+                  <td class="py-3.5 px-4">
+                    <span 
+                      class="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold inline-block border uppercase"
+                      [ngClass]="{
+                        'bg-emerald-50 text-emerald-700 border-emerald-200': (reto.estado || 'ACTIVO').toUpperCase() === 'ACTIVO',
+                        'bg-slate-100 text-slate-600 border-slate-200': (reto.estado || '').toUpperCase() === 'INACTIVO',
+                        'bg-amber-50 text-amber-700 border-amber-200': (reto.estado || '').toUpperCase() === 'FINALIZADO'
+                      }">
+                      {{ reto.estado || 'ACTIVO' }}
+                    </span>
+                  </td>
+                  <td class="py-3.5 px-4 text-right">
+                    <div class="flex items-center justify-end gap-1">
+                      @if (canDeleteReto(reto)) {
+                        <button 
+                          type="button"
+                          (click)="iniciarEliminarReto(reto)" 
+                          title="Eliminar Reto"
+                          class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer flex items-center justify-center">
+                          <i-lucide name="trash-2" class="w-4 h-4"></i-lucide>
+                        </button>
+                      }
+                    </div>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <!-- Performance Comparison Chart -->
@@ -335,6 +412,7 @@ export class ProductividadComponent implements OnInit, OnDestroy {
   agencias: Agencia[] = [];
   todasLasAgencias: Agencia[] = [];
   
+  todosLosRetos: Reto[] = [];
   retosActivos: Reto[] = [];
   currentRetoIndex = 0;
   showCrearRetoModal = false;
@@ -380,6 +458,10 @@ export class ProductividadComponent implements OnInit, OnDestroy {
   }
 
   cargarRetos() {
+    this.retosService.getAllRetos().subscribe(todos => {
+      this.todosLosRetos = todos;
+    });
+
     this.retosService.getRetosVisibles().subscribe(retos => {
       this.retosActivos = retos;
       this.currentRetoIndex = 0;
