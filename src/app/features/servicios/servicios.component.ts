@@ -621,10 +621,15 @@ import { RouterModule } from '@angular/router';
                   <div class="p-2.5 bg-white rounded-xl border border-slate-200 flex items-center justify-between gap-3 shadow-2xs">
                     <div class="overflow-hidden flex-1">
                       <p class="font-bold text-slate-900 text-xs truncate">{{ ins.productoNombre }}</p>
-                      <div class="flex items-center gap-2 text-[10px] text-slate-500">
+                      <div class="flex items-center gap-2 text-[10px] text-slate-500 flex-wrap">
                         <span class="font-mono bg-slate-100 px-1 py-0.2 rounded">{{ ins.productoSKU }}</span>
                         <span>•</span>
                         <span class="text-easydry-blue font-semibold">Stock en {{ nuevoRegistro.agencia }}: {{ getStockDisponible(ins.productoId) }} {{ ins.unidadMedida }}</span>
+                        @if (getStockDisponible(ins.productoId) <= 0) {
+                          <span class="px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 font-bold text-[9px]">¡Agotado en Agencia!</span>
+                        } @else if (getStockDisponible(ins.productoId) < ins.cantidad) {
+                          <span class="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-bold text-[9px]">Stock Insuficiente</span>
+                        }
                       </div>
                     </div>
 

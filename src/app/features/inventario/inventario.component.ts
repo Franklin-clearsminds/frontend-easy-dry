@@ -67,6 +67,17 @@ import {
         <!-- Barra de Submenús Principales -->
         <div class="flex items-center gap-2 sm:gap-4 mt-5 pt-3 border-t border-slate-100 overflow-x-auto">
           <button
+            (click)="activeTab = 'insumos_servicios'"
+            class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+            [ngClass]="activeTab === 'insumos_servicios' ? 'bg-teal-50 text-teal-700 font-extrabold border border-teal-200' : 'text-slate-600 hover:bg-slate-50'">
+            <i-lucide name="layout-list" class="w-4 h-4 text-teal-600"></i-lucide>
+            <span>{{ isLiderOperador ? 'Insumos de mi Sede' : 'Insumos por Servicios' }}</span>
+            <span *ngIf="resumenInsumosServicios?.totalAlertas > 0" class="px-1.5 py-0.2 rounded-full text-[10px] bg-rose-500 text-white ml-1">
+              {{ resumenInsumosServicios.totalAlertas }}
+            </span>
+          </button>
+
+          <button
             (click)="activeTab = 'dashboard'"
             class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
             [ngClass]="activeTab === 'dashboard' ? 'bg-blue-50 text-easydry-blue' : 'text-slate-600 hover:bg-slate-50'">
@@ -129,6 +140,259 @@ import {
             <span>Configuración</span>
           </button>
         </div>
+      </div>
+
+      <!-- ============================================================== -->
+      <!-- TAB 0: INSUMOS POR SERVICIOS DE LA SEDE (LÍDER OPERADOR)       -->
+      <!-- ============================================================== -->
+      <div *ngIf="activeTab === 'insumos_servicios'" class="space-y-6 animate-fade-in">
+        
+        <!-- Header de la Sede y Contexto de Insumos según Recetas -->
+        <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-easydry">
+          <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-teal-50 border border-teal-200 text-teal-800 text-xs font-bold mb-2">
+                <i-lucide name="store" class="w-3.5 h-3.5 text-teal-600"></i-lucide>
+                <span>Sede: {{ infoAgenciaInsumos?.nombre || miAgenciaNombre }}</span>
+                <span class="text-teal-400">•</span>
+                <span class="text-teal-700 font-normal">Recetas de Servicios Autorizados</span>
+              </div>
+              <h2 class="text-xl font-black text-slate-900 font-outfit">
+                {{ isLiderOperador ? 'Insumos de mi Sede Requeridos por Servicios' : 'Insumos Requeridos por Servicios de Sede' }}
+              </h2>
+              <p class="text-slate-500 text-xs mt-1 max-w-3xl">
+                Control de insumos indispensables según las recetas de cada servicio de lavado.
+                El stock se descuenta automáticamente con cada Orden de Trabajo (OT) creada, alertando de niveles críticos antes de que afecten la operación.
+              </p>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <button
+                (click)="cargarInsumosPorServicios()"
+                class="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer">
+                <i-lucide name="refresh-cw" class="w-3.5 h-3.5" [ngClass]="{'animate-spin': cargandoInsumosServicios}"></i-lucide>
+                <span>Actualizar Stock</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Banner de Alertas Activas de Stock de Insumos -->
+        <div *ngIf="resumenInsumosServicios?.totalAlertas > 0" class="p-4 rounded-2xl bg-amber-50/90 border border-amber-200 shadow-sm space-y-3">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <div class="w-8 h-8 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center font-bold">
+                <i-lucide name="alert-triangle" class="w-4 h-4"></i-lucide>
+              </div>
+              <div>
+                <h3 class="text-xs font-extrabold text-amber-900 uppercase tracking-wide">
+                  Alertas de Reabastecimiento de Insumos en Sede
+                </h3>
+                <p class="text-[11px] text-amber-700">
+                  Existen {{ resumenInsumosServicios.totalAlertas }} insumo(s) en nivel bajo o agotado que condicionan la capacidad de lavado.
+                </p>
+              </div>
+            </div>
+            <span class="px-2.5 py-1 rounded-full text-[10px] font-black bg-amber-200/80 text-amber-900">
+              {{ resumenInsumosServicios.totalAlertas }} en Alerta
+            </span>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-2 pt-1">
+            <div *ngFor="let alerta of resumenInsumosServicios.alertas" class="p-2.5 bg-white/90 rounded-xl border border-amber-200/60 text-xs font-medium text-slate-800 flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full shrink-0" [ngClass]="alerta.includes('AGOTADO') ? 'bg-rose-500' : 'bg-amber-500'"></span>
+              <span class="truncate">{{ alerta }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4 Tarjetas de Métricas de Insumos de la Sede -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div class="p-4 rounded-2xl bg-white border border-slate-100 shadow-sm flex items-center justify-between">
+            <div>
+              <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">Insumos Requeridos</span>
+              <p class="text-2xl font-black text-slate-900 font-outfit mt-1">{{ resumenInsumosServicios.totalInsumosRequeridos || 0 }}</p>
+              <span class="text-xs text-slate-500">Definidos en recetas de la sede</span>
+            </div>
+            <div class="w-12 h-12 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center">
+              <i-lucide name="boxes" class="w-6 h-6"></i-lucide>
+            </div>
+          </div>
+
+          <div class="p-4 rounded-2xl bg-white border border-slate-100 shadow-sm flex items-center justify-between">
+            <div>
+              <span class="text-[11px] font-bold uppercase tracking-wider text-emerald-600 block">Stock Óptimo</span>
+              <p class="text-2xl font-black text-emerald-600 font-outfit mt-1">{{ resumenInsumosServicios.insumosOptimos || 0 }}</p>
+              <span class="text-xs text-emerald-600">Disponibilidad completa</span>
+            </div>
+            <div class="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+              <i-lucide name="check-circle" class="w-6 h-6"></i-lucide>
+            </div>
+          </div>
+
+          <div class="p-4 rounded-2xl bg-white border border-slate-100 shadow-sm flex items-center justify-between">
+            <div>
+              <span class="text-[11px] font-bold uppercase tracking-wider text-amber-600 block">Bajo Mínimo</span>
+              <p class="text-2xl font-black text-amber-600 font-outfit mt-1">{{ resumenInsumosServicios.insumosBajoMinimo || 0 }}</p>
+              <span class="text-xs text-amber-600">Requieren reabastecimiento</span>
+            </div>
+            <div class="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+              <i-lucide name="alert-triangle" class="w-6 h-6"></i-lucide>
+            </div>
+          </div>
+
+          <div class="p-4 rounded-2xl bg-white border border-slate-100 shadow-sm flex items-center justify-between">
+            <div>
+              <span class="text-[11px] font-bold uppercase tracking-wider text-rose-600 block">Agotados / Crítico</span>
+              <p class="text-2xl font-black text-rose-600 font-outfit mt-1">{{ resumenInsumosServicios.insumosAgotados || 0 }}</p>
+              <span class="text-xs text-rose-600">Bloquea lavado</span>
+            </div>
+            <div class="w-12 h-12 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
+              <i-lucide name="x-circle" class="w-6 h-6"></i-lucide>
+            </div>
+          </div>
+        </div>
+
+        <!-- Barra de Búsqueda y Filtros de Insumos -->
+        <div class="bg-white p-4 rounded-xl border border-slate-100 shadow-xs flex flex-col md:flex-row items-center gap-3 justify-between">
+          <div class="flex items-center gap-3 w-full md:w-auto flex-1 flex-wrap">
+            <div class="relative flex-1 max-w-sm">
+              <i-lucide name="search" class="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5"></i-lucide>
+              <input
+                type="text"
+                [(ngModel)]="filtroTextoInsumosServicio"
+                (ngModelChange)="filtrarInsumosServicios()"
+                placeholder="Buscar por insumo, SKU o servicio..."
+                class="w-full pl-9 pr-3 py-1.5 text-xs rounded-lg border border-slate-200 focus:outline-none focus:border-easydry-blue" />
+            </div>
+
+            <select
+              [(ngModel)]="filtroEstadoInsumosServicio"
+              (change)="filtrarInsumosServicios()"
+              class="px-3 py-1.5 text-xs rounded-lg border border-slate-200 bg-white focus:outline-none focus:border-easydry-blue text-slate-700">
+              <option value="">Todos los Estados</option>
+              <option value="OPTIMO">Óptimo</option>
+              <option value="BAJO">Bajo Mínimo</option>
+              <option value="CRITICO">Crítico</option>
+              <option value="AGOTADO">Agotado</option>
+            </select>
+          </div>
+
+          <div class="text-xs text-slate-500 font-medium whitespace-nowrap">
+            Mostrando <b>{{ insumosServiciosFiltrados.length }}</b> de <b>{{ insumosServiciosList.length }}</b> insumos requeridos
+          </div>
+        </div>
+
+        <!-- Tabla Detallada de Insumos x Servicios de la Sede -->
+        <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs text-slate-600">
+              <thead class="bg-slate-50 text-slate-400 text-[10px] font-bold uppercase tracking-wider">
+                <tr>
+                  <th class="p-3.5">Insumo / SKU</th>
+                  <th class="p-3.5">Servicios que lo Utilizan (Recetas)</th>
+                  <th class="p-3.5">Stock en Sede</th>
+                  <th class="p-3.5">Stock Mínimo</th>
+                  <th class="p-3.5">Capacidad de Lavados</th>
+                  <th class="p-3.5">Estado</th>
+                  <th class="p-3.5 text-right">Acciones</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100">
+                <tr *ngIf="cargandoInsumosServicios">
+                  <td colspan="7" class="p-8 text-center text-slate-400">
+                    <i-lucide name="refresh-cw" class="w-5 h-5 mx-auto animate-spin text-teal-600 mb-2"></i-lucide>
+                    <span>Cargando insumos requeridos por servicios de la sede...</span>
+                  </td>
+                </tr>
+
+                <tr *ngIf="!cargandoInsumosServicios && insumosServiciosFiltrados.length === 0">
+                  <td colspan="7" class="p-8 text-center text-slate-400">
+                    No se encontraron insumos que coincidan con el filtro seleccionado.
+                  </td>
+                </tr>
+
+                <tr *ngFor="let item of insumosServiciosFiltrados" class="hover:bg-slate-50/60 transition">
+                  <!-- Col 1: Insumo y SKU -->
+                  <td class="p-3.5">
+                    <div class="font-bold text-slate-900">{{ item.nombre }}</div>
+                    <div class="flex items-center gap-1.5 mt-0.5">
+                      <span class="font-mono text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.2 rounded">{{ item.codigoSKU }}</span>
+                      <span *ngIf="item.categoria" class="text-[10px] text-slate-400">• {{ item.categoria }}</span>
+                    </div>
+                  </td>
+
+                  <!-- Col 2: Servicios Asociados -->
+                  <td class="p-3.5 max-w-xs">
+                    <div class="flex flex-wrap gap-1">
+                      <span
+                        *ngFor="let s of item.serviciosQueLoUsan"
+                        class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-blue-50 text-blue-800 border border-blue-100">
+                        <span>{{ s.nombre }}</span>
+                        <span class="font-mono text-blue-600 font-bold">({{ s.cantidadPorServicio }} {{ item.unidadMedida }})</span>
+                      </span>
+                    </div>
+                  </td>
+
+                  <!-- Col 3: Stock en Sede -->
+                  <td class="p-3.5 whitespace-nowrap">
+                    <span
+                      class="px-2.5 py-1 rounded-md font-mono font-bold text-xs inline-block"
+                      [ngClass]="{
+                        'bg-rose-100 text-rose-800 border border-rose-200': item.estado === 'AGOTADO' || item.estado === 'CRITICO',
+                        'bg-amber-100 text-amber-800 border border-amber-200': item.estado === 'BAJO',
+                        'bg-emerald-100 text-emerald-800 border border-emerald-200': item.estado === 'OPTIMO'
+                      }">
+                      {{ item.stockActual | number:'1.0-2' }} {{ item.unidadMedida }}
+                    </span>
+                  </td>
+
+                  <!-- Col 4: Stock Mínimo -->
+                  <td class="p-3.5 font-mono text-slate-600 whitespace-nowrap">
+                    <b>{{ item.stockMinimo | number:'1.0-2' }} {{ item.unidadMedida }}</b>
+                  </td>
+
+                  <!-- Col 5: Capacidad Estimada de Lavados -->
+                  <td class="p-3.5 whitespace-nowrap">
+                    <div class="flex items-center gap-1.5">
+                      <i-lucide name="car" class="w-3.5 h-3.5 text-slate-400"></i-lucide>
+                      <span
+                        class="font-mono font-bold text-xs"
+                        [ngClass]="item.capacidadServiciosRestantes <= 0 ? 'text-rose-600' : (item.capacidadServiciosRestantes < 10 ? 'text-amber-600' : 'text-slate-800')">
+                        {{ item.capacidadServiciosRestantes > 0 ? (item.capacidadServiciosRestantes + ' lavados') : 'Sin capacidad' }}
+                      </span>
+                    </div>
+                  </td>
+
+                  <!-- Col 6: Estado con Pill -->
+                  <td class="p-3.5 whitespace-nowrap">
+                    <span
+                      class="px-2.5 py-0.5 rounded-full text-[10px] font-bold inline-flex items-center gap-1"
+                      [ngClass]="{
+                        'bg-rose-100 text-rose-800': item.estado === 'AGOTADO' || item.estado === 'CRITICO',
+                        'bg-amber-100 text-amber-800': item.estado === 'BAJO',
+                        'bg-emerald-100 text-emerald-800': item.estado === 'OPTIMO'
+                      }">
+                      <i-lucide [name]="item.estado === 'OPTIMO' ? 'check-circle' : (item.estado === 'AGOTADO' ? 'x-circle' : 'alert-triangle')" class="w-3 h-3"></i-lucide>
+                      <span>{{ item.estado }}</span>
+                    </span>
+                  </td>
+
+                  <!-- Col 7: Acciones -->
+                  <td class="p-3.5 text-right whitespace-nowrap">
+                    <button
+                      (click)="solicitarReabastecimiento(item)"
+                      class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold transition cursor-pointer inline-flex items-center gap-1">
+                      <i-lucide name="truck" class="w-3 h-3 text-slate-500"></i-lucide>
+                      <span>Pedir Reabastecimiento</span>
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
       </div>
 
       <!-- ============================================================== -->
@@ -1841,8 +2105,30 @@ export class InventarioComponent implements OnInit {
   private auth = inject(AuthService);
 
   // Navegación
-  activeTab: 'dashboard' | 'productos' | 'bodegas' | 'agencias' | 'movimientos' | 'stock_bajo' | 'configuracion' = 'dashboard';
+  activeTab: 'dashboard' | 'insumos_servicios' | 'productos' | 'bodegas' | 'agencias' | 'movimientos' | 'stock_bajo' | 'configuracion' = 'dashboard';
   subTabConfig: 'tipos' | 'unidades' = 'tipos';
+
+  // Usuario y Sede Actual
+  currentUser: any = null;
+  isLiderOperador: boolean = false;
+  miAgenciaId: string = '';
+  miAgenciaNombre: string = '';
+
+  // Insumos basados en servicios de la sede
+  cargandoInsumosServicios: boolean = false;
+  resumenInsumosServicios: any = {
+    totalInsumosRequeridos: 0,
+    insumosOptimos: 0,
+    insumosBajoMinimo: 0,
+    insumosAgotados: 0,
+    totalAlertas: 0,
+    alertas: []
+  };
+  infoAgenciaInsumos: any = null;
+  insumosServiciosList: any[] = [];
+  insumosServiciosFiltrados: any[] = [];
+  filtroTextoInsumosServicio: string = '';
+  filtroEstadoInsumosServicio: string = '';
 
   // Catálogos cargados de BD
   productos: ProductoInsumo[] = [];
@@ -1950,12 +2236,78 @@ export class InventarioComponent implements OnInit {
   formUnidad = { id: '', codigo: '', nombre: '', simbolo: '', tipo: 'VOLUMEN', factorBase: 1, estado: 1 };
 
   ngOnInit(): void {
+    this.currentUser = this.auth.getCurrentUser();
+    const role = this.currentUser?.role;
+    this.isLiderOperador =
+      role === 'LIDER_OPERADOR' ||
+      role === 'LIDER_AGENCIA' ||
+      (this.currentUser?.rolNombre && this.currentUser.rolNombre.toLowerCase().includes('líder'));
+
+    this.miAgenciaNombre = this.currentUser?.sucursalNombre || this.currentUser?.sucursal || 'EasyDry Quito Norte';
+    this.miAgenciaId = (this.currentUser?.agenciaId ? String(this.currentUser.agenciaId) : '') || this.miAgenciaNombre;
+
+    if (this.isLiderOperador) {
+      this.activeTab = 'insumos_servicios';
+    }
+
     this.cargarTodosLosCatalogos();
+    this.cargarInsumosPorServicios();
   }
 
   // ==============================================================
   // CARGA DE DATOS DESDE BACKEND
   // ==============================================================
+
+  public cargarInsumosPorServicios(): void {
+    this.cargandoInsumosServicios = true;
+    this.inventarioService.getInsumosPorServiciosAgencia(this.miAgenciaId).subscribe({
+      next: (res) => {
+        this.cargandoInsumosServicios = false;
+        if (res) {
+          this.infoAgenciaInsumos = res.agencia;
+          this.resumenInsumosServicios = res.resumen || {
+            totalInsumosRequeridos: 0,
+            insumosOptimos: 0,
+            insumosBajoMinimo: 0,
+            insumosAgotados: 0,
+            totalAlertas: 0,
+            alertas: []
+          };
+          this.insumosServiciosList = res.insumos || [];
+        } else {
+          this.insumosServiciosList = [];
+        }
+        this.filtrarInsumosServicios();
+      },
+      error: (err) => {
+        this.cargandoInsumosServicios = false;
+        console.error('Error al cargar insumos por servicios:', err);
+      }
+    });
+  }
+
+  public filtrarInsumosServicios(): void {
+    let list = [...(this.insumosServiciosList || [])];
+    if (this.filtroTextoInsumosServicio.trim()) {
+      const q = this.filtroTextoInsumosServicio.toLowerCase();
+      list = list.filter((i: any) =>
+        i.nombre?.toLowerCase().includes(q) ||
+        i.codigoSKU?.toLowerCase().includes(q) ||
+        i.serviciosQueLoUsan?.some((s: any) => s.nombre?.toLowerCase().includes(q))
+      );
+    }
+    if (this.filtroEstadoInsumosServicio) {
+      list = list.filter((i: any) => i.estado === this.filtroEstadoInsumosServicio);
+    }
+    this.insumosServiciosFiltrados = list;
+  }
+
+  public solicitarReabastecimiento(item: any): void {
+    this.toast.success(
+      'Solicitud Enviada a Bodega',
+      `Se solicitó reabastecimiento para ${item.nombre}. Stock actual en sede: ${item.stockActual} ${item.unidadMedida}.`
+    );
+  }
 
   public cargarTodosLosCatalogos(): void {
     this.cargarTiposProducto();
