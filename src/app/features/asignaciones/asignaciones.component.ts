@@ -279,7 +279,7 @@ export class AsignacionesComponent implements OnInit {
   onSucursalChange() {
     this.bahiasFiltradas = this.todasLasBahias.filter(b => b.sucursalNombre === this.sucursalSeleccionadaNombre);
     if (this.bahiasFiltradas.length > 0) {
-      this.bahiaIdSeleccionada = this.bahiasFiltradas[0].id;
+      this.bahiaIdSeleccionada = Number(this.bahiasFiltradas[0].id);
     }
   }
 

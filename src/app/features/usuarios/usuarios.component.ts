@@ -482,7 +482,7 @@ interface ModuloGrupo {
             <div class="p-4 rounded-2xl border border-cyan-200 bg-cyan-50/60 space-y-3">
               <div>
                 <p class="text-xs font-extrabold text-cyan-900 uppercase tracking-wide">Modalidad del pulidor</p>
-                <p class="text-[11px] text-cyan-800 mt-0.5">Fijo: trabaja solo en una sucursal. Móvil: se desplaza entre sedes.</p>
+                <p class="text-[11px] text-cyan-800 mt-0.5">Fijo: trabaja solo en una agencia. Móvil: se desplaza entre sedes.</p>
               </div>
               <div class="grid grid-cols-2 gap-2">
                 <button
@@ -492,7 +492,7 @@ interface ModuloGrupo {
                   [ngClass]="usuarioForm.modalidadPulidor === 'FIJO'
                     ? 'bg-easydry-blue text-white border-easydry-blue'
                     : 'bg-white text-slate-700 border-slate-200 hover:border-easydry-blue'">
-                  Fijo en sucursal
+                  Fijo en agencia
                 </button>
                 <button
                   type="button"
@@ -506,7 +506,7 @@ interface ModuloGrupo {
               </div>
               @if (usuarioForm.modalidadPulidor === 'FIJO') {
                 <div>
-                  <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Sucursal asignada</label>
+                  <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Agencia asignada</label>
                   <select [(ngModel)]="usuarioForm.agencia" name="agenciaFijo" class="w-full p-2.5 border rounded-xl text-sm font-semibold bg-white" required>
                     @for (s of sucursales; track s.id) {
                       <option [value]="s.nombre">{{ s.nombre }} ({{ s.ciudad }})</option>
@@ -514,12 +514,12 @@ interface ModuloGrupo {
                   </select>
                 </div>
               } @else {
-                <p class="text-xs font-semibold text-cyan-900">Ubicación: Red Nacional · Móvil entre sucursales</p>
+                <p class="text-xs font-semibold text-cyan-900">Ubicación: Red Nacional · Móvil entre agencias</p>
               }
             </div>
           } @else {
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Agencia / Local</label>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Agencia</label>
               <select [(ngModel)]="usuarioForm.agencia" name="agencia" class="w-full p-2.5 border rounded-xl text-sm font-semibold">
                 <option value="EasyDry Corporativo">EasyDry Corporativo</option>
                 @for (s of sucursales; track s.id) {
@@ -751,7 +751,7 @@ export class UsuariosComponent implements OnInit {
   } = {
     nombre: '',
     apellido: '',
-    rol: 'Gerente de Sucursal',
+    rol: 'Gerente de Agencia',
     agencia: 'EasyDry Quito Norte',
     estado: 'Activo',
     email: '',
@@ -1003,7 +1003,7 @@ export class UsuariosComponent implements OnInit {
     }
 
     if (esRolOperadorEspeciales(this.usuarioForm.rol) && this.usuarioForm.modalidadPulidor === 'FIJO' && !this.usuarioForm.agencia) {
-      this.toastService.warning('Sucursal requerida', 'Un pulidor fijo debe quedar asignado a una sucursal.');
+      this.toastService.warning('Agencia requerida', 'Un pulidor fijo debe quedar asignado a una agencia.');
       return;
     }
 

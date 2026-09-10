@@ -22,9 +22,9 @@ import { AuthService } from '../../core/services/auth.service';
       
       <!-- Back Link & Header -->
       <div>
-        <a [routerLink]="['/sucursales']" class="inline-flex items-center gap-1.5 text-xs font-bold text-easydry-blue hover:underline mb-3">
+        <a [routerLink]="['/agencias']" class="inline-flex items-center gap-1.5 text-xs font-bold text-easydry-blue hover:underline mb-3">
           <i-lucide name="chevron-right" class="w-4 h-4 transform rotate-180"></i-lucide>
-          <span>Volver al Directorio de Sucursales</span>
+          <span>Volver al Directorio de Agencias</span>
         </a>
 
         @if (sucursal) {
@@ -69,7 +69,7 @@ import { AuthService } from '../../core/services/auth.service';
         <div class="bg-white p-6 rounded-3xl border border-slate-100 shadow-easydry">
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
             <div>
-              <h2 class="font-extrabold text-slate-900 font-outfit">Servicios de esta sucursal</h2>
+              <h2 class="font-extrabold text-slate-900 font-outfit">Servicios de esta agencia</h2>
               <p class="text-xs text-slate-500">Catálogo asignado manualmente. Se puede editar en cualquier momento.</p>
             </div>
             <button (click)="abrirModalServicios()" class="px-4 py-2 bg-easydry-blue text-white font-bold rounded-xl text-xs flex items-center gap-1.5">

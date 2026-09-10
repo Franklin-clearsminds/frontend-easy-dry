@@ -44,27 +44,20 @@ export const MENU_CONFIG: MenuItem[] = [
     badgeColor: 'bg-rose-500 text-white'
   },
 
-  // ─── 2. OPERACIÓN & SUCURSALES ─────────────────────────────────
+  // ─── 2. OPERACIÓN & AGENCIAS ─────────────────────────────────
   {
-    label: 'Sucursales & Mapa Red',
-    route: '/sucursales',
+    label: 'Agencias & Mapa Red',
+    route: '/agencias',
     icon: 'building-2',
-    moduloCodigo: 'sucursales',
-    group: 'Operación & Sucursales'
+    moduloCodigo: 'agencias',
+    group: 'Operación & Agencias'
   },
   {
     label: 'Gestión de Operadores',
     route: '/operadores',
     icon: 'user-check',
     moduloCodigo: 'operadores',
-    group: 'Operación & Sucursales'
-  },
-  {
-    label: 'Mi Bahía',
-    route: '/mi-bahia',
-    icon: 'map-pin',
-    moduloCodigo: 'mi-bahia',
-    group: 'Operación & Sucursales'
+    group: 'Operación & Agencias'
   },
 
   // ─── 3. SERVICIOS DE LAVADO ────────────────────────────────────

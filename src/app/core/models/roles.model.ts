@@ -42,7 +42,7 @@ export interface ModuloSistema {
   descripcion: string;
   icono: string;
   rutaPrincipal: string;
-  grupo: 'Panel Principal' | 'Operación & Sucursales' | 'Servicios de Lavado' | 'Gestión de Activos' | 'Administración' | 'Mi Cuenta';
+  grupo: 'Panel Principal' | 'Operación & Agencias' | 'Operación & Sucursales' | 'Servicios de Lavado' | 'Gestión de Activos' | 'Administración' | 'Mi Cuenta';
 }
 
 /** Catálogo oficial de módulos configurables */
@@ -61,7 +61,7 @@ export const MODULOS_SISTEMA: ModuloSistema[] = [
     id: 'mod_mapa_operativo',
     codigo: 'mapa-operativo',
     nombre: 'Mapa Operativo en Vivo',
-    descripcion: 'Trazabilidad visual jerárquica: Sucursales, Bahías, Operadores y Maquinaria en tiempo real',
+    descripcion: 'Trazabilidad visual jerárquica: Agencias, Bahías, Operadores y Maquinaria en tiempo real',
     icono: 'sliders',
     rutaPrincipal: '/mapa-operativo',
     grupo: 'Panel Principal'
@@ -76,15 +76,15 @@ export const MODULOS_SISTEMA: ModuloSistema[] = [
     grupo: 'Panel Principal'
   },
 
-  // ── Operación & Sucursales ──
+  // ── Operación & Agencias ──
   {
-    id: 'mod_sucursales',
-    codigo: 'sucursales',
-    nombre: 'Control de Sucursales',
+    id: 'mod_agencias',
+    codigo: 'agencias',
+    nombre: 'Control de Agencias',
     descripcion: 'Gestión y estado operativo de las agencias de la red',
     icono: 'building-2',
-    rutaPrincipal: '/sucursales',
-    grupo: 'Operación & Sucursales'
+    rutaPrincipal: '/agencias',
+    grupo: 'Operación & Agencias'
   },
   {
     id: 'mod_operadores',
@@ -93,7 +93,7 @@ export const MODULOS_SISTEMA: ModuloSistema[] = [
     descripcion: 'Directorio, métricas y estado del personal operativo',
     icono: 'user-check',
     rutaPrincipal: '/operadores',
-    grupo: 'Operación & Sucursales'
+    grupo: 'Operación & Agencias'
   },
   {
     id: 'mod_asignaciones',
@@ -102,7 +102,7 @@ export const MODULOS_SISTEMA: ModuloSistema[] = [
     descripcion: 'Matriz dinámica para asignar operadores a bahías con historial',
     icono: 'check-circle-2',
     rutaPrincipal: '/asignaciones',
-    grupo: 'Operación & Sucursales'
+    grupo: 'Operación & Agencias'
   },
 
   // ── Servicios de Lavado ──
@@ -140,15 +140,6 @@ export const MODULOS_SISTEMA: ModuloSistema[] = [
     descripcion: 'Comparativa de agencias y ranking mensual de operarios',
     icono: 'trophy',
     rutaPrincipal: '/productividad',
-    grupo: 'Servicios de Lavado'
-  },
-  {
-    id: 'mod_mi_bahia',
-    codigo: 'mi-bahia',
-    nombre: 'Mi Bahía (Área Operador)',
-    descripcion: 'Panel rápido optimizado para el operario asignado a una bahía específica',
-    icono: 'map-pin',
-    rutaPrincipal: '/mi-bahia',
     grupo: 'Servicios de Lavado'
   },
 
@@ -221,7 +212,7 @@ export const MODULOS_POR_ROL: Record<string, string[]> = {
   [Role.APROBADOR]: [
     'dashboard',
     'notificaciones',
-    'sucursales',
+    'agencias',
     'operadores',
     'servicios',
     'configuracion/servicios',
@@ -237,7 +228,7 @@ export const MODULOS_POR_ROL: Record<string, string[]> = {
     'dashboard',
     'notificaciones',
     'mapa-operativo',
-    'sucursales',
+    'agencias',
     'operadores',
     'asignaciones',
     'servicios',
@@ -274,7 +265,6 @@ export const MODULOS_POR_ROL: Record<string, string[]> = {
   [Role.LIDER_AGENCIA]: [
     'dashboard',
     'notificaciones',
-    'mi-bahia',
     'servicios',
     'configuracion/servicios',
     'maquinaria',
@@ -299,7 +289,6 @@ export const MODULOS_POR_ROL: Record<string, string[]> = {
     'dashboard',
     'notificaciones',
     'servicios',
-    'mi-bahia',
     'inventario',
     'perfil'
   ],
@@ -308,7 +297,6 @@ export const MODULOS_POR_ROL: Record<string, string[]> = {
     'dashboard',
     'notificaciones',
     'servicios',
-    'mi-bahia',
     'inventario',
     'perfil'
   ],
@@ -356,7 +344,7 @@ export const DEFAULT_ROUTE_POR_ROL: Record<string, string> = {
   [Role.SUPERVISOR]: '/dashboard',
   [Role.JEFE_COMERCIAL]: '/dashboard',
   [Role.COORD_COMERCIAL]: '/dashboard',
-  [Role.LIDER_AGENCIA]: '/mi-bahia',
+  [Role.LIDER_AGENCIA]: '/servicios',
   [Role.COORD_SERVICIOS_ESPECIALES]: '/dashboard',
   [Role.PULIDOR_FIJO]: '/servicios',
   [Role.PULIDOR_MOVIL]: '/servicios',

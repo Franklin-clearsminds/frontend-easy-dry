@@ -24,7 +24,7 @@
     </div>
     <div class="relative z-10 flex gap-3 flex-wrap">
       @if (isExecutive) {
-        <a routerLink="/sucursales" [queryParams]="{ tab: 'mapa' }" class="px-4 py-2.5 bg-easydry-green hover:bg-easydry-green-dark text-slate-900 font-bold rounded-xl text-sm flex items-center gap-2">
+        <a routerLink="/agencias" [queryParams]="{ tab: 'mapa' }" class="px-4 py-2.5 bg-easydry-green hover:bg-easydry-green-dark text-slate-900 font-bold rounded-xl text-sm flex items-center gap-2">
           <i-lucide name="map" class="w-4 h-4"></i-lucide> Mapa en Vivo
         </a>
       }
@@ -34,8 +34,8 @@
         </a>
       }
       @if (isOperador) {
-        <a routerLink="/mi-bahia" class="px-4 py-2.5 bg-easydry-green hover:bg-easydry-green-dark text-slate-900 font-bold rounded-xl text-sm flex items-center gap-2">
-          <i-lucide name="car" class="w-4 h-4"></i-lucide> Mi Bahía
+        <a routerLink="/servicios" class="px-4 py-2.5 bg-easydry-green hover:bg-easydry-green-dark text-slate-900 font-bold rounded-xl text-sm flex items-center gap-2">
+          <i-lucide name="car" class="w-4 h-4"></i-lucide> Servicios de Lavado
         </a>
       }
       @if (isOperadorEspeciales) {
@@ -108,7 +108,7 @@
         <app-chart-card class="lg:col-span-2" title="Flujo Horario de Atención" subtitle="Vehículos procesados hoy" type="line" [data]="produccion?.flujoHorario"></app-chart-card>
         <app-chart-card title="Distribución por Bahía" subtitle="Productividad por bahía" type="bar" [data]="produccion?.distribucionModelos"></app-chart-card>
         
-        <app-chart-card class="lg:col-span-3" title="Eficiencia Comparativa por Sucursal" subtitle="Histórico de los últimos 7 días" type="line" [data]="chartEficienciaSucursales"></app-chart-card>
+        <app-chart-card class="lg:col-span-3" title="Eficiencia Comparativa por Agencia" subtitle="Histórico de los últimos 7 días" type="line" [data]="chartEficienciaSucursales"></app-chart-card>
         
         <app-chart-card title="Tiempos Promedio por Servicio" subtitle="Minutos de atención estimados" type="bar" [data]="chartTiemposPromedio"></app-chart-card>
         <div class="lg:col-span-2">
@@ -227,7 +227,7 @@
       <app-stat-card title="Pendientes" [value]="operadorEspecialesData.asignacionesPendientes" icon="clock" variant="warning"></app-stat-card>
       <app-stat-card title="En Proceso" [value]="operadorEspecialesData.enProceso" icon="loader" variant="primary"></app-stat-card>
       <app-stat-card title="Completadas Semana" [value]="operadorEspecialesData.completadasSemana" icon="check-circle" variant="success"></app-stat-card>
-      <app-stat-card title="Calificación Prom." [value]="operadorEspecialesData.calificacionPromedio + '/5'" icon="star" [subtitle]="operadorEspecialesData.sucursalesActivas + ' sucursales'" variant="success"></app-stat-card>
+      <app-stat-card title="Calificación Prom." [value]="operadorEspecialesData.calificacionPromedio + '/5'" icon="star" [subtitle]="operadorEspecialesData.sucursalesActivas + ' agencias'" variant="success"></app-stat-card>
     </div>
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
       <app-chart-card title="Cola por Prioridad" type="bar" [data]="operadorEspecialesData.chartColaPorPrioridad"></app-chart-card>
