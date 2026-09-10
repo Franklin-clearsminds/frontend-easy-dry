@@ -65,6 +65,38 @@ const RETOS_DEFAULT: Reto[] = [
       'Detallado interior < 25 min',
       'Aprobación de QA a la primera'
     ]
+  },
+  {
+    id: '4',
+    titulo: 'Maratón de Lavado Ecológico Q1',
+    descripcion: 'Reducción de consumo de agua por vehículo en toda la red',
+    premio: 'Bono Trimestral de Sustentabilidad',
+    fechaInicio: '2026-01-01',
+    fechaFin: '2026-03-31',
+    regiones: ['Todas'],
+    marcas: ['Todas'],
+    sucursalesIds: [],
+    creadoPorId: 1,
+    creadorNombre: 'Admin General',
+    creadorRol: 'SUPER_ADMIN',
+    estado: 'FINALIZADO',
+    criterios: ['Uso < 2L por auto', 'Cero desperdicio de insumos']
+  },
+  {
+    id: '5',
+    titulo: 'Desafío de Apertura Agencia Manta',
+    descripcion: 'Promoción especial de inauguración y captación de clientes',
+    premio: 'Comisión Extra + Evento de Celebración',
+    fechaInicio: '2026-05-01',
+    fechaFin: '2026-05-31',
+    regiones: ['Costa'],
+    marcas: ['EasyDry'],
+    sucursalesIds: [],
+    creadoPorId: 1,
+    creadorNombre: 'Admin General',
+    creadorRol: 'SUPER_ADMIN',
+    estado: 'INACTIVO',
+    criterios: ['500 vehículos atendidos en el mes']
   }
 ];
 
@@ -88,8 +120,12 @@ export class RetosMockService {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(retos));
   }
 
+  getAllRetos(): Observable<Reto[]> {
+    return of(this.getStoredRetos()).pipe(delay(200));
+  }
+
   getRetosVisibles(): Observable<Reto[]> {
-    const todos = this.getStoredRetos();
+    const todos = this.getStoredRetos().filter(r => (r.estado || 'ACTIVO').toUpperCase() === 'ACTIVO');
     const user = this.auth.getCurrentUser();
     
     if (!user) return of([]);
@@ -110,19 +146,13 @@ export class RetosMockService {
     }
 
     // Para el resto de roles (GERENTE, SUPERVISOR, OPERADOR, etc)
-    // Filtramos los retos donde su sucursal participe, o si el reto incluye "Todas".
     const userSucursal = user.sucursal; // es el ID
     if (!userSucursal) return of([]);
 
     const filtrados = todos.filter(reto => {
-      // Si el reto es global (sin filtro de sucursales)
       const esGlobalAgencias = !reto.sucursalesIds || reto.sucursalesIds.length === 0;
       const incluyeAgencia = reto.sucursalesIds?.includes(Number(userSucursal));
-
-      if (esGlobalAgencias || incluyeAgencia) {
-        return true;
-      }
-      return false;
+      return esGlobalAgencias || incluyeAgencia;
     });
 
     return of(filtrados).pipe(delay(200));

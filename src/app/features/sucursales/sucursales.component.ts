@@ -28,15 +28,15 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
             <i-lucide name="building-2" class="w-3.5 h-3.5"></i-lucide>
             <span>Gestión de Red Física y Operatividad en Vivo</span>
           </div>
-          <h1 class="text-2xl font-extrabold text-slate-900 font-outfit">Sucursales & Mapa de Red EasyDry®</h1>
+          <h1 class="text-2xl font-extrabold text-slate-900 font-outfit">Agencias & Mapa de Red EasyDry®</h1>
           <p class="text-slate-500 text-xs mt-1">Control administrativo de sedes, regiones operativas, marcas y trazabilidad jerárquica de bahías en tiempo real.</p>
         </div>
         <button
-          *ngIf="tabActiva === 'sucursales'"
+          *ngIf="tabActiva === 'agencias' || tabActiva === 'sucursales'"
           (click)="abrirModalCrearSucursal()"
           class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
           <i-lucide name="plus" class="w-4 h-4"></i-lucide>
-          <span>Registrar Sucursal</span>
+          <span>Registrar Agencia</span>
         </button>
       </div>
 
@@ -44,11 +44,12 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
         @for (tab of tabs; track tab.id) {
           <button
             (click)="tabActiva = tab.id"
-            class="px-4 py-2 rounded-xl text-xs font-extrabold border transition-colors cursor-pointer"
+            class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-extrabold border transition-colors cursor-pointer"
             [ngClass]="tabActiva === tab.id
               ? 'bg-easydry-blue text-white border-easydry-blue shadow-sm'
               : 'bg-white text-slate-600 border-slate-200 hover:border-easydry-blue/40'">
-            {{ tab.label }}
+            <i-lucide [name]="tab.icon" class="w-4 h-4" [ngClass]="tabActiva === tab.id ? 'text-white' : 'text-slate-500'"></i-lucide>
+            <span>{{ tab.label }}</span>
           </button>
         }
       </div>
@@ -64,10 +65,10 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
             <div class="flex items-center gap-3 flex-wrap flex-1">
               <div class="flex items-center gap-2">
                 <i-lucide name="filter" class="w-4 h-4 text-easydry-blue"></i-lucide>
-                <span class="text-xs font-bold text-slate-700 uppercase">Filtrar Sucursal:</span>
+                <span class="text-xs font-bold text-slate-700 uppercase">Filtrar Agencia:</span>
               </div>
               <select [(ngModel)]="filtroSucursalMapaId" class="bg-slate-50 border border-slate-200 text-xs font-bold rounded-xl px-3 py-2 min-w-56 focus:ring-2 focus:ring-easydry-blue">
-                <option [ngValue]="0">🌐 Toda la Red Nacional (Todas las sucursales)</option>
+                <option [ngValue]="0">🌐 Toda la Red Nacional (Todas las agencias)</option>
                 @for (suc of sucursales; track suc.id) {
                   <option [ngValue]="suc.id">{{ suc.nombre }} ({{ suc.ciudad }})</option>
                 }
@@ -112,7 +113,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                     <span class="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-xl">
                       {{ getBahiasDeSucursal(suc.id).length }} Bahías Registradas
                     </span>
-                    <a [routerLink]="['/sucursales', suc.id]" class="px-3 py-1.5 bg-easydry-blue/10 hover:bg-easydry-blue hover:text-white text-easydry-blue font-bold rounded-xl text-xs transition-colors flex items-center gap-1">
+                    <a [routerLink]="['/agencias', suc.id]" class="px-3 py-1.5 bg-easydry-blue/10 hover:bg-easydry-blue hover:text-white text-easydry-blue font-bold rounded-xl text-xs transition-colors flex items-center gap-1">
                       <span>Gestionar</span>
                       <i-lucide name="chevron-right" class="w-3.5 h-3.5"></i-lucide>
                     </a>
@@ -122,7 +123,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                 <!-- Grilla de Bahías de la Sucursal -->
                 <div class="p-5">
                   @if (getBahiasDeSucursal(suc.id).length === 0) {
-                    <p class="text-xs text-slate-400 italic py-4 text-center">No hay bahías configuradas para esta sucursal.</p>
+                    <p class="text-xs text-slate-400 italic py-4 text-center">No hay bahías configuradas para esta agencia.</p>
                   } @else {
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                       @for (bahia of getBahiasDeSucursal(suc.id); track bahia.id) {
@@ -181,7 +182,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
 
                           <div class="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
                             <span class="text-slate-400">Tipo: {{ bahia.tipo || 'General' }}</span>
-                            <a [routerLink]="['/sucursales', suc.id]" class="text-easydry-blue font-bold hover:underline flex items-center gap-0.5">
+                            <a [routerLink]="['/agencias', suc.id]" class="text-easydry-blue font-bold hover:underline flex items-center gap-0.5">
                               <span>Ver detalle</span>
                               <i-lucide name="arrow-right" class="w-3 h-3"></i-lucide>
                             </a>
@@ -195,7 +196,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
             } @empty {
               <div class="bg-white rounded-2xl border border-slate-100 p-12 text-center text-slate-400">
                 <i-lucide name="building-2" class="w-12 h-12 mx-auto mb-2 opacity-30"></i-lucide>
-                <p class="font-bold text-sm">No se encontraron sucursales para el filtro seleccionado.</p>
+                <p class="font-bold text-sm">No se encontraron agencias para el filtro seleccionado.</p>
               </div>
             }
           </div>
@@ -203,7 +204,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
         </div>
       }
 
-      @if (tabActiva === 'sucursales') {
+      @if (tabActiva === 'agencias' || tabActiva === 'sucursales') {
         <app-filter-bar
           [showRegion]="true"
           [showMarca]="true"
@@ -229,7 +230,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                     <button (click)="abrirModalTransferir(suc)" class="p-1.5 bg-amber-50 hover:bg-amber-500 text-amber-600 hover:text-white rounded-lg transition-colors" title="Transferir región o marca">
                       <i-lucide name="refresh-cw" class="w-4 h-4"></i-lucide>
                     </button>
-                    <button (click)="abrirModalEditar(suc)" class="p-1.5 bg-slate-100 hover:bg-easydry-blue text-slate-400 hover:text-white rounded-lg transition-colors" title="Editar Sucursal">
+                    <button (click)="abrirModalEditar(suc)" class="p-1.5 bg-slate-100 hover:bg-easydry-blue text-slate-400 hover:text-white rounded-lg transition-colors" title="Editar Agencia">
                       <i-lucide name="pencil" class="w-4 h-4"></i-lucide>
                     </button>
                     <span
@@ -295,7 +296,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                     <span>Ver en Mapa</span>
                   </button>
                   <a
-                    [routerLink]="['/sucursales', suc.id]"
+                    [routerLink]="['/agencias', suc.id]"
                     class="flex-1 py-2 bg-easydry-blue/10 hover:bg-easydry-blue hover:text-white text-easydry-blue font-bold rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5">
                     <i-lucide name="eye" class="w-3.5 h-3.5"></i-lucide>
                     <span>Detalle Bahías</span>
@@ -360,13 +361,13 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                   <i-lucide name="user-check" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide>
                   <span>Supervisor: <b class="text-slate-800">{{ r.responsable || 'Sin supervisor' }}</b></span>
                 </p>
-                <p class="text-[11px] font-bold text-easydry-blue mt-1">{{ sucursalesDeRegion(r.id).length }} sucursales</p>
+                <p class="text-[11px] font-bold text-easydry-blue mt-1">{{ sucursalesDeRegion(r.id).length }} agencias</p>
               </button>
             }
           </div>
           <div class="lg:col-span-2 bg-white rounded-2xl border border-slate-100 shadow-easydry p-6 min-h-[280px]">
             @if (!regionSeleccionada) {
-              <p class="text-sm text-slate-500">Selecciona una región para ver y asignar sucursales.</p>
+              <p class="text-sm text-slate-500">Selecciona una región para ver y asignar agencias.</p>
             } @else {
               <div class="flex flex-wrap items-start justify-between gap-3 mb-4">
                 <div>
@@ -377,7 +378,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                 <div class="flex gap-2">
                   <button (click)="abrirModalRegion(regionSeleccionada)" class="px-3 py-2 bg-slate-100 text-slate-700 font-bold rounded-xl text-xs">Editar</button>
                   <button (click)="abrirAsignarARegion(regionSeleccionada)" class="px-3 py-2 bg-easydry-green text-slate-950 font-bold rounded-xl text-xs">
-                    Pasar sucursal a esta región
+                    Pasar agencia a esta región
                   </button>
                 </div>
               </div>
@@ -390,11 +391,11 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                     </div>
                     <div class="flex gap-2">
                       <button (click)="abrirModalTransferir(suc)" class="px-2.5 py-1.5 text-[11px] font-bold text-amber-700 bg-amber-50 rounded-lg">Transferir</button>
-                      <a [routerLink]="['/sucursales', suc.id]" class="px-2.5 py-1.5 text-[11px] font-bold text-easydry-blue bg-easydry-blue/10 rounded-lg">Ver</a>
+                      <a [routerLink]="['/agencias', suc.id]" class="px-2.5 py-1.5 text-[11px] font-bold text-easydry-blue bg-easydry-blue/10 rounded-lg">Ver</a>
                     </div>
                   </div>
                 } @empty {
-                  <p class="text-xs text-slate-500">Aún no hay sucursales en esta región. Usa «Pasar sucursal a esta región».</p>
+                  <p class="text-xs text-slate-500">Aún no hay agencias en esta región. Usa «Pasar agencia a esta región».</p>
                 }
               </div>
             }
@@ -404,7 +405,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
 
       @if (tabActiva === 'marcas') {
         <div class="flex items-center justify-between">
-          <p class="text-xs text-slate-500">Crea marcas de sucursal y asígnalas o transfiérelas entre locales.</p>
+          <p class="text-xs text-slate-500">Crea marcas de agencia y asígnalas o transfiérelas entre locales.</p>
           <button (click)="abrirModalMarca()" class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
             <i-lucide name="plus" class="w-3.5 h-3.5"></i-lucide> Nueva Marca
           </button>
@@ -430,13 +431,13 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                   </span>
                 </div>
                 <p class="text-xs text-slate-500 mt-1 line-clamp-2">{{ m.descripcion }}</p>
-                <p class="text-[11px] font-bold text-easydry-blue mt-2">{{ sucursalesDeMarca(m.id).length }} sucursales</p>
+                <p class="text-[11px] font-bold text-easydry-blue mt-2">{{ sucursalesDeMarca(m.id).length }} agencias</p>
               </button>
             }
           </div>
           <div class="lg:col-span-2 bg-white rounded-2xl border border-slate-100 shadow-easydry p-6 min-h-[280px]">
             @if (!marcaSeleccionada) {
-              <p class="text-sm text-slate-500">Selecciona una marca para ver, asignar o transferir sucursales.</p>
+              <p class="text-sm text-slate-500">Selecciona una marca para ver, asignar o transferir agencias.</p>
             } @else {
               <div class="flex flex-wrap items-start justify-between gap-3 mb-4">
                 <div>
@@ -446,7 +447,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                 <div class="flex gap-2">
                   <button (click)="abrirModalMarca(marcaSeleccionada)" class="px-3 py-2 bg-slate-100 text-slate-700 font-bold rounded-xl text-xs">Editar</button>
                   <button (click)="abrirAsignarAMarca(marcaSeleccionada)" class="px-3 py-2 bg-easydry-green text-slate-950 font-bold rounded-xl text-xs">
-                    Asignar sucursal a esta marca
+                    Asignar agencia a esta marca
                   </button>
                 </div>
               </div>
@@ -459,11 +460,11 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                     </div>
                     <div class="flex gap-2">
                       <button (click)="abrirModalTransferir(suc)" class="px-2.5 py-1.5 text-[11px] font-bold text-amber-700 bg-amber-50 rounded-lg">Cambiar</button>
-                      <a [routerLink]="['/sucursales', suc.id]" class="px-2.5 py-1.5 text-[11px] font-bold text-easydry-blue bg-easydry-blue/10 rounded-lg">Ver</a>
+                      <a [routerLink]="['/agencias', suc.id]" class="px-2.5 py-1.5 text-[11px] font-bold text-easydry-blue bg-easydry-blue/10 rounded-lg">Ver</a>
                     </div>
                   </div>
                 } @empty {
-                  <p class="text-xs text-slate-500">Ninguna sucursal usa esta marca. Asigna una desde este panel.</p>
+                  <p class="text-xs text-slate-500">Ninguna agencia usa esta marca. Asigna una desde este panel.</p>
                 }
               </div>
             }
@@ -485,7 +486,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                 <h2 class="text-lg font-extrabold text-slate-900 font-outfit">Gestión Exclusiva de Gerentes de Agencia</h2>
               </div>
               <p class="text-xs text-slate-500 mt-1">
-                Asignación de agencias y sucursales restringida a usuarios con rol <strong class="text-purple-700">GERENTE DE SUCURSAL</strong> (Aprobador de servicios y calidad).
+                Asignación de agencias restringida exclusivamente a usuarios con rol <strong class="text-purple-700">GERENTE</strong>.
               </p>
             </div>
 
@@ -523,7 +524,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                   <div class="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-1.5 mt-2">
                     <div class="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider flex items-center gap-1">
                       <i-lucide name="building-2" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide>
-                      <span>Agencia / Sucursal Asignada</span>
+                      <span>Agencia Asignada</span>
                     </div>
                     @if (ger.agencia) {
                       <div class="flex items-center justify-between">
@@ -608,12 +609,12 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
 
           <div>
             <label class="block text-xs font-bold text-slate-700 uppercase mb-1">
-              Agencia / Sucursal a Asignar
+              Agencia a Asignar
             </label>
             <select
               [(ngModel)]="formAsignarGerente.sucursalId"
               class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800">
-              <option [ngValue]="0" disabled>Selecciona la sucursal...</option>
+              <option [ngValue]="0" disabled>Selecciona la agencia...</option>
               @for (s of sucursales; track s.id) {
                 <option [ngValue]="s.id">{{ s.nombre }} ({{ s.ciudad }})</option>
               }
@@ -637,16 +638,16 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
         </div>
       </app-modal>
 
-      <!-- Modal Crear / Editar Sucursal -->
+      <!-- Modal Crear / Editar Agencia -->
       <app-modal
         [isOpen]="modalCrearOpen"
-        [title]="editandoSucursal ? 'Editar Sucursal EasyDry' : 'Registrar Nueva Sucursal EasyDry'"
+        [title]="editandoSucursal ? 'Editar Agencia EasyDry' : 'Registrar Nueva Agencia EasyDry'"
         [icon]="editandoSucursal ? 'pencil' : 'building-2'"
         (close)="cerrarModal()">
 
         <form (ngSubmit)="guardarSucursal()" class="space-y-4">
           <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Nombre de Sucursal</label>
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Nombre de Agencia</label>
             <input type="text" [(ngModel)]="nuevaSucursal.nombre" name="nombre" placeholder="ej. EasyDry Guayaquil Samborondón" class="w-full p-2.5 border rounded-xl text-sm" required>
           </div>
 
@@ -671,7 +672,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
             </div>
             <div>
               <div class="flex items-center justify-between mb-1">
-                <label class="block text-xs font-bold text-slate-700 uppercase">Marca de sucursal</label>
+                <label class="block text-xs font-bold text-slate-700 uppercase">Marca de agencia</label>
                 <button type="button" (click)="mostrarAltaMarca = !mostrarAltaMarca" class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">Crear marca</button>
               </div>
               <select [(ngModel)]="nuevaSucursal.marcaId" name="marcaId" class="w-full p-2.5 border rounded-xl text-sm font-semibold" required>
@@ -1010,13 +1011,13 @@ export class SucursalesComponent implements OnInit {
   catalogoServicios: CatalogoServicio[] = [];
   movimientos: MovimientoRedSucursal[] = [];
 
-  tabActiva: 'mapa' | 'sucursales' | 'regiones' | 'marcas' | 'gerentes' = 'sucursales';
+  tabActiva: 'mapa' | 'agencias' | 'sucursales' | 'regiones' | 'marcas' | 'gerentes' = 'agencias';
   tabs = [
-    { id: 'sucursales' as const, label: '🏢 Sucursales' },
-    { id: 'mapa' as const, label: '🗺️ Mapa Operativo en Vivo' },
-    { id: 'gerentes' as const, label: '👔 Gestión de Gerentes' },
-    { id: 'regiones' as const, label: '📍 Regiones' },
-    { id: 'marcas' as const, label: '🏷️ Marcas' }
+    { id: 'agencias' as const, label: 'Gestión de Agencias', icon: 'building-2' },
+    { id: 'mapa' as const, label: 'Mapa Operativo en Vivo', icon: 'map' },
+    { id: 'gerentes' as const, label: 'Gestión de Gerentes', icon: 'user-cog' },
+    { id: 'regiones' as const, label: 'Regiones', icon: 'map-pin' },
+    { id: 'marcas' as const, label: 'Marcas', icon: 'tag' }
   ];
 
   filtroRegionId: number | string = 0;
@@ -1126,8 +1127,8 @@ export class SucursalesComponent implements OnInit {
 
   ngOnInit(): void {
     this.route.queryParams.subscribe(params => {
-      if (params['tab'] && ['mapa', 'sucursales', 'regiones', 'marcas', 'gerentes'].includes(params['tab'])) {
-        this.tabActiva = params['tab'];
+      if (params['tab'] && ['mapa', 'agencias', 'sucursales', 'regiones', 'marcas', 'gerentes'].includes(params['tab'])) {
+        this.tabActiva = params['tab'] === 'sucursales' ? 'agencias' : params['tab'] as any;
       }
       if (params['sucursalId']) {
         this.filtroSucursalMapaId = Number(params['sucursalId']);
@@ -1157,7 +1158,7 @@ export class SucursalesComponent implements OnInit {
     const ger = this.gerentesUsuarios.find(g => String(g.id) === String(this.formAsignarGerente.gerenteId));
     const suc = this.sucursales.find(s => s.id === this.formAsignarGerente.sucursalId);
     if (!ger || !suc) {
-      this.toastService.warning('Campos requeridos', 'Selecciona un usuario gerente y una sucursal.');
+      this.toastService.warning('Campos requeridos', 'Selecciona un usuario gerente y una agencia.');
       return;
     }
 
@@ -1475,7 +1476,7 @@ export class SucursalesComponent implements OnInit {
 
   guardarSucursal(): void {
     if (!this.nuevaSucursal.nombre?.trim()) {
-      this.toastService.warning('Datos Incompletos', 'Ingrese el nombre de la sucursal.');
+      this.toastService.warning('Datos Incompletos', 'Ingrese el nombre de la agencia.');
       return;
     }
 
@@ -1559,29 +1560,29 @@ export class SucursalesComponent implements OnInit {
     if (this.editandoSucursal) {
       const user = this.auth.getCurrentUser();
       this.sucursalService.actualizarSucursal(this.nuevaSucursal, {
-        motivo: 'Actualización desde ficha de sucursal',
+        motivo: 'Actualización desde ficha de agencia',
         realizadoPor: `${user.nombre} ${user.apellido}`.trim()
       }).subscribe({
         next: (actualizada) => {
           this.bahiaService.sincronizarBahias(actualizada.id, actualizada.nombre, actualizada.cantidadBahias);
-          this.toastService.success('Sucursal Actualizada', `Se guardaron los cambios para ${actualizada.nombre}.`);
+          this.toastService.success('Agencia Actualizada', `Se guardaron los cambios para ${actualizada.nombre}.`);
           this.cerrarModal();
           this.cargarTodo();
         },
         error: () => {
-          this.toastService.error('Error', 'No se pudo actualizar la sucursal.');
+          this.toastService.error('Error', 'No se pudo actualizar la agencia.');
         }
       });
     } else {
       this.sucursalService.crearSucursal(this.nuevaSucursal).subscribe({
         next: (creada) => {
           this.bahiaService.sincronizarBahias(creada.id, creada.nombre, creada.cantidadBahias);
-          this.toastService.success('Sucursal Registrada', `Se configuró ${creada.nombre} correctamente.`);
+          this.toastService.success('Agencia Registrada', `Se configuró ${creada.nombre} correctamente.`);
           this.cerrarModal();
           this.cargarTodo();
         },
         error: () => {
-          this.toastService.error('Error', 'No se pudo registrar la sucursal.');
+          this.toastService.error('Error', 'No se pudo registrar la agencia.');
         }
       });
     }
@@ -1711,7 +1712,7 @@ export class SucursalesComponent implements OnInit {
   guardarTransferencia(): void {
     const suc = this.sucursales.find(s => String(s.id) === String(this.formTransfer.sucursalId));
     if (!suc) {
-      this.toastService.warning('Sucursal requerida', 'Seleccione la sucursal a transferir.');
+      this.toastService.warning('Agencia requerida', 'Seleccione la agencia a transferir.');
       return;
     }
     if (!this.formTransfer.motivo.trim()) {

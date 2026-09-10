@@ -29,7 +29,6 @@ import { OperadorMockService } from '../../core/services/operador-mock.service';
 import { BahiaMockService } from '../../core/services/bahia-mock.service';
 import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
 import { FilterBarComponent, FilterState } from '../../shared/components/filter-bar/filter-bar.component';
-import { ServiciosToolbarComponent } from '../../shared/components/servicios-toolbar/servicios-toolbar.component';
 import { MaquinariaMockService } from '../../core/services/maquinaria-mock.service';
 import { IncidenteMockService } from '../../core/services/incidente-mock.service';
 import { PermissionService } from '../../core/services/permission.service';
@@ -41,7 +40,7 @@ import { RouterModule } from '@angular/router';
 @Component({
   selector: 'app-servicios',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, LucideAngularModule, ModalComponent, PaginationComponent, FilterBarComponent, ServiciosToolbarComponent],
+  imports: [CommonModule, RouterModule, FormsModule, LucideAngularModule, ModalComponent, PaginationComponent, FilterBarComponent],
   template: `
     <div class="space-y-6 animate-fade-in">
       
@@ -124,7 +123,7 @@ import { RouterModule } from '@angular/router';
         </div>
       }
 
-      <!-- Global Filter Bar -->
+      <!-- Global Filter Bar (Contenedor Unificado de Filtros y Búsqueda) -->
       <app-filter-bar 
         [showSucursal]="!isOperador" 
         [showOperador]="!isOperador"
@@ -134,25 +133,15 @@ import { RouterModule } from '@angular/router';
         [showMarca]="true"
         [showEstado]="true"
         [showFechas]="false"
-        [showBusqueda]="false"
+        [showBusqueda]="true"
+        [placeholderBusqueda]="tabActiva === 'generales' ? 'Buscar placa (ej. PBX-8932) u Orden OT...' : 'Buscar placa u OT especial...'"
         [listaServicios]="listaServiciosFiltro"
         [listaEstados]="['Todos', 'EN PROCESO', 'FINALIZADO', 'APROBADO', 'RECHAZADO']"
         (filterChange)="aplicarNuevosFiltros($event)">
       </app-filter-bar>
 
-      <!-- Search & Counter Toolbar -->
-      <app-servicios-toolbar
-        [count]="serviciosFiltrados.length"
-        [label]="tabActiva === 'generales' ? 'Servicios Generales' : 'OTs Especiales'"
-        [countLabel]="'Vehículos'"
-        [labelColor]="tabActiva === 'generales' ? 'text-easydry-blue' : 'text-amber-700'"
-        [placeholder]="tabActiva === 'generales' ? 'Buscar placa (ej. PBX-8932) u Orden OT...' : 'Buscar placa u OT especial...'"
-        [searchValue]="filtroTexto"
-        (searchChange)="onToolbarSearchChange($event)">
-      </app-servicios-toolbar>
-
-      <!-- Services List / Table -->
-      <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry overflow-hidden">
+      <!-- Services List / Table Container (Componente Compuesto Unificado) -->
+      <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry overflow-hidden flex flex-col">
         
         <!-- Cabecera de la sección -->
         <div class="p-6 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100">
@@ -162,7 +151,7 @@ import { RouterModule } from '@angular/router';
         </div>
 
         <!-- Desktop Table View -->
-        <div class="hidden lg:block overflow-x-auto">
+        <div class="hidden lg:block overflow-x-auto flex-1">
           <table class="w-full text-left text-sm">
             <thead class="bg-slate-50 text-slate-500 text-xs font-bold uppercase tracking-wider border-b border-slate-200">
               <tr>
@@ -251,12 +240,12 @@ import { RouterModule } from '@angular/router';
                   </td>
 
                   <td class="py-3.5 px-4 text-right">
-                    <div class="flex items-center justify-end gap-1.5">
+                    <div class="flex items-center justify-end gap-1">
                       @if (canFinalizar(item)) {
                         <button
                           (click)="finalizarServicio(item)"
                           title="Finalizar servicio"
-                          class="p-1.5 bg-easydry-blue hover:bg-easydry-blue-dark text-white rounded-lg transition-colors cursor-pointer flex items-center justify-center">
+                          class="p-1.5 text-slate-400 hover:text-easydry-blue hover:bg-slate-100 rounded-lg transition-colors cursor-pointer flex items-center justify-center">
                           <i-lucide name="check-circle" class="w-4 h-4"></i-lucide>
                         </button>
                       }
@@ -265,13 +254,13 @@ import { RouterModule } from '@angular/router';
                         <button
                           (click)="aprobarServicio(item)"
                           title="Aprobar servicio"
-                          class="p-1.5 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 rounded-lg transition-colors shadow-xs cursor-pointer flex items-center justify-center">
+                          class="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer flex items-center justify-center">
                           <i-lucide name="check" class="w-4 h-4"></i-lucide>
                         </button>
                       }
 
                       @if (item.estado === 'APROBADO') {
-                        <span class="p-1.5 rounded-lg bg-green-100 text-green-700 flex items-center justify-center">
+                        <span class="p-1.5 text-emerald-600 bg-emerald-50 rounded-lg flex items-center justify-center" title="Servicio Aprobado">
                           <i-lucide name="check-circle-2" class="w-4 h-4"></i-lucide>
                         </span>
                       }
@@ -284,7 +273,7 @@ import { RouterModule } from '@angular/router';
         </div>
 
         <!-- Mobile / Tablet Card View -->
-        <div class="block lg:hidden divide-y divide-slate-100">
+        <div class="block lg:hidden divide-y divide-slate-100 flex-1">
           @for (item of paginatedServicios; track item.id) {
             <div class="p-4 hover:bg-slate-50 transition-colors cursor-pointer" (click)="abrirDetalle(item)">
               <div class="flex items-start justify-between mb-2">
@@ -319,6 +308,7 @@ import { RouterModule } from '@angular/router';
           }
         </div>
 
+        <!-- Paginación Unificada en la Base del Mismo Componente Contenedor -->
         <app-pagination 
           [totalItems]="serviciosFiltrados.length" 
           [currentPage]="currentPage" 
@@ -451,7 +441,7 @@ import { RouterModule } from '@angular/router';
         icon="car"
         (close)="modalNuevoRegistroOpen = false">
         
-        <form (ngSubmit)="guardarHojaServicio()" class="space-y-4">
+        <form (ngSubmit)="guardarHojaServicio()" class="space-y-5">
           
           <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs font-bold text-easydry-blue flex items-center justify-between">
             <span>REGISTRO DE ORDEN DE TRABAJO (OT)</span>
@@ -527,13 +517,13 @@ import { RouterModule } from '@angular/router';
             </p>
           </div>
 
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label class="block text-[11px] font-bold text-slate-700 uppercase mb-1">Nº OT (Orden Trabajo)</label>
-              <input type="text" [(ngModel)]="nuevoRegistro.ordenTrabajoOT" name="ordenTrabajoOT" placeholder="OT-9840" class="w-full p-2 border rounded-xl text-xs font-mono font-bold text-easydry-blue" required>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Nº OT (Orden Trabajo) *</label>
+              <input type="text" [(ngModel)]="nuevoRegistro.ordenTrabajoOT" name="ordenTrabajoOT" placeholder="OT-9840" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-easydry-blue focus:border-easydry-blue focus:ring-easydry-blue" required>
             </div>
             <div>
-              <label class="block text-[11px] font-bold text-slate-700 uppercase mb-1">Placa Vehículo</label>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Placa Vehículo *</label>
               <input
                 type="text"
                 [ngModel]="nuevoRegistro.placa"
@@ -542,7 +532,7 @@ import { RouterModule } from '@angular/router';
                 placeholder="PBX-1234"
                 maxlength="8"
                 autocomplete="off"
-                class="w-full p-2 border rounded-xl text-xs font-mono font-bold uppercase tracking-wide"
+                class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold uppercase tracking-wide focus:border-easydry-blue focus:ring-easydry-blue"
                 [class.border-rose-400]="placaTocada && !placaValida"
                 [class.border-easydry-green]="placaValida"
                 required>
@@ -555,35 +545,35 @@ import { RouterModule } from '@angular/router';
             </div>
           </div>
 
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label class="block text-[11px] font-bold text-slate-700 uppercase mb-1">Marca</label>
-              <input type="text" [(ngModel)]="nuevoRegistro.marca" name="marca" placeholder="Toyota" class="w-full p-2 border rounded-xl text-xs" required>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Marca *</label>
+              <input type="text" [(ngModel)]="nuevoRegistro.marca" name="marca" placeholder="Toyota" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:border-easydry-blue focus:ring-easydry-blue" required>
             </div>
             <div>
-              <label class="block text-[11px] font-bold text-slate-700 uppercase mb-1">Modelo</label>
-              <input type="text" [(ngModel)]="nuevoRegistro.modelo" name="modelo" placeholder="Corolla Cross" class="w-full p-2 border rounded-xl text-xs" required>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Modelo *</label>
+              <input type="text" [(ngModel)]="nuevoRegistro.modelo" name="modelo" placeholder="Corolla Cross" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:border-easydry-blue focus:ring-easydry-blue" required>
             </div>
             <div>
-              <label class="block text-[11px] font-bold text-slate-700 uppercase mb-1">Color</label>
-              <input type="text" [(ngModel)]="nuevoRegistro.color" name="color" placeholder="Blanco" class="w-full p-2 border rounded-xl text-xs" required>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Color *</label>
+              <input type="text" [(ngModel)]="nuevoRegistro.color" name="color" placeholder="Blanco" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:border-easydry-blue focus:ring-easydry-blue" required>
             </div>
           </div>
 
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label class="block text-[11px] font-bold text-slate-700 uppercase mb-1">Hora Ingreso</label>
-              <input type="time" [(ngModel)]="nuevoRegistro.horaIngreso" name="horaIngreso" class="w-full p-2 border rounded-xl text-xs font-mono" required>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Hora Ingreso *</label>
+              <input type="time" [(ngModel)]="nuevoRegistro.horaIngreso" name="horaIngreso" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-800 focus:border-easydry-blue focus:ring-easydry-blue" required>
             </div>
             <div>
-              <label class="block text-[11px] font-bold text-slate-700 uppercase mb-1">Hora Salida Estimada</label>
-              <input type="time" [(ngModel)]="nuevoRegistro.horaSalida" name="horaSalida" class="w-full p-2 border rounded-xl text-xs font-mono" required>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Hora Salida Estimada *</label>
+              <input type="time" [(ngModel)]="nuevoRegistro.horaSalida" name="horaSalida" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-800 focus:border-easydry-blue focus:ring-easydry-blue" required>
             </div>
           </div>
 
           <!-- Category and Specific Service -->
-          <div class="p-3 bg-easydry-blue/5 rounded-2xl border border-easydry-blue/20 space-y-3">
-            <label class="block text-xs font-extrabold text-easydry-blue uppercase">Categoría de Servicio</label>
+          <div class="p-4 bg-slate-50/80 rounded-2xl border border-slate-200 space-y-3">
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider">Categoría de Servicio *</label>
             
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               <label 
@@ -602,8 +592,8 @@ import { RouterModule } from '@angular/router';
             </div>
 
             <div>
-              <label class="block text-[11px] font-bold text-slate-700 uppercase mb-1">Servicio Específico</label>
-              <select [(ngModel)]="nuevoRegistro.servicio" name="servicio" (change)="onServicioSelect()" class="w-full p-2.5 border rounded-xl text-xs font-bold bg-white focus:ring-2 focus:ring-easydry-blue">
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Servicio Específico *</label>
+              <select [(ngModel)]="nuevoRegistro.servicio" name="servicio" (change)="onServicioSelect()" class="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:border-easydry-blue focus:ring-easydry-blue">
                 @for (s of opcionesServicios; track s.id) {
                   <option [value]="s.nombre">{{ s.nombre }}</option>
                 }
@@ -612,13 +602,13 @@ import { RouterModule } from '@angular/router';
           </div>
 
           <!-- Insumos y Recursos Utilizados (Descuento Automático de Stock) -->
-          <div class="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+          <div class="p-4 bg-slate-50/80 rounded-2xl border border-slate-200 space-y-3">
             <div class="flex items-center justify-between">
-              <label class="text-xs font-bold text-slate-800 uppercase flex items-center gap-1.5">
+              <label class="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
                 <i-lucide name="boxes" class="w-4 h-4 text-easydry-blue"></i-lucide>
                 Insumos a Consumir en este Servicio
               </label>
-              <span class="text-[10px] text-slate-500 font-semibold bg-white px-2 py-0.5 rounded border">
+              <span class="text-[10px] text-slate-500 font-semibold bg-white px-2 py-0.5 rounded border border-slate-200">
                 Descuento automático de: {{ nuevoRegistro.agencia }}
               </span>
             </div>
@@ -628,7 +618,7 @@ import { RouterModule } from '@angular/router';
             } @else {
               <div class="space-y-2">
                 @for (ins of insumosConsumoForm; track ins.productoId; let idx = $index) {
-                  <div class="p-2.5 bg-white rounded-xl border flex items-center justify-between gap-3 shadow-2xs">
+                  <div class="p-2.5 bg-white rounded-xl border border-slate-200 flex items-center justify-between gap-3 shadow-2xs">
                     <div class="overflow-hidden flex-1">
                       <p class="font-bold text-slate-900 text-xs truncate">{{ ins.productoNombre }}</p>
                       <div class="flex items-center gap-2 text-[10px] text-slate-500">
@@ -654,7 +644,7 @@ import { RouterModule } from '@angular/router';
 
             <!-- Selector para añadir insumo extra -->
             <div class="flex items-center gap-2 pt-1">
-              <select #selectInsumoExtra class="flex-1 p-2 bg-white border rounded-xl text-xs font-medium">
+              <select #selectInsumoExtra class="flex-1 p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-800">
                 <option value="">+ Añadir otro insumo del inventario...</option>
                 @for (item of productosInventario; track item.producto.id) {
                   <option [value]="item.producto.id">
@@ -673,7 +663,7 @@ import { RouterModule } from '@angular/router';
 
           <!-- Video Proof Upload -->
           <div class="space-y-1.5">
-            <label class="block text-[11px] font-bold text-slate-700 uppercase">Evidencia Vídeo de Ingreso</label>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Evidencia Vídeo de Ingreso</label>
             
             <div class="relative w-full border-2 border-dashed border-slate-300 rounded-xl p-4 flex flex-col items-center justify-center hover:bg-slate-50 transition-colors cursor-pointer"
                  (click)="fileInput.click()">
@@ -1449,12 +1439,11 @@ export class ServiciosComponent implements OnInit {
       const b = this.filtrosGlobales.busqueda.trim().toLowerCase();
       resultados = resultados.filter(s =>
         s.placa?.toLowerCase().includes(b) ||
+        s.ordenTrabajoOT?.toLowerCase().includes(b) ||
+        s.numeroOrden?.toLowerCase().includes(b) ||
         s.marca?.toLowerCase().includes(b) ||
         s.modelo?.toLowerCase().includes(b) ||
-        s.empleado?.toLowerCase().includes(b) ||
-        s.servicio?.toLowerCase().includes(b) ||
-        s.ordenTrabajoOT?.toLowerCase().includes(b) ||
-        s.numeroOrden?.toLowerCase().includes(b)
+        s.color?.toLowerCase().includes(b)
       );
     }
 

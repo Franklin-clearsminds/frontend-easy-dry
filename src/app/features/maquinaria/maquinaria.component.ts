@@ -41,6 +41,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
         [showEstado]="true"
         [showFechas]="false"
         [showBusqueda]="true"
+        placeholderBusqueda="Buscar por código de activo (ej. HD-001), nombre o modelo..."
         [listaEstados]="['Todos', 'Operativa', 'Requiere Mantenimiento', 'En Reparación', 'Fuera de Servicio']"
         (filterChange)="aplicarNuevosFiltros($event)">
       </app-filter-bar>
@@ -1094,7 +1095,9 @@ export class MaquinariaComponent implements OnInit {
       }
       const matchTexto = !this.filtroTexto || 
         m.nombre.toLowerCase().includes(this.filtroTexto.toLowerCase()) || 
-        m.codigo.toLowerCase().includes(this.filtroTexto.toLowerCase());
+        m.codigo.toLowerCase().includes(this.filtroTexto.toLowerCase()) ||
+        (m.modelo || '').toLowerCase().includes(this.filtroTexto.toLowerCase()) ||
+        (m.numeroSerie || '').toLowerCase().includes(this.filtroTexto.toLowerCase());
       
       return matchScope && matchTexto;
     });

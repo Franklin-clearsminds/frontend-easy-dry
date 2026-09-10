@@ -49,21 +49,21 @@ import { PaginationComponent } from '../../shared/components/pagination/paginati
       <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
         
         <!-- Rules Summary Panel -->
-        <div class="bg-gradient-to-br from-easydry-blue to-easydry-blue-dark p-6 rounded-2xl text-white shadow-easydry flex flex-col justify-between space-y-4">
+        <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-easydry flex flex-col justify-between space-y-4">
           <div>
-            <span class="text-[10px] font-extrabold uppercase tracking-widest text-easydry-lime bg-easydry-green/20 px-2.5 py-1 rounded-full border border-easydry-green/30">Reglas de Negocio</span>
-            <h3 class="text-xl font-bold font-outfit mt-3">Políticas de Asignación</h3>
-            <ul class="mt-4 space-y-3 text-xs text-slate-200">
+            <span class="text-[10px] font-extrabold uppercase tracking-widest text-easydry-blue bg-easydry-blue/10 px-2.5 py-1 rounded-full border border-easydry-blue/20">Reglas de Negocio</span>
+            <h3 class="text-xl font-bold font-outfit mt-3 text-slate-900">Políticas de Asignación</h3>
+            <ul class="mt-4 space-y-3 text-xs text-slate-600">
               <li class="flex items-start gap-2">
-                <i-lucide name="check" class="w-4 h-4 text-easydry-lime shrink-0 mt-0.5"></i-lucide>
+                <i-lucide name="check" class="w-4 h-4 text-easydry-blue shrink-0 mt-0.5"></i-lucide>
                 <span>1 Operador por bahía activa.</span>
               </li>
               <li class="flex items-start gap-2">
-                <i-lucide name="check" class="w-4 h-4 text-easydry-lime shrink-0 mt-0.5"></i-lucide>
+                <i-lucide name="check" class="w-4 h-4 text-easydry-blue shrink-0 mt-0.5"></i-lucide>
                 <span>El operador sólo pertenece a una bahía principal.</span>
               </li>
               <li class="flex items-start gap-2">
-                <i-lucide name="check" class="w-4 h-4 text-easydry-lime shrink-0 mt-0.5"></i-lucide>
+                <i-lucide name="check" class="w-4 h-4 text-easydry-blue shrink-0 mt-0.5"></i-lucide>
                 <span>Historial con fecha inicio, fin, responsable y motivo registrado automáticamente.</span>
               </li>
             </ul>
@@ -131,8 +131,8 @@ import { PaginationComponent } from '../../shared/components/pagination/paginati
 
       </div>
 
-      <!-- Historical Log Table -->
-      <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry overflow-hidden mt-6">
+      <!-- Historical Assignments Table -->
+      <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry overflow-hidden flex flex-col mt-6">
         <div class="p-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-4">
           <div>
             <h3 class="font-bold text-slate-900 text-base font-outfit">Historial General de Cambios de Asignación</h3>

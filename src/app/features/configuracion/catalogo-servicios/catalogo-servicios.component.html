@@ -12,7 +12,7 @@
       </div>
       <h1 class="text-2xl font-extrabold text-slate-900 font-outfit">Catálogo de Servicios</h1>
       <p class="text-sm text-slate-500">
-        {{ esUsuarioSucursal ? 'Servicios habilitados y recetas oficiales para tu sucursal operativa.' : 'Tabla maestra de servicios. Luego se asignan uno a uno a cada sucursal (al crear o al editar).' }}
+        {{ esUsuarioSucursal ? 'Servicios habilitados y recetas oficiales para tu agencia operativa.' : 'Tabla maestra de servicios. Luego se asignan uno a uno a cada agencia (al crear o al editar).' }}
       </p>
     </div>
   </div>
@@ -72,24 +72,52 @@
   @if (tabActiva === 'generales') {
     <div class="space-y-6 animate-fade-in">
       
-      <!-- Barra de Filtros Generales -->
-      <div class="bg-white p-4 rounded-2xl shadow-easydry border border-slate-100 flex flex-wrap gap-4 items-center justify-between">
-        <div class="flex-1 min-w-[240px] relative">
-          <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400">
-            <i-lucide name="search" class="w-4 h-4"></i-lucide>
-          </span>
-          <input 
-            type="text" 
-            [(ngModel)]="busquedaGenerales" 
-            placeholder="Buscar por código (ej. SER-001) o nombre del servicio general..." 
-            class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-easydry-blue">
+      <!-- Barra de Filtros Generales Unificada -->
+      <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-easydry flex flex-wrap gap-3 items-end z-20 relative">
+        <div class="flex-[2_2_320px] min-w-[280px] sm:min-w-[340px] max-w-full">
+          <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+            <i-lucide name="search" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide> Búsqueda
+          </label>
+          <div class="relative">
+            <input 
+              type="text" 
+              [(ngModel)]="busquedaGenerales" 
+              placeholder="Buscar por código (ej. SER-001) o nombre del servicio general..." 
+              class="w-full bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-xl pl-9 pr-8 py-2 focus:ring-2 focus:ring-easydry-blue focus:bg-white focus:border-transparent transition-all placeholder:text-slate-400 font-medium">
+            <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-400">
+              <i-lucide name="search" class="w-3.5 h-3.5"></i-lucide>
+            </span>
+            @if (busquedaGenerales) {
+              <button 
+                type="button" 
+                (click)="busquedaGenerales = ''" 
+                class="absolute inset-y-0 right-0 pr-2.5 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer">
+                <i-lucide name="x" class="w-3.5 h-3.5"></i-lucide>
+              </button>
+            }
+          </div>
         </div>
 
-        <select [(ngModel)]="filtroEstadoGenerales" class="bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold px-3 py-2">
-          <option value="TODOS">Todos los Estados</option>
-          <option value="Activo">Activos</option>
-          <option value="Inactivo">Inactivos</option>
-        </select>
+        <div class="flex-1 min-w-[140px] max-w-full">
+          <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+            <i-lucide name="check-circle" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide> Estado
+          </label>
+          <select [(ngModel)]="filtroEstadoGenerales" class="w-full bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-xl px-3 py-2 focus:ring-2 focus:ring-easydry-blue transition-colors appearance-none font-semibold cursor-pointer">
+            <option value="TODOS">Todos los Estados</option>
+            <option value="Activo">Activos</option>
+            <option value="Inactivo">Inactivos</option>
+          </select>
+        </div>
+
+        <div class="ml-auto flex items-center justify-end gap-2 pb-0.5 mt-2 sm:mt-0 flex-initial">
+          <button
+            type="button"
+            (click)="busquedaGenerales = ''; filtroEstadoGenerales = 'TODOS'"
+            title="Limpiar filtros"
+            class="p-2 rounded-xl bg-slate-100 hover:bg-rose-50 hover:text-rose-700 text-slate-600 font-bold transition-all border border-slate-200 hover:border-rose-200 cursor-pointer shadow-2xs group flex items-center justify-center">
+            <i-lucide name="rotate-ccw" class="w-4 h-4 text-slate-500 group-hover:text-rose-600 transition-transform group-hover:rotate-[-45deg]"></i-lucide>
+          </button>
+        </div>
       </div>
 
       <!-- Tabla Servicios Generales -->
@@ -211,24 +239,52 @@
   @if (tabActiva === 'especiales') {
     <div class="space-y-6 animate-fade-in">
       
-      <!-- Barra de Filtros Especiales -->
-      <div class="bg-white p-4 rounded-2xl shadow-easydry border border-slate-100 flex flex-wrap gap-4 items-center justify-between">
-        <div class="flex-1 min-w-[240px] relative">
-          <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400">
-            <i-lucide name="search" class="w-4 h-4"></i-lucide>
-          </span>
-          <input 
-            type="text" 
-            [(ngModel)]="busquedaEspeciales" 
-            placeholder="Buscar por código (ej. ESP-001) o nombre del servicio especial..." 
-            class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-amber-500">
+      <!-- Barra de Filtros Especiales Unificada -->
+      <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-easydry flex flex-wrap gap-3 items-end z-20 relative">
+        <div class="flex-[2_2_320px] min-w-[280px] sm:min-w-[340px] max-w-full">
+          <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+            <i-lucide name="search" class="w-3.5 h-3.5 text-amber-500"></i-lucide> Búsqueda
+          </label>
+          <div class="relative">
+            <input 
+              type="text" 
+              [(ngModel)]="busquedaEspeciales" 
+              placeholder="Buscar por código (ej. ESP-001) o nombre del servicio especial..." 
+              class="w-full bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-xl pl-9 pr-8 py-2 focus:ring-2 focus:ring-amber-500 focus:bg-white focus:border-transparent transition-all placeholder:text-slate-400 font-medium">
+            <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-400">
+              <i-lucide name="search" class="w-3.5 h-3.5"></i-lucide>
+            </span>
+            @if (busquedaEspeciales) {
+              <button 
+                type="button" 
+                (click)="busquedaEspeciales = ''" 
+                class="absolute inset-y-0 right-0 pr-2.5 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer">
+                <i-lucide name="x" class="w-3.5 h-3.5"></i-lucide>
+              </button>
+            }
+          </div>
         </div>
 
-        <select [(ngModel)]="filtroEstadoEspeciales" class="bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold px-3 py-2">
-          <option value="TODOS">Todos los Estados</option>
-          <option value="Activo">Activos</option>
-          <option value="Inactivo">Inactivos</option>
-        </select>
+        <div class="flex-1 min-w-[140px] max-w-full">
+          <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+            <i-lucide name="check-circle" class="w-3.5 h-3.5 text-amber-500"></i-lucide> Estado
+          </label>
+          <select [(ngModel)]="filtroEstadoEspeciales" class="w-full bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-xl px-3 py-2 focus:ring-2 focus:ring-amber-500 transition-colors appearance-none font-semibold cursor-pointer">
+            <option value="TODOS">Todos los Estados</option>
+            <option value="Activo">Activos</option>
+            <option value="Inactivo">Inactivos</option>
+          </select>
+        </div>
+
+        <div class="ml-auto flex items-center justify-end gap-2 pb-0.5 mt-2 sm:mt-0 flex-initial">
+          <button
+            type="button"
+            (click)="busquedaEspeciales = ''; filtroEstadoEspeciales = 'TODOS'"
+            title="Limpiar filtros"
+            class="p-2 rounded-xl bg-slate-100 hover:bg-rose-50 hover:text-rose-700 text-slate-600 font-bold transition-all border border-slate-200 hover:border-rose-200 cursor-pointer shadow-2xs group flex items-center justify-center">
+            <i-lucide name="rotate-ccw" class="w-4 h-4 text-slate-500 group-hover:text-rose-600 transition-transform group-hover:rotate-[-45deg]"></i-lucide>
+          </button>
+        </div>
       </div>
 
       <!-- Tabla Servicios Especiales -->

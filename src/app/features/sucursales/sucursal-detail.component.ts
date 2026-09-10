@@ -22,9 +22,9 @@ import { AuthService } from '../../core/services/auth.service';
       
       <!-- Back Link & Header -->
       <div>
-        <a [routerLink]="['/sucursales']" class="inline-flex items-center gap-1.5 text-xs font-bold text-easydry-blue hover:underline mb-3">
+        <a [routerLink]="['/agencias']" class="inline-flex items-center gap-1.5 text-xs font-bold text-easydry-blue hover:underline mb-3">
           <i-lucide name="chevron-right" class="w-4 h-4 transform rotate-180"></i-lucide>
-          <span>Volver al Directorio de Sucursales</span>
+          <span>Volver al Directorio de Agencias</span>
         </a>
 
         @if (sucursal) {
@@ -70,7 +70,7 @@ import { AuthService } from '../../core/services/auth.service';
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
             <div>
               <div class="flex items-center gap-2">
-                <h2 class="font-extrabold text-slate-900 font-outfit">Servicios de esta sucursal</h2>
+                <h2 class="font-extrabold text-slate-900 font-outfit">Servicios de esta agencia</h2>
                 <span class="px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-easydry-blue/10 text-easydry-blue border border-easydry-blue/20">
                   {{ (sucursal.serviciosNombres || []).length || (sucursal.servicioIds || []).length || 0 }} activos
                 </span>

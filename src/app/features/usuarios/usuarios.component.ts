@@ -66,6 +66,7 @@ interface ModuloGrupo {
         <div class="space-y-6">
           <!-- Global Filter Bar -->
           <app-filter-bar 
+            [showRegion]="true"
             [showSucursal]="true" 
             [showOperador]="false"
             [showBahia]="false"
@@ -73,6 +74,7 @@ interface ModuloGrupo {
             [showEstado]="true"
             [showFechas]="false"
             [showBusqueda]="true"
+            placeholderBusqueda="Buscar por nombre, apellido, correo o rol..."
             [listaEstados]="['Todos', 'Activo', 'Inactivo']"
             (filterChange)="aplicarNuevosFiltros($event)">
           </app-filter-bar>
@@ -525,7 +527,7 @@ interface ModuloGrupo {
             <div class="p-4 rounded-2xl border border-cyan-200 bg-cyan-50/60 space-y-3">
               <div>
                 <p class="text-xs font-extrabold text-cyan-900 uppercase tracking-wide">Modalidad del pulidor</p>
-                <p class="text-[11px] text-cyan-800 mt-0.5">Fijo: trabaja solo en una sucursal. Móvil: se desplaza entre sedes.</p>
+                <p class="text-[11px] text-cyan-800 mt-0.5">Fijo: trabaja solo en una agencia. Móvil: se desplaza entre sedes.</p>
               </div>
               <div class="grid grid-cols-2 gap-2">
                 <button
@@ -535,7 +537,7 @@ interface ModuloGrupo {
                   [ngClass]="usuarioForm.modalidadPulidor === 'FIJO'
                     ? 'bg-easydry-blue text-white border-easydry-blue'
                     : 'bg-white text-slate-700 border-slate-200 hover:border-easydry-blue'">
-                  Fijo en sucursal
+                  Fijo en agencia
                 </button>
                 <button
                   type="button"
@@ -549,23 +551,22 @@ interface ModuloGrupo {
               </div>
               @if (usuarioForm.modalidadPulidor === 'FIJO') {
                 <div>
-                  <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Sucursal asignada (Opcional)</label>
-                  <select [(ngModel)]="usuarioForm.agencia" name="agenciaFijo" class="w-full p-2.5 border rounded-xl text-sm font-semibold bg-white">
-                    <option value="">Sin sucursal asignada (Opcional - Asignar luego)</option>
+                  <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Agencia asignada</label>
+                  <select [(ngModel)]="usuarioForm.agencia" name="agenciaFijo" class="w-full p-2.5 border rounded-xl text-sm font-semibold bg-white" required>
                     @for (s of sucursales; track s.id) {
                       <option [value]="s.nombre">{{ s.nombre }} ({{ s.ciudad }})</option>
                     }
                   </select>
                 </div>
               } @else {
-                <p class="text-xs font-semibold text-cyan-900">Ubicación: Red Nacional · Móvil entre sucursales</p>
+                <p class="text-xs font-semibold text-cyan-900">Ubicación: Red Nacional · Móvil entre agencias</p>
               }
             </div>
           } @else {
             <div>
               <div class="flex items-center justify-between mb-1">
                 <label class="block text-xs font-bold text-slate-700 uppercase">
-                  Agencia / Sucursal {{ esLiderOperadorRol(usuarioForm.rol) ? '(Recomendada)' : '(Opcional)' }}
+                  Agencia {{ esLiderOperadorRol(usuarioForm.rol) ? '(Recomendada)' : '(Opcional)' }}
                 </label>
                 <span class="text-[10px] text-slate-400 font-medium">
                   {{ esLiderOperadorRol(usuarioForm.rol) ? 'Sede operativa' : 'No obligatorio' }}
@@ -1104,7 +1105,7 @@ export class UsuariosComponent implements OnInit {
   } = {
     nombre: '',
     apellido: '',
-    rol: 'Gerente de Sucursal',
+    rol: 'Gerente de Agencia',
     agencia: 'EasyDry Quito Norte',
     estado: 'Activo',
     email: '',
@@ -1304,8 +1305,7 @@ export class UsuariosComponent implements OnInit {
         (u.apellido || '').toLowerCase().includes(b) ||
         `${u.nombre || ''} ${u.apellido || ''}`.toLowerCase().includes(b) ||
         (u.email || '').toLowerCase().includes(b) ||
-        (u.rol || '').toLowerCase().includes(b) ||
-        (u.agencia || '').toLowerCase().includes(b)
+        (u.rol || '').toLowerCase().includes(b)
       );
     }
     return resultados;
@@ -1515,6 +1515,11 @@ export class UsuariosComponent implements OnInit {
         this.toastService.error('Verificación Fallida', 'La verificación de la nueva contraseña no coincide.');
         return;
       }
+    }
+
+    if (esRolOperadorEspeciales(this.usuarioForm.rol) && this.usuarioForm.modalidadPulidor === 'FIJO' && !this.usuarioForm.agencia) {
+      this.toastService.warning('Agencia requerida', 'Un pulidor fijo debe quedar asignado a una agencia.');
+      return;
     }
 
     const modalidad = this.payloadModalidad();

@@ -1,13 +1,13 @@
 <div class="space-y-6 animate-fade-in">
 
   <!-- Encabezado dinámico por rol -->
-  <div class="bg-gradient-to-r from-easydry-blue via-easydry-blue-dark to-easydry-blue-deep rounded-3xl p-6 lg:p-8 text-white shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-6 relative overflow-hidden">
+  <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-easydry flex flex-col md:flex-row md:items-center justify-between gap-6 relative overflow-hidden">
     <div class="relative z-10 space-y-2">
-      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-easydry-green/20 text-easydry-lime border border-easydry-green/40 text-xs font-bold">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-easydry-blue/10 text-easydry-blue border border-easydry-blue/20 text-xs font-bold">
         <div class="w-2 h-2 rounded-full bg-easydry-green animate-pulse"></div>
         <span>{{ rolLabel }} · {{ contextLabel }}</span>
       </div>
-      <h1 class="text-2xl lg:text-3xl font-extrabold tracking-tight font-outfit">
+      <h1 class="text-2xl lg:text-3xl font-extrabold tracking-tight font-outfit text-slate-900">
         @if (isExecutive) { Panel de Control Central EasyDry® }
         @else if (isTecnicoRole) { Dashboard Técnico & Taller }
         @else if (isOperador) { Mi Dashboard de Bahía }
@@ -16,15 +16,15 @@
         @else if (isBodega) { Dashboard de Inventario & Bodega }
         @else { Dashboard EasyDry® }
       </h1>
-      <p class="text-slate-300 text-sm flex items-center gap-2 flex-wrap">
-        <i-lucide name="user" class="w-4 h-4"></i-lucide> {{ userName }}
+      <p class="text-slate-500 text-sm flex items-center gap-2 flex-wrap">
+        <i-lucide name="user" class="w-4 h-4 text-easydry-blue"></i-lucide> {{ userName }}
         <span class="opacity-50">|</span>
-        <i-lucide name="calendar" class="w-4 h-4"></i-lucide> {{ fechaActual | date:'fullDate' }}
+        <i-lucide name="calendar" class="w-4 h-4 text-easydry-blue"></i-lucide> {{ fechaActual | date:'fullDate' }}
       </p>
     </div>
     <div class="relative z-10 flex gap-3 flex-wrap">
       @if (isExecutive) {
-        <a routerLink="/sucursales" [queryParams]="{ tab: 'mapa' }" class="px-4 py-2.5 bg-easydry-green hover:bg-easydry-green-dark text-slate-900 font-bold rounded-xl text-sm flex items-center gap-2">
+        <a routerLink="/agencias" [queryParams]="{ tab: 'mapa' }" class="px-4 py-2.5 bg-easydry-green hover:bg-easydry-green-dark text-slate-900 font-bold rounded-xl text-sm flex items-center gap-2">
           <i-lucide name="map" class="w-4 h-4"></i-lucide> Mapa en Vivo
         </a>
       }
@@ -34,8 +34,8 @@
         </a>
       }
       @if (isOperador) {
-        <a routerLink="/mi-bahia" class="px-4 py-2.5 bg-easydry-green hover:bg-easydry-green-dark text-slate-900 font-bold rounded-xl text-sm flex items-center gap-2">
-          <i-lucide name="car" class="w-4 h-4"></i-lucide> Mi Bahía
+        <a routerLink="/servicios" class="px-4 py-2.5 bg-easydry-green hover:bg-easydry-green-dark text-slate-900 font-bold rounded-xl text-sm flex items-center gap-2">
+          <i-lucide name="car" class="w-4 h-4"></i-lucide> Servicios de Lavado
         </a>
       }
       @if (isOperadorEspeciales) {
@@ -93,6 +93,9 @@
 
     <!-- Sección: Analítica y Productividad -->
     <div class="mb-4" [class.hidden]="activeExecutiveTab !== 'analitica'">
+      <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2 mb-1"><i-lucide name="bar-chart-2" class="w-5 h-5 text-easydry-green"></i-lucide> Analítica y Productividad</h2>
+      <p class="text-sm text-slate-500 mb-6">Métricas de eficiencia y tiempos de atención</p>
+
       <!-- Sección: Visión General -->
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 mb-8">
         <app-stat-card title="Vehículos Atendidos" [value]="produccion?.totalVehiculos || 0" icon="car" trend="12%" subtitle="Respecto a ayer" variant="primary"></app-stat-card>
@@ -100,14 +103,12 @@
         <app-stat-card title="Tiempo Promedio" [value]="(produccion?.tiempoPromedioMinutos || 0) + ' min'" icon="clock" trend="-4 min" subtitle="Por vehículo" variant="warning"></app-stat-card>
         <app-stat-card title="Eficiencia" [value]="resumenEjecutivo?.kpis?.[1]?.value || '87%'" icon="trending-up" trend="+5%" subtitle="Respecto a ayer" variant="success"></app-stat-card>
       </div>
-      <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2 mb-1"><i-lucide name="bar-chart-2" class="w-5 h-5 text-easydry-green"></i-lucide> Analítica y Productividad</h2>
-      <p class="text-sm text-slate-500 mb-6">Métricas de eficiencia y tiempos de atención</p>
       
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <app-chart-card class="lg:col-span-2" title="Flujo Horario de Atención" subtitle="Vehículos procesados hoy" type="line" [data]="produccion?.flujoHorario"></app-chart-card>
         <app-chart-card title="Distribución por Bahía" subtitle="Productividad por bahía" type="bar" [data]="produccion?.distribucionModelos"></app-chart-card>
         
-        <app-chart-card class="lg:col-span-3" title="Eficiencia Comparativa por Sucursal" subtitle="Histórico de los últimos 7 días" type="line" [data]="chartEficienciaSucursales"></app-chart-card>
+        <app-chart-card class="lg:col-span-3" title="Eficiencia Comparativa por Agencia" subtitle="Histórico de los últimos 7 días" type="line" [data]="chartEficienciaSucursales"></app-chart-card>
         
         <app-chart-card title="Tiempos Promedio por Servicio" subtitle="Minutos de atención estimados" type="bar" [data]="chartTiemposPromedio"></app-chart-card>
         <div class="lg:col-span-2">
@@ -226,7 +227,7 @@
       <app-stat-card title="Pendientes" [value]="operadorEspecialesData.asignacionesPendientes" icon="clock" variant="warning"></app-stat-card>
       <app-stat-card title="En Proceso" [value]="operadorEspecialesData.enProceso" icon="loader" variant="primary"></app-stat-card>
       <app-stat-card title="Completadas Semana" [value]="operadorEspecialesData.completadasSemana" icon="check-circle" variant="success"></app-stat-card>
-      <app-stat-card title="Calificación Prom." [value]="operadorEspecialesData.calificacionPromedio + '/5'" icon="star" [subtitle]="operadorEspecialesData.sucursalesActivas + ' sucursales'" variant="success"></app-stat-card>
+      <app-stat-card title="Calificación Prom." [value]="operadorEspecialesData.calificacionPromedio + '/5'" icon="star" [subtitle]="operadorEspecialesData.sucursalesActivas + ' agencias'" variant="success"></app-stat-card>
     </div>
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
       <app-chart-card title="Cola por Prioridad" type="bar" [data]="operadorEspecialesData.chartColaPorPrioridad"></app-chart-card>

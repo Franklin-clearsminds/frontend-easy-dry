@@ -33,9 +33,9 @@ export interface FilterState {
   template: `
     <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-easydry flex flex-wrap gap-3 items-end z-20 relative animate-fade-in">
 
-      <!-- Búsqueda por texto -->
+      <!-- Búsqueda por texto (Doble de espacio / Ancho prominente) -->
       @if (showBusqueda) {
-        <div class="flex-1 min-w-[220px]">
+        <div class="flex-[2_2_320px] min-w-[280px] sm:min-w-[340px] max-w-full">
           <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
             <i-lucide name="search" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide> Búsqueda
           </label>
@@ -63,7 +63,7 @@ export interface FilterState {
 
       <!-- Región -->
       @if (showRegion) {
-        <div class="flex-1 min-w-[170px]">
+        <div class="flex-1 min-w-[140px] max-w-full">
           <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
             <i-lucide name="globe" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide> Región
           </label>
@@ -78,7 +78,7 @@ export interface FilterState {
 
       <!-- Agencia -->
       @if (showSucursal) {
-        <div class="flex-1 min-w-[190px]">
+        <div class="flex-1 min-w-[150px] max-w-full">
           <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
             <i-lucide name="map-pin" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide> Agencia
           </label>
@@ -93,7 +93,7 @@ export interface FilterState {
 
       <!-- Marca -->
       @if (showMarca) {
-        <div class="flex-1 min-w-[170px]">
+        <div class="flex-1 min-w-[140px] max-w-full">
           <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
             <i-lucide name="tag" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide> Marca
           </label>
@@ -108,7 +108,7 @@ export interface FilterState {
 
       <!-- Bodega -->
       @if (showBodega) {
-        <div class="flex-1 min-w-[170px]">
+        <div class="flex-1 min-w-[140px] max-w-full">
           <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
             <i-lucide name="warehouse" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide> Bodega
           </label>
@@ -123,7 +123,7 @@ export interface FilterState {
 
       <!-- Operador -->
       @if (showOperador) {
-        <div class="flex-1 min-w-[190px]">
+        <div class="flex-1 min-w-[150px] max-w-full">
           <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
             <i-lucide name="users" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide> Operador Técnico
           </label>
@@ -138,7 +138,7 @@ export interface FilterState {
 
       <!-- Servicio -->
       @if (showServicio) {
-        <div class="flex-1 min-w-[170px]">
+        <div class="flex-1 min-w-[140px] max-w-full">
           <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
             <i-lucide name="sparkles" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide> Tipo de Servicio
           </label>
@@ -153,7 +153,7 @@ export interface FilterState {
 
       <!-- Bahía -->
       @if (showBahia) {
-        <div class="flex-1 min-w-[130px]">
+        <div class="flex-1 min-w-[110px] max-w-full">
           <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
             <i-lucide name="layout-grid" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide> Bahía
           </label>
@@ -168,7 +168,7 @@ export interface FilterState {
 
       <!-- Estado -->
       @if (showEstado) {
-        <div class="flex-1 min-w-[140px]">
+        <div class="flex-1 min-w-[120px] max-w-full">
           <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
             <i-lucide name="check-circle" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide> Estado
           </label>
@@ -183,7 +183,7 @@ export interface FilterState {
 
       <!-- Período / Fechas -->
       @if (showFechas) {
-        <div class="flex-1 min-w-[130px]">
+        <div class="flex-1 min-w-[120px] max-w-full">
           <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
             <i-lucide name="calendar-days" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide> Rango
           </label>
@@ -196,7 +196,7 @@ export interface FilterState {
       }
       
       @if (showFechas && (filters.fecha === 'Rango Personalizado' || filters.fecha === 'Personalizado')) {
-        <div class="flex-1 min-w-[260px] flex items-end gap-2">
+        <div class="flex-1 min-w-[220px] max-w-full flex items-end gap-2">
           <div class="flex-1">
             <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Desde</label>
             <input type="date" [value]="filters.fechaInicio || ''" (input)="onDesdeCambio($event)" class="w-full bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-xl px-3 py-2 focus:ring-2 focus:ring-easydry-blue transition-colors font-medium">
@@ -208,16 +208,15 @@ export interface FilterState {
         </div>
       }
 
-      <!-- Botones Inyectados y Limpiar Filtros -->
-      <div class="flex-1 flex flex-wrap items-center justify-end gap-2 pb-0.5 mt-2 sm:mt-0 min-w-fit">
+      <!-- Botones Inyectados y Limpiar Filtros (Siempre al fondo derecho) -->
+      <div class="ml-auto flex items-center justify-end gap-2 pb-0.5 mt-2 sm:mt-0 flex-initial">
         <ng-content select="[filter-actions]"></ng-content>
         <button
           type="button"
           (click)="resetFilters()"
-          title="Restaurar valores iniciales de filtro"
-          class="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-rose-50 hover:text-rose-700 text-slate-600 font-bold text-xs flex items-center gap-1.5 transition-all border border-slate-200 hover:border-rose-200 cursor-pointer shadow-2xs">
-          <i-lucide name="rotate-ccw" class="w-3.5 h-3.5 text-slate-500 group-hover:text-rose-600"></i-lucide>
-          <span>Limpiar filtros</span>
+          title="Limpiar filtros"
+          class="p-2 rounded-xl bg-slate-100 hover:bg-rose-50 hover:text-rose-700 text-slate-600 font-bold transition-all border border-slate-200 hover:border-rose-200 cursor-pointer shadow-2xs group flex items-center justify-center">
+          <i-lucide name="rotate-ccw" class="w-4 h-4 text-slate-500 group-hover:text-rose-600 transition-transform group-hover:rotate-[-45deg]"></i-lucide>
         </button>
       </div>
 

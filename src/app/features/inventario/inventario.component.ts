@@ -2,6 +2,7 @@ import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LucideAngularModule } from 'lucide-angular';
+import { ModalComponent } from '../../shared/components/modal/modal.component';
 import { InventarioMockService } from '../../core/services/inventario-mock.service';
 import { AuthService } from '../../core/services/auth.service';
 import { ToastService } from '../../shared/services/toast.service';
@@ -18,7 +19,7 @@ import {
 @Component({
   selector: 'app-inventario',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule],
+  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent],
   template: `
     <div class="space-y-6 animate-fade-in pb-16">
 
@@ -58,7 +59,7 @@ import {
               (click)="abrirModalNuevoProducto()"
               class="px-3.5 py-2 rounded-xl bg-easydry-blue hover:bg-blue-700 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer">
               <i-lucide name="plus" class="w-4 h-4"></i-lucide>
-              <span>Nuevo Producto</span>
+              <span>Nuevo Insumo / Producto</span>
             </button>
           </div>
         </div>
@@ -313,8 +314,20 @@ import {
                 <tr *ngFor="let p of productosFiltrados" class="hover:bg-slate-50/60 transition">
                   <td class="p-3.5 font-mono font-bold text-slate-800">{{ p.codigoSKU }}</td>
                   <td class="p-3.5">
-                    <span class="font-bold text-slate-900 block">{{ p.nombre }}</span>
-                    <span class="text-[10px] text-slate-400 line-clamp-1">{{ p.descripcion || 'Sin descripción' }}</span>
+                    <div class="flex items-center gap-3">
+                      <div *ngIf="p.imagenUrl || p.imagen; else defaultIcon" class="w-10 h-10 rounded-xl overflow-hidden border border-slate-200 shadow-xs flex-shrink-0 bg-slate-50">
+                        <img [src]="p.imagenUrl || p.imagen" alt="Foto Insumo" class="w-full h-full object-cover" />
+                      </div>
+                      <ng-template #defaultIcon>
+                        <div class="w-10 h-10 rounded-xl bg-easydry-blue/10 text-easydry-blue flex items-center justify-center flex-shrink-0 border border-slate-200/60">
+                          <i-lucide name="package" class="w-5 h-5"></i-lucide>
+                        </div>
+                      </ng-template>
+                      <div>
+                        <span class="font-bold text-slate-900 block">{{ p.nombre }}</span>
+                        <span class="text-[10px] text-slate-400 line-clamp-1">{{ p.descripcion || 'Sin descripción' }}</span>
+                      </div>
+                    </div>
                   </td>
                   <td class="p-3.5 whitespace-nowrap">
                     <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-easydry-blue border border-blue-100">
@@ -1209,6 +1222,41 @@ import {
                 class="w-full p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:border-easydry-blue" />
             </div>
 
+            <!-- Evidencia Fotográfica de Entrada (Estilo Dropzone) -->
+            <div class="space-y-1.5 pt-1">
+              <label class="block font-bold text-slate-700 uppercase tracking-wider text-[11px]">Evidencia Fotográfica de Entrada</label>
+              
+              <div class="relative w-full border-2 border-dashed border-emerald-300 rounded-xl p-4 flex flex-col items-center justify-center hover:bg-emerald-50/50 transition-colors cursor-pointer"
+                   (click)="imageEntradaInput.click()">
+                <input 
+                  #imageEntradaInput
+                  type="file" 
+                  accept="image/*" 
+                  class="hidden"
+                  (change)="onImagenEntradaSeleccionada($event)">
+                
+                <div *ngIf="imagenEntradaPreview" class="relative w-full flex flex-col items-center justify-center">
+                  <img [src]="imagenEntradaPreview" alt="Evidencia de Entrada" class="max-h-36 rounded-lg object-contain border border-emerald-200 mb-2 shadow-xs" />
+                  <div class="flex items-center gap-2 text-emerald-800">
+                    <i-lucide name="check-circle-2" class="w-4 h-4"></i-lucide>
+                    <span class="text-xs font-bold">{{ imagenEntradaNombre || 'Evidencia cargada' }}</span>
+                  </div>
+                  <div class="flex items-center gap-3 mt-2">
+                    <span class="text-[10px] text-slate-500 hover:underline">Toca para cambiar la imagen</span>
+                    <button type="button" (click)="$event.stopPropagation(); eliminarImagenEntrada()" class="text-[10px] font-bold text-rose-600 hover:underline">Eliminar foto</button>
+                  </div>
+                </div>
+
+                <div *ngIf="!imagenEntradaPreview" class="flex flex-col items-center justify-center">
+                  <div class="p-3 bg-emerald-100/80 text-emerald-700 rounded-full mb-2">
+                    <i-lucide name="camera" class="w-6 h-6"></i-lucide>
+                  </div>
+                  <p class="text-xs font-bold text-slate-700 text-center">Toca para capturar o subir evidencia del ingreso</p>
+                  <p class="text-[10px] text-slate-400 text-center mt-1">Foto de factura, guía de remisión o producto recibido</p>
+                </div>
+              </div>
+            </div>
+
             <!-- Vista Previa de Cálculo Dinámico (Unidades + Contenido Total) -->
             <div *ngIf="previewEntradaCantidadBase > 0 && productoEntradaSeleccionado" class="p-3.5 bg-emerald-50 rounded-xl border border-emerald-200 space-y-2">
               <div class="flex items-center justify-between">
@@ -1306,6 +1354,41 @@ import {
                 [(ngModel)]="formConsumo.observaciones"
                 placeholder="ej. Limpieza de bahía 2, servicio especial"
                 class="w-full p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:border-easydry-blue" />
+            </div>
+
+            <!-- Evidencia Fotográfica de Consumo (Estilo Dropzone) -->
+            <div class="space-y-1.5 pt-1">
+              <label class="block font-bold text-slate-700 uppercase tracking-wider text-[11px]">Evidencia Fotográfica de Consumo</label>
+              
+              <div class="relative w-full border-2 border-dashed border-amber-300 rounded-xl p-4 flex flex-col items-center justify-center hover:bg-amber-50/50 transition-colors cursor-pointer"
+                   (click)="imageConsumoInput.click()">
+                <input 
+                  #imageConsumoInput
+                  type="file" 
+                  accept="image/*" 
+                  class="hidden"
+                  (change)="onImagenConsumoSeleccionada($event)">
+                
+                <div *ngIf="imagenConsumoPreview" class="relative w-full flex flex-col items-center justify-center">
+                  <img [src]="imagenConsumoPreview" alt="Evidencia de Consumo" class="max-h-36 rounded-lg object-contain border border-amber-200 mb-2 shadow-xs" />
+                  <div class="flex items-center gap-2 text-amber-800">
+                    <i-lucide name="check-circle-2" class="w-4 h-4"></i-lucide>
+                    <span class="text-xs font-bold">{{ imagenConsumoNombre || 'Evidencia cargada' }}</span>
+                  </div>
+                  <div class="flex items-center gap-3 mt-2">
+                    <span class="text-[10px] text-slate-500 hover:underline">Toca para cambiar la imagen</span>
+                    <button type="button" (click)="$event.stopPropagation(); eliminarImagenConsumo()" class="text-[10px] font-bold text-rose-600 hover:underline">Eliminar foto</button>
+                  </div>
+                </div>
+
+                <div *ngIf="!imagenConsumoPreview" class="flex flex-col items-center justify-center">
+                  <div class="p-3 bg-amber-100/80 text-amber-700 rounded-full mb-2">
+                    <i-lucide name="camera" class="w-6 h-6"></i-lucide>
+                  </div>
+                  <p class="text-xs font-bold text-slate-700 text-center">Toca para capturar o subir evidencia de uso/consumo</p>
+                  <p class="text-[10px] text-slate-400 text-center mt-1">Foto del envase usado o dosificación realizada</p>
+                </div>
+              </div>
             </div>
 
             <!-- Vista Previa de Saldo Estimado -->
@@ -1443,15 +1526,13 @@ import {
       <!-- ============================================================== -->
       <!-- MODAL: CREAR / EDITAR PRODUCTO                                 -->
       <!-- ============================================================== -->
-      <div *ngIf="modalProductoAbierto" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-fade-in">
-        <div class="bg-white rounded-2xl max-w-xl w-full p-6 shadow-2xl border border-slate-100 max-h-[90vh] overflow-y-auto">
-          <div class="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
-            <h3 class="text-base font-bold text-slate-900">{{ editandoProducto ? 'Editar Insumo / Producto' : 'Registrar Nuevo Insumo' }}</h3>
-            <button (click)="cerrarModalProducto()" class="text-slate-400 hover:text-slate-600 cursor-pointer">
-              <i-lucide name="x" class="w-5 h-5"></i-lucide>
-            </button>
-          </div>
-
+      <app-modal
+        [isOpen]="modalProductoAbierto"
+        [title]="editandoProducto ? 'Editar Insumo / Producto EasyDry' : 'Registrar Nuevo Insumo / Producto EasyDry'"
+        icon="package"
+        (close)="cerrarModalProducto()">
+        
+        <form (submit)="$event.preventDefault(); guardarProducto()" class="space-y-4">
           <div class="space-y-3 text-xs">
             <div class="grid grid-cols-2 gap-3">
               <div>
@@ -1459,6 +1540,7 @@ import {
                 <input
                   type="text"
                   [(ngModel)]="formProducto.codigoSKU"
+                  name="codigoSKU"
                   placeholder="ej. ALC-001"
                   class="w-full p-2.5 rounded-xl border border-slate-200" />
               </div>
@@ -1467,6 +1549,7 @@ import {
                 <input
                   type="text"
                   [(ngModel)]="formProducto.nombre"
+                  name="nombreInsumo"
                   placeholder="ej. Alcohol Industrial 70%"
                   class="w-full p-2.5 rounded-xl border border-slate-200" />
               </div>
@@ -1478,6 +1561,7 @@ import {
                 <label class="block font-bold text-slate-700 mb-1">Tipo de Producto *</label>
                 <select
                   [(ngModel)]="formProducto.tipoProductoId"
+                  name="tipoProductoId"
                   class="w-full p-2.5 rounded-xl border border-slate-200 bg-white">
                   <option value="">Seleccione tipo de producto...</option>
                   <option *ngFor="let t of tiposProducto" [value]="t.id">{{ t.nombre }}</option>
@@ -1488,6 +1572,7 @@ import {
                 <label class="block font-bold text-slate-700 mb-1">Unidad Base de Inventario *</label>
                 <select
                   [(ngModel)]="formProducto.unidadMedidaId"
+                  name="unidadMedidaId"
                   class="w-full p-2.5 rounded-xl border border-slate-200 bg-white">
                   <option value="">Seleccione unidad base...</option>
                   <option *ngFor="let u of unidadesMedida" [value]="u.id">{{ u.nombre }} ({{ u.simbolo }})</option>
@@ -1505,6 +1590,7 @@ import {
                 min="0.001"
                 step="any"
                 [(ngModel)]="formProducto.contenidoNeto"
+                name="contenidoNeto"
                 placeholder="ej. 1, 1000, 3.78"
                 class="w-full p-2.5 rounded-xl border border-slate-200" />
               <p class="text-[11px] text-slate-400 mt-1">
@@ -1519,6 +1605,7 @@ import {
                 <input
                   type="number"
                   [(ngModel)]="formProducto.stockMinimoBodega"
+                  name="stockMinimoBodega"
                   placeholder="ej. 1000"
                   class="w-full p-2.5 rounded-xl border border-slate-200" />
               </div>
@@ -1527,6 +1614,7 @@ import {
                 <input
                   type="number"
                   [(ngModel)]="formProducto.stockOptimoBodega"
+                  name="stockOptimoBodega"
                   placeholder="ej. 5000"
                   class="w-full p-2.5 rounded-xl border border-slate-200" />
               </div>
@@ -1537,26 +1625,89 @@ import {
               <label class="block font-bold text-slate-700 mb-1">Descripción</label>
               <textarea
                 [(ngModel)]="formProducto.descripcion"
+                name="descripcion"
                 rows="2"
                 placeholder="Detalles sobre uso, dosificación o almacenamiento..."
                 class="w-full p-2.5 rounded-xl border border-slate-200"></textarea>
             </div>
-          </div>
 
-          <div class="flex items-center justify-end gap-3 mt-6 border-t border-slate-100 pt-4">
-            <button
-              (click)="cerrarModalProducto()"
-              class="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 text-xs font-bold transition cursor-pointer">
-              Cancelar
-            </button>
-            <button
-              (click)="guardarProducto()"
-              class="px-5 py-2 rounded-xl bg-easydry-blue hover:bg-blue-700 text-white text-xs font-bold transition shadow-sm cursor-pointer">
-              {{ editandoProducto ? 'Actualizar Producto' : 'Guardar Producto' }}
-            </button>
+            <!-- Imagen del Insumo / Producto (Input URL + Dropzone) -->
+            <div class="space-y-2 pt-1">
+              <label class="block font-bold text-slate-700 uppercase tracking-wider text-[11px]">Imagen del Insumo / Producto</label>
+              
+              <!-- Campo Input para URL de la Imagen -->
+              <div>
+                <label class="block text-[11px] font-medium text-slate-600 mb-1">Enlace / URL de la Imagen</label>
+                <div class="relative flex items-center">
+                  <span class="absolute left-3 inset-y-0 flex items-center text-slate-400">
+                    <i-lucide name="link" class="w-4 h-4"></i-lucide>
+                  </span>
+                  <input
+                    type="url"
+                    [(ngModel)]="formProducto.imagenUrl"
+                    name="imagenUrl"
+                    (input)="alCambiarUrlImagenInsumo()"
+                    placeholder="https://ejemplo.com/imagen-insumo.jpg"
+                    class="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:border-easydry-blue" />
+                </div>
+              </div>
+
+              <!-- Separador -->
+              <div class="flex items-center gap-2 my-1">
+                <div class="h-px bg-slate-200 flex-1"></div>
+                <span class="text-[10px] font-bold text-slate-400 uppercase">o subir archivo de imagen</span>
+                <div class="h-px bg-slate-200 flex-1"></div>
+              </div>
+
+              <!-- Subir archivo local (Dropzone) -->
+              <div class="relative w-full border-2 border-dashed border-slate-300 rounded-xl p-4 flex flex-col items-center justify-center hover:bg-slate-50 transition-colors cursor-pointer"
+                   (click)="imageInput.click()">
+                <input 
+                  #imageInput
+                  type="file" 
+                  accept="image/*" 
+                  class="hidden"
+                  (change)="onImagenInsumoSeleccionada($event)">
+                
+                <div *ngIf="imagenInsumoPreview" class="relative w-full flex flex-col items-center justify-center">
+                  <img [src]="imagenInsumoPreview" alt="Vista previa del insumo" class="max-h-36 rounded-lg object-contain border border-slate-200 mb-2 shadow-xs" />
+                  <div class="flex items-center gap-2 text-easydry-green-dark">
+                    <i-lucide name="check-circle-2" class="w-4 h-4"></i-lucide>
+                    <span class="text-xs font-bold">{{ imagenInsumoNombre || 'Imagen cargada' }}</span>
+                  </div>
+                  <div class="flex items-center gap-3 mt-2">
+                    <span class="text-[10px] text-slate-500 hover:underline">Toca para cambiar la imagen</span>
+                    <button type="button" (click)="$event.stopPropagation(); eliminarImagenInsumo()" class="text-[10px] font-bold text-rose-600 hover:underline">Eliminar imagen</button>
+                  </div>
+                </div>
+
+                <div *ngIf="!imagenInsumoPreview" class="flex flex-col items-center justify-center">
+                  <div class="p-3 bg-easydry-blue/10 text-easydry-blue rounded-full mb-2">
+                    <i-lucide name="image" class="w-6 h-6"></i-lucide>
+                  </div>
+                  <p class="text-xs font-bold text-slate-700 text-center">Toca para seleccionar o subir imagen del insumo</p>
+                  <p class="text-[10px] text-slate-400 text-center mt-1">Archivos recomendados: JPG, PNG, WEBP</p>
+                </div>
+              </div>
+            </div>
           </div>
+        </form>
+
+        <div modal-footer class="flex items-center justify-end gap-3 w-full">
+          <button
+            type="button"
+            (click)="cerrarModalProducto()"
+            class="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 text-xs font-bold transition cursor-pointer">
+            Cancelar
+          </button>
+          <button
+            type="button"
+            (click)="guardarProducto()"
+            class="px-5 py-2 rounded-xl bg-easydry-blue hover:bg-blue-700 text-white text-xs font-bold transition shadow-sm cursor-pointer">
+            {{ editandoProducto ? 'Actualizar Producto' : 'Guardar Producto' }}
+          </button>
         </div>
-      </div>
+      </app-modal>
 
       <!-- ============================================================== -->
       <!-- MODAL: CONFIGURAR TIPO DE PRODUCTO (CRUD DINÁMICO)             -->
@@ -2094,8 +2245,60 @@ export class InventarioComponent implements OnInit {
     this.previewEntradaCantidadBase = Math.round(unidades * cNeto * 100) / 100;
   }
 
+  public imagenEntradaPreview: string | null = null;
+  public imagenEntradaNombre: string = '';
+
+  public onImagenEntradaSeleccionada(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    if (input.files && input.files[0]) {
+      const file = input.files[0];
+      this.imagenEntradaNombre = file.name;
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        this.imagenEntradaPreview = result;
+        this.toast.success('Evidencia de entrada cargada', `${file.name} lista para guardar.`);
+      };
+      reader.readAsDataURL(file);
+    }
+  }
+
+  public eliminarImagenEntrada(): void {
+    this.imagenEntradaPreview = null;
+    this.imagenEntradaNombre = '';
+  }
+
+  public imagenConsumoPreview: string | null = null;
+  public imagenConsumoNombre: string = '';
+
+  public onImagenConsumoSeleccionada(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    if (input.files && input.files[0]) {
+      const file = input.files[0];
+      this.imagenConsumoNombre = file.name;
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        this.imagenConsumoPreview = result;
+        this.toast.success('Evidencia de consumo cargada', `${file.name} lista para guardar.`);
+      };
+      reader.readAsDataURL(file);
+    }
+  }
+
+  public eliminarImagenConsumo(): void {
+    this.imagenConsumoPreview = null;
+    this.imagenConsumoNombre = '';
+  }
+
   public cerrarModalEntrada(): void {
     this.modalEntradaAbierto = false;
+    this.eliminarImagenEntrada();
+  }
+
+  public cerrarModalConsumo(): void {
+    this.modalConsumoAbierto = false;
+    this.eliminarImagenConsumo();
   }
 
   public guardarEntrada(): void {
@@ -2182,10 +2385,6 @@ export class InventarioComponent implements OnInit {
     }
     const cant = Number(this.formConsumo.cantidad) || 0;
     this.previewConsumoInvalido = cant > this.productoConsumoSeleccionado.stockActual;
-  }
-
-  public cerrarModalConsumo(): void {
-    this.modalConsumoAbierto = false;
   }
 
   public guardarConsumo(): void {
@@ -2298,8 +2497,48 @@ export class InventarioComponent implements OnInit {
     return u ? `${u.nombre} (${u.simbolo})` : '';
   }
 
+  public imagenInsumoPreview: string | null = null;
+  public imagenInsumoNombre: string = '';
+
+  public onImagenInsumoSeleccionada(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    if (input.files && input.files[0]) {
+      const file = input.files[0];
+      this.imagenInsumoNombre = file.name;
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        this.imagenInsumoPreview = result;
+        this.formProducto.imagenUrl = result;
+        this.formProducto.imagen = result;
+        this.toast.success('Imagen cargada', `${file.name} lista para guardar.`);
+      };
+      reader.readAsDataURL(file);
+    }
+  }
+
+  public eliminarImagenInsumo(): void {
+    this.imagenInsumoPreview = null;
+    this.imagenInsumoNombre = '';
+    this.formProducto.imagenUrl = '';
+    this.formProducto.imagen = '';
+  }
+
+  public alCambiarUrlImagenInsumo(): void {
+    if (this.formProducto.imagenUrl && this.formProducto.imagenUrl.trim()) {
+      this.imagenInsumoPreview = this.formProducto.imagenUrl.trim();
+      this.imagenInsumoNombre = 'Imagen desde URL externa';
+      this.formProducto.imagen = this.formProducto.imagenUrl.trim();
+    } else if (!this.formProducto.imagen) {
+      this.imagenInsumoPreview = null;
+      this.imagenInsumoNombre = '';
+    }
+  }
+
   public abrirModalNuevoProducto(): void {
     this.editandoProducto = false;
+    this.imagenInsumoPreview = null;
+    this.imagenInsumoNombre = '';
     this.formProducto = {
       id: '',
       codigoSKU: `INS-${Date.now().toString().slice(-4)}`,
@@ -2310,12 +2549,16 @@ export class InventarioComponent implements OnInit {
       stockMinimoBodega: 10,
       stockOptimoBodega: 50,
       descripcion: '',
+      imagenUrl: '',
+      imagen: '',
     };
     this.modalProductoAbierto = true;
   }
 
   public abrirModalEditarProducto(p: ProductoInsumo): void {
     this.editandoProducto = true;
+    this.imagenInsumoPreview = p.imagenUrl || p.imagen || null;
+    this.imagenInsumoNombre = (p.imagenUrl || p.imagen) ? 'Imagen actual del insumo' : '';
     this.formProducto = {
       id: p.id.toString(),
       codigoSKU: p.codigoSKU,
@@ -2326,6 +2569,8 @@ export class InventarioComponent implements OnInit {
       stockMinimoBodega: p.stockMinimoBodega || 10,
       stockOptimoBodega: p.stockOptimoBodega || 50,
       descripcion: p.descripcion || '',
+      imagenUrl: p.imagenUrl || p.imagen || '',
+      imagen: p.imagen || p.imagenUrl || '',
     };
     this.modalProductoAbierto = true;
   }
@@ -2363,6 +2608,8 @@ export class InventarioComponent implements OnInit {
         stockMinimoBodega: Number(this.formProducto.stockMinimoBodega),
         stockOptimoBodega: Number(this.formProducto.stockOptimoBodega),
         descripcion: this.formProducto.descripcion,
+        imagenUrl: this.formProducto.imagenUrl || this.formProducto.imagen || undefined,
+        imagen: this.formProducto.imagen || this.formProducto.imagenUrl || undefined,
       };
       this.inventarioService.actualizarProducto(payload).subscribe({
         next: () => {
@@ -2386,6 +2633,8 @@ export class InventarioComponent implements OnInit {
         stockMinimoBodega: Number(this.formProducto.stockMinimoBodega),
         stockOptimoBodega: Number(this.formProducto.stockOptimoBodega),
         descripcion: this.formProducto.descripcion,
+        imagenUrl: this.formProducto.imagenUrl || this.formProducto.imagen || undefined,
+        imagen: this.formProducto.imagen || this.formProducto.imagenUrl || undefined,
         categoria: 'GENERAL',
       };
       this.inventarioService.crearProducto(payload).subscribe({

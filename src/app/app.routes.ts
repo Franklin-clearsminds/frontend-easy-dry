@@ -62,22 +62,6 @@ export const routes: Routes = [
       },
 
       {
-        path: 'mi-bahia',
-        loadComponent: () =>
-          import('./features/mi-bahia/mi-bahia.component').then(m => m.MiBahiaComponent),
-        canActivate: [
-          authGuard,
-          roleGuard([
-            Role.SUPER_ADMIN,
-            Role.ADMIN,
-            Role.LIDER_OPERADOR,
-            Role.LIDER_AGENCIA,
-            Role.OPERADOR_SERVICIOS_ESPECIALES
-          ], 'mi-bahia')
-        ]
-      },
-
-      {
         path: 'servicios',
         loadComponent: () =>
           import('./features/servicios/servicios.component').then(m => m.ServiciosComponent),
@@ -133,12 +117,12 @@ export const routes: Routes = [
         path: 'mapa-operativo',
         redirectTo: () => {
           const router = inject(Router);
-          return router.createUrlTree(['/sucursales'], { queryParams: { tab: 'mapa' } });
+          return router.createUrlTree(['/agencias'], { queryParams: { tab: 'mapa' } });
         }
       },
 
       {
-        path: 'sucursales',
+        path: 'agencias',
         loadComponent: () =>
           import('./features/sucursales/sucursales.component').then(m => m.SucursalesComponent),
         canActivate: [
@@ -148,11 +132,11 @@ export const routes: Routes = [
             Role.ADMIN,
             Role.GERENTE,
             Role.SUPERVISOR
-          ], 'sucursales')
+          ], 'agencias')
         ]
       },
       {
-        path: 'sucursales/:id',
+        path: 'agencias/:id',
         loadComponent: () =>
           import('./features/sucursales/sucursal-detail.component').then(m => m.SucursalDetailComponent),
         canActivate: [
@@ -162,8 +146,17 @@ export const routes: Routes = [
             Role.ADMIN,
             Role.GERENTE,
             Role.SUPERVISOR
-          ], 'sucursales')
+          ], 'agencias')
         ]
+      },
+      {
+        path: 'sucursales',
+        redirectTo: 'agencias',
+        pathMatch: 'full'
+      },
+      {
+        path: 'sucursales/:id',
+        redirectTo: 'agencias/:id'
       },
 
       {
