@@ -580,7 +580,7 @@ interface ModuloGrupo {
               </select>
               <p class="text-[11px] text-slate-400 mt-1">
                 {{ esLiderOperadorRol(usuarioForm.rol) 
-                  ? 'Asigna la agencia donde este Líder Operador gestionará las OTs y servicios.' 
+                  ? 'Asigna la agencia donde este Líder gestionará las OTs y servicios.' 
                   : 'No es obligatorio asignar sucursal ni región al crear el usuario.' }}
               </p>
             </div>
@@ -1331,7 +1331,7 @@ export class UsuariosComponent implements OnInit {
     if (rolNombre.includes('Admin') || rolNombre.includes('Super')) return 'bg-purple-100 text-purple-900 border-purple-300';
     if (rolNombre.includes('Gerente')) return 'bg-easydry-blue/15 text-easydry-blue border-easydry-blue/20';
     if (rolNombre.includes('Supervisor')) return 'bg-amber-100 text-amber-800 border-amber-200';
-    if (rolNombre.includes('Operador')) return 'bg-easydry-green/20 text-easydry-green-dark border-easydry-green/30';
+    if (rolNombre.includes('Operador') || rolNombre.includes('Lavador')) return 'bg-easydry-green/20 text-easydry-green-dark border-easydry-green/30';
     return 'bg-slate-100 text-slate-700 border-slate-200';
   }
 
@@ -1528,40 +1528,47 @@ export class UsuariosComponent implements OnInit {
       const nuevoEstado: 'Activo' | 'Inactivo' = this.usuarioForm.estado === 'Inactivo' ? 'Inactivo' : 'Activo';
       const agenciaVal = modalidad.agencia === 'Sin asignar' ? '' : modalidad.agencia;
       const sucursalMatch = this.sucursales.find(s => s.nombre === agenciaVal || String(s.id) === agenciaVal);
-      const actualizado: Usuario & { password?: string } = {
+      const actualizado: Usuario & { password?: string; roleId?: string } = {
         ...this.editandoUsuario,
         nombre: this.usuarioForm.nombre.trim(),
         apellido: this.usuarioForm.apellido.trim(),
         rol: this.usuarioForm.rol,
         agencia: agenciaVal || 'Sin asignar',
         sucursal: agenciaVal || 'Sin asignar',
-        agenciaId: sucursalMatch ? String(sucursalMatch.id) : (agenciaVal ? undefined : (null as any)),
+        agenciaId: sucursalMatch ? String(sucursalMatch.id) : undefined,
         estado: nuevoEstado,
         email: this.usuarioForm.email.trim(),
         modalidadPulidor: modalidad.modalidadPulidor,
         ...(this.usuarioForm.cambiarPassword && this.usuarioForm.password?.trim()
           ? { password: this.usuarioForm.password.trim() }
-          : {})
+          : {}),
+        roleId: this.rolesVisibles.find(r => r.nombre === this.usuarioForm.rol)?.id || undefined
       };
 
-      this.usuarioService.actualizarUsuario(actualizado).subscribe((res) => {
-        const uFinal = res || actualizado;
-        const idx = this.usuarios.findIndex(u => String(u.id) === String(uFinal.id));
-        if (idx !== -1) {
-          this.usuarios[idx] = uFinal;
-          this.usuarios = [...this.usuarios];
-        }
-        this.usuarioService.getUsuarios().subscribe(refreshed => {
-          if (refreshed && refreshed.length) {
-            this.usuarios = [...refreshed];
+      this.usuarioService.actualizarUsuario(actualizado).subscribe({
+        next: (res) => {
+          const uFinal = res || actualizado;
+          const idx = this.usuarios.findIndex(u => String(u.id) === String(uFinal.id));
+          if (idx !== -1) {
+            this.usuarios[idx] = uFinal;
+            this.usuarios = [...this.usuarios];
           }
-        });
-        if (nuevoEstado === 'Inactivo') {
-          this.toastService.warning('Usuario Actualizado', `Perfil de ${actualizado.nombre} actualizado como Inactivo. Se bloqueará su login y no aparecerá en selectores de asignación.`);
-        } else {
-          this.toastService.success('Usuario Actualizado', `Perfil de ${actualizado.nombre} actualizado correctamente.`);
+          this.usuarioService.getUsuarios(undefined, true).subscribe(refreshed => {
+            if (refreshed && refreshed.length) {
+              this.usuarios = [...refreshed];
+            }
+          });
+          if (nuevoEstado === 'Inactivo') {
+            this.toastService.warning('Usuario Actualizado', `Perfil de ${actualizado.nombre} actualizado como Inactivo. Se bloqueará su login y no aparecerá en selectores de asignación.`);
+          } else {
+            this.toastService.success('Usuario Actualizado', `Perfil de ${actualizado.nombre} actualizado correctamente.`);
+          }
+          this.modalUsuarioOpen = false;
+        },
+        error: (err) => {
+          console.error('Error al actualizar usuario', err);
+          this.toastService.error('Error', 'No se pudo actualizar el usuario. Verifique los datos e intente de nuevo.');
         }
-        this.modalUsuarioOpen = false;
       });
     } else {
       const agenciaVal = modalidad.agencia === 'Sin asignar' ? '' : modalidad.agencia;
@@ -1590,7 +1597,7 @@ export class UsuariosComponent implements OnInit {
             this.usuarios = this.usuarios.map(u => (String(u.id) === String(creado.id) || u.email.toLowerCase() === creado.email.toLowerCase()) ? creado : u);
           }
           this.currentPage = 1;
-          this.usuarioService.getUsuarios().subscribe(refreshed => {
+          this.usuarioService.getUsuarios(undefined, true).subscribe(refreshed => {
             if (refreshed && refreshed.length) {
               this.usuarios = [...refreshed];
             }

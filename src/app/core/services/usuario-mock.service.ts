@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { BehaviorSubject, Observable, of } from 'rxjs';
+import { BehaviorSubject, Observable, of, throwError } from 'rxjs';
 import { map, tap, catchError } from 'rxjs/operators';
 import { Usuario, Role } from '../models';
 import { apiUrl } from '../config/env';
@@ -36,13 +36,13 @@ export class UsuarioMockService {
   private mapBackendUsuario(u: any): Usuario {
     let rolDisplay = u.role?.namerol || 'ADMIN';
     if (rolDisplay === 'APROBADOR' || rolDisplay === 'GERENTE') {
-      rolDisplay = 'Gerente de Sucursal';
+      rolDisplay = 'Aprobador';
     } else if (rolDisplay === 'SUPER_ADMIN') {
       rolDisplay = 'Super Administrador';
     } else if (rolDisplay === 'SUPERVISOR') {
       rolDisplay = 'Supervisor Regional';
     } else if (rolDisplay === 'LIDER_OPERADOR' || rolDisplay === 'LIDER_AGENCIA') {
-      rolDisplay = 'Líder Operador';
+      rolDisplay = 'Líder';
     } else if (rolDisplay === 'OPERADOR') {
       rolDisplay = 'Operador (Trazabilidad Bahía)';
     }
@@ -64,9 +64,10 @@ export class UsuarioMockService {
     };
   }
 
-  getUsuarios(soloActivos?: boolean): Observable<Usuario[]> {
+  getUsuarios(soloActivos?: boolean, silent?: boolean): Observable<Usuario[]> {
     const payload = soloActivos ? { estado: 1 } : {};
-    return this.http.post<any[]>(apiUrl('/agencias/usuarios/list'), payload).pipe(
+    const opts = silent ? { headers: { 'x-silent': 'true' } } : {};
+    return this.http.post<any[]>(apiUrl('/agencias/usuarios/list'), payload, opts).pipe(
       map(items => (items || []).map(u => this.mapBackendUsuario(u))),
       tap(mapped => {
         this.usuariosSubject.next(mapped);
@@ -123,7 +124,7 @@ export class UsuarioMockService {
     );
   }
 
-  actualizarUsuario(usr: Usuario & { password?: string }): Observable<Usuario> {
+  actualizarUsuario(usr: Usuario & { password?: string; roleId?: string }): Observable<Usuario> {
     const payload: any = {
       id: String(usr.id),
       name: usr.nombre,
@@ -131,9 +132,15 @@ export class UsuarioMockService {
       email: usr.email,
       estado: usr.estado === 'Activo' ? 1 : 0,
       rolNombre: usr.rol,
-      agencia: usr.agencia === 'Sin asignar' ? null : usr.agencia,
-      agenciaId: usr.agenciaId || null
+      roleId: (usr as any).roleId || undefined,
     };
+
+    if (usr.agenciaId && usr.agencia !== 'Sin asignar') {
+      payload.agenciaId = String(usr.agenciaId);
+    }
+    if (usr.agencia && usr.agencia !== 'Sin asignar') {
+      payload.agencia = usr.agencia;
+    }
 
     if (usr.password && usr.password.trim().length >= 6) {
       payload.password = usr.password.trim();
@@ -150,7 +157,7 @@ export class UsuarioMockService {
       });
     }
 
-    return this.http.post<any>(apiUrl('/agencias/usuarios/update'), payload).pipe(
+    return this.http.post<any>(apiUrl('/agencias/usuarios/update'), payload, { headers: { 'x-silent': 'true' } }).pipe(
       map(res => {
         const u = res?.user ? this.mapBackendUsuario(res.user) : usr;
         const current = this.usuariosSubject.value;
@@ -161,14 +168,8 @@ export class UsuarioMockService {
         }
         return u;
       }),
-      catchError(() => {
-        const current = this.usuariosSubject.value;
-        const idx = current.findIndex(u => String(u.id) === String(usr.id));
-        if (idx !== -1) {
-          current[idx] = { ...usr };
-          this.usuariosSubject.next([...current]);
-        }
-        return of(usr);
+      catchError((err) => {
+        return throwError(() => err);
       })
     );
   }

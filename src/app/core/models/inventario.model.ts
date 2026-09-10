@@ -71,8 +71,15 @@ export interface ProductoInsumo {
   activo: boolean;
   estado?: number;
   fechaCreacion?: string;
-  createdAt?: string;
   presentaciones?: PresentacionInsumoCatalog[];
+  serviciosAsociados?: Array<{
+    id: number;
+    codigo: string;
+    nombre: string;
+    categoria: string;
+    cantidadUsada?: number;
+    unidad?: string;
+  }>;
 }
 
 /** Catálogo Dinámico de Tipos de Producto (Líquido, Polvo, Gel, Sólido, etc.) */

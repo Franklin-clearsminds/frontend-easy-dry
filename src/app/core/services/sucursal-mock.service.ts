@@ -52,7 +52,17 @@ export class SucursalMockService {
 
   private mapBackendAgencia(a: any): Sucursal {
     const configMap = this.getBranchConfigMap();
-    const stored = configMap[String(a.id)] || {};
+    let stored = configMap[String(a.id)] || {};
+
+    // Respaldo por nombre: si tras un reseed cambió el id de la agencia, la config
+    // guardada por id anterior se recupera igualmente por el nombre.
+    if (!stored || (stored && Object.keys(stored).length === 0)) {
+      const nombreA = (a.nombre || '').trim().toLowerCase();
+      const porNombre = Object.values(configMap).find((cfg: any) =>
+        cfg && cfg.nombre && String(cfg.nombre).trim().toLowerCase() === nombreA
+      );
+      if (porNombre) stored = porNombre;
+    }
 
     const ger = a.usuarios?.find((u: any) => {
       const r = (u.role?.namerol || u.role || '').toUpperCase();
@@ -68,26 +78,31 @@ export class SucursalMockService {
       ? `${ger.name || ''} ${ger.lastname || ''}`.trim()
       : (a.gerenteNombre || stored.gerenteNombre || (responsable !== 'Sin Asignar' ? responsable : undefined));
 
-    const lider = a.usuarios?.find((u: any) => {
-      const r = (u.role?.namerol || u.role || '').toUpperCase();
-      return r === 'LIDER_OPERADOR' || r.includes('LIDER_OPERADOR') || r.includes('LIDER') || r.includes('LÍDER');
-    });
+    const lider = (a.usuarios || []).find((u: any) => String(u.id) === String(a.liderOperadorId))
+      || a.usuarios?.find((u: any) => {
+        const r = (u.role?.namerol || u.role || '').toUpperCase();
+        return r === 'LIDER_OPERADOR' || r === 'LIDER' || r.includes('LIDER') || r.includes('LÍDER');
+      });
 
     const liderOperador = lider
       ? `${lider.name || ''} ${lider.lastname || ''}`.trim()
       : (a.liderOperador && a.liderOperador !== 'Sin Asignar' ? a.liderOperador : (stored.liderOperador || 'Sin Asignar'));
 
-    const tieneServiciosEspeciales = stored.tieneServiciosEspeciales !== undefined
-      ? Boolean(stored.tieneServiciosEspeciales)
-      : false;
+    const tieneServiciosEspeciales = a.tieneServiciosEspeciales !== undefined && a.tieneServiciosEspeciales !== null
+      ? Boolean(a.tieneServiciosEspeciales)
+      : (stored.tieneServiciosEspeciales !== undefined ? Boolean(stored.tieneServiciosEspeciales) : false);
 
-    let servicioIds: number[] = Array.isArray(stored.servicioIds)
-      ? Array.from(new Set(stored.servicioIds.map((id: any) => Number(id)).filter((n: number) => !isNaN(n) && n > 0)))
-      : [];
-
-    if (servicioIds.length === 0) {
-      servicioIds = tieneServiciosEspeciales ? [6, 7, 8, 9, 12, 13, 14] : [6, 7, 8, 9];
+    // Origen de verdad: base de datos (agencia.servicioIds)
+    let servicioIds: number[] = [];
+    if (Array.isArray(a.servicioIds)) {
+      servicioIds = Array.from(new Set(a.servicioIds.map((id: any) => Number(id)).filter((n: number) => !isNaN(n) && n > 0)));
+    } else if (Array.isArray(stored.servicioIds) && stored.servicioIds.length > 0) {
+      servicioIds = Array.from(new Set(stored.servicioIds.map((id: any) => Number(id)).filter((n: number) => !isNaN(n) && n > 0)));
     }
+
+    const serviciosNombres: string[] = Array.isArray(a.serviciosNombres)
+      ? a.serviciosNombres
+      : (Array.isArray(stored.serviciosNombres) ? stored.serviciosNombres : []);
 
     // Filtrar operadores estrictos (excluyendo roles directivos / gerenciales)
     const operadores = (a.usuarios || []).filter((u: any) => {
@@ -103,6 +118,7 @@ export class SucursalMockService {
       direccion: a.direccion || '',
       estado: a.estado === 1 ? 'Activo' : (a.estado === 0 ? 'Inactivo' : 'Mantenimiento'),
       cantidadBahias: a.numeroBahias || (a.bahias?.length ?? a._count?.bahias ?? 0),
+      maxLavadoresPorBahia: a.maxLavadoresPorBahia || 1,
       responsable,
       liderOperador,
       liderOperadorId: lider?.id || a.liderOperadorId || stored.liderOperadorId || undefined,
@@ -115,7 +131,7 @@ export class SucursalMockService {
       marcaId: a.marcaId || a.marca?.id,
       marcaNombre: a.marca?.nombre || 'Sin marca',
       servicioIds,
-      serviciosNombres: stored.serviciosNombres || [],
+      serviciosNombres,
       telefono: a.telefono || '',
       requiereAprobacion: stored.requiereAprobacion !== undefined ? stored.requiereAprobacion : (!!gerenteId || responsable !== 'Sin Asignar'),
       gerenteId,
@@ -130,6 +146,36 @@ export class SucursalMockService {
     return this.sucursalesSubject.value.find(
       s => s.nombre.toLowerCase() === n || n.includes(s.nombre.toLowerCase()) || s.nombre.toLowerCase().includes(n.replace(' (costa)', ''))
     );
+  }
+
+  getSucursalConfig(id: string | number): Record<string, any> | null {
+    try {
+      const cfg = this.getBranchConfigMap()[String(id)];
+      return cfg ? { ...cfg } : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private getSucursalConfigPorNombre(nombre?: string): Record<string, any> | null {
+    if (!nombre) return null;
+    const n = String(nombre).trim().toLowerCase();
+    try {
+      const cfg = Object.values(this.getBranchConfigMap()).find(
+        (c: any) => c && c.nombre && String(c.nombre).trim().toLowerCase() === n
+      );
+      return cfg ? { ...cfg } : null;
+    } catch {
+      return null;
+    }
+  }
+
+  hasServiciosEspecialesActivos(id: string | number, nombre?: string): boolean {
+    const cfg = this.getSucursalConfig(id) || this.getSucursalConfigPorNombre(nombre);
+    if (!cfg) return false;
+    if (cfg['tieneServiciosEspeciales'] !== undefined) return Boolean(cfg['tieneServiciosEspeciales']);
+    // Ya no hay IDs hardcodeados — la fuente de verdad es la BD
+    return false;
   }
 
   getSucursales(): Observable<Sucursal[]> {
@@ -174,21 +220,30 @@ export class SucursalMockService {
       direccion: suc.direccion || '',
       telefono: suc.telefono || '',
       numeroBahias: Number(suc.cantidadBahias) || 2,
+      maxLavadoresPorBahia: Number(suc.maxLavadoresPorBahia) || 1,
       marcaId: marcaIdStr,
       estado: suc.estado === 'Inactivo' ? 0 : 1,
-      gerenteId: gerenteIdStr
+      gerenteId: gerenteIdStr,
+      liderOperadorId: suc.liderOperadorId ? String(suc.liderOperadorId) : undefined,
+      servicioIds: Array.isArray(suc.servicioIds) ? suc.servicioIds.map(Number).filter(n => !isNaN(n) && n > 0) : [],
+      serviciosNombres: Array.isArray(suc.serviciosNombres) ? suc.serviciosNombres : [],
+      tieneServiciosEspeciales: suc.tieneServiciosEspeciales === true
     };
 
     return this.http.post<any>(apiUrl('/agencias/create'), payload).pipe(
       map(res => {
         this.saveBranchConfig(res.id, {
+          nombre: suc.nombre,
           servicioIds: suc.servicioIds,
           serviciosNombres: suc.serviciosNombres,
           tieneServiciosEspeciales: suc.tieneServiciosEspeciales,
           gerenteId: suc.gerenteId,
           gerenteNombre: suc.gerenteNombre,
           responsable: suc.responsable,
-          requiereAprobacion: suc.requiereAprobacion
+          requiereAprobacion: suc.requiereAprobacion,
+          liderOperadorId: suc.liderOperadorId,
+          liderOperador: suc.liderOperador,
+          liderOperadorNombre: suc.liderOperadorNombre
         });
 
         const backendMapped = this.mapBackendAgencia(res);
@@ -199,6 +254,8 @@ export class SucursalMockService {
         if (suc.tieneServiciosEspeciales !== undefined) backendMapped.tieneServiciosEspeciales = suc.tieneServiciosEspeciales;
         if (suc.servicioIds) backendMapped.servicioIds = suc.servicioIds;
         if (suc.serviciosNombres) backendMapped.serviciosNombres = suc.serviciosNombres;
+        if (suc.liderOperadorId) backendMapped.liderOperadorId = suc.liderOperadorId;
+        if (suc.liderOperador && suc.liderOperador !== 'Sin Asignar') backendMapped.liderOperador = suc.liderOperador;
 
         const current = this.sucursalesSubject.value;
         this.sucursalesSubject.next([...current, backendMapped]);
@@ -221,19 +278,28 @@ export class SucursalMockService {
       direccion: suc.direccion,
       telefono: suc.telefono,
       numeroBahias: Number(suc.cantidadBahias),
+      maxLavadoresPorBahia: Number(suc.maxLavadoresPorBahia) || 1,
       marcaId: marcaIdStr,
       estado: suc.estado === 'Inactivo' ? 0 : 1,
-      gerenteId: gerenteIdStr
+      gerenteId: gerenteIdStr,
+      liderOperadorId: suc.liderOperadorId ? String(suc.liderOperadorId) : '',
+      servicioIds: Array.isArray(suc.servicioIds) ? suc.servicioIds.map(Number).filter(n => !isNaN(n) && n > 0) : [],
+      serviciosNombres: Array.isArray(suc.serviciosNombres) ? suc.serviciosNombres : [],
+      tieneServiciosEspeciales: suc.tieneServiciosEspeciales === true
     };
 
     this.saveBranchConfig(suc.id, {
+      nombre: suc.nombre,
       servicioIds: suc.servicioIds,
       serviciosNombres: suc.serviciosNombres,
       tieneServiciosEspeciales: suc.tieneServiciosEspeciales,
       gerenteId: suc.gerenteId,
       gerenteNombre: suc.gerenteNombre,
       responsable: suc.responsable,
-      requiereAprobacion: suc.requiereAprobacion
+      requiereAprobacion: suc.requiereAprobacion,
+      liderOperadorId: suc.liderOperadorId,
+      liderOperador: suc.liderOperador,
+      liderOperadorNombre: suc.liderOperadorNombre
     });
 
     return this.http.post<any>(apiUrl('/agencias/update'), payload).pipe(
@@ -246,6 +312,8 @@ export class SucursalMockService {
         if (suc.tieneServiciosEspeciales !== undefined) backendMapped.tieneServiciosEspeciales = suc.tieneServiciosEspeciales;
         if (suc.servicioIds) backendMapped.servicioIds = suc.servicioIds;
         if (suc.serviciosNombres) backendMapped.serviciosNombres = suc.serviciosNombres;
+        if (suc.liderOperadorId) backendMapped.liderOperadorId = suc.liderOperadorId;
+        if (suc.liderOperador && suc.liderOperador !== 'Sin Asignar') backendMapped.liderOperador = suc.liderOperador;
 
         const current = this.sucursalesSubject.value;
         const index = current.findIndex(s => String(s.id) === String(suc.id));

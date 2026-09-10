@@ -268,8 +268,8 @@ export class InventarioMockService {
     );
   }
 
-  public getInsumosPorServiciosAgencia(agenciaId?: string): Observable<any> {
-    return this.http.post<any>(apiUrl('/inventario/agencia/insumos-servicios'), { agenciaId }).pipe(
+  public getInsumosPorServiciosAgencia(agenciaId?: string, servicioIds?: number[]): Observable<any> {
+    return this.http.post<any>(apiUrl('/inventario/agencia/insumos-servicios'), { agenciaId, servicioIds }).pipe(
       catchError(() => of(null))
     );
   }
@@ -381,8 +381,15 @@ export class InventarioMockService {
           activo: i.estado === 1,
           estado: i.estado,
           fechaCreacion: i.createdAt,
-          createdAt: i.createdAt,
           presentaciones: i.presentaciones || [],
+          serviciosAsociados: (i.recetas || []).map((r: any) => ({
+            id: r.catalogoServicio?.id,
+            codigo: r.catalogoServicio?.codigo,
+            nombre: r.catalogoServicio?.nombre,
+            categoria: r.catalogoServicio?.categoria,
+            cantidadUsada: Number(r.cantidadUsada || 0),
+            unidad: r.unidadConsumo?.simbolo || i.unidadMedida?.simbolo || 'u',
+          })),
         }))
       ),
       catchError(() => of([]))

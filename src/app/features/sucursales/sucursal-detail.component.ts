@@ -303,25 +303,27 @@ export class SucursalDetailComponent implements OnInit {
   private toastService = inject(ToastService);
 
   get serviciosGenerales(): CatalogoServicio[] {
-    return this.catalogoServicios.filter(s => s.categoria === 'GENERAL' && s.estado === 'Activo');
+    return this.catalogoServicios.filter(s => s.categoria?.trim().toUpperCase() === 'GENERAL' && s.estado === 'Activo');
   }
 
   get serviciosEspeciales(): CatalogoServicio[] {
-    return this.catalogoServicios.filter(s => (s.categoria === 'ESPECIAL' || s.categoria === 'EXTRA') && s.estado === 'Activo');
+    return this.catalogoServicios.filter(s => 
+      (s.categoria?.trim().toUpperCase() === 'ESPECIAL' || s.categoria?.trim().toUpperCase() === 'EXTRA') && s.estado === 'Activo'
+    );
   }
 
   get cantidadGeneralesSeleccionadosEdit(): number {
-    const ids = new Set(this.idsServiciosEdit);
-    return this.serviciosGenerales.filter(s => ids.has(s.id)).length;
+    const ids = new Set(this.idsServiciosEdit.map(Number));
+    return this.serviciosGenerales.filter(s => ids.has(Number(s.id))).length;
   }
 
   get cantidadEspecialesSeleccionadosEdit(): number {
-    const ids = new Set(this.idsServiciosEdit);
-    return this.serviciosEspeciales.filter(s => ids.has(s.id)).length;
+    const ids = new Set(this.idsServiciosEdit.map(Number));
+    return this.serviciosEspeciales.filter(s => ids.has(Number(s.id))).length;
   }
 
   ngOnInit(): void {
-    const id = Number(this.route.snapshot.paramMap.get('id')) || 1;
+    const id = this.route.snapshot.paramMap.get('id') || '';
     
     this.sucursalService.getSucursalById(id).subscribe(suc => {
       this.sucursal = suc;
@@ -417,12 +419,16 @@ export class SucursalDetailComponent implements OnInit {
       return;
     }
     const user = this.auth.getCurrentUser();
+    const cleanIds = Array.from(new Set(this.idsServiciosEdit.map(Number)));
+    const tieneEsp = this.serviciosEspeciales.some(s => cleanIds.includes(Number(s.id)));
+
     const actualizada: Sucursal = {
       ...this.sucursal,
-      servicioIds: [...this.idsServiciosEdit],
+      servicioIds: cleanIds,
       serviciosNombres: this.catalogoServicios
-        .filter(s => this.idsServiciosEdit.includes(s.id))
-        .map(s => s.nombre)
+        .filter(s => cleanIds.includes(Number(s.id)))
+        .map(s => s.nombre),
+      tieneServiciosEspeciales: tieneEsp
     };
     this.sucursalService.actualizarSucursal(actualizada, {
       motivo: 'Actualización de servicios de sucursal',

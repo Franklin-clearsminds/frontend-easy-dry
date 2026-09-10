@@ -29,7 +29,7 @@ interface MenuGroup {
 
     <!-- Sidebar flotante: fixed a la izquierda, sobrepone el contenido -->
     <div
-      class="fixed top-0 left-0 h-screen overflow-hidden transition-[width] duration-200 ease-in-out shadow-2xl z-[999]"
+      class="fixed top-0 left-0 h-screen overflow-hidden transition-[width] duration-500 ease-in-out shadow-2xl z-[999]"
       [style.width]="isExpanded() ? sidebarInnerW : sidebarRailW"
       (mouseenter)="onMouseEnter()"
       (mouseleave)="onMouseLeave()">
@@ -38,37 +38,36 @@ interface MenuGroup {
         class="h-full w-[296px] bg-gradient-to-b from-easydry-blue via-easydry-blue-dark to-easydry-blue-deep text-white flex flex-col select-none overflow-hidden border-r border-white/10">
 
         <!-- Header / Logo -->
-        <div class="relative h-20 flex-shrink-0 border-b border-white/15 bg-easydry-blue-dark/60 flex items-center">
-          <!-- Rail 80px: Isotipo centrado con exactitud vertical -->
+        <div class="h-20 flex-shrink-0 border-b border-white/15 bg-easydry-blue-dark/60 relative flex items-center">
+
+          <!-- Modo rail (colapsado): isotipo centrado en los 80px del rail -->
           <a
             [routerLink]="['/dashboard']"
-            class="absolute left-0 top-0 w-20 h-20 flex items-center justify-center transition-opacity duration-200"
-            [class.opacity-0]="isExpanded()"
+            class="absolute left-0 top-0 bottom-0 w-20 flex items-center justify-center transition-opacity duration-500"
+            [style.opacity]="isExpanded() ? '0' : '0.92'"
             [class.pointer-events-none]="isExpanded()"
             [attr.tabindex]="isExpanded() ? -1 : 0"
             aria-label="EasyDry®">
-            <div class="w-12 h-12 rounded-xl bg-white p-1.5 flex items-center justify-center shadow-sm">
-              <img
-                src="assets/images/easydry-logo-mark.png"
-                alt="EasyDry"
-                class="w-full h-full object-contain">
-            </div>
+            <img
+              src="assets/images/easydry-logo-mark.png"
+              alt="EasyDry"
+              style="height: 40px; width: auto; filter: brightness(0) invert(1); display: block;">
           </a>
-          <!-- Expandido: Wordmark horizontal completo con letras azules (mismo eje vertical exacto h-12) -->
+
+          <!-- Modo expandido: logo horizontal centrado en los 296px del header -->
           <a
             [routerLink]="['/dashboard']"
-            class="absolute inset-0 flex items-center justify-center px-4 transition-opacity duration-200"
-            [class.opacity-0]="!isExpanded()"
+            class="absolute left-0 right-0 top-0 bottom-0 flex items-center justify-center transition-opacity duration-500"
+            [style.opacity]="isExpanded() ? '0.92' : '0'"
             [class.pointer-events-none]="!isExpanded()"
             [attr.tabindex]="isExpanded() ? 0 : -1"
             aria-label="EasyDry®">
-            <div class="h-12 w-full max-w-[240px] bg-white rounded-xl px-3.5 py-1 flex items-center justify-center shadow-sm">
-              <img
-                src="assets/images/easydry-logo-horizontal.png"
-                alt="EasyDry"
-                class="h-8 w-auto max-w-[210px] object-contain">
-            </div>
+            <img
+              src="assets/images/easydry-logo-horizontal.png"
+              alt="EasyDry"
+              style="height: 40px; width: auto; filter: brightness(0) invert(1); display: block;">
           </a>
+
         </div>
 
         <!-- Menú de Navegación -->

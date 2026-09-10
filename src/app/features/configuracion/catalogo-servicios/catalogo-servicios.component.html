@@ -56,13 +56,15 @@
     </button>
 
     <!-- Pestaña 2: Servicios Especiales -->
-    <button
-      (click)="tabActiva = 'especiales'"
-      [ngClass]="tabActiva === 'especiales' ? 'bg-white text-amber-700 shadow-md font-extrabold' : 'text-slate-600 hover:text-slate-900 font-semibold'"
-      class="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs transition-all cursor-pointer">
-      <i-lucide name="star" class="w-4 h-4 text-amber-500 fill-amber-500/20"></i-lucide>
-      <span>Servicios Especiales</span>
-    </button>
+    @if (tieneServiciosEspeciales || !esUsuarioSucursal) {
+      <button
+        (click)="tabActiva = 'especiales'"
+        [ngClass]="tabActiva === 'especiales' ? 'bg-white text-amber-700 shadow-md font-extrabold' : 'text-slate-600 hover:text-slate-900 font-semibold'"
+        class="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs transition-all cursor-pointer">
+        <i-lucide name="star" class="w-4 h-4 text-amber-500 fill-amber-500/20"></i-lucide>
+        <span>Servicios Especiales</span>
+      </button>
+    }
 
   </div>
 
@@ -71,7 +73,22 @@
   <!-- ====================================================================== -->
   @if (tabActiva === 'generales') {
     <div class="space-y-6 animate-fade-in">
-      
+
+      <!-- Banner: agencia sin servicios configurados (solo Líderes) -->
+      @if (sinServiciosConfigurados) {
+        <div class="flex items-start gap-4 p-5 rounded-2xl border border-amber-200 bg-amber-50">
+          <div class="shrink-0 w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center">
+            <i-lucide name="triangle-alert" class="w-5 h-5 text-amber-600"></i-lucide>
+          </div>
+          <div>
+            <p class="text-sm font-bold text-amber-800">Sin servicios configurados</p>
+            <p class="text-xs text-amber-700 mt-0.5">
+              Tu agencia aún no tiene servicios habilitados en el sistema. Contacta al administrador para que configure el catálogo de tu sede desde el módulo <strong>Sucursales</strong>.
+            </p>
+          </div>
+        </div>
+      }
+
       <!-- Barra de Filtros Generales Unificada -->
       <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-easydry flex flex-wrap gap-3 items-end z-20 relative">
         <div class="flex-[2_2_320px] min-w-[280px] sm:min-w-[340px] max-w-full">
@@ -236,7 +253,7 @@
   <!-- ====================================================================== -->
   <!-- TAB 2: SERVICIOS ESPECIALES                                            -->
   <!-- ====================================================================== -->
-  @if (tabActiva === 'especiales') {
+  @if (tabActiva === 'especiales' && (tieneServiciosEspeciales || !esUsuarioSucursal)) {
     <div class="space-y-6 animate-fade-in">
       
       <!-- Barra de Filtros Especiales Unificada -->

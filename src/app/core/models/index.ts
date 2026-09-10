@@ -33,6 +33,7 @@ export interface Sucursal {
   direccion: string;
   estado: 'Activo' | 'Mantenimiento' | 'Inactivo' | string;
   cantidadBahias: number;
+  maxLavadoresPorBahia?: number;
   responsable: string;
   liderOperador?: string;
   liderOperadorId?: string | number;

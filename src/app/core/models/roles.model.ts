@@ -12,11 +12,11 @@ export enum Role {
   COORD_COMERCIAL = 'COORD_COMERCIAL',
   /** Aprobador de agencia — cierre diario y auditoría de evidencias */
   APROBADOR = 'APROBADOR',
-  /** Líder Operador — acceso a plataforma, registro de OTs/servicios de su sucursal y control de bahías */
-  LIDER_OPERADOR = 'LIDER_OPERADOR',
+  /** Líder — acceso a plataforma, registro de OTs/servicios de su sucursal y control de bahías */
+  LIDER_OPERADOR = 'LIDER',
   LIDER_AGENCIA = 'LIDER_AGENCIA',
-  /** Operador técnico de bahía — registro en BD para constancia y trazabilidad de productividad */
-  OPERADOR = 'OPERADOR',
+  /** Lavador de bahía — registro en BD para constancia y trazabilidad de productividad */
+  OPERADOR = 'LAVADOR',
   COORD_SERVICIOS_ESPECIALES = 'COORD_SERVICIOS_ESPECIALES',
   PULIDOR_FIJO = 'PULIDOR_FIJO',
   PULIDOR_MOVIL = 'PULIDOR_MOVIL',
@@ -90,8 +90,8 @@ export const MODULOS_SISTEMA: ModuloSistema[] = [
   {
     id: 'mod_operadores',
     codigo: 'operadores',
-    nombre: 'Operadores de Bahía',
-    descripcion: 'Directorio, métricas y estado del personal operativo',
+    nombre: 'Lavadores de Bahía',
+    descripcion: 'Directorio, métricas y estado del personal de lavado',
     icono: 'user-check',
     rutaPrincipal: '/operadores',
     grupo: 'Operación & Agencias'
@@ -446,9 +446,9 @@ export const ROLES_INICIALES: RolPersonalizado[] = [
   {
     id: 'rol_gerente',
     codigo: Role.APROBADOR,
-    nombre: 'Gerente de Sucursal',
+    nombre: 'Aprobador',
     descripcion:
-      'Aprobador y responsable de agencia. Supervisa la operación de la sede, audita evidencias fotográficas y aprueba los servicios de lavado realizados.',
+      'Aprobador de agencia. Supervisa la operación de la sede, audita evidencias fotográficas y aprueba los servicios de lavado realizados.',
     color: '#6366F1',
     badgeClass: 'bg-indigo-100 text-indigo-800 border-indigo-200',
     modulos: MODULOS_POR_ROL[Role.APROBADOR],
@@ -495,7 +495,7 @@ export const ROLES_INICIALES: RolPersonalizado[] = [
   {
     id: 'rol_lider_operador',
     codigo: Role.LIDER_OPERADOR,
-    nombre: 'Líder Operador',
+    nombre: 'Líder',
     descripcion: 'Líder con acceso a la plataforma para registrar servicios y OTs de su sucursal y coordinar bahías e inventario.',
     color: '#0D9488',
     badgeClass: 'bg-teal-100 text-teal-800 border-teal-200',
@@ -507,8 +507,8 @@ export const ROLES_INICIALES: RolPersonalizado[] = [
   {
     id: 'rol_operador',
     codigo: Role.OPERADOR,
-    nombre: 'Operador',
-    descripcion: 'Personal técnico de bahía registrado para control, constancia de asignación y trazabilidad de productividad.',
+    nombre: 'Lavador',
+    descripcion: 'Personal de lavado en bahía registrado para control, constancia de asignación y trazabilidad de productividad.',
     color: '#059669',
     badgeClass: 'bg-emerald-100 text-emerald-800 border-emerald-200',
     modulos: MODULOS_POR_ROL[Role.OPERADOR],
@@ -1049,13 +1049,13 @@ export const PERMISOS_POR_ROL: Record<string, PermisosRol> = {
 export const ROLE_LABELS: Record<string, string> = {
   [Role.SUPER_ADMIN]: 'Super Administrador',
   [Role.ADMIN]: 'Administrador',
-  [Role.APROBADOR]: 'Gerente de Sucursal',
+  [Role.APROBADOR]: 'Aprobador',
   [Role.SUPERVISOR]: 'Supervisor Regional',
   [Role.JEFE_COMERCIAL]: 'Jefe Comercial',
   [Role.COORD_COMERCIAL]: 'Coordinador Comercial',
-  [Role.LIDER_OPERADOR]: 'Líder Operador',
-  [Role.LIDER_AGENCIA]: 'Líder Operador',
-  [Role.OPERADOR]: 'Operador (Trazabilidad Bahía)',
+  [Role.LIDER_OPERADOR]: 'Líder',
+  [Role.LIDER_AGENCIA]: 'Líder',
+  [Role.OPERADOR]: 'Lavador',
   [Role.COORD_SERVICIOS_ESPECIALES]: 'Coordinador de Servicios Especiales',
   [Role.PULIDOR_FIJO]: 'Pulidor Fijo',
   [Role.PULIDOR_MOVIL]: 'Pulidor Móvil',

@@ -31,7 +31,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
           <p class="text-slate-500 text-xs mt-1">Directorio de personal técnico, asignación directa a agencia y bahía, productividad y trazabilidad histórica (100% Base de Datos).</p>
           <div class="mt-2 inline-flex items-center gap-2 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-900 border border-emerald-200 text-[11px] font-medium">
             <i-lucide name="shield" class="w-3.5 h-3.5 text-emerald-600 shrink-0"></i-lucide>
-            <span><strong>Rol Operador:</strong> Registro y constancia técnica en bahía para trazabilidad. El acceso al sistema y registro de OTs lo efectúa el <strong>Líder Operador</strong>.</span>
+            <span><strong>Rol Lavador:</strong> Registro y constancia técnica en bahía para trazabilidad. El acceso al sistema y registro de OTs lo efectúa el <strong>Líder</strong>.</span>
           </div>
         </div>
 

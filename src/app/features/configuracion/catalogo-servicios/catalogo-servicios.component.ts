@@ -24,12 +24,15 @@ export class CatalogoServiciosComponent implements OnInit {
   public authService = inject(AuthService);
   private sucursalService = inject(SucursalMockService);
 
-  // ── Scoping por sucursal (Líder Operador / Gerente) ──────────────────────
+  // ── Scoping por sucursal (Líder / Aprobador) ────────────────────────────
   sucursalUsuario: Sucursal | null = null;
   serviciosSucursalIds: number[] = [];
   serviciosSucursalNombres: string[] = [];
   esLiderOperador = false;
   esUsuarioSucursal = false;
+  tieneServiciosEspeciales = false;
+  /** Verdadero cuando el Líder tiene agencia pero la agencia no tiene servicios configurados en BD */
+  sinServiciosConfigurados = false;
 
   // ── Tabs ──────────────────────────────────────────────────────────────────
   tabActiva: 'generales' | 'especiales' = 'generales';
@@ -126,6 +129,7 @@ export class CatalogoServiciosComponent implements OnInit {
       const sucNombre = (user.sucursalNombre || user.sucursal || (user as any).agencia || '').toLowerCase().trim();
       const suc = sucursales.find(s =>
         (user.agenciaId && String(s.id) === String(user.agenciaId)) ||
+        (s.liderOperadorId && (user as any).id && String(s.liderOperadorId) === String((user as any).id)) ||
         (s.nombre && s.nombre.toLowerCase() === sucNombre) ||
         (s.nombre && sucNombre && (s.nombre.toLowerCase().includes(sucNombre) || sucNombre.includes(s.nombre.toLowerCase())))
       );
@@ -137,6 +141,7 @@ export class CatalogoServiciosComponent implements OnInit {
         if (!esSuperAdmin && !esAdmin) {
           this.esUsuarioSucursal = true;
         }
+        this.recalcularTieneServiciosEspeciales();
       }
     };
 
@@ -192,7 +197,49 @@ export class CatalogoServiciosComponent implements OnInit {
     this.catalogoService.getServicios().subscribe();
     this.catalogoService.servicios$.subscribe(data => {
       this.servicios = data;
+      this.recalcularTieneServiciosEspeciales();
     });
+    // Usar el contexto de agencia devuelto por el backend (para LIDER/APROBADOR)
+    this.catalogoService.agenciaCtx$.subscribe(ctx => {
+      if (ctx !== null) {
+        // Backend scoped response: usar directamente el flag de la agencia en BD
+        this.tieneServiciosEspeciales = ctx.tieneServiciosEspeciales;
+        this.sinServiciosConfigurados = this.esLiderOperador && ctx.servicioIds.length === 0;
+        if (!this.tieneServiciosEspeciales && this.tabActiva === 'especiales') {
+          this.tabActiva = 'generales';
+        }
+      }
+    });
+  }
+
+  recalcularTieneServiciosEspeciales(): void {
+    if (!this.sucursalUsuario) {
+      const user = this.authService.getCurrentUser();
+      const sucNombre = user && (user.sucursalNombre || user.sucursal || (user as any).agencia || '');
+      this.tieneServiciosEspeciales =
+        Boolean(user && user.agenciaId !== undefined && user.agenciaId !== null && user.agenciaId !== ''
+          ? this.sucursalService.hasServiciosEspecialesActivos(user.agenciaId, sucNombre)
+          : false);
+      return;
+    }
+    const espIds = new Set(
+      (this.servicios || [])
+        .filter(s => s.categoria === 'ESPECIAL' || s.categoria === 'EXTRA')
+        .map(s => Number(s.id))
+    );
+    const espNombres = new Set(
+      (this.servicios || [])
+        .filter(s => s.categoria === 'ESPECIAL' || s.categoria === 'EXTRA')
+        .map(s => (s.nombre || '').toLowerCase().trim())
+    );
+    this.tieneServiciosEspeciales =
+      Boolean((this.sucursalUsuario as any).tieneServiciosEspeciales) ||
+      this.serviciosSucursalIds.some(id => espIds.has(Number(id))) ||
+      this.serviciosSucursalNombres.some(n => espNombres.has(String(n).toLowerCase().trim()));
+
+    if (!this.tieneServiciosEspeciales && this.esUsuarioSucursal && this.tabActiva === 'especiales') {
+      this.tabActiva = 'generales';
+    }
   }
 
   // ── SERVICIOS GENERALES: Filtrado & Paginación ───────────────────────────

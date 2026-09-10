@@ -153,13 +153,13 @@ import { environment } from '../../core/config/env';
           <!-- Resplandor sutil superior derecho en el interior de la tarjeta -->
           <div class="absolute -top-12 -right-12 w-36 h-36 bg-cyan-200/50 rounded-full blur-2xl pointer-events-none"></div>
 
-          <!-- Logo EasyDry: Logo Stacked Oficial -->
-          <div class="flex items-center justify-center mb-4">
-            <div class="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-white flex items-center justify-center shadow-lg shadow-sky-950/15 overflow-hidden p-1">
+          <!-- Logo EasyDry: Logo Horizontal (igual al sidebar) -->
+          <div class="flex items-center justify-center mb-6">
+            <div class="px-5 py-3 rounded-2xl bg-white flex items-center justify-center shadow-lg shadow-sky-950/15 overflow-hidden">
               <img
-                src="assets/images/easydry-logo-stacked.png"
+                src="assets/images/easydry-logo-horizontal.png"
                 alt="EasyDry Logo"
-                class="w-full h-full object-contain scale-[1.38]"
+                class="h-10 w-auto max-w-[200px] object-contain"
               />
             </div>
           </div>

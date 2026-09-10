@@ -35,7 +35,7 @@ import { PaginationComponent } from '../../shared/components/pagination/paginati
                 Alcance Operativo: <span class="text-easydry-blue">{{ sucursalSeleccionadaNombre || authService.getCurrentUser()?.sucursalNombre || 'Agencia Asignada' }}</span>
               </p>
               <p class="text-slate-600 text-[11px] mt-0.5">
-                Como Líder Operador, su gestión está restringida al personal técnico y a los movimientos entre bahías de su propia sede.
+                Como Líder, su gestión está restringida al personal técnico y a los movimientos entre bahías de su propia sede.
               </p>
             </div>
           </div>
@@ -381,7 +381,7 @@ export class AsignacionesComponent implements OnInit {
         (userSucursal && ((bahiaTarget.sucursalNombre && bahiaTarget.sucursalNombre.toLowerCase().includes(userSucursal)) ||
                           (bahiaTarget.agenciaNombre && bahiaTarget.agenciaNombre.toLowerCase().includes(userSucursal))));
       if (!bahiaValida) {
-        this.toastService.error('Permiso Denegado', 'Como Líder Operador solo puede mover operadores entre bahías de su propia agencia.');
+        this.toastService.error('Permiso Denegado', 'Como Líder solo puede mover operadores entre bahías de su propia agencia.');
         return;
       }
     }

@@ -130,18 +130,20 @@ import { RouterModule } from '@angular/router';
         </button>
 
         <!-- Pestaña 2: Servicios Especiales -->
-        <button
-          (click)="cambiarTab('especiales')"
-          [ngClass]="tabActiva === 'especiales' ? 'bg-white text-amber-700 shadow-md font-extrabold' : 'text-slate-600 hover:text-slate-900 font-semibold'"
-          class="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs transition-all cursor-pointer">
-          <i-lucide name="star" class="w-4 h-4 text-amber-500 fill-amber-500/20"></i-lucide>
-          <span>Servicios Especiales</span>
-        </button>
+        @if (tieneServiciosEspeciales) {
+          <button
+            (click)="cambiarTab('especiales')"
+            [ngClass]="tabActiva === 'especiales' ? 'bg-white text-amber-700 shadow-md font-extrabold' : 'text-slate-600 hover:text-slate-900 font-semibold'"
+            class="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs transition-all cursor-pointer">
+            <i-lucide name="star" class="w-4 h-4 text-amber-500 fill-amber-500/20"></i-lucide>
+            <span>Servicios Especiales</span>
+          </button>
+        }
 
       </div>
 
       <!-- Banner contextual para Servicios Especiales -->
-      @if (tabActiva === 'especiales') {
+      @if (tabActiva === 'especiales' && tieneServiciosEspeciales) {
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent p-4 rounded-2xl border border-amber-200/60 animate-fade-in">
           <div class="flex items-center gap-3">
             <div class="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-800 flex items-center justify-center shrink-0">
@@ -195,7 +197,7 @@ import { RouterModule } from '@angular/router';
                 <th class="py-3.5 px-4">Categoría & Servicio</th>
                 <th class="py-3.5 px-4">Sucursal / Bahía</th>
                 <th class="py-3.5 px-4">Horarios</th>
-                <th class="py-3.5 px-4">Operador</th>
+                <th class="py-3.5 px-4">Lavador</th>
                 <th class="py-3.5 px-4">Estado Workflow</th>
                 <th class="py-3.5 px-4 text-center">Evidencia</th>
                 <th class="py-3.5 px-4 text-right">Acciones</th>
@@ -395,7 +397,7 @@ import { RouterModule } from '@angular/router';
 
             <div class="p-3 bg-slate-50 rounded-xl border border-slate-100 text-xs flex justify-between items-center">
               <div>
-                <span class="block text-[10px] text-slate-400 font-bold uppercase mb-1">Operador</span>
+                <span class="block text-[10px] text-slate-400 font-bold uppercase mb-1">Lavador</span>
                 <span class="font-bold text-slate-800">{{ servicioDetalleSeleccionado.empleado }}</span>
               </div>
               <div class="text-right">
@@ -492,7 +494,7 @@ import { RouterModule } from '@angular/router';
               </span>
               @if (isLiderOperador) {
                 <span class="px-2.5 py-0.5 rounded-full bg-teal-100 text-teal-800 text-[10px] font-extrabold border border-teal-200">
-                  Líder Operador: {{ userSucursal }}
+                  Líder: {{ userSucursal }}
                 </span>
               }
             </div>
@@ -531,7 +533,7 @@ import { RouterModule } from '@angular/router';
               <!-- Operador Técnico (Trazabilidad) -->
               <div>
                 <label class="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                  Operador Técnico
+                  Lavador
                   <span class="text-easydry-blue font-bold text-[10px]">(Trazabilidad)</span>
                 </label>
                 <select
@@ -548,7 +550,7 @@ import { RouterModule } from '@angular/router';
               </div>
             </div>
             <p class="text-[11px] text-slate-500">
-              El servicio computará en la trazabilidad operativa y conteo de servicios del operador técnico seleccionado.
+              El servicio computará en la trazabilidad operativa y conteo de servicios del lavador seleccionado.
             </p>
           </div>
 
@@ -947,6 +949,7 @@ export class ServiciosComponent implements OnInit {
   maquinasReporte: Maquinaria[] = [];
   maquinaSeleccionadaId: number | string = 0;
   archivosFalloSubidos: ArchivoAdjunto[] = [];
+  tieneServiciosEspeciales: boolean = false;
   tiposFallaDisponibles: string[] = [
     'Falla eléctrica',
     'Fuga de agua',
@@ -1125,6 +1128,7 @@ export class ServiciosComponent implements OnInit {
       const nombres = cat.map(c => c.nombre).filter(Boolean);
       if (nombres.length) this.listaServiciosFiltro = Array.from(new Set(nombres));
       this.onCategoriaChange();
+      this.recalcularTieneServiciosEspeciales();
     });
 
     this.sucursalService.getSucursales().subscribe(list => {
@@ -1132,6 +1136,7 @@ export class ServiciosComponent implements OnInit {
       const sucClean = (user?.sucursalNombre || user?.sucursal || (user as any)?.agencia || '').toLowerCase().trim();
       const suc = list.find(s =>
         (user?.agenciaId && String(s.id) === String(user.agenciaId)) ||
+        (s.liderOperadorId && (user as any)?.id && String(s.liderOperadorId) === String((user as any)?.id)) ||
         (s.nombre && s.nombre.toLowerCase() === sucClean) ||
         (s.nombre && sucClean && (s.nombre.toLowerCase().includes(sucClean) || sucClean.includes(s.nombre.toLowerCase())))
       ) || this.sucursalService.getSucursalPorNombre(user?.sucursalNombre || user?.sucursal);
@@ -1147,6 +1152,7 @@ export class ServiciosComponent implements OnInit {
 
       this.onSucursalFormChange();
       this.onCategoriaChange();
+      this.recalcularTieneServiciosEspeciales();
     });
 
     this.inventarioService.getItems().subscribe((items: any) => {
@@ -1196,6 +1202,55 @@ export class ServiciosComponent implements OnInit {
           this.maquinaSeleccionadaId = this.maquinasReporte[0].id;
         }
       });
+    }
+  }
+
+  recalcularTieneServiciosEspeciales(): void {
+    const user = this.authService.getCurrentUser();
+    if (!user) { this.tieneServiciosEspeciales = false; return; }
+
+    const sucClean = (user.sucursalNombre || user.sucursal || (user as any).agencia || '').toLowerCase().trim();
+
+    // Usuarios sin sucursal asignada (Admin, Coord. de Especiales, etc.) siempre pueden ver Especiales
+    if (!sucClean && !user.agenciaId) {
+      this.tieneServiciosEspeciales = true;
+      return;
+    }
+
+    const suc = this.sucursales.find(s =>
+      (user.agenciaId && String(s.id) === String(user.agenciaId)) ||
+      (s.liderOperadorId && (user as any).id && String(s.liderOperadorId) === String((user as any).id)) ||
+      (s.nombre && s.nombre.toLowerCase() === sucClean) ||
+      (s.nombre && sucClean && (s.nombre.toLowerCase().includes(sucClean) || sucClean.includes(s.nombre.toLowerCase())))
+    ) || this.sucursalService.getSucursalPorNombre(user.sucursalNombre || user.sucursal);
+
+    if (!suc) {
+      // Respaldo directo a la configuración guardada de la agencia (localStorage del navegador)
+      this.tieneServiciosEspeciales =
+        Boolean(user.agenciaId !== undefined && user.agenciaId !== null && user.agenciaId !== ''
+          ? this.sucursalService.hasServiciosEspecialesActivos(user.agenciaId, sucClean)
+          : false);
+      return;
+    }
+
+    const espIds = new Set(
+      (this.catalogoCompleto || [])
+        .filter(c => c.categoria === 'ESPECIAL' || c.categoria === 'EXTRA')
+        .map(c => c.id)
+    );
+    const espNombres = new Set(
+      (this.catalogoCompleto || [])
+        .filter(c => c.categoria === 'ESPECIAL' || c.categoria === 'EXTRA')
+        .map(c => c.nombre?.toLowerCase().trim())
+    );
+
+    this.tieneServiciosEspeciales =
+      Boolean((suc as any).tieneServiciosEspeciales) ||
+      Boolean(suc.servicioIds?.some((id: number) => espIds.has(id))) ||
+      Boolean(suc.serviciosNombres?.some((n: string) => espNombres.has(String(n).toLowerCase().trim())));
+
+    if (!this.tieneServiciosEspeciales && this.tabActiva === 'especiales') {
+      this.cambiarTab('generales');
     }
   }
 

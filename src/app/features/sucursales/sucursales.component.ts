@@ -282,7 +282,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                     <span class="font-bold text-slate-800">{{ suc.responsable || 'Sin Asignar' }}</span>
                   </div>
                   <div class="flex items-center justify-between text-xs">
-                    <span class="text-slate-500">Líder Operador:</span>
+                    <span class="text-slate-500">Líder:</span>
                     <span class="font-bold" [ngClass]="getLiderOperador(suc) !== 'Sin Asignar' ? 'text-easydry-blue' : 'text-slate-400'">
                       {{ getLiderOperador(suc) }}
                     </span>
@@ -570,10 +570,10 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
               </div>
             } @empty {
               <div class="col-span-full p-8 text-center bg-white rounded-2xl border border-slate-100 text-slate-400 space-y-3">
-                <p>No hay usuarios con rol Gerente de Sucursal dados de alta en el directorio.</p>
+                <p>No hay usuarios con rol Aprobador dados de alta en el directorio.</p>
                 <a routerLink="/usuarios" class="inline-flex items-center gap-2 px-4 py-2 bg-purple-100 hover:bg-purple-200 text-purple-800 font-bold rounded-xl text-xs transition-colors">
                   <i-lucide name="user-plus" class="w-4 h-4"></i-lucide>
-                  <span>Crear Gerente de Sucursal en Directorio</span>
+                  <span>Crear Aprobador en Directorio</span>
                 </a>
               </div>
             }
@@ -701,9 +701,35 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
             </div>
           </div>
 
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Máximo Lavadores por Bahía</label>
+              <input type="number" [(ngModel)]="nuevaSucursal.maxLavadoresPorBahia" name="maxLavadoresPorBahia" min="1" max="10" class="w-full p-2.5 border rounded-xl text-sm" required>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Dirección Exacta</label>
+              <input type="text" [(ngModel)]="nuevaSucursal.direccion" name="direccion" placeholder="Av. Principal N45-120" class="w-full p-2.5 border rounded-xl text-sm" required>
+            </div>
+          </div>
+
           <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Dirección Exacta</label>
-            <input type="text" [(ngModel)]="nuevaSucursal.direccion" name="direccion" placeholder="Av. Principal N45-120" class="w-full p-2.5 border rounded-xl text-sm" required>
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1 flex items-center gap-1">
+              <i-lucide name="crown" class="w-3.5 h-3.5 text-teal-600"></i-lucide>
+              Líder Operador
+            </label>
+            <select [(ngModel)]="nuevaSucursal.liderOperadorId" (ngModelChange)="alCambiarLiderOperador($event)" name="liderOperadorId"
+                    class="w-full p-2.5 border rounded-xl text-sm font-semibold">
+              <option [ngValue]="undefined">— Sin Líder Operador asignado —</option>
+              @for (lid of lideresOperadoresUsuarios; track lid.id) {
+                <option [ngValue]="lid.id">{{ lid.nombre }} {{ lid.apellido }} ({{ lid.email }})</option>
+              }
+            </select>
+            @if (!lideresOperadoresUsuarios.length) {
+              <p class="text-[11px] text-amber-600 mt-1.5 flex items-center gap-1">
+                <i-lucide name="alert-triangle" class="w-3 h-3"></i-lucide>
+                No hay usuarios con rol Líder registrados. Créalos en Gestión de Usuarios.
+              </p>
+            }
           </div>
 
 
@@ -718,8 +744,8 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                   <i-lucide name="shield-check" class="w-4 h-4"></i-lucide>
                 </div>
                 <div>
-                  <p class="text-xs font-extrabold text-slate-800 uppercase">Requiere Aprobación Gerencial</p>
-                  <p class="text-[11px] text-slate-500">Los servicios finalizados deben ser aprobados por el gerente antes del cierre del día</p>
+                  <p class="text-xs font-extrabold text-slate-800 uppercase">Requiere Aprobador</p>
+                  <p class="text-[11px] text-slate-500">Los servicios finalizados deben ser aprobados antes del cierre del día</p>
                 </div>
               </div>
               <!-- Toggle switch -->
@@ -734,11 +760,11 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
               <div class="px-4 pb-4 border-t border-easydry-green/20 pt-3">
                 <label class="block text-xs font-bold text-slate-700 uppercase mb-1.5">
                   <i-lucide name="user-check" class="w-3.5 h-3.5 inline mr-1 text-easydry-green-dark"></i-lucide>
-                  Gerente Aprobador
+                  Aprobador
                 </label>
                 <select [(ngModel)]="nuevaSucursal.gerenteId" (ngModelChange)="alCambiarGerente($event)" name="gerenteId"
                         class="w-full p-2.5 border border-easydry-green/30 rounded-xl text-sm font-semibold bg-white focus:ring-2 focus:ring-easydry-green/30">
-                  <option [ngValue]="undefined">— Seleccione un Gerente —</option>
+                  <option [ngValue]="undefined">— Seleccione un Aprobador —</option>
                   @for (ger of gerentesUsuarios; track ger.id) {
                     <option [ngValue]="ger.id">{{ ger.nombre }} {{ ger.apellido }} · {{ ger.sucursalAsignada || 'Red Nacional' }}</option>
                   }
@@ -746,7 +772,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                 @if (!gerentesUsuarios.length) {
                   <p class="text-[11px] text-amber-600 mt-1.5 flex items-center gap-1">
                     <i-lucide name="alert-triangle" class="w-3 h-3"></i-lucide>
-                    No hay usuarios con rol Gerente registrados aún.
+                    No hay usuarios con rol Aprobador registrados aún.
                   </p>
                 }
               </div>
@@ -1096,12 +1122,22 @@ export class SucursalesComponent implements OnInit {
     return list.length ? list : this.marcas;
   }
 
+  get lideresOperadoresUsuarios(): Usuario[] {
+    return this.todosLosUsuarios.filter(u => {
+      const r = (u.rol || u.rolNombre || '').toUpperCase();
+      const activo = u.estado === 'Activo' || (u as any).estado === 1;
+      return activo && (r.includes('LIDER') || r.includes('LÍDER')) && !r.includes('APROBADOR') && !r.includes('GERENTE');
+    });
+  }
+
   get serviciosGenerales(): CatalogoServicio[] {
-    return this.catalogoServicios.filter(s => s.categoria === 'GENERAL' && s.estado === 'Activo');
+    return this.catalogoServicios.filter(s => s.categoria?.trim().toUpperCase() === 'GENERAL' && s.estado === 'Activo');
   }
 
   get serviciosEspeciales(): CatalogoServicio[] {
-    return this.catalogoServicios.filter(s => (s.categoria === 'ESPECIAL' || s.categoria === 'EXTRA') && s.estado === 'Activo');
+    return this.catalogoServicios.filter(s => 
+      (s.categoria?.trim().toUpperCase() === 'ESPECIAL' || s.categoria?.trim().toUpperCase() === 'EXTRA') && s.estado === 'Activo'
+    );
   }
 
   get sucursalesFiltradas(): Sucursal[] {
@@ -1222,9 +1258,9 @@ export class SucursalesComponent implements OnInit {
       if (list && list.length) {
         this.todosLosUsuarios = list;
         this.gerentesUsuarios = list.filter(u => {
-          const r = (u.rol || u.rolNombre || '').toLowerCase();
+          const r = (u.rol || u.rolNombre || '').toUpperCase();
           const activo = u.estado === 'Activo' || (u as any).estado === 1;
-          return activo && (r.includes('gerente') || r.includes('aprobador'));
+          return activo && r === 'APROBADOR';
         });
         this.supervisoresUsuarios = list.filter(u =>
           (u.estado === 'Activo' || (u as any).estado === 1) &&
@@ -1236,9 +1272,9 @@ export class SucursalesComponent implements OnInit {
       if (list && list.length) {
         this.todosLosUsuarios = list;
         this.gerentesUsuarios = list.filter(u => {
-          const r = (u.rol || u.rolNombre || '').toLowerCase();
+          const r = (u.rol || u.rolNombre || '').toUpperCase();
           const activo = u.estado === 'Activo' || (u as any).estado === 1;
-          return activo && (r.includes('gerente') || r.includes('aprobador'));
+          return activo && r === 'APROBADOR';
         });
         this.supervisoresUsuarios = list.filter(u =>
           (u.estado === 'Activo' || (u as any).estado === 1) &&
@@ -1310,44 +1346,45 @@ export class SucursalesComponent implements OnInit {
   abrirModalCrearSucursal(): void {
     this.editandoSucursal = false;
     this.nuevaSucursal = this.sucursalVacia();
-    // Pre-cargar servicios generales
-    if (this.serviciosGenerales.length > 0) {
-      this.nuevaSucursal.servicioIds = this.serviciosGenerales.map(s => s.id);
-    }
+    // Cargar catálogo actualizado desde la BD
+    this.catalogoService.getServiciosActivos().subscribe(list => {
+      this.catalogoServicios = list;
+      if (this.serviciosGenerales.length > 0) {
+        this.nuevaSucursal.servicioIds = this.serviciosGenerales.map(s => Number(s.id));
+        this.nuevaSucursal.serviciosNombres = this.serviciosGenerales.map(s => s.nombre);
+      }
+    });
     this.modalCrearOpen = true;
   }
 
   abrirModalEditar(suc: Sucursal): void {
     this.editandoSucursal = true;
 
-    // Normalizar IDs existentes contra el catálogo activo
+    // Asegurarse de tener el catálogo actualizado desde la BD
+    this.catalogoService.getServiciosActivos().subscribe(list => {
+      this.catalogoServicios = list;
+    });
+
     const catalogoIds = new Set(this.catalogoServicios.map(s => Number(s.id)));
     const idsEspeciales = new Set(this.serviciosEspeciales.map(s => Number(s.id)));
 
-    let sIds = (suc.servicioIds || [])
-      .map(id => Number(id))
-      .filter(id => catalogoIds.size === 0 || catalogoIds.has(id));
+    // Origen de verdad: IDs guardados en la BD para esta sucursal
+    let sIds: number[] = [];
+    if (Array.isArray(suc.servicioIds)) {
+      sIds = suc.servicioIds
+        .map(id => Number(id))
+        .filter(id => !isNaN(id) && id > 0 && (catalogoIds.size === 0 || catalogoIds.has(id)));
+    } else {
+      // Si la sucursal nunca ha tenido servicios configurados en BD, sugerir generales
+      sIds = this.serviciosGenerales.map(s => Number(s.id));
+    }
 
-    // Determinar si la sucursal tiene servicios especiales activos
     const tieneEsp = suc.tieneServiciosEspeciales !== undefined
       ? Boolean(suc.tieneServiciosEspeciales)
       : sIds.some(id => idsEspeciales.has(id));
 
-    if (sIds.length === 0) {
-      sIds = this.serviciosGenerales.map(s => Number(s.id));
-      if (tieneEsp) {
-        sIds = [...sIds, ...this.serviciosEspeciales.map(s => Number(s.id))];
-      }
-    }
-
     if (!tieneEsp) {
       sIds = sIds.filter(id => !idsEspeciales.has(id));
-    } else {
-      // Si tiene servicios especiales activo pero no tiene ninguno seleccionado, cargar todos los especiales
-      const tieneAlgunEsp = sIds.some(id => idsEspeciales.has(id));
-      if (!tieneAlgunEsp && this.serviciosEspeciales.length > 0) {
-        sIds = [...sIds, ...this.serviciosEspeciales.map(s => Number(s.id))];
-      }
     }
 
     sIds = Array.from(new Set(sIds));
@@ -1371,6 +1408,7 @@ export class SucursalesComponent implements OnInit {
       ciudad: suc.ciudad || suc.regionNombre || 'Quito',
       direccion: suc.direccion || '',
       cantidadBahias: suc.cantidadBahias || 4,
+      maxLavadoresPorBahia: suc.maxLavadoresPorBahia || 1,
       servicioIds: sIds,
       serviciosNombres: this.catalogoServicios.filter(s => sIds.includes(Number(s.id))).map(s => s.nombre),
       requiereAprobacion: suc.requiereAprobacion !== undefined ? suc.requiereAprobacion : tieneGer,
@@ -1423,6 +1461,17 @@ export class SucursalesComponent implements OnInit {
     } else {
       this.nuevaSucursal.gerenteNombre = undefined;
       this.nuevaSucursal.responsable = this.nuevaSucursal.requiereAprobacion ? 'Por Asignar' : 'Sin Asignar';
+    }
+  }
+
+  alCambiarLiderOperador(id: any): void {
+    if (id) {
+      const lid = this.lideresOperadoresUsuarios.find(u => String(u.id) === String(id));
+      this.nuevaSucursal.liderOperador = lid ? `${lid.nombre} ${lid.apellido || ''}`.trim() : undefined;
+      this.nuevaSucursal.liderOperadorNombre = this.nuevaSucursal.liderOperador;
+    } else {
+      this.nuevaSucursal.liderOperador = undefined;
+      this.nuevaSucursal.liderOperadorNombre = undefined;
     }
   }
 
@@ -1509,22 +1558,11 @@ export class SucursalesComponent implements OnInit {
 
     let serviciosLimpios = (this.nuevaSucursal.servicioIds || [])
       .map(id => Number(id))
-      .filter(id => catalogoIds.size === 0 || catalogoIds.has(id));
+      .filter(id => !isNaN(id) && id > 0 && (catalogoIds.size === 0 || catalogoIds.has(id)));
 
+    // Si servicios especiales no está activo, remover cualquier servicio especial
     if (!this.nuevaSucursal.tieneServiciosEspeciales) {
       serviciosLimpios = serviciosLimpios.filter(id => !idsEspeciales.has(id));
-    } else {
-      const tieneEsp = serviciosLimpios.some(id => idsEspeciales.has(id));
-      if (!tieneEsp && this.serviciosEspeciales.length > 0) {
-        this.serviciosEspeciales.forEach(s => serviciosLimpios.push(Number(s.id)));
-      }
-    }
-
-    if (serviciosLimpios.length === 0) {
-      serviciosLimpios = this.serviciosGenerales.map(s => Number(s.id));
-      if (this.nuevaSucursal.tieneServiciosEspeciales) {
-        serviciosLimpios = [...serviciosLimpios, ...this.serviciosEspeciales.map(s => Number(s.id))];
-      }
     }
 
     this.nuevaSucursal.servicioIds = Array.from(new Set(serviciosLimpios));
@@ -1547,6 +1585,16 @@ export class SucursalesComponent implements OnInit {
       this.nuevaSucursal.responsable = 'Sin Asignar';
     }
 
+    // Resolver líder operador seleccionado
+    if (this.nuevaSucursal.liderOperadorId) {
+      const lid = this.lideresOperadoresUsuarios.find(u => String(u.id) === String(this.nuevaSucursal.liderOperadorId));
+      this.nuevaSucursal.liderOperador = lid ? `${lid.nombre} ${lid.apellido ?? ''}`.trim() : (this.nuevaSucursal.liderOperador || 'Sin Asignar');
+      this.nuevaSucursal.liderOperadorNombre = this.nuevaSucursal.liderOperador;
+    } else {
+      this.nuevaSucursal.liderOperador = undefined;
+      this.nuevaSucursal.liderOperadorNombre = undefined;
+    }
+
     if (!this.nuevaSucursal.ciudad?.trim()) {
       this.nuevaSucursal.ciudad = 'Quito';
     }
@@ -1555,6 +1603,9 @@ export class SucursalesComponent implements OnInit {
     }
     if (!this.nuevaSucursal.cantidadBahias || this.nuevaSucursal.cantidadBahias <= 0) {
       this.nuevaSucursal.cantidadBahias = 4;
+    }
+    if (!this.nuevaSucursal.maxLavadoresPorBahia || this.nuevaSucursal.maxLavadoresPorBahia <= 0) {
+      this.nuevaSucursal.maxLavadoresPorBahia = 1;
     }
 
     if (this.editandoSucursal) {
@@ -1822,24 +1873,23 @@ export class SucursalesComponent implements OnInit {
     if (this.catalogoServicios && this.catalogoServicios.length > 0) {
       const generales = this.serviciosGenerales.filter(s => idsSet.has(Number(s.id))).length;
       const especiales = this.serviciosEspeciales.filter(s => idsSet.has(Number(s.id))).length;
-      const tieneEsp = suc.tieneServiciosEspeciales !== false && (suc.tieneServiciosEspeciales || especiales > 0);
-      const total = generales + (tieneEsp ? especiales : 0);
-      if (total > 0) return total;
+      const tieneEsp = Boolean(suc.tieneServiciosEspeciales);
+      return generales + (tieneEsp ? especiales : 0);
     }
 
     if (suc.serviciosNombres && suc.serviciosNombres.length > 0) {
       return suc.serviciosNombres.length;
     }
 
-    return suc.tieneServiciosEspeciales ? 7 : 4;
+    return (suc.servicioIds || []).length;
   }
 
   private sucursalVacia(): Sucursal {
     const defaultReg = this.regionesActivas[0]?.id || (this.regiones[0]?.id ? this.regiones[0].id : undefined);
     const defaultMarca = this.marcasActivas[0]?.id || (this.marcas[0]?.id ? this.marcas[0].id : undefined);
     const serviciosGenIds = this.serviciosGenerales.length 
-      ? this.serviciosGenerales.map(s => s.id) 
-      : (this.catalogoServicios.length ? this.catalogoServicios.map(s => s.id) : [1, 2, 3]);
+      ? this.serviciosGenerales.map(s => Number(s.id)) 
+      : [];
 
     return {
       id: 0,
@@ -1847,6 +1897,7 @@ export class SucursalesComponent implements OnInit {
       ciudad: 'Quito',
       direccion: '',
       cantidadBahias: 4,
+      maxLavadoresPorBahia: 1,
       estado: 'Activo',
       responsable: 'Operación Directa',
       regionId: defaultReg,
@@ -1858,7 +1909,10 @@ export class SucursalesComponent implements OnInit {
       requiereAprobacion: false,
       gerenteId: undefined,
       gerenteNombre: undefined,
-      tieneServiciosEspeciales: false
+      tieneServiciosEspeciales: false,
+      liderOperador: undefined,
+      liderOperadorId: undefined,
+      liderOperadorNombre: undefined
     };
   }
 

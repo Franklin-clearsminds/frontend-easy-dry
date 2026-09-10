@@ -5,6 +5,7 @@ import { LucideAngularModule } from 'lucide-angular';
 import { ModalComponent } from '../../shared/components/modal/modal.component';
 import { InventarioMockService } from '../../core/services/inventario-mock.service';
 import { AuthService } from '../../core/services/auth.service';
+import { SucursalMockService } from '../../core/services/sucursal-mock.service';
 import { ToastService } from '../../shared/services/toast.service';
 import {
   ProductoInsumo,
@@ -40,7 +41,7 @@ import {
           </div>
 
           <!-- Acciones Rápidas -->
-          <div class="flex items-center gap-2 flex-wrap">
+          <div *ngIf="!esLiderAgencia" class="flex items-center gap-2 flex-wrap">
             <button
               (click)="abrirModalEntrada()"
               class="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer">
@@ -78,6 +79,7 @@ import {
           </button>
 
           <button
+            *ngIf="!esLiderAgencia"
             (click)="activeTab = 'dashboard'"
             class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
             [ngClass]="activeTab === 'dashboard' ? 'bg-blue-50 text-easydry-blue' : 'text-slate-600 hover:bg-slate-50'">
@@ -86,6 +88,7 @@ import {
           </button>
 
           <button
+            *ngIf="!esLiderAgencia"
             (click)="activeTab = 'productos'"
             class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
             [ngClass]="activeTab === 'productos' ? 'bg-blue-50 text-easydry-blue' : 'text-slate-600 hover:bg-slate-50'">
@@ -95,6 +98,7 @@ import {
           </button>
 
           <button
+            *ngIf="!esLiderAgencia"
             (click)="activeTab = 'bodegas'"
             class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
             [ngClass]="activeTab === 'bodegas' ? 'bg-blue-50 text-easydry-blue' : 'text-slate-600 hover:bg-slate-50'">
@@ -103,6 +107,7 @@ import {
           </button>
 
           <button
+            *ngIf="!esLiderAgencia"
             (click)="activeTab = 'agencias'"
             class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
             [ngClass]="activeTab === 'agencias' ? 'bg-blue-50 text-easydry-blue' : 'text-slate-600 hover:bg-slate-50'">
@@ -114,6 +119,7 @@ import {
           </button>
 
           <button
+            *ngIf="!esLiderAgencia"
             (click)="activeTab = 'movimientos'"
             class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
             [ngClass]="activeTab === 'movimientos' ? 'bg-blue-50 text-easydry-blue' : 'text-slate-600 hover:bg-slate-50'">
@@ -122,6 +128,7 @@ import {
           </button>
 
           <button
+            *ngIf="!esLiderAgencia"
             (click)="activeTab = 'stock_bajo'"
             class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
             [ngClass]="activeTab === 'stock_bajo' ? 'bg-rose-50 text-rose-700' : 'text-slate-600 hover:bg-slate-50'">
@@ -133,6 +140,7 @@ import {
           </button>
 
           <button
+            *ngIf="!esLiderAgencia"
             (click)="activeTab = 'configuracion'"
             class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
             [ngClass]="activeTab === 'configuracion' ? 'bg-purple-50 text-purple-700' : 'text-slate-600 hover:bg-slate-50'">
@@ -636,6 +644,19 @@ import {
           </div>
         </div>
 
+        <!-- Banner informativo: Insumos vinculados a servicios -->
+        <div class="flex items-center justify-between px-4 py-2.5 bg-blue-50/70 border border-blue-200/80 rounded-xl text-xs text-slate-700">
+          <div class="flex items-center gap-2">
+            <i-lucide name="check-circle-2" class="w-4 h-4 text-easydry-blue shrink-0"></i-lucide>
+            <span class="font-medium">
+              Insumos requeridos por los servicios {{ isLiderOperador ? 'autorizados de tu sede' : 'del catálogo' }}.
+            </span>
+          </div>
+          <span class="text-[11px] font-bold text-easydry-blue bg-blue-100/80 px-2.5 py-0.5 rounded-md font-mono">
+            {{ productosFiltrados.length }} insumos operativos
+          </span>
+        </div>
+
         <!-- Tabla Completa de Productos con Todas las Columnas y Alertas -->
         <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry overflow-hidden">
           <div class="overflow-x-auto">
@@ -677,6 +698,14 @@ import {
                       <div>
                         <span class="font-bold text-slate-900 block">{{ p.nombre }}</span>
                         <span class="text-[10px] text-slate-400 line-clamp-1">{{ p.descripcion || 'Sin descripción' }}</span>
+                        <!-- Servicios que requieren este insumo -->
+                        <div *ngIf="p.serviciosAsociados && p.serviciosAsociados.length > 0" class="flex flex-wrap gap-1 mt-1.5">
+                          <span *ngFor="let s of p.serviciosAsociados" class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-50 text-easydry-blue border border-blue-200" [title]="'Servicio: ' + s.nombre">
+                            <i-lucide name="sparkles" class="w-2.5 h-2.5 text-easydry-blue"></i-lucide>
+                            <span>{{ s.nombre }}</span>
+                            <span *ngIf="s.cantidadUsada" class="text-blue-600/80 font-mono font-medium">({{ s.cantidadUsada }} {{ s.unidad }})</span>
+                          </span>
+                        </div>
                       </div>
                     </div>
                   </td>
@@ -2249,6 +2278,7 @@ export class InventarioComponent implements OnInit {
   private inventarioService = inject(InventarioMockService);
   private toast = inject(ToastService);
   private auth = inject(AuthService);
+  private sucursalService = inject(SucursalMockService);
 
   // Navegación
   activeTab: 'dashboard' | 'insumos_servicios' | 'productos' | 'bodegas' | 'agencias' | 'movimientos' | 'stock_bajo' | 'configuracion' = 'dashboard';
@@ -2257,6 +2287,7 @@ export class InventarioComponent implements OnInit {
   // Usuario y Sede Actual
   currentUser: any = null;
   isLiderOperador: boolean = false;
+  esLiderAgencia: boolean = false;
   miAgenciaId: string = '';
   miAgenciaNombre: string = '';
 
@@ -2397,16 +2428,21 @@ export class InventarioComponent implements OnInit {
 
   ngOnInit(): void {
     this.currentUser = this.auth.getCurrentUser();
-    const role = this.currentUser?.role;
+    const role = (this.currentUser?.role || '').toUpperCase();
+    const rolNombre = (this.currentUser?.rolNombre || '').toLowerCase();
     this.isLiderOperador =
+      role === 'LIDER' ||
       role === 'LIDER_OPERADOR' ||
       role === 'LIDER_AGENCIA' ||
-      (this.currentUser?.rolNombre && this.currentUser.rolNombre.toLowerCase().includes('líder'));
+      role === 'APROBADOR' ||
+      rolNombre.includes('líder') ||
+      rolNombre.includes('lider');
+    this.esLiderAgencia = role === 'LIDER_AGENCIA' || rolNombre === 'lider_agencia';
 
     this.miAgenciaNombre = this.currentUser?.sucursalNombre || this.currentUser?.sucursal || 'EasyDry Quito Norte';
     this.miAgenciaId = (this.currentUser?.agenciaId ? String(this.currentUser.agenciaId) : '') || this.miAgenciaNombre;
 
-    if (this.isLiderOperador) {
+    if (this.isLiderOperador || this.esLiderAgencia) {
       this.activeTab = 'insumos_servicios';
     }
 
@@ -2483,8 +2519,32 @@ export class InventarioComponent implements OnInit {
   }
 
   public cargarInsumosPorServicios(): void {
+    const aplicarFiltroSucursal = this.isLiderOperador || this.esLiderAgencia;
+    if (!aplicarFiltroSucursal) {
+      this.ejecutarCargaInsumosServicios();
+      return;
+    }
+
+    const suc = this.sucursalService.getSucursalPorNombre(this.miAgenciaNombre)
+      || this.sucursalService.getActivas().find(s => String(s.id) === String(this.miAgenciaId))
+      || this.sucursalService.getActivas().find(s => this.miAgenciaNombre.includes(s.nombre) || s.nombre.includes(this.miAgenciaNombre));
+
+    if (suc?.servicioIds?.length) {
+      this.ejecutarCargaInsumosServicios(suc.servicioIds);
+      return;
+    }
+
+    // Config local aún sin cargar: obtener sucursales y reintentar con los servicios autorizados
+    this.sucursalService.getSucursales().subscribe(list => {
+      const s2 = list.find(x => String(x.id) === String(this.miAgenciaId))
+        || this.sucursalService.getSucursalPorNombre(this.miAgenciaNombre);
+      this.ejecutarCargaInsumosServicios(s2?.servicioIds);
+    });
+  }
+
+  private ejecutarCargaInsumosServicios(servicioIds?: number[]): void {
     this.cargandoInsumosServicios = true;
-    this.inventarioService.getInsumosPorServiciosAgencia(this.miAgenciaId).subscribe({
+    this.inventarioService.getInsumosPorServiciosAgencia(this.miAgenciaId, servicioIds).subscribe({
       next: (res) => {
         this.cargandoInsumosServicios = false;
         if (res) {
@@ -2565,7 +2625,11 @@ export class InventarioComponent implements OnInit {
   }
 
   public cargarProductos(): void {
-    this.inventarioService.getProductos().subscribe((prods) => {
+    const dto: any = {};
+    if (this.isLiderOperador || this.esLiderAgencia || this.currentUser?.agenciaId) {
+      dto.agenciaId = this.miAgenciaId || this.currentUser?.agenciaId;
+    }
+    this.inventarioService.getProductos(dto).subscribe((prods) => {
       this.productos = prods;
       this.filtrarProductos();
     });
