@@ -514,6 +514,19 @@ export class AuthService {
     
     // Normalizar código
     const cleanCodigo = moduloCodigo.replace(/^\//, '');
+
+    // Acceso explícito a envíos para líderes y roles de bodega
+    if (cleanCodigo === 'envios' && (
+      this.isLiderOperador() ||
+      user.role === Role.LIDER_OPERADOR ||
+      user.role === Role.LIDER_AGENCIA ||
+      user.role === Role.COORD_BODEGA ||
+      user.role === Role.ASISTENTE_BODEGA ||
+      user.role === Role.DISTRIBUIDOR
+    )) {
+      return true;
+    }
+
     return (user.modulosPermitidos || []).some(m => m === cleanCodigo || cleanCodigo.startsWith(m));
   }
 

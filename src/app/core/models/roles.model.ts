@@ -172,6 +172,15 @@ export const MODULOS_SISTEMA: ModuloSistema[] = [
     rutaPrincipal: '/inventario',
     grupo: 'Gestión de Activos'
   },
+  {
+    id: 'mod_envios',
+    codigo: 'envios',
+    nombre: 'Envíos & Confirmación',
+    descripcion: 'Control logístico de envíos de suministros y confirmación de recepción en agencia',
+    icono: 'send',
+    rutaPrincipal: '/envios',
+    grupo: 'Gestión de Activos'
+  },
 
   // ── Administración ──
   {
@@ -238,6 +247,7 @@ export const MODULOS_POR_ROL: Record<string, string[]> = {
     'maquinaria',
     'taller-tecnico',
     'inventario',
+    'envios',
     'reportes',
     'perfil'
   ],
@@ -271,6 +281,7 @@ export const MODULOS_POR_ROL: Record<string, string[]> = {
     'configuracion/servicios',
     'maquinaria',
     'inventario',
+    'envios',
     'operadores',
     'asignaciones',
     'perfil'
@@ -282,6 +293,7 @@ export const MODULOS_POR_ROL: Record<string, string[]> = {
     'configuracion/servicios',
     'maquinaria',
     'inventario',
+    'envios',
     'operadores',
     'asignaciones',
     'perfil'
@@ -344,6 +356,7 @@ export const MODULOS_POR_ROL: Record<string, string[]> = {
     'dashboard',
     'notificaciones',
     'inventario',
+    'envios',
     'reportes',
     'perfil'
   ],
@@ -352,6 +365,7 @@ export const MODULOS_POR_ROL: Record<string, string[]> = {
     'dashboard',
     'notificaciones',
     'inventario',
+    'envios',
     'perfil'
   ]
 };

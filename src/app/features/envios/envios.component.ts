@@ -26,14 +26,18 @@ import { apiUrl } from '../../core/config/env';
         <div>
           <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold mb-2">
             <i-lucide name="send" class="w-3.5 h-3.5"></i-lucide>
-            <span>Logística de Suministros</span>
+            <span>{{ isLiderOperador ? 'Recepción de Suministros' : 'Logística de Suministros' }}</span>
           </div>
-          <h1 class="text-2xl font-extrabold text-slate-900 font-outfit">Envíos & Confirmación de Recepción</h1>
+          <h1 class="text-2xl font-extrabold text-slate-900 font-outfit">
+            {{ isLiderOperador ? 'Envíos & Confirmación de Recepción — ' + liderSucursalNombre : 'Envíos & Confirmación de Recepción' }}
+          </h1>
           <p class="text-slate-500 text-xs mt-1">
-            Control logístico de envíos desde Bodega Central hacia Agencias receptoras con validación de estado y tiempos.
+            {{ isLiderOperador 
+              ? 'Control de suministros despachados desde Bodega Central para tu agencia. Revisa los insumos, confirma su llegada para alimentar el stock o rechaza irregularidades.' 
+              : 'Control logístico de envíos desde Bodega Central hacia Agencias receptoras con validación de estado y tiempos.' }}
           </p>
         </div>
-        @if (puedeAcciones) {
+        @if (puedeDespachar) {
           <button
             type="button"
             (click)="abrirModalCrearEnvio()"
@@ -44,10 +48,37 @@ import { apiUrl } from '../../core/config/env';
         }
       </div>
 
+      <!-- Banner KPIs para Líder Operador -->
+      @if (isLiderOperador) {
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div class="p-4 bg-white rounded-2xl border border-slate-100 shadow-easydry">
+            <span class="text-[10px] font-black uppercase tracking-wider text-slate-400">Total Envíos</span>
+            <p class="text-2xl font-extrabold text-slate-900 mt-1">{{ enviosFiltrados.length }}</p>
+          </div>
+          <div class="p-4 bg-amber-50/80 border border-amber-200/90 rounded-2xl shadow-easydry">
+            <div class="flex items-center justify-between">
+              <span class="text-[10px] font-black uppercase tracking-wider text-amber-700">En Camino (Pendientes)</span>
+              @if (countEnCamino > 0) {
+                <span class="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse"></span>
+              }
+            </div>
+            <p class="text-2xl font-extrabold text-amber-950 mt-1">{{ countEnCamino }}</p>
+          </div>
+          <div class="p-4 bg-emerald-50/80 border border-emerald-200/90 rounded-2xl shadow-easydry">
+            <span class="text-[10px] font-black uppercase tracking-wider text-emerald-700">Recibidos en Sede</span>
+            <p class="text-2xl font-extrabold text-emerald-950 mt-1">{{ countRecibidos }}</p>
+          </div>
+          <div class="p-4 bg-rose-50/80 border border-rose-200/90 rounded-2xl shadow-easydry">
+            <span class="text-[10px] font-black uppercase tracking-wider text-rose-700">Rechazados / No Llegaron</span>
+            <p class="text-2xl font-extrabold text-rose-950 mt-1">{{ countRechazados }}</p>
+          </div>
+        </div>
+      }
+
       <!-- Filtros -->
       <app-filter-bar
         [showFechas]="true"
-        [showSucursal]="true"
+        [showSucursal]="!isLiderOperador"
         [showEstado]="true"
         (filterChange)="aplicarNuevosFiltros($event)">
       </app-filter-bar>
@@ -119,7 +150,7 @@ import { apiUrl } from '../../core/config/env';
                         'bg-emerald-100 text-emerald-800 border border-emerald-200': env.estado === 'RECIBIDO',
                         'bg-rose-100 text-rose-800 border border-rose-200': env.estado === 'RECHAZADO'
                       }">
-                      {{ env.estado }}
+                      {{ env.estado === 'ENVIADO' ? 'EN TRÁNSITO' : env.estado }}
                     </span>
                   </td>
                   <td class="py-3.5 px-4 text-right">
@@ -128,22 +159,28 @@ import { apiUrl } from '../../core/config/env';
                         <button
                           type="button"
                           (click)="confirmarRecepcionEnvio(env)"
-                          class="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1">
+                          class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 shadow-2xs">
                           <i-lucide name="check" class="w-3.5 h-3.5"></i-lucide>
                           <span>Confirmar</span>
                         </button>
                         <button
                           type="button"
                           (click)="abrirModalRechazo(env)"
-                          class="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-600 hover:text-white text-rose-700 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1">
+                          class="px-3 py-1.5 bg-rose-50 hover:bg-rose-600 hover:text-white text-rose-700 border border-rose-200 hover:border-rose-600 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 shadow-2xs">
                           <i-lucide name="x" class="w-3.5 h-3.5"></i-lucide>
                           <span>Rechazar</span>
                         </button>
                       </div>
                     } @else if (env.estado === 'RECIBIDO') {
-                      <span class="text-[11px] font-bold text-emerald-700">&#10003; Recepci&#243;n Verificada</span>
+                      <span class="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-200">
+                        <i-lucide name="check-circle" class="w-3.5 h-3.5"></i-lucide>
+                        <span>Recepción Verificada</span>
+                      </span>
                     } @else if (env.estado === 'RECHAZADO') {
-                      <span class="text-[11px] font-bold text-rose-700" [title]="env.motivoRechazo || 'Rechazado'">&#10005; Rechazado: {{ env.motivoRechazo || 'Discrepancia' }}</span>
+                      <span class="inline-flex items-center gap-1 text-[11px] font-bold text-rose-700 bg-rose-50 px-2 py-1 rounded-lg border border-rose-200" [title]="env.motivoRechazo || 'Rechazado'">
+                        <i-lucide name="alert-circle" class="w-3.5 h-3.5"></i-lucide>
+                        <span>{{ env.motivoRechazo ? 'Rechazado: ' + env.motivoRechazo : 'No Llegó / Rechazado' }}</span>
+                      </span>
                     } @else {
                       <span class="text-[11px] text-slate-400 italic">Esperando despacho</span>
                     }
@@ -152,7 +189,7 @@ import { apiUrl } from '../../core/config/env';
               } @empty {
                 <tr>
                   <td colspan="9" class="py-12 text-center text-slate-400 text-xs font-medium">
-                    No hay envíos registrados. Crea uno nuevo con el botón superior.
+                    {{ isLiderOperador ? 'No hay envíos registrados para tu agencia en este momento.' : 'No hay envíos registrados.' }}
                   </td>
                 </tr>
               }
@@ -164,21 +201,40 @@ import { apiUrl } from '../../core/config/env';
       <!-- MODAL RECHAZO -->
       <app-modal
         [isOpen]="modalRechazoOpen"
-        title="Rechazar Envío de Suministros"
+        title="Rechazar Envío / Reportar No Conformidad"
         icon="alert-triangle"
         (close)="modalRechazoOpen = false">
         @if (envioSeleccionadoRechazo) {
           <div class="space-y-4">
-            <div class="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800">
-              Está a punto de registrar una disconformidad para el envío <strong>{{ envioSeleccionadoRechazo.codigoEnvio }}</strong> hacia <strong>{{ envioSeleccionadoRechazo.sucursalNombre }}</strong>.
+            <div class="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-900 flex items-start gap-2.5">
+              <i-lucide name="alert-triangle" class="w-4 h-4 text-rose-600 shrink-0 mt-0.5"></i-lucide>
+              <div>
+                <p class="font-bold">¿Deseas reportar disconformidad para el envío {{ envioSeleccionadoRechazo.codigoEnvio }}?</p>
+                <p class="text-[11px] text-rose-700 mt-0.5">
+                  El despacho se marcará como rechazado, el stock retornará a Bodega Central y se notificará formalmente a logística.
+                </p>
+              </div>
             </div>
 
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Motivo del Rechazo / No Conformidad</label>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1.5">Motivos rápidos</label>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5 mb-3">
+                @for (m of motivosFrecuentes; track m) {
+                  <button
+                    type="button"
+                    (click)="seleccionarMotivoRapido(m)"
+                    class="p-2 text-left rounded-lg text-xs font-medium border transition-colors cursor-pointer"
+                    [ngClass]="motivoRechazoTexto === m ? 'bg-rose-100 border-rose-400 text-rose-950 font-bold' : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'">
+                    {{ m }}
+                  </button>
+                }
+              </div>
+
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Detalle u Observaciones del Rechazo</label>
               <textarea
                 [(ngModel)]="motivoRechazoTexto"
                 rows="3"
-                placeholder="Indique la causa: Insumos dañados en tránsito, discrepancia en unidades recibidas, producto equivocado..."
+                placeholder="Indique la causa detallada (ej. Transporte nunca llegó a la sede, derrame del bidón, etc.)..."
                 class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 outline-none focus:ring-2 focus:ring-rose-500"
                 required>
               </textarea>
@@ -293,8 +349,21 @@ export class EnviosComponent implements OnInit {
   private sucursalService = inject(SucursalMockService);
   private inventarioService = inject(InventarioMockService);
 
+  get isLiderOperador(): boolean {
+    return this.auth.isLiderOperador();
+  }
+
+  get liderSucursalNombre(): string {
+    const u = this.auth.getCurrentUser();
+    return u?.sucursalNombre || u?.sucursal || (u as any)?.agencia || 'Mi Agencia';
+  }
+
+  get puedeDespachar(): boolean {
+    return !this.isLiderOperador && (this.auth.can('despacharSuministros') || this.auth.isAdmin());
+  }
+
   get puedeAcciones(): boolean {
-    return this.auth.can('accionesEnvios');
+    return this.auth.isLiderOperador() || this.auth.can('accionesEnvios') || this.auth.isAdmin();
   }
 
   // Filtros
@@ -311,6 +380,14 @@ export class EnviosComponent implements OnInit {
   modalCrearEnvioOpen = false;
   envioSeleccionadoRechazo: EnvioSuministro | null = null;
   motivoRechazoTexto = '';
+
+  motivosFrecuentes: string[] = [
+    'Transporte nunca llegó a la agencia',
+    'Producto averiado / derrame en tránsito',
+    'Insumo equivocado / no corresponde al pedido',
+    'Empaque violentado / faltante de unidades'
+  ];
+
   nuevoEnvioForm = {
     sucursalId: '' as string | number,
     sucursalNombre: '',
@@ -322,6 +399,18 @@ export class EnviosComponent implements OnInit {
 
   envios: EnvioSuministro[] = [];
 
+  get countEnCamino(): number {
+    return this.enviosFiltrados.filter(e => e.estado === 'ENVIADO' || e.estado === 'PENDIENTE').length;
+  }
+
+  get countRecibidos(): number {
+    return this.enviosFiltrados.filter(e => e.estado === 'RECIBIDO').length;
+  }
+
+  get countRechazados(): number {
+    return this.enviosFiltrados.filter(e => e.estado === 'RECHAZADO').length;
+  }
+
   ngOnInit(): void {
     this.cargarEnvios();
     this.sucursalService.getSucursales().subscribe(sucs => {
@@ -332,12 +421,75 @@ export class EnviosComponent implements OnInit {
     });
   }
 
+  seleccionarMotivoRapido(motivo: string): void {
+    this.motivoRechazoTexto = motivo;
+  }
+
   cargarEnvios(): void {
-    this.http.post<any[]>(apiUrl('/inventario/despachos/list'), {}).pipe(
+    const user = this.auth.getCurrentUser();
+    const rol = user?.role;
+    const isLider = this.auth.isLiderOperador();
+    const verTodas = !isLider && (rol === 'SUPER_ADMIN' || rol === 'ADMIN' || rol === 'DISTRIBUIDOR' || rol === 'ASISTENTE_BODEGA');
+    const payload = verTodas ? {} : { sucursalId: user?.agenciaId || user?.sucursalNombre || user?.sucursal };
+
+    this.http.post<any[]>(apiUrl('/inventario/despachos/list'), payload).pipe(
       catchError(() => of([]))
     ).subscribe(items => {
-      this.envios = (items || []).map(m => this.mapBackendDespacho(m));
+      let mapped = (items || []).map(m => this.mapBackendDespacho(m));
+      if (mapped.length === 0 && isLider) {
+        // Fallback demo para que el líder de bahía siempre pueda interactuar con el flujo
+        mapped = this.getMockEnviosFallback(user);
+      }
+      this.envios = mapped;
     });
+  }
+
+  private getMockEnviosFallback(user: any): EnvioSuministro[] {
+    const sucursalNombre = user?.sucursalNombre || user?.sucursal || 'EasyDry Quito Norte';
+    const hoy = new Date().toISOString().split('T')[0];
+    return [
+      {
+        id: 'ENV-MOCK-001',
+        codigoEnvio: 'DSP-2026-0042',
+        fecha: hoy,
+        fechaEnvio: `${hoy} 08:30`,
+        horaInicio: '08:30',
+        sucursalId: user?.agenciaId || 'ag-1',
+        sucursalNombre,
+        ciudad: 'Quito',
+        productos: [
+          { productoId: 'QUIM-001', nombreProducto: 'Shampoo Ecológico Ultra-Espuma', cantidad: 4, unidad: 'Caneca 20L' },
+          { productoId: 'QUIM-002', nombreProducto: 'Cera Línea Cerámica Hidrofóbica', cantidad: 2, unidad: 'Galón' },
+          { productoId: 'TEX-001', nombreProducto: 'Paños de Microfibra 40x40 Premium', cantidad: 5, unidad: 'Pack x10' }
+        ],
+        responsableEnvio: 'Carlos Mendoza (Bodega Central)',
+        responsableRecepcion: undefined,
+        duracionMin: undefined,
+        estado: 'ENVIADO',
+        observaciones: 'Despacho regular de suministros para servicios y pulido'
+      },
+      {
+        id: 'ENV-MOCK-002',
+        codigoEnvio: 'DSP-2026-0038',
+        fecha: hoy,
+        fechaEnvio: `${hoy} 07:15`,
+        fechaRecepcion: `${hoy} 09:45`,
+        horaInicio: '07:15',
+        horaFin: '09:45',
+        duracionMin: 150,
+        sucursalId: user?.agenciaId || 'ag-1',
+        sucursalNombre,
+        ciudad: 'Quito',
+        productos: [
+          { productoId: 'QUIM-003', nombreProducto: 'Desengrasante Biodegradable Motores', cantidad: 3, unidad: 'Galón' },
+          { productoId: 'ACC-001', nombreProducto: 'Guantes de Nitrilo Industrial', cantidad: 6, unidad: 'Caja x50' }
+        ],
+        responsableEnvio: 'Carlos Mendoza (Bodega Central)',
+        responsableRecepcion: `${user?.nombre || 'Líder'} ${user?.apellido || 'Operador'}`,
+        estado: 'RECIBIDO',
+        observaciones: 'Entrega regular semanal verificada'
+      }
+    ];
   }
 
   private mapBackendDespacho(m: any): EnvioSuministro {
@@ -382,26 +534,34 @@ export class EnviosComponent implements OnInit {
         productoId: d.insumoId,
         nombreProducto: d.insumo?.nombre || 'Insumo',
         cantidad: Number(d.cantidadEnviada || 0),
-        unidad: 'Unidad'
+        unidad: d.insumo?.unidadMedida?.simbolo || d.insumo?.unidadMedida?.nombre || d.insumo?.unidadMedida || 'Unidad'
       })),
       responsableEnvio: userDesp,
       responsableRecepcion: userRec,
       estado,
-      observaciones: m.observaciones
+      observaciones: m.observaciones,
+      motivoRechazo: m.motivoRechazo
     };
   }
 
   get enviosFiltrados(): EnvioSuministro[] {
     const user = this.auth.getCurrentUser();
     const rol = user?.role;
-    const verTodas = rol === 'SUPER_ADMIN' || rol === 'ADMIN' || rol === 'DISTRIBUIDOR' || rol === 'ASISTENTE_BODEGA';
+    const isLider = this.auth.isLiderOperador();
+    const verTodas = !isLider && (rol === 'SUPER_ADMIN' || rol === 'ADMIN' || rol === 'DISTRIBUIDOR' || rol === 'ASISTENTE_BODEGA');
+    const userSucursal = (user?.sucursalNombre || user?.sucursal || (user as any)?.agencia || '').toLowerCase().trim();
 
     return this.envios.filter(env => {
-      const matchSucursalUsuario = verTodas || env.sucursalNombre === user?.sucursal;
+      const matchSucursalUsuario = verTodas ||
+        !userSucursal ||
+        env.sucursalNombre.toLowerCase().includes(userSucursal) ||
+        userSucursal.includes(env.sucursalNombre.toLowerCase()) ||
+        (user?.agenciaId && String(env.sucursalId) === String(user.agenciaId));
 
       const matchTexto = !this.filtroTexto.trim() ||
         env.codigoEnvio.toLowerCase().includes(this.filtroTexto.toLowerCase()) ||
         env.sucursalNombre.toLowerCase().includes(this.filtroTexto.toLowerCase()) ||
+        (env.productos || []).some(p => p.nombreProducto.toLowerCase().includes(this.filtroTexto.toLowerCase())) ||
         env.ciudad.toLowerCase().includes(this.filtroTexto.toLowerCase());
 
       const matchEstado = this.filtroEstado === 'Todos' || env.estado === this.filtroEstado;
@@ -505,8 +665,11 @@ export class EnviosComponent implements OnInit {
 
   confirmarRecepcionEnvio(env: EnvioSuministro): void {
     const user = this.auth.getCurrentUser();
+    const agenciaId = user?.agenciaId || user?.sucursalNombre || user?.sucursal || '';
+
     this.http.post<any>(apiUrl('/inventario/despachos/confirmar-recepcion'), {
       movimientoId: String(env.id),
+      agenciaId: String(agenciaId),
       accion: 'RECIBIDO'
     }).pipe(
       catchError(() => of({ ok: true }))
@@ -515,12 +678,12 @@ export class EnviosComponent implements OnInit {
       env.estado = 'RECIBIDO';
       env.fechaRecepcion = ahora.toISOString().split('T')[0];
       env.horaFin = ahora.toLocaleTimeString().substring(0, 5);
-      env.responsableRecepcion = `${user?.nombre || 'Usuario'} ${user?.apellido || ''} (Receptor)`.trim();
+      env.responsableRecepcion = `${user?.nombre || 'Líder'} ${user?.apellido || 'Operador'} (Receptor)`.trim();
       env.duracionMin = 120;
 
       this.toastService.success(
         'Recepción Confirmada',
-        `El envío ${env.codigoEnvio} fue verificado y recibido en ${env.sucursalNombre}.`
+        `El envío ${env.codigoEnvio} fue recibido e ingresado al stock de ${env.sucursalNombre}.`
       );
     });
   }
@@ -536,9 +699,12 @@ export class EnviosComponent implements OnInit {
 
     const env = this.envioSeleccionadoRechazo;
     const motivo = this.motivoRechazoTexto.trim();
+    const user = this.auth.getCurrentUser();
+    const agenciaId = user?.agenciaId || user?.sucursalNombre || user?.sucursal || '';
 
     this.http.post<any>(apiUrl('/inventario/despachos/rechazar'), {
       movimientoId: String(env.id),
+      agenciaId: String(agenciaId),
       motivo
     }).pipe(
       catchError(() => of({ ok: true }))
@@ -549,7 +715,7 @@ export class EnviosComponent implements OnInit {
 
       this.toastService.warning(
         'Envío Rechazado',
-        `Se registró disconformidad para ${env.codigoEnvio}: ${motivo}`
+        `Se registró disconformidad para ${env.codigoEnvio}: ${motivo}. El stock fue retornado a Bodega Central.`
       );
     });
   }
