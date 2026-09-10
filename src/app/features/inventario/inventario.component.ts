@@ -168,11 +168,98 @@ import {
 
             <div class="flex items-center gap-2">
               <button
-                (click)="cargarInsumosPorServicios()"
+                (click)="cargarInsumosPorServicios(); cargarDespachosPendientes()"
                 class="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer">
-                <i-lucide name="refresh-cw" class="w-3.5 h-3.5" [ngClass]="{'animate-spin': cargandoInsumosServicios}"></i-lucide>
+                <i-lucide name="refresh-cw" class="w-3.5 h-3.5" [ngClass]="{'animate-spin': cargandoInsumosServicios || procesandoRecepcion}"></i-lucide>
                 <span>Actualizar Stock</span>
               </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ============================================================== -->
+        <!-- BANNER INTERACTIVO: DESPACHOS DE SUMINISTROS EN CAMINO         -->
+        <!-- ============================================================== -->
+        <div *ngIf="despachosPendientesAgencia.length > 0" class="p-5 rounded-2xl bg-indigo-50/95 border-2 border-indigo-300 shadow-md space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold shadow-sm shrink-0">
+                <i-lucide name="truck" class="w-5 h-5"></i-lucide>
+              </div>
+              <div>
+                <div class="flex items-center gap-2">
+                  <h3 class="text-sm font-black text-indigo-950 uppercase tracking-wide">
+                    ¡Suministros en Camino para tu Sede!
+                  </h3>
+                  <span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-indigo-200 text-indigo-900 animate-pulse">
+                    {{ despachosPendientesAgencia.length }} Despacho(s) Pendiente(s)
+                  </span>
+                </div>
+                <p class="text-xs text-indigo-800 mt-0.5">
+                  Bodega Central ha enviado suministros. Verifica la entrega física y presiona <b>✓ Aceptar y Recibir</b> para sumarlo al stock, o <b>✕ Rechazar</b> si el transporte no llegó o presenta anomalías.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tarjetas de cada despacho en camino -->
+          <div class="space-y-3">
+            <div *ngFor="let desp of despachosPendientesAgencia" class="p-4 bg-white rounded-xl border border-indigo-200 shadow-2xs space-y-3">
+              <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
+                <div class="flex items-center gap-2 flex-wrap">
+                  <span class="px-2.5 py-1 rounded-lg font-mono font-black text-xs bg-slate-100 text-slate-800 border border-slate-200">
+                    Guía: {{ desp.numeroGuia }}
+                  </span>
+                  <span class="text-xs text-slate-600">
+                    Origen: <b>{{ desp.origenUbicacion }}</b>
+                  </span>
+                  <span class="text-slate-300">•</span>
+                  <span class="text-xs text-slate-500">
+                    Fecha de salida: {{ desp.fechaDespacho | date:'medium' }}
+                  </span>
+                </div>
+
+                <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-100 text-blue-800 border border-blue-200 inline-flex items-center gap-1 w-fit">
+                  <i-lucide name="clock" class="w-3 h-3"></i-lucide>
+                  <span>En Tránsito hacia tu Sede</span>
+                </span>
+              </div>
+
+              <!-- Lista de Insumos Despachados -->
+              <div class="space-y-1.5">
+                <span class="text-[11px] font-bold text-slate-500 uppercase">Insumos & Cantidades en este Envío:</span>
+                <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                  <div *ngFor="let det of desp.detalles" class="p-2 bg-slate-50 rounded-lg border border-slate-200/80 flex items-center justify-between">
+                    <div class="truncate mr-2">
+                      <p class="font-bold text-slate-800 text-xs truncate">{{ det.insumo?.nombre || 'Insumo' }}</p>
+                      <span class="text-[10px] font-mono text-slate-400">{{ det.insumo?.codigoSKU }}</span>
+                    </div>
+                    <span class="px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 font-mono font-extrabold text-xs shrink-0">
+                      {{ det.cantidadEnviada }} {{ det.insumo?.unidadMedida?.simbolo || 'u' }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Botones de Aprobación / Rechazo -->
+              <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  (click)="abrirModalRechazoDespacho(desp)"
+                  class="px-3.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-extrabold transition border border-rose-200 cursor-pointer flex items-center gap-1.5">
+                  <i-lucide name="x-circle" class="w-4 h-4"></i-lucide>
+                  <span>Rechazar (No Llegó / Incompleto)</span>
+                </button>
+
+                <button
+                  type="button"
+                  (click)="confirmarRecepcionDespacho(desp)"
+                  [disabled]="procesandoRecepcion"
+                  class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black transition shadow-sm cursor-pointer flex items-center gap-1.5">
+                  <i-lucide name="check-circle" class="w-4 h-4"></i-lucide>
+                  <span>✓ Aceptar y Recibir Suministros</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -2096,6 +2183,65 @@ import {
         </div>
       </div>
 
+      <!-- ============================================================== -->
+      <!-- MODAL: RECHAZAR DESPACHO DE SUMINISTROS (NO LLEGÓ / ANOMALÍA)  -->
+      <!-- ============================================================== -->
+      <div *ngIf="modalRechazoDespachoOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-fade-in">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-4">
+          <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div class="flex items-center gap-2">
+              <div class="w-8 h-8 rounded-lg bg-rose-100 text-rose-600 flex items-center justify-center font-bold">
+                <i-lucide name="alert-triangle" class="w-4 h-4"></i-lucide>
+              </div>
+              <h3 class="text-sm font-black text-slate-900">Rechazar Recepción de Suministros</h3>
+            </div>
+            <button (click)="modalRechazoDespachoOpen = false" class="text-slate-400 hover:text-slate-600 cursor-pointer">
+              <i-lucide name="x" class="w-5 h-5"></i-lucide>
+            </button>
+          </div>
+
+          <div class="p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-800 space-y-1">
+            <p class="font-bold">Guía: {{ despachoSeleccionadoRechazo?.numeroGuia }}</p>
+            <p class="text-[11px]">
+              Al rechazar el despacho, los insumos <b>no se sumarán</b> al inventario de tu agencia y se notificará de inmediato a Bodega Central para resolver la incidencia.
+            </p>
+          </div>
+
+          <div class="space-y-3 text-xs">
+            <label class="block font-bold text-slate-700">Seleccione el Motivo del Rechazo *</label>
+            <div class="space-y-2">
+              <label *ngFor="let m of motivosRechazoPredefinidos" class="flex items-center gap-2 p-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 cursor-pointer transition">
+                <input type="radio" [(ngModel)]="motivoRechazoSeleccionado" [value]="m" name="motivoRadio" class="text-rose-600 focus:ring-rose-500">
+                <span class="font-medium text-slate-700">{{ m }}</span>
+              </label>
+            </div>
+
+            <div>
+              <label class="block font-bold text-slate-700 mb-1">Detalle u Observación Adicional</label>
+              <textarea
+                [(ngModel)]="observacionRechazoTexto"
+                rows="2"
+                placeholder="Indique detalles adicionales si aplica (ej. el transporte no llegó a la sede, rotura de envase...)"
+                class="w-full p-2.5 rounded-xl border border-slate-200 text-xs focus:outline-none focus:border-rose-500"></textarea>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+            <button
+              (click)="modalRechazoDespachoOpen = false"
+              class="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 text-xs font-bold cursor-pointer">
+              Cancelar
+            </button>
+            <button
+              (click)="ejecutarRechazoDespacho()"
+              [disabled]="procesandoRecepcion"
+              class="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black cursor-pointer">
+              Confirmar Rechazo
+            </button>
+          </div>
+        </div>
+      </div>
+
     </div>
   `,
 })
@@ -2129,6 +2275,20 @@ export class InventarioComponent implements OnInit {
   insumosServiciosFiltrados: any[] = [];
   filtroTextoInsumosServicio: string = '';
   filtroEstadoInsumosServicio: string = '';
+
+  // Despachos en camino para la agencia (Aprobación / Recepción Líder de Bahía)
+  despachosPendientesAgencia: any[] = [];
+  modalRechazoDespachoOpen = false;
+  despachoSeleccionadoRechazo: any = null;
+  motivoRechazoSeleccionado = 'El transporte / encomienda nunca llegó a la sede';
+  observacionRechazoTexto = '';
+  procesandoRecepcion = false;
+  motivosRechazoPredefinidos = [
+    'El transporte / encomienda nunca llegó a la sede',
+    'Mercadería incompleta o faltante de insumos',
+    'Envases rotos / derrame de químicos en traslado',
+    'Insumos enviados no coinciden con lo solicitado'
+  ];
 
   // Catálogos cargados de BD
   productos: ProductoInsumo[] = [];
@@ -2252,11 +2412,75 @@ export class InventarioComponent implements OnInit {
 
     this.cargarTodosLosCatalogos();
     this.cargarInsumosPorServicios();
+    this.cargarDespachosPendientes();
   }
 
   // ==============================================================
   // CARGA DE DATOS DESDE BACKEND
   // ==============================================================
+
+  public cargarDespachosPendientes(): void {
+    this.inventarioService.getDespachosPendientesAgencia(this.miAgenciaId).subscribe({
+      next: (list) => {
+        this.despachosPendientesAgencia = list || [];
+      },
+      error: (err) => console.error('Error al consultar despachos pendientes:', err)
+    });
+  }
+
+  public confirmarRecepcionDespacho(desp: any): void {
+    this.procesandoRecepcion = true;
+    this.inventarioService.confirmarRecepcionDespacho(desp.id, this.miAgenciaId).subscribe({
+      next: () => {
+        this.procesandoRecepcion = false;
+        this.toast.success(
+          'Suministros Recibidos en Sede',
+          `El despacho ${desp.numeroGuia} fue aceptado. Los insumos han sido ingresados al stock de ${this.miAgenciaNombre}.`
+        );
+        this.cargarDespachosPendientes();
+        this.cargarInsumosPorServicios();
+        this.cargarProductos();
+      },
+      error: () => {
+        this.procesandoRecepcion = false;
+        this.toast.error('Error', 'No se pudo registrar la recepción del despacho');
+      }
+    });
+  }
+
+  public abrirModalRechazoDespacho(desp: any): void {
+    this.despachoSeleccionadoRechazo = desp;
+    this.motivoRechazoSeleccionado = this.motivosRechazoPredefinidos[0];
+    this.observacionRechazoTexto = '';
+    this.modalRechazoDespachoOpen = true;
+  }
+
+  public ejecutarRechazoDespacho(): void {
+    if (!this.despachoSeleccionadoRechazo) return;
+
+    const motivoFinal = `${this.motivoRechazoSeleccionado}. ${this.observacionRechazoTexto}`.trim();
+    this.procesandoRecepcion = true;
+
+    this.inventarioService.rechazarDespacho(
+      this.despachoSeleccionadoRechazo.id,
+      motivoFinal,
+      this.miAgenciaId
+    ).subscribe({
+      next: () => {
+        this.procesandoRecepcion = false;
+        this.modalRechazoDespachoOpen = false;
+        this.toast.warning(
+          'Despacho Rechazado',
+          `Se reportó la no conformidad del despacho ${this.despachoSeleccionadoRechazo.numeroGuia} a Bodega Central.`
+        );
+        this.cargarDespachosPendientes();
+      },
+      error: () => {
+        this.procesandoRecepcion = false;
+        this.toast.error('Error', 'No se pudo procesar el rechazo del despacho');
+      }
+    });
+  }
 
   public cargarInsumosPorServicios(): void {
     this.cargandoInsumosServicios = true;

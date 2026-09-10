@@ -82,6 +82,41 @@ import { RouterModule } from '@angular/router';
         </div>
       </div>
 
+      <!-- Alerta de Suministros en Camino para Líder de Bahía -->
+      @if (isLiderOperador && despachosPendientesLider.length > 0) {
+        <div class="p-4 bg-indigo-50/95 border-2 border-indigo-300 rounded-2xl shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-fade-in">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold shrink-0 shadow-2xs">
+              <i-lucide name="truck" class="w-4 h-4"></i-lucide>
+            </div>
+            <div>
+              <div class="flex items-center gap-2 flex-wrap">
+                <h3 class="text-xs font-black text-indigo-950 uppercase tracking-wide">
+                  ¡Suministros en Camino para tu Sede!
+                </h3>
+                <span class="px-2 py-0.2 rounded-full text-[10px] font-black bg-indigo-200 text-indigo-900 font-mono">
+                  Guía: {{ despachosPendientesLider[0].numeroGuia }}
+                </span>
+                <span class="px-2 py-0.2 rounded-full text-[10px] font-extrabold bg-blue-100 text-blue-800">
+                  {{ despachosPendientesLider.length }} despacho(s) en tránsito
+                </span>
+              </div>
+              <p class="text-[11px] text-indigo-800 mt-0.5">
+                Bodega Central ha enviado suministros para tus servicios. Revisa la carga y confirma o rechaza la recepción.
+              </p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 shrink-0">
+            <a
+              routerLink="/inventario"
+              class="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs transition-colors shadow-2xs flex items-center gap-1.5 cursor-pointer">
+              <i-lucide name="check-circle" class="w-3.5 h-3.5"></i-lucide>
+              <span>Revisar y Confirmar en Inventario</span>
+            </a>
+          </div>
+        </div>
+      }
+
       <!-- Tab Navigation: Generales y Especiales -->
       <div class="flex flex-wrap gap-2 p-1.5 bg-slate-200/80 rounded-2xl w-fit">
         
@@ -983,6 +1018,7 @@ export class ServiciosComponent implements OnInit {
 
   productosInventario: InventarioItem[] = [];
   insumosConsumoForm: InsumoConsumidoServicio[] = [];
+  despachosPendientesLider: any[] = [];
 
   private catalogoMock = inject(CatalogoServiciosMockService);
   private sucursalService = inject(SucursalMockService);
@@ -1116,6 +1152,13 @@ export class ServiciosComponent implements OnInit {
     this.inventarioService.getItems().subscribe((items: any) => {
       this.productosInventario = items;
     });
+
+    if (this.isLiderOperador) {
+      const agId = user?.agenciaId || user?.sucursalNombre || user?.sucursal || '';
+      this.inventarioService.getDespachosPendientesAgencia(String(agId)).subscribe(list => {
+        this.despachosPendientesLider = list || [];
+      });
+    }
 
     this.operadorService.getOperadores().subscribe(ops => {
       this.operadores = ops;

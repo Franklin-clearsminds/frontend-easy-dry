@@ -274,6 +274,65 @@ export class InventarioMockService {
     );
   }
 
+  public getDespachosPendientesAgencia(agenciaId?: string): Observable<any[]> {
+    return this.http.post<any[]>(apiUrl('/inventario/despachos/agencia/pendientes'), { agenciaId }).pipe(
+      catchError(() => {
+        // Fallback demo para visualización en caso de offline
+        const mockDespachos: any[] = [
+          {
+            id: 'desp-demo-001',
+            numeroGuia: 'DESP-2026-0042',
+            tipo: 'DESPACHO_AGENCIA',
+            estadoDespacho: 'EN_TRANSITO',
+            origenUbicacion: 'Bodega Central Nacional (Pifo)',
+            destinoUbicacion: agenciaId || 'EasyDry Quito Norte',
+            fechaDespacho: new Date().toISOString(),
+            usuarioDespacha: { name: 'Carlos', lastname: 'Mendoza (Bodega Central)' },
+            detalles: [
+              {
+                id: 'det-1',
+                insumo: { nombre: 'Shampoo Ecológico Ultra-Espuma', codigoSKU: 'QUIM-001', unidadMedida: { simbolo: 'Caneca 20L' } },
+                cantidadEnviada: 4
+              },
+              {
+                id: 'det-2',
+                insumo: { nombre: 'Cera Línea Cerámica Hidrofóbica', codigoSKU: 'QUIM-002', unidadMedida: { simbolo: 'Galón' } },
+                cantidadEnviada: 2
+              },
+              {
+                id: 'det-3',
+                insumo: { nombre: 'Paños de Microfibra 40x40 Premium', codigoSKU: 'TEX-001', unidadMedida: { simbolo: 'Pack x10' } },
+                cantidadEnviada: 5
+              }
+            ]
+          }
+        ];
+        return of(mockDespachos);
+      })
+    );
+  }
+
+  public confirmarRecepcionDespacho(movimientoId: string, agenciaId?: string, observaciones?: string): Observable<any> {
+    return this.http.post<any>(apiUrl('/inventario/despachos/confirmar-recepcion'), {
+      movimientoId,
+      accion: 'RECIBIDO',
+      agenciaId,
+      observaciones
+    }).pipe(
+      tap(() => this.cargarItems()),
+      catchError(() => of({ ok: true }))
+    );
+  }
+
+  public rechazarDespacho(movimientoId: string, motivo: string, agenciaId?: string): Observable<any> {
+    return this.http.post<any>(apiUrl('/inventario/despachos/rechazar'), {
+      movimientoId,
+      motivo
+    }).pipe(
+      catchError(() => of({ ok: true }))
+    );
+  }
+
   public cargarItems(): void {
     this.getProductos().subscribe((productos) => {
       const items: InventarioItem[] = productos.map((p) => ({
