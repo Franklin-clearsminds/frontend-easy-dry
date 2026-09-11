@@ -174,7 +174,21 @@ import {
               </p>
             </div>
 
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2.5 flex-wrap">
+              <!-- Selector de Sede para Insumos por Servicios -->
+              <div *ngIf="sucursalesActivas.length > 0" class="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl shadow-2xs">
+                <i-lucide name="store" class="w-3.5 h-3.5 text-teal-600"></i-lucide>
+                <label class="text-[11px] font-bold text-slate-600 whitespace-nowrap">Sede:</label>
+                <select
+                  [ngModel]="miAgenciaId"
+                  (ngModelChange)="onCambiarSede($event)"
+                  class="bg-transparent text-xs font-bold text-slate-800 focus:outline-none cursor-pointer pr-1">
+                  <option *ngFor="let suc of sucursalesActivas" [value]="suc.id">
+                    {{ suc.nombre }}
+                  </option>
+                </select>
+              </div>
+
               <button
                 (click)="cargarInsumosPorServicios(); cargarDespachosPendientes()"
                 class="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer">
@@ -604,6 +618,21 @@ import {
         <!-- Filtros de Productos -->
         <div class="bg-white p-4 rounded-xl border border-slate-100 shadow-xs flex flex-col md:flex-row items-center gap-3 justify-between">
           <div class="flex items-center gap-3 w-full md:w-auto flex-1 flex-wrap">
+            <!-- Selector de Sede para Productos -->
+            <div *ngIf="sucursalesActivas.length > 0" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white shadow-2xs">
+              <i-lucide name="store" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide>
+              <label class="text-[11px] font-bold text-slate-600 whitespace-nowrap">Sede:</label>
+              <select
+                [ngModel]="miAgenciaId"
+                (ngModelChange)="onCambiarSede($event)"
+                class="text-xs bg-transparent focus:outline-none text-slate-800 font-semibold cursor-pointer">
+                <option value="">Todas las Sedes (Global)</option>
+                <option *ngFor="let suc of sucursalesActivas" [value]="suc.id">
+                  {{ suc.nombre }}
+                </option>
+              </select>
+            </div>
+
             <div class="relative flex-1 max-w-sm">
               <span class="absolute left-3 inset-y-0 flex items-center pointer-events-none text-slate-400">
                 <i-lucide name="search" class="w-4 h-4"></i-lucide>
@@ -2290,6 +2319,7 @@ export class InventarioComponent implements OnInit {
   esLiderAgencia: boolean = false;
   miAgenciaId: string = '';
   miAgenciaNombre: string = '';
+  sucursalesActivas: any[] = [];
 
   // Insumos basados en servicios de la sede
   cargandoInsumosServicios: boolean = false;
@@ -2439,7 +2469,7 @@ export class InventarioComponent implements OnInit {
       rolNombre.includes('lider');
     this.esLiderAgencia = role === 'LIDER_AGENCIA' || rolNombre === 'lider_agencia';
 
-    this.miAgenciaNombre = this.currentUser?.sucursalNombre || this.currentUser?.sucursal || 'EasyDry Quito Norte';
+    this.miAgenciaNombre = this.currentUser?.sucursalNombre || this.currentUser?.sucursal || '';
     this.miAgenciaId = (this.currentUser?.agenciaId ? String(this.currentUser.agenciaId) : '') || this.miAgenciaNombre;
 
     if (this.isLiderOperador || this.esLiderAgencia) {
@@ -2449,6 +2479,39 @@ export class InventarioComponent implements OnInit {
     this.cargarTodosLosCatalogos();
     this.cargarInsumosPorServicios();
     this.cargarDespachosPendientes();
+
+    // Cargar sedes activas para el selector de agencias
+    this.sucursalService.getSucursales().subscribe((sucursales) => {
+      this.sucursalesActivas = (sucursales || []).filter((s) => s.estado === 'Activo' || (s.estado as any) === 1);
+      if (this.sucursalesActivas.length > 0) {
+        const encontrada = this.sucursalesActivas.find(
+          (s) => String(s.id) === String(this.miAgenciaId) || s.nombre.toLowerCase() === this.miAgenciaNombre.toLowerCase()
+        );
+        if (encontrada) {
+          this.miAgenciaId = String(encontrada.id);
+          this.miAgenciaNombre = encontrada.nombre;
+        } else if (!this.currentUser?.agenciaId && !this.miAgenciaId) {
+          this.miAgenciaId = String(this.sucursalesActivas[0].id);
+          this.miAgenciaNombre = this.sucursalesActivas[0].nombre;
+        }
+        this.cargarInsumosPorServicios();
+        this.cargarDespachosPendientes();
+        this.cargarProductos();
+      }
+    });
+  }
+
+  public onCambiarSede(nuevaAgenciaId: string): void {
+    this.miAgenciaId = nuevaAgenciaId;
+    const found = this.sucursalesActivas.find((s) => String(s.id) === String(nuevaAgenciaId));
+    if (found) {
+      this.miAgenciaNombre = found.nombre;
+    } else {
+      this.miAgenciaNombre = '';
+    }
+    this.cargarInsumosPorServicios();
+    this.cargarDespachosPendientes();
+    this.cargarProductos();
   }
 
   // ==============================================================
@@ -2519,30 +2582,11 @@ export class InventarioComponent implements OnInit {
   }
 
   public cargarInsumosPorServicios(): void {
-    const aplicarFiltroSucursal = this.isLiderOperador || this.esLiderAgencia;
-    if (!aplicarFiltroSucursal) {
-      this.ejecutarCargaInsumosServicios();
-      return;
-    }
-
-    const suc = this.sucursalService.getSucursalPorNombre(this.miAgenciaNombre)
-      || this.sucursalService.getActivas().find(s => String(s.id) === String(this.miAgenciaId))
-      || this.sucursalService.getActivas().find(s => this.miAgenciaNombre.includes(s.nombre) || s.nombre.includes(this.miAgenciaNombre));
-
-    if (suc?.servicioIds?.length) {
-      this.ejecutarCargaInsumosServicios(suc.servicioIds);
-      return;
-    }
-
-    // Config local aún sin cargar: obtener sucursales y reintentar con los servicios autorizados
-    this.sucursalService.getSucursales().subscribe(list => {
-      const s2 = list.find(x => String(x.id) === String(this.miAgenciaId))
-        || this.sucursalService.getSucursalPorNombre(this.miAgenciaNombre);
-      this.ejecutarCargaInsumosServicios(s2?.servicioIds);
-    });
+    this.ejecutarCargaInsumosServicios();
   }
 
   private ejecutarCargaInsumosServicios(servicioIds?: number[]): void {
+    if (!this.miAgenciaId) return;
     this.cargandoInsumosServicios = true;
     this.inventarioService.getInsumosPorServiciosAgencia(this.miAgenciaId, servicioIds).subscribe({
       next: (res) => {
@@ -2626,8 +2670,10 @@ export class InventarioComponent implements OnInit {
 
   public cargarProductos(): void {
     const dto: any = {};
-    if (this.isLiderOperador || this.esLiderAgencia || this.currentUser?.agenciaId) {
-      dto.agenciaId = this.miAgenciaId || this.currentUser?.agenciaId;
+    if (this.miAgenciaId) {
+      dto.agenciaId = this.miAgenciaId;
+    } else if (this.isLiderOperador || this.esLiderAgencia || this.currentUser?.agenciaId) {
+      dto.agenciaId = this.currentUser?.agenciaId;
     }
     this.inventarioService.getProductos(dto).subscribe((prods) => {
       this.productos = prods;
