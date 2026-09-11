@@ -5,9 +5,10 @@ import { LucideAngularModule } from 'lucide-angular';
 import { UsuarioMockService } from '../../core/services/usuario-mock.service';
 import { RolMockService } from '../../core/services/rol-mock.service';
 import { AuthService, DEMO_CREDENTIALS } from '../../core/services/auth.service';
-import { Usuario, ModuloSistema, RolPersonalizado, MODULOS_SISTEMA, Sucursal, ModalidadPulidor } from '../../core/models';
+import { Usuario, ModuloSistema, RolPersonalizado, MODULOS_SISTEMA, Sucursal, ModalidadPulidor, BodegaInventario } from '../../core/models';
 import { isRolPermisosInmutable, PermisoModuloAcciones } from '../../core/models/roles.model';
 import { SucursalMockService } from '../../core/services/sucursal-mock.service';
+import { InventarioMockService } from '../../core/services/inventario-mock.service';
 import { esRolOperadorEspeciales } from '../../core/utils/modalidad-especiales.util';
 import { ModalComponent } from '../../shared/components/modal/modal.component';
 import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
@@ -138,7 +139,19 @@ interface ModuloGrupo {
                       </td>
                       <td class="py-3.5 px-4 text-xs font-semibold text-slate-700">
                         <div class="flex flex-col gap-1">
-                          <span>{{ u.agencia }}</span>
+                          @if (esGestorBodegaRol(u.rol)) {
+                            <span class="inline-flex items-center gap-1.5 text-purple-700 font-bold bg-purple-50 px-2 py-0.5 rounded-lg border border-purple-200 w-fit">
+                              <i-lucide name="globe" class="w-3.5 h-3.5"></i-lucide>
+                              <span>Global · Inventario Nacional</span>
+                            </span>
+                          } @else if (esAsistenteBodegaRol(u.rol)) {
+                            <span class="inline-flex items-center gap-1.5 text-amber-700 font-bold bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-200 w-fit">
+                              <i-lucide name="archive" class="w-3.5 h-3.5"></i-lucide>
+                              <span>{{ u.agencia || 'Bodega Central Nacional' }}</span>
+                            </span>
+                          } @else {
+                            <span>{{ u.agencia }}</span>
+                          }
                           @if (esOperadorEspecialesRol(u.rol)) {
                             <span
                               class="w-fit px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide"
@@ -561,6 +574,35 @@ interface ModuloGrupo {
               } @else {
                 <p class="text-xs font-semibold text-cyan-900">Ubicación: Red Nacional · Móvil entre agencias</p>
               }
+            </div>
+          } @else if (esGestorBodegaRol(usuarioForm.rol)) {
+            <div class="p-4 rounded-2xl border border-purple-200 bg-purple-50/70 space-y-2">
+              <div class="flex items-center gap-2 text-purple-900">
+                <i-lucide name="globe" class="w-4 h-4 text-purple-600 shrink-0"></i-lucide>
+                <span class="text-xs font-extrabold uppercase tracking-wide">Alcance Global · Gestión de Inventario Nacional</span>
+              </div>
+              <p class="text-xs text-purple-800 leading-relaxed">
+                El <b>Gestor de Bodega</b> administra el inventario de <b>todas las bodegas y agencias del país</b>. No requiere asignación de sucursal específica ya que coordina y despacha insumos a nivel nacional sin restricciones.
+              </p>
+            </div>
+          } @else if (esAsistenteBodegaRol(usuarioForm.rol)) {
+            <div>
+              <div class="flex items-center justify-between mb-1">
+                <label class="block text-xs font-bold text-slate-700 uppercase">
+                  Asignar Bodega <span class="text-amber-500">*</span>
+                </label>
+                <span class="text-[10px] text-amber-700 font-bold bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                  Control Regional
+                </span>
+              </div>
+              <select [(ngModel)]="usuarioForm.agencia" name="bodegaAsistente" class="w-full p-2.5 border rounded-xl text-sm font-semibold border-amber-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-200" required>
+                @for (b of bodegasDisponibles; track b.id) {
+                  <option [value]="b.nombre">{{ b.nombre }} ({{ b.ciudad || 'Quito' }} - Región: {{ b.region || 'Nacional' }})</option>
+                }
+              </select>
+              <p class="text-[11px] text-slate-400 mt-1">
+                El Asistente gestionará el inventario y despachos de las agencias pertenecientes a su bodega y región asignada.
+              </p>
             </div>
           } @else {
             <div>
@@ -1188,10 +1230,39 @@ export class UsuariosComponent implements OnInit {
   private usuarioService = inject(UsuarioMockService);
   private rolService = inject(RolMockService);
   private sucursalService = inject(SucursalMockService);
+  private inventarioService = inject(InventarioMockService);
   private toastService = inject(ToastService);
+
+  bodegasDisponibles: BodegaInventario[] = [];
 
   isRolPermisosInmutable = isRolPermisosInmutable;
   esOperadorEspecialesRol = esRolOperadorEspeciales;
+
+  esGestorBodegaRol(rol?: string): boolean {
+    if (!rol) return false;
+    const n = rol.toUpperCase().trim();
+    return (
+      n === 'COORD_BODEGA' ||
+      n === 'DISTRIBUIDOR' ||
+      n === 'GESTOR_BODEGA' ||
+      n.includes('GESTOR DE BODEGA') ||
+      n.includes('COORDINADOR DE BODEGA') ||
+      n.includes('COORD. BODEGA') ||
+      n.includes('GESTOR DE INVENTARIO') ||
+      (n.includes('BODEGA') && !n.includes('ASISTENTE'))
+    );
+  }
+
+  esAsistenteBodegaRol(rol?: string): boolean {
+    if (!rol) return false;
+    const n = rol.toUpperCase().trim();
+    return (
+      n === 'ASISTENTE_BODEGA' ||
+      n.includes('ASISTENTE DE BODEGA') ||
+      n.includes('ASISTENTE BODEGA') ||
+      (n.includes('ASISTENTE') && n.includes('BODEGA'))
+    );
+  }
 
   get isSuperAdmin(): boolean {
     return this.authService.isSuperAdmin();
@@ -1216,6 +1287,18 @@ export class UsuariosComponent implements OnInit {
 
   ngOnInit(): void {
     this.agruparModulos();
+
+    this.inventarioService.bodegas$.subscribe(list => {
+      if (list && list.length) {
+        this.bodegasDisponibles = list;
+      }
+    });
+
+    this.inventarioService.getBodegas().subscribe(list => {
+      if (list && list.length) {
+        this.bodegasDisponibles = list;
+      }
+    });
 
     this.usuarioService.usuarios$.subscribe(list => {
       if (list && list.length) {
@@ -1356,11 +1439,18 @@ export class UsuariosComponent implements OnInit {
   abrirModalCrearUsuario() {
     this.editandoUsuario = null;
     this.usuarioFormSubmitted = false;
+    const primerRol = this.rolesVisibles[0]?.nombre || 'Administrador';
+    let agenciaInicial = '';
+    if (this.esGestorBodegaRol(primerRol)) {
+      agenciaInicial = 'Bodega Central Nacional';
+    } else if (this.esAsistenteBodegaRol(primerRol)) {
+      agenciaInicial = this.bodegasDisponibles[0]?.nombre || 'Bodega Central Nacional';
+    }
     this.usuarioForm = {
       nombre: '',
       apellido: '',
-      rol: this.rolesVisibles[0]?.nombre || 'Administrador',
-      agencia: '',
+      rol: primerRol,
+      agencia: agenciaInicial,
       estado: 'Activo',
       email: '',
       password: '',
@@ -1376,11 +1466,26 @@ export class UsuariosComponent implements OnInit {
   editarUsuario(u: Usuario) {
     this.editandoUsuario = u;
     this.usuarioFormSubmitted = false;
-    const agenciaActual = (u.agencia && u.agencia !== 'Sin asignar' && u.agencia !== 'EasyDry Corporativo')
+    let agenciaActual = (u.agencia && u.agencia !== 'Sin asignar' && u.agencia !== 'EasyDry Corporativo')
       ? u.agencia
       : (u.sucursal && u.sucursal !== 'Sin asignar' && u.sucursal !== 'EasyDry Corporativo')
         ? u.sucursal
         : '';
+
+    if (this.esGestorBodegaRol(u.rol)) {
+      agenciaActual = 'Bodega Central Nacional';
+    } else if (this.esAsistenteBodegaRol(u.rol)) {
+      if (u.regionId) {
+        const matchingBodega = this.bodegasDisponibles.find(b => b.regionId === u.regionId);
+        if (matchingBodega) {
+          agenciaActual = matchingBodega.nombre;
+        }
+      }
+      if (!agenciaActual || agenciaActual === 'Sin asignar') {
+        agenciaActual = this.bodegasDisponibles[0]?.nombre || 'Bodega Central Nacional';
+      }
+    }
+
     this.usuarioForm = {
       nombre: u.nombre,
       apellido: u.apellido,
@@ -1452,11 +1557,17 @@ export class UsuariosComponent implements OnInit {
   }
 
   onRolUsuarioChange() {
-    if (esRolOperadorEspeciales(this.usuarioForm.rol)) {
+    if (this.esOperadorEspecialesRol(this.usuarioForm.rol)) {
       if (!this.usuarioForm.modalidadPulidor) {
         this.usuarioForm.modalidadPulidor = 'MOVIL';
       }
       this.setModalidadPulidor(this.usuarioForm.modalidadPulidor);
+    } else if (this.esGestorBodegaRol(this.usuarioForm.rol)) {
+      this.usuarioForm.agencia = 'Bodega Central Nacional';
+    } else if (this.esAsistenteBodegaRol(this.usuarioForm.rol)) {
+      if (!this.usuarioForm.agencia || !this.bodegasDisponibles.some(b => b.nombre === this.usuarioForm.agencia)) {
+        this.usuarioForm.agencia = this.bodegasDisponibles[0]?.nombre || 'Bodega Central Nacional';
+      }
     }
   }
 
@@ -1468,6 +1579,12 @@ export class UsuariosComponent implements OnInit {
   }
 
   private payloadModalidad(): { agencia: string; modalidadPulidor?: ModalidadPulidor } {
+    if (this.esGestorBodegaRol(this.usuarioForm.rol)) {
+      return { agencia: 'Bodega Central Nacional', modalidadPulidor: undefined };
+    }
+    if (this.esAsistenteBodegaRol(this.usuarioForm.rol)) {
+      return { agencia: this.usuarioForm.agencia?.trim() || 'Bodega Central Nacional', modalidadPulidor: undefined };
+    }
     if (!esRolOperadorEspeciales(this.usuarioForm.rol)) {
       return { agencia: this.usuarioForm.agencia?.trim() || 'Sin asignar', modalidadPulidor: undefined };
     }
@@ -1522,27 +1639,55 @@ export class UsuariosComponent implements OnInit {
       return;
     }
 
+    if (this.esAsistenteBodegaRol(this.usuarioForm.rol) && !this.usuarioForm.agencia) {
+      this.usuarioForm.agencia = this.bodegasDisponibles[0]?.nombre || 'Bodega Central Nacional';
+    }
+
     const modalidad = this.payloadModalidad();
+    const isAsistente = this.esAsistenteBodegaRol(this.usuarioForm.rol);
+    const isGestor = this.esGestorBodegaRol(this.usuarioForm.rol);
+
+    let bodegaMatch: BodegaInventario | undefined = undefined;
+    if (isAsistente || isGestor) {
+      bodegaMatch = this.bodegasDisponibles.find(b =>
+        b.nombre === this.usuarioForm.agencia ||
+        b.id === this.usuarioForm.agencia ||
+        b.codigo === this.usuarioForm.agencia
+      );
+    }
+
+    const rolEncontrado = this.rolesVisibles.find(r =>
+      r.nombre.toLowerCase() === this.usuarioForm.rol.toLowerCase() ||
+      r.codigo.toLowerCase() === this.usuarioForm.rol.toLowerCase() ||
+      (isGestor && (r.codigo === 'COORD_BODEGA' || r.codigo === 'DISTRIBUIDOR')) ||
+      (isAsistente && r.codigo === 'ASISTENTE_BODEGA')
+    );
+
+    const roleIdToSend = rolEncontrado?.id ||
+      (isGestor ? this.rolesVisibles.find(r => r.codigo === 'COORD_BODEGA')?.id : undefined) ||
+      (isAsistente ? this.rolesVisibles.find(r => r.codigo === 'ASISTENTE_BODEGA')?.id : undefined);
 
     if (this.editandoUsuario) {
       const nuevoEstado: 'Activo' | 'Inactivo' = this.usuarioForm.estado === 'Inactivo' ? 'Inactivo' : 'Activo';
       const agenciaVal = modalidad.agencia === 'Sin asignar' ? '' : modalidad.agencia;
       const sucursalMatch = this.sucursales.find(s => s.nombre === agenciaVal || String(s.id) === agenciaVal);
-      const actualizado: Usuario & { password?: string; roleId?: string } = {
+      const actualizado: Usuario & { password?: string; roleId?: string; regionId?: string; region?: string } = {
         ...this.editandoUsuario,
         nombre: this.usuarioForm.nombre.trim(),
         apellido: this.usuarioForm.apellido.trim(),
-        rol: this.usuarioForm.rol,
+        rol: rolEncontrado?.nombre || this.usuarioForm.rol,
         agencia: agenciaVal || 'Sin asignar',
         sucursal: agenciaVal || 'Sin asignar',
         agenciaId: sucursalMatch ? String(sucursalMatch.id) : undefined,
+        regionId: isAsistente ? (bodegaMatch?.regionId || this.editandoUsuario.regionId) : undefined,
+        region: isAsistente ? (bodegaMatch?.region || this.editandoUsuario.region) : undefined,
         estado: nuevoEstado,
         email: this.usuarioForm.email.trim(),
         modalidadPulidor: modalidad.modalidadPulidor,
         ...(this.usuarioForm.cambiarPassword && this.usuarioForm.password?.trim()
           ? { password: this.usuarioForm.password.trim() }
           : {}),
-        roleId: this.rolesVisibles.find(r => r.nombre === this.usuarioForm.rol)?.id || undefined
+        roleId: roleIdToSend || (this.editandoUsuario as any).roleId || undefined
       };
 
       this.usuarioService.actualizarUsuario(actualizado).subscribe({
@@ -1573,19 +1718,22 @@ export class UsuariosComponent implements OnInit {
     } else {
       const agenciaVal = modalidad.agencia === 'Sin asignar' ? '' : modalidad.agencia;
       const sucursalMatch = this.sucursales.find(s => s.nombre === agenciaVal || String(s.id) === agenciaVal);
-      const nuevo: Omit<Usuario, 'id'> & { password?: string } = {
+      const nuevo: Omit<Usuario, 'id'> & { password?: string; roleId?: string; regionId?: string; region?: string } = {
         nombre: this.usuarioForm.nombre.trim(),
         apellido: this.usuarioForm.apellido.trim(),
-        rol: this.usuarioForm.rol,
+        rol: rolEncontrado?.nombre || this.usuarioForm.rol,
         agencia: agenciaVal || 'Sin asignar',
         sucursal: agenciaVal || 'Sin asignar',
         agenciaId: sucursalMatch ? String(sucursalMatch.id) : undefined,
+        regionId: isAsistente ? bodegaMatch?.regionId : undefined,
+        region: isAsistente ? bodegaMatch?.region : undefined,
         estado: this.usuarioForm.estado,
         email: this.usuarioForm.email.trim(),
         fechaAsignacion: new Date().toISOString().split('T')[0],
         avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
         modalidadPulidor: modalidad.modalidadPulidor,
-        password: this.usuarioForm.password?.trim()
+        password: this.usuarioForm.password?.trim(),
+        roleId: roleIdToSend
       };
 
       this.usuarioService.crearUsuario(nuevo).subscribe({
@@ -1613,7 +1761,7 @@ export class UsuariosComponent implements OnInit {
             ...nuevo,
             id: 'usr-' + Date.now().toString().slice(-4),
             sucursal: nuevo.agencia,
-            region: 'Sin asignar'
+            region: isAsistente && bodegaMatch?.region ? bodegaMatch.region : 'Sin asignar'
           };
           this.usuarios = [fallback, ...this.usuarios];
           this.currentPage = 1;

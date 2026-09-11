@@ -173,6 +173,70 @@ export const DEMO_CREDENTIALS: DemoUserCredential[] = [
     avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150&auto=format&fit=crop&q=80'
   },
   {
+    nombre: 'Coordinador Especiales Sierra',
+    email: 'coord.especiales.sierra@easydry.com',
+    passwordPlain: 'Admin123*',
+    role: Role.COORD_SERVICIOS_ESPECIALES,
+    rolNombre: 'Jefe Servicios Especiales',
+    sucursal: 'Región Sierra',
+    region: 'Región Sierra',
+    avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80'
+  },
+  {
+    nombre: 'Pulidor Sierra 1',
+    email: 'pulidor1.sierra@easydry.com',
+    passwordPlain: 'Admin123*',
+    role: Role.PULIDOR_MOVIL,
+    rolNombre: 'Pulidor Móvil',
+    sucursal: 'Región Sierra',
+    region: 'Región Sierra',
+    modalidadPulidor: 'MOVIL',
+    avatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=150&auto=format&fit=crop&q=80'
+  },
+  {
+    nombre: 'Pulidor Sierra 2',
+    email: 'pulidor2.sierra@easydry.com',
+    passwordPlain: 'Admin123*',
+    role: Role.PULIDOR_MOVIL,
+    rolNombre: 'Pulidor Móvil',
+    sucursal: 'Región Sierra',
+    region: 'Región Sierra',
+    modalidadPulidor: 'MOVIL',
+    avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150&auto=format&fit=crop&q=80'
+  },
+  {
+    nombre: 'Coordinador Especiales Costa',
+    email: 'coord.especiales.costa@easydry.com',
+    passwordPlain: 'Admin123*',
+    role: Role.COORD_SERVICIOS_ESPECIALES,
+    rolNombre: 'Jefe Servicios Especiales',
+    sucursal: 'Región Costa',
+    region: 'Región Costa',
+    avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&auto=format&fit=crop&q=80'
+  },
+  {
+    nombre: 'Pulidor Costa 1',
+    email: 'pulidor1.costa@easydry.com',
+    passwordPlain: 'Admin123*',
+    role: Role.PULIDOR_MOVIL,
+    rolNombre: 'Pulidor Móvil',
+    sucursal: 'Región Costa',
+    region: 'Región Costa',
+    modalidadPulidor: 'MOVIL',
+    avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80'
+  },
+  {
+    nombre: 'Pulidor Costa 2',
+    email: 'pulidor2.costa@easydry.com',
+    passwordPlain: 'Admin123*',
+    role: Role.PULIDOR_MOVIL,
+    rolNombre: 'Pulidor Móvil',
+    sucursal: 'Región Costa',
+    region: 'Región Costa',
+    modalidadPulidor: 'MOVIL',
+    avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150&auto=format&fit=crop&q=80'
+  },
+  {
     nombre: 'Coordinador de Bodega',
     email: 'distribuidor@easydry.com',
     passwordPlain: 'Admin123*',
@@ -248,7 +312,16 @@ export class AuthService {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored) as UsuarioAuth;
-        if (parsed && parsed.email && parsed.token) return parsed;
+        if (parsed && parsed.email && parsed.token) {
+          const role = parsed.role;
+          if (role) {
+            parsed.modulosPermitidos = role === Role.SUPER_ADMIN
+              ? MODULOS_POR_ROL[Role.SUPER_ADMIN]
+              : (MODULOS_POR_ROL[role] || parsed.modulosPermitidos || []);
+            parsed.permisos = PERMISOS_POR_ROL[role] || parsed.permisos;
+          }
+          return parsed;
+        }
       }
     } catch {
       localStorage.removeItem(STORAGE_KEY);
@@ -557,6 +630,19 @@ export class AuthService {
     const u = this.currentUserSubject.value;
     if (!u) return 'EasyDry';
     return `${u.nombre} ${u.apellido} | ${u.rolNombre || u.role} (${u.region || u.sucursal || 'EasyDry'})`;
+  }
+
+  isCoordServiciosEspeciales(): boolean {
+    return this.currentUserSubject.value?.role === Role.COORD_SERVICIOS_ESPECIALES;
+  }
+
+  isPulidor(): boolean {
+    const r = this.currentUserSubject.value?.role;
+    return r === Role.PULIDOR_MOVIL || r === Role.PULIDOR_FIJO || r === Role.OPERADOR_SERVICIOS_ESPECIALES;
+  }
+
+  isStaffServiciosEspeciales(): boolean {
+    return this.isCoordServiciosEspeciales() || this.isPulidor();
   }
 
   isGerente(): boolean {

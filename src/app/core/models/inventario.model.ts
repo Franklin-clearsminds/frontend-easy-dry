@@ -11,10 +11,14 @@ export interface BodegaInventario {
   codigo: string;
   nombre: string;
   ciudad?: string;
+  direccion?: string;
+  telefono?: string;
   region?: string;
+  regionId?: string;
   /** Solo Bodega Central. No se puede eliminar ni desactivar. */
   esCentral: boolean;
   activa: boolean;
+  porcentajeAlerta?: number;
   fechaCreacion: string;
 }
 
@@ -59,6 +63,8 @@ export interface ProductoInsumo {
   stockMinimoBodega?: number;
   stockMinimoAgencia?: number;
   stockOptimoBodega?: number;
+  porcentajeAlerta?: number;
+  umbralAlerta?: number;
   descripcion?: string;
   stockAlertaBodega?: number; // Umbral de alerta en Bodega Central
   stockAlertaSucursal?: number; // Umbral de alerta en Sucursal

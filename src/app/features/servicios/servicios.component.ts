@@ -55,13 +55,15 @@ import { RouterModule } from '@angular/router';
           <p class="text-slate-500 text-xs mt-1">Digitalización del proceso físico: OT, placa, evidencias en vídeo/fotos y flujo de aprobación por Gerencia.</p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
-          <a
-            routerLink="/configuracion/servicios"
-            class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold rounded-xl text-xs transition-all flex items-center gap-2 cursor-pointer shadow-2xs border border-slate-200">
-            <i-lucide name="layout-list" class="w-4 h-4 text-easydry-blue"></i-lucide>
-            <span class="hidden sm:inline">{{ isLiderOperador ? 'Catálogo de Servicios' : 'Catálogo & Crear Servicios' }}</span>
-            <span class="sm:hidden">Catálogo</span>
-          </a>
+          @if (!isAprobador) {
+            <a
+              routerLink="/configuracion/servicios"
+              class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold rounded-xl text-xs transition-all flex items-center gap-2 cursor-pointer shadow-2xs border border-slate-200">
+              <i-lucide name="layout-list" class="w-4 h-4 text-easydry-blue"></i-lucide>
+              <span class="hidden sm:inline">{{ isLiderOperador ? 'Catálogo de Servicios' : 'Catálogo & Crear Servicios' }}</span>
+              <span class="sm:hidden">Catálogo</span>
+            </a>
+          }
 
           @if (puedeReportarFalla) {
             <button
@@ -72,13 +74,16 @@ import { RouterModule } from '@angular/router';
               <span class="sm:hidden">Falla</span>
             </button>
           }
-          <button
-            (click)="abrirModalNuevaOT()"
-            class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
-            <i-lucide name="plus" class="w-4 h-4"></i-lucide>
-            <span class="hidden sm:inline">{{ tabActiva === 'especiales' ? 'Nueva OT (Especial)' : 'Nueva Hoja de Control (OT)' }}</span>
-            <span class="sm:hidden">Nueva OT</span>
-          </button>
+
+          @if (canCrearOT) {
+            <button
+              (click)="abrirModalNuevaOT()"
+              class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
+              <i-lucide name="plus" class="w-4 h-4"></i-lucide>
+              <span class="hidden sm:inline">{{ tabActiva === 'especiales' ? 'Nueva OT (Especial)' : 'Nueva Hoja de Control (OT)' }}</span>
+              <span class="sm:hidden">Nueva OT</span>
+            </button>
+          }
         </div>
       </div>
 
@@ -127,6 +132,9 @@ import { RouterModule } from '@angular/router';
           class="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs transition-all cursor-pointer">
           <i-lucide name="droplet" class="w-4 h-4 text-easydry-blue"></i-lucide>
           <span>Servicios Generales</span>
+          <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-700 font-bold ml-1">
+            {{ countServiciosGenerales }}
+          </span>
         </button>
 
         <!-- Pestaña 2: Servicios Especiales -->
@@ -137,12 +145,15 @@ import { RouterModule } from '@angular/router';
             class="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs transition-all cursor-pointer">
             <i-lucide name="star" class="w-4 h-4 text-amber-500 fill-amber-500/20"></i-lucide>
             <span>Servicios Especiales</span>
+            <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold ml-1">
+              {{ countServiciosEspeciales }}
+            </span>
           </button>
         }
 
       </div>
 
-      <!-- Banner contextual para Servicios Especiales -->
+      <!-- Banner contextual para Servicios Especiales con contexto de Región y Rol -->
       @if (tabActiva === 'especiales' && tieneServiciosEspeciales) {
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent p-4 rounded-2xl border border-amber-200/60 animate-fade-in">
           <div class="flex items-center gap-3">
@@ -150,30 +161,86 @@ import { RouterModule } from '@angular/router';
               <i-lucide name="star" class="w-5 h-5 fill-amber-500 text-amber-600"></i-lucide>
             </div>
             <div>
-              <h2 class="text-sm font-extrabold text-slate-900 font-outfit">Hojas de Control de Servicios Especiales</h2>
-              <p class="text-xs text-slate-600 mt-0.5">Seguimiento de vehículos atendidos con Pulido, Recubrimiento Cerámico, Lavado de Motor y Chasis.</p>
+              <div class="flex items-center gap-2 flex-wrap">
+                <h2 class="text-sm font-extrabold text-slate-900 font-outfit">Control Regional de Servicios Especiales</h2>
+                <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-200 text-amber-900 font-mono">
+                  {{ userRegionNombre }}
+                </span>
+                @if (isCoordServiciosEspeciales) {
+                  <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-100 text-blue-800">
+                    Coordinador Zonal
+                  </span>
+                } @else if (isPulidor) {
+                  <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800">
+                    Pulidor Regional en Campo
+                  </span>
+                }
+              </div>
+              <p class="text-xs text-slate-600 mt-0.5">
+                Flujo con evidencias en vídeo (Inicial & Final) y deducción automática de insumos en custodia del pulidor.
+              </p>
             </div>
           </div>
-          <span class="text-xs font-bold text-amber-800 bg-amber-100/80 px-3 py-1 rounded-full border border-amber-200 self-start sm:self-auto">
-            {{ serviciosFiltrados.length }} OTs Especiales
-          </span>
+          <div class="flex items-center gap-2">
+            @if (isCoordServiciosEspeciales || isPulidor || isAdmin || isSuperAdmin) {
+              <button
+                (click)="abrirModalNuevoExtra()"
+                class="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white font-extrabold rounded-xl text-xs transition-all shadow-xs flex items-center gap-1.5 cursor-pointer">
+                <i-lucide name="plus" class="w-3.5 h-3.5"></i-lucide>
+                <span>{{ isCoordServiciosEspeciales ? '+ Asignar a Pulidor' : '+ Nuevo Servicio Especial' }}</span>
+              </button>
+            }
+            <span class="text-xs font-bold text-amber-800 bg-amber-100/80 px-3 py-1 rounded-full border border-amber-200 self-start sm:self-auto">
+              {{ extrasFiltrados.length }} OTs Especiales
+            </span>
+          </div>
         </div>
+
+        <!-- Widget de Stock de Insumos en Custodia del Pulidor -->
+        @if (isPulidor && stockPulidor.length > 0) {
+          <div class="p-4 bg-slate-900 text-white rounded-2xl shadow-easydry border border-slate-800 animate-fade-in space-y-3">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-2.5">
+              <div class="flex items-center gap-2">
+                <i-lucide name="package-check" class="w-4 h-4 text-emerald-400"></i-lucide>
+                <h3 class="text-xs font-black uppercase tracking-wider text-slate-200">
+                  Mi Inventario de Químicos en Custodia (Unidad Móvil {{ userRegionNombre }})
+                </h3>
+              </div>
+              <span class="text-[11px] text-slate-400">
+                Se descuenta automáticamente al finalizar cada servicio especial
+              </span>
+            </div>
+            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5">
+              @for (st of stockPulidor; track st.id) {
+                <div class="p-2.5 bg-slate-800/80 rounded-xl border border-slate-700/60 flex flex-col justify-between">
+                  <div class="text-[11px] font-bold text-slate-200 truncate" [title]="st.producto?.nombre">
+                    {{ st.producto?.nombre }}
+                  </div>
+                  <div class="mt-1.5 flex items-baseline justify-between">
+                    <span class="font-mono text-base font-black text-emerald-400">{{ st.cantidadDisponible }}</span>
+                    <span class="text-[10px] text-slate-400 font-semibold">{{ st.producto?.unidadMedida || 'und' }}</span>
+                  </div>
+                </div>
+              }
+            </div>
+          </div>
+        }
       }
 
       <!-- Global Filter Bar (Contenedor Unificado de Filtros y Búsqueda) -->
       <app-filter-bar 
-        [showSucursal]="!isOperador" 
+        [showSucursal]="!isOperador && tabActiva === 'generales'" 
         [showOperador]="!isOperador"
-        [showBahia]="!isOperador"
+        [showBahia]="!isOperador && tabActiva === 'generales'"
         [showServicio]="true"
         [showRegion]="true"
         [showMarca]="true"
         [showEstado]="true"
         [showFechas]="false"
         [showBusqueda]="true"
-        [placeholderBusqueda]="tabActiva === 'generales' ? 'Buscar placa (ej. PBX-8932) u Orden OT...' : 'Buscar placa u OT especial...'"
+        [placeholderBusqueda]="tabActiva === 'generales' ? 'Buscar placa (ej. PBX-8932) u Orden OT...' : 'Buscar placa u OT especial (ej. SE-SIE-0001)...'"
         [listaServicios]="listaServiciosFiltro"
-        [listaEstados]="['Todos', 'EN PROCESO', 'FINALIZADO', 'APROBADO', 'RECHAZADO']"
+        [listaEstados]="['Todos', 'Pendiente', 'En Proceso', 'Completado']"
         (filterChange)="aplicarNuevosFiltros($event)">
       </app-filter-bar>
 
@@ -183,176 +250,389 @@ import { RouterModule } from '@angular/router';
         <!-- Cabecera de la sección -->
         <div class="p-6 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100">
           <div>
-            <h3 class="font-bold text-slate-900 text-lg font-outfit">{{ tabActiva === 'generales' ? 'Servicios Generales' : 'Servicios Especiales' }}</h3>
+            <h3 class="font-bold text-slate-900 text-lg font-outfit">{{ tabActiva === 'generales' ? 'Servicios Generales' : 'Servicios Especiales (Zonal ' + userRegionNombre + ')' }}</h3>
           </div>
         </div>
 
-        <!-- Desktop Table View -->
-        <div class="hidden lg:block overflow-x-auto flex-1">
-          <table class="w-full text-left text-sm">
-            <thead class="bg-slate-50 text-slate-500 text-xs font-bold uppercase tracking-wider border-b border-slate-200">
-              <tr>
-                <th class="py-3.5 px-4">Nº OT</th>
-                <th class="py-3.5 px-4">Vehículo</th>
-                <th class="py-3.5 px-4">Categoría & Servicio</th>
-                <th class="py-3.5 px-4">Sucursal / Bahía</th>
-                <th class="py-3.5 px-4">Horarios</th>
-                <th class="py-3.5 px-4">Lavador</th>
-                <th class="py-3.5 px-4">Estado Workflow</th>
-                <th class="py-3.5 px-4 text-center">Evidencia</th>
-                <th class="py-3.5 px-4 text-right">Acciones</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-slate-100">
-              @for (item of paginatedServicios; track item.id) {
-                <tr class="hover:bg-slate-50/80 transition-colors">
-                  <td class="py-3.5 px-4">
-                    <span class="font-mono font-extrabold text-xs text-easydry-blue bg-easydry-blue/10 px-2.5 py-1 rounded-lg block w-fit">
+        @if (tabActiva === 'generales') {
+          <!-- Desktop Table View: Servicios Generales -->
+          <div class="hidden lg:block overflow-x-auto flex-1">
+            <table class="w-full text-left text-sm">
+              <thead class="bg-slate-50 text-slate-500 text-xs font-bold uppercase tracking-wider border-b border-slate-200">
+                <tr>
+                  <th class="py-3.5 px-4">Nº OT</th>
+                  <th class="py-3.5 px-4">Vehículo</th>
+                  <th class="py-3.5 px-4">Categoría & Servicio</th>
+                  <th class="py-3.5 px-4">Sucursal / Bahía</th>
+                  <th class="py-3.5 px-4">Horarios</th>
+                  <th class="py-3.5 px-4">Lavador</th>
+                  <th class="py-3.5 px-4">Estado Workflow</th>
+                  <th class="py-3.5 px-4 text-center">Evidencia</th>
+                  <th class="py-3.5 px-4 text-right">Acciones</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100">
+                @for (item of paginatedServicios; track item.id) {
+                  <tr class="hover:bg-slate-50/80 transition-colors">
+                    <td class="py-3.5 px-4">
+                      <span class="font-mono font-extrabold text-xs text-easydry-blue bg-easydry-blue/10 px-2.5 py-1 rounded-lg block w-fit">
+                        {{ item.ordenTrabajoOT || 'OT-9800' }}
+                      </span>
+                    </td>
+
+                    <td class="py-3.5 px-4">
+                      <div class="font-bold text-slate-900 text-xs">{{ item.marca }} {{ item.modelo }}</div>
+                      <div class="text-xs font-mono font-extrabold text-easydry-blue">{{ item.placa }}</div>
+                      <div class="text-[10px] text-slate-500 font-semibold">{{ item.color }} ({{ item.anio }})</div>
+                    </td>
+
+                    <td class="py-3.5 px-4">
+                      <span 
+                        class="px-2 py-0.5 rounded text-[10px] font-extrabold block w-fit mb-1 border bg-blue-100 text-blue-800 border-blue-300">
+                        Servicios Generales
+                      </span>
+                      <span class="font-bold text-slate-900 text-xs">{{ item.servicio }}</span>
+                    </td>
+
+                    <td class="py-3.5 px-4 text-xs">
+                      <p class="font-bold text-slate-800">{{ item.agencia }}</p>
+                      <p class="text-[11px] text-easydry-blue font-semibold">{{ item.bahia || 'Bahía 1' }}</p>
+                    </td>
+
+                    <td class="py-3.5 px-4 text-xs font-mono">
+                      <p class="text-slate-700 font-semibold">Ing: {{ item.horaIngreso || '08:30' }}</p>
+                      <p class="text-slate-400">Sal: {{ item.horaSalida || '09:30' }}</p>
+                      <span class="mt-0.5 inline-block px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 text-[10px] font-bold">
+                        {{ calcularDuracion(item.horaIngreso || '', item.horaSalida || '') }}
+                      </span>
+                    </td>
+
+                    <td class="py-3.5 px-4 text-xs font-bold text-slate-800">
+                      {{ item.empleado }}
+                    </td>
+
+                    <td class="py-3.5 px-4">
+                      <span 
+                        class="px-3 py-1 rounded-full text-xs font-extrabold inline-flex items-center gap-1.5"
+                        [ngClass]="{
+                          'bg-amber-100 text-amber-800 border border-amber-300': item.estado === 'EN PROCESO',
+                          'bg-easydry-blue/15 text-easydry-blue border border-easydry-blue/30': item.estado === 'FINALIZADO',
+                          'bg-easydry-green/20 text-easydry-green-dark border border-easydry-green/40': item.estado === 'APROBADO',
+                          'bg-rose-100 text-rose-800 border border-rose-300': item.estado === 'RECHAZADO'
+                        }">
+                        <span>{{ item.estado }}</span>
+                      </span>
+                    </td>
+
+                    <td class="py-3.5 px-4 text-center">
+                      @if (item.video || item.videoUrl) {
+                        <button 
+                          (click)="verVideoEvidencia(item)"
+                          title="Ver video evidencia"
+                          class="p-1.5 bg-slate-100 hover:bg-easydry-blue hover:text-white text-easydry-blue rounded-lg transition-colors cursor-pointer inline-flex items-center justify-center">
+                          <i-lucide name="film" class="w-4 h-4"></i-lucide>
+                        </button>
+                      } @else {
+                        <span class="text-[11px] text-slate-400 italic">Sin vídeo</span>
+                      }
+                    </td>
+
+                    <td class="py-3.5 px-4 text-right">
+                      <div class="flex items-center justify-end gap-1">
+                        @if (canFinalizar(item)) {
+                          <button
+                            (click)="finalizarServicio(item)"
+                            title="Finalizar servicio e ingresar insumos"
+                            class="px-2.5 py-1 bg-easydry-blue/10 hover:bg-easydry-blue text-easydry-blue hover:text-white rounded-lg transition-colors cursor-pointer inline-flex items-center gap-1.5 text-xs font-bold shadow-2xs">
+                            <i-lucide name="check-circle" class="w-3.5 h-3.5"></i-lucide>
+                            <span>Finalizar</span>
+                          </button>
+                        }
+
+                        @if (item.estado === 'FINALIZADO' && canApprove) {
+                          <button
+                            (click)="aprobarServicio(item)"
+                            title="Aprobar servicio"
+                            class="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer flex items-center justify-center">
+                            <i-lucide name="check" class="w-4 h-4"></i-lucide>
+                          </button>
+                        }
+
+                        @if (item.estado === 'APROBADO') {
+                          <span class="p-1.5 text-emerald-600 bg-emerald-50 rounded-lg flex items-center justify-center" title="Servicio Aprobado">
+                            <i-lucide name="check-circle-2" class="w-4 h-4"></i-lucide>
+                          </span>
+                        }
+                      </div>
+                    </td>
+                  </tr>
+                } @empty {
+                  <tr>
+                    <td colspan="9" class="py-12 text-center text-slate-400 text-xs font-medium">
+                      No hay servicios generales registrados para esta categoría o filtros aplicados.
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Mobile / Tablet Card View: Generales -->
+          <div class="block lg:hidden divide-y divide-slate-100 flex-1">
+            @for (item of paginatedServicios; track item.id) {
+              <div class="p-4 hover:bg-slate-50 transition-colors cursor-pointer" (click)="abrirDetalle(item)">
+                <div class="flex items-start justify-between mb-2">
+                  <div>
+                    <span class="font-mono font-extrabold text-xs text-easydry-blue bg-easydry-blue/10 px-2 py-0.5 rounded-md">
                       {{ item.ordenTrabajoOT || 'OT-9800' }}
                     </span>
-                  </td>
+                    <div class="font-bold text-slate-900 text-sm mt-1.5">{{ item.marca }} {{ item.modelo }}</div>
+                    <div class="text-[11px] font-mono font-extrabold text-slate-500">{{ item.placa }}</div>
+                  </div>
+                  <span class="px-2.5 py-1 rounded-full text-[10px] font-extrabold text-center max-w-[80px]"
+                    [ngClass]="{
+                      'bg-amber-100 text-amber-800': item.estado === 'EN PROCESO',
+                      'bg-easydry-blue/15 text-easydry-blue': item.estado === 'FINALIZADO',
+                      'bg-easydry-green/20 text-easydry-green-dark': item.estado === 'APROBADO',
+                      'bg-rose-100 text-rose-800': item.estado === 'RECHAZADO'
+                    }">
+                    {{ item.estado }}
+                  </span>
+                </div>
+                
+                <div class="flex items-center justify-between mt-3 text-xs">
+                  <div class="flex items-center gap-1.5 text-slate-500">
+                    <i-lucide name="clock" class="w-3.5 h-3.5"></i-lucide>
+                    <span>{{ item.horaIngreso || '08:30' }}</span>
+                  </div>
+                  <div class="font-semibold text-slate-700">
+                    {{ item.servicio }}
+                  </div>
+                </div>
+              </div>
+            } @empty {
+              <div class="py-8 text-center text-slate-400 text-xs font-medium">
+                No hay servicios registrados para esta categoría o filtros aplicados.
+              </div>
+            }
+          </div>
 
-                  <td class="py-3.5 px-4">
-                    <div class="font-bold text-slate-900 text-xs">{{ item.marca }} {{ item.modelo }}</div>
-                    <div class="text-xs font-mono font-extrabold text-easydry-blue">{{ item.placa }}</div>
-                    <div class="text-[10px] text-slate-500 font-semibold">{{ item.color }} ({{ item.anio }})</div>
-                  </td>
+          <!-- Paginación Generales -->
+          <app-pagination 
+            [totalItems]="serviciosFiltrados.length" 
+            [currentPage]="currentPage" 
+            [pageSize]="pageSize"
+            (pageChange)="onPageChange($event)"
+            (pageSizeChange)="onPageSizeChange($event)">
+          </app-pagination>
+        } @else {
+          <!-- Desktop Table View: Servicios Especiales -->
+          <div class="hidden lg:block overflow-x-auto flex-1">
+            <table class="w-full text-left text-sm">
+              <thead class="bg-amber-50/70 text-amber-900 text-xs font-bold uppercase tracking-wider border-b border-amber-200">
+                <tr>
+                  <th class="py-3.5 px-4">Nº OT Especial</th>
+                  <th class="py-3.5 px-4">Vehículo & Placa</th>
+                  <th class="py-3.5 px-4">Servicio Especial</th>
+                  <th class="py-3.5 px-4">Región</th>
+                  <th class="py-3.5 px-4">Pulidor Responsable</th>
+                  <th class="py-3.5 px-4 text-center">Vídeo Inicial</th>
+                  <th class="py-3.5 px-4 text-center">Vídeo Final</th>
+                  <th class="py-3.5 px-4 text-center">Calidad</th>
+                  <th class="py-3.5 px-4">Estado</th>
+                  <th class="py-3.5 px-4 text-right">Acciones</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100">
+                @for (extra of paginatedExtras; track extra.id) {
+                  <tr class="hover:bg-amber-50/30 transition-colors">
+                    <td class="py-3.5 px-4">
+                      <span class="font-mono font-black text-xs text-amber-900 bg-amber-100 px-2.5 py-1 rounded-lg block w-fit border border-amber-300">
+                        {{ extra.codigoSE }}
+                      </span>
+                      <span class="text-[10px] text-slate-400 font-mono mt-0.5 block">{{ extra.fechaProgramada }}</span>
+                    </td>
 
-                  <td class="py-3.5 px-4">
-                    <span 
-                      class="px-2 py-0.5 rounded text-[10px] font-extrabold block w-fit mb-1 border"
-                      [ngClass]="{
-                        'bg-amber-100 text-amber-800 border-amber-300': item.categoriaServicio === 'ESPECIAL' || item.categoriaServicio === 'Servicios Especiales' || item.categoriaServicio === 'EXTRA' || item.categoriaServicio === 'Servicios Extras',
-                        'bg-blue-100 text-blue-800 border-blue-300': item.categoriaServicio === 'GENERAL' || item.categoriaServicio === 'Servicios Generales' || !item.categoriaServicio
-                      }">
-                      {{ 
-                        item.categoriaServicio === 'ESPECIAL' || item.categoriaServicio === 'Servicios Especiales' || item.categoriaServicio === 'EXTRA' || item.categoriaServicio === 'Servicios Extras' ? 'Servicios Especiales' : 
-                        'Servicios Generales'
-                      }}
-                    </span>
-                    <span class="font-bold text-slate-900 text-xs">{{ item.servicio }}</span>
-                  </td>
+                    <td class="py-3.5 px-4">
+                      <div class="font-extrabold text-slate-900 text-xs">{{ extra.vehiculoInfo?.marca }} {{ extra.vehiculoInfo?.modelo }}</div>
+                      <div class="text-xs font-mono font-black text-easydry-blue">{{ extra.vehiculoInfo?.placa || extra.placa }}</div>
+                      <div class="text-[10px] text-slate-500 font-semibold">{{ extra.vehiculoInfo?.color }}</div>
+                    </td>
 
-                  <td class="py-3.5 px-4 text-xs">
-                    <p class="font-bold text-slate-800">{{ item.agencia }}</p>
-                    <p class="text-[11px] text-easydry-blue font-semibold">{{ item.bahia || 'Bahía 1' }}</p>
-                  </td>
-
-                  <td class="py-3.5 px-4 text-xs font-mono">
-                    <p class="text-slate-700 font-semibold">Ing: {{ item.horaIngreso || '08:30' }}</p>
-                    <p class="text-slate-400">Sal: {{ item.horaSalida || '09:30' }}</p>
-                    <span class="mt-0.5 inline-block px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 text-[10px] font-bold">
-                      {{ calcularDuracion(item.horaIngreso || '', item.horaSalida || '') }}
-                    </span>
-                  </td>
-
-                  <td class="py-3.5 px-4 text-xs font-bold text-slate-800">
-                    {{ item.empleado }}
-                  </td>
-
-                  <td class="py-3.5 px-4">
-                    <span 
-                      class="px-3 py-1 rounded-full text-xs font-extrabold inline-flex items-center gap-1.5"
-                      [ngClass]="{
-                        'bg-amber-100 text-amber-800 border border-amber-300': item.estado === 'EN PROCESO',
-                        'bg-easydry-blue/15 text-easydry-blue border border-easydry-blue/30': item.estado === 'FINALIZADO',
-                        'bg-easydry-green/20 text-easydry-green-dark border border-easydry-green/40': item.estado === 'APROBADO',
-                        'bg-rose-100 text-rose-800 border border-rose-300': item.estado === 'RECHAZADO'
-                      }">
-                      <span>{{ item.estado }}</span>
-                    </span>
-                  </td>
-
-                  <td class="py-3.5 px-4 text-center">
-                    @if (item.video || item.videoUrl) {
-                      <button 
-                        (click)="verVideoEvidencia(item)"
-                        title="Ver video evidencia"
-                        class="p-1.5 bg-slate-100 hover:bg-easydry-blue hover:text-white text-easydry-blue rounded-lg transition-colors cursor-pointer inline-flex items-center justify-center">
-                        <i-lucide name="film" class="w-4 h-4"></i-lucide>
-                      </button>
-                    } @else {
-                      <span class="text-[11px] text-slate-400 italic">Sin vídeo</span>
-                    }
-                  </td>
-
-                  <td class="py-3.5 px-4 text-right">
-                    <div class="flex items-center justify-end gap-1">
-                      @if (canFinalizar(item)) {
-                        <button
-                          (click)="finalizarServicio(item)"
-                          title="Finalizar servicio"
-                          class="p-1.5 text-slate-400 hover:text-easydry-blue hover:bg-slate-100 rounded-lg transition-colors cursor-pointer flex items-center justify-center">
-                          <i-lucide name="check-circle" class="w-4 h-4"></i-lucide>
-                        </button>
-                      }
-
-                      @if (item.estado === 'FINALIZADO' && canApprove) {
-                        <button
-                          (click)="aprobarServicio(item)"
-                          title="Aprobar servicio"
-                          class="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer flex items-center justify-center">
-                          <i-lucide name="check" class="w-4 h-4"></i-lucide>
-                        </button>
-                      }
-
-                      @if (item.estado === 'APROBADO') {
-                        <span class="p-1.5 text-emerald-600 bg-emerald-50 rounded-lg flex items-center justify-center" title="Servicio Aprobado">
-                          <i-lucide name="check-circle-2" class="w-4 h-4"></i-lucide>
+                    <td class="py-3.5 px-4">
+                      <span class="font-bold text-slate-900 text-xs block">{{ extra.servicioNombre }}</span>
+                      @if (extra.insumosReceta && extra.insumosReceta.length > 0) {
+                        <span class="text-[10px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 mt-0.5 inline-block font-medium">
+                          {{ extra.insumosReceta.length }} insumo(s) químico(s)
                         </span>
                       }
-                    </div>
-                  </td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        </div>
+                    </td>
 
-        <!-- Mobile / Tablet Card View -->
-        <div class="block lg:hidden divide-y divide-slate-100 flex-1">
-          @for (item of paginatedServicios; track item.id) {
-            <div class="p-4 hover:bg-slate-50 transition-colors cursor-pointer" (click)="abrirDetalle(item)">
-              <div class="flex items-start justify-between mb-2">
-                <div>
-                  <span class="font-mono font-extrabold text-xs text-easydry-blue bg-easydry-blue/10 px-2 py-0.5 rounded-md">
-                    {{ item.ordenTrabajoOT || 'OT-9800' }}
+                    <td class="py-3.5 px-4 text-xs font-bold text-slate-700">
+                      <span class="px-2 py-0.5 bg-slate-100 text-slate-800 rounded-md font-mono text-[11px]">
+                        {{ extra.regionNombre || ('Zonal ' + userRegionNombre) }}
+                      </span>
+                    </td>
+
+                    <td class="py-3.5 px-4 text-xs font-bold text-slate-800">
+                      <div class="flex items-center gap-1.5">
+                        <i-lucide name="user" class="w-3.5 h-3.5 text-amber-600"></i-lucide>
+                        <span>{{ extra.operadorNombre }}</span>
+                      </div>
+                    </td>
+
+                    <!-- Evidencia Vídeo Inicial -->
+                    <td class="py-3.5 px-4 text-center">
+                      @if (extra.videoInicialUrl) {
+                        <button
+                          (click)="verVideoGenerico(extra.videoInicialUrl, 'Vídeo Inicial OT: ' + extra.codigoSE)"
+                          class="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded-lg text-xs font-bold inline-flex items-center gap-1 shadow-2xs transition-all cursor-pointer">
+                          <i-lucide name="video" class="w-3.5 h-3.5 text-amber-600"></i-lucide>
+                          <span>Ver Inicial</span>
+                        </button>
+                      } @else {
+                        <span class="text-[10px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded font-bold border border-amber-200">
+                          Requerido al Iniciar
+                        </span>
+                      }
+                    </td>
+
+                    <!-- Evidencia Vídeo Final -->
+                    <td class="py-3.5 px-4 text-center">
+                      @if (extra.videoFinalUrl) {
+                        <button
+                          (click)="verVideoGenerico(extra.videoFinalUrl, 'Vídeo Final OT: ' + extra.codigoSE)"
+                          class="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg text-xs font-bold inline-flex items-center gap-1 shadow-2xs transition-all cursor-pointer">
+                          <i-lucide name="film" class="w-3.5 h-3.5 text-emerald-600"></i-lucide>
+                          <span>Ver Final</span>
+                        </button>
+                      } @else {
+                        <span class="text-xs text-slate-400 font-mono">-</span>
+                      }
+                    </td>
+
+                    <!-- Calificación de Calidad -->
+                    <td class="py-3.5 px-4 text-center">
+                      @if (extra.calificacionCalidad) {
+                        <span class="text-amber-500 font-black text-xs inline-flex items-center gap-0.5">
+                          ★ {{ extra.calificacionCalidad }}/5
+                        </span>
+                      } @else {
+                        <span class="text-xs text-slate-400">-</span>
+                      }
+                    </td>
+
+                    <!-- Estado Workflow -->
+                    <td class="py-3.5 px-4">
+                      <span 
+                        class="px-3 py-1 rounded-full text-xs font-extrabold inline-flex items-center gap-1.5"
+                        [ngClass]="estadoExtraClass(extra.estado)">
+                        <span>{{ extra.estado }}</span>
+                      </span>
+                    </td>
+
+                    <!-- Acciones -->
+                    <td class="py-3.5 px-4 text-right">
+                      <div class="flex items-center justify-end gap-1.5">
+                        @if (extra.estado === 'Pendiente') {
+                          <button
+                            (click)="abrirModalIniciarEspecial(extra)"
+                            class="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white font-extrabold rounded-lg text-xs inline-flex items-center gap-1 shadow-2xs transition-all cursor-pointer">
+                            <i-lucide name="play" class="w-3 h-3"></i-lucide>
+                            <span>Iniciar</span>
+                          </button>
+                        }
+
+                        @if (extra.estado === 'En Proceso') {
+                          <button
+                            (click)="abrirModalFinalizarEspecial(extra)"
+                            class="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-lg text-xs inline-flex items-center gap-1 shadow-2xs transition-all cursor-pointer">
+                            <i-lucide name="check-circle-2" class="w-3.5 h-3.5"></i-lucide>
+                            <span>Finalizar</span>
+                          </button>
+                        }
+
+                        @if (extra.estado === 'Completado') {
+                          <span class="px-2.5 py-1 bg-emerald-50 text-emerald-700 font-bold rounded-lg text-xs inline-flex items-center gap-1 border border-emerald-200">
+                            <i-lucide name="check" class="w-3.5 h-3.5"></i-lucide>
+                            <span>Listo</span>
+                          </span>
+                        }
+
+                        <button
+                          (click)="abrirDetalleEspecial(extra)"
+                          title="Ver detalle del servicio"
+                          class="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer">
+                          <i-lucide name="info" class="w-4 h-4"></i-lucide>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                } @empty {
+                  <tr>
+                    <td colspan="10" class="py-12 text-center text-slate-400 text-xs font-medium">
+                      No hay servicios especiales asignados o registrados en la región {{ userRegionNombre }}.
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Mobile Card View: Servicios Especiales -->
+          <div class="block lg:hidden divide-y divide-slate-100 flex-1">
+            @for (extra of paginatedExtras; track extra.id) {
+              <div class="p-4 hover:bg-amber-50/20 transition-colors">
+                <div class="flex items-start justify-between mb-2">
+                  <div>
+                    <span class="font-mono font-black text-xs text-amber-900 bg-amber-100 px-2 py-0.5 rounded-md border border-amber-200">
+                      {{ extra.codigoSE }}
+                    </span>
+                    <div class="font-bold text-slate-900 text-sm mt-1.5">{{ extra.vehiculoInfo?.marca }} {{ extra.vehiculoInfo?.modelo }}</div>
+                    <div class="text-[11px] font-mono font-black text-easydry-blue">{{ extra.vehiculoInfo?.placa || extra.placa }}</div>
+                  </div>
+                  <span class="px-2.5 py-1 rounded-full text-[10px] font-extrabold text-center"
+                    [ngClass]="estadoExtraClass(extra.estado)">
+                    {{ extra.estado }}
                   </span>
-                  <div class="font-bold text-slate-900 text-sm mt-1.5">{{ item.marca }} {{ item.modelo }}</div>
-                  <div class="text-[11px] font-mono font-extrabold text-slate-500">{{ item.placa }}</div>
                 </div>
-                <span class="px-2.5 py-1 rounded-full text-[10px] font-extrabold text-center max-w-[80px]"
-                  [ngClass]="{
-                    'bg-amber-100 text-amber-800': item.estado === 'EN PROCESO',
-                    'bg-easydry-blue/15 text-easydry-blue': item.estado === 'FINALIZADO',
-                    'bg-easydry-green/20 text-easydry-green-dark': item.estado === 'APROBADO',
-                    'bg-rose-100 text-rose-800': item.estado === 'RECHAZADO'
-                  }">
-                  {{ item.estado }}
-                </span>
-              </div>
-              
-              <div class="flex items-center justify-between mt-3 text-xs">
-                <div class="flex items-center gap-1.5 text-slate-500">
-                  <i-lucide name="clock" class="w-3.5 h-3.5"></i-lucide>
-                  <span>{{ item.horaIngreso || '08:30' }}</span>
-                </div>
-                <div class="font-semibold text-slate-700">
-                  {{ item.servicio }}
-                </div>
-              </div>
-            </div>
-          }
-        </div>
 
-        <!-- Paginación Unificada en la Base del Mismo Componente Contenedor -->
-        <app-pagination 
-          [totalItems]="serviciosFiltrados.length" 
-          [currentPage]="currentPage" 
-          [pageSize]="pageSize"
-          (pageChange)="onPageChange($event)"
-          (pageSizeChange)="onPageSizeChange($event)">
-        </app-pagination>
+                <div class="text-xs font-semibold text-slate-700 mb-2">
+                  {{ extra.servicioNombre }}
+                </div>
+
+                <div class="flex items-center justify-between mt-3 text-xs gap-2 pt-2 border-t border-slate-100">
+                  <div class="flex items-center gap-1 text-slate-500 truncate">
+                    <i-lucide name="user" class="w-3.5 h-3.5 text-amber-600 shrink-0"></i-lucide>
+                    <span class="truncate">{{ extra.operadorNombre }}</span>
+                  </div>
+                  <div class="flex items-center gap-1.5 shrink-0">
+                    @if (extra.estado === 'Pendiente') {
+                      <button (click)="abrirModalIniciarEspecial(extra)" class="px-2.5 py-1 bg-amber-500 text-white rounded-lg text-xs font-bold">Iniciar</button>
+                    }
+                    @if (extra.estado === 'En Proceso') {
+                      <button (click)="abrirModalFinalizarEspecial(extra)" class="px-2.5 py-1 bg-emerald-600 text-white rounded-lg text-xs font-bold">Finalizar</button>
+                    }
+                    <button (click)="abrirDetalleEspecial(extra)" class="p-1 text-slate-500 hover:bg-slate-100 rounded-lg"><i-lucide name="info" class="w-4 h-4"></i-lucide></button>
+                  </div>
+                </div>
+              </div>
+            } @empty {
+              <div class="py-8 text-center text-slate-400 text-xs font-medium">
+                No hay servicios especiales registrados.
+              </div>
+            }
+          </div>
+
+          <!-- Paginación Especiales -->
+          <app-pagination 
+            [totalItems]="extrasFiltrados.length" 
+            [currentPage]="currentPageExtras" 
+            [pageSize]="pageSizeExtras"
+            (pageChange)="onPageChangeExtras($event)"
+            (pageSizeChange)="onPageSizeChangeExtras($event)">
+          </app-pagination>
+        }
       </div>
 
       <!-- Modal Detalle Servicio (Mobile) -->
@@ -655,24 +935,28 @@ import { RouterModule } from '@angular/router';
             } @else {
               <div class="space-y-2">
                 @for (ins of insumosConsumoForm; track ins.productoId; let idx = $index) {
-                  <div class="p-2.5 bg-white rounded-xl border border-slate-200 flex items-center justify-between gap-3 shadow-2xs">
+                  <div 
+                    class="p-2.5 rounded-xl border flex items-center justify-between gap-3 shadow-2xs transition-colors"
+                    [ngClass]="getStockDisponible(ins.productoId) < ins.cantidad ? 'bg-rose-50/70 border-rose-300' : 'bg-white border-slate-200'">
                     <div class="overflow-hidden flex-1">
                       <p class="font-bold text-slate-900 text-xs truncate">{{ ins.productoNombre }}</p>
                       <div class="flex items-center gap-2 text-[10px] text-slate-500 flex-wrap">
                         <span class="font-mono bg-slate-100 px-1 py-0.2 rounded">{{ ins.productoSKU }}</span>
                         <span>•</span>
-                        <span class="text-easydry-blue font-semibold">Stock en {{ nuevoRegistro.agencia }}: {{ getStockDisponible(ins.productoId) }} {{ ins.unidadMedida }}</span>
+                        <span [class.text-rose-700]="getStockDisponible(ins.productoId) < ins.cantidad" [class.text-easydry-blue]="getStockDisponible(ins.productoId) >= ins.cantidad" class="font-semibold">
+                          Stock en {{ nuevoRegistro.agencia }}: {{ getStockDisponible(ins.productoId) }} {{ ins.unidadMedida }}
+                        </span>
                         @if (getStockDisponible(ins.productoId) <= 0) {
-                          <span class="px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 font-bold text-[9px]">¡Agotado en Agencia!</span>
+                          <span class="px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 font-extrabold text-[9px]">¡Agotado en Agencia!</span>
                         } @else if (getStockDisponible(ins.productoId) < ins.cantidad) {
-                          <span class="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-bold text-[9px]">Stock Insuficiente</span>
+                          <span class="px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 font-extrabold text-[9px]">¡Stock Insuficiente (Faltan {{ (ins.cantidad - getStockDisponible(ins.productoId)).toFixed(2) }} {{ ins.unidadMedida }})!</span>
                         }
                       </div>
                     </div>
 
                     <div class="flex items-center gap-2">
                       <button type="button" (click)="disminuirCantidadInsumo(idx)" class="w-6 h-6 rounded-lg bg-slate-100 hover:bg-slate-200 font-extrabold flex items-center justify-center text-slate-700">-</button>
-                      <input type="number" [(ngModel)]="ins.cantidad" [name]="'cant_' + idx" min="0.1" step="0.5" class="w-14 text-center p-1 border rounded-lg text-xs font-mono font-bold text-easydry-blue">
+                      <input type="number" [(ngModel)]="ins.cantidad" [name]="'cant_' + idx" min="0.01" step="0.1" class="w-14 text-center p-1 border rounded-lg text-xs font-mono font-bold text-easydry-blue">
                       <span class="text-[10px] text-slate-500 font-bold">{{ ins.unidadMedida }}</span>
                       <button type="button" (click)="aumentarCantidadInsumo(idx)" class="w-6 h-6 rounded-lg bg-slate-100 hover:bg-slate-200 font-extrabold flex items-center justify-center text-slate-700">+</button>
                       <button type="button" (click)="eliminarInsumoConsumo(idx)" class="p-1 text-rose-500 hover:bg-rose-50 rounded-lg ml-1">
@@ -681,6 +965,18 @@ import { RouterModule } from '@angular/router';
                     </div>
                   </div>
                 }
+              </div>
+            }
+
+            @if (tieneInsumosSinStock) {
+              <div class="p-3 bg-rose-50 border border-rose-300 rounded-xl flex items-start gap-2.5 text-rose-900 text-xs shadow-2xs">
+                <i-lucide name="alert-triangle" class="w-4 h-4 text-rose-600 mt-0.5 shrink-0"></i-lucide>
+                <div>
+                  <p class="font-bold">No se puede iniciar el servicio: Stock Insuficiente</p>
+                  <p class="text-[11px] text-rose-700 mt-0.5 leading-relaxed">
+                    No hay existencias suficientes de uno o más suministros en esta agencia. Para realizar este servicio se requiere solicitar y recibir suministros desde Bodega Central.
+                  </p>
+                </div>
               </div>
             }
 
@@ -737,7 +1033,14 @@ import { RouterModule } from '@angular/router';
 
         <div modal-footer class="flex flex-col-reverse sm:flex-row gap-2 w-full sm:w-auto">
           <button (click)="modalNuevoRegistroOpen = false" class="w-full sm:w-auto px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs flex justify-center">Cancelar</button>
-          <button (click)="guardarHojaServicio()" class="w-full sm:w-auto px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs flex justify-center">Guardar e Iniciar Servicio</button>
+          <button 
+            (click)="guardarHojaServicio()" 
+            [disabled]="tieneInsumosSinStock"
+            [class.opacity-50]="tieneInsumosSinStock"
+            [class.cursor-not-allowed]="tieneInsumosSinStock"
+            class="w-full sm:w-auto px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs flex justify-center items-center gap-1.5 transition-all">
+            Guardar e Iniciar Servicio
+          </button>
         </div>
       </app-modal>
 
@@ -859,18 +1162,359 @@ import { RouterModule } from '@angular/router';
           }
         </form>
 
-        <div modal-footer>
-          <button (click)="modalReportarFallaOpen = false" class="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs">Cancelar</button>
+      <!-- Modal Iniciar Servicio Especial (Obligatorio Vídeo Inicial) -->
+      <app-modal
+        [isOpen]="modalIniciarServicioEspecialOpen"
+        [title]="'Iniciar Servicio Especial: ' + (servicioEspecialSeleccionado?.codigoSE || '')"
+        icon="play"
+        (close)="modalIniciarServicioEspecialOpen = false">
+
+        @if (servicioEspecialSeleccionado) {
+          <div class="space-y-4">
+            <div class="p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs space-y-1">
+              <p class="font-extrabold text-amber-950">
+                {{ servicioEspecialSeleccionado.vehiculoInfo?.marca }} {{ servicioEspecialSeleccionado.vehiculoInfo?.modelo }} — Placa: {{ servicioEspecialSeleccionado.vehiculoInfo?.placa || servicioEspecialSeleccionado.placa }}
+              </p>
+              <p class="text-amber-800">
+                Servicio: <strong>{{ servicioEspecialSeleccionado.servicioNombre }}</strong> • Región: <strong>{{ servicioEspecialSeleccionado.regionNombre || userRegionNombre }}</strong>
+              </p>
+            </div>
+
+            <div class="p-4 bg-slate-50 rounded-2xl border-2 border-dashed border-amber-300 space-y-3">
+              <label class="block text-xs font-extrabold text-slate-800 uppercase flex items-center gap-1.5">
+                <i-lucide name="video" class="w-4 h-4 text-amber-600"></i-lucide>
+                <span>Vídeo de Evidencia Inicial (Obligatorio para Iniciar)</span>
+              </label>
+              <p class="text-[11px] text-slate-500">
+                Registra o sube el vídeo del estado de recepción y pintura del vehículo antes de iniciar el pulido.
+              </p>
+
+              <div>
+                <input
+                  type="text"
+                  [(ngModel)]="videoInicialInput"
+                  placeholder="URL o enlace del vídeo inicial (ej. https://.../video_inicial.mp4)"
+                  class="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-mono">
+              </div>
+
+              <div class="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  (click)="agregarVideoInicialDemo()"
+                  class="px-3 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold rounded-xl text-xs transition-all flex items-center gap-1.5 cursor-pointer">
+                  <i-lucide name="sparkles" class="w-3.5 h-3.5 text-amber-700"></i-lucide>
+                  <span>+ Usar Vídeo de Inspección Inicial Demo</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        }
+
+        <div modal-footer class="flex items-center justify-end gap-2 w-full">
+          <button (click)="modalIniciarServicioEspecialOpen = false" class="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs">Cancelar</button>
           <button
-            (click)="guardarReporteFalla()"
-            [disabled]="maquinasReporte.length === 0"
-            class="px-4 py-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-bold rounded-xl text-xs">
-            Enviar Reporte
+            (click)="confirmarIniciarEspecial()"
+            class="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-extrabold rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-xs">
+            <i-lucide name="play" class="w-3.5 h-3.5"></i-lucide>
+            <span>Iniciar Trabajo</span>
           </button>
         </div>
       </app-modal>
 
+      <!-- Modal Finalizar Servicio Especial (Obligatorio Vídeo Final + Descuento Químicos) -->
+      <app-modal
+        [isOpen]="modalFinalizarServicioEspecialOpen"
+        [title]="'Finalizar Servicio Especial: ' + (servicioEspecialSeleccionado?.codigoSE || '')"
+        icon="check-circle"
+        (close)="modalFinalizarServicioEspecialOpen = false">
 
+        @if (servicioEspecialSeleccionado) {
+          <div class="space-y-4">
+            <div class="p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-xs space-y-1">
+              <p class="font-extrabold text-emerald-950">
+                {{ servicioEspecialSeleccionado.vehiculoInfo?.marca }} {{ servicioEspecialSeleccionado.vehiculoInfo?.modelo }} ({{ servicioEspecialSeleccionado.vehiculoInfo?.placa || servicioEspecialSeleccionado.placa }})
+              </p>
+              <p class="text-emerald-800">
+                Servicio: <strong>{{ servicioEspecialSeleccionado.servicioNombre }}</strong> • Pulidor: <strong>{{ servicioEspecialSeleccionado.operadorNombre }}</strong>
+              </p>
+            </div>
+
+            <!-- Insumos que se descontarán del Pulidor -->
+            @if (servicioEspecialSeleccionado.insumosReceta && servicioEspecialSeleccionado.insumosReceta.length > 0) {
+              <div class="p-3 bg-blue-50/70 rounded-xl border border-blue-200 text-xs space-y-1.5">
+                <p class="font-bold text-blue-950 flex items-center gap-1.5">
+                  <i-lucide name="boxes" class="w-4 h-4 text-blue-600"></i-lucide>
+                  <span>Deducción de Insumos de tu Custodia:</span>
+                </p>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1">
+                  @for (ins of servicioEspecialSeleccionado.insumosReceta; track ins.productoId) {
+                    <div class="p-2 bg-white rounded-lg border border-blue-100 flex items-center justify-between text-[11px]">
+                      <span class="font-bold text-slate-800">{{ ins.productoNombre }}</span>
+                      <span class="font-mono font-black text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded">{{ ins.cantidadSugerida }} {{ ins.unidadMedida }}</span>
+                    </div>
+                  }
+                </div>
+              </div>
+            }
+
+            <div class="p-4 bg-slate-50 rounded-2xl border-2 border-dashed border-emerald-300 space-y-3">
+              <label class="block text-xs font-extrabold text-slate-800 uppercase flex items-center gap-1.5">
+                <i-lucide name="film" class="w-4 h-4 text-emerald-600"></i-lucide>
+                <span>Vídeo de Evidencia Final / Entrega (Obligatorio)</span>
+              </label>
+              <p class="text-[11px] text-slate-500">
+                Registra o sube el vídeo demostrando el acabado de brillo, protección cerámica y corrección de pintura.
+              </p>
+
+              <div>
+                <input
+                  type="text"
+                  [(ngModel)]="videoFinalInput"
+                  placeholder="URL o enlace del vídeo final (ej. https://.../video_final.mp4)"
+                  class="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-mono">
+              </div>
+
+              <div class="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  (click)="agregarVideoFinalDemo()"
+                  class="px-3 py-1.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-900 font-bold rounded-xl text-xs transition-all flex items-center gap-1.5 cursor-pointer">
+                  <i-lucide name="sparkles" class="w-3.5 h-3.5 text-emerald-700"></i-lucide>
+                  <span>+ Usar Vídeo de Acabado Final Demo</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Calificación de Calidad</label>
+                <select [(ngModel)]="calificacionCalidadInput" class="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800">
+                  <option [ngValue]="5">⭐⭐⭐⭐⭐ 5 Estrellas (Excelente)</option>
+                  <option [ngValue]="4">⭐⭐⭐⭐ 4 Estrellas (Muy Bueno)</option>
+                  <option [ngValue]="3">⭐⭐⭐ 3 Estrellas (Aceptable)</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Observaciones / Notas</label>
+                <input
+                  type="text"
+                  [(ngModel)]="notasFinalizacionInput"
+                  placeholder="Ej. Pulido de 3 pasos finalizado sin novedades..."
+                  class="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs">
+              </div>
+            </div>
+          </div>
+        }
+
+        <div modal-footer class="flex items-center justify-end gap-2 w-full">
+          <button (click)="modalFinalizarServicioEspecialOpen = false" class="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs">Cancelar</button>
+          <button
+            (click)="confirmarFinalizarEspecial()"
+            class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-xs">
+            <i-lucide name="check-circle" class="w-3.5 h-3.5"></i-lucide>
+            <span>Finalizar y Descontar Químicos</span>
+          </button>
+        </div>
+      </app-modal>
+
+      <!-- Modal Detalle Servicio Especial -->
+      <app-modal
+        [isOpen]="modalDetalleEspecialOpen"
+        [title]="'Detalle Especial: ' + (servicioEspecialSeleccionado?.codigoSE || '')"
+        icon="star"
+        (close)="modalDetalleEspecialOpen = false">
+
+        @if (servicioEspecialSeleccionado) {
+          <div class="space-y-4 text-xs">
+            <div class="grid grid-cols-2 gap-3">
+              <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                <span class="block text-[10px] text-slate-400 font-bold uppercase mb-1">Nº OT Especial</span>
+                <span class="font-mono font-black text-amber-800">{{ servicioEspecialSeleccionado.codigoSE }}</span>
+              </div>
+              <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                <span class="block text-[10px] text-slate-400 font-bold uppercase mb-1">Región</span>
+                <span class="font-bold text-slate-800">{{ servicioEspecialSeleccionado.regionNombre || userRegionNombre }}</span>
+              </div>
+            </div>
+
+            <div class="p-3.5 bg-amber-50/60 rounded-xl border border-amber-200/80">
+              <span class="block text-[10px] text-amber-800 font-bold uppercase mb-0.5">Vehículo Asignado</span>
+              <p class="font-extrabold text-slate-900 text-sm">
+                {{ servicioEspecialSeleccionado.vehiculoInfo?.marca }} {{ servicioEspecialSeleccionado.vehiculoInfo?.modelo }}
+              </p>
+              <p class="font-mono font-black text-easydry-blue text-xs mt-0.5">
+                Placa: {{ servicioEspecialSeleccionado.vehiculoInfo?.placa || servicioEspecialSeleccionado.placa }} • Color: {{ servicioEspecialSeleccionado.vehiculoInfo?.color }}
+              </p>
+            </div>
+
+            <div class="p-3 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between">
+              <div>
+                <span class="block text-[10px] text-slate-400 font-bold uppercase mb-0.5">Pulidor Responsable</span>
+                <span class="font-bold text-slate-800">{{ servicioEspecialSeleccionado.operadorNombre }}</span>
+              </div>
+              <div class="text-right">
+                <span class="block text-[10px] text-slate-400 font-bold uppercase mb-0.5">Estado</span>
+                <span class="px-2.5 py-1 rounded-full text-xs font-black inline-block" [ngClass]="estadoExtraClass(servicioEspecialSeleccionado.estado)">
+                  {{ servicioEspecialSeleccionado.estado }}
+                </span>
+              </div>
+            </div>
+
+            <!-- Evidencias en Vídeo -->
+            <div class="grid grid-cols-2 gap-3">
+              <div class="p-3 bg-slate-50 rounded-xl border border-slate-100 flex flex-col justify-between">
+                <span class="text-[10px] text-slate-400 font-bold uppercase mb-1">Vídeo Inicial</span>
+                @if (servicioEspecialSeleccionado.videoInicialUrl) {
+                  <button
+                    (click)="verVideoGenerico(servicioEspecialSeleccionado.videoInicialUrl, 'Vídeo Inicial OT: ' + servicioEspecialSeleccionado.codigoSE)"
+                    class="px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1 shadow-2xs">
+                    <i-lucide name="play" class="w-3.5 h-3.5"></i-lucide>
+                    <span>Ver Inicial</span>
+                  </button>
+                } @else {
+                  <span class="text-[11px] text-slate-400 italic">No registrado</span>
+                }
+              </div>
+
+              <div class="p-3 bg-slate-50 rounded-xl border border-slate-100 flex flex-col justify-between">
+                <span class="text-[10px] text-slate-400 font-bold uppercase mb-1">Vídeo Final</span>
+                @if (servicioEspecialSeleccionado.videoFinalUrl) {
+                  <button
+                    (click)="verVideoGenerico(servicioEspecialSeleccionado.videoFinalUrl, 'Vídeo Final OT: ' + servicioEspecialSeleccionado.codigoSE)"
+                    class="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1 shadow-2xs">
+                    <i-lucide name="play" class="w-3.5 h-3.5"></i-lucide>
+                    <span>Ver Final</span>
+                  </button>
+                } @else {
+                  <span class="text-[11px] text-slate-400 italic">No registrado</span>
+                }
+              </div>
+            </div>
+          </div>
+        }
+
+        <div modal-footer class="w-full">
+          <button (click)="modalDetalleEspecialOpen = false" class="w-full px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs">Cerrar</button>
+        </div>
+      </app-modal>
+
+      <!-- Modal Reproductor de Vídeo Genérico -->
+      <app-modal
+        [isOpen]="modalVideoGenericoOpen"
+        [title]="videoGenericoTitulo"
+        icon="film"
+        (close)="modalVideoGenericoOpen = false">
+
+        <div class="space-y-4">
+          <div class="aspect-video bg-black rounded-2xl overflow-hidden shadow-inner flex items-center justify-center">
+            <video
+              [src]="videoGenericoUrl"
+              controls
+              autoplay
+              class="w-full h-full object-contain">
+            </video>
+          </div>
+        </div>
+
+        <div modal-footer class="w-full sm:w-auto">
+          <button (click)="modalVideoGenericoOpen = false" class="w-full sm:w-auto px-4 py-2 bg-slate-200 text-slate-800 font-bold rounded-xl text-xs">Cerrar Reproductor</button>
+        </div>
+      </app-modal>
+
+      <!-- Modal Crear / Asignar Servicio Especial (Restringido a Región) -->
+      <app-modal
+        [isOpen]="showModalExtras"
+        [title]="isCoordServiciosEspeciales ? 'Asignar Servicio Especial a Pulidor de ' + userRegionNombre : 'Registrar Nuevo Servicio Especial'"
+        icon="star"
+        (close)="cerrarModalExtras()">
+
+        <form (ngSubmit)="guardarServicioExtra()" class="space-y-4">
+          <div class="p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs font-bold text-amber-900 flex items-center justify-between">
+            <span>ZONA OPERATIVA: {{ userRegionNombre }}</span>
+            <span class="font-mono">Fecha: {{ extraForm.fechaProgramada }}</span>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Tipo de Servicio Especial *</label>
+              <input
+                type="text"
+                [(ngModel)]="extraForm.servicioNombre"
+                name="servicioNombreExtra"
+                placeholder="Ej. Pulido y Corrección de Pintura en 3 Pasos"
+                class="w-full p-2.5 border rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-amber-500"
+                required>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Pulidor Asignado *</label>
+              <select
+                [(ngModel)]="extraForm.operadorId"
+                name="operadorIdExtra"
+                (change)="onOperadorExtraChange()"
+                [disabled]="isPulidor"
+                class="w-full p-2.5 border rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-amber-500 disabled:bg-slate-100">
+                @for (p of pulidoresDisponiblesRegion; track p.id) {
+                  <option [value]="p.id">{{ p.name }} {{ p.lastname }} ({{ p.email }})</option>
+                }
+              </select>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Placa *</label>
+              <input
+                type="text"
+                [(ngModel)]="extraFormPlaca"
+                name="extraPlaca"
+                placeholder="PBX-1001"
+                class="w-full p-2.5 border rounded-xl text-xs font-mono font-bold uppercase focus:ring-2 focus:ring-amber-500"
+                required>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Marca *</label>
+              <input
+                type="text"
+                [(ngModel)]="extraFormMarca"
+                name="extraMarca"
+                placeholder="Toyota"
+                class="w-full p-2.5 border rounded-xl text-xs font-bold focus:ring-2 focus:ring-amber-500"
+                required>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Modelo *</label>
+              <input
+                type="text"
+                [(ngModel)]="extraFormModelo"
+                name="extraModelo"
+                placeholder="Fortuner"
+                class="w-full p-2.5 border rounded-xl text-xs font-bold focus:ring-2 focus:ring-amber-500"
+                required>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Observaciones / Instrucciones</label>
+            <textarea
+              [(ngModel)]="extraForm.notas"
+              name="notasExtra"
+              placeholder="Instrucciones para el pulidor..."
+              rows="2"
+              class="w-full p-2.5 border rounded-xl text-xs">
+            </textarea>
+          </div>
+        </form>
+
+        <div modal-footer class="flex items-center justify-end gap-2 w-full">
+          <button (click)="cerrarModalExtras()" class="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs">Cancelar</button>
+          <button
+            (click)="guardarServicioExtra()"
+            class="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-extrabold rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-xs">
+            <i-lucide name="plus" class="w-3.5 h-3.5"></i-lucide>
+            <span>Crear y Notificar Servicio</span>
+          </button>
+        </div>
+      </app-modal>
 
     </div>
   `
@@ -886,10 +1530,40 @@ export class ServiciosComponent implements OnInit {
   }
 
   abrirModalNuevaOT() {
-    this.nuevoRegistro.categoriaServicio = this.tabActiva === 'especiales' ? 'ESPECIAL' : 'GENERAL';
-    if (this.userSucursal) {
-      this.nuevoRegistro.agencia = this.userSucursal;
+    if (this.isAprobador) {
+      this.toastService.warning('Acceso Restringido', 'El rol Aprobador no tiene permisos para crear órdenes de trabajo.');
+      return;
     }
+    if (this.tabActiva === 'especiales' || this.isCoordServiciosEspeciales || this.isPulidor) {
+      this.abrirModalNuevoExtra();
+      return;
+    }
+    this.nuevoRegistro.categoriaServicio = 'GENERAL';
+    const user = this.authService.getCurrentUser();
+    if (user) {
+      const nombreCompleto = `${user.nombre} ${user.apellido}`.trim();
+      this.nuevoRegistro.empleado = nombreCompleto;
+      if (user.sucursalNombre) this.nuevoRegistro.agencia = user.sucursalNombre;
+      if (user.bahiaNombre) this.nuevoRegistro.bahia = user.bahiaNombre;
+    }
+    if (!this.nuevoRegistro.agencia && this.sucursales.length > 0) {
+      this.nuevoRegistro.agencia = this.sucursales[0].nombre;
+    }
+    const randNum = Math.floor(1000 + Math.random() * 9000);
+    this.nuevoRegistro.ordenTrabajoOT = `OT-${randNum}`;
+    this.nuevoRegistro.numeroOrden = `ORD-${new Date().getFullYear()}-${randNum}`;
+    this.nuevoRegistro.placa = '';
+    this.nuevoRegistro.marca = '';
+    this.nuevoRegistro.modelo = '';
+    this.nuevoRegistro.color = '';
+    this.nuevoRegistro.horaSalida = '';
+    this.nuevoRegistro.foto = '';
+    this.nuevoRegistro.videoUrl = '';
+    this.nuevoRegistro.fecha = new Date().toISOString().substring(0, 10);
+    this.nuevoRegistro.horaIngreso = new Date().toTimeString().substring(0, 5);
+    this.placaTocada = false;
+    this.videoFileSelected = false;
+    this.videoFileName = '';
     this.onSucursalFormChange();
     this.onCategoriaChange();
     this.modalNuevoRegistroOpen = true;
@@ -900,7 +1574,7 @@ export class ServiciosComponent implements OnInit {
   }
 
   get countServiciosEspeciales(): number {
-    return this.servicios.filter(s => s.categoriaServicio === 'Servicios Especiales' || s.categoriaServicio === 'ESPECIAL' || s.categoriaServicio === 'EXTRA' || s.categoriaServicio === 'Servicios Extras').length;
+    return this.serviciosExtras.length || this.servicios.filter(s => s.categoriaServicio === 'Servicios Especiales' || s.categoriaServicio === 'ESPECIAL' || s.categoriaServicio === 'EXTRA' || s.categoriaServicio === 'Servicios Extras').length;
   }
 
   servicios: VehiculoServicio[] = [];
@@ -913,8 +1587,8 @@ export class ServiciosComponent implements OnInit {
   // Guardamos el estado global
   filtrosGlobales: FilterState = { sucursal: 'Todas', region: 'Todas', marca: 'Todas', operador: 'Todos', bahia: 'Todas', estado: 'Todos', fecha: 'Hoy' };
 
-  // Lista de servicios disponibles para el filtro de tipo de servicio
-  listaServiciosFiltro: string[] = ['Express', 'Completo', 'Deluxe', 'Retoque', 'Pulido', 'Micro pulido', 'Recubrimiento Cerámico', 'Lavado motor', 'Tratamientos especiales'];
+  // Lista de servicios disponibles para el filtro (cargados dinámicamente desde backend)
+  listaServiciosFiltro: string[] = [];
 
   // Mapa sucursal -> región (para poder filtrar servicios por región)
   mapaRegionSucursal: Record<string, string> = {};
@@ -937,6 +1611,7 @@ export class ServiciosComponent implements OnInit {
 
   aplicarFiltros() {
     this.currentPage = 1;
+    this.currentPageExtras = 1;
     this.recalcularServiciosFiltrados();
   }
 
@@ -976,25 +1651,26 @@ export class ServiciosComponent implements OnInit {
   videoFileName = '';
 
   nuevoRegistro = {
-    numeroOrden: 'ORD-2026-005',
-    ordenTrabajoOT: 'OT-9840',
-    placa: 'PDK-5510',
-    marca: 'Kia',
-    modelo: 'Sportage R',
-    anio: 2024,
-    color: 'Rojo Pasión',
+    numeroOrden: '',
+    ordenTrabajoOT: '',
+    placa: '',
+    marca: '',
+    modelo: '',
+    anio: new Date().getFullYear(),
+    color: '',
     categoriaServicio: 'GENERAL',
     servicio: '',
     servicioId: 0,
-    categoria: 'SUV',
-    agencia: 'EasyDry Quito Norte',
-    bahia: 'Bahía 1 (Lavado Ecológico)',
-    empleado: 'Juan Pérez',
-    fecha: '2026-07-22',
-    horaIngreso: '10:00',
-    horaSalida: '10:45',
-    foto: 'https://images.unsplash.com/photo-1552519507-da3b142c6e3d?w=800&auto=format&fit=crop&q=80',
-    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-car-wash-in-a-machine-41484-large.mp4'
+    categoria: 'Sedán',
+    agencia: '',
+    bahia: '',
+    bahiaId: '',
+    empleado: '',
+    fecha: new Date().toISOString().substring(0, 10),
+    horaIngreso: new Date().toTimeString().substring(0, 5),
+    horaSalida: '',
+    foto: '',
+    videoUrl: ''
   };
 
   placaTocada = false;
@@ -1019,6 +1695,27 @@ export class ServiciosComponent implements OnInit {
     this.nuevoRegistro.placa = formatearPlaca(valor);
   }
 
+  /**
+   * REGLA DE NEGOCIO: Solo no permitir si no se dispone de stock de uno de los suministros necesarios
+   */
+  get tieneInsumosSinStock(): boolean {
+    if (!this.insumosConsumoForm || this.insumosConsumoForm.length === 0) return false;
+    return this.insumosConsumoForm.some(ins => {
+      const stock = this.getStockDisponible(ins.productoId);
+      return stock < ins.cantidad;
+    });
+  }
+
+  get insumosSinStockDetalle(): string[] {
+    if (!this.insumosConsumoForm) return [];
+    return this.insumosConsumoForm
+      .filter(ins => this.getStockDisponible(ins.productoId) < ins.cantidad)
+      .map(ins => {
+        const stock = this.getStockDisponible(ins.productoId);
+        return `${ins.productoNombre} (Disponible: ${stock} ${ins.unidadMedida}, Requerido: ${ins.cantidad} ${ins.unidadMedida})`;
+      });
+  }
+
   productosInventario: InventarioItem[] = [];
   insumosConsumoForm: InsumoConsumidoServicio[] = [];
   despachosPendientesLider: any[] = [];
@@ -1041,7 +1738,7 @@ export class ServiciosComponent implements OnInit {
   operadores: Operador[] = [];
   sucursales: Sucursal[] = [];
   bahiasSucursalForm: Bahia[] = [];
-  sucursalesDisponibles: string[] = ['EasyDry Quito Norte', 'EasyDry Quito Sur', 'EasyDry Cumbayá', 'EasyDry Guayaquil'];
+  sucursalesDisponibles: string[] = [];
 
   busquedaExtras = '';
   filtroEstadoExtras = 'TODOS';
@@ -1053,6 +1750,11 @@ export class ServiciosComponent implements OnInit {
   showModalExtras = false;
   isEditingExtras = false;
   editandoExtraId: number | null = null;
+
+  extraFormPlaca = '';
+  extraFormMarca = '';
+  extraFormModelo = '';
+  extraFormColor = 'Plata';
 
   extraForm: {
     servicioNombre: string;
@@ -1076,20 +1778,52 @@ export class ServiciosComponent implements OnInit {
     notas: ''
   };
 
+  // ── Control Regional & Evidencias en Vídeo de Especiales ──
+  stockPulidor: any[] = [];
+  pulidoresDisponiblesRegion: any[] = [];
+  modalIniciarServicioEspecialOpen = false;
+  modalFinalizarServicioEspecialOpen = false;
+  modalDetalleEspecialOpen = false;
+  modalVideoGenericoOpen = false;
+  videoGenericoUrl = '';
+  videoGenericoTitulo = '';
+  servicioEspecialSeleccionado?: ServicioExtra;
+  videoInicialInput = '';
+  videoFinalInput = '';
+  calificacionCalidadInput = 5;
+  notasFinalizacionInput = '';
+
   // ── Role helpers ──
   get isOperador() { return this.authService.hasRole(Role.OPERADOR); }
   get isLiderOperador() { return this.authService.isLiderOperador(); }
+  get isCoordServiciosEspeciales() { return this.authService.hasRole(Role.COORD_SERVICIOS_ESPECIALES); }
+  get isPulidor() {
+    return this.authService.hasAnyRole([Role.PULIDOR_MOVIL, Role.PULIDOR_FIJO, Role.OPERADOR_SERVICIOS_ESPECIALES]);
+  }
   get isOperadorEspeciales() {
-    return this.authService.hasAnyRole([Role.OPERADOR_SERVICIOS_ESPECIALES, Role.COORD_SERVICIOS_ESPECIALES]);
+    return this.isCoordServiciosEspeciales || this.isPulidor;
+  }
+  get userRegionNombre(): string {
+    const u = this.authService.getCurrentUser();
+    return u?.region || u?.regionNombre || (u?.regionId === 'REG-COSTA' ? 'Costa' : 'Sierra');
   }
   get isGerente() { return this.authService.hasAnyRole([Role.SUPER_ADMIN, Role.ADMIN, Role.GERENTE]); }
   get isSuperAdmin() { return this.authService.hasRole(Role.SUPER_ADMIN); }
   get isAdmin() { return this.authService.isAdmin(); }
+  get isAprobador(): boolean {
+    const user = this.authService.getCurrentUser();
+    const rol = (user?.role || '').toUpperCase();
+    return (rol === 'APROBADOR' || rol === 'GERENTE' || user?.role === Role.APROBADOR || user?.role === Role.GERENTE) && !this.isAdmin && !this.isSuperAdmin;
+  }
+  get canCrearOT(): boolean {
+    if (this.isAprobador) return false;
+    return this.permissions.canRegistrarServicio() || this.isOperador || this.isLiderOperador || this.isOperadorEspeciales || this.isAdmin || this.isSuperAdmin;
+  }
   get userSucursal(): string | undefined {
     return this.authService.getCurrentUser()?.sucursalNombre || this.authService.getCurrentUser()?.sucursal;
   }
   get puedeReportarFalla() {
-    return this.authService.hasAnyRole([Role.OPERADOR, Role.LIDER_OPERADOR, Role.LIDER_AGENCIA, Role.OPERADOR_SERVICIOS_ESPECIALES])
+    return !this.isAprobador && this.authService.hasAnyRole([Role.OPERADOR, Role.LIDER_OPERADOR, Role.LIDER_AGENCIA, Role.OPERADOR_SERVICIOS_ESPECIALES])
       && this.permissions.canRegistrarIncidente();
   }
 
@@ -1098,17 +1832,30 @@ export class ServiciosComponent implements OnInit {
     return this.authService.hasAnyRole([Role.SUPER_ADMIN, Role.ADMIN, Role.GERENTE]);
   }
 
-  /** El operador solo puede finalizar sus PROPIOS servicios */
+  /** Helper para obtener filtros de alcance del usuario */
+  private _getFiltrosUsuario(): { agenciaId?: string } | undefined {
+    const user = this.authService.getCurrentUser();
+    if (this.isAprobador && user?.agenciaId) {
+      return { agenciaId: String(user.agenciaId) };
+    }
+    return undefined;
+  }
+
+  /** El operador / líder / admin puede finalizar servicios en proceso o en cola (Aprobador NO puede) */
   canFinalizar(item: VehiculoServicio): boolean {
-    if (!this.isOperador) return item.estado === 'EN PROCESO';
-    const nombreOperador = `${this.authService.getCurrentUser()?.nombre} ${this.authService.getCurrentUser()?.apellido}`;
-    return item.estado === 'EN PROCESO' && item.empleado?.toLowerCase().includes(
-      (this.authService.getCurrentUser()?.nombre ?? '').toLowerCase()
-    );
+    if (this.isAprobador) return false;
+    const estado = (item.estado || '').toUpperCase();
+    return estado === 'EN PROCESO' || estado === 'EN_PROCESO' || estado === 'EN COLA' || estado === 'EN_ESPERA';
   }
 
   ngOnInit(): void {
     const user = this.authService.getCurrentUser();
+
+    // Si el usuario es de servicios especiales, pre-seleccionar pestaña de especiales
+    if (this.isCoordServiciosEspeciales || this.isPulidor) {
+      this.tabActiva = 'especiales';
+      this.tieneServiciosEspeciales = true;
+    }
 
     // Pre-rellenar el formulario de nueva OT con el contexto del usuario autenticado
     if (user) {
@@ -1118,7 +1865,7 @@ export class ServiciosComponent implements OnInit {
       if (user.bahiaNombre) this.nuevoRegistro.bahia = user.bahiaNombre;
     }
 
-    this.servicioService.getServicios().subscribe(list => {
+    this.servicioService.getServicios(this._getFiltrosUsuario()).subscribe(list => {
       this.servicios = list;
       this.recalcularServiciosFiltrados();
     });
@@ -1142,7 +1889,8 @@ export class ServiciosComponent implements OnInit {
       ) || this.sucursalService.getSucursalPorNombre(user?.sucursalNombre || user?.sucursal);
       this.sucursalServicioIds = suc?.servicioIds?.length ? suc.servicioIds : null;
 
-      // Construir mapa sucursal -> región para el filtro de región
+      // Construir mapa sucursal -> región para el filtro de región y lista disponible
+      this.sucursalesDisponibles = list.map(s => s.nombre).filter(Boolean);
       this.mapaRegionSucursal = {};
       this.mapaMarcaSucursal = {};
       list.forEach(s => {
@@ -1170,9 +1918,12 @@ export class ServiciosComponent implements OnInit {
       this.operadores = ops;
     });
 
-    this.extrasMock.getServiciosExtras().subscribe(extras => {
-      this.serviciosExtras = extras;
-    });
+    // Cargar Servicios Especiales Regionales
+    this.cargarServiciosEspeciales();
+    this.cargarPulidoresRegion();
+    if (this.isPulidor) {
+      this.cargarStockPulidor();
+    }
 
     if (this.isOperadorEspeciales) {
       this.tiposFallaDisponibles = [
@@ -1205,13 +1956,62 @@ export class ServiciosComponent implements OnInit {
     }
   }
 
+  cargarServiciosEspeciales() {
+    const user = this.authService.getCurrentUser();
+    const filtro: any = {};
+    if (this.isCoordServiciosEspeciales && user?.regionId) {
+      filtro.regionId = String(user.regionId);
+    } else if (this.isPulidor && user?.id) {
+      filtro.operadorId = String(user.id);
+    }
+
+    this.extrasMock.getServiciosExtras(filtro).subscribe(extras => {
+      this.serviciosExtras = extras || [];
+      if (this.serviciosExtras.length > 0) {
+        this.tieneServiciosEspeciales = true;
+      }
+    });
+  }
+
+  cargarPulidoresRegion() {
+    const user = this.authService.getCurrentUser();
+    const regId = user?.regionId ? String(user.regionId) : undefined;
+    this.extrasMock.getPulidoresPorRegion(regId).subscribe(list => {
+      this.pulidoresDisponiblesRegion = list || [];
+    });
+  }
+
+  cargarStockPulidor() {
+    const user = this.authService.getCurrentUser();
+    const pulId = user?.id ? String(user.id) : undefined;
+    this.extrasMock.getStockPulidor(pulId).subscribe(st => {
+      this.stockPulidor = st || [];
+    });
+  }
+
   recalcularTieneServiciosEspeciales(): void {
     const user = this.authService.getCurrentUser();
     if (!user) { this.tieneServiciosEspeciales = false; return; }
 
+    if (this.isSuperAdmin || this.isAdmin || this.isGerente || this.isOperadorEspeciales) {
+      this.tieneServiciosEspeciales = true;
+      return;
+    }
+
+    const hayServiciosEspeciales = this.servicios.some(s =>
+      s.categoriaServicio === 'Servicios Especiales' ||
+      s.categoriaServicio === 'ESPECIAL' ||
+      s.categoriaServicio === 'EXTRA' ||
+      s.categoriaServicio === 'Servicios Extras'
+    ) || this.serviciosExtras.length > 0;
+    
+    if (hayServiciosEspeciales) {
+      this.tieneServiciosEspeciales = true;
+      return;
+    }
+
     const sucClean = (user.sucursalNombre || user.sucursal || (user as any).agencia || '').toLowerCase().trim();
 
-    // Usuarios sin sucursal asignada (Admin, Coord. de Especiales, etc.) siempre pueden ver Especiales
     if (!sucClean && !user.agenciaId) {
       this.tieneServiciosEspeciales = true;
       return;
@@ -1225,7 +2025,6 @@ export class ServiciosComponent implements OnInit {
     ) || this.sucursalService.getSucursalPorNombre(user.sucursalNombre || user.sucursal);
 
     if (!suc) {
-      // Respaldo directo a la configuración guardada de la agencia (localStorage del navegador)
       this.tieneServiciosEspeciales =
         Boolean(user.agenciaId !== undefined && user.agenciaId !== null && user.agenciaId !== ''
           ? this.sucursalService.hasServiciosEspecialesActivos(user.agenciaId, sucClean)
@@ -1365,20 +2164,22 @@ export class ServiciosComponent implements OnInit {
   onServicioSelect() {
     const serv = this.opcionesServicios.find(s => s.nombre === this.nuevoRegistro.servicio) ||
                  this.catalogoCompleto.find(s => s.nombre === this.nuevoRegistro.servicio);
-    if (serv && serv.insumosReceta && serv.insumosReceta.length > 0) {
-      this.insumosConsumoForm = serv.insumosReceta.map(r => ({
-        productoId: r.productoId,
-        productoSKU: r.productoSKU,
-        productoNombre: r.productoNombre,
-        unidadMedida: r.unidadMedida,
-        cantidad: r.cantidadSugerida
-      }));
+    if (serv) {
+      this.nuevoRegistro.servicioId = serv.id;
+      if (serv.insumosReceta && serv.insumosReceta.length > 0) {
+        this.insumosConsumoForm = serv.insumosReceta.map(r => ({
+          productoId: r.productoId,
+          productoSKU: r.productoSKU,
+          productoNombre: r.productoNombre,
+          unidadMedida: r.unidadMedida,
+          cantidad: r.cantidadSugerida
+        }));
+      } else {
+        this.insumosConsumoForm = [];
+      }
     } else {
-      // Default: 1 Shampoo + 1 Paño Microfibra
-      this.insumosConsumoForm = [
-        { productoId: 1, productoSKU: 'QUIM-001', productoNombre: 'Shampoo Ecológico Ultra-Espuma pH Neutro', unidadMedida: 'Caneca 20L', cantidad: 1 },
-        { productoId: 5, productoSKU: 'TEX-001', productoNombre: 'Paños de Microfibra Premium', unidadMedida: 'Pack x10', cantidad: 1 }
-      ];
+      this.nuevoRegistro.servicioId = 0;
+      this.insumosConsumoForm = [];
     }
   }
 
@@ -1440,20 +2241,28 @@ export class ServiciosComponent implements OnInit {
       this.bahiaService.getBahiasPorSucursal(sucId).subscribe(bahias => {
         this.bahiasSucursalForm = bahias || [];
         if (this.bahiasSucursalForm.length > 0) {
-          const matchBahia = this.bahiasSucursalForm.find(b => b.nombre === this.nuevoRegistro.bahia);
-          if (!matchBahia) {
+          const matchBahia = this.bahiasSucursalForm.find(b => b.nombre === this.nuevoRegistro.bahia || b.id === this.nuevoRegistro.bahiaId);
+          if (matchBahia) {
+            this.nuevoRegistro.bahia = matchBahia.nombre;
+            this.nuevoRegistro.bahiaId = String(matchBahia.id);
+          } else {
             this.nuevoRegistro.bahia = this.bahiasSucursalForm[0].nombre;
-            this.onBahiaFormChange();
+            this.nuevoRegistro.bahiaId = String(this.bahiasSucursalForm[0].id);
           }
+          this.onBahiaFormChange();
         }
       });
     }
   }
 
   onBahiaFormChange(): void {
-    const b = this.bahiasSucursalForm.find(x => x.nombre === this.nuevoRegistro.bahia);
-    if (b && b.operadorAsignado && b.operadorAsignado !== 'Sin Asignar') {
-      this.nuevoRegistro.empleado = b.operadorAsignado;
+    const b = this.bahiasSucursalForm.find(x => x.nombre === this.nuevoRegistro.bahia || x.id === this.nuevoRegistro.bahiaId);
+    if (b) {
+      this.nuevoRegistro.bahia = b.nombre;
+      this.nuevoRegistro.bahiaId = String(b.id);
+      if (b.operadorAsignado && b.operadorAsignado !== 'Sin Asignar') {
+        this.nuevoRegistro.empleado = b.operadorAsignado;
+      }
     }
   }
 
@@ -1466,66 +2275,63 @@ export class ServiciosComponent implements OnInit {
     return ops.length > 0 ? ops : this.operadores;
   }
 
-  /**
-   * Filtrado de servicios con scoping por rol:
-   * - OPERADOR: solo ve sus propios servicios (filtrado por nombre)
-   * - GERENTE: solo ve servicios de su sucursal
-   * - SUPER_ADMIN: ve todos
-   */
   private recalcularServiciosFiltrados(): void {
     const user = this.authService.getCurrentUser();
     const role = this.authService.getRole();
-    const texto = this.filtroTexto.toLowerCase();
+    const texto = this.filtroTexto.toLowerCase().trim();
+
+    const isSuper = role === Role.SUPER_ADMIN || role === Role.ADMIN || role === 'SUPER_ADMIN' || role === 'ADMIN';
+    const userSucClean = (this.userSucursal || user?.sucursalNombre || user?.sucursal || (user as any)?.agencia || '').replace(/EasyDry\s*/i, '').toLowerCase().trim();
 
     let resultados = this.servicios.filter(s => {
-      // ── Scope por Rol ──
-      if (role === Role.OPERADOR && user) {
-        const mismoOperador = s.empleado?.toLowerCase().includes(user.nombre.toLowerCase());
-        if (!mismoOperador) return false;
-      } else if ((role === Role.GERENTE || role === Role.SUPERVISOR || this.isLiderOperador) && this.userSucursal) {
-        const sucUser = this.userSucursal.replace('EasyDry ', '').toLowerCase();
-        const mismoSucursal = (s.agencia || '').toLowerCase().includes(sucUser) ||
-                              (s.agencia || '').toLowerCase() === this.userSucursal.toLowerCase();
-        if (!mismoSucursal) return false;
+      if (!isSuper && userSucClean) {
+        const itemSucClean = (s.agencia || '').replace(/EasyDry\s*/i, '').toLowerCase().trim();
+        const matchSucursal = !itemSucClean || itemSucClean.includes(userSucClean) || userSucClean.includes(itemSucClean);
+        const matchOperador = user && s.empleado?.toLowerCase().includes((user.nombre || '').toLowerCase());
+        if (!matchSucursal && !matchOperador) return false;
       }
 
       const matchTexto = !texto ||
         s.placa.toLowerCase().includes(texto) ||
-        (s.ordenTrabajoOT?.toLowerCase().includes(texto) ?? false);
+        (s.ordenTrabajoOT?.toLowerCase().includes(texto) ?? false) ||
+        (s.numeroOrden?.toLowerCase().includes(texto) ?? false) ||
+        (s.modelo?.toLowerCase().includes(texto) ?? false);
 
-      let matchCat = true;
-      if (this.filtroCategoria !== 'Todas') {
-        if (this.filtroCategoria === 'Servicios Generales') {
-          matchCat = s.categoriaServicio === 'Servicios Generales' || s.categoriaServicio === 'GENERAL';
-        } else if (this.filtroCategoria === 'Servicios Especiales') {
-          matchCat = s.categoriaServicio === 'Servicios Especiales' || s.categoriaServicio === 'ESPECIAL'
-            || s.categoriaServicio === 'Servicios Extras' || s.categoriaServicio === 'EXTRA';
-        }
-      }
-
-      // ── Filtrado estricto por pestaña activa (Generales vs Especiales) ──
-      const tabMatch = this.tabActiva === 'generales'
-        ? (s.categoriaServicio === 'Servicios Generales' || s.categoriaServicio === 'GENERAL' || !s.categoriaServicio)
-        : (s.categoriaServicio === 'Servicios Especiales' || s.categoriaServicio === 'ESPECIAL' || s.categoriaServicio === 'EXTRA' || s.categoriaServicio === 'Servicios Extras');
-
-      return matchTexto && matchCat && tabMatch;
+      return matchTexto;
     });
 
     if (this.filtrosGlobales.estado !== 'Todos') {
-      resultados = resultados.filter(s => s.estado === this.filtrosGlobales.estado);
+      const fe = this.filtrosGlobales.estado.toUpperCase();
+      resultados = resultados.filter(s => {
+        const se = (s.estado || '').toUpperCase();
+        if (fe === 'EN PROCESO' || fe === 'EN_PROCESO') {
+          return se === 'EN PROCESO' || se === 'EN_PROCESO' || se === 'EN COLA' || se === 'EN_ESPERA';
+        }
+        return se === fe;
+      });
     }
     if (this.filtrosGlobales.sucursal !== 'Todas') {
-      resultados = resultados.filter(s => s.agencia === this.filtrosGlobales.sucursal);
+      const fs = (this.filtrosGlobales.sucursal || '').replace(/EasyDry\s*/i, '').toLowerCase().trim();
+      resultados = resultados.filter(s => {
+        const sa = (s.agencia || '').replace(/EasyDry\s*/i, '').toLowerCase().trim();
+        return sa.includes(fs) || fs.includes(sa);
+      });
     }
     if (this.filtrosGlobales.bahia !== 'Todas') {
-      resultados = resultados.filter(s => s.bahia === this.filtrosGlobales.bahia);
+      const fb = (this.filtrosGlobales.bahia || '').toLowerCase().trim();
+      resultados = resultados.filter(s => {
+        const sb = (s.bahia || '').toLowerCase().trim();
+        return sb.includes(fb) || fb.includes(sb);
+      });
     }
     if (this.filtrosGlobales.operador !== 'Todos') {
-      resultados = resultados.filter(s => s.empleado?.includes(this.filtrosGlobales.operador));
+      const fo = (this.filtrosGlobales.operador || '').toLowerCase().trim();
+      resultados = resultados.filter(s => (s.empleado || '').toLowerCase().includes(fo));
     }
     if (this.filtrosGlobales.servicio && this.filtrosGlobales.servicio !== 'Todos') {
+      const fserv = this.filtrosGlobales.servicio.toLowerCase().trim();
       resultados = resultados.filter(s =>
-        s.servicio?.toLowerCase().includes(this.filtrosGlobales.servicio!.toLowerCase())
+        (s.servicio || '').toLowerCase().includes(fserv)
       );
     }
     if (this.filtrosGlobales.region && this.filtrosGlobales.region !== 'Todas') {
@@ -1573,7 +2379,7 @@ export class ServiciosComponent implements OnInit {
 
   onPageSizeChange(size: number) {
     this.pageSize = size;
-    this.currentPage = 1; // Reset to first page
+    this.currentPage = 1;
   }
 
   calcularDuracion(inicio: string, fin: string): string {
@@ -1603,8 +2409,31 @@ export class ServiciosComponent implements OnInit {
       return;
     }
 
+    if (!this.nuevoRegistro.marca?.trim()) {
+      this.toastService.warning('Campos Incompletos', 'Ingrese la marca del vehículo.');
+      return;
+    }
+    if (!this.nuevoRegistro.modelo?.trim()) {
+      this.toastService.warning('Campos Incompletos', 'Ingrese el modelo del vehículo.');
+      return;
+    }
+    if (!this.nuevoRegistro.servicioId) {
+      this.toastService.warning('Servicio Requerido', 'Seleccione un servicio del catálogo.');
+      return;
+    }
+
+    if (this.tieneInsumosSinStock) {
+      const detalles = this.insumosSinStockDetalle.join('\n• ');
+      this.toastService.error(
+        'Stock Insuficiente',
+        `No se puede iniciar el servicio. Faltan suministros en la agencia:\n• ${detalles}\nSolicite suministros a Bodega Central.`
+      );
+      return;
+    }
+
     const ocupada = this.servicios.find(s =>
-      placasEquivalentes(s.placa, resultado.placa) && s.estado === 'EN PROCESO'
+      placasEquivalentes(s.placa, resultado.placa) &&
+      (s.estado === 'EN PROCESO' || s.estado === 'EN_PROCESO' || s.estado === 'EN_ESPERA')
     );
     if (ocupada) {
       this.toastService.warning(
@@ -1614,54 +2443,94 @@ export class ServiciosComponent implements OnInit {
       return;
     }
 
+    const bMatch = this.bahiasSucursalForm.find(b => b.nombre === this.nuevoRegistro.bahia || b.id === this.nuevoRegistro.bahiaId)
+      || this.bahiasSucursalForm[0];
+    const bahiaId = bMatch?.id || this.nuevoRegistro.bahiaId;
+
+    const hoyStr = new Date().toISOString().substring(0, 10);
+    const ahoraStr = new Date().toTimeString().substring(0, 5);
+
     const payload = {
       ...this.nuevoRegistro,
+      fecha: this.nuevoRegistro.fecha || hoyStr,
+      horaIngreso: this.nuevoRegistro.horaIngreso || ahoraStr,
+      estado: 'EN_PROCESO',
+      bahiaId,
+      servicioCatalogoId: this.nuevoRegistro.servicioId,
       insumosUtilizados: [...this.insumosConsumoForm]
     };
 
-    // 1. Descuento automático de stock de la sucursal y registro de consumo
-    if (this.insumosConsumoForm.length > 0) {
-      this.inventarioService.consumirInsumosServicio(
-        this.nuevoRegistro.agencia,
-        this.nuevoRegistro.ordenTrabajoOT,
-        this.nuevoRegistro.placa,
-        this.insumosConsumoForm,
-        this.nuevoRegistro.empleado
-      ).subscribe((res: any) => {
-        // Disparar toasts de alerta si algún insumo cayó en nivel bajo/crítico
-        if (res.alertasGeneradas && res.alertasGeneradas.length > 0) {
-          res.alertasGeneradas.forEach((msg: string) => {
-            this.toastService.warning('Alerta de Stock Insumos', msg);
-          });
-        }
-      });
-    }
+    this.servicioService.crearRegistroHojaServicio(payload as any).subscribe({
+      next: (creado) => {
+        this.toastService.success(
+          'Hoja de Control Creada',
+          `Servicio ${creado?.ordenTrabajoOT || this.nuevoRegistro.ordenTrabajoOT} (${creado?.placa || this.nuevoRegistro.placa}) registrado e iniciado con éxito.`
+        );
+        this.modalNuevoRegistroOpen = false;
 
-    // 2. Guardar registro de servicio
-    this.servicioService.crearRegistroHojaServicio(payload as any).subscribe(creado => {
-      this.toastService.success(
-        'Hoja de Control Creada',
-        `Servicio ${creado.ordenTrabajoOT} (${creado.placa}) registrado. Insumos descontados de ${this.nuevoRegistro.agencia}.`
-      );
-      this.modalNuevoRegistroOpen = false;
-      this.recalcularServiciosFiltrados();
+        this.filtroTexto = '';
+        this.filtroCategoria = 'Todas';
+        this.filtrosGlobales.busqueda = '';
+        this.filtrosGlobales.estado = 'Todos';
+        this.currentPage = 1;
+
+        this.inventarioService.cargarItems();
+        this.servicioService.getServicios(this._getFiltrosUsuario()).subscribe(list => {
+          this.servicios = list;
+          this.recalcularServiciosFiltrados();
+        });
+      },
+      error: (err) => {
+        console.error('Error al crear servicio:', err);
+        const backendMsg = err?.error?.message || err?.message || 'Error de comunicación al registrar el servicio.';
+        this.toastService.error('No se pudo registrar servicio', Array.isArray(backendMsg) ? backendMsg.join('. ') : backendMsg);
+      }
     });
   }
 
   finalizarServicio(item: VehiculoServicio) {
-    this.servicioService.finalizarServicioOperador(item.id).subscribe(res => {
-      if (res) {
-        this.toastService.success('Servicio Finalizado', `Vehículo ${item.placa} finalizado. Enviado a Aprobación del Gerente.`);
-        this.recalcularServiciosFiltrados();
+    if (this.isAprobador) {
+      this.toastService.warning('Acceso Restringido', 'El rol Aprobador no puede finalizar servicios; solo auditar y aprobar/rechazar.');
+      return;
+    }
+    this.servicioService.finalizarServicioOperador(item.id).subscribe({
+      next: (res) => {
+        if (res) {
+          const autoAprobado = res.estado === 'APROBADO';
+          const titulo = autoAprobado ? 'Servicio Finalizado y Aprobado' : 'Servicio Finalizado';
+          const msg = autoAprobado
+            ? `Vehículo ${item.placa} finalizado y aprobado automáticamente (agencia sin aprobador asignado).`
+            : `Vehículo ${item.placa} finalizado. Enviado a revisión del Gerente/Aprobador.`;
+          this.toastService.success(titulo, msg);
+          this.servicioService.getServicios(this._getFiltrosUsuario()).subscribe(list => {
+            this.servicios = list;
+            this.recalcularServiciosFiltrados();
+          });
+        }
+      },
+      error: (err) => {
+        console.error('Error al finalizar servicio:', err);
+        const msg = err?.error?.message || err?.message || 'No se pudo finalizar el servicio.';
+        this.toastService.error('Error al Finalizar', Array.isArray(msg) ? msg.join('. ') : msg);
       }
     });
   }
 
   aprobarServicio(item: VehiculoServicio) {
-    this.servicioService.aprobarServicioGerente(item.id).subscribe(res => {
-      if (res) {
-        this.toastService.success('Servicio Aprobado', `Servicio ${item.placa} aprobado por Gerencia.`);
-        this.recalcularServiciosFiltrados();
+    this.servicioService.aprobarServicioGerente(item.id).subscribe({
+      next: (res) => {
+        if (res) {
+          this.toastService.success('Servicio Aprobado', `Servicio ${item.placa} aprobado por Gerencia.`);
+          this.servicioService.getServicios(this._getFiltrosUsuario()).subscribe(list => {
+            this.servicios = list;
+            this.recalcularServiciosFiltrados();
+          });
+        }
+      },
+      error: (err) => {
+        console.error('Error al aprobar servicio:', err);
+        const msg = err?.error?.message || err?.message || 'No se pudo aprobar el servicio.';
+        this.toastService.error('Error al Aprobar', Array.isArray(msg) ? msg.join('. ') : msg);
       }
     });
   }
@@ -1684,13 +2553,24 @@ export class ServiciosComponent implements OnInit {
 
   get extrasFiltrados() {
     return this.serviciosExtras.filter(e => {
-      const matchEst = this.filtroEstadoExtras === 'TODOS' || e.estado === this.filtroEstadoExtras;
-      const matchOp = this.filtroOperadorExtras === 0 || e.operadorId === this.filtroOperadorExtras;
-      const matchTxt = this.busquedaExtras === '' ||
-        e.servicioNombre.toLowerCase().includes(this.busquedaExtras.toLowerCase()) ||
-        e.codigoSE.toLowerCase().includes(this.busquedaExtras.toLowerCase()) ||
-        e.operadorNombre.toLowerCase().includes(this.busquedaExtras.toLowerCase());
-      return matchEst && matchOp && matchTxt;
+      const matchEst = this.filtrosGlobales.estado === 'Todos' ||
+        e.estado?.toLowerCase() === this.filtrosGlobales.estado?.toLowerCase() ||
+        (this.filtrosGlobales.estado === 'En Proceso' && e.estado === 'En Proceso') ||
+        (this.filtrosGlobales.estado === 'Completado' && (e.estado === 'Completado' || (e.estado as string) === 'FINALIZADO'));
+
+      const matchReg = !this.filtrosGlobales.region || this.filtrosGlobales.region === 'Todas' ||
+        (e.regionNombre || '').toLowerCase().includes(this.filtrosGlobales.region.toLowerCase());
+
+      const matchOp = !this.filtrosGlobales.operador || this.filtrosGlobales.operador === 'Todos' ||
+        (e.operadorNombre || '').toLowerCase().includes(this.filtrosGlobales.operador.toLowerCase());
+
+      const matchTxt = !this.filtroTexto ||
+        e.servicioNombre.toLowerCase().includes(this.filtroTexto.toLowerCase()) ||
+        e.codigoSE.toLowerCase().includes(this.filtroTexto.toLowerCase()) ||
+        (e.vehiculoInfo?.placa || e.placa || '').toLowerCase().includes(this.filtroTexto.toLowerCase()) ||
+        e.operadorNombre.toLowerCase().includes(this.filtroTexto.toLowerCase());
+
+      return matchEst && matchReg && matchOp && matchTxt;
     });
   }
 
@@ -1705,13 +2585,28 @@ export class ServiciosComponent implements OnInit {
   abrirModalNuevoExtra() {
     this.isEditingExtras = false;
     this.editandoExtraId = null;
+    const user = this.authService.getCurrentUser();
+    
+    // Asignar primer pulidor disponible de la región
+    const primerPulidor = this.pulidoresDisponiblesRegion[0];
+    const opId = this.isPulidor ? (user?.id || '') : (primerPulidor?.id || '');
+    const opNombre = this.isPulidor ? `${user?.nombre || ''} ${user?.apellido || ''}`.trim() : (primerPulidor ? `${primerPulidor.name} ${primerPulidor.lastname}`.trim() : 'Sin asignar');
+
+    this.extraFormPlaca = '';
+    this.extraFormMarca = 'Toyota';
+    this.extraFormModelo = 'Fortuner';
+    this.extraFormColor = 'Plata';
+
     this.extraForm = {
-      servicioNombre: '',
-      servicioDescripcion: '',
-      operadorId: this.operadores[0]?.id || 0,
-      operadorNombre: this.operadores[0]?.nombre || '',
+      servicioNombre: 'Pulido y Corrección de Pintura en 3 Pasos',
+      servicioDescripcion: 'Corrección con pad de corte, pulido de acabado y sellado sintético',
+      operadorId: opId,
+      operadorNombre: opNombre,
       sucursalesSeleccionadas: [],
-      insumosReceta: [],
+      insumosReceta: [
+        { productoId: 1, productoSKU: 'QUI-COR-01', productoNombre: 'Compound de Corte Rápido 1L', unidadMedida: 'L', cantidadSugerida: 0.2 },
+        { productoId: 2, productoSKU: 'QUI-POL-01', productoNombre: 'Polish de Acabado Brillo Espejo 1L', unidadMedida: 'L', cantidadSugerida: 0.15 }
+      ],
       estado: 'Pendiente',
       fechaProgramada: new Date().toISOString().substring(0, 10),
       notas: ''
@@ -1719,128 +2614,154 @@ export class ServiciosComponent implements OnInit {
     this.showModalExtras = true;
   }
 
-  abrirModalEditarExtra(extra: ServicioExtra) {
-    this.isEditingExtras = true;
-    this.editandoExtraId = extra.id;
-    this.extraForm = {
-      servicioNombre: extra.servicioNombre,
-      servicioDescripcion: extra.servicioDescripcion || '',
-      operadorId: extra.operadorId,
-      operadorNombre: extra.operadorNombre,
-      sucursalesSeleccionadas: [...extra.sucursales],
-      insumosReceta: JSON.parse(JSON.stringify(extra.insumosReceta)),
-      estado: extra.estado,
-      fechaProgramada: extra.fechaProgramada,
-      notas: extra.notas || ''
-    };
-    this.showModalExtras = true;
-  }
-
   cerrarModalExtras() { this.showModalExtras = false; }
 
   onOperadorExtraChange() {
-    const op = this.operadores.find(o => o.id === Number(this.extraForm.operadorId));
-    if (op) this.extraForm.operadorNombre = op.nombre;
-  }
-
-  toggleSucursalExtra(sucursal: string) {
-    const idx = this.extraForm.sucursalesSeleccionadas.indexOf(sucursal);
-    if (idx === -1) {
-      this.extraForm.sucursalesSeleccionadas.push(sucursal);
-    } else {
-      this.extraForm.sucursalesSeleccionadas.splice(idx, 1);
-    }
-  }
-
-  isSucursalExtraSeleccionada(sucursal: string): boolean {
-    return this.extraForm.sucursalesSeleccionadas.includes(sucursal);
-  }
-
-  agregarInsumoRecetaExtra(productoIdStr: string) {
-    if (!productoIdStr) return;
-    const prodId = Number(productoIdStr);
-    const item = this.productosInventario.find(i => i.producto.id === prodId);
-    if (!item) return;
-    const existe = this.extraForm.insumosReceta.find(r => r.productoId === prodId);
-    if (existe) {
-      existe.cantidadSugerida += 1;
-    } else {
-      this.extraForm.insumosReceta.push({
-        productoId: item.producto.id,
-        productoSKU: item.producto.codigoSKU,
-        productoNombre: item.producto.nombre,
-        unidadMedida: item.producto.unidadMedida,
-        cantidadSugerida: 1
-      });
-    }
-  }
-
-  aumentarInsumoRecetaExtra(index: number) {
-    const ins = this.extraForm.insumosReceta[index];
-    if (ins) ins.cantidadSugerida = Math.round((ins.cantidadSugerida + 0.5) * 10) / 10;
-  }
-
-  disminuirInsumoRecetaExtra(index: number) {
-    const ins = this.extraForm.insumosReceta[index];
-    if (ins && ins.cantidadSugerida > 0.5) {
-      ins.cantidadSugerida = Math.round((ins.cantidadSugerida - 0.5) * 10) / 10;
-    }
-  }
-
-  eliminarInsumoRecetaExtra(index: number) {
-    this.extraForm.insumosReceta.splice(index, 1);
+    const op = this.pulidoresDisponiblesRegion.find(o => String(o.id) === String(this.extraForm.operadorId));
+    if (op) this.extraForm.operadorNombre = `${op.name} ${op.lastname}`.trim();
   }
 
   guardarServicioExtra() {
     if (!this.extraForm.servicioNombre.trim() || !this.extraForm.operadorId) {
-      this.toastService.warning('Datos incompletos', 'Ingrese el nombre del servicio y seleccione un operador.');
+      this.toastService.warning('Datos incompletos', 'Ingrese el tipo de servicio y seleccione un pulidor.');
       return;
     }
-    const payload = {
+    if (!this.extraFormPlaca.trim()) {
+      this.toastService.warning('Placa requerida', 'Ingrese la placa del vehículo.');
+      return;
+    }
+
+    const user = this.authService.getCurrentUser();
+    const regId = user?.regionId ? String(user.regionId) : (user?.region === 'Costa' ? 'REG-COSTA' : 'REG-SIERRA');
+    const regNombre = this.userRegionNombre;
+
+    const payload: any = {
       servicioNombre: this.extraForm.servicioNombre.trim(),
       servicioDescripcion: this.extraForm.servicioDescripcion.trim(),
-      operadorId: Number(this.extraForm.operadorId),
+      operadorId: String(this.extraForm.operadorId),
       operadorNombre: this.extraForm.operadorNombre,
-      sucursales: this.extraForm.sucursalesSeleccionadas,
+      regionId: regId,
+      regionNombre: regNombre,
+      placa: this.extraFormPlaca.trim().toUpperCase(),
+      vehiculoInfo: {
+        placa: this.extraFormPlaca.trim().toUpperCase(),
+        marca: this.extraFormMarca.trim(),
+        modelo: this.extraFormModelo.trim(),
+        color: this.extraFormColor.trim()
+      },
       insumosReceta: this.extraForm.insumosReceta,
       estado: this.extraForm.estado,
       fechaProgramada: this.extraForm.fechaProgramada,
       notas: this.extraForm.notas,
-      creadoPor: 'Franklin Administrador'
+      creadoPor: `${user?.nombre || ''} ${user?.apellido || ''}`.trim() || 'Coordinador Zonal'
     };
 
-    if (this.isEditingExtras && this.editandoExtraId) {
-      this.extrasMock.actualizarServicioExtra(this.editandoExtraId, payload).subscribe(() => {
-        this.toastService.success('Asignación Actualizada', 'Los cambios han sido guardados.');
+    this.extrasMock.crearServicioExtra(payload).subscribe({
+      next: (creado) => {
+        this.toastService.success('Servicio Asignado', `Servicio ${creado.codigoSE} asignado a ${this.extraForm.operadorNombre} en ${regNombre}.`);
         this.cerrarModalExtras();
-      });
-    } else {
-      this.extrasMock.crearServicioExtra(payload).subscribe(() => {
-        this.toastService.success('Asignación Creada', 'El servicio especial ha sido asignado al operador.');
-        this.cerrarModalExtras();
-      });
+        this.cargarServiciosEspeciales();
+      },
+      error: (err) => {
+        console.error('Error al crear servicio especial:', err);
+        const msg = err?.error?.message || err?.message || 'No se pudo crear el servicio especial.';
+        this.toastService.error('Error al crear', Array.isArray(msg) ? msg.join('. ') : msg);
+      }
+    });
+  }
+
+  // ── Flujo de Evidencias en Vídeo de Especiales ──
+  abrirModalIniciarEspecial(extra: ServicioExtra) {
+    this.servicioEspecialSeleccionado = extra;
+    this.videoInicialInput = extra.videoInicialUrl || '';
+    this.modalIniciarServicioEspecialOpen = true;
+  }
+
+  agregarVideoInicialDemo() {
+    this.videoInicialInput = 'https://assets.mixkit.co/videos/preview/mixkit-car-polishing-process-in-auto-detailing-shop-41485-large.mp4';
+    this.toastService.info('Vídeo demo asignado', 'Se adjuntó la inspección inicial.');
+  }
+
+  confirmarIniciarEspecial() {
+    if (!this.videoInicialInput.trim()) {
+      this.toastService.warning('Vídeo Inicial Requerido', 'Debe adjuntar la evidencia en vídeo del estado inicial del vehículo.');
+      return;
     }
-  }
+    if (!this.servicioEspecialSeleccionado) return;
 
-  cambiarEstadoExtra(extra: ServicioExtra, estado: ServicioExtra['estado']) {
-    this.extrasMock.cambiarEstado(extra.id, estado).subscribe(() => {
-      this.toastService.success('Estado Actualizado', `Asignación ${extra.codigoSE} marcada como ${estado}.`);
+    this.extrasMock.cambiarEstado(this.servicioEspecialSeleccionado.id, 'En Proceso', this.videoInicialInput.trim()).subscribe({
+      next: () => {
+        this.toastService.success('Servicio Iniciado', `OT ${this.servicioEspecialSeleccionado?.codigoSE} en proceso. Evidencia inicial grabada.`);
+        this.modalIniciarServicioEspecialOpen = false;
+        this.cargarServiciosEspeciales();
+      },
+      error: (err) => {
+        console.error('Error al iniciar:', err);
+        this.toastService.error('Error al iniciar', 'No se pudo registrar el inicio del servicio.');
+      }
     });
   }
 
-  eliminarExtra(id: number) {
-    this.extrasMock.eliminarServicioExtra(id).subscribe(() => {
-      this.toastService.info('Asignación Eliminada', 'El registro ha sido removido del sistema.');
+  abrirModalFinalizarEspecial(extra: ServicioExtra) {
+    this.servicioEspecialSeleccionado = extra;
+    this.videoFinalInput = extra.videoFinalUrl || '';
+    this.calificacionCalidadInput = 5;
+    this.notasFinalizacionInput = extra.notas || '';
+    this.modalFinalizarServicioEspecialOpen = true;
+  }
+
+  agregarVideoFinalDemo() {
+    this.videoFinalInput = 'https://assets.mixkit.co/videos/preview/mixkit-shiny-black-luxury-car-after-detailing-41486-large.mp4';
+    this.toastService.info('Vídeo demo asignado', 'Se adjuntó la evidencia de entrega y brillo final.');
+  }
+
+  confirmarFinalizarEspecial() {
+    if (!this.videoFinalInput.trim()) {
+      this.toastService.warning('Vídeo Final Requerido', 'Debe adjuntar la evidencia en vídeo del vehículo terminado.');
+      return;
+    }
+    if (!this.servicioEspecialSeleccionado) return;
+
+    this.extrasMock.actualizarServicioExtra(this.servicioEspecialSeleccionado.id, {
+      estado: 'Completado',
+      videoFinalUrl: this.videoFinalInput.trim(),
+      calificacionCalidad: this.calificacionCalidadInput,
+      notas: this.notasFinalizacionInput
+    }).subscribe({
+      next: () => {
+        this.toastService.success('Servicio Completado', `OT ${this.servicioEspecialSeleccionado?.codigoSE} finalizada con éxito. Insumos descontados de tu custodia.`);
+        this.modalFinalizarServicioEspecialOpen = false;
+        this.cargarServiciosEspeciales();
+        if (this.isPulidor) {
+          this.cargarStockPulidor();
+        }
+      },
+      error: (err) => {
+        console.error('Error al finalizar:', err);
+        this.toastService.error('Error al finalizar', 'No se pudo completar el servicio.');
+      }
     });
+  }
+
+  abrirDetalleEspecial(extra: ServicioExtra) {
+    this.servicioEspecialSeleccionado = extra;
+    this.modalDetalleEspecialOpen = true;
+  }
+
+  verVideoGenerico(url: string, titulo: string) {
+    this.videoGenericoUrl = url;
+    this.videoGenericoTitulo = titulo;
+    this.modalVideoGenericoOpen = true;
   }
 
   estadoExtraClass(estado: string): string {
     const map: Record<string, string> = {
-      'Pendiente': 'bg-amber-50 text-amber-700 border-amber-200',
-      'En Proceso': 'bg-blue-50 text-blue-700 border-blue-200',
-      'Completado': 'bg-emerald-50 text-emerald-700 border-emerald-200',
-      'Cancelado': 'bg-slate-100 text-slate-500 border-slate-200'
+      'Pendiente': 'bg-amber-50 text-amber-700 border border-amber-300',
+      'En Proceso': 'bg-blue-50 text-blue-700 border border-blue-300',
+      'Completado': 'bg-emerald-50 text-emerald-700 border border-emerald-300',
+      'FINALIZADO': 'bg-emerald-50 text-emerald-700 border border-emerald-300',
+      'Cancelado': 'bg-slate-100 text-slate-500 border border-slate-200'
     };
-    return map[estado] || 'bg-slate-100 text-slate-500 border-slate-200';
+    return map[estado] || 'bg-slate-100 text-slate-500 border border-slate-200';
   }
 }

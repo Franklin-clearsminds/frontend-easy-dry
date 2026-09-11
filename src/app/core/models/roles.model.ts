@@ -218,19 +218,11 @@ export const MODULOS_POR_ROL: Record<string, string[]> = {
   [Role.SUPER_ADMIN]: MODULOS_SISTEMA.map(m => m.codigo),
   [Role.ADMIN]: MODULOS_SISTEMA.map(m => m.codigo),
 
-  /** Aprobador — cierre diario, auditoría de evidencias fotográficas */
+  /** Aprobador — módulo exclusivo de aprobación diaria y auditoría de evidencias */
   [Role.APROBADOR]: [
     'dashboard',
     'notificaciones',
-    'agencias',
-    'operadores',
-    'servicios',
-    'configuracion/servicios',
     'aprobaciones',
-    'productividad',
-    'maquinaria',
-    'inventario',
-    'reportes',
     'perfil'
   ],
 
@@ -301,6 +293,9 @@ export const MODULOS_POR_ROL: Record<string, string[]> = {
 
   /** Operador — registro técnico en bahía para trazabilidad de productividad */
   [Role.OPERADOR]: [
+    'dashboard',
+    'inventario',
+    'envios',
     'perfil'
   ],
 
@@ -351,19 +346,17 @@ export const MODULOS_POR_ROL: Record<string, string[]> = {
     'perfil'
   ],
 
-  /** Coordinador de bodega — inventario nacional, recepción y despachos multi-región */
+  /** Coordinador / Gestor de bodega — inventario nacional y despachos */
   [Role.COORD_BODEGA]: [
     'dashboard',
-    'notificaciones',
     'inventario',
     'envios',
-    'reportes',
     'perfil'
   ],
 
+  /** Asistente de bodega — inventario y despachos de su bodega regional */
   [Role.ASISTENTE_BODEGA]: [
     'dashboard',
-    'notificaciones',
     'inventario',
     'envios',
     'perfil'
@@ -374,7 +367,7 @@ export const MODULOS_POR_ROL: Record<string, string[]> = {
 export const DEFAULT_ROUTE_POR_ROL: Record<string, string> = {
   [Role.SUPER_ADMIN]: '/dashboard',
   [Role.ADMIN]: '/dashboard',
-  [Role.APROBADOR]: '/dashboard',
+  [Role.APROBADOR]: '/aprobaciones',
   [Role.SUPERVISOR]: '/dashboard',
   [Role.JEFE_COMERCIAL]: '/dashboard',
   [Role.COORD_COMERCIAL]: '/dashboard',
@@ -594,6 +587,7 @@ export interface UsuarioAuth {
   sucursal?: string;
   sucursalNombre?: string;
   region?: string;
+  regionNombre?: string;
   sucursalesPermitidas?: number[];
   regionPermitida?: string;
   bahiaId?: number;
@@ -688,7 +682,7 @@ export const PERMISOS_POR_ROL: Record<string, PermisosRol> = {
     accionesEnvios: true
   },
 
-  /** APROBADOR — potestad exclusiva de aprobar/cancelar servicios en su agencia */
+  /** APROBADOR — potestad exclusiva de aprobar/rechazar servicios en su agencia */
   [Role.APROBADOR]: {
     verTodasSucursales: false,
     crearSucursal: false,
@@ -697,17 +691,17 @@ export const PERMISOS_POR_ROL: Record<string, PermisosRol> = {
     asignarRoles: false,
     verOtrosSucursales: false,
     cambiarSucursalOperador: false,
-    cambiarBahiaOperador: true,
+    cambiarBahiaOperador: false,
     aprobarServicios: true,
     rechazarServicios: true,
-    cerrarDia: true,
-    registrarServicio: true,
-    verTodosServicios: true,
-    verMaquinaria: true,
+    cerrarDia: false,
+    registrarServicio: false,
+    verTodosServicios: false,
+    verMaquinaria: false,
     gestionarMantenimiento: false,
-    registrarIncidente: true,
-    verReportes: true,
-    verProductividadGlobal: true,
+    registrarIncidente: false,
+    verReportes: false,
+    verProductividadGlobal: false,
     verConfiguracion: false,
     gestionarInventario: false,
     despacharSuministros: false,
@@ -996,12 +990,12 @@ export const PERMISOS_POR_ROL: Record<string, PermisosRol> = {
 
   /** COORD_BODEGA — inventario nacional, recepción de compras y despachos multi-región */
   [Role.COORD_BODEGA]: {
-    verTodasSucursales: false,
+    verTodasSucursales: true,
     crearSucursal: false,
     editarSucursal: false,
     crearUsuarios: false,
     asignarRoles: false,
-    verOtrosSucursales: false,
+    verOtrosSucursales: true,
     cambiarSucursalOperador: false,
     cambiarBahiaOperador: false,
     aprobarServicios: false,
@@ -1017,9 +1011,10 @@ export const PERMISOS_POR_ROL: Record<string, PermisosRol> = {
     verConfiguracion: false,
     gestionarInventario: true,
     despacharSuministros: true,
-    accionesEnvios: false
+    accionesEnvios: true
   },
 
+  /** ASISTENTE_BODEGA — asignado a una bodega y región para gestionar las agencias de su región */
   [Role.ASISTENTE_BODEGA]: {
     verTodasSucursales: false,
     crearSucursal: false,
@@ -1040,9 +1035,9 @@ export const PERMISOS_POR_ROL: Record<string, PermisosRol> = {
     verReportes: false,
     verProductividadGlobal: false,
     verConfiguracion: false,
-    gestionarInventario: false,
+    gestionarInventario: true,
     despacharSuministros: true,
-    accionesEnvios: false
+    accionesEnvios: true
   }
 };
 

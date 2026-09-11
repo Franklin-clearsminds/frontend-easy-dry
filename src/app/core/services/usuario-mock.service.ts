@@ -15,13 +15,13 @@ function resolveDemoRole(rol: string): Role {
   if (norm.includes('COORD') && norm.includes('COMERCIAL')) return Role.COORD_COMERCIAL;
   if (norm.includes('APROBADOR') || norm.includes('GERENTE')) return Role.APROBADOR;
   if (norm.includes('PULIDOR_FIJO')) return Role.PULIDOR_FIJO;
-  if (norm.includes('PULIDOR_MOVIL')) return Role.PULIDOR_MOVIL;
+  if (norm.includes('PULIDOR')) return Role.PULIDOR_MOVIL;
   if (norm.includes('MANTENIMIENTO')) return Role.COORD_MANTENIMIENTO;
   if (norm.includes('TECNICO') || norm.includes('TÉCNICO')) return Role.TECNICO;
   if (norm.includes('ASISTENTE')) return Role.ASISTENTE_BODEGA;
-  if (norm.includes('BODEGA')) return Role.COORD_BODEGA;
+  if (norm.includes('BODEGA') || norm.includes('INVENTARIO') || norm.includes('DISTRIBUIDOR') || norm.includes('GESTOR')) return Role.COORD_BODEGA;
   if (norm.includes('LIDER') || norm.includes('LÍDER')) return Role.LIDER_OPERADOR;
-  if (norm === 'OPERADOR') return Role.OPERADOR;
+  if (norm === 'OPERADOR' || norm.includes('LAVADOR')) return Role.OPERADOR;
   return Role.LIDER_OPERADOR;
 }
 
@@ -39,12 +39,39 @@ export class UsuarioMockService {
       rolDisplay = 'Aprobador';
     } else if (rolDisplay === 'SUPER_ADMIN') {
       rolDisplay = 'Super Administrador';
+    } else if (rolDisplay === 'ADMIN') {
+      rolDisplay = 'Administrador';
     } else if (rolDisplay === 'SUPERVISOR') {
       rolDisplay = 'Supervisor Regional';
-    } else if (rolDisplay === 'LIDER_OPERADOR' || rolDisplay === 'LIDER_AGENCIA') {
+    } else if (rolDisplay === 'COORD_BODEGA' || rolDisplay === 'DISTRIBUIDOR') {
+      rolDisplay = 'Coordinador de Bodega';
+    } else if (rolDisplay === 'ASISTENTE_BODEGA') {
+      rolDisplay = 'Asistente de Bodega';
+    } else if (rolDisplay === 'LIDER_OPERADOR' || rolDisplay === 'LIDER_AGENCIA' || rolDisplay === 'LIDER') {
       rolDisplay = 'Líder';
-    } else if (rolDisplay === 'OPERADOR') {
+    } else if (rolDisplay === 'OPERADOR' || rolDisplay === 'LAVADOR') {
       rolDisplay = 'Operador (Trazabilidad Bahía)';
+    } else if (rolDisplay === 'COORD_COMERCIAL') {
+      rolDisplay = 'Coordinador Comercial';
+    } else if (rolDisplay === 'JEFE_COMERCIAL') {
+      rolDisplay = 'Jefe Comercial';
+    } else if (rolDisplay === 'COORD_SERVICIOS_ESPECIALES') {
+      rolDisplay = 'Coordinador de Servicios Especiales';
+    } else if (rolDisplay === 'PULIDOR_FIJO') {
+      rolDisplay = 'Pulidor Fijo';
+    } else if (rolDisplay === 'PULIDOR_MOVIL') {
+      rolDisplay = 'Pulidor Móvil';
+    } else if (rolDisplay === 'COORD_MANTENIMIENTO') {
+      rolDisplay = 'Coordinador de Mantenimiento';
+    } else if (rolDisplay === 'TECNICO') {
+      rolDisplay = 'Técnico de Maquinaria';
+    }
+
+    let agenciaDisplay = u.agencia?.nombre || 'Sin asignar';
+    if (rolDisplay === 'Coordinador de Bodega') {
+      agenciaDisplay = 'Bodega Central Nacional';
+    } else if (rolDisplay === 'Asistente de Bodega' && (!u.agencia || u.agencia.nombre === 'Sin asignar')) {
+      agenciaDisplay = u.region?.nombre ? `Bodega Regional ${u.region.nombre}` : 'Bodega Central Nacional';
     }
 
     return {
@@ -56,8 +83,8 @@ export class UsuarioMockService {
       rolNombre: rolDisplay,
       avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
       estado: u.estado === 1 ? 'Activo' : 'Inactivo',
-      agencia: u.agencia?.nombre || 'Sin asignar',
-      sucursal: u.agencia?.nombre || 'Sin asignar',
+      agencia: agenciaDisplay,
+      sucursal: agenciaDisplay,
       region: u.region?.nombre || 'Sin asignar',
       agenciaId: u.agenciaId || u.agencia?.id,
       regionId: u.regionId || u.region?.id
@@ -79,16 +106,18 @@ export class UsuarioMockService {
     );
   }
 
-  crearUsuario(usr: Omit<Usuario, 'id'> & { password?: string }): Observable<Usuario> {
+  crearUsuario(usr: Omit<Usuario, 'id'> & { password?: string; roleId?: string; regionId?: string }): Observable<Usuario> {
     const agenciaFinal = usr.agencia?.trim() && usr.agencia !== 'Sin asignar' ? usr.agencia : 'Sin asignar';
-    const payload = {
+    const payload: any = {
       name: usr.nombre,
       lastname: usr.apellido,
       email: usr.email,
       password: usr.password || 'Admin123*',
       rolNombre: usr.rol,
+      roleId: usr.roleId || (usr as any).roleId || undefined,
       agencia: agenciaFinal !== 'Sin asignar' ? agenciaFinal : undefined,
       agenciaId: usr.agenciaId || undefined,
+      regionId: usr.regionId || (usr as any).regionId || undefined,
       modalidadPulidor: usr.modalidadPulidor,
       estado: usr.estado === 'Inactivo' ? 0 : 1
     };
@@ -124,7 +153,7 @@ export class UsuarioMockService {
     );
   }
 
-  actualizarUsuario(usr: Usuario & { password?: string; roleId?: string }): Observable<Usuario> {
+  actualizarUsuario(usr: Usuario & { password?: string; roleId?: string; regionId?: string }): Observable<Usuario> {
     const payload: any = {
       id: String(usr.id),
       name: usr.nombre,
@@ -132,7 +161,8 @@ export class UsuarioMockService {
       email: usr.email,
       estado: usr.estado === 'Activo' ? 1 : 0,
       rolNombre: usr.rol,
-      roleId: (usr as any).roleId || undefined,
+      roleId: usr.roleId || (usr as any).roleId || undefined,
+      regionId: usr.regionId || (usr as any).regionId || undefined,
     };
 
     if (usr.agenciaId && usr.agencia !== 'Sin asignar') {

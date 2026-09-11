@@ -1,134 +1,176 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
 import { BehaviorSubject, Observable, of } from 'rxjs';
-import { delay, map } from 'rxjs/operators';
-import { ServicioExtra, RecetaInsumoServicio } from '../models';
-
-const SUCURSALES_RED = [
-  'EasyDry Quito Norte',
-  'EasyDry Quito Sur',
-  'EasyDry Cumbayá',
-  'EasyDry Guayaquil'
-];
-
-const INITIAL_SERVICIOS_EXTRAS: ServicioExtra[] = [
-  {
-    id: 1,
-    codigoSE: 'SE-2026-001',
-    servicioNombre: 'Pulido Especial en Profundidad',
-    servicioDescripcion: 'Pulido de dos etapas con almohadilla de espuma y compuesto abrasivo medio para eliminar rallones finos.',
-    operadorId: 1,
-    operadorNombre: 'Juan Pérez',
-    sucursales: ['EasyDry Quito Norte', 'EasyDry Cumbayá'],
-    insumosReceta: [
-      { productoId: 2, productoSKU: 'QUIM-002', productoNombre: 'Cera Líquida Polimérica Carnauba Gold', unidadMedida: 'Galón (3.8L)', cantidadSugerida: 1 },
-      { productoId: 5, productoSKU: 'TEX-001', productoNombre: 'Paños de Microfibra Premium', unidadMedida: 'Pack x10', cantidadSugerida: 2 }
-    ],
-    estado: 'Pendiente',
-    fechaProgramada: '2026-09-01',
-    notas: 'Prioridad alta, cliente VIP con flota de 4 vehículos.',
-    creadoPor: 'Franklin Administrador',
-    fechaCreacion: '2026-08-25'
-  },
-  {
-    id: 2,
-    codigoSE: 'SE-2026-002',
-    servicioNombre: 'Lavado Motor & Chasis Completo',
-    servicioDescripcion: 'Desengrasado de motor, compartimento y chasis con protección anticorrosiva.',
-    operadorId: 2,
-    operadorNombre: 'Carlos López',
-    sucursales: ['EasyDry Guayaquil'],
-    insumosReceta: [
-      { productoId: 3, productoSKU: 'QUIM-003', productoNombre: 'Desengrasante Motor & Chasis Biodegradable', unidadMedida: 'Caneca 20L', cantidadSugerida: 1 },
-      { productoId: 6, productoSKU: 'EPP-001', productoNombre: 'Guantes de Nitrilo Industrial', unidadMedida: 'Caja x50', cantidadSugerida: 1 }
-    ],
-    estado: 'En Proceso',
-    fechaProgramada: '2026-08-27',
-    notas: 'Cliente requiere factura y reporte fotográfico completo.',
-    creadoPor: 'Franklin Administrador',
-    fechaCreacion: '2026-08-24'
-  },
-  {
-    id: 3,
-    codigoSE: 'SE-2026-003',
-    servicioNombre: 'Recubrimiento Cerámico Premium',
-    servicioDescripcion: 'Aplicación de recubrimiento cerámico SiO2 con duración garantizada de 12 meses.',
-    operadorId: 1,
-    operadorNombre: 'Juan Pérez',
-    sucursales: ['EasyDry Quito Norte', 'EasyDry Quito Sur', 'EasyDry Cumbayá', 'EasyDry Guayaquil'],
-    insumosReceta: [
-      { productoId: 2, productoSKU: 'QUIM-002', productoNombre: 'Cera Líquida Polimérica Carnauba Gold', unidadMedida: 'Galón (3.8L)', cantidadSugerida: 2 },
-      { productoId: 5, productoSKU: 'TEX-001', productoNombre: 'Paños de Microfibra Premium', unidadMedida: 'Pack x10', cantidadSugerida: 3 },
-      { productoId: 7, productoSKU: 'ACC-001', productoNombre: 'Atomizador Industrial Heavy Duty', unidadMedida: 'Unidad (u)', cantidadSugerida: 1 }
-    ],
-    estado: 'Completado',
-    fechaProgramada: '2026-08-20',
-    fechaCompletado: '2026-08-21',
-    notas: 'Realizado en tiempo récord. Cliente muy satisfecho.',
-    creadoPor: 'Franklin Administrador',
-    fechaCreacion: '2026-08-18'
-  }
-];
+import { map, tap, catchError } from 'rxjs/operators';
+import { ServicioExtra } from '../models';
+import { apiUrl } from '../config/env';
 
 @Injectable({ providedIn: 'root' })
 export class ServiciosExtrasMockService {
-
-  private serviciosSubject = new BehaviorSubject<ServicioExtra[]>(
-    JSON.parse(JSON.stringify(INITIAL_SERVICIOS_EXTRAS))
-  );
-
+  private http = inject(HttpClient);
+  private serviciosSubject = new BehaviorSubject<ServicioExtra[]>([]);
   public serviciosExtras$ = this.serviciosSubject.asObservable();
 
-  get sucursalesDisponibles(): string[] {
-    return SUCURSALES_RED;
+  private mapBackend(item: any): ServicioExtra {
+    const estadoMap: Record<string, ServicioExtra['estado']> = {
+      'PENDIENTE': 'Pendiente',
+      'EN_PROCESO': 'En Proceso',
+      'EN PROCESO': 'En Proceso',
+      'FINALIZADO': 'Completado',
+      'COMPLETADO': 'Completado',
+      'CANCELADO': 'Cancelado'
+    };
+
+    const estado = estadoMap[String(item.estado || '').toUpperCase()] || (item.estado as ServicioExtra['estado']) || 'Pendiente';
+    const sucursales = item.agenciaNombre ? [item.agenciaNombre] : (item.sucursales || (item.regionNombre ? [`Zonal ${item.regionNombre}`] : []));
+
+    return {
+      id: item.id,
+      codigoSE: item.codigoSE || `SE-${String(item.id).substring(0, 6).toUpperCase()}`,
+      servicioNombre: item.tipoServicio || item.servicioNombre || 'Servicio Especial',
+      servicioDescripcion: item.observaciones || item.servicioDescripcion || '',
+      operadorId: item.operadorId || item.operador?.id || '',
+      operadorNombre: item.operadorNombre || (item.operador ? `${item.operador.name || ''} ${item.operador.lastname || ''}`.trim() : 'Sin asignar'),
+      regionId: item.regionId || item.region?.id || '',
+      regionNombre: item.regionNombre || item.region?.nombre || '',
+      placa: item.placa || item.vehiculoInfo?.placa || '',
+      vehiculoInfo: item.vehiculoInfo || {
+        placa: item.placa || '',
+        marca: item.marca || '',
+        modelo: item.modelo || '',
+        color: item.color || '',
+        cliente: item.clienteNombre || ''
+      },
+      videoInicialUrl: item.videoInicialUrl || item.videoInicial || undefined,
+      videoFinalUrl: item.videoFinalUrl || item.videoFinal || undefined,
+      calificacionCalidad: item.calificacionCalidad || undefined,
+      sucursales,
+      insumosReceta: Array.isArray(item.recetaInsumos) ? item.recetaInsumos : (Array.isArray(item.insumosReceta) ? item.insumosReceta : []),
+      estado,
+      fechaProgramada: item.fechaProgramada || (item.createdAt ? String(item.createdAt).split('T')[0] : new Date().toISOString().substring(0, 10)),
+      fechaCompletado: item.fechaFin ? String(item.fechaFin).split('T')[0] : (item.finalizadoEn ? String(item.finalizadoEn).split('T')[0] : item.fechaCompletado),
+      notas: item.observaciones || item.notas || '',
+      creadoPor: item.creadoPor || 'Coordinador Zonal',
+      fechaCreacion: item.createdAt ? String(item.createdAt).split('T')[0] : new Date().toISOString().substring(0, 10)
+    };
   }
 
-  getServiciosExtras(): Observable<ServicioExtra[]> {
-    return this.serviciosExtras$.pipe(delay(200));
-  }
-
-  getServicioExtraById(id: number): Observable<ServicioExtra | undefined> {
-    return this.serviciosExtras$.pipe(
-      map(list => list.find(s => s.id === id)),
-      delay(150)
+  getServiciosExtras(filtro?: { regionId?: string; operadorId?: string; estado?: string }): Observable<ServicioExtra[]> {
+    const payload = filtro || {};
+    return this.http.post<any>(apiUrl('/operaciones/servicios-especiales/list'), payload).pipe(
+      map(res => {
+        const list = Array.isArray(res) ? res : (res?.items || res?.data || []);
+        return list.map((item: any) => this.mapBackend(item));
+      }),
+      tap(mapped => this.serviciosSubject.next(mapped)),
+      catchError(() => of(this.serviciosSubject.value))
     );
   }
 
-  crearServicioExtra(data: Omit<ServicioExtra, 'id' | 'codigoSE' | 'fechaCreacion'>): Observable<ServicioExtra> {
-    const current = this.serviciosSubject.value;
-    const nextId = Math.max(...current.map(s => s.id), 0) + 1;
-    const anio = new Date().getFullYear();
-    const nuevo: ServicioExtra = {
-      ...data,
-      id: nextId,
-      codigoSE: 'SE-' + anio + '-' + String(nextId).padStart(3, '0'),
-      fechaCreacion: new Date().toISOString().substring(0, 10)
-    };
-    this.serviciosSubject.next([nuevo, ...current]);
-    return of(nuevo).pipe(delay(300));
+  getServicioExtraById(id: number | string): Observable<ServicioExtra | undefined> {
+    return this.serviciosExtras$.pipe(
+      map(list => list.find(s => String(s.id) === String(id)))
+    );
   }
 
-  actualizarServicioExtra(id: number, updates: Partial<ServicioExtra>): Observable<ServicioExtra | null> {
-    const current = this.serviciosSubject.value;
-    const idx = current.findIndex(s => s.id === id);
-    if (idx !== -1) {
-      current[idx] = { ...current[idx], ...updates };
-      this.serviciosSubject.next([...current]);
-      return of(current[idx]).pipe(delay(200));
+  crearServicioExtra(data: Omit<ServicioExtra, 'id' | 'codigoSE' | 'fechaCreacion'> & { videoInicialUrl?: string; regionId?: string; regionNombre?: string }): Observable<ServicioExtra> {
+    const vInfo = data.vehiculoInfo || {
+      placa: data.placa || 'ABC-1234',
+      marca: 'Vehículo',
+      modelo: data.servicioNombre || 'Servicio Especial',
+      color: 'Gris'
+    };
+
+    const payload = {
+      tipoServicio: data.servicioNombre || 'Pulido y Recubrimiento Cerámico',
+      observaciones: data.notas || data.servicioDescripcion || '',
+      operadorId: data.operadorId ? String(data.operadorId) : undefined,
+      regionId: data.regionId,
+      regionNombre: data.regionNombre,
+      videoInicialUrl: data.videoInicialUrl,
+      recetaInsumos: data.insumosReceta,
+      vehiculoInfo: vInfo
+    };
+
+    return this.http.post<any>(apiUrl('/operaciones/servicios-especiales/crear'), payload).pipe(
+      map(res => this.mapBackend(res)),
+      tap(created => {
+        const current = this.serviciosSubject.value;
+        this.serviciosSubject.next([created, ...current]);
+      }),
+      catchError(err => {
+        console.error('Error al crear servicio especial en backend:', err);
+        throw err;
+      })
+    );
+  }
+
+  actualizarServicioExtra(id: number | string, updates: Partial<ServicioExtra>): Observable<ServicioExtra | null> {
+    if (updates.estado === 'En Proceso') {
+      return this.http.post<any>(apiUrl('/operaciones/servicios-especiales/iniciar'), {
+        id: String(id),
+        operadorId: updates.operadorId,
+        videoInicialUrl: updates.videoInicialUrl
+      }).pipe(
+        map(res => this.mapBackend(res)),
+        tap(updated => this._updateLocal(id, updated)),
+        catchError(() => of(null))
+      );
+    }
+    if (updates.estado === 'Completado') {
+      return this.http.post<any>(apiUrl('/operaciones/servicios-especiales/completar'), {
+        id: String(id),
+        videoFinalUrl: updates.videoFinalUrl,
+        calificacionCalidad: updates.calificacionCalidad || 5,
+        observaciones: updates.notas
+      }).pipe(
+        map(res => this.mapBackend(res)),
+        tap(updated => this._updateLocal(id, updated)),
+        catchError(() => of(null))
+      );
     }
     return of(null);
   }
 
-  cambiarEstado(id: number, estado: ServicioExtra['estado']): Observable<ServicioExtra | null> {
-    const updates: Partial<ServicioExtra> = { estado };
-    if (estado === 'Completado') {
-      updates.fechaCompletado = new Date().toISOString().substring(0, 10);
+  cambiarEstado(id: number | string, estado: ServicioExtra['estado'], videoUrl?: string): Observable<ServicioExtra | null> {
+    if (estado === 'En Proceso') {
+      return this.actualizarServicioExtra(id, { estado, videoInicialUrl: videoUrl });
     }
-    return this.actualizarServicioExtra(id, updates);
+    if (estado === 'Completado') {
+      return this.actualizarServicioExtra(id, { estado, videoFinalUrl: videoUrl });
+    }
+    return this.actualizarServicioExtra(id, { estado });
   }
 
-  eliminarServicioExtra(id: number): Observable<boolean> {
-    const current = this.serviciosSubject.value.filter(s => s.id !== id);
-    this.serviciosSubject.next(current);
-    return of(true).pipe(delay(200));
+  eliminarServicioExtra(id: number | string): Observable<boolean> {
+    return this.http.post<any>(apiUrl('/operaciones/servicios-especiales/delete'), { id: String(id) }).pipe(
+      map(() => true),
+      tap(() => {
+        const current = this.serviciosSubject.value.filter(s => String(s.id) !== String(id));
+        this.serviciosSubject.next(current);
+      }),
+      catchError(() => of(false))
+    );
+  }
+
+  getPulidoresPorRegion(regionId?: string): Observable<any[]> {
+    return this.http.post<any[]>(apiUrl('/operaciones/servicios-especiales/pulidores'), { regionId }).pipe(
+      catchError(() => of([]))
+    );
+  }
+
+  getStockPulidor(pulidorId?: string): Observable<any[]> {
+    return this.http.post<any[]>(apiUrl('/operaciones/servicios-especiales/stock-pulidor'), { pulidorId }).pipe(
+      catchError(() => of([]))
+    );
+  }
+
+  private _updateLocal(id: number | string, updated: ServicioExtra) {
+    const current = this.serviciosSubject.value;
+    const idx = current.findIndex(s => String(s.id) === String(id));
+    if (idx !== -1) {
+      current[idx] = { ...current[idx], ...updated };
+      this.serviciosSubject.next([...current]);
+    }
   }
 }

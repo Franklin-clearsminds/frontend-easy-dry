@@ -12,6 +12,8 @@ import { InventarioMockService } from '../../core/services/inventario-mock.servi
 import { ModalComponent } from '../../shared/components/modal/modal.component';
 import { FilterBarComponent } from '../../shared/components/filter-bar/filter-bar.component';
 import { EnvioSuministro, EstadoEnvio, Sucursal, InventarioItem } from '../../core/models';
+import { BodegaInventario } from '../../core/models/inventario.model';
+import { Role } from '../../core/models/roles.model';
 import { apiUrl } from '../../core/config/env';
 
 @Component({
@@ -48,32 +50,88 @@ import { apiUrl } from '../../core/config/env';
         }
       </div>
 
-      <!-- Banner KPIs para Líder Operador -->
-      @if (isLiderOperador) {
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div class="p-4 bg-white rounded-2xl border border-slate-100 shadow-easydry">
-            <span class="text-[10px] font-black uppercase tracking-wider text-slate-400">Total Envíos</span>
-            <p class="text-2xl font-extrabold text-slate-900 mt-1">{{ enviosFiltrados.length }}</p>
-          </div>
-          <div class="p-4 bg-amber-50/80 border border-amber-200/90 rounded-2xl shadow-easydry">
-            <div class="flex items-center justify-between">
-              <span class="text-[10px] font-black uppercase tracking-wider text-amber-700">En Camino (Pendientes)</span>
-              @if (countEnCamino > 0) {
-                <span class="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse"></span>
-              }
+      <!-- Alerta Destacada de Envíos Rechazados (Super Admin / Logística) -->
+      @if (countRechazados > 0) {
+        <div class="p-5 bg-rose-50 border-2 border-rose-300 rounded-2xl shadow-sm space-y-3 animate-fade-in">
+          <div class="flex items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-rose-600 text-white flex items-center justify-center font-bold shadow-sm shrink-0">
+                <i-lucide name="alert-triangle" class="w-5 h-5"></i-lucide>
+              </div>
+              <div>
+                <div class="flex items-center gap-2">
+                  <h3 class="text-sm font-black text-rose-950 uppercase tracking-wide">
+                    🚨 Alerta: {{ countRechazados }} Despacho(s) Rechazado(s) por la Agencia Receptora
+                  </h3>
+                  <span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-200 text-rose-900 animate-pulse">
+                    Stock Retornado a Bodega Central
+                  </span>
+                </div>
+                <p class="text-xs text-rose-800 mt-0.5">
+                  La sede reportó no conformidad o transporte no recibido. Revisa la razón indicada para coordinar la reposición.
+                </p>
+              </div>
             </div>
-            <p class="text-2xl font-extrabold text-amber-950 mt-1">{{ countEnCamino }}</p>
           </div>
-          <div class="p-4 bg-emerald-50/80 border border-emerald-200/90 rounded-2xl shadow-easydry">
-            <span class="text-[10px] font-black uppercase tracking-wider text-emerald-700">Recibidos en Sede</span>
-            <p class="text-2xl font-extrabold text-emerald-950 mt-1">{{ countRecibidos }}</p>
-          </div>
-          <div class="p-4 bg-rose-50/80 border border-rose-200/90 rounded-2xl shadow-easydry">
-            <span class="text-[10px] font-black uppercase tracking-wider text-rose-700">Rechazados / No Llegaron</span>
-            <p class="text-2xl font-extrabold text-rose-950 mt-1">{{ countRechazados }}</p>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+            @for (rech of enviosRechazados; track rech.id) {
+              <div class="p-3.5 bg-white rounded-xl border border-rose-200 text-xs shadow-2xs space-y-2">
+                <div class="flex justify-between items-center border-b border-slate-100 pb-1.5">
+                  <div class="flex items-center gap-2">
+                    <span class="font-mono font-black text-xs px-2 py-0.5 rounded bg-rose-100 text-rose-900 border border-rose-200">
+                      {{ rech.codigoEnvio }}
+                    </span>
+                    <span class="font-bold text-slate-800">{{ rech.sucursalNombre }}</span>
+                  </div>
+                  <span class="text-[10px] text-slate-400 font-mono">{{ rech.fecha }}</span>
+                </div>
+
+                <div class="space-y-1">
+                  <span class="text-[10px] font-bold text-slate-400 uppercase">Insumos del Envío:</span>
+                  <div class="flex flex-wrap gap-1">
+                    @for (p of rech.productos; track p.nombreProducto) {
+                      <span class="inline-flex items-center gap-1 bg-slate-100 px-2 py-0.5 rounded text-[11px] font-semibold text-slate-800 border border-slate-200">
+                        <strong class="font-mono text-rose-700 font-black">{{ p.cantidad }} {{ p.unidad }}</strong> {{ p.nombreProducto }}
+                      </span>
+                    }
+                  </div>
+                </div>
+
+                <div class="p-2 bg-rose-100/80 rounded-lg text-rose-950 text-[11px] border border-rose-200">
+                  <span class="font-black text-rose-800 uppercase text-[10px] block mb-0.5">Motivo / Comentario de la Sede:</span>
+                  <p class="font-semibold italic">"{{ rech.motivoRechazo || rech.observaciones || 'No se especificó comentario' }}"</p>
+                </div>
+              </div>
+            }
           </div>
         </div>
       }
+
+      <!-- Banner KPIs Generales / Sede -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div class="p-4 bg-white rounded-2xl border border-slate-100 shadow-easydry">
+          <span class="text-[10px] font-black uppercase tracking-wider text-slate-400">Total Envíos</span>
+          <p class="text-2xl font-extrabold text-slate-900 mt-1">{{ enviosFiltrados.length }}</p>
+        </div>
+        <div class="p-4 bg-amber-50/80 border border-amber-200/90 rounded-2xl shadow-easydry">
+          <div class="flex items-center justify-between">
+            <span class="text-[10px] font-black uppercase tracking-wider text-amber-700">En Camino (Pendientes)</span>
+            @if (countEnCamino > 0) {
+              <span class="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse"></span>
+            }
+          </div>
+          <p class="text-2xl font-extrabold text-amber-950 mt-1">{{ countEnCamino }}</p>
+        </div>
+        <div class="p-4 bg-emerald-50/80 border border-emerald-200/90 rounded-2xl shadow-easydry">
+          <span class="text-[10px] font-black uppercase tracking-wider text-emerald-700">Recibidos en Sede</span>
+          <p class="text-2xl font-extrabold text-emerald-950 mt-1">{{ countRecibidos }}</p>
+        </div>
+        <div class="p-4 bg-rose-50/80 border border-rose-200/90 rounded-2xl shadow-easydry">
+          <span class="text-[10px] font-black uppercase tracking-wider text-rose-700">Rechazados / Disconformidad</span>
+          <p class="text-2xl font-extrabold text-rose-950 mt-1">{{ countRechazados }}</p>
+        </div>
+      </div>
 
       <!-- Filtros -->
       <app-filter-bar
@@ -97,6 +155,7 @@ import { apiUrl } from '../../core/config/env';
                 <th class="py-3.5 px-3">Resp. Recepción</th>
                 <th class="py-3.5 px-3 text-center">Tiempos</th>
                 <th class="py-3.5 px-3 text-center">Estado</th>
+                <th class="py-3.5 px-3 text-center">Fecha y Hora Aprobación / Rechazo</th>
                 <th class="py-3.5 px-4 text-right">Acciones de Agencia</th>
               </tr>
             </thead>
@@ -113,10 +172,11 @@ import { apiUrl } from '../../core/config/env';
                     <p class="text-[10px] text-slate-400 font-normal">{{ env.ciudad }}</p>
                   </td>
                   <td class="py-3.5 px-4">
-                    <div class="space-y-0.5">
+                    <div class="space-y-1">
                       @for (p of env.productos; track p.nombreProducto) {
-                        <div class="text-[11px] text-slate-700">
-                          <strong>{{ p.cantidad }} {{ p.unidad }}</strong> - {{ p.nombreProducto }}
+                        <div class="inline-flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200/70 px-2 py-1 rounded-lg text-slate-800 font-semibold text-[11px] border border-slate-200/80 mr-1 mb-0.5">
+                          <span class="font-mono text-emerald-800 font-black bg-emerald-100 px-1.5 py-0.2 rounded text-[11px]">{{ p.cantidad }} {{ p.unidad }}</span>
+                          <span class="text-slate-900 font-bold">{{ p.nombreProducto }}</span>
                         </div>
                       }
                       @empty {
@@ -153,6 +213,40 @@ import { apiUrl } from '../../core/config/env';
                       {{ env.estado === 'ENVIADO' ? 'EN TRÁNSITO' : env.estado }}
                     </span>
                   </td>
+                  <td class="py-3.5 px-3 text-center">
+                    @if (env.estado === 'RECIBIDO') {
+                      <div class="inline-flex flex-col items-center">
+                        <span class="text-xs font-extrabold text-emerald-800 flex items-center gap-1 font-mono">
+                          <i-lucide name="check-circle" class="w-3.5 h-3.5 text-emerald-600"></i-lucide>
+                          {{ getFechaResolucion(env) }}
+                        </span>
+                        <span class="text-[11px] text-emerald-700 font-black font-mono">
+                          {{ getHoraResolucion(env) || '09:45' }}
+                        </span>
+                        <span class="px-2 py-0.5 mt-0.5 rounded text-[9px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
+                          ✓ Aprobado
+                        </span>
+                      </div>
+                    } @else if (env.estado === 'RECHAZADO') {
+                      <div class="inline-flex flex-col items-center">
+                        <span class="text-xs font-extrabold text-rose-800 flex items-center gap-1 font-mono">
+                          <i-lucide name="x-circle" class="w-3.5 h-3.5 text-rose-600"></i-lucide>
+                          {{ getFechaResolucion(env) }}
+                        </span>
+                        <span class="text-[11px] text-rose-700 font-black font-mono">
+                          {{ getHoraResolucion(env) || '10:15' }}
+                        </span>
+                        <span class="px-2 py-0.5 mt-0.5 rounded text-[9px] font-black bg-rose-100 text-rose-800 border border-rose-300">
+                          ✕ Rechazado
+                        </span>
+                      </div>
+                    } @else {
+                      <div class="inline-flex flex-col items-center text-slate-400">
+                        <span class="text-xs font-medium italic text-slate-400">Pendiente</span>
+                        <span class="text-[10px] text-slate-400">En ruta</span>
+                      </div>
+                    }
+                  </td>
                   <td class="py-3.5 px-4 text-right">
                     @if (env.estado === 'ENVIADO' && puedeAcciones) {
                       <div class="flex items-center justify-end gap-1.5">
@@ -172,15 +266,22 @@ import { apiUrl } from '../../core/config/env';
                         </button>
                       </div>
                     } @else if (env.estado === 'RECIBIDO') {
-                      <span class="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-200">
-                        <i-lucide name="check-circle" class="w-3.5 h-3.5"></i-lucide>
-                        <span>Recepción Verificada</span>
+                      <span class="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
+                        <i-lucide name="check-circle" class="w-3.5 h-3.5 text-emerald-600"></i-lucide>
+                        <span>Recepción Verificada (En Stock)</span>
                       </span>
                     } @else if (env.estado === 'RECHAZADO') {
-                      <span class="inline-flex items-center gap-1 text-[11px] font-bold text-rose-700 bg-rose-50 px-2 py-1 rounded-lg border border-rose-200" [title]="env.motivoRechazo || 'Rechazado'">
-                        <i-lucide name="alert-circle" class="w-3.5 h-3.5"></i-lucide>
-                        <span>{{ env.motivoRechazo ? 'Rechazado: ' + env.motivoRechazo : 'No Llegó / Rechazado' }}</span>
-                      </span>
+                      <div class="inline-flex flex-col items-end gap-1 text-right">
+                        <span class="inline-flex items-center gap-1 text-[11px] font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200">
+                          <i-lucide name="alert-circle" class="w-3.5 h-3.5 text-rose-600"></i-lucide>
+                          <span>Rechazado por Agencia</span>
+                        </span>
+                        @if (env.motivoRechazo || env.observaciones) {
+                          <span class="text-[11px] font-medium text-rose-900 bg-rose-50 px-2 py-1 rounded-md border border-rose-200/90 max-w-xs text-left">
+                            💬 <b>Razón:</b> {{ env.motivoRechazo || env.observaciones }}
+                          </span>
+                        }
+                      </div>
                     } @else {
                       <span class="text-[11px] text-slate-400 italic">Esperando despacho</span>
                     }
@@ -188,7 +289,7 @@ import { apiUrl } from '../../core/config/env';
                 </tr>
               } @empty {
                 <tr>
-                  <td colspan="9" class="py-12 text-center text-slate-400 text-xs font-medium">
+                  <td colspan="10" class="py-12 text-center text-slate-400 text-xs font-medium">
                     {{ isLiderOperador ? 'No hay envíos registrados para tu agencia en este momento.' : 'No hay envíos registrados.' }}
                   </td>
                 </tr>
@@ -265,31 +366,51 @@ import { apiUrl } from '../../core/config/env';
         icon="send"
         (close)="modalCrearEnvioOpen = false">
         <form (ngSubmit)="guardarNuevoEnvio()" class="space-y-4">
+          
+          <!-- Banner Informativo de Origen -->
+          <div class="p-3 rounded-xl border flex items-center gap-2.5 text-xs font-bold"
+            [ngClass]="isAsistenteBodega ? 'bg-teal-50 border-teal-200 text-teal-900' : 'bg-blue-50 border-blue-200 text-blue-900'">
+            <i-lucide name="warehouse" class="w-4 h-4 shrink-0" [ngClass]="isAsistenteBodega ? 'text-teal-600' : 'text-easydry-blue'"></i-lucide>
+            <div>
+              <span>Origen: </span>
+              <span class="font-extrabold">{{ isAsistenteBodega ? ('Bodega Regional ' + (miRegionNombre || miBodegaNombre || 'Asignada')) : 'Bodega Central Nacional (HUB Global)' }}</span>
+              <span *ngIf="isAsistenteBodega" class="block text-[10px] font-normal text-teal-700 mt-0.5">
+                Alcance operativo: Suministro exclusivo a agencias y bodegas de la región {{ miRegionNombre || miBodegaNombre }}.
+              </span>
+            </div>
+          </div>
+
           <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Agencia / Sucursal Destino</label>
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Destino (Agencia o Bodega Receptora) *</label>
             <select
               [(ngModel)]="nuevoEnvioForm.sucursalId"
               (ngModelChange)="onSucursalChange($event)"
               name="sucursalDestino"
-              class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800"
+              class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-easydry-blue"
               required>
-              <option value="" disabled>Seleccione agencia destino...</option>
-              @for (suc of sucursalesDisponibles; track suc.id) {
-                <option [value]="suc.id">{{ suc.nombre }} ({{ suc.ciudad }})</option>
-              }
-              @empty {
-                <option value="" disabled>No hay sucursales registradas aún</option>
-              }
+              <option value="" disabled>Seleccione destino autorizado...</option>
+              
+              <optgroup label="Agencias de la Región">
+                @for (suc of sucursalesDisponibles; track suc.id) {
+                  <option [value]="suc.id">{{ suc.nombre }} ({{ suc.ciudad }})</option>
+                }
+              </optgroup>
+
+              <optgroup *ngIf="bodegasDestinoDisponibles.length > 0" label="Bodegas de la Región">
+                @for (bod of bodegasDestinoDisponibles; track bod.id) {
+                  <option [value]="bod.id">{{ bod.nombre }} ({{ bod.ciudad }})</option>
+                }
+              </optgroup>
             </select>
           </div>
 
           <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Insumo Principal</label>
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Insumo Principal *</label>
             <select
               [(ngModel)]="nuevoEnvioForm.insumoId"
               (ngModelChange)="onInsumoChange($event)"
               name="insumo"
-              class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800"
+              class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-easydry-blue"
               required>
               <option value="" disabled>Seleccione insumo...</option>
               @for (ins of insumosDisponibles; track ins.producto.id) {
@@ -303,13 +424,13 @@ import { apiUrl } from '../../core/config/env';
 
           <div class="grid grid-cols-2 gap-3">
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Cantidad</label>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Cantidad *</label>
               <input
                 type="number"
                 [(ngModel)]="nuevoEnvioForm.cantidad"
                 name="cantidad"
                 min="1"
-                class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800"
+                class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-easydry-blue"
                 required>
             </div>
             <div>
@@ -318,8 +439,8 @@ import { apiUrl } from '../../core/config/env';
                 type="text"
                 [(ngModel)]="nuevoEnvioForm.observacion"
                 name="obs"
-                placeholder="Ej. Despacho inicial de reactivos"
-                class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800">
+                placeholder="Ej. Suministro periódico de químicos"
+                class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-easydry-blue">
             </div>
           </div>
         </form>
@@ -333,7 +454,8 @@ import { apiUrl } from '../../core/config/env';
           <button
             type="button"
             (click)="guardarNuevoEnvio()"
-            class="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer">
+            [disabled]="!nuevoEnvioForm.sucursalId || !nuevoEnvioForm.insumoId || !nuevoEnvioForm.cantidad || nuevoEnvioForm.cantidad <= 0"
+            class="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer disabled:opacity-50">
             Despachar Envío
           </button>
         </div>
@@ -359,7 +481,31 @@ export class EnviosComponent implements OnInit {
   }
 
   get puedeDespachar(): boolean {
-    return !this.isLiderOperador && (this.auth.can('despacharSuministros') || this.auth.isAdmin());
+    return !this.isLiderOperador && (
+      this.auth.can('despacharSuministros') ||
+      this.auth.isAdmin() ||
+      this.auth.hasRole(Role.COORD_BODEGA) ||
+      this.auth.hasRole(Role.DISTRIBUIDOR) ||
+      this.auth.hasRole(Role.ASISTENTE_BODEGA) ||
+      this.auth.hasRole('COORD_BODEGA' as any) ||
+      this.auth.hasRole('DISTRIBUIDOR' as any) ||
+      this.auth.hasRole('ASISTENTE_BODEGA' as any)
+    );
+  }
+
+  get isAsistenteBodega(): boolean {
+    const rol = (this.auth.getCurrentUser()?.role || '').toUpperCase();
+    return rol === 'ASISTENTE_BODEGA';
+  }
+
+  get miRegionNombre(): string {
+    const user = this.auth.getCurrentUser();
+    return (user?.region || (user as any)?.regionNombre || '').trim();
+  }
+
+  get miBodegaNombre(): string {
+    const user = this.auth.getCurrentUser();
+    return (user?.sucursalNombre || user?.sucursal || (user as any)?.agencia || 'Bodega Central').trim();
   }
 
   get puedeAcciones(): boolean {
@@ -373,6 +519,8 @@ export class EnviosComponent implements OnInit {
 
   // Catálogos dinámicos
   sucursalesDisponibles: Sucursal[] = [];
+  bodegasDisponibles: BodegaInventario[] = [];
+  bodegasDestinoDisponibles: BodegaInventario[] = [];
   insumosDisponibles: InventarioItem[] = [];
 
   // Modales
@@ -399,6 +547,10 @@ export class EnviosComponent implements OnInit {
 
   envios: EnvioSuministro[] = [];
 
+  get enviosRechazados(): EnvioSuministro[] {
+    return this.envios.filter(e => e.estado === 'RECHAZADO');
+  }
+
   get countEnCamino(): number {
     return this.enviosFiltrados.filter(e => e.estado === 'ENVIADO' || e.estado === 'PENDIENTE').length;
   }
@@ -414,8 +566,39 @@ export class EnviosComponent implements OnInit {
   ngOnInit(): void {
     this.cargarEnvios();
     this.sucursalService.getSucursales().subscribe(sucs => {
-      this.sucursalesDisponibles = sucs || [];
+      const user = this.auth.getCurrentUser();
+      const rol = (user?.role || '').toUpperCase();
+      const esAsistenteBodega = rol === 'ASISTENTE_BODEGA' || (rol.includes('ASISTENTE') && rol.includes('BODEGA'));
+      const userRegion = (user?.region || (user as any)?.regionNombre || '').toLowerCase().trim();
+
+      if (esAsistenteBodega && userRegion) {
+        this.sucursalesDisponibles = (sucs || []).filter(s => 
+          (s.regionNombre && s.regionNombre.toLowerCase().includes(userRegion)) ||
+          (s.ciudad && s.ciudad.toLowerCase().includes(userRegion)) ||
+          (s.regionId && user.regionId && String(s.regionId) === String(user.regionId))
+        );
+      } else {
+        // Gestor de Bodega (COORD_BODEGA) y Admin: ve todas las sucursales sin importar región ni marcas
+        this.sucursalesDisponibles = sucs || [];
+      }
     });
+
+    this.inventarioService.getBodegas().subscribe(bodegas => {
+      this.bodegasDisponibles = bodegas || [];
+      const user = this.auth.getCurrentUser();
+      const rol = (user?.role || '').toUpperCase();
+      const esAsistenteBodega = rol === 'ASISTENTE_BODEGA' || (rol.includes('ASISTENTE') && rol.includes('BODEGA'));
+      const userRegion = (user?.region || (user as any)?.regionNombre || '').toLowerCase().trim();
+
+      if (esAsistenteBodega && userRegion) {
+        this.bodegasDestinoDisponibles = this.bodegasDisponibles.filter(b => 
+          (b.region && b.region.toLowerCase().includes(userRegion))
+        );
+      } else {
+        this.bodegasDestinoDisponibles = this.bodegasDisponibles;
+      }
+    });
+
     this.inventarioService.getItems().subscribe(items => {
       this.insumosDisponibles = items || [];
     });
@@ -429,7 +612,7 @@ export class EnviosComponent implements OnInit {
     const user = this.auth.getCurrentUser();
     const rol = user?.role;
     const isLider = this.auth.isLiderOperador();
-    const verTodas = !isLider && (rol === 'SUPER_ADMIN' || rol === 'ADMIN' || rol === 'DISTRIBUIDOR' || rol === 'ASISTENTE_BODEGA');
+    const verTodas = !isLider && (rol === 'SUPER_ADMIN' || rol === 'ADMIN' || rol === 'DISTRIBUIDOR' || rol === 'COORD_BODEGA' || rol === 'ASISTENTE_BODEGA' || (rol as any) === Role.COORD_BODEGA);
     const payload = verTodas ? {} : { sucursalId: user?.agenciaId || user?.sucursalNombre || user?.sucursal };
 
     this.http.post<any[]>(apiUrl('/inventario/despachos/list'), payload).pipe(
@@ -474,8 +657,10 @@ export class EnviosComponent implements OnInit {
         fecha: hoy,
         fechaEnvio: `${hoy} 07:15`,
         fechaRecepcion: `${hoy} 09:45`,
+        fechaResolucion: hoy,
         horaInicio: '07:15',
         horaFin: '09:45',
+        horaResolucion: '09:45',
         duracionMin: 150,
         sucursalId: user?.agenciaId || 'ag-1',
         sucursalNombre,
@@ -488,6 +673,29 @@ export class EnviosComponent implements OnInit {
         responsableRecepcion: `${user?.nombre || 'Líder'} ${user?.apellido || 'Operador'}`,
         estado: 'RECIBIDO',
         observaciones: 'Entrega regular semanal verificada'
+      },
+      {
+        id: 'ENV-MOCK-003',
+        codigoEnvio: 'DSP-2026-0035',
+        fecha: hoy,
+        fechaEnvio: `${hoy} 06:40`,
+        fechaRecepcion: `${hoy} 08:15`,
+        fechaResolucion: hoy,
+        horaInicio: '06:40',
+        horaFin: '08:15',
+        horaResolucion: '08:15',
+        duracionMin: 95,
+        sucursalId: user?.agenciaId || 'ag-1',
+        sucursalNombre,
+        ciudad: 'Quito',
+        productos: [
+          { productoId: 'QUIM-004', nombreProducto: 'Sellador Acrílico de Cristales', cantidad: 3, unidad: 'Galón' }
+        ],
+        responsableEnvio: 'Carlos Mendoza (Bodega Central)',
+        responsableRecepcion: `${user?.nombre || 'Líder'} ${user?.apellido || 'Operador'}`,
+        estado: 'RECHAZADO',
+        observaciones: 'RECHAZO: Producto averiado / derrame en tránsito',
+        motivoRechazo: 'Producto averiado / derrame en tránsito'
       }
     ];
   }
@@ -513,10 +721,34 @@ export class EnviosComponent implements OnInit {
     else if (m.estadoDespacho === 'RECIBIDO') estado = 'RECIBIDO';
     else if (m.estadoDespacho === 'RECHAZADO') estado = 'RECHAZADO';
 
+    const rawResolucion = m.fechaRecepcion || ((estado === 'RECIBIDO' || estado === 'RECHAZADO') ? m.updatedAt : null);
+    let fechaRes: string | undefined = undefined;
+    let horaRes: string | undefined = undefined;
+    if (rawResolucion) {
+      try {
+        const d = new Date(rawResolucion);
+        if (!isNaN(d.getTime())) {
+          fechaRes = d.toISOString().split('T')[0];
+          const hours = String(d.getHours()).padStart(2, '0');
+          const minutes = String(d.getMinutes()).padStart(2, '0');
+          horaRes = `${hours}:${minutes}`;
+        }
+      } catch {
+        fechaRes = typeof rawResolucion === 'string' ? rawResolucion.split('T')[0] : undefined;
+        horaRes = typeof rawResolucion === 'string' && rawResolucion.length >= 16 ? rawResolucion.substring(11, 16) : undefined;
+      }
+    }
+
     const sucursalNombre = m.destinoUbicacion
       ?.replace(/Agencia\s*/i, '')
       ?.replace(/\[.*\]/, '')
       ?.trim() || m.destinoUbicacion || 'Agencia Destino';
+
+    let motivoRechazo = m.motivoRechazo;
+    if (!motivoRechazo && m.observaciones && m.observaciones.includes('RECHAZO:')) {
+      const parts = m.observaciones.split(/RECHAZO:\s*/i);
+      motivoRechazo = parts[parts.length - 1]?.trim();
+    }
 
     return {
       id: m.id,
@@ -524,8 +756,10 @@ export class EnviosComponent implements OnInit {
       fecha: fechaEnv,
       fechaEnvio: fechaEnv ? `${fechaEnv} ${horaIni}` : undefined,
       fechaRecepcion: fechaRec ? `${fechaRec} ${horaFin || ''}`.trim() : undefined,
+      fechaResolucion: fechaRes,
       horaInicio: horaIni,
       horaFin: horaFin,
+      horaResolucion: horaRes,
       duracionMin: m.duracionMin || undefined,
       sucursalId: m.destinoAgenciaId || m.destinoUbicacion,
       sucursalNombre,
@@ -540,23 +774,45 @@ export class EnviosComponent implements OnInit {
       responsableRecepcion: userRec,
       estado,
       observaciones: m.observaciones,
-      motivoRechazo: m.motivoRechazo
+      motivoRechazo: motivoRechazo || undefined
     };
   }
 
   get enviosFiltrados(): EnvioSuministro[] {
     const user = this.auth.getCurrentUser();
-    const rol = user?.role;
+    const rol = (user?.role || '').toUpperCase();
     const isLider = this.auth.isLiderOperador();
-    const verTodas = !isLider && (rol === 'SUPER_ADMIN' || rol === 'ADMIN' || rol === 'DISTRIBUIDOR' || rol === 'ASISTENTE_BODEGA');
+    const isGestorGlobal = rol === 'SUPER_ADMIN' || rol === 'ADMIN' || rol === 'DISTRIBUIDOR' || rol === 'COORD_BODEGA';
+    const isAsistenteBodega = rol === 'ASISTENTE_BODEGA' || (rol.includes('ASISTENTE') && rol.includes('BODEGA'));
+    const userRegion = (user?.region || (user as any)?.regionNombre || '').toLowerCase().trim();
     const userSucursal = (user?.sucursalNombre || user?.sucursal || (user as any)?.agencia || '').toLowerCase().trim();
 
     return this.envios.filter(env => {
-      const matchSucursalUsuario = verTodas ||
-        !userSucursal ||
-        env.sucursalNombre.toLowerCase().includes(userSucursal) ||
-        userSucursal.includes(env.sucursalNombre.toLowerCase()) ||
-        (user?.agenciaId && String(env.sucursalId) === String(user.agenciaId));
+      let matchPermisoRol: boolean = isGestorGlobal;
+      if (!matchPermisoRol && isAsistenteBodega) {
+        // Asistente de Bodega: ve únicamente sus propios envíos o los de su bodega / región asignada
+        const matchPropio = Boolean(
+          (user?.nombre && env.responsableEnvio && env.responsableEnvio.toLowerCase().includes(user.nombre.toLowerCase())) ||
+          (user?.id && env.responsableEnvio && env.responsableEnvio.includes(String(user.id)))
+        );
+        const matchRegion = userRegion ? Boolean(
+          (env.ciudad && env.ciudad.toLowerCase().includes(userRegion)) ||
+          (this.sucursalesDisponibles.length > 0 && env.sucursalNombre && this.sucursalesDisponibles.some(s => s.nombre.toLowerCase() === env.sucursalNombre.toLowerCase())) ||
+          (env.observaciones && env.observaciones.toLowerCase().includes(userRegion))
+        ) : false;
+        const matchBodega = userSucursal ? Boolean(
+          (env.observaciones && env.observaciones.toLowerCase().includes(userSucursal)) ||
+          (env.sucursalNombre && env.sucursalNombre.toLowerCase().includes(userSucursal))
+        ) : false;
+
+        matchPermisoRol = matchPropio || matchRegion || matchBodega;
+      } else if (!matchPermisoRol) {
+        // Líder de Agencia / Operador: solo recepciones de su sede
+        matchPermisoRol = Boolean(
+          (user?.agenciaId && String(env.sucursalId) === String(user.agenciaId)) ||
+          (userSucursal && (env.sucursalNombre.toLowerCase().includes(userSucursal) || userSucursal.includes(env.sucursalNombre.toLowerCase())))
+        );
+      }
 
       const matchTexto = !this.filtroTexto.trim() ||
         env.codigoEnvio.toLowerCase().includes(this.filtroTexto.toLowerCase()) ||
@@ -568,7 +824,7 @@ export class EnviosComponent implements OnInit {
 
       const matchSucursalFiltro = this.filtroSucursal === 'Todas' || env.sucursalNombre === this.filtroSucursal;
 
-      return matchSucursalUsuario && matchTexto && matchEstado && matchSucursalFiltro;
+      return matchPermisoRol && matchTexto && matchEstado && matchSucursalFiltro;
     });
   }
 
@@ -594,7 +850,12 @@ export class EnviosComponent implements OnInit {
 
   onSucursalChange(id: any): void {
     const suc = this.sucursalesDisponibles.find(s => String(s.id) === String(id));
-    if (suc) this.nuevoEnvioForm.sucursalNombre = suc.nombre;
+    if (suc) {
+      this.nuevoEnvioForm.sucursalNombre = suc.nombre;
+    } else {
+      const bod = this.bodegasDestinoDisponibles.find(b => String(b.id) === String(id));
+      if (bod) this.nuevoEnvioForm.sucursalNombre = bod.nombre;
+    }
   }
 
   onInsumoChange(id: any): void {
@@ -604,7 +865,7 @@ export class EnviosComponent implements OnInit {
 
   guardarNuevoEnvio(): void {
     if (!this.nuevoEnvioForm.sucursalId) {
-      this.toastService.warning('Agencia requerida', 'Seleccione la agencia destino.');
+      this.toastService.warning('Destino requerido', 'Seleccione la agencia o bodega destino.');
       return;
     }
     if (!this.nuevoEnvioForm.insumoId) {
@@ -612,10 +873,17 @@ export class EnviosComponent implements OnInit {
       return;
     }
 
+    const origenLabel = this.isAsistenteBodega
+      ? `Bodega Regional ${this.miRegionNombre || this.miBodegaNombre}`
+      : 'Bodega Central Nacional';
+
     const payload = {
       tipo: 'DESPACHO_AGENCIA',
+      agenciaId: String(this.nuevoEnvioForm.sucursalId),
+      sucursalDestinoId: String(this.nuevoEnvioForm.sucursalId),
       agenciaDestinoId: String(this.nuevoEnvioForm.sucursalId),
-      observaciones: this.nuevoEnvioForm.observacion || 'Despacho desde Bodega Central',
+      origenUbicacion: origenLabel,
+      observaciones: this.nuevoEnvioForm.observacion || `Despacho desde ${origenLabel}`,
       detalles: [
         {
           insumoId: String(this.nuevoEnvioForm.insumoId),
@@ -665,26 +933,36 @@ export class EnviosComponent implements OnInit {
 
   confirmarRecepcionEnvio(env: EnvioSuministro): void {
     const user = this.auth.getCurrentUser();
-    const agenciaId = user?.agenciaId || user?.sucursalNombre || user?.sucursal || '';
+    const agenciaId = env.sucursalId || user?.agenciaId || user?.sucursalNombre || user?.sucursal || '';
 
     this.http.post<any>(apiUrl('/inventario/despachos/confirmar-recepcion'), {
       movimientoId: String(env.id),
       agenciaId: String(agenciaId),
+      sucursalId: String(agenciaId),
       accion: 'RECIBIDO'
-    }).pipe(
-      catchError(() => of({ ok: true }))
-    ).subscribe(() => {
-      const ahora = new Date();
-      env.estado = 'RECIBIDO';
-      env.fechaRecepcion = ahora.toISOString().split('T')[0];
-      env.horaFin = ahora.toLocaleTimeString().substring(0, 5);
-      env.responsableRecepcion = `${user?.nombre || 'Líder'} ${user?.apellido || 'Operador'} (Receptor)`.trim();
-      env.duracionMin = 120;
+    }).subscribe({
+      next: () => {
+        const ahora = new Date();
+        const fechaStr = ahora.toISOString().split('T')[0];
+        const horaStr = `${String(ahora.getHours()).padStart(2, '0')}:${String(ahora.getMinutes()).padStart(2, '0')}`;
+        env.estado = 'RECIBIDO';
+        env.fechaRecepcion = fechaStr;
+        env.horaFin = horaStr;
+        env.fechaResolucion = fechaStr;
+        env.horaResolucion = horaStr;
+        env.responsableRecepcion = `${user?.nombre || 'Líder'} ${user?.apellido || 'Operador'} (Receptor)`.trim();
+        env.duracionMin = 120;
 
-      this.toastService.success(
-        'Recepción Confirmada',
-        `El envío ${env.codigoEnvio} fue recibido e ingresado al stock de ${env.sucursalNombre}.`
-      );
+        this.toastService.success(
+          'Recepción Confirmada',
+          `El envío ${env.codigoEnvio} fue recibido e ingresado al stock de ${env.sucursalNombre}.`
+        );
+        this.cargarEnvios();
+      },
+      error: (err: any) => {
+        const msg = err?.error?.message || 'Error al confirmar la recepción en el servidor';
+        this.toastService.error('Error al Confirmar', msg);
+      }
     });
   }
 
@@ -700,23 +978,52 @@ export class EnviosComponent implements OnInit {
     const env = this.envioSeleccionadoRechazo;
     const motivo = this.motivoRechazoTexto.trim();
     const user = this.auth.getCurrentUser();
-    const agenciaId = user?.agenciaId || user?.sucursalNombre || user?.sucursal || '';
+    const agenciaId = env.sucursalId || user?.agenciaId || user?.sucursalNombre || user?.sucursal || '';
 
     this.http.post<any>(apiUrl('/inventario/despachos/rechazar'), {
       movimientoId: String(env.id),
       agenciaId: String(agenciaId),
-      motivo
-    }).pipe(
-      catchError(() => of({ ok: true }))
-    ).subscribe(() => {
-      env.estado = 'RECHAZADO';
-      env.motivoRechazo = motivo;
-      this.modalRechazoOpen = false;
+      motivo,
+      observaciones: motivo
+    }).subscribe({
+      next: () => {
+        const ahora = new Date();
+        const fechaStr = ahora.toISOString().split('T')[0];
+        const horaStr = `${String(ahora.getHours()).padStart(2, '0')}:${String(ahora.getMinutes()).padStart(2, '0')}`;
+        env.estado = 'RECHAZADO';
+        env.motivoRechazo = motivo;
+        env.fechaResolucion = fechaStr;
+        env.horaResolucion = horaStr;
+        env.responsableRecepcion = `${user?.nombre || 'Líder'} ${user?.apellido || 'Operador'} (Receptor)`.trim();
+        this.modalRechazoOpen = false;
 
-      this.toastService.warning(
-        'Envío Rechazado',
-        `Se registró disconformidad para ${env.codigoEnvio}: ${motivo}. El stock fue retornado a Bodega Central.`
-      );
+        this.toastService.warning(
+          'Envío Rechazado',
+          `Se registró disconformidad para ${env.codigoEnvio}: ${motivo}. El stock fue retornado a Bodega Central.`
+        );
+        this.cargarEnvios();
+      },
+      error: (err: any) => {
+        const msg = err?.error?.message || 'Error al rechazar el despacho en el servidor';
+        this.toastService.error('Error al Rechazar', msg);
+      }
     });
+  }
+
+  getFechaResolucion(env: EnvioSuministro): string {
+    if (env.fechaResolucion) return env.fechaResolucion;
+    if (env.fechaRecepcion) {
+      return env.fechaRecepcion.split(' ')[0] || env.fechaRecepcion;
+    }
+    return env.fecha || new Date().toISOString().split('T')[0];
+  }
+
+  getHoraResolucion(env: EnvioSuministro): string {
+    if (env.horaResolucion) return env.horaResolucion;
+    if (env.horaFin) return env.horaFin;
+    if (env.fechaRecepcion && env.fechaRecepcion.includes(' ')) {
+      return env.fechaRecepcion.split(' ')[1];
+    }
+    return env.estado === 'RECHAZADO' ? '10:15' : '09:45';
   }
 }

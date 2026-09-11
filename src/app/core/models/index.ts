@@ -291,8 +291,10 @@ export interface EnvioSuministro {
   fecha: string;
   fechaEnvio?: string;
   fechaRecepcion?: string;
+  fechaResolucion?: string;
   horaInicio?: string;
   horaFin?: string;
+  horaResolucion?: string;
   duracionMin?: number;
   sucursalId?: number | string;
   sucursalNombre: string;
@@ -356,12 +358,25 @@ import { RecetaInsumoServicio } from './inventario.model';
 
 /** Asignación de Servicio Extra a un Operador específico */
 export interface ServicioExtra {
-  id: number;
+  id: number | string;
   codigoSE: string;                      // Ej: SE-2026-001
   servicioNombre: string;                // Nombre del servicio extra
   servicioDescripcion?: string;
   operadorId: number | string;
   operadorNombre: string;
+  regionId?: string;
+  regionNombre?: string;
+  placa?: string;
+  vehiculoInfo?: {
+    placa?: string;
+    marca?: string;
+    modelo?: string;
+    color?: string;
+    cliente?: string;
+  };
+  videoInicialUrl?: string;
+  videoFinalUrl?: string;
+  calificacionCalidad?: number;
   sucursales: string[];                  // Lista de sucursales asignadas
   insumosReceta: RecetaInsumoServicio[]; // Insumos y cantidades
   estado: 'Pendiente' | 'En Proceso' | 'Completado' | 'Cancelado';

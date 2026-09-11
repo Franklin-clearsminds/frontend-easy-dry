@@ -15,7 +15,7 @@ export class ServicioLavadoMockService {
 
   private mapBackendServicio(s: any): VehiculoServicio {
     const estadoMap: Record<string, string> = {
-      'EN_ESPERA': 'En Cola',
+      'EN_ESPERA': 'EN PROCESO',
       'EN_PROCESO': 'EN PROCESO',
       'FINALIZADO': 'FINALIZADO',
       'APROBADO': 'APROBADO',
@@ -25,41 +25,62 @@ export class ServicioLavadoMockService {
 
     const horaIngreso = s.horaIngreso ? new Date(s.horaIngreso).toTimeString().substring(0, 5) : '08:00';
     const horaSalida = s.horaSalida ? new Date(s.horaSalida).toTimeString().substring(0, 5) : '--:--';
-    const fecha = s.horaIngreso ? new Date(s.horaIngreso).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+    const fecha = s.horaIngreso ? new Date(s.horaIngreso).toISOString().split('T')[0] : (s.fecha || new Date().toISOString().split('T')[0]);
+
+    const catRaw = s.categoriaServicio || s.catalogo?.categoria || s.catalogoRel?.categoria || 'GENERAL';
+    const isEspecial = catRaw === 'ESPECIAL' || catRaw === 'EXTRA' || String(catRaw).toLowerCase().includes('especial') || String(catRaw).toLowerCase().includes('extra');
+    const categoriaServicio = isEspecial ? 'Servicios Especiales' : 'Servicios Generales';
+
+    const servicioNombre = s.servicio || s.servicioNombre || s.catalogo?.nombre || s.catalogoRel?.nombre || '';
+    const agenciaNombre = s.agencia || s.agenciaNombre || s.sucursalNombre || s.bahia?.agencia?.nombre || s.bahiaRel?.agencia?.nombre || '';
+    const bahiaNombre = s.bahiaNombre || (typeof s.bahia === 'string' ? s.bahia : s.bahia?.nombre) || s.bahiaRel?.nombre || '';
+    const empleadoNombre = s.empleado || s.operadorNombre || (s.operador ? `${s.operador.name || ''} ${s.operador.lastname || ''}`.trim() : (s.operadorRel ? `${s.operadorRel.name || ''} ${s.operadorRel.lastname || ''}`.trim() : ''));
 
     return {
       id: s.id,
       numeroOrden: s.clientUuid ? `OT-${s.clientUuid.substring(0, 6).toUpperCase()}` : `OT-${String(s.id).substring(0, 6)}`,
-      ordenTrabajoOT: s.clientUuid ? `OT-${s.clientUuid.substring(0, 6).toUpperCase()}` : `OT-${String(s.id).substring(0, 6)}`,
+      ordenTrabajoOT: s.ordenTrabajoOT || (s.clientUuid ? `OT-${s.clientUuid.substring(0, 6).toUpperCase()}` : `OT-${String(s.id).substring(0, 6)}`),
       placa: s.placa || '',
-      marca: s.marca || s.modelo?.split(' ')[0] || 'Vehículo',
+      marca: s.marca || s.modelo?.split(' ')[0] || '',
       modelo: s.modelo || '',
-      anio: 2024,
-      color: s.color || 'Blanco',
-      categoriaServicio: s.catalogo?.categoria || 'GENERAL',
-      servicioId: s.servicioCatalogoId,
-      servicio: s.catalogo?.nombre || 'Lavado Express',
+      anio: s.anio || new Date().getFullYear(),
+      color: s.color || '',
+      categoriaServicio,
+      servicioId: s.servicioCatalogoId || s.catalogo?.id || s.catalogoRel?.id,
+      servicio: servicioNombre,
       categoria: 'Sedán',
-      agencia: s.bahia?.agencia?.nombre || 'EasyDry Principal',
-      bahia: s.bahia?.nombre || 'Bahía Principal',
-      empleado: s.operador ? `${s.operador.name || ''} ${s.operador.lastname || ''}`.trim() : 'Operador',
+      agencia: agenciaNombre,
+      bahia: bahiaNombre,
+      empleado: empleadoNombre,
       fecha,
       horaIngreso,
       horaSalida,
       estado: estadoMap[s.estado] || s.estado || 'EN PROCESO',
-      foto: s.fotoIngresoUrl || '',
-      fotos: s.fotoIngresoUrl ? [s.fotoIngresoUrl] : [],
-      video: '',
-      tiempoEstimadoMin: s.catalogo?.tiempoEstimadoMin || 30,
-      notas: s.observaciones || '',
+      foto: s.fotoSalidaUrl || s.fotoIngresoUrl || s.foto || '',
+      fotos: s.fotoIngresoUrl ? [s.fotoIngresoUrl] : (s.fotos || []),
+      video: s.video || s.videoUrl || '',
+      videoUrl: s.videoUrl || s.video || '',
+      tiempoEstimadoMin: s.catalogo?.tiempoEstimadoMin || s.catalogoRel?.tiempoEstimadoMin || 30,
+      notas: s.observaciones || s.notas || '',
       observacionGerente: s.observacionGerente || '',
       aprobadoPor: s.aprobadoPor || '',
-      fechaAprobacion: s.fechaAprobacion ? new Date(s.fechaAprobacion).toISOString().substring(0, 16) : undefined
+      fechaAprobacion: s.fechaAprobacion ? new Date(s.fechaAprobacion).toISOString().substring(0, 16) : undefined,
+      insumosUtilizados: (s.consumos || []).map((c: any) => ({
+        productoId: c.insumoId,
+        productoSKU: c.insumo?.codigoSKU || '',
+        productoNombre: c.insumo?.nombre || 'Insumo',
+        unidadMedida: 'und',
+        cantidad: Number(c.cantidadUsada || 0)
+      }))
     };
   }
 
-  getServicios(): Observable<VehiculoServicio[]> {
-    return this.http.post<any>(apiUrl('/operaciones/servicios/list'), {}).pipe(
+  getServicios(filtros?: { sucursalId?: string; agenciaId?: string; estado?: string }): Observable<VehiculoServicio[]> {
+    const body: any = {};
+    if (filtros?.sucursalId) body.sucursalId = filtros.sucursalId;
+    if (filtros?.agenciaId) body.agenciaId = filtros.agenciaId;
+    if (filtros?.estado) body.estado = filtros.estado;
+    return this.http.post<any>(apiUrl('/operaciones/servicios/list'), body).pipe(
       map(res => {
         const list = Array.isArray(res) ? res : (res?.items || []);
         return list.map((s: any) => this.mapBackendServicio(s));
@@ -87,13 +108,14 @@ export class ServicioLavadoMockService {
 
   crearRegistroHojaServicio(nuevo: Partial<VehiculoServicio> & { bahiaId?: string; servicioCatalogoId?: number }): Observable<VehiculoServicio> {
     const payload = {
-      placa: nuevo.placa || 'PDF-0000',
-      modelo: nuevo.modelo || `${nuevo.marca || ''} ${nuevo.modelo || ''}`.trim() || 'Modelo General',
-      color: nuevo.color || 'Blanco',
-      cliente: (nuevo as any).cliente || 'Cliente General',
-      bahiaId: nuevo.bahiaId || (nuevo as any).bahia || 'default-bahia',
-      servicioCatalogoId: nuevo.servicioCatalogoId || Number(nuevo.servicioId) || 1,
-      observaciones: nuevo.notas || ''
+      placa: (nuevo.placa || '').toUpperCase().trim(),
+      modelo: nuevo.modelo || `${nuevo.marca || ''} ${nuevo.modelo || ''}`.trim(),
+      color: nuevo.color || '',
+      cliente: (nuevo as any).cliente || '',
+      bahiaId: nuevo.bahiaId || (nuevo as any).bahia,
+      servicioCatalogoId: nuevo.servicioCatalogoId || Number(nuevo.servicioId),
+      observaciones: nuevo.notas || '',
+      estado: (nuevo.estado as any) || 'EN_PROCESO'
     };
 
     return this.http.post<any>(apiUrl('/operaciones/servicios/create'), payload).pipe(
@@ -103,7 +125,7 @@ export class ServicioLavadoMockService {
         this.serviciosSubject.next([created, ...current]);
       }),
       catchError(err => {
-        console.error('Error al registrar servicio:', err);
+        console.error('Error al registrar servicio en backend:', err);
         throw err;
       })
     );
@@ -117,14 +139,21 @@ export class ServicioLavadoMockService {
     }).pipe(
       map(res => this.mapBackendServicio(res)),
       tap(updated => {
+        if (!updated) return;
         const current = this.serviciosSubject.value;
         const idx = current.findIndex(s => s.id === id);
         if (idx !== -1) {
-          current[idx] = { ...current[idx], ...updated, estado: 'FINALIZADO' };
+          // Preservar el estado real devuelto por el backend:
+          // Si la agencia no tiene aprobador, el backend devuelve APROBADO directamente.
+          // Si tiene aprobador, devuelve FINALIZADO para esperar revisión gerencial.
+          current[idx] = { ...current[idx], ...updated };
           this.serviciosSubject.next([...current]);
         }
       }),
-      catchError(() => of(null))
+      catchError(err => {
+        console.error('Error al finalizar servicio en backend:', err);
+        throw err;
+      })
     );
   }
 

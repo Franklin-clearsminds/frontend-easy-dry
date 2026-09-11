@@ -22,13 +22,67 @@ import { apiUrl } from '../config/env';
 export const BODEGA_CENTRAL: BodegaInventario = {
   id: BODEGA_CENTRAL_ID,
   codigo: 'BOD-CENTRAL',
-  nombre: 'Bodega Central',
+  nombre: 'Bodega Central Nacional',
   ciudad: 'Quito',
   region: 'Nacional',
   esCentral: true,
   activa: true,
   fechaCreacion: '2026-01-01',
 };
+
+export const BODEGAS_INICIALES: BodegaInventario[] = [
+  BODEGA_CENTRAL,
+  {
+    id: 'bod_gye',
+    codigo: 'BOD-GYE',
+    nombre: 'Bodega Regional Guayaquil',
+    ciudad: 'Guayaquil',
+    region: 'Costa',
+    esCentral: false,
+    activa: true,
+    fechaCreacion: '2026-01-15',
+  },
+  {
+    id: 'bod_uio_sur',
+    codigo: 'BOD-UIO-SUR',
+    nombre: 'Bodega Regional Quito Sur',
+    ciudad: 'Quito',
+    region: 'Sierra',
+    esCentral: false,
+    activa: true,
+    fechaCreacion: '2026-02-01',
+  },
+  {
+    id: 'bod_cue',
+    codigo: 'BOD-CUE',
+    nombre: 'Bodega Regional Cuenca',
+    ciudad: 'Cuenca',
+    region: 'Austro',
+    esCentral: false,
+    activa: true,
+    fechaCreacion: '2026-02-10',
+  },
+  {
+    id: 'bod_mta',
+    codigo: 'BOD-MTA',
+    nombre: 'Bodega Regional Manta',
+    ciudad: 'Manta',
+    region: 'Manabí',
+    esCentral: false,
+    activa: true,
+    fechaCreacion: '2026-02-15',
+  },
+  {
+    id: 'bod_std',
+    codigo: 'BOD-STD',
+    nombre: 'Bodega Regional Santo Domingo',
+    ciudad: 'Santo Domingo',
+    region: 'Santo Domingo',
+    esCentral: false,
+    activa: true,
+    fechaCreacion: '2026-02-20',
+  },
+];
 
 @Injectable({
   providedIn: 'root',
@@ -44,7 +98,7 @@ export class InventarioMockService {
   public unidades$ = this.unidadesSubject.asObservable();
 
 
-  private bodegasSubject = new BehaviorSubject<BodegaInventario[]>([BODEGA_CENTRAL]);
+  private bodegasSubject = new BehaviorSubject<BodegaInventario[]>([]);
   public bodegas$ = this.bodegasSubject.asObservable();
 
   private itemsSubject = new BehaviorSubject<InventarioItem[]>([]);
@@ -60,7 +114,76 @@ export class InventarioMockService {
   public cargarCatalogosIniciales(): void {
     this.cargarTiposDesdeBackend();
     this.cargarUnidadesDesdeBackend();
+    this.cargarBodegasDesdeBackend();
     this.cargarItems();
+  }
+
+  // ============================================================
+  //  0. BODEGAS DEL SISTEMA (100% DINÁMICO DESDE BD)
+  // ============================================================
+
+  public cargarBodegasDesdeBackend(): void {
+    this.getBodegas().subscribe((bodegas) => {
+      if (bodegas && Array.isArray(bodegas)) {
+        this.bodegasSubject.next(bodegas);
+      }
+    });
+  }
+
+  public getBodegas(): Observable<BodegaInventario[]> {
+    return this.http.post<BodegaInventario[]>(apiUrl('/inventario/bodegas/list'), {}).pipe(
+      tap((bodegas) => {
+        if (bodegas && Array.isArray(bodegas)) {
+          this.bodegasSubject.next(bodegas);
+        }
+      }),
+      catchError((err) => {
+        console.error('Error al cargar bodegas desde backend:', err);
+        return of([]);
+      })
+    );
+  }
+
+  public crearBodega(dto: {
+    nombre: string;
+    codigo?: string;
+    regionId: string;
+    ciudad?: string;
+    direccion?: string;
+    telefono?: string;
+    porcentajeAlerta?: number;
+  }): Observable<any> {
+    return this.http.post<any>(apiUrl('/inventario/bodegas/create'), dto).pipe(
+      tap(() => this.cargarBodegasDesdeBackend())
+    );
+  }
+
+  public actualizarBodega(dto: {
+    id: string;
+    nombre?: string;
+    codigo?: string;
+    regionId?: string;
+    ciudad?: string;
+    direccion?: string;
+    telefono?: string;
+    porcentajeAlerta?: number;
+    activa?: boolean;
+  }): Observable<any> {
+    return this.http.post<any>(apiUrl('/inventario/bodegas/update'), dto).pipe(
+      tap(() => this.cargarBodegasDesdeBackend())
+    );
+  }
+
+  public toggleActivaBodega(id: string): Observable<any> {
+    return this.http.post<any>(apiUrl('/inventario/bodegas/toggle-activa'), { id }).pipe(
+      tap(() => this.cargarBodegasDesdeBackend())
+    );
+  }
+
+  public eliminarBodega(id: string): Observable<any> {
+    return this.http.post<any>(apiUrl('/inventario/bodegas/delete'), { id }).pipe(
+      tap(() => this.cargarBodegasDesdeBackend())
+    );
   }
 
   // ============================================================
@@ -210,8 +333,18 @@ export class InventarioMockService {
   public getStockDisponibleSucursal(productoId: number | string, sucursalId?: number | string): number {
     const item = this.itemsSubject.value.find(i => i.producto.id === productoId || i.producto.codigoSKU === productoId);
     if (!item) return 0;
-    if (sucursalId && item.stockPorSucursal && item.stockPorSucursal[sucursalId.toString()] != null) {
-      return item.stockPorSucursal[sucursalId.toString()];
+    if (sucursalId && item.stockPorSucursal) {
+      const key = sucursalId.toString();
+      // Buscar por ID exacto primero, luego por nombre
+      if (item.stockPorSucursal[key] != null) {
+        return item.stockPorSucursal[key];
+      }
+      // Búsqueda flexible por nombre (partial match, insensible a mayúsculas)
+      const keyLower = key.toLowerCase();
+      const matchedKey = Object.keys(item.stockPorSucursal).find(k => k.toLowerCase().includes(keyLower) || keyLower.includes(k.toLowerCase()));
+      if (matchedKey != null && item.stockPorSucursal[matchedKey] != null) {
+        return item.stockPorSucursal[matchedKey];
+      }
     }
     return item.stockBodegaCentral || item.stockTotalRed || 0;
   }
@@ -312,6 +445,22 @@ export class InventarioMockService {
     );
   }
 
+  public crearDespacho(payload: any): Observable<any> {
+    return this.http.post<any>(apiUrl('/inventario/despachos/crear'), payload).pipe(
+      tap(() => this.cargarItems())
+    );
+  }
+
+  public listDespachos(dto: any = {}): Observable<any[]> {
+    return this.http.post<any[]>(apiUrl('/inventario/despachos/list'), dto).pipe(
+      catchError(() => of([]))
+    );
+  }
+
+  public getDespachosRechazados(agenciaId?: string): Observable<any[]> {
+    return this.listDespachos({ estadoDespacho: 'RECHAZADO', agenciaId });
+  }
+
   public confirmarRecepcionDespacho(movimientoId: string, agenciaId?: string, observaciones?: string): Observable<any> {
     return this.http.post<any>(apiUrl('/inventario/despachos/confirmar-recepcion'), {
       movimientoId,
@@ -327,25 +476,41 @@ export class InventarioMockService {
   public rechazarDespacho(movimientoId: string, motivo: string, agenciaId?: string): Observable<any> {
     return this.http.post<any>(apiUrl('/inventario/despachos/rechazar'), {
       movimientoId,
-      motivo
+      motivo,
+      observaciones: motivo,
+      agenciaId
     }).pipe(
+      tap(() => this.cargarItems()),
       catchError(() => of({ ok: true }))
     );
   }
 
   public cargarItems(): void {
     this.getProductos().subscribe((productos) => {
-      const items: InventarioItem[] = productos.map((p) => ({
-        producto: p,
-        stockBodegaCentral: Number(p.stockActual || 0),
-        stockPorSucursal: {},
-        stockTotalRed: Number(p.stockActual || 0),
-        estadoGeneral:
-          Number(p.stockActual || 0) <= (Number(p.stockMinimoBodega) || 0)
-            ? 'Critico'
-            : 'Optimo',
-        sucursalesEnAlerta: [],
-      }));
+      const items: InventarioItem[] = productos.map((p) => {
+        // Construir mapa de stock real por sucursal/agencia desde los registros de StockUbicacion
+        const stockPorSucursal: Record<string, number> = {};
+        const rawStocks: any[] = (p as any).stocks || [];
+        for (const s of rawStocks) {
+          const cant = Number(s.cantidadActual || 0);
+          const agId = s.agenciaId || s.agencia?.id;
+          const agNombre = s.agencia?.nombre;
+          if (agId) stockPorSucursal[agId] = cant;
+          if (agNombre) stockPorSucursal[agNombre] = cant;
+        }
+
+        return {
+          producto: p,
+          stockBodegaCentral: Number(p.stockActual || 0),
+          stockPorSucursal,
+          stockTotalRed: Number(p.stockActual || 0),
+          estadoGeneral:
+            Number(p.stockActual || 0) <= (Number(p.stockMinimoBodega) || 0)
+              ? 'Critico'
+              : 'Optimo',
+          sucursalesEnAlerta: [],
+        };
+      });
       this.itemsSubject.next(items);
     });
   }

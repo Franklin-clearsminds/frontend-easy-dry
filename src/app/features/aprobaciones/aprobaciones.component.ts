@@ -150,7 +150,7 @@ import { Role } from '../../core/models/roles.model';
                 <span>Inspeccionar Evidencia Vídeo</span>
               </button>
 
-              @if (item.estado !== 'APROBADO') {
+              @if (item.estado === 'FINALIZADO') {
                 <div class="grid grid-cols-2 gap-2">
                   <button 
                     (click)="aprobarIndividual(item)" 
@@ -162,6 +162,12 @@ import { Role } from '../../core/models/roles.model';
                     class="py-2 bg-rose-100 hover:bg-rose-200 text-rose-800 font-bold rounded-xl text-xs transition-colors">
                     Rechazar
                   </button>
+                </div>
+              }
+              @if (item.estado === 'EN PROCESO' || item.estado === 'EN_PROCESO' || item.estado === 'EN_ESPERA') {
+                <div class="flex items-center justify-center gap-1.5 py-1.5 bg-amber-50 border border-amber-200 rounded-xl text-xs font-bold text-amber-700">
+                  <i-lucide name="clock" class="w-3.5 h-3.5 animate-pulse"></i-lucide>
+                  <span>En progreso — debe finalizarse primero</span>
                 </div>
               }
             </div>
@@ -315,20 +321,62 @@ export class AprobacionesComponent implements OnInit {
 
   ngOnInit(): void {
     const user = this.authService.getCurrentUser();
-    if (user && user.role === Role.GERENTE && user.sucursalNombre) {
+    const isAprobador = user && (
+      user.role === Role.APROBADOR ||
+      user.role === Role.GERENTE ||
+      user.role === Role.LIDER_AGENCIA ||
+      user.role === Role.LIDER_OPERADOR
+    );
+
+    // Precargar filtro de sucursal en la barra de filtros
+    if (isAprobador && user?.sucursalNombre) {
       this.filtrosGlobales.sucursal = user.sucursalNombre;
     }
-    this.servicioService.getServicios().subscribe(list => {
+
+    // Cargar servicios: si el usuario es APROBADOR, filtrar por su agencia en el backend
+    const filtros = (isAprobador && user?.agenciaId)
+      ? { agenciaId: String(user.agenciaId) }
+      : undefined;
+
+    this.servicioService.getServicios(filtros).subscribe(list => {
       this.serviciosDelDia = list;
       this.serviciosParaAprobar = list;
     });
   }
 
+  /** Helper: obtiene filtros de agencia según el rol del usuario logueado */
+  private _getFiltrosUsuario(): { agenciaId?: string } | undefined {
+    const user = this.authService.getCurrentUser();
+    const isAprobador = user && (
+      user.role === Role.APROBADOR ||
+      user.role === Role.GERENTE ||
+      user.role === Role.LIDER_AGENCIA ||
+      user.role === Role.LIDER_OPERADOR
+    );
+    return (isAprobador && user?.agenciaId) ? { agenciaId: String(user.agenciaId) } : undefined;
+  }
+
   aprobarIndividual(item: VehiculoServicio) {
-    const gerente = this.authService.getCurrentUser()?.nombre || 'Carlos Mendoza (Gerente)';
-    this.servicioService.aprobarServicioGerente(item.id, 'Servicio verificado y aprobado.', gerente).subscribe(res => {
-      if (res) {
-        this.toastService.success('Servicio Aprobado', `${item.placa} aprobado exitosamente.`);
+    if (item.estado !== 'FINALIZADO') {
+      this.toastService.warning('Estado inválido', 'Solo se pueden aprobar servicios que ya están finalizados.');
+      return;
+    }
+    const user = this.authService.getCurrentUser();
+    const gerente = user ? `${user.nombre} ${user.apellido || ''}`.trim() : 'Gerencia Operativa';
+    this.servicioService.aprobarServicioGerente(item.id, 'Servicio verificado y aprobado.', gerente).subscribe({
+      next: (res) => {
+        if (res) {
+          this.toastService.success('Servicio Aprobado', `${item.placa} aprobado exitosamente.`);
+          // Recargar lista con el scope correcto
+          this.servicioService.getServicios(this._getFiltrosUsuario()).subscribe(list => {
+            this.serviciosDelDia = list;
+            this.serviciosParaAprobar = list;
+          });
+        }
+      },
+      error: (err) => {
+        const msg = err?.error?.message || err?.message || 'No se pudo aprobar el servicio.';
+        this.toastService.error('Error al Aprobar', Array.isArray(msg) ? msg.join('. ') : msg);
       }
     });
   }
@@ -345,11 +393,23 @@ export class AprobacionesComponent implements OnInit {
       return;
     }
 
-    const gerente = this.authService.getCurrentUser()?.nombre || 'Carlos Mendoza (Gerente)';
-    this.servicioService.rechazarServicioGerente(this.servicioRechazar.id, this.motivoRechazo, gerente).subscribe(res => {
-      if (res) {
-        this.toastService.error('Servicio Rechazado', `Servicio ${this.servicioRechazar?.placa} marcado como RECHAZADO.`);
-        this.modalRechazarOpen = false;
+    const user = this.authService.getCurrentUser();
+    const gerente = user ? `${user.nombre} ${user.apellido || ''}`.trim() : 'Gerencia Operativa';
+    this.servicioService.rechazarServicioGerente(this.servicioRechazar.id, this.motivoRechazo, gerente).subscribe({
+      next: (res) => {
+        if (res) {
+          this.toastService.error('Servicio Rechazado', `Servicio ${this.servicioRechazar?.placa} marcado como RECHAZADO.`);
+          this.modalRechazarOpen = false;
+          // Recargar lista con el scope correcto
+          this.servicioService.getServicios(this._getFiltrosUsuario()).subscribe(list => {
+            this.serviciosDelDia = list;
+            this.serviciosParaAprobar = list;
+          });
+        }
+      },
+      error: (err) => {
+        const msg = err?.error?.message || err?.message || 'No se pudo rechazar el servicio.';
+        this.toastService.error('Error al Rechazar', Array.isArray(msg) ? msg.join('. ') : msg);
       }
     });
   }
@@ -371,7 +431,7 @@ export class AprobacionesComponent implements OnInit {
   aprobarTodos() {
     const sucursalTarget = this.filtrosGlobales.sucursal === 'Todas' ? 'Todas' : this.filtrosGlobales.sucursal;
     const user = this.authService.getCurrentUser();
-    const gerente = user ? `${user.nombre} (${user.role})` : 'Carlos Mendoza (Gerente)';
+    const gerente = user ? `${user.nombre} ${user.apellido || ''}`.trim() : 'Gerencia Operativa';
     this.servicioService.aprobarTodosLosServiciosDelDia(sucursalTarget, gerente).subscribe(() => {
       const msg = sucursalTarget === 'Todas'
         ? 'Todos los servicios de todas las sucursales fueron APROBADOS. Día Cerrado.'

@@ -199,7 +199,8 @@ export class DashboardComponent implements OnInit {
     return this.currentRole === Role.COORD_COMERCIAL;
   }
   get isBodega(): boolean {
-    return this.currentRole === Role.DISTRIBUIDOR || this.currentRole === Role.ASISTENTE_BODEGA;
+    const roleStr = (this.currentRole || '').toUpperCase();
+    return this.currentRole === Role.DISTRIBUIDOR || this.currentRole === Role.COORD_BODEGA || this.currentRole === Role.ASISTENTE_BODEGA || roleStr.includes('BODEGA') || roleStr.includes('DISTRIBUIDOR');
   }
 
   private normalizeProduccion(d: any) {

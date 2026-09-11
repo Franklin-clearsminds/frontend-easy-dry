@@ -7,6 +7,9 @@ import { InventarioMockService } from '../../core/services/inventario-mock.servi
 import { AuthService } from '../../core/services/auth.service';
 import { SucursalMockService } from '../../core/services/sucursal-mock.service';
 import { ToastService } from '../../shared/services/toast.service';
+import { UsuarioMockService } from '../../core/services/usuario-mock.service';
+import { RegionMockService } from '../../core/services/region-mock.service';
+import { Usuario } from '../../core/models';
 import {
   ProductoInsumo,
   TipoProductoCatalog,
@@ -15,6 +18,7 @@ import {
   TipoMovimientoCatalog,
   MovimientoInventarioGlobalItem,
   DashboardInventarioResumen,
+  BodegaInventario,
 } from '../../core/models/inventario.model';
 
 @Component({
@@ -41,7 +45,14 @@ import {
           </div>
 
           <!-- Acciones Rápidas -->
-          <div *ngIf="!esLiderAgencia" class="flex items-center gap-2 flex-wrap">
+          <div class="flex items-center gap-2 flex-wrap">
+            <button
+              (click)="abrirModalDespachoAgencia()"
+              class="px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer">
+              <i-lucide name="truck" class="w-4 h-4"></i-lucide>
+              <span>Despachar a Agencia</span>
+            </button>
+
             <button
               (click)="abrirModalEntrada()"
               class="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer">
@@ -57,6 +68,7 @@ import {
             </button>
 
             <button
+              *ngIf="!isOperador"
               (click)="abrirModalNuevoProducto()"
               class="px-3.5 py-2 rounded-xl bg-easydry-blue hover:bg-blue-700 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer">
               <i-lucide name="plus" class="w-4 h-4"></i-lucide>
@@ -67,19 +79,45 @@ import {
 
         <!-- Barra de Submenús Principales -->
         <div class="flex items-center gap-2 sm:gap-4 mt-5 pt-3 border-t border-slate-100 overflow-x-auto">
+          <!-- 1. Insumos de mi Sede / Insumos por Servicios (Visible Operador y Admin) -->
           <button
             (click)="activeTab = 'insumos_servicios'"
             class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
             [ngClass]="activeTab === 'insumos_servicios' ? 'bg-teal-50 text-teal-700 font-extrabold border border-teal-200' : 'text-slate-600 hover:bg-slate-50'">
             <i-lucide name="layout-list" class="w-4 h-4 text-teal-600"></i-lucide>
-            <span>{{ isLiderOperador ? 'Insumos de mi Sede' : 'Insumos por Servicios' }}</span>
+            <span>{{ isOperador ? 'Insumos de mi Sede' : 'Insumos por Servicios' }}</span>
             <span *ngIf="resumenInsumosServicios?.totalAlertas > 0" class="px-1.5 py-0.2 rounded-full text-[10px] bg-rose-500 text-white ml-1">
               {{ resumenInsumosServicios.totalAlertas }}
             </span>
           </button>
 
+          <!-- 2. Stock Bajo (Visible Operador y Admin) -->
           <button
-            *ngIf="!esLiderAgencia"
+            (click)="activeTab = 'stock_bajo'"
+            class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+            [ngClass]="activeTab === 'stock_bajo' ? 'bg-rose-50 text-rose-700 font-extrabold border border-rose-200' : 'text-slate-600 hover:bg-slate-50'">
+            <i-lucide name="alert-triangle" class="w-4 h-4"></i-lucide>
+            <span>Stock Bajo</span>
+            <span *ngIf="resumenDashboard.productosStockBajo > 0" class="px-1.5 py-0.2 rounded-full text-[10px] bg-rose-500 text-white ml-1">
+              {{ resumenDashboard.productosStockBajo }}
+            </span>
+          </button>
+
+          <!-- 3. Otras Agencias (Visible Operador y Admin: permite al operador despachar a otras agencias) -->
+          <button
+            (click)="activeTab = 'agencias'"
+            class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+            [ngClass]="activeTab === 'agencias' ? 'bg-purple-50 text-purple-700 font-extrabold border border-purple-200' : 'text-slate-600 hover:bg-slate-50'">
+            <i-lucide name="store" class="w-4 h-4"></i-lucide>
+            <span>Otras Agencias</span>
+            <span *ngIf="resumenAgencias.agenciasEnAlerta > 0" class="px-1.5 py-0.2 rounded-full text-[10px] bg-amber-500 text-white ml-1">
+              {{ resumenAgencias.agenciasEnAlerta }}
+            </span>
+          </button>
+
+          <!-- 4. Dashboard (Solo Super Admin / Admin) -->
+          <button
+            *ngIf="!isOperador"
             (click)="activeTab = 'dashboard'"
             class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
             [ngClass]="activeTab === 'dashboard' ? 'bg-blue-50 text-easydry-blue' : 'text-slate-600 hover:bg-slate-50'">
@@ -87,8 +125,9 @@ import {
             <span>Dashboard</span>
           </button>
 
+          <!-- 5. Productos (Solo Super Admin / Admin) -->
           <button
-            *ngIf="!esLiderAgencia"
+            *ngIf="!isOperador"
             (click)="activeTab = 'productos'"
             class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
             [ngClass]="activeTab === 'productos' ? 'bg-blue-50 text-easydry-blue' : 'text-slate-600 hover:bg-slate-50'">
@@ -97,8 +136,9 @@ import {
             <span class="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-200 text-slate-700 ml-1">{{ productos.length }}</span>
           </button>
 
+          <!-- 6. Bodegas (Solo Super Admin / Admin) -->
           <button
-            *ngIf="!esLiderAgencia"
+            *ngIf="!isOperador"
             (click)="activeTab = 'bodegas'"
             class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
             [ngClass]="activeTab === 'bodegas' ? 'bg-blue-50 text-easydry-blue' : 'text-slate-600 hover:bg-slate-50'">
@@ -106,20 +146,9 @@ import {
             <span>Bodegas</span>
           </button>
 
+          <!-- 7. Movimientos Kardex (Solo Super Admin / Admin) -->
           <button
-            *ngIf="!esLiderAgencia"
-            (click)="activeTab = 'agencias'"
-            class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
-            [ngClass]="activeTab === 'agencias' ? 'bg-blue-50 text-easydry-blue' : 'text-slate-600 hover:bg-slate-50'">
-            <i-lucide name="store" class="w-4 h-4"></i-lucide>
-            <span>Otras Agencias</span>
-            <span *ngIf="resumenAgencias.agenciasEnAlerta > 0" class="px-1.5 py-0.2 rounded-full text-[10px] bg-amber-500 text-white ml-1">
-              {{ resumenAgencias.agenciasEnAlerta }}
-            </span>
-          </button>
-
-          <button
-            *ngIf="!esLiderAgencia"
+            *ngIf="!isOperador"
             (click)="activeTab = 'movimientos'"
             class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
             [ngClass]="activeTab === 'movimientos' ? 'bg-blue-50 text-easydry-blue' : 'text-slate-600 hover:bg-slate-50'">
@@ -127,20 +156,9 @@ import {
             <span>Movimientos (Kardex)</span>
           </button>
 
+          <!-- 8. Configuración (Solo Super Admin / Admin) -->
           <button
-            *ngIf="!esLiderAgencia"
-            (click)="activeTab = 'stock_bajo'"
-            class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
-            [ngClass]="activeTab === 'stock_bajo' ? 'bg-rose-50 text-rose-700' : 'text-slate-600 hover:bg-slate-50'">
-            <i-lucide name="alert-triangle" class="w-4 h-4"></i-lucide>
-            <span>Stock Bajo</span>
-            <span *ngIf="resumenDashboard.productosStockBajo > 0" class="px-1.5 py-0.2 rounded-full text-[10px] bg-rose-500 text-white ml-1">
-              {{ resumenDashboard.productosStockBajo }}
-            </span>
-          </button>
-
-          <button
-            *ngIf="!esLiderAgencia"
+            *ngIf="!isOperador"
             (click)="activeTab = 'configuracion'"
             class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
             [ngClass]="activeTab === 'configuracion' ? 'bg-purple-50 text-purple-700' : 'text-slate-600 hover:bg-slate-50'">
@@ -195,6 +213,74 @@ import {
                 <i-lucide name="refresh-cw" class="w-3.5 h-3.5" [ngClass]="{'animate-spin': cargandoInsumosServicios || procesandoRecepcion}"></i-lucide>
                 <span>Actualizar Stock</span>
               </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ============================================================== -->
+        <!-- BANNER ALERTA: DESPACHOS RECHAZADOS (SUPER ADMIN / BODEGA)     -->
+        <!-- ============================================================== -->
+        <div *ngIf="despachosRechazadosSuperAdmin.length > 0 && !isOperador" class="p-5 rounded-2xl bg-rose-50 border-2 border-rose-300 shadow-md space-y-3 animate-fade-in">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-rose-600 text-white flex items-center justify-center font-bold shadow-sm shrink-0">
+                <i-lucide name="alert-triangle" class="w-5 h-5"></i-lucide>
+              </div>
+              <div>
+                <div class="flex items-center gap-2">
+                  <h3 class="text-sm font-black text-rose-950 uppercase tracking-wide">
+                    🚨 Alerta Logística: {{ despachosRechazadosSuperAdmin.length }} Despacho(s) Rechazado(s) por Sedes
+                  </h3>
+                  <span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-200 text-rose-900 animate-pulse">
+                    Stock Reintegrado a Bodega Central
+                  </span>
+                </div>
+                <p class="text-xs text-rose-800 mt-0.5">
+                  Una o más agencias reportaron anomalías o no recepción. A continuación se detalla la causa reportada para su gestión.
+                </p>
+              </div>
+            </div>
+
+            <button
+              (click)="cargarDespachosRechazadosSuperAdmin()"
+              class="px-3 py-1.5 rounded-xl bg-white hover:bg-rose-100 text-rose-800 text-xs font-bold transition border border-rose-200 shadow-2xs self-end sm:self-auto cursor-pointer flex items-center gap-1">
+              <i-lucide name="refresh-cw" class="w-3.5 h-3.5"></i-lucide>
+              <span>Actualizar Alertas</span>
+            </button>
+          </div>
+
+          <!-- Listado de Despachos Rechazados con Razón Reportada -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+            <div *ngFor="let rech of despachosRechazadosSuperAdmin" class="p-4 bg-white rounded-xl border border-rose-200 shadow-2xs space-y-2.5">
+              <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-slate-100 pb-2">
+                <div class="flex items-center gap-2">
+                  <span class="px-2 py-0.5 rounded font-mono font-black text-xs bg-rose-100 text-rose-900 border border-rose-200">
+                    {{ rech.numeroGuia }}
+                  </span>
+                  <span class="font-bold text-slate-800 text-xs">
+                    {{ rech.destinoUbicacion }}
+                  </span>
+                </div>
+                <span class="text-[10px] font-mono text-slate-400">
+                  {{ (rech.fechaRecepcion || rech.updatedAt) | date:'medium' }}
+                </span>
+              </div>
+
+              <!-- Insumos y cantidades involucradas -->
+              <div class="space-y-1">
+                <span class="text-[10px] font-bold text-slate-400 uppercase">Insumos y Cantidades Despachadas:</span>
+                <div class="flex flex-wrap gap-1">
+                  <div *ngFor="let det of rech.detalles" class="px-2 py-1 bg-slate-100 rounded-lg text-slate-800 font-semibold text-[11px] border border-slate-200">
+                    <span class="font-mono text-rose-700 font-black">{{ det.cantidadEnviada }} {{ det.insumo?.unidadMedida?.simbolo || 'u' }}</span> - {{ det.insumo?.nombre }}
+                  </div>
+                </div>
+              </div>
+
+              <!-- Comentario reportado -->
+              <div class="p-2.5 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-950">
+                <span class="font-black text-rose-800 uppercase text-[10px] block mb-0.5">💬 Razón de Rechazo Indicada por la Agencia:</span>
+                <p class="font-medium italic">"{{ rech.motivoRechazo || rech.observaciones || 'Sin motivo reportado' }}"</p>
+              </div>
             </div>
           </div>
         </div>
@@ -814,10 +900,102 @@ import {
       </div>
 
       <!-- ============================================================== -->
-      <!-- TAB: BODEGAS DE ALMACENAMIENTO (HUB CENTRAL & EXISTENCIAS)     -->
+      <!-- TAB: BODEGAS DE ALMACENAMIENTO & ASISTENTES EN CUSTODIA         -->
       <!-- ============================================================== -->
       <div *ngIf="activeTab === 'bodegas'" class="space-y-6 animate-fade-in">
-        <!-- Ficha / Header de Bodega Central -->
+
+        <!-- Selector de Bodegas Creadas (Grid) -->
+        <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-easydry space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-50 text-easydry-blue text-[11px] font-bold mb-1 border border-blue-100">
+                <i-lucide name="warehouse" class="w-3.5 h-3.5"></i-lucide>
+                <span>Red de Distribución & Almacenamiento</span>
+              </div>
+              <h2 class="text-xl font-black text-slate-900 font-outfit">Bodegas del Sistema & Asistentes</h2>
+              <p class="text-slate-500 text-xs mt-0.5">
+                Selecciona una bodega para inspeccionar su inventario en tiempo real y el personal de asistentes asignado a su custodia.
+              </p>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <button
+                *ngIf="esGestorGlobalOBodegaAdmin"
+                (click)="abrirModalCrearBodega()"
+                class="px-4 py-2 rounded-xl bg-easydry-green hover:bg-easydry-green-dark text-slate-950 text-xs font-black transition flex items-center gap-2 shadow-glow-green cursor-pointer">
+                <i-lucide name="plus-circle" class="w-4 h-4"></i-lucide>
+                <span>Registrar Nueva Bodega</span>
+              </button>
+
+              <button
+                (click)="cargarBodegasDisponibles(); cargarUsuariosYAsistentes(); cargarStockBodega()"
+                class="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer">
+                <i-lucide name="refresh-cw" class="w-3.5 h-3.5" [ngClass]="{'animate-spin': cargandoBodegas}"></i-lucide>
+                <span>Actualizar Bodegas</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Grid de Selección de Bodegas -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5 pt-1">
+            <div
+              *ngFor="let bod of getBodegasParaVisualizacion()"
+              (click)="seleccionarBodega(bod.id)"
+              class="p-4 rounded-xl border transition-all cursor-pointer relative overflow-hidden group flex flex-col justify-between"
+              [ngClass]="bodegaSeleccionadaId === bod.id ? 'border-easydry-blue bg-blue-50/40 ring-2 ring-easydry-blue/20 shadow-sm' : 'border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-50/70'">
+              
+              <div class="flex items-start justify-between gap-2 mb-2">
+                <div class="w-9 h-9 rounded-lg flex items-center justify-center font-bold shrink-0"
+                  [ngClass]="bod.esCentral ? 'bg-blue-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 group-hover:bg-blue-100 group-hover:text-easydry-blue'">
+                  <i-lucide name="warehouse" class="w-4 h-4"></i-lucide>
+                </div>
+                <div class="flex items-center gap-1">
+                  <span
+                    class="px-2 py-0.5 rounded-full text-[10px] font-bold"
+                    [ngClass]="bod.esCentral ? 'bg-blue-100 text-blue-800 border border-blue-200' : 'bg-slate-100 text-slate-700 border border-slate-200'">
+                    {{ bod.esCentral ? 'HUB Central' : 'Bodega Regional' }}
+                  </span>
+                  <button
+                    *ngIf="esGestorGlobalOBodegaAdmin"
+                    type="button"
+                    (click)="$event.stopPropagation(); abrirModalEditarBodega(bod)"
+                    class="p-1 rounded-lg hover:bg-slate-200 text-slate-500 hover:text-easydry-blue transition"
+                    title="Editar Bodega">
+                    <i-lucide name="edit-2" class="w-3.5 h-3.5"></i-lucide>
+                  </button>
+                  <button
+                    *ngIf="!bod.esCentral && esGestorGlobalOBodegaAdmin"
+                    type="button"
+                    (click)="$event.stopPropagation(); eliminarBodega(bod)"
+                    class="p-1 rounded-lg hover:bg-rose-100 text-slate-400 hover:text-rose-600 transition"
+                    title="Eliminar Bodega">
+                    <i-lucide name="trash-2" class="w-3.5 h-3.5"></i-lucide>
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <h3 class="font-extrabold text-sm text-slate-900 group-hover:text-easydry-blue transition line-clamp-1">
+                  {{ bod.nombre }}
+                </h3>
+                <p class="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1">
+                  <i-lucide name="map-pin" class="w-3 h-3 text-slate-400"></i-lucide>
+                  <span>{{ bod.ciudad }} ({{ bod.region }})</span>
+                </p>
+              </div>
+
+              <div class="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px]">
+                <span class="font-mono text-slate-400 text-[10px]">{{ bod.codigo }}</span>
+                <span class="inline-flex items-center gap-1 font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md text-[10px]">
+                  <i-lucide name="users" class="w-3 h-3 text-easydry-blue"></i-lucide>
+                  <span>{{ getAsistentesDeBodega(bod).length }} Asistente(s)</span>
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Ficha / Header de Bodega Seleccionada -->
         <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-easydry flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div class="flex items-start gap-3">
             <div class="w-12 h-12 rounded-xl bg-blue-50 text-easydry-blue flex items-center justify-center font-bold shrink-0">
@@ -826,14 +1004,16 @@ import {
             <div>
               <div class="flex items-center gap-2">
                 <h2 class="text-lg font-extrabold text-slate-900 font-outfit">
-                  {{ resumenBodegas.bodega?.nombre || 'Bodega Central Nacional' }}
+                  {{ bodegaSeleccionada?.nombre || resumenBodegas.bodega?.nombre || 'Bodega Central Nacional' }}
                 </h2>
-                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  HUB Principal Operativo
+                <span
+                  class="px-2 py-0.5 rounded-full text-[10px] font-bold"
+                  [ngClass]="(bodegaSeleccionada?.esCentral || resumenBodegas.bodega?.esCentral) ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-purple-50 text-purple-700 border border-purple-200'">
+                  {{ (bodegaSeleccionada?.esCentral || resumenBodegas.bodega?.esCentral) ? 'HUB Principal Operativo' : 'Sede Logística Regional' }}
                 </span>
               </div>
               <p class="text-xs text-slate-500 mt-0.5">
-                Código: <b class="font-mono">{{ resumenBodegas.bodega?.codigo || 'BOD-CENTRAL' }}</b> • Ubicación: {{ resumenBodegas.bodega?.ciudad || 'Quito' }} ({{ resumenBodegas.bodega?.region || 'Pichincha' }})
+                Código: <b class="font-mono">{{ bodegaSeleccionada?.codigo || resumenBodegas.bodega?.codigo || 'BOD-CENTRAL' }}</b> • Ubicación: {{ bodegaSeleccionada?.ciudad || resumenBodegas.bodega?.ciudad || 'Quito' }} ({{ bodegaSeleccionada?.region || resumenBodegas.bodega?.region || 'Pichincha' }})
               </p>
             </div>
           </div>
@@ -845,6 +1025,88 @@ import {
               <i-lucide name="plus-circle" class="w-4 h-4"></i-lucide>
               <span>Ingresar Stock a Bodega</span>
             </button>
+          </div>
+        </div>
+
+        <!-- SECCIÓN: ASISTENTES DE BODEGA ASIGNADOS -->
+        <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-easydry space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div class="flex items-center gap-2.5">
+              <div class="w-8 h-8 rounded-lg bg-teal-50 text-teal-700 flex items-center justify-center font-bold">
+                <i-lucide name="users" class="w-4 h-4"></i-lucide>
+              </div>
+              <div>
+                <div class="flex items-center gap-2">
+                  <h3 class="text-sm font-black text-slate-900 uppercase tracking-wide">
+                    Asistentes de Bodega Asignados
+                  </h3>
+                  <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-teal-100 text-teal-800 border border-teal-200">
+                    {{ getAsistentesDeBodega(bodegaSeleccionada).length }} en custodia
+                  </span>
+                </div>
+                <p class="text-xs text-slate-500 mt-0.5">
+                  Personal operativo a cargo del control de stock físico, recepción de compras y despacho hacia las sedes.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Listado de Asistentes -->
+          <div *ngIf="getAsistentesDeBodega(bodegaSeleccionada).length > 0" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 pt-1">
+            <div
+              *ngFor="let asis of getAsistentesDeBodega(bodegaSeleccionada)"
+              class="p-4 bg-gradient-to-br from-slate-50 to-white rounded-xl border border-slate-200 shadow-2xs hover:shadow-xs transition flex items-start gap-3">
+              <div class="relative shrink-0">
+                <img
+                  *ngIf="asis.avatar"
+                  [src]="asis.avatar"
+                  [alt]="asis.nombre"
+                  class="w-11 h-11 rounded-full object-cover border-2 border-white shadow-xs" />
+                <div
+                  *ngIf="!asis.avatar"
+                  class="w-11 h-11 rounded-full bg-teal-600 text-white font-black text-sm flex items-center justify-center shadow-xs">
+                  {{ (asis.nombre || 'A').charAt(0).toUpperCase() }}
+                </div>
+                <span class="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white" title="Activo"></span>
+              </div>
+
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center justify-between gap-1">
+                  <h4 class="text-xs font-black text-slate-900 truncate">
+                    {{ asis.nombre }} {{ asis.apellido }}
+                  </h4>
+                  <span class="px-1.5 py-0.5 rounded text-[9px] font-black bg-emerald-100 text-emerald-800 shrink-0">
+                    Activo
+                  </span>
+                </div>
+                
+                <span class="inline-block px-2 py-0.5 rounded-md text-[10px] font-bold bg-teal-50 text-teal-700 border border-teal-100 mt-1">
+                  {{ asis.rol || asis.rolNombre || 'Asistente de Bodega' }}
+                </span>
+
+                <div class="mt-2 space-y-1 text-[11px] text-slate-500">
+                  <div class="flex items-center gap-1.5 truncate">
+                    <i-lucide name="mail" class="w-3 h-3 text-slate-400 shrink-0"></i-lucide>
+                    <a [href]="'mailto:' + asis.email" class="text-easydry-blue hover:underline truncate">{{ asis.email }}</a>
+                  </div>
+                  <div class="flex items-center gap-1.5 truncate text-[10px] text-slate-400">
+                    <i-lucide name="map-pin" class="w-3 h-3 text-slate-400 shrink-0"></i-lucide>
+                    <span class="truncate">{{ asis.region || asis.agencia || bodegaSeleccionada?.region || 'Región Asignada' }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Estado Vacío cuando no hay asistentes -->
+          <div *ngIf="getAsistentesDeBodega(bodegaSeleccionada).length === 0" class="p-6 rounded-xl bg-slate-50 border border-dashed border-slate-200 text-center space-y-2">
+            <div class="w-10 h-10 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center mx-auto">
+              <i-lucide name="users" class="w-5 h-5"></i-lucide>
+            </div>
+            <p class="text-xs font-bold text-slate-700">Sin Asistentes de Bodega asignados a esta ubicación</p>
+            <p class="text-[11px] text-slate-500 max-w-md mx-auto">
+              Para asignar personal operativo a esta bodega, accede al módulo de <b>Gestión de Usuarios</b> y crea o edita un usuario con el rol de <b>Asistente de Bodega</b> en la región o bodega correspondiente.
+            </p>
           </div>
         </div>
 
@@ -946,14 +1208,15 @@ import {
                   <th class="p-3.5">Stock en Unidades</th>
                   <th class="p-3.5">Stock Contenido Total</th>
                   <th class="p-3.5">Stock Mínimo</th>
+                  <th class="p-3.5">Umbral Alerta (% config)</th>
                   <th class="p-3.5">Stock Óptimo</th>
-                  <th class="p-3.5">Estado</th>
+                  <th class="p-3.5">Estado / Nivel Alerta</th>
                   <th class="p-3.5 text-right">Acciones</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-slate-100">
                 <tr *ngIf="insumosBodegaFiltrados.length === 0">
-                  <td colspan="10" class="p-8 text-center text-slate-400">
+                  <td colspan="11" class="p-8 text-center text-slate-400">
                     No se encontraron insumos almacenados en la bodega que coincidan con el filtro.
                   </td>
                 </tr>
@@ -991,22 +1254,36 @@ import {
                     <b>{{ getStockEnUnidades(item.stockMinimo, item.contenidoNeto) | number:'1.0-2' }} und</b>
                     <span class="text-[10px] text-slate-400 block">({{ item.stockMinimo | number:'1.0-2' }} {{ item.unidad }})</span>
                   </td>
+                  <td class="p-3.5 font-mono whitespace-nowrap">
+                    <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200 inline-flex items-center gap-1">
+                      <span>{{ item.umbralAlerta || (item.stockMinimo * 1.2) | number:'1.0-2' }} {{ item.unidad }}</span>
+                      <span class="text-[9px] font-black text-amber-600 font-mono">(+{{ item.porcentajeAlerta || 20 }}%)</span>
+                    </span>
+                  </td>
                   <td class="p-3.5 font-mono text-slate-500 whitespace-nowrap">
                     <b>{{ getStockEnUnidades(item.stockOptimo, item.contenidoNeto) | number:'1.0-2' }} und</b>
                     <span class="text-[10px] text-slate-400 block">({{ item.stockOptimo | number:'1.0-2' }} {{ item.unidad }})</span>
                   </td>
                   <td class="p-3.5 whitespace-nowrap">
                     <span
-                      class="px-2 py-0.5 rounded-full text-[10px] font-bold"
+                      class="px-2.5 py-1 rounded-full text-[10px] font-extrabold inline-flex items-center gap-1"
                       [ngClass]="{
-                        'bg-rose-100 text-rose-800': item.estado === 'Agotado' || item.estado === 'Crítico',
-                        'bg-amber-100 text-amber-800': item.estado === 'Bajo',
-                        'bg-emerald-100 text-emerald-800': item.estado === 'Óptimo'
+                        'bg-rose-100 text-rose-800 border border-rose-200': item.estado === 'Agotado' || item.estado === 'Crítico',
+                        'bg-amber-100 text-amber-800 border border-amber-200': item.estado === 'Bajo',
+                        'bg-emerald-100 text-emerald-800 border border-emerald-200': item.estado === 'Óptimo'
                       }">
-                      {{ item.estado }}
+                      <span>{{ item.estado === 'Crítico' ? '🚨 Crítico (< Mín)' : (item.estado === 'Bajo' ? '⚠️ Stock Bajo (Umbral ' + (item.porcentajeAlerta || 20) + '%)' : item.estado) }}</span>
                     </span>
                   </td>
-                  <td class="p-3.5 text-right">
+                  <td class="p-3.5 text-right space-x-1.5 whitespace-nowrap">
+                    <button
+                      *ngIf="!esLiderAgencia && miAgenciaId"
+                      (click)="abrirModalDespachoAgencia(miAgenciaId, item)"
+                      title="Despachar desde Bodega Central a esta sede"
+                      class="px-2.5 py-1 rounded-lg bg-easydry-blue hover:bg-blue-700 text-white font-bold text-[11px] transition cursor-pointer inline-flex items-center gap-1">
+                      <i-lucide name="truck" class="w-3 h-3"></i-lucide>
+                      <span>Despachar</span>
+                    </button>
                     <button
                       (click)="seleccionarParaEntrada(item)"
                       class="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] transition cursor-pointer">
@@ -1044,6 +1321,13 @@ import {
               </p>
             </div>
           </div>
+
+          <button
+            (click)="abrirModalDespachoAgencia()"
+            class="px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition flex items-center gap-2 shadow-sm cursor-pointer shrink-0">
+            <i-lucide name="truck" class="w-4 h-4"></i-lucide>
+            <span>Despachar a otra Agencia</span>
+          </button>
         </div>
 
         <!-- Tarjetas de Métricas de la Red -->
@@ -1542,43 +1826,64 @@ import {
           </div>
 
           <div class="space-y-4 text-xs">
-            <!-- Buscador de Producto / Insumo -->
-            <div>
-              <label class="block font-bold text-slate-700 mb-1">Buscar Producto / Insumo</label>
-              <div class="relative flex items-center">
-                <span class="absolute left-3 inset-y-0 flex items-center pointer-events-none text-slate-400">
-                  <i-lucide name="search" class="w-4 h-4"></i-lucide>
-                </span>
-                <input
-                  type="text"
-                  [(ngModel)]="busquedaProductoEntrada"
-                  (input)="filtrarProductosEntrada()"
-                  placeholder="Buscar por código SKU o nombre de producto..."
-                  class="w-full pl-9 pr-9 py-2.5 text-xs rounded-xl border border-slate-200 focus:outline-none focus:border-easydry-blue" />
-                <button
-                  *ngIf="busquedaProductoEntrada"
-                  (click)="busquedaProductoEntrada = ''; filtrarProductosEntrada()"
-                  class="absolute right-3 inset-y-0 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer">
-                  <i-lucide name="x" class="w-4 h-4"></i-lucide>
-                </button>
+            <!-- Insumo Fijo (Bloqueado) si viene preseleccionado -->
+            <div *ngIf="productoEntradaFijo" class="p-3 bg-emerald-50/80 rounded-xl border border-emerald-200 flex items-center justify-between">
+              <div class="flex items-center gap-2.5 truncate mr-2">
+                <div class="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold shrink-0">
+                  <i-lucide name="package" class="w-4 h-4"></i-lucide>
+                </div>
+                <div class="truncate">
+                  <p class="font-extrabold text-slate-900 text-xs truncate">{{ productoEntradaFijo.nombre }}</p>
+                  <span class="text-[10px] font-mono text-emerald-900/80 block">
+                    SKU: {{ productoEntradaFijo.codigoSKU }} | Unidad: {{ productoEntradaFijo.unidadMedida || 'u' }}
+                  </span>
+                </div>
               </div>
+              <span class="px-2.5 py-1 rounded-lg text-[10px] font-extrabold bg-emerald-200/80 text-emerald-900 border border-emerald-300 shrink-0">
+                Insumo Fijo (Bloqueado)
+              </span>
             </div>
 
-            <!-- Selector de Producto / Insumo -->
-            <div>
-              <label class="block font-bold text-slate-700 mb-1">Producto / Insumo Seleccionado *</label>
-              <select
-                [(ngModel)]="formEntrada.insumoId"
-                (change)="alCambiarProductoEntrada()"
-                class="w-full p-2.5 rounded-xl border border-slate-200 bg-white focus:outline-none focus:border-easydry-blue">
-                <option value="">Seleccione un producto...</option>
-                <option *ngFor="let p of productosEntradaFiltrados" [value]="p.id">
-                  {{ p.nombre }} (SKU: {{ p.codigoSKU }}) — Stock: {{ getStockEnUnidades(p.stockActual, p.contenidoNeto) | number:'1.0-2' }} und ({{ p.stockActual | number:'1.0-2' }} {{ p.unidadMedida }})
-                </option>
-              </select>
-              <p *ngIf="productosEntradaFiltrados.length === 0" class="text-[11px] text-amber-600 mt-1">
-                No se encontraron productos que coincidan con la búsqueda.
-              </p>
+            <!-- Buscador y selector normal SOLO si no viene fijo -->
+            <div *ngIf="!productoEntradaFijo" class="space-y-4">
+              <!-- Buscador de Producto / Insumo -->
+              <div>
+                <label class="block font-bold text-slate-700 mb-1">Buscar Producto / Insumo</label>
+                <div class="relative flex items-center">
+                  <span class="absolute left-3 inset-y-0 flex items-center pointer-events-none text-slate-400">
+                    <i-lucide name="search" class="w-4 h-4"></i-lucide>
+                  </span>
+                  <input
+                    type="text"
+                    [(ngModel)]="busquedaProductoEntrada"
+                    (input)="filtrarProductosEntrada()"
+                    placeholder="Buscar por código SKU o nombre de producto..."
+                    class="w-full pl-9 pr-9 py-2.5 text-xs rounded-xl border border-slate-200 focus:outline-none focus:border-easydry-blue" />
+                  <button
+                    *ngIf="busquedaProductoEntrada"
+                    (click)="busquedaProductoEntrada = ''; filtrarProductosEntrada()"
+                    class="absolute right-3 inset-y-0 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer">
+                    <i-lucide name="x" class="w-4 h-4"></i-lucide>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Selector de Producto / Insumo -->
+              <div>
+                <label class="block font-bold text-slate-700 mb-1">Producto / Insumo Seleccionado *</label>
+                <select
+                  [(ngModel)]="formEntrada.insumoId"
+                  (change)="alCambiarProductoEntrada()"
+                  class="w-full p-2.5 rounded-xl border border-slate-200 bg-white focus:outline-none focus:border-easydry-blue">
+                  <option value="">Seleccione un producto...</option>
+                  <option *ngFor="let p of productosEntradaFiltrados" [value]="p.id">
+                    {{ p.nombre }} (SKU: {{ p.codigoSKU }}) — Stock: {{ getStockEnUnidades(p.stockActual, p.contenidoNeto) | number:'1.0-2' }} und ({{ p.stockActual | number:'1.0-2' }} {{ p.unidadMedida }})
+                  </option>
+                </select>
+                <p *ngIf="productosEntradaFiltrados.length === 0" class="text-[11px] text-amber-600 mt-1">
+                  No se encontraron productos que coincidan con la búsqueda.
+                </p>
+              </div>
             </div>
 
             <!-- Ficha informativa de contenido del producto -->
@@ -2300,6 +2605,284 @@ import {
         </div>
       </div>
 
+      <!-- ============================================================== -->
+      <!-- MODAL: DESPACHAR SUMINISTRO A SEDE / AGENCIA                   -->
+      <!-- ============================================================== -->
+      <div *ngIf="modalDespachoAgenciaOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+        <div class="bg-white w-full max-w-lg rounded-2xl shadow-2xl border border-slate-100 p-5 space-y-4 animate-fade-in">
+          <div class="flex items-center justify-between pb-2 border-b border-slate-100">
+            <div class="flex items-center gap-2">
+              <div class="w-8 h-8 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center font-bold">
+                <i-lucide name="truck" class="w-4 h-4"></i-lucide>
+              </div>
+              <div>
+                <h3 class="text-sm font-black text-slate-900">Despachar Suministro a Sede</h3>
+                <p class="text-[11px] text-slate-500">Envío desde Bodega Central con confirmación obligatoria en destino</p>
+              </div>
+            </div>
+            <button (click)="modalDespachoAgenciaOpen = false" class="text-slate-400 hover:text-slate-600 cursor-pointer">
+              <i-lucide name="x" class="w-5 h-5"></i-lucide>
+            </button>
+          </div>
+
+          <form (submit)="$event.preventDefault(); ejecutarDespachoAgencia()" class="space-y-3 text-xs">
+            <!-- Sede Destino -->
+            <div>
+              <label class="block font-bold text-slate-700 mb-1">Agencia / Sede Receptora *</label>
+              <div *ngIf="agenciaDespachoFija" class="p-2.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <i-lucide name="store" class="w-4 h-4 text-purple-700 shrink-0"></i-lucide>
+                  <span class="font-bold text-slate-800 text-xs">{{ agenciaDespachoFija.nombre }}</span>
+                  <span *ngIf="agenciaDespachoFija.ciudad" class="text-slate-400 text-[11px]">({{ agenciaDespachoFija.ciudad }})</span>
+                </div>
+                <span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-200/80 text-slate-700 border border-slate-300/80 shrink-0">
+                  Sede Asignada
+                </span>
+              </div>
+              <select
+                *ngIf="!agenciaDespachoFija"
+                [(ngModel)]="despachoAgenciaForm.agenciaId"
+                (change)="alCambiarAgenciaDespacho()"
+                name="agenciaId"
+                class="w-full p-2.5 rounded-xl border border-slate-200 bg-white font-medium text-slate-800"
+                required>
+                <option value="" disabled>Seleccione sede destino...</option>
+                <option *ngFor="let ag of getAgenciasDestinoDisponibles()" [value]="ag.id">
+                  {{ ag.nombre }} ({{ ag.ciudad || 'Sede' }})
+                </option>
+              </select>
+            </div>
+
+            <!-- Insumo a Despachar (Bloqueado si se seleccionó en fila) -->
+            <div>
+              <label class="block font-bold text-slate-700 mb-1">Insumo / Producto a Despachar *</label>
+              
+              <!-- Caso 1: Producto Fijo Bloqueado (no permite cambiar) -->
+              <div *ngIf="productoDespachoFijo" class="p-3 bg-purple-50/70 rounded-xl border border-purple-200 flex items-center justify-between">
+                <div class="flex items-center gap-2.5 truncate mr-2">
+                  <div class="w-8 h-8 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center font-bold shrink-0">
+                    <i-lucide name="package" class="w-4 h-4"></i-lucide>
+                  </div>
+                  <div class="truncate">
+                    <p class="font-extrabold text-slate-900 text-xs truncate">{{ productoDespachoFijo.nombre }}</p>
+                    <span class="text-[10px] font-mono text-purple-900/80 block">
+                      SKU: {{ productoDespachoFijo.codigoSKU }} | Unidad: {{ productoDespachoFijo.unidadMedida || 'u' }}
+                      <span *ngIf="productoDespachoFijo.stockActual !== undefined">
+                        • Stock Bodega: <b>{{ productoDespachoFijo.stockActual }}</b>
+                      </span>
+                    </span>
+                  </div>
+                </div>
+                <span class="px-2.5 py-1 rounded-lg text-[10px] font-extrabold bg-purple-200/80 text-purple-900 border border-purple-300 shrink-0">
+                  Insumo Fijo (Bloqueado)
+                </span>
+              </div>
+
+              <!-- Caso 2: Selector normal si se abrió sin insumo preseleccionado -->
+              <div *ngIf="!productoDespachoFijo" class="space-y-1">
+                <select
+                  [(ngModel)]="despachoAgenciaForm.insumoId"
+                  name="insumoId"
+                  class="w-full p-2.5 rounded-xl border border-slate-200 bg-white font-medium text-slate-800"
+                  required>
+                  <option value="" disabled>Seleccione insumo requerido por esta sede...</option>
+                  <option *ngFor="let p of insumosDisponiblesDespacho" [value]="p.id">
+                    {{ p.nombre }} (SKU: {{ p.codigoSKU }} | Stock Bodega: {{ p.stockActual || 0 }} {{ p.unidadMedida || 'u' }})
+                  </option>
+                </select>
+                <p class="text-[11px] text-slate-500">
+                  Solo se listan los insumos que esta sede utiliza para sus servicios asignados.
+                </p>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block font-bold text-slate-700 mb-1">Cantidad a Enviar *</label>
+                <input
+                  type="number"
+                  [(ngModel)]="despachoAgenciaForm.cantidad"
+                  name="cantidad"
+                  min="1"
+                  class="w-full p-2.5 rounded-xl border border-slate-200 font-bold text-slate-900"
+                  required />
+              </div>
+              <div>
+                <label class="block font-bold text-slate-700 mb-1">Nota u Observación</label>
+                <input
+                  type="text"
+                  [(ngModel)]="despachoAgenciaForm.observacion"
+                  name="observacion"
+                  placeholder="ej. Reposición de químicos"
+                  class="w-full p-2.5 rounded-xl border border-slate-200" />
+              </div>
+            </div>
+
+            <div class="p-3 bg-purple-50 rounded-xl border border-purple-200 text-purple-900 text-[11px] space-y-0.5">
+              <p class="font-bold">Información del Flujo:</p>
+              <p>1. Se creará una guía en estado <b>EN TRÁNSITO</b> visible de inmediato en <b>Envíos & Confirmación</b>.</p>
+              <p>2. La sede receptora deberá verificar físicamente y presionar <b>Confirmar</b> para alimentar su stock o <b>Rechazar</b> con una razón obligatoria.</p>
+            </div>
+
+            <div class="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                (click)="modalDespachoAgenciaOpen = false"
+                class="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 text-xs font-bold cursor-pointer">
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                [disabled]="procesandoDespachoAgencia || !despachoAgenciaForm.agenciaId || (!productoDespachoFijo && !despachoAgenciaForm.insumoId) || !despachoAgenciaForm.cantidad || despachoAgenciaForm.cantidad <= 0"
+                class="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-black cursor-pointer shadow-sm flex items-center gap-1.5 disabled:opacity-50">
+                <i-lucide name="send" class="w-3.5 h-3.5"></i-lucide>
+                <span>{{ procesandoDespachoAgencia ? 'Despachando...' : 'Confirmar Envío a Sede' }}</span>
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- ============================================================== -->
+      <!-- MODAL: REGISTRAR / EDITAR BODEGA                               -->
+      <!-- ============================================================== -->
+      <app-modal
+        [isOpen]="modalBodegaOpen"
+        [title]="editandoBodega ? 'Editar Bodega Regional' : 'Registrar Nueva Bodega Regional'"
+        icon="warehouse"
+        (close)="modalBodegaOpen = false">
+        <form (ngSubmit)="guardarBodega()" class="space-y-4">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">
+              Nombre de la Bodega <span class="text-rose-500">*</span>
+            </label>
+            <input
+              type="text"
+              [(ngModel)]="bodegaForm.nombre"
+              name="bodegaNombre"
+              placeholder="ej. Bodega Regional Manabí - Manta"
+              class="w-full p-2.5 rounded-xl border border-slate-200 text-sm font-semibold focus:border-easydry-blue outline-none"
+              required />
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">
+                Región Asignada (Obligatoria) <span class="text-rose-500">*</span>
+              </label>
+              <select
+                [(ngModel)]="bodegaForm.regionId"
+                name="bodegaRegion"
+                class="w-full p-2.5 rounded-xl border border-slate-200 text-sm font-semibold bg-white focus:border-easydry-blue outline-none"
+                required>
+                <option value="" disabled>Seleccione una región</option>
+                <option *ngFor="let r of regionesDisponibles" [value]="r.id">
+                  {{ r.nombre }} ({{ r.codigo }})
+                </option>
+              </select>
+              <p class="text-[11px] text-slate-400 mt-1">
+                Cada bodega debe pertenecer formalmente a una región del sistema.
+              </p>
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">
+                Código Identificador
+              </label>
+              <input
+                type="text"
+                [(ngModel)]="bodegaForm.codigo"
+                name="bodegaCodigo"
+                placeholder="ej. BOD-MANABI"
+                class="w-full p-2.5 rounded-xl border border-slate-200 text-sm font-mono focus:border-easydry-blue outline-none" />
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">
+                Ciudad Principal
+              </label>
+              <input
+                type="text"
+                [(ngModel)]="bodegaForm.ciudad"
+                name="bodegaCiudad"
+                placeholder="ej. Manta"
+                class="w-full p-2.5 rounded-xl border border-slate-200 text-sm focus:border-easydry-blue outline-none" />
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">
+                Teléfono de Contacto
+              </label>
+              <input
+                type="text"
+                [(ngModel)]="bodegaForm.telefono"
+                name="bodegaTelefono"
+                placeholder="ej. 0991234567"
+                class="w-full p-2.5 rounded-xl border border-slate-200 text-sm focus:border-easydry-blue outline-none" />
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">
+                Dirección Física / HUB Logístico
+              </label>
+              <input
+                type="text"
+                [(ngModel)]="bodegaForm.direccion"
+                name="bodegaDireccion"
+                placeholder="ej. Av. 4 de Noviembre y Calle 114"
+                class="w-full p-2.5 rounded-xl border border-slate-200 text-sm focus:border-easydry-blue outline-none" />
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">
+                % Umbral Alerta Mínimo de Stock
+              </label>
+              <div class="relative flex items-center">
+                <input
+                  type="number"
+                  min="1"
+                  max="100"
+                  [(ngModel)]="bodegaForm.porcentajeAlerta"
+                  name="bodegaPorcentajeAlerta"
+                  placeholder="ej. 20"
+                  class="w-full p-2.5 rounded-xl border border-slate-200 text-sm focus:border-easydry-blue outline-none pr-8" />
+                <span class="absolute right-3 text-slate-400 font-bold text-xs">%</span>
+              </div>
+              <p class="text-[10px] text-slate-400 mt-0.5">
+                Margen sobre el mínimo para alerta preventiva.
+              </p>
+            </div>
+          </div>
+
+          <div class="p-3 bg-blue-50 rounded-xl border border-blue-200 text-blue-900 text-xs flex items-start gap-2">
+            <i-lucide name="shield-check" class="w-4 h-4 text-easydry-blue shrink-0 mt-0.5"></i-lucide>
+            <p>
+              Esta bodega quedará disponible inmediatamente para la asignación de <b>Asistentes de Bodega</b> en Gestión de Usuarios y despachos zonales.
+            </p>
+          </div>
+
+          <div class="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+            <button
+              type="button"
+              (click)="modalBodegaOpen = false"
+              class="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 text-xs font-bold cursor-pointer">
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              [disabled]="guardandoBodega || !bodegaForm.nombre.trim() || !bodegaForm.regionId"
+              class="px-5 py-2 rounded-xl bg-easydry-blue hover:bg-blue-700 text-white text-xs font-black cursor-pointer shadow-sm flex items-center gap-1.5 disabled:opacity-50">
+              <i-lucide name="save" class="w-3.5 h-3.5"></i-lucide>
+              <span>{{ guardandoBodega ? 'Guardando...' : (editandoBodega ? 'Guardar Cambios' : 'Registrar Bodega') }}</span>
+            </button>
+          </div>
+        </form>
+      </app-modal>
+
     </div>
   `,
 })
@@ -2308,13 +2891,52 @@ export class InventarioComponent implements OnInit {
   private toast = inject(ToastService);
   private auth = inject(AuthService);
   private sucursalService = inject(SucursalMockService);
+  private usuarioService = inject(UsuarioMockService);
+  private regionService = inject(RegionMockService);
 
   // Navegación
-  activeTab: 'dashboard' | 'insumos_servicios' | 'productos' | 'bodegas' | 'agencias' | 'movimientos' | 'stock_bajo' | 'configuracion' = 'dashboard';
+  activeTab: 'dashboard' | 'insumos_servicios' | 'productos' | 'bodegas' | 'agencias' | 'movimientos' | 'stock_bajo' | 'configuracion' = 'insumos_servicios';
   subTabConfig: 'tipos' | 'unidades' = 'tipos';
+
+  // Bodegas & Asistentes
+  bodegasDisponibles: BodegaInventario[] = [];
+  bodegaSeleccionadaId: string = 'bod_central';
+  bodegaSeleccionada: BodegaInventario | null = null;
+  todosLosUsuarios: Usuario[] = [];
+  cargandoBodegas: boolean = false;
+  regionesDisponibles: any[] = [];
+  modalBodegaOpen: boolean = false;
+  editandoBodega: BodegaInventario | null = null;
+  guardandoBodega: boolean = false;
+  bodegaForm = {
+    nombre: '',
+    codigo: '',
+    regionId: '',
+    ciudad: '',
+    direccion: '',
+    telefono: '',
+    porcentajeAlerta: 20
+  };
+
+  get esGestorGlobalOBodegaAdmin(): boolean {
+    const role = (this.currentUser?.role || '').toUpperCase();
+    const rolNombre = (this.currentUser?.rolNombre || '').toLowerCase();
+    return (
+      this.auth.isSuperAdmin() ||
+      this.auth.isAdmin() ||
+      role === 'COORD_BODEGA' ||
+      role === 'DISTRIBUIDOR' ||
+      role === 'SUPER_ADMIN' ||
+      role === 'ADMIN' ||
+      rolNombre.includes('bodega') ||
+      rolNombre.includes('distribuidor') ||
+      rolNombre.includes('inventario')
+    );
+  }
 
   // Usuario y Sede Actual
   currentUser: any = null;
+  isOperador: boolean = false;
   isLiderOperador: boolean = false;
   esLiderAgencia: boolean = false;
   miAgenciaId: string = '';
@@ -2350,6 +2972,21 @@ export class InventarioComponent implements OnInit {
     'Envases rotos / derrame de químicos en traslado',
     'Insumos enviados no coinciden con lo solicitado'
   ];
+
+  // Despachos rechazados para visibilidad de Super Admin
+  despachosRechazadosSuperAdmin: any[] = [];
+  modalDespachoAgenciaOpen: boolean = false;
+  productoDespachoFijo: any = null;
+  agenciaDespachoFija: any = null;
+  despachoAgenciaForm = {
+    agenciaId: '',
+    insumoId: '',
+    insumoNombre: '',
+    cantidad: 1,
+    observacion: ''
+  };
+  insumosDisponiblesDespacho: any[] = [];
+  procesandoDespachoAgencia: boolean = false;
 
   // Catálogos cargados de BD
   productos: ProductoInsumo[] = [];
@@ -2417,6 +3054,7 @@ export class InventarioComponent implements OnInit {
   busquedaProductoEntrada = '';
   productosEntradaFiltrados: ProductoInsumo[] = [];
   productoEntradaSeleccionado: ProductoInsumo | null = null;
+  productoEntradaFijo: any = null;
   previewEntradaCantidadBase = 0;
 
   // Formulario de Consumo
@@ -2460,25 +3098,44 @@ export class InventarioComponent implements OnInit {
     this.currentUser = this.auth.getCurrentUser();
     const role = (this.currentUser?.role || '').toUpperCase();
     const rolNombre = (this.currentUser?.rolNombre || '').toLowerCase();
-    this.isLiderOperador =
-      role === 'LIDER' ||
-      role === 'LIDER_OPERADOR' ||
-      role === 'LIDER_AGENCIA' ||
-      role === 'APROBADOR' ||
-      rolNombre.includes('líder') ||
-      rolNombre.includes('lider');
-    this.esLiderAgencia = role === 'LIDER_AGENCIA' || rolNombre === 'lider_agencia';
+    
+    const esAdminOSuperAdmin =
+      this.auth.isAdmin() ||
+      this.auth.isSuperAdmin() ||
+      role === 'ADMIN' ||
+      role === 'SUPER_ADMIN';
+
+    const esBodega =
+      role === 'COORD_BODEGA' ||
+      role === 'DISTRIBUIDOR' ||
+      role === 'ASISTENTE_BODEGA' ||
+      rolNombre.includes('bodega') ||
+      rolNombre.includes('distribuidor');
+
+    const esAdminOBodega = esAdminOSuperAdmin || esBodega;
+
+    this.isOperador = !esAdminOBodega;
+    this.isLiderOperador = this.isOperador && (role === 'LIDER_OPERADOR' || role === 'LIDER_AGENCIA' || rolNombre.includes('lider'));
+    this.esLiderAgencia = this.isLiderOperador;
 
     this.miAgenciaNombre = this.currentUser?.sucursalNombre || this.currentUser?.sucursal || '';
     this.miAgenciaId = (this.currentUser?.agenciaId ? String(this.currentUser.agenciaId) : '') || this.miAgenciaNombre;
 
-    if (this.isLiderOperador || this.esLiderAgencia) {
+    if (this.isOperador) {
       this.activeTab = 'insumos_servicios';
+    } else if (esBodega) {
+      this.activeTab = 'bodegas';
     }
 
     this.cargarTodosLosCatalogos();
+    this.cargarRegiones();
+    this.cargarBodegasDisponibles();
+    this.cargarUsuariosYAsistentes();
     this.cargarInsumosPorServicios();
     this.cargarDespachosPendientes();
+    this.cargarDespachosRechazadosSuperAdmin();
+    this.cargarStockBodega();
+    this.cargarStockAgencias();
 
     // Cargar sedes activas para el selector de agencias
     this.sucursalService.getSucursales().subscribe((sucursales) => {
@@ -2515,8 +3172,205 @@ export class InventarioComponent implements OnInit {
   }
 
   // ==============================================================
-  // CARGA DE DATOS DESDE BACKEND
+  // CARGA DE DATOS DESDE BACKEND & DESPACHOS
   // ==============================================================
+
+  public cargarDespachosRechazadosSuperAdmin(): void {
+    if (this.isOperador) return;
+    this.inventarioService.getDespachosRechazados().subscribe({
+      next: (list) => {
+        this.despachosRechazadosSuperAdmin = list || [];
+      },
+      error: (err) => console.error('Error al consultar despachos rechazados:', err)
+    });
+  }
+
+  public getAgenciasDestinoDisponibles(): any[] {
+    const role = (this.currentUser?.role || '').toUpperCase();
+    const esAsistenteBodega = role === 'ASISTENTE_BODEGA';
+    const userRegion = (this.currentUser?.region || this.currentUser?.regionNombre || '').toLowerCase().trim();
+
+    if (esAsistenteBodega && userRegion) {
+      // Asistente de Bodega: gestiona únicamente las agencias de su región asignada
+      const regionales = this.sucursalesActivas.filter(s =>
+        (s.regionNombre && s.regionNombre.toLowerCase().includes(userRegion)) ||
+        (s.ciudad && s.ciudad.toLowerCase().includes(userRegion))
+      );
+      return regionales.length > 0 ? regionales : this.sucursalesActivas;
+    }
+
+    if (this.isOperador && this.miAgenciaId) {
+      const filtradas = this.sucursalesActivas.filter(
+        (s) => String(s.id) !== String(this.miAgenciaId) && s.nombre?.toLowerCase() !== this.miAgenciaNombre?.toLowerCase()
+      );
+      return filtradas.length > 0 ? filtradas : this.sucursalesActivas;
+    }
+
+    // Gestor de Bodega (COORD_BODEGA) y Admin: todas las agencias sin importar región ni marcas
+    return this.sucursalesActivas;
+  }
+
+  public abrirModalDespachoAgencia(agenciaParam?: any, insumoParam?: any): void {
+    let agId = '';
+    let agObj: any = null;
+
+    const agenciasOpciones = this.getAgenciasDestinoDisponibles();
+    if (agenciaParam) {
+      if (typeof agenciaParam === 'object') {
+        agId = String(agenciaParam.id || agenciaParam.agenciaId || '');
+        agObj = agenciaParam;
+      } else {
+        agId = String(agenciaParam);
+        agObj = this.sucursalesActivas.find((s) => String(s.id) === agId) || null;
+      }
+    } else if (agenciasOpciones.length > 0) {
+      agId = String(agenciasOpciones[0].id);
+      agObj = agenciasOpciones[0];
+    }
+
+    this.agenciaDespachoFija = agenciaParam ? agObj : null;
+
+    let insId = '';
+    let insNombre = '';
+    let insDeficit = 1;
+    let prodFijo: any = null;
+
+    if (insumoParam) {
+      insId = (insumoParam.insumoId || insumoParam.id || '').toString();
+      insNombre = insumoParam.nombre || '';
+      insDeficit = Number(insumoParam.deficit) > 0 ? Number(insumoParam.deficit) : 1;
+
+      // Buscar en catálogo de productos para enlazar SKU, unidad y stock
+      const found = this.productos.find(
+        (p) =>
+          p.id.toString() === insId ||
+          (p.codigoSKU && insumoParam.codigoSKU && p.codigoSKU.toLowerCase() === insumoParam.codigoSKU.toLowerCase()) ||
+          (p.nombre && insNombre && p.nombre.toLowerCase().trim() === insNombre.toLowerCase().trim())
+      );
+
+      if (found) {
+        insId = found.id.toString();
+        prodFijo = {
+          ...found,
+          stockActual: found.stockActual ?? insumoParam.stockActual
+        };
+      } else {
+        prodFijo = {
+          id: insId,
+          nombre: insNombre,
+          codigoSKU: insumoParam.codigoSKU || 'SKU',
+          unidadMedida: insumoParam.unidad || insumoParam.unidadMedida || 'u',
+          stockActual: insumoParam.stockActual || 0
+        };
+      }
+    } else {
+      insId = this.productos.length > 0 ? String(this.productos[0].id) : '';
+    }
+
+    this.productoDespachoFijo = insumoParam ? prodFijo : null;
+
+    this.despachoAgenciaForm = {
+      agenciaId: agId,
+      insumoId: insId,
+      insumoNombre: prodFijo ? prodFijo.nombre : '',
+      cantidad: insDeficit,
+      observacion: agObj ? `Despacho central asignado a sede: ${agObj.nombre || ''} (${agObj.codigo || ''})` : ''
+    };
+    this.alCambiarAgenciaDespacho();
+    this.modalDespachoAgenciaOpen = true;
+  }
+
+  public alCambiarAgenciaDespacho(): void {
+    const agId = this.despachoAgenciaForm.agenciaId;
+    if (!agId) {
+      this.insumosDisponiblesDespacho = [...this.productos];
+      return;
+    }
+
+    const agResumen = (this.resumenAgencias?.agencias || []).find(
+      (a: any) =>
+        String(a.agencia?.id) === String(agId) ||
+        a.agencia?.nombre === agId ||
+        String(a.agencia?.codigo) === String(agId)
+    );
+
+    if (agResumen && agResumen.insumos && agResumen.insumos.length > 0) {
+      const idsValidos = new Set(agResumen.insumos.map((i: any) => String(i.insumoId || i.id)));
+      const filtrados = this.productos.filter((p) => idsValidos.has(String(p.id)));
+      if (filtrados.length > 0) {
+        this.insumosDisponiblesDespacho = filtrados;
+      } else {
+        this.insumosDisponiblesDespacho = agResumen.insumos.map((i: any) => ({
+          id: i.insumoId || i.id,
+          nombre: i.nombre,
+          codigoSKU: i.codigoSKU,
+          unidadMedida: i.unidad || 'u',
+          stockActual: i.stockActual || 0
+        }));
+      }
+    } else {
+      this.insumosDisponiblesDespacho = [...this.productos];
+    }
+
+    if (
+      this.insumosDisponiblesDespacho.length > 0 &&
+      !this.insumosDisponiblesDespacho.some((p) => String(p.id) === String(this.despachoAgenciaForm.insumoId))
+    ) {
+      this.despachoAgenciaForm.insumoId = String(this.insumosDisponiblesDespacho[0].id);
+    }
+  }
+
+  public ejecutarDespachoAgencia(): void {
+    if (!this.despachoAgenciaForm.agenciaId) {
+      this.toast.warning('Agencia Requerida', 'Selecciona la agencia o sucursal de destino');
+      return;
+    }
+    const targetInsumoId = this.productoDespachoFijo ? this.productoDespachoFijo.id : this.despachoAgenciaForm.insumoId;
+    if (!targetInsumoId) {
+      this.toast.warning('Insumo Requerido', 'Selecciona el insumo a despachar');
+      return;
+    }
+    if (!this.despachoAgenciaForm.cantidad || this.despachoAgenciaForm.cantidad <= 0) {
+      this.toast.warning('Cantidad Inválida', 'La cantidad debe ser mayor a 0');
+      return;
+    }
+
+    this.procesandoDespachoAgencia = true;
+    const payload = {
+      tipo: 'DESPACHO_AGENCIA',
+      agenciaId: String(this.despachoAgenciaForm.agenciaId),
+      sucursalDestinoId: String(this.despachoAgenciaForm.agenciaId),
+      agenciaDestinoId: String(this.despachoAgenciaForm.agenciaId),
+      observaciones: this.despachoAgenciaForm.observacion || 'Despacho directo desde sección de suministros',
+      detalles: [
+        {
+          insumoId: String(targetInsumoId),
+          cantidadEnviada: Number(this.despachoAgenciaForm.cantidad)
+        }
+      ]
+    };
+
+    this.inventarioService.crearDespacho(payload).subscribe({
+      next: (res: any) => {
+        this.procesandoDespachoAgencia = false;
+        this.modalDespachoAgenciaOpen = false;
+        this.toast.success(
+          'Despacho Generado con Éxito',
+          `Guía ${res.numeroGuia || ''} despachada hacia la sede. Aparece en tránsito en Envíos & Confirmación.`
+        );
+        this.cargarProductos();
+        this.cargarDespachosPendientes();
+        this.cargarDespachosRechazadosSuperAdmin();
+        if (this.activeTab === 'agencias') this.cargarStockAgencias();
+        if (this.activeTab === 'bodegas') this.cargarStockBodega();
+      },
+      error: (err: any) => {
+        this.procesandoDespachoAgencia = false;
+        const msg = err?.error?.message || 'Error al despachar el suministro desde bodega central';
+        this.toast.error('Error en Despacho', msg);
+      }
+    });
+  }
 
   public cargarDespachosPendientes(): void {
     this.inventarioService.getDespachosPendientesAgencia(this.miAgenciaId).subscribe({
@@ -2539,6 +3393,9 @@ export class InventarioComponent implements OnInit {
         this.cargarDespachosPendientes();
         this.cargarInsumosPorServicios();
         this.cargarProductos();
+        this.cargarDespachosRechazadosSuperAdmin();
+        this.cargarStockAgencias();
+        this.cargarStockBodega();
       },
       error: () => {
         this.procesandoRecepcion = false;
@@ -2573,6 +3430,7 @@ export class InventarioComponent implements OnInit {
           `Se reportó la no conformidad del despacho ${this.despachoSeleccionadoRechazo.numeroGuia} a Bodega Central.`
         );
         this.cargarDespachosPendientes();
+        this.cargarDespachosRechazadosSuperAdmin();
       },
       error: () => {
         this.procesandoRecepcion = false;
@@ -2670,10 +3528,8 @@ export class InventarioComponent implements OnInit {
 
   public cargarProductos(): void {
     const dto: any = {};
-    if (this.miAgenciaId) {
+    if (this.isOperador && this.miAgenciaId) {
       dto.agenciaId = this.miAgenciaId;
-    } else if (this.isLiderOperador || this.esLiderAgencia || this.currentUser?.agenciaId) {
-      dto.agenciaId = this.currentUser?.agenciaId;
     }
     this.inventarioService.getProductos(dto).subscribe((prods) => {
       this.productos = prods;
@@ -2778,14 +3634,268 @@ export class InventarioComponent implements OnInit {
     });
   }
 
-  public cargarStockBodega(): void {
-    this.inventarioService.getStockBodegasResumen().subscribe({
+  public cargarBodegasDisponibles(): void {
+    this.cargandoBodegas = true;
+    this.inventarioService.getBodegas().subscribe({
+      next: (bodegas) => {
+        this.bodegasDisponibles = bodegas || [];
+        const role = (this.currentUser?.role || '').toUpperCase();
+        const esAsistenteBodega = role === 'ASISTENTE_BODEGA';
+        const userRegion = (this.currentUser?.region || this.currentUser?.regionNombre || '').toLowerCase().trim();
+        const userAgencia = (this.currentUser?.agencia || this.currentUser?.sucursal || '').toLowerCase().trim();
+
+        if (esAsistenteBodega && (userRegion || userAgencia)) {
+          const matching = this.bodegasDisponibles.find(
+            (b) =>
+              (userRegion && b.region && b.region.toLowerCase().includes(userRegion)) ||
+              (userAgencia && b.nombre.toLowerCase().includes(userAgencia))
+          );
+          if (matching) {
+            this.bodegaSeleccionadaId = matching.id;
+          }
+        }
+
+        if (!this.bodegaSeleccionadaId && this.bodegasDisponibles.length > 0) {
+          this.bodegaSeleccionadaId = this.bodegasDisponibles[0].id;
+        }
+
+        this.bodegaSeleccionada =
+          this.bodegasDisponibles.find((b) => b.id === this.bodegaSeleccionadaId) ||
+          this.bodegasDisponibles[0] ||
+          null;
+        this.cargandoBodegas = false;
+        this.cargarStockBodega(this.bodegaSeleccionadaId);
+      },
+      error: (err) => {
+        this.cargandoBodegas = false;
+        console.error('Error al cargar bodegas:', err);
+      },
+    });
+  }
+
+  public cargarRegiones(): void {
+    this.regionService.getRegiones().subscribe({
+      next: (regs) => {
+        this.regionesDisponibles = (regs || []).filter((r) => r.estado === 'Activa' || (r.estado as any) === 1);
+        if (!this.bodegaForm.regionId && this.regionesDisponibles.length > 0) {
+          this.bodegaForm.regionId = this.regionesDisponibles[0].id;
+        }
+      },
+      error: (err) => console.error('Error al cargar regiones:', err),
+    });
+  }
+
+  public abrirModalCrearBodega(): void {
+    this.editandoBodega = null;
+    this.cargarRegiones();
+    const primeraRegion = this.regionesDisponibles[0]?.id || '';
+    this.bodegaForm = {
+      nombre: '',
+      codigo: '',
+      regionId: primeraRegion,
+      ciudad: '',
+      direccion: '',
+      telefono: '',
+      porcentajeAlerta: 20,
+    };
+    this.modalBodegaOpen = true;
+  }
+
+  public abrirModalEditarBodega(bod: BodegaInventario): void {
+    this.editandoBodega = bod;
+    this.cargarRegiones();
+    const regMatch = this.regionesDisponibles.find(
+      (r) => r.id === bod.regionId || r.nombre.toLowerCase() === (bod.region || '').toLowerCase()
+    );
+    this.bodegaForm = {
+      nombre: bod.nombre,
+      codigo: bod.codigo,
+      regionId: bod.regionId || regMatch?.id || this.regionesDisponibles[0]?.id || '',
+      ciudad: bod.ciudad || '',
+      direccion: bod.direccion || '',
+      telefono: bod.telefono || '',
+      porcentajeAlerta: Number(bod.porcentajeAlerta || 20),
+    };
+    this.modalBodegaOpen = true;
+  }
+
+  public guardarBodega(): void {
+    if (!this.bodegaForm.nombre?.trim()) {
+      this.toast.warning('Nombre requerido', 'Debe ingresar el nombre de la bodega.');
+      return;
+    }
+
+    if (!this.bodegaForm.regionId) {
+      this.toast.warning('Región obligatoria', 'Cada bodega debe estar estrictamente vinculada a una región.');
+      return;
+    }
+
+    this.guardandoBodega = true;
+
+    if (this.editandoBodega) {
+      this.inventarioService
+        .actualizarBodega({
+          id: this.editandoBodega.id,
+          nombre: this.bodegaForm.nombre.trim(),
+          codigo: this.bodegaForm.codigo?.trim() || undefined,
+          regionId: this.bodegaForm.regionId,
+          ciudad: this.bodegaForm.ciudad?.trim() || undefined,
+          direccion: this.bodegaForm.direccion?.trim() || undefined,
+          telefono: this.bodegaForm.telefono?.trim() || undefined,
+          porcentajeAlerta: Number(this.bodegaForm.porcentajeAlerta) || 20,
+        })
+        .subscribe({
+          next: (res) => {
+            this.guardandoBodega = false;
+            this.modalBodegaOpen = false;
+            this.toast.success('Bodega Actualizada', res.message || 'Bodega actualizada correctamente.');
+            this.cargarBodegasDisponibles();
+          },
+          error: (err) => {
+            this.guardandoBodega = false;
+            console.error('Error al actualizar bodega:', err);
+            this.toast.error('Error', err.error?.message || 'No se pudo actualizar la bodega.');
+          },
+        });
+    } else {
+      this.inventarioService
+        .crearBodega({
+          nombre: this.bodegaForm.nombre.trim(),
+          codigo: this.bodegaForm.codigo?.trim() || undefined,
+          regionId: this.bodegaForm.regionId,
+          ciudad: this.bodegaForm.ciudad?.trim() || undefined,
+          direccion: this.bodegaForm.direccion?.trim() || undefined,
+          telefono: this.bodegaForm.telefono?.trim() || undefined,
+          porcentajeAlerta: Number(this.bodegaForm.porcentajeAlerta) || 20,
+        })
+        .subscribe({
+          next: (res) => {
+            this.guardandoBodega = false;
+            this.modalBodegaOpen = false;
+            this.toast.success('Bodega Registrada', res.message || 'Bodega creada exitosamente vinculada a su región.');
+            this.cargarBodegasDisponibles();
+          },
+          error: (err) => {
+            this.guardandoBodega = false;
+            console.error('Error al crear bodega:', err);
+            this.toast.error('Error', err.error?.message || 'No se pudo registrar la bodega.');
+          },
+        });
+    }
+  }
+
+  public eliminarBodega(bod: BodegaInventario): void {
+    if (bod.esCentral) {
+      this.toast.warning('Acción no permitida', 'La Bodega Central Nacional no puede eliminarse.');
+      return;
+    }
+
+    if (!confirm(`¿Está seguro de eliminar la bodega "${bod.nombre}"? Esta acción removerá el almacén del sistema.`)) {
+      return;
+    }
+
+    this.inventarioService.eliminarBodega(bod.id).subscribe({
+      next: (res) => {
+        this.toast.success('Bodega Eliminada', res.message || 'Bodega eliminada correctamente.');
+        this.cargarBodegasDisponibles();
+      },
+      error: (err) => {
+        console.error('Error al eliminar bodega:', err);
+        this.toast.error('Error', err.error?.message || 'No se pudo eliminar la bodega.');
+      },
+    });
+  }
+
+  public cargarUsuariosYAsistentes(): void {
+    this.usuarioService.getUsuarios(true).subscribe({
+      next: (usuarios) => {
+        this.todosLosUsuarios = usuarios || [];
+      },
+      error: (err) => console.error('Error al cargar usuarios:', err),
+    });
+  }
+
+  public seleccionarBodega(bodegaId: string): void {
+    this.bodegaSeleccionadaId = bodegaId;
+    this.bodegaSeleccionada = this.bodegasDisponibles.find((b) => b.id === bodegaId) || null;
+    this.cargarStockBodega(bodegaId);
+  }
+
+  public getAsistentesDeBodega(bodega: BodegaInventario | null): Usuario[] {
+    if (!bodega || !this.todosLosUsuarios || this.todosLosUsuarios.length === 0) return [];
+
+    return this.todosLosUsuarios.filter((u) => {
+      const rol = (u.rol || u.rolNombre || '').toUpperCase();
+      const esAsistente =
+        rol.includes('ASISTENTE') || rol.includes('BODEGA') || rol === 'ASISTENTE_BODEGA';
+      if (!esAsistente) return false;
+
+      // Si es bodega central
+      if (bodega.esCentral || bodega.id === 'bod_central') {
+        const ag = (u.agencia || u.sucursal || '').toLowerCase();
+        const reg = (u.region || '').toLowerCase();
+        return (
+          ag.includes('central') ||
+          ag.includes('corporativo') ||
+          reg.includes('nacional') ||
+          reg.includes('pichincha') ||
+          !u.regionId ||
+          ag.includes('bodega')
+        );
+      }
+
+      // Si es bodega regional (Costa, Sierra, Austro, etc.)
+      const bodRegion = (bodega.region || '').toLowerCase();
+      const bodNombre = (bodega.nombre || '').toLowerCase();
+      const bodCiudad = (bodega.ciudad || '').toLowerCase();
+
+      const userRegion = (u.region || '').toLowerCase();
+      const userAgencia = (u.agencia || u.sucursal || '').toLowerCase();
+
+      const matchRegionId =
+        bodega.regionId && u.regionId && String(bodega.regionId) === String(u.regionId);
+      const matchRegionName =
+        bodRegion && userRegion && (userRegion.includes(bodRegion) || bodRegion.includes(userRegion));
+      const matchAgencia =
+        userAgencia.includes(bodRegion) ||
+        userAgencia.includes(bodCiudad) ||
+        userAgencia.includes(bodNombre);
+
+      return matchRegionId || matchRegionName || matchAgencia;
+    });
+  }
+
+  public getBodegasParaVisualizacion(): BodegaInventario[] {
+    const role = (this.currentUser?.role || '').toUpperCase();
+    const esAsistenteBodega = role === 'ASISTENTE_BODEGA';
+    const userRegion = (this.currentUser?.region || this.currentUser?.regionNombre || '').toLowerCase().trim();
+    const userAgencia = (this.currentUser?.agencia || this.currentUser?.sucursal || '').toLowerCase().trim();
+
+    if (esAsistenteBodega && (userRegion || userAgencia)) {
+      const asignadas = this.bodegasDisponibles.filter(
+        (b) =>
+          (userRegion && b.region && b.region.toLowerCase().includes(userRegion)) ||
+          (userAgencia && b.nombre.toLowerCase().includes(userAgencia))
+      );
+      if (asignadas.length > 0) return asignadas;
+    }
+
+    // Admin, SuperAdmin, Gestor de Bodega (COORD_BODEGA): todas las bodegas creadas
+    return this.bodegasDisponibles;
+  }
+
+  public cargarStockBodega(bodegaId?: string): void {
+    const id = bodegaId || this.bodegaSeleccionadaId;
+    this.inventarioService.getStockBodegasResumen({ bodegaId: id }).subscribe({
       next: (res) => {
         this.resumenBodegas = res || {
           bodega: null,
           metricas: { totalInsumos: 0, stockTotalUnidades: 0, insumosBajoMinimo: 0, insumosOptimos: 0 },
           insumos: [],
         };
+        if (res?.bodega) {
+          this.bodegaSeleccionada = res.bodega;
+        }
         this.filtrarInsumosBodega();
       },
       error: (err) => console.error('Error al cargar stock de bodegas:', err),
@@ -2825,6 +3935,27 @@ export class InventarioComponent implements OnInit {
 
   public filtrarAgencias(): void {
     let list = [...(this.resumenAgencias?.agencias || [])];
+    const role = (this.currentUser?.role || '').toUpperCase();
+    const esAsistenteBodega = role === 'ASISTENTE_BODEGA';
+    const userRegion = (this.currentUser?.region || this.currentUser?.regionNombre || '').toLowerCase().trim();
+
+    if (esAsistenteBodega && userRegion) {
+      // Asistente de Bodega: gestiona únicamente las agencias de su región
+      list = list.filter((a: any) =>
+        (a.agencia?.region && a.agencia.region.toLowerCase().includes(userRegion)) ||
+        (a.agencia?.ciudad && a.agencia.ciudad.toLowerCase().includes(userRegion)) ||
+        (a.agencia?.nombre && this.sucursalesActivas.some(s => s.nombre.toLowerCase() === a.agencia.nombre.toLowerCase()))
+      );
+    } else if (this.isOperador && this.miAgenciaId) {
+      const otras = list.filter(
+        (a: any) =>
+          String(a.agencia?.id) !== String(this.miAgenciaId) &&
+          a.agencia?.nombre?.toLowerCase() !== this.miAgenciaNombre?.toLowerCase()
+      );
+      if (otras.length > 0) {
+        list = otras;
+      }
+    }
     if (this.filtroAgenciaId) {
       list = list.filter((a: any) => a.agencia?.id === this.filtroAgenciaId);
     }
@@ -2848,15 +3979,7 @@ export class InventarioComponent implements OnInit {
   }
 
   public seleccionarParaDespachoAgencia(agencia: any, insumo: any): void {
-    this.abrirModalEntrada();
-    if (insumo?.id || insumo?.insumoId) {
-      const targetId = (insumo.id || insumo.insumoId).toString();
-      this.formEntrada.insumoId = targetId;
-      this.busquedaProductoEntrada = insumo.nombre || '';
-      this.filtrarProductosEntrada();
-      this.alCambiarProductoEntrada();
-    }
-    this.formEntrada.observaciones = `Despacho central asignado a sede: ${agencia?.nombre || ''} (${agencia?.codigo || ''})`;
+    this.abrirModalDespachoAgencia(agencia, insumo);
   }
 
   // ==============================================================
@@ -2874,15 +3997,35 @@ export class InventarioComponent implements OnInit {
   // REGISTRAR ENTRADA
   // ==============================================================
 
-  public abrirModalEntrada(): void {
-    this.busquedaProductoEntrada = '';
-    this.productosEntradaFiltrados = [...this.productos];
-    this.formEntrada = {
-      insumoId: this.productos[0]?.id?.toString() || '',
-      cantidadUnidades: 1,
-      observaciones: '',
-    };
-    this.alCambiarProductoEntrada();
+  public abrirModalEntrada(prodFijo?: any): void {
+    if (prodFijo) {
+      const pId = (prodFijo.id || prodFijo.insumoId || '').toString();
+      this.productoEntradaFijo = {
+        id: pId,
+        nombre: prodFijo.nombre || '',
+        codigoSKU: prodFijo.codigoSKU || 'SKU',
+        unidadMedida: prodFijo.unidadMedida || prodFijo.unidad || 'u',
+        contenidoNeto: Number(prodFijo.contenidoNeto || 1),
+        stockActual: Number(prodFijo.stockActual || 0)
+      };
+      this.formEntrada = {
+        insumoId: pId,
+        cantidadUnidades: 1,
+        observaciones: '',
+      };
+      this.productoEntradaSeleccionado = this.productoEntradaFijo;
+      this.calcularPreviewEntrada();
+    } else {
+      this.productoEntradaFijo = null;
+      this.busquedaProductoEntrada = '';
+      this.productosEntradaFiltrados = [...this.productos];
+      this.formEntrada = {
+        insumoId: this.productos[0]?.id?.toString() || '',
+        cantidadUnidades: 1,
+        observaciones: '',
+      };
+      this.alCambiarProductoEntrada();
+    }
     this.modalEntradaAbierto = true;
   }
 
@@ -2907,12 +4050,11 @@ export class InventarioComponent implements OnInit {
   }
 
   public seleccionarParaEntrada(p: any): void {
-    this.abrirModalEntrada();
     const id = (p.insumoId || p.id)?.toString();
-    if (id) this.formEntrada.insumoId = id;
-    this.busquedaProductoEntrada = p.nombre || '';
-    this.filtrarProductosEntrada();
-    this.alCambiarProductoEntrada();
+    const targetProd = this.productos.find(
+      (prod) => prod.id.toString() === id || prod.nombre?.toLowerCase().trim() === (p.nombre || '').toLowerCase().trim()
+    );
+    this.abrirModalEntrada(targetProd || p);
   }
 
   public alCambiarProductoEntrada(): void {
@@ -2979,6 +4121,7 @@ export class InventarioComponent implements OnInit {
 
   public cerrarModalEntrada(): void {
     this.modalEntradaAbierto = false;
+    this.productoEntradaFijo = null;
     this.eliminarImagenEntrada();
   }
 
