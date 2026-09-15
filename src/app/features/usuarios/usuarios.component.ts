@@ -158,7 +158,7 @@ interface ModuloGrupo {
                           } @else if (esAsistenteBodegaRol(u.rol)) {
                             <span class="inline-flex items-center gap-1.5 text-amber-800 font-bold bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200 w-fit">
                               <i-lucide name="map-pin" class="w-3.5 h-3.5 text-amber-600"></i-lucide>
-                              <span>Bodega Región {{ u.region || 'Regional' }}</span>
+                              <span>{{ u.agencia || ('Bodega Región ' + (u.region || 'Regional')) }}</span>
                             </span>
                           } @else if (u.agencia && u.agencia !== 'Sin asignar' && !u.agencia.includes('Sin') && !u.agencia.startsWith('Región') && !u.agencia.startsWith('Móvil')) {
                             <div class="flex flex-col">
@@ -562,40 +562,37 @@ interface ModuloGrupo {
           @if (esOperadorEspecialesRol(usuarioForm.rol)) {
             <div class="p-4 rounded-2xl border border-cyan-200 bg-cyan-50/60 space-y-3">
               <div>
-                <p class="text-xs font-extrabold text-cyan-900 uppercase tracking-wide">Modalidad del pulidor</p>
-                <p class="text-[11px] text-cyan-800 mt-0.5">Fijo: trabaja solo en una agencia. Móvil: se desplaza entre sedes.</p>
+                <p class="text-xs font-extrabold text-cyan-900 uppercase tracking-wide">Asignación del pulidor</p>
+                <p class="text-[11px] text-cyan-800 mt-0.5">Con agencia = fijo (solo su sede). Sin agencia = móvil (exige región).</p>
               </div>
-              <div class="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  (click)="setModalidadPulidor('FIJO')"
-                  class="px-3 py-2.5 rounded-xl text-xs font-extrabold border transition-colors"
-                  [ngClass]="usuarioForm.modalidadPulidor === 'FIJO'
-                    ? 'bg-easydry-blue text-white border-easydry-blue'
-                    : 'bg-white text-slate-700 border-slate-200 hover:border-easydry-blue'">
-                  Fijo en agencia
-                </button>
-                <button
-                  type="button"
-                  (click)="setModalidadPulidor('MOVIL')"
-                  class="px-3 py-2.5 rounded-xl text-xs font-extrabold border transition-colors"
-                  [ngClass]="usuarioForm.modalidadPulidor === 'MOVIL'
-                    ? 'bg-cyan-700 text-white border-cyan-700'
-                    : 'bg-white text-slate-700 border-slate-200 hover:border-cyan-400'">
-                  Móvil · Red nacional
-                </button>
+              <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Agencia (opcional)</label>
+                <select
+                  [(ngModel)]="usuarioForm.agencia"
+                  name="agenciaPulidor"
+                  (ngModelChange)="onPulidorAgenciaChange($event)"
+                  class="w-full p-2.5 border rounded-xl text-sm font-semibold bg-white">
+                  <option value="">Sin agencia · Pulidor móvil</option>
+                  @for (s of sucursales; track s.id) {
+                    <option [value]="s.nombre">{{ s.nombre }} ({{ s.ciudad }})</option>
+                  }
+                </select>
               </div>
-              @if (usuarioForm.modalidadPulidor === 'FIJO') {
+              @if (!usuarioForm.agencia?.trim()) {
                 <div>
-                  <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Agencia asignada</label>
-                  <select [(ngModel)]="usuarioForm.agencia" name="agenciaFijo" class="w-full p-2.5 border rounded-xl text-sm font-semibold bg-white" required>
-                    @for (s of sucursales; track s.id) {
-                      <option [value]="s.nombre">{{ s.nombre }} ({{ s.ciudad }})</option>
+                  <label class="block text-xs font-bold text-slate-700 uppercase mb-1">
+                    Región operativa <span class="text-cyan-600">*</span>
+                  </label>
+                  <select [(ngModel)]="usuarioForm.region" name="regionPulidorMovil" class="w-full p-2.5 border rounded-xl text-sm font-semibold border-cyan-300 focus:border-cyan-500 bg-white" required>
+                    <option value="">Selecciona una región...</option>
+                    @for (r of regionesDisponibles; track r.id) {
+                      <option [value]="r.nombre">{{ r.nombre }}</option>
                     }
                   </select>
+                  <p class="text-[11px] text-cyan-800 mt-1">El pulidor móvil opera solo en agencias de su región.</p>
                 </div>
               } @else {
-                <p class="text-xs font-semibold text-cyan-900">Ubicación: Red Nacional · Móvil entre agencias</p>
+                <p class="text-xs font-semibold text-cyan-900">Modalidad: Fijo en agencia asignada</p>
               }
             </div>
           } @else if (esAdminOGlobal(usuarioForm.rol)) {
@@ -632,51 +629,56 @@ interface ModuloGrupo {
             <div class="p-4 rounded-2xl border border-purple-200 bg-purple-50/70 space-y-2">
               <div class="flex items-center gap-2 text-purple-900">
                 <i-lucide name="globe" class="w-4 h-4 text-purple-600 shrink-0"></i-lucide>
-                <span class="text-xs font-extrabold uppercase tracking-wide">Alcance Global · Gestor de Inventario Nacional</span>
+                <span class="text-xs font-extrabold uppercase tracking-wide">Alcance Global · Coordinador de Bodega</span>
               </div>
               <p class="text-xs text-purple-800 leading-relaxed">
-                El <b>Gestor de Inventario</b> tiene potestad para <b>ver todo de todos</b> (todas las bodegas, agencias y movimientos a nivel nacional). No requiere asignación a una agencia o región fija.
+                El <b>Coordinador de Bodega</b> opera todo el stock nacional (compras a central y despachos a cualquier lugar). <b>No requiere</b> agencia, región ni bodega fija.
               </p>
             </div>
           } @else if (esAsistenteBodegaRol(usuarioForm.rol)) {
-            <div>
-              <div class="flex items-center justify-between mb-1">
-                <label class="block text-xs font-bold text-slate-700 uppercase">
-                  Asignar Región <span class="text-amber-500">*</span>
-                </label>
-                <span class="text-[10px] text-amber-700 font-bold bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
-                  Control Regional Estricto
-                </span>
+            <div class="space-y-3">
+              <div>
+                <div class="flex items-center justify-between mb-1">
+                  <label class="block text-xs font-bold text-slate-700 uppercase">
+                    Bodega regional <span class="text-amber-500">*</span>
+                  </label>
+                  <span class="text-[10px] text-amber-700 font-bold bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                    Obligatoria
+                  </span>
+                </div>
+                <select [(ngModel)]="usuarioForm.bodegaId" name="bodegaAsistente" (ngModelChange)="onBodegaAsistenteChange($event)" class="w-full p-2.5 border rounded-xl text-sm font-semibold border-amber-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-200" required>
+                  <option value="">Seleccione una bodega regional...</option>
+                  @for (b of bodegasRegionales; track b.id) {
+                    <option [value]="b.id">{{ b.nombre }}{{ b.region ? ' · ' + b.region : '' }}</option>
+                  }
+                </select>
+                <p class="text-[11px] text-slate-500 mt-1">
+                  El Asistente despacha solo a agencias de la región de su bodega asignada.
+                </p>
               </div>
-              <select [(ngModel)]="usuarioForm.region" name="regionAsistente" class="w-full p-2.5 border rounded-xl text-sm font-semibold border-amber-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-200" required>
-                <option value="">Seleccione una Región...</option>
-                @for (r of regionesDisponibles; track r.id) {
-                  <option [value]="r.nombre">{{ r.nombre }} ({{ r.codigo }})</option>
-                }
-              </select>
-              <p class="text-[11px] text-slate-500 mt-1">
-                El Asistente de Bodega gestiona y visualiza <b>únicamente</b> las bodegas, agencias y despachos de su región asignada.
-              </p>
             </div>
           } @else {
             <div>
               <div class="flex items-center justify-between mb-1">
                 <label class="block text-xs font-bold text-slate-700 uppercase">
-                  Agencia {{ esLiderOperadorRol(usuarioForm.rol) ? '(Recomendada)' : '(Opcional)' }}
+                  Agencia {{ esLiderOperadorRol(usuarioForm.rol) ? '' : '(Opcional)' }}
+                  @if (esLiderOperadorRol(usuarioForm.rol)) {
+                    <span class="text-rose-500">*</span>
+                  }
                 </label>
                 <span class="text-[10px] text-slate-400 font-medium">
-                  {{ esLiderOperadorRol(usuarioForm.rol) ? 'Sede operativa' : 'No obligatorio' }}
+                  {{ esLiderOperadorRol(usuarioForm.rol) ? 'Obligatoria · Líder Operador' : 'No obligatorio' }}
                 </span>
               </div>
-              <select [(ngModel)]="usuarioForm.agencia" name="agencia" class="w-full p-2.5 border rounded-xl text-sm font-semibold">
-                <option value="">Sin sucursal asignada (Opcional - Asignar luego)</option>
+              <select [(ngModel)]="usuarioForm.agencia" name="agencia" class="w-full p-2.5 border rounded-xl text-sm font-semibold" [required]="esLiderOperadorRol(usuarioForm.rol)">
+                <option value="">{{ esLiderOperadorRol(usuarioForm.rol) ? 'Selecciona una agencia...' : 'Sin sucursal asignada (Opcional)' }}</option>
                 @for (s of sucursales; track s.id) {
                   <option [value]="s.nombre">{{ s.nombre }}</option>
                 }
               </select>
               <p class="text-[11px] text-slate-400 mt-1">
-                {{ esLiderOperadorRol(usuarioForm.rol) 
-                  ? 'Asigna la agencia donde este Líder gestionará las OTs y servicios.' 
+                {{ esLiderOperadorRol(usuarioForm.rol)
+                  ? 'El Líder Operador gestiona inventario, OTs y despachos intra-región desde su agencia.'
                   : 'No es obligatorio asignar sucursal ni región al crear el usuario.' }}
               </p>
             </div>
@@ -1194,6 +1196,7 @@ export class UsuariosComponent implements OnInit {
     roleId?: string;
     agencia: string;
     region?: string;
+    bodegaId?: string;
     estado: 'Activo' | 'Inactivo';
     email: string;
     password?: string;
@@ -1207,6 +1210,7 @@ export class UsuariosComponent implements OnInit {
     roleId: undefined,
     agencia: 'EasyDry Quito Norte',
     region: 'Sierra',
+    bodegaId: '',
     estado: 'Activo',
     email: '',
     password: '',
@@ -1294,6 +1298,12 @@ export class UsuariosComponent implements OnInit {
 
   bodegasDisponibles: BodegaInventario[] = [];
   regionesDisponibles: RegionOperativa[] = [];
+
+  get bodegasRegionales(): BodegaInventario[] {
+    return (this.bodegasDisponibles || []).filter(b =>
+      !b.esCentral && (b.tipo !== 'CENTRAL')
+    );
+  }
 
   isRolPermisosInmutable = isRolPermisosInmutable;
   esOperadorEspecialesRol = esRolOperadorEspeciales;
@@ -1577,6 +1587,7 @@ export class UsuariosComponent implements OnInit {
       roleId: defaultRol?.id,
       agencia: agenciaInicial,
       region: this.regionesDisponibles[0]?.nombre || 'Sierra',
+      bodegaId: '',
       estado: 'Activo',
       email: '',
       password: '',
@@ -1621,12 +1632,13 @@ export class UsuariosComponent implements OnInit {
       roleId: rolMatch?.id || u.roleId,
       agencia: agenciaActual,
       region: regionActual,
+      bodegaId: u.bodegaId ? String(u.bodegaId) : '',
       estado: u.estado === 'Inactivo' ? 'Inactivo' : 'Activo',
       email: u.email,
       password: '',
       confirmPassword: '',
       cambiarPassword: false,
-      modalidadPulidor: u.modalidadPulidor || (esRolOperadorEspeciales(u.rol) ? 'MOVIL' : 'MOVIL')
+      modalidadPulidor: u.modalidadPulidor || (agenciaActual ? 'FIJO' : 'MOVIL')
     };
     this.showPassword = false;
     this.showConfirmPassword = false;
@@ -1634,8 +1646,29 @@ export class UsuariosComponent implements OnInit {
   }
 
   esLiderOperadorRol(rol: string): boolean {
-    const r = (rol || '').toLowerCase();
-    return r.includes('lider') || r.includes('líder');
+    const r = (rol || '').toUpperCase().trim();
+    return r === 'LIDER' || r === 'LIDER_OPERADOR' || r === 'LIDER_AGENCIA'
+      || r.includes('LÍDER OPERADOR') || r.includes('LIDER OPERADOR')
+      || ((r.includes('LIDER') || r.includes('LÍDER')) && !r.includes('BODEGA'));
+  }
+
+  onPulidorAgenciaChange(agencia: string) {
+    if (agencia?.trim()) {
+      this.usuarioForm.modalidadPulidor = 'FIJO';
+    } else {
+      this.usuarioForm.modalidadPulidor = 'MOVIL';
+      if (!this.usuarioForm.region || this.usuarioForm.region === 'Nacional') {
+        this.usuarioForm.region = this.regionesDisponibles[0]?.nombre || 'Sierra';
+      }
+    }
+  }
+
+  onBodegaAsistenteChange(bodegaId: string) {
+    const bod = this.bodegasRegionales.find(b => String(b.id) === String(bodegaId));
+    if (bod?.region) {
+      this.usuarioForm.region = bod.region;
+    }
+    this.usuarioForm.agencia = bod?.nombre || '';
   }
 
   toggleEstadoUsuario(u: Usuario) {
@@ -1688,25 +1721,25 @@ export class UsuariosComponent implements OnInit {
 
   onRolUsuarioChange() {
     if (this.esOperadorEspecialesRol(this.usuarioForm.rol)) {
-      if (!this.usuarioForm.modalidadPulidor) {
-        this.usuarioForm.modalidadPulidor = 'MOVIL';
-      }
-      this.setModalidadPulidor(this.usuarioForm.modalidadPulidor);
+      this.onPulidorAgenciaChange(this.usuarioForm.agencia || '');
     } else if (this.esGestorBodegaRol(this.usuarioForm.rol)) {
       this.usuarioForm.agencia = '';
       this.usuarioForm.region = 'Nacional';
+      this.usuarioForm.bodegaId = '';
     } else if (this.esAsistenteBodegaRol(this.usuarioForm.rol)) {
       this.usuarioForm.agencia = '';
-      if (!this.usuarioForm.region || this.usuarioForm.region === 'Nacional') {
-        this.usuarioForm.region = this.regionesDisponibles[0]?.nombre || 'Sierra';
-      }
+      this.usuarioForm.bodegaId = this.usuarioForm.bodegaId || this.bodegasRegionales[0]?.id || '';
+      this.onBodegaAsistenteChange(this.usuarioForm.bodegaId);
     }
   }
 
   setModalidadPulidor(modalidad: ModalidadPulidor) {
     this.usuarioForm.modalidadPulidor = modalidad;
     if (modalidad === 'MOVIL') {
-      this.usuarioForm.agencia = 'Red Nacional · Móvil';
+      this.usuarioForm.agencia = '';
+      if (!this.usuarioForm.region || this.usuarioForm.region === 'Nacional') {
+        this.usuarioForm.region = this.regionesDisponibles[0]?.nombre || 'Sierra';
+      }
     }
   }
 
@@ -1715,15 +1748,16 @@ export class UsuariosComponent implements OnInit {
       return { agencia: 'Nacional (Acceso Global)', modalidadPulidor: undefined };
     }
     if (this.esAsistenteBodegaRol(this.usuarioForm.rol)) {
-      return { agencia: `Bodega Regional ${this.usuarioForm.region || 'Regional'}`, modalidadPulidor: undefined };
+      const bod = this.bodegasRegionales.find(b => String(b.id) === String(this.usuarioForm.bodegaId));
+      return { agencia: bod?.nombre || `Bodega Regional ${this.usuarioForm.region || 'Regional'}`, modalidadPulidor: undefined };
     }
     if (!esRolOperadorEspeciales(this.usuarioForm.rol)) {
       return { agencia: this.usuarioForm.agencia?.trim() || 'Sin asignar', modalidadPulidor: undefined };
     }
-    if (this.usuarioForm.modalidadPulidor === 'FIJO') {
-      return { agencia: this.usuarioForm.agencia?.trim() || 'Sin asignar', modalidadPulidor: 'FIJO' };
+    if (this.usuarioForm.agencia?.trim()) {
+      return { agencia: this.usuarioForm.agencia.trim(), modalidadPulidor: 'FIJO' };
     }
-    return { agencia: 'Red Nacional · Móvil', modalidadPulidor: 'MOVIL' };
+    return { agencia: 'Sin asignar', modalidadPulidor: 'MOVIL' };
   }
 
   guardarUsuario() {
@@ -1766,26 +1800,35 @@ export class UsuariosComponent implements OnInit {
       }
     }
 
-    if (esRolOperadorEspeciales(this.usuarioForm.rol) && this.usuarioForm.modalidadPulidor === 'FIJO' && !this.usuarioForm.agencia) {
+    if (esRolOperadorEspeciales(this.usuarioForm.rol) && this.usuarioForm.modalidadPulidor === 'FIJO' && !this.usuarioForm.agencia?.trim()) {
       this.toastService.warning('Agencia requerida', 'Un pulidor fijo debe quedar asignado a una agencia.');
       return;
     }
 
-    if (this.esAsistenteBodegaRol(this.usuarioForm.rol) && !this.usuarioForm.agencia) {
-      this.usuarioForm.agencia = this.bodegasDisponibles[0]?.nombre || 'Bodega Central Nacional';
+    if (esRolOperadorEspeciales(this.usuarioForm.rol) && !this.usuarioForm.agencia?.trim() && !this.usuarioForm.region?.trim()) {
+      this.toastService.warning('Región requerida', 'Un pulidor móvil debe tener una región operativa asignada.');
+      return;
+    }
+
+    if (this.esLiderOperadorRol(this.usuarioForm.rol) && !this.usuarioForm.agencia?.trim()) {
+      this.toastService.warning('Agencia requerida', 'El Líder Operador debe estar asignado a una agencia.');
+      return;
+    }
+
+    if (this.esAsistenteBodegaRol(this.usuarioForm.rol) && !this.usuarioForm.bodegaId) {
+      this.toastService.warning('Bodega requerida', 'El asistente de bodega debe estar asignado a una bodega regional.');
+      return;
     }
 
     const modalidad = this.payloadModalidad();
     const isAsistente = this.esAsistenteBodegaRol(this.usuarioForm.rol);
     const isGestor = this.esGestorBodegaRol(this.usuarioForm.rol);
+    const isPulidor = esRolOperadorEspeciales(this.usuarioForm.rol);
+    const isPulidorMovil = isPulidor && modalidad.modalidadPulidor === 'MOVIL';
 
     let bodegaMatch: BodegaInventario | undefined = undefined;
-    if (isAsistente || isGestor) {
-      bodegaMatch = this.bodegasDisponibles.find(b =>
-        b.nombre === this.usuarioForm.agencia ||
-        b.id === this.usuarioForm.agencia ||
-        b.codigo === this.usuarioForm.agencia
-      );
+    if (isAsistente) {
+      bodegaMatch = this.bodegasRegionales.find(b => String(b.id) === String(this.usuarioForm.bodegaId));
     }
 
     const rolEncontrado = this.roles.find(r =>
@@ -1808,17 +1851,20 @@ export class UsuariosComponent implements OnInit {
       return;
     }
 
-    if (isAsistente && !this.usuarioForm.region) {
-      this.toastService.warning('Región requerida', 'El asistente de bodega debe estar registrado a una región.');
+    if (isAsistente && !this.usuarioForm.bodegaId) {
+      this.toastService.warning('Bodega requerida', 'El asistente de bodega debe estar registrado a una bodega regional.');
       return;
     }
 
     let regionMatch: RegionOperativa | undefined = undefined;
-    if ((isSupervisor || isAsistente || isRegional) && this.usuarioForm.region) {
+    if ((isSupervisor || isAsistente || isRegional || isPulidorMovil) && this.usuarioForm.region) {
       regionMatch = this.regionesDisponibles.find(r =>
         r.nombre.toLowerCase() === this.usuarioForm.region?.toLowerCase() ||
         String(r.id) === this.usuarioForm.region
       );
+    }
+    if (isAsistente && bodegaMatch?.regionId) {
+      regionMatch = this.regionesDisponibles.find(r => String(r.id) === String(bodegaMatch!.regionId)) || regionMatch;
     }
 
     if (this.editandoUsuario) {
@@ -1842,16 +1888,23 @@ export class UsuariosComponent implements OnInit {
         finalAgencia = `Región ${finalRegion}`;
         finalAgenciaId = undefined;
       } else if (isAsistente) {
+        finalRegion = bodegaMatch?.region || regionMatch?.nombre || this.usuarioForm.region || 'Sierra';
+        finalRegionId = bodegaMatch?.regionId
+          ? String(bodegaMatch.regionId)
+          : (regionMatch?.id ? String(regionMatch.id) : this.editandoUsuario.regionId);
+        finalAgencia = bodegaMatch?.nombre || `Bodega Regional ${finalRegion}`;
+        finalAgenciaId = undefined;
+      } else if (isPulidorMovil) {
         finalRegion = regionMatch?.nombre || this.usuarioForm.region || 'Sierra';
         finalRegionId = regionMatch?.id ? String(regionMatch.id) : this.editandoUsuario.regionId;
-        finalAgencia = `Bodega Regional ${finalRegion}`;
+        finalAgencia = `Móvil · Región ${finalRegion}`;
         finalAgenciaId = undefined;
       } else {
         finalRegionId = this.editandoUsuario.regionId;
         finalRegion = this.editandoUsuario.region;
       }
 
-      const actualizado: Usuario & { password?: string; roleId?: string; regionId?: string; region?: string } = {
+      const actualizado: Usuario & { password?: string; roleId?: string; regionId?: string; region?: string; bodegaId?: string } = {
         ...this.editandoUsuario,
         nombre: this.usuarioForm.nombre.trim(),
         apellido: this.usuarioForm.apellido.trim(),
@@ -1861,6 +1914,7 @@ export class UsuariosComponent implements OnInit {
         agenciaId: finalAgenciaId,
         regionId: finalRegionId,
         region: finalRegion,
+        bodegaId: isAsistente ? (this.usuarioForm.bodegaId || undefined) : undefined,
         estado: nuevoEstado,
         email: this.usuarioForm.email.trim(),
         modalidadPulidor: modalidad.modalidadPulidor,
@@ -1915,13 +1969,20 @@ export class UsuariosComponent implements OnInit {
         finalAgencia = `Región ${finalRegion}`;
         finalAgenciaId = undefined;
       } else if (isAsistente) {
+        finalRegion = bodegaMatch?.region || regionMatch?.nombre || this.usuarioForm.region || 'Sierra';
+        finalRegionId = bodegaMatch?.regionId
+          ? String(bodegaMatch.regionId)
+          : (regionMatch?.id ? String(regionMatch.id) : undefined);
+        finalAgencia = bodegaMatch?.nombre || `Bodega Regional ${finalRegion}`;
+        finalAgenciaId = undefined;
+      } else if (isPulidorMovil) {
         finalRegion = regionMatch?.nombre || this.usuarioForm.region || 'Sierra';
         finalRegionId = regionMatch?.id ? String(regionMatch.id) : undefined;
-        finalAgencia = `Bodega Regional ${finalRegion}`;
+        finalAgencia = `Móvil · Región ${finalRegion}`;
         finalAgenciaId = undefined;
       }
 
-      const nuevo: Omit<Usuario, 'id'> & { password?: string; roleId?: string; regionId?: string; region?: string } = {
+      const nuevo: Omit<Usuario, 'id'> & { password?: string; roleId?: string; regionId?: string; region?: string; bodegaId?: string } = {
         nombre: this.usuarioForm.nombre.trim(),
         apellido: this.usuarioForm.apellido.trim(),
         rol: rolEncontrado?.nombre || this.usuarioForm.rol,
@@ -1930,6 +1991,7 @@ export class UsuariosComponent implements OnInit {
         agenciaId: finalAgenciaId,
         regionId: finalRegionId,
         region: finalRegion,
+        bodegaId: isAsistente ? (this.usuarioForm.bodegaId || undefined) : undefined,
         estado: this.usuarioForm.estado,
         email: this.usuarioForm.email.trim(),
         fechaAsignacion: new Date().toISOString().split('T')[0],

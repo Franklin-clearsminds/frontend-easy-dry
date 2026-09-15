@@ -324,7 +324,7 @@ export class AprobacionesComponent implements OnInit {
     const rol = (user?.role || '').toUpperCase();
     const isSuper = rol === 'SUPER_ADMIN' || rol === 'ADMIN' || user?.role === Role.SUPER_ADMIN || user?.role === Role.ADMIN;
     const isSupervisor = (rol === 'SUPERVISOR' || rol === 'GERENTE_REGIONAL' || rol.includes('SUPERVISOR') || rol.includes('REGIONAL')) && !isSuper;
-    const isAprobador = (rol === 'APROBADOR' || rol === 'GERENTE' || user?.role === Role.APROBADOR || user?.role === Role.GERENTE || user?.role === Role.LIDER_AGENCIA || user?.role === Role.LIDER_OPERADOR) && !isSuper && !isSupervisor;
+    const isAprobador = (rol === 'APROBADOR' || rol === 'GERENTE' || user?.role === Role.APROBADOR || user?.role === Role.GERENTE) && !isSuper && !isSupervisor;
 
     // Precargar filtro de sucursal en la barra de filtros para aprobador
     if (isAprobador && user?.sucursalNombre) {
@@ -350,7 +350,7 @@ export class AprobacionesComponent implements OnInit {
     const rol = (user?.role || '').toUpperCase();
     const isSuper = rol === 'SUPER_ADMIN' || rol === 'ADMIN' || user?.role === Role.SUPER_ADMIN || user?.role === Role.ADMIN;
     const isSupervisor = (rol === 'SUPERVISOR' || rol === 'GERENTE_REGIONAL' || rol.includes('SUPERVISOR') || rol.includes('REGIONAL')) && !isSuper;
-    const isAprobador = (rol === 'APROBADOR' || rol === 'GERENTE' || user?.role === Role.APROBADOR || user?.role === Role.GERENTE || user?.role === Role.LIDER_AGENCIA || user?.role === Role.LIDER_OPERADOR) && !isSuper && !isSupervisor;
+    const isAprobador = (rol === 'APROBADOR' || rol === 'GERENTE' || user?.role === Role.APROBADOR || user?.role === Role.GERENTE) && !isSuper && !isSupervisor;
 
     if (isAprobador && user?.agenciaId) {
       return { agenciaId: String(user.agenciaId) };

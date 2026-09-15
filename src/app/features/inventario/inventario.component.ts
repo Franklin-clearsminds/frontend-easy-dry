@@ -77,9 +77,50 @@ import {
           </div>
         </div>
 
-        <!-- Barra de Submenús Principales -->
+        <!-- Barra de Submenús Principales (orden por prioridad operativa) -->
         <div class="flex items-center gap-2 sm:gap-4 mt-5 pt-3 border-t border-slate-100 overflow-x-auto">
-          <!-- 1. Insumos de mi Sede / Insumos por Servicios (Visible Operador y Admin) -->
+          <!-- 1. Dashboard — panorama general -->
+          <button
+            *ngIf="!isOperador"
+            (click)="activeTab = 'dashboard'"
+            class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+            [ngClass]="activeTab === 'dashboard' ? 'bg-blue-50 text-easydry-blue' : 'text-slate-600 hover:bg-slate-50'">
+            <i-lucide name="layout-dashboard" class="w-4 h-4"></i-lucide>
+            <span>Dashboard</span>
+          </button>
+
+          <!-- 2. Bodegas — CENTRAL / REGIONAL -->
+          <button
+            *ngIf="!isOperador"
+            (click)="activeTab = 'bodegas'"
+            class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+            [ngClass]="activeTab === 'bodegas' ? 'bg-blue-50 text-easydry-blue' : 'text-slate-600 hover:bg-slate-50'">
+            <i-lucide name="warehouse" class="w-4 h-4"></i-lucide>
+            <span>Bodegas</span>
+          </button>
+
+          <!-- 3. Productos — catálogo de insumos -->
+          <button
+            *ngIf="!isOperador"
+            (click)="activeTab = 'productos'"
+            class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+            [ngClass]="activeTab === 'productos' ? 'bg-blue-50 text-easydry-blue' : 'text-slate-600 hover:bg-slate-50'">
+            <i-lucide name="package" class="w-4 h-4"></i-lucide>
+            <span>Productos</span>
+            <span class="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-200 text-slate-700 ml-1">{{ productos.length }}</span>
+          </button>
+
+          <!-- 4. Movimientos (Kardex) — compras y despachos -->
+          <button
+            *ngIf="!isOperador"
+            (click)="activeTab = 'movimientos'"
+            class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+            [ngClass]="activeTab === 'movimientos' ? 'bg-blue-50 text-easydry-blue' : 'text-slate-600 hover:bg-slate-50'">
+            <i-lucide name="refresh-cw" class="w-4 h-4"></i-lucide>
+            <span>Movimientos (Kardex)</span>
+          </button>
+
+          <!-- 5. Insumos por Servicios / de mi Sede — operación diaria -->
           <button
             (click)="activeTab = 'insumos_servicios'"
             class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
@@ -91,7 +132,7 @@ import {
             </span>
           </button>
 
-          <!-- 2. Stock Bajo (Visible Operador y Admin) -->
+          <!-- 6. Stock Bajo — alertas -->
           <button
             (click)="activeTab = 'stock_bajo'"
             class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
@@ -103,7 +144,7 @@ import {
             </span>
           </button>
 
-          <!-- 3. Otras Agencias (Visible Operador y Admin: permite al operador despachar a otras agencias) -->
+          <!-- 7. Otras Agencias — stock / despacho entre sedes -->
           <button
             (click)="activeTab = 'agencias'"
             class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
@@ -115,48 +156,7 @@ import {
             </span>
           </button>
 
-          <!-- 4. Dashboard (Solo Super Admin / Admin) -->
-          <button
-            *ngIf="!isOperador"
-            (click)="activeTab = 'dashboard'"
-            class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
-            [ngClass]="activeTab === 'dashboard' ? 'bg-blue-50 text-easydry-blue' : 'text-slate-600 hover:bg-slate-50'">
-            <i-lucide name="layout-dashboard" class="w-4 h-4"></i-lucide>
-            <span>Dashboard</span>
-          </button>
-
-          <!-- 5. Productos (Solo Super Admin / Admin) -->
-          <button
-            *ngIf="!isOperador"
-            (click)="activeTab = 'productos'"
-            class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
-            [ngClass]="activeTab === 'productos' ? 'bg-blue-50 text-easydry-blue' : 'text-slate-600 hover:bg-slate-50'">
-            <i-lucide name="package" class="w-4 h-4"></i-lucide>
-            <span>Productos</span>
-            <span class="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-200 text-slate-700 ml-1">{{ productos.length }}</span>
-          </button>
-
-          <!-- 6. Bodegas (Solo Super Admin / Admin) -->
-          <button
-            *ngIf="!isOperador"
-            (click)="activeTab = 'bodegas'"
-            class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
-            [ngClass]="activeTab === 'bodegas' ? 'bg-blue-50 text-easydry-blue' : 'text-slate-600 hover:bg-slate-50'">
-            <i-lucide name="warehouse" class="w-4 h-4"></i-lucide>
-            <span>Bodegas</span>
-          </button>
-
-          <!-- 7. Movimientos Kardex (Solo Super Admin / Admin) -->
-          <button
-            *ngIf="!isOperador"
-            (click)="activeTab = 'movimientos'"
-            class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
-            [ngClass]="activeTab === 'movimientos' ? 'bg-blue-50 text-easydry-blue' : 'text-slate-600 hover:bg-slate-50'">
-            <i-lucide name="refresh-cw" class="w-4 h-4"></i-lucide>
-            <span>Movimientos (Kardex)</span>
-          </button>
-
-          <!-- 8. Configuración (Solo Super Admin / Admin) -->
+          <!-- 8. Configuración — al final -->
           <button
             *ngIf="!isOperador"
             (click)="activeTab = 'configuracion'"
@@ -952,8 +952,8 @@ import {
                 <div class="flex items-center gap-1">
                   <span
                     class="px-2 py-0.5 rounded-full text-[10px] font-bold"
-                    [ngClass]="bod.esCentral ? 'bg-blue-100 text-blue-800 border border-blue-200' : 'bg-slate-100 text-slate-700 border border-slate-200'">
-                    {{ bod.esCentral ? 'HUB Central' : 'Bodega Regional' }}
+                    [ngClass]="(bod.tipo === 'CENTRAL' || bod.esCentral) ? 'bg-blue-100 text-blue-800 border border-blue-200' : 'bg-slate-100 text-slate-700 border border-slate-200'">
+                    {{ (bod.tipo === 'CENTRAL' || bod.esCentral) ? 'CENTRAL' : 'REGIONAL' }}
                   </span>
                   <button
                     *ngIf="esGestorGlobalOBodegaAdmin"
@@ -2923,23 +2923,41 @@ import {
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label class="block text-xs font-bold text-slate-700 uppercase mb-1">
-                Región Asignada (Obligatoria) <span class="text-rose-500">*</span>
+                Tipo de Bodega <span class="text-rose-500">*</span>
+              </label>
+              <select
+                [(ngModel)]="bodegaForm.tipo"
+                name="bodegaTipo"
+                class="w-full p-2.5 rounded-xl border border-slate-200 text-sm font-semibold bg-white focus:border-easydry-blue outline-none"
+                required>
+                <option value="REGIONAL">REGIONAL</option>
+                <option value="CENTRAL">CENTRAL (única nacional)</option>
+              </select>
+              <p class="text-[11px] text-slate-400 mt-1">
+                Solo puede existir una bodega CENTRAL a nivel nacional.
+              </p>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">
+                Región Asignada <span *ngIf="bodegaForm.tipo !== 'CENTRAL'" class="text-rose-500">*</span>
               </label>
               <select
                 [(ngModel)]="bodegaForm.regionId"
                 name="bodegaRegion"
                 class="w-full p-2.5 rounded-xl border border-slate-200 text-sm font-semibold bg-white focus:border-easydry-blue outline-none"
-                required>
+                [required]="bodegaForm.tipo !== 'CENTRAL'">
                 <option value="" disabled>Seleccione una región</option>
                 <option *ngFor="let r of regionesDisponibles" [value]="r.id">
                   {{ r.nombre }} ({{ r.codigo }})
                 </option>
               </select>
               <p class="text-[11px] text-slate-400 mt-1">
-                Cada bodega debe pertenecer formalmente a una región del sistema.
+                Obligatoria para REGIONAL; opcional para CENTRAL.
               </p>
             </div>
+          </div>
 
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label class="block text-xs font-bold text-slate-700 uppercase mb-1">
                 Código Identificador
@@ -2951,9 +2969,6 @@ import {
                 placeholder="ej. BOD-MANABI"
                 class="w-full p-2.5 rounded-xl border border-slate-200 text-sm font-mono focus:border-easydry-blue outline-none" />
             </div>
-          </div>
-
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label class="block text-xs font-bold text-slate-700 uppercase mb-1">
                 Ciudad Principal
@@ -2963,18 +2978,6 @@ import {
                 [(ngModel)]="bodegaForm.ciudad"
                 name="bodegaCiudad"
                 placeholder="ej. Manta"
-                class="w-full p-2.5 rounded-xl border border-slate-200 text-sm focus:border-easydry-blue outline-none" />
-            </div>
-
-            <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">
-                Teléfono de Contacto
-              </label>
-              <input
-                type="text"
-                [(ngModel)]="bodegaForm.telefono"
-                name="bodegaTelefono"
-                placeholder="ej. 0991234567"
                 class="w-full p-2.5 rounded-xl border border-slate-200 text-sm focus:border-easydry-blue outline-none" />
             </div>
           </div>
@@ -2994,6 +2997,19 @@ import {
 
             <div>
               <label class="block text-xs font-bold text-slate-700 uppercase mb-1">
+                Teléfono de Contacto
+              </label>
+              <input
+                type="text"
+                [(ngModel)]="bodegaForm.telefono"
+                name="bodegaTelefono"
+                placeholder="ej. 0991234567"
+                class="w-full p-2.5 rounded-xl border border-slate-200 text-sm focus:border-easydry-blue outline-none" />
+            </div>
+          </div>
+
+          <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">
                 % Umbral Alerta Mínimo de Stock
               </label>
               <div class="relative flex items-center">
@@ -3010,7 +3026,6 @@ import {
               <p class="text-[10px] text-slate-400 mt-0.5">
                 Margen sobre el mínimo para alerta preventiva.
               </p>
-            </div>
           </div>
 
           <div class="p-3 bg-blue-50 rounded-xl border border-blue-200 text-blue-900 text-xs flex items-start gap-2">
@@ -3029,7 +3044,7 @@ import {
             </button>
             <button
               type="submit"
-              [disabled]="guardandoBodega || !bodegaForm.nombre.trim() || !bodegaForm.regionId"
+              [disabled]="guardandoBodega || !bodegaForm.nombre.trim() || (bodegaForm.tipo !== 'CENTRAL' && !bodegaForm.regionId)"
               class="px-5 py-2 rounded-xl bg-easydry-blue hover:bg-blue-700 text-white text-xs font-black cursor-pointer shadow-sm flex items-center gap-1.5 disabled:opacity-50">
               <i-lucide name="save" class="w-3.5 h-3.5"></i-lucide>
               <span>{{ guardandoBodega ? 'Guardando...' : (editandoBodega ? 'Guardar Cambios' : 'Registrar Bodega') }}</span>
@@ -3067,6 +3082,7 @@ export class InventarioComponent implements OnInit {
     nombre: '',
     codigo: '',
     regionId: '',
+    tipo: 'REGIONAL' as 'CENTRAL' | 'REGIONAL',
     ciudad: '',
     direccion: '',
     telefono: '',
@@ -3281,7 +3297,7 @@ export class InventarioComponent implements OnInit {
     const esAdminOBodega = esAdminOSuperAdmin || esBodega;
 
     this.isOperador = !esAdminOBodega;
-    this.isLiderOperador = this.isOperador && (role === 'LIDER_OPERADOR' || role === 'LIDER_AGENCIA' || rolNombre.includes('lider'));
+    this.isLiderOperador = this.isOperador && (role === 'LIDER' || role === 'LIDER_OPERADOR' || role === 'LIDER_AGENCIA' || rolNombre.includes('lider'));
     this.esLiderAgencia = this.isLiderOperador;
 
     this.esGestorBodega = (role === 'COORD_BODEGA' || role === 'DISTRIBUIDOR' || rolNombre.includes('coordinador') || rolNombre.includes('gestor'));
@@ -3293,9 +3309,11 @@ export class InventarioComponent implements OnInit {
     this.miAgenciaId = (this.currentUser?.agenciaId ? String(this.currentUser.agenciaId) : '') || this.miAgenciaNombre;
 
     if (this.isOperador) {
+      // Líder / pulidor: operación diaria de su sede
       this.activeTab = 'insumos_servicios';
-    } else if (esBodega) {
-      this.activeTab = 'bodegas';
+    } else {
+      // Admin / Coord Bodega / Asistente: panorama primero
+      this.activeTab = 'dashboard';
     }
 
     this.cargarTodosLosCatalogos();
@@ -3919,6 +3937,7 @@ export class InventarioComponent implements OnInit {
       nombre: '',
       codigo: '',
       regionId: primeraRegion,
+      tipo: 'REGIONAL' as 'CENTRAL' | 'REGIONAL',
       ciudad: '',
       direccion: '',
       telefono: '',
@@ -3937,6 +3956,7 @@ export class InventarioComponent implements OnInit {
       nombre: bod.nombre,
       codigo: bod.codigo,
       regionId: bod.regionId || regMatch?.id || this.regionesDisponibles[0]?.id || '',
+      tipo: (bod.tipo === 'CENTRAL' || bod.esCentral) ? 'CENTRAL' : 'REGIONAL',
       ciudad: bod.ciudad || '',
       direccion: bod.direccion || '',
       telefono: bod.telefono || '',
@@ -3951,8 +3971,8 @@ export class InventarioComponent implements OnInit {
       return;
     }
 
-    if (!this.bodegaForm.regionId) {
-      this.toast.warning('Región obligatoria', 'Cada bodega debe estar estrictamente vinculada a una región.');
+    if (this.bodegaForm.tipo !== 'CENTRAL' && !this.bodegaForm.regionId) {
+      this.toast.warning('Región obligatoria', 'Cada bodega regional debe estar vinculada a una región.');
       return;
     }
 
@@ -3964,7 +3984,8 @@ export class InventarioComponent implements OnInit {
           id: this.editandoBodega.id,
           nombre: this.bodegaForm.nombre.trim(),
           codigo: this.bodegaForm.codigo?.trim() || undefined,
-          regionId: this.bodegaForm.regionId,
+          regionId: this.bodegaForm.tipo === 'CENTRAL' ? (this.bodegaForm.regionId || undefined) : this.bodegaForm.regionId,
+          tipo: this.bodegaForm.tipo,
           ciudad: this.bodegaForm.ciudad?.trim() || undefined,
           direccion: this.bodegaForm.direccion?.trim() || undefined,
           telefono: this.bodegaForm.telefono?.trim() || undefined,
@@ -3988,7 +4009,8 @@ export class InventarioComponent implements OnInit {
         .crearBodega({
           nombre: this.bodegaForm.nombre.trim(),
           codigo: this.bodegaForm.codigo?.trim() || undefined,
-          regionId: this.bodegaForm.regionId,
+          regionId: this.bodegaForm.tipo === 'CENTRAL' ? (this.bodegaForm.regionId || undefined) : this.bodegaForm.regionId,
+          tipo: this.bodegaForm.tipo,
           ciudad: this.bodegaForm.ciudad?.trim() || undefined,
           direccion: this.bodegaForm.direccion?.trim() || undefined,
           telefono: this.bodegaForm.telefono?.trim() || undefined,
@@ -3998,7 +4020,7 @@ export class InventarioComponent implements OnInit {
           next: (res) => {
             this.guardandoBodega = false;
             this.modalBodegaOpen = false;
-            this.toast.success('Bodega Registrada', res.message || 'Bodega creada exitosamente vinculada a su región.');
+            this.toast.success('Bodega Registrada', res.message || 'Bodega creada exitosamente.');
             this.cargarBodegasDisponibles();
           },
           error: (err) => {
@@ -4011,7 +4033,7 @@ export class InventarioComponent implements OnInit {
   }
 
   public eliminarBodega(bod: BodegaInventario): void {
-    if (bod.esCentral) {
+    if (bod.esCentral || bod.tipo === 'CENTRAL') {
       this.toast.warning('Acción no permitida', 'La Bodega Central Nacional no puede eliminarse.');
       return;
     }

@@ -46,7 +46,7 @@ export class AuthService {
       'APROBADOR': Role.APROBADOR,
       'LIDER': Role.LIDER_OPERADOR,
       'LIDER_OPERADOR': Role.LIDER_OPERADOR,
-      'LIDER_AGENCIA': Role.LIDER_AGENCIA,
+      'LIDER_AGENCIA': Role.LIDER_OPERADOR,
       'OPERADOR': Role.OPERADOR,
       'COORD_SERVICIOS_ESPECIALES': Role.COORD_SERVICIOS_ESPECIALES,
       'PULIDOR': Role.PULIDOR,
@@ -142,6 +142,7 @@ export class AuthService {
         regionId: string | number;
         region: { id: string | number; codigo: string; nombre: string };
         regionNombre: string;
+        bodegaId?: string | number;
         estado: number;
       };
     }>(apiUrl('/auth/login'), { email: normalizedEmail, password: normalizedPass }).pipe(
@@ -173,6 +174,7 @@ export class AuthService {
           region: res.user.regionNombre || res.user.region?.nombre || (isGlobalAdmin ? 'Nacional' : undefined),
           agenciaId: (isGlobalAdmin || isSupervisor || isAsistente || (isPulidor && modalidadPulidor === 'MOVIL')) ? undefined : res.user.agenciaId,
           regionId: isGlobalAdmin ? undefined : res.user.regionId,
+          bodegaId: (res.user as any).bodegaId,
           modalidadPulidor,
           estado: res.user.estado === 1 ? 'Activo' : 'Inactivo',
           token: res.accessToken,
@@ -253,7 +255,7 @@ export class AuthService {
   }
 
   isLiderOperador(): boolean {
-    return this.hasAnyRole([Role.LIDER_OPERADOR, Role.LIDER_AGENCIA]);
+    return this.currentUserSubject.value?.role === Role.LIDER_OPERADOR;
   }
 
   isOperador(): boolean {

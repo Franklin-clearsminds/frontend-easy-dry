@@ -1795,7 +1795,7 @@ export class ServiciosComponent implements OnInit {
     return this.authService.getCurrentUser()?.sucursalNombre || this.authService.getCurrentUser()?.sucursal;
   }
   get puedeReportarFalla() {
-    return !this.isAprobador && this.authService.hasAnyRole([Role.OPERADOR, Role.LIDER_OPERADOR, Role.LIDER_AGENCIA, Role.OPERADOR_SERVICIOS_ESPECIALES])
+    return !this.isAprobador && this.authService.hasAnyRole([Role.OPERADOR, Role.LIDER_OPERADOR, Role.OPERADOR_SERVICIOS_ESPECIALES])
       && this.permissions.canRegistrarIncidente();
   }
 

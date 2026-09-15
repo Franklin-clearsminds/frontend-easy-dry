@@ -66,7 +66,7 @@ export class SucursalService {
 
     const ger = a.usuarios?.find((u: any) => {
       const r = (u.role?.namerol || u.role || '').toUpperCase();
-      return r === 'GERENTE' || r === 'APROBADOR' || r.includes('GERENTE') || r.includes('APROBADOR') || r === 'LIDER_AGENCIA';
+      return r === 'GERENTE' || r === 'APROBADOR' || r.includes('GERENTE') || r.includes('APROBADOR') || r === 'LIDER' || r === 'LIDER_AGENCIA';
     });
 
     const responsable = ger

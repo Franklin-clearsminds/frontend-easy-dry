@@ -26,6 +26,8 @@ export interface Usuario {
   modalidadPulidor?: ModalidadPulidor;
   agenciaId?: string;
   regionId?: string;
+  /** Bodega asignada (obligatoria para ASISTENTE_BODEGA → regional) */
+  bodegaId?: string;
   roleId?: string;
 }
 

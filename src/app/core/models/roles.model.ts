@@ -12,15 +12,16 @@ export enum Role {
   COORD_COMERCIAL = 'COORD_COMERCIAL',
   /** Aprobador de agencia — cierre diario y auditoría de evidencias */
   APROBADOR = 'APROBADOR',
-  /** Líder — acceso a plataforma, registro de OTs/servicios de su sucursal y control de bahías */
+  /** Líder Operador — OTs, inventario de agencia, recepción y despachos intra-región */
   LIDER_OPERADOR = 'LIDER',
-  LIDER_AGENCIA = 'LIDER_AGENCIA',
+  /** @deprecated usar LIDER / LIDER_OPERADOR */
+  LIDER_AGENCIA = 'LIDER',
   /** Lavador de bahía — registro en BD para constancia y trazabilidad de productividad */
   LAVADOR = 'LAVADOR',
   /** @deprecated usar LAVADOR */
   OPERADOR = 'LAVADOR',
   COORD_SERVICIOS_ESPECIALES = 'COORD_SERVICIOS_ESPECIALES',
-  /** Pulidor — especialista en pulido, cerámico y detailing (su flujo fijo o móvil depende de si tiene agencia asignada) */
+  /** Pulidor — especialista en pulido, cerámico y detailing (fijo=con agencia; móvil=sin agencia + región) */
   PULIDOR = 'PULIDOR',
   /** @deprecated usar PULIDOR */
   PULIDOR_FIJO = 'PULIDOR',
@@ -72,7 +73,6 @@ export const DEFAULT_ROUTE_POR_ROL: Record<string, string> = {
   [Role.JEFE_COMERCIAL]: '/dashboard',
   [Role.COORD_COMERCIAL]: '/dashboard',
   [Role.LIDER_OPERADOR]: '/servicios',
-  [Role.LIDER_AGENCIA]: '/servicios',
   [Role.LAVADOR]: '/perfil',
   [Role.COORD_SERVICIOS_ESPECIALES]: '/dashboard',
   [Role.PULIDOR]: '/servicios',
@@ -144,6 +144,8 @@ export interface UsuarioAuth {
   /** ID de la agencia/sucursal asignada (UUID o entero según backend) */
   agenciaId?: string | number;
   regionId?: string | number;
+  /** Bodega asignada (ASISTENTE_BODEGA → regional; opcional en otros roles) */
+  bodegaId?: string | number;
   permisos?: PermisosRol;
 }
 
@@ -211,8 +213,7 @@ export const ROLE_LABELS: Record<string, string> = {
   [Role.SUPERVISOR]: 'Supervisor Regional',
   [Role.JEFE_COMERCIAL]: 'Jefe Comercial',
   [Role.COORD_COMERCIAL]: 'Coordinador Comercial',
-  [Role.LIDER_OPERADOR]: 'Líder',
-  [Role.LIDER_AGENCIA]: 'Líder de Agencia',
+  [Role.LIDER_OPERADOR]: 'Líder Operador',
   [Role.LAVADOR]: 'Lavador',
   [Role.COORD_SERVICIOS_ESPECIALES]: 'Coordinador de Servicios Especiales',
   [Role.PULIDOR]: 'Pulidor',
@@ -223,6 +224,7 @@ export const ROLE_LABELS: Record<string, string> = {
   'PULIDOR_FIJO': 'Pulidor Fijo',
   'PULIDOR_MOVIL': 'Pulidor Móvil',
   'DISTRIBUIDOR': 'Coordinador de Bodega',
+  'LIDER_AGENCIA': 'Líder Operador',
 };
 
 export const ROLE_COLORS: Record<string, string> = {
@@ -235,7 +237,6 @@ export const ROLE_COLORS: Record<string, string> = {
   [Role.COORD_MANTENIMIENTO]: 'bg-amber-100 text-amber-800 border-amber-200',
   [Role.TECNICO]: 'bg-orange-100 text-orange-800 border-orange-200',
   [Role.LIDER_OPERADOR]: 'bg-teal-100 text-teal-800 border-teal-200',
-  [Role.LIDER_AGENCIA]: 'bg-teal-100 text-teal-800 border-teal-200',
   [Role.LAVADOR]: 'bg-emerald-100 text-emerald-800 border-emerald-200',
   [Role.COORD_SERVICIOS_ESPECIALES]: 'bg-cyan-100 text-cyan-800 border-cyan-200',
   [Role.PULIDOR]: 'bg-cyan-100 text-cyan-800 border-cyan-200',
@@ -244,7 +245,8 @@ export const ROLE_COLORS: Record<string, string> = {
   'PULIDOR_FIJO': 'bg-cyan-100 text-cyan-800 border-cyan-200',
   'PULIDOR_MOVIL': 'bg-cyan-100 text-cyan-800 border-cyan-200',
   'DISTRIBUIDOR': 'bg-slate-100 text-slate-800 border-slate-200',
-  'OPERADOR_SERVICIOS_ESPECIALES': 'bg-cyan-100 text-cyan-800 border-cyan-200'
+  'OPERADOR_SERVICIOS_ESPECIALES': 'bg-cyan-100 text-cyan-800 border-cyan-200',
+  'LIDER_AGENCIA': 'bg-teal-100 text-teal-800 border-teal-200',
 };
 
 /** Códigos oficiales que no pueden eliminarse desde la matriz de roles */
@@ -255,12 +257,11 @@ export const ROLES_OFICIALES_NO_ELIMINABLES: string[] = [
   Role.COORD_MANTENIMIENTO,
   Role.TECNICO,
   Role.LIDER_OPERADOR,
-  Role.LIDER_AGENCIA,
   Role.LAVADOR,
   Role.COORD_COMERCIAL,
   Role.COORD_SERVICIOS_ESPECIALES,
   Role.OPERADOR_SERVICIOS_ESPECIALES,
-  Role.DISTRIBUIDOR,
+  Role.COORD_BODEGA,
   Role.ASISTENTE_BODEGA,
 ];
 

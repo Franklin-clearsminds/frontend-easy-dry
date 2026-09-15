@@ -481,7 +481,8 @@ export class EnviosComponent implements OnInit {
   }
 
   get puedeDespachar(): boolean {
-    return !this.isLiderOperador && (
+    return (
+      this.auth.isLiderOperador() ||
       this.auth.can('despacharSuministros') ||
       this.auth.isAdmin() ||
       this.auth.hasRole(Role.COORD_BODEGA) ||
@@ -729,7 +730,7 @@ export class EnviosComponent implements OnInit {
 
         matchPermisoRol = matchPropio || matchRegion || matchBodega;
       } else if (!matchPermisoRol) {
-        // Líder de Agencia / Operador: solo recepciones de su sede
+        // Líder Operador: solo recepciones / despachos de su sede y región
         matchPermisoRol = Boolean(
           (user?.agenciaId && String(env.sucursalId) === String(user.agenciaId)) ||
           (userSucursal && (env.sucursalNombre.toLowerCase().includes(userSucursal) || userSucursal.includes(env.sucursalNombre.toLowerCase())))

@@ -5,6 +5,9 @@
 /** Identificador inmutable de la Bodega Central (siempre existe, no se elimina). */
 export const BODEGA_CENTRAL_ID = 'bod_central';
 
+/** Tipo canónico de bodega (además del flag legacy esCentral). */
+export type TipoBodega = 'CENTRAL' | 'REGIONAL';
+
 /** Bodega de almacenamiento de insumos (HUB nacional o satélite). */
 export interface BodegaInventario {
   id: string;
@@ -15,7 +18,9 @@ export interface BodegaInventario {
   telefono?: string;
   region?: string;
   regionId?: string;
-  /** Solo Bodega Central. No se puede eliminar ni desactivar. */
+  /** CENTRAL = única nacional; REGIONAL = satélite por región */
+  tipo?: TipoBodega;
+  /** Solo Bodega Central. No se puede eliminar ni desactivar. Legacy sync con tipo === CENTRAL. */
   esCentral: boolean;
   activa: boolean;
   porcentajeAlerta?: number;

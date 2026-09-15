@@ -227,7 +227,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
             <div>
               <p class="font-bold">Constancia y Control de Personal Operativo</p>
               <p class="text-[11px] text-blue-800 mt-0.5">
-                Este registro es para constancia y seguimiento técnico en bahías de lavado. A diferencia del <strong>Líder de Agencia</strong> o administradores de sistema, los lavadores no requieren usuario ni credenciales de acceso.
+                Este registro es para constancia y seguimiento técnico en bahías de lavado. A diferencia del <strong>Líder Operador</strong> o administradores de sistema, los lavadores no requieren usuario ni credenciales de acceso.
               </p>
             </div>
           </div>

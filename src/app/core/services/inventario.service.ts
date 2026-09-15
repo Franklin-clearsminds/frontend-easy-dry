@@ -147,7 +147,8 @@ export class InventarioService {
   public crearBodega(dto: {
     nombre: string;
     codigo?: string;
-    regionId: string;
+    regionId?: string;
+    tipo?: 'CENTRAL' | 'REGIONAL';
     ciudad?: string;
     direccion?: string;
     telefono?: string;
@@ -163,6 +164,7 @@ export class InventarioService {
     nombre?: string;
     codigo?: string;
     regionId?: string;
+    tipo?: 'CENTRAL' | 'REGIONAL';
     ciudad?: string;
     direccion?: string;
     telefono?: string;
