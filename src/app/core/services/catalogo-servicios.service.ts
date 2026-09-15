@@ -8,14 +8,12 @@ import { apiUrl } from '../config/env';
 @Injectable({
   providedIn: 'root'
 })
-export class CatalogoServiciosMockService {
+export class CatalogoServiciosService {
   private http = inject(HttpClient);
 
-  // Estado reactivo: inicializa vacío — todo viene del backend
   private serviciosSubject = new BehaviorSubject<CatalogoServicio[]>([]);
   public servicios$ = this.serviciosSubject.asObservable();
 
-  // Contexto de agencia devuelto por el backend para roles acotados (LIDER/APROBADOR)
   private agenciaCtxSubject = new BehaviorSubject<{ tieneServiciosEspeciales: boolean; servicioIds: number[] } | null>(null);
   public agenciaCtx$ = this.agenciaCtxSubject.asObservable();
 
@@ -51,13 +49,11 @@ export class CatalogoServiciosMockService {
   getServicios(): Observable<CatalogoServicio[]> {
     return this.http.post<any>(apiUrl('/catalogos/servicios/list'), {}).pipe(
       map(res => {
-        // El backend retorna un array plano para admins o {servicios, agencia} para líderes
         if (res && Array.isArray(res)) {
           this.agenciaCtxSubject.next(null);
           return (res as any[]).map(s => this.mapBackendServicio(s));
         }
         if (res && Array.isArray(res.servicios)) {
-          // Guardar contexto de agencia para que el componente lo use
           this.agenciaCtxSubject.next(res.agencia ?? null);
           return (res.servicios as any[]).map(s => this.mapBackendServicio(s));
         }

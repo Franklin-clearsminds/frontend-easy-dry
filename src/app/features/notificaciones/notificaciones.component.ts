@@ -1,8 +1,9 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { LucideAngularModule } from 'lucide-angular';
-import { MOCK_NOTIFICACIONES, Notificacion, NotificacionTipo } from '../../core/mocks/notificaciones.mock';
+import { NotificacionService } from '../../core/services/notificacion.service';
+import { Notificacion, NotificacionTipo } from '../../core/models/notificacion.model';
 
 @Component({
   selector: 'app-notificaciones',
@@ -105,6 +106,8 @@ import { MOCK_NOTIFICACIONES, Notificacion, NotificacionTipo } from '../../core/
   `
 })
 export class NotificacionesComponent implements OnInit {
+  private notificacionService = inject(NotificacionService);
+
   notificaciones: Notificacion[] = [];
   filtroActivo: 'todas' | NotificacionTipo = 'todas';
 
@@ -117,7 +120,9 @@ export class NotificacionesComponent implements OnInit {
   ];
 
   ngOnInit(): void {
-    this.notificaciones = [];
+    this.notificacionService.getNotificaciones().subscribe(list => {
+      this.notificaciones = list;
+    });
   }
 
   get noLeidas(): number {
@@ -130,10 +135,12 @@ export class NotificacionesComponent implements OnInit {
   }
 
   marcarLeida(n: Notificacion): void {
+    this.notificacionService.marcarComoLeida(n.id);
     n.leida = true;
   }
 
   marcarTodasLeidas(): void {
+    this.notificacionService.marcarTodasComoLeidas();
     this.notificaciones.forEach(n => { n.leida = true; });
   }
 

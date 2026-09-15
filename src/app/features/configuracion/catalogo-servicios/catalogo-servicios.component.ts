@@ -2,10 +2,10 @@ import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LucideAngularModule } from 'lucide-angular';
-import { CatalogoServiciosMockService } from '../../../core/services/catalogo-servicios-mock.service';
-import { InventarioMockService } from '../../../core/services/inventario-mock.service';
+import { CatalogoServiciosService } from '../../../core/services/catalogo-servicios.service';
+import { InventarioService } from '../../../core/services/inventario.service';
 import { AuthService } from '../../../core/services/auth.service';
-import { SucursalMockService } from '../../../core/services/sucursal-mock.service';
+import { SucursalService } from '../../../core/services/sucursal.service';
 import { CatalogoServicio, RecetaInsumoServicio, InventarioItem, Sucursal, Role } from '../../../core/models';
 import { PaginationComponent } from '../../../shared/components/pagination/pagination.component';
 import { ModalPortalDirective } from '../../../shared/directives/modal-portal.directive';
@@ -19,10 +19,10 @@ import { RouterModule } from '@angular/router';
   templateUrl: './catalogo-servicios.component.html'
 })
 export class CatalogoServiciosComponent implements OnInit {
-  private catalogoService = inject(CatalogoServiciosMockService);
-  private inventarioService = inject(InventarioMockService);
+  private catalogoService = inject(CatalogoServiciosService);
+  private inventarioService = inject(InventarioService);
   public authService = inject(AuthService);
-  private sucursalService = inject(SucursalMockService);
+  private sucursalService = inject(SucursalService);
 
   // ── Scoping por sucursal (Líder / Aprobador) ────────────────────────────
   sucursalUsuario: Sucursal | null = null;

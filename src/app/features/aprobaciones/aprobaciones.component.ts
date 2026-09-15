@@ -2,14 +2,14 @@ import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LucideAngularModule } from 'lucide-angular';
-import { ServicioLavadoMockService } from '../../core/services/servicio-lavado-mock.service';
+import { ServicioLavadoService } from '../../core/services/servicio-lavado.service';
 import { AuthService } from '../../core/services/auth.service';
 import { VehiculoServicio } from '../../core/models';
 import { ModalComponent } from '../../shared/components/modal/modal.component';
 import { ToastService } from '../../shared/services/toast.service';
 import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
 import { FilterBarComponent, FilterState } from '../../shared/components/filter-bar/filter-bar.component';
-import { SucursalMockService } from '../../core/services/sucursal-mock.service';
+import { SucursalService } from '../../core/services/sucursal.service';
 
 import { Role } from '../../core/models/roles.model';
 
@@ -40,7 +40,7 @@ import { Role } from '../../core/models/roles.model';
         [showBahia]="true"
         [showEstado]="true"
         [showFechas]="false"
-        [showMarca]="true"
+        [showCliente]="true"
         [showBusqueda]="true"
         [listaEstados]="['Todos', 'FINALIZADO', 'APROBADO', 'RECHAZADO']"
         (filterChange)="aplicarNuevosFiltros($event)">
@@ -252,10 +252,10 @@ export class AprobacionesComponent implements OnInit {
   modalVideoOpen = false;
   motivoRechazo = '';
 
-  private servicioService = inject(ServicioLavadoMockService);
+  private servicioService = inject(ServicioLavadoService);
   private authService = inject(AuthService);
   private toastService = inject(ToastService);
-  private sucursalService = inject(SucursalMockService);
+  private sucursalService = inject(SucursalService);
 
   get totalAprobados() {
     return this.serviciosFiltrados.filter(s => s.estado === 'APROBADO').length;
@@ -321,22 +321,22 @@ export class AprobacionesComponent implements OnInit {
 
   ngOnInit(): void {
     const user = this.authService.getCurrentUser();
-    const isAprobador = user && (
-      user.role === Role.APROBADOR ||
-      user.role === Role.GERENTE ||
-      user.role === Role.LIDER_AGENCIA ||
-      user.role === Role.LIDER_OPERADOR
-    );
+    const rol = (user?.role || '').toUpperCase();
+    const isSuper = rol === 'SUPER_ADMIN' || rol === 'ADMIN' || user?.role === Role.SUPER_ADMIN || user?.role === Role.ADMIN;
+    const isSupervisor = (rol === 'SUPERVISOR' || rol === 'GERENTE_REGIONAL' || rol.includes('SUPERVISOR') || rol.includes('REGIONAL')) && !isSuper;
+    const isAprobador = (rol === 'APROBADOR' || rol === 'GERENTE' || user?.role === Role.APROBADOR || user?.role === Role.GERENTE || user?.role === Role.LIDER_AGENCIA || user?.role === Role.LIDER_OPERADOR) && !isSuper && !isSupervisor;
 
-    // Precargar filtro de sucursal en la barra de filtros
+    // Precargar filtro de sucursal en la barra de filtros para aprobador
     if (isAprobador && user?.sucursalNombre) {
       this.filtrosGlobales.sucursal = user.sucursalNombre;
     }
 
-    // Cargar servicios: si el usuario es APROBADOR, filtrar por su agencia en el backend
-    const filtros = (isAprobador && user?.agenciaId)
+    // Cargar servicios según el alcance RBAC
+    const filtros: { agenciaId?: string; regionId?: string } | undefined = (isAprobador && user?.agenciaId)
       ? { agenciaId: String(user.agenciaId) }
-      : undefined;
+      : (isSupervisor && user?.regionId)
+        ? { regionId: String(user.regionId) }
+        : undefined;
 
     this.servicioService.getServicios(filtros).subscribe(list => {
       this.serviciosDelDia = list;
@@ -344,16 +344,21 @@ export class AprobacionesComponent implements OnInit {
     });
   }
 
-  /** Helper: obtiene filtros de agencia según el rol del usuario logueado */
-  private _getFiltrosUsuario(): { agenciaId?: string } | undefined {
+  /** Helper: obtiene filtros de agencia o región según el rol del usuario logueado */
+  private _getFiltrosUsuario(): { agenciaId?: string; regionId?: string } | undefined {
     const user = this.authService.getCurrentUser();
-    const isAprobador = user && (
-      user.role === Role.APROBADOR ||
-      user.role === Role.GERENTE ||
-      user.role === Role.LIDER_AGENCIA ||
-      user.role === Role.LIDER_OPERADOR
-    );
-    return (isAprobador && user?.agenciaId) ? { agenciaId: String(user.agenciaId) } : undefined;
+    const rol = (user?.role || '').toUpperCase();
+    const isSuper = rol === 'SUPER_ADMIN' || rol === 'ADMIN' || user?.role === Role.SUPER_ADMIN || user?.role === Role.ADMIN;
+    const isSupervisor = (rol === 'SUPERVISOR' || rol === 'GERENTE_REGIONAL' || rol.includes('SUPERVISOR') || rol.includes('REGIONAL')) && !isSuper;
+    const isAprobador = (rol === 'APROBADOR' || rol === 'GERENTE' || user?.role === Role.APROBADOR || user?.role === Role.GERENTE || user?.role === Role.LIDER_AGENCIA || user?.role === Role.LIDER_OPERADOR) && !isSuper && !isSupervisor;
+
+    if (isAprobador && user?.agenciaId) {
+      return { agenciaId: String(user.agenciaId) };
+    }
+    if (isSupervisor && user?.regionId) {
+      return { regionId: String(user.regionId) };
+    }
+    return undefined;
   }
 
   aprobarIndividual(item: VehiculoServicio) {

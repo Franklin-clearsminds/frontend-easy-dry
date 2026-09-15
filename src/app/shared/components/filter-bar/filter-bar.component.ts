@@ -2,16 +2,18 @@ import { Component, EventEmitter, Input, OnInit, Output, inject } from '@angular
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LucideAngularModule } from 'lucide-angular';
-import { SucursalMockService } from '../../../core/services/sucursal-mock.service';
-import { BahiaMockService } from '../../../core/services/bahia-mock.service';
-import { OperadorMockService } from '../../../core/services/operador-mock.service';
-import { RegionMockService } from '../../../core/services/region-mock.service';
-import { MarcaSucursalMockService } from '../../../core/services/marca-sucursal-mock.service';
+import { SucursalService } from '../../../core/services/sucursal.service';
+import { BahiaService } from '../../../core/services/bahia.service';
+import { OperadorService } from '../../../core/services/operador.service';
+import { RegionService } from '../../../core/services/region.service';
+import { MarcaSucursalService } from '../../../core/services/marca-sucursal.service';
+import { AuthService } from '../../../core/services/auth.service';
 import { MarcaSucursal } from '../../../core/models';
 
 export interface FilterState {
   sucursal: string;
   region?: string;
+  cliente?: string;
   marca?: string;
   bodega?: string;
   operador: string;
@@ -91,15 +93,15 @@ export interface FilterState {
         </div>
       }
 
-      <!-- Marca -->
-      @if (showMarca) {
+      <!-- Cliente -->
+      @if (showCliente || showMarca) {
         <div class="flex-1 min-w-[140px] max-w-full">
           <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-            <i-lucide name="tag" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide> Marca
+            <i-lucide name="briefcase" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide> Cliente
           </label>
-          <select [(ngModel)]="filters.marca" (change)="emitFilters()" class="w-full bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-xl px-3 py-2 focus:ring-2 focus:ring-easydry-blue transition-colors appearance-none font-semibold cursor-pointer">
-            <option value="Todas">Todas las Marcas</option>
-            @for (m of listaMarcas; track m) {
+          <select [(ngModel)]="filters.cliente" (ngModelChange)="syncClienteMarca($event); emitFilters()" class="w-full bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-xl px-3 py-2 focus:ring-2 focus:ring-easydry-blue transition-colors appearance-none font-semibold cursor-pointer">
+            <option value="Todas">Todos los Clientes</option>
+            @for (m of listaClientes; track m) {
               <option [value]="m">{{ m }}</option>
             }
           </select>
@@ -121,14 +123,14 @@ export interface FilterState {
         </div>
       }
 
-      <!-- Operador -->
+      <!-- Lavador -->
       @if (showOperador) {
         <div class="flex-1 min-w-[150px] max-w-full">
           <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-            <i-lucide name="users" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide> Operador Técnico
+            <i-lucide name="users" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide> Lavador
           </label>
           <select [(ngModel)]="filters.operador" (change)="emitFilters()" class="w-full bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-xl px-3 py-2 focus:ring-2 focus:ring-easydry-blue transition-colors appearance-none font-semibold cursor-pointer">
-            <option value="Todos">Todos los Operadores</option>
+            <option value="Todos">Todos los Lavadores</option>
             @for (op of listaOperadores; track op) {
               <option [value]="op">{{ op }}</option>
             }
@@ -225,6 +227,7 @@ export interface FilterState {
 })
 export class FilterBarComponent implements OnInit {
   @Input() showRegion = false;
+  @Input() showCliente = false;
   @Input() showMarca = false;
   @Input() showSucursal = true;
   @Input() showBodega = false;
@@ -239,6 +242,8 @@ export class FilterBarComponent implements OnInit {
 
   @Input() set listaRegiones(v: string[]) { this._listaRegiones = v; this.customRegiones = true; }
   get listaRegiones(): string[] { return this._listaRegiones; }
+  @Input() set listaClientes(v: string[]) { this._listaMarcas = v; this.customMarcas = true; }
+  get listaClientes(): string[] { return this._listaMarcas; }
   @Input() set listaMarcas(v: string[]) { this._listaMarcas = v; this.customMarcas = true; }
   get listaMarcas(): string[] { return this._listaMarcas; }
   @Input() set listaBodegas(v: string[]) { this._listaBodegas = v; }
@@ -257,11 +262,12 @@ export class FilterBarComponent implements OnInit {
 
   @Output() filterChange = new EventEmitter<FilterState>();
 
-  private sucursalService = inject(SucursalMockService);
-  private bahiaService = inject(BahiaMockService);
-  private operadorService = inject(OperadorMockService);
-  private regionService = inject(RegionMockService);
-  private marcaService = inject(MarcaSucursalMockService);
+  private sucursalService = inject(SucursalService);
+  private bahiaService = inject(BahiaService);
+  private operadorService = inject(OperadorService);
+  private regionService = inject(RegionService);
+  private marcaService = inject(MarcaSucursalService);
+  private authService = inject(AuthService);
 
   private _listaRegiones: string[] = ['Región Sierra', 'Región Costa', 'Región Austro'];
   private _listaMarcas: string[] = ['EasyDry', 'EasyDry Premium', 'EasyDry Express'];
@@ -283,6 +289,7 @@ export class FilterBarComponent implements OnInit {
   filters: FilterState = {
     sucursal: 'Todas',
     region: 'Todas',
+    cliente: 'Todas',
     marca: 'Todas',
     bodega: 'Todas',
     operador: 'Todos',
@@ -306,9 +313,35 @@ export class FilterBarComponent implements OnInit {
   }
 
   cargarSucursales(): void {
+    const user = this.authService?.getCurrentUser();
+    const rol = (user?.role || '').toUpperCase();
+    const isSupervisor = rol === 'SUPERVISOR' || rol === 'GERENTE_REGIONAL' || rol.includes('SUPERVISOR') || rol.includes('REGIONAL');
+    const isAprobador = rol === 'APROBADOR' || rol === 'GERENTE';
+
     this.sucursalService.getSucursales().subscribe(list => {
-      const nombres = Array.from(new Set(list.map(s => s.nombre))).sort();
-      if (nombres.length) this._listaSucursales = nombres;
+      let filtered = list;
+      if (isSupervisor && (user?.regionId || user?.region || user?.regionNombre)) {
+        const uReg = (user.regionNombre || user.region || '').toLowerCase();
+        filtered = list.filter(s =>
+          (user.regionId && String(s.regionId) === String(user.regionId)) ||
+          (uReg && s.regionNombre && s.regionNombre.toLowerCase() === uReg) ||
+          (uReg && s.ciudad && s.ciudad.toLowerCase() === uReg)
+        );
+      } else if (isAprobador && (user?.agenciaId || user?.sucursalNombre || user?.sucursal)) {
+        filtered = list.filter(s =>
+          (user.agenciaId && String(s.id) === String(user.agenciaId)) ||
+          (user.sucursalNombre && s.nombre.toLowerCase() === user.sucursalNombre.toLowerCase()) ||
+          (user.sucursal && s.nombre.toLowerCase() === user.sucursal.toLowerCase())
+        );
+      }
+      const nombres = Array.from(new Set(filtered.map(s => s.nombre))).sort();
+      if (nombres.length) {
+        this._listaSucursales = nombres;
+        if (isAprobador && nombres.length === 1) {
+          this.filters.sucursal = nombres[0];
+          this.emitFilters();
+        }
+      }
     });
   }
 
@@ -327,8 +360,26 @@ export class FilterBarComponent implements OnInit {
   }
 
   cargarRegiones(): void {
-    const nombres = this.regionService.getActivas().map(r => r.nombre).filter(Boolean);
-    if (nombres.length) this._listaRegiones = [...new Set(nombres)];
+    const user = this.authService?.getCurrentUser();
+    const rol = (user?.role || '').toUpperCase();
+    const isSupervisor = rol === 'SUPERVISOR' || rol === 'GERENTE_REGIONAL' || rol.includes('SUPERVISOR') || rol.includes('REGIONAL');
+
+    let regiones = this.regionService.getActivas();
+    if (isSupervisor && (user?.regionId || user?.region || user?.regionNombre)) {
+      const uReg = (user.regionNombre || user.region || '').toLowerCase();
+      regiones = regiones.filter(r =>
+        (user.regionId && String(r.id) === String(user.regionId)) ||
+        (uReg && r.nombre.toLowerCase() === uReg)
+      );
+    }
+    const nombres = regiones.map(r => r.nombre).filter(Boolean);
+    if (nombres.length) {
+      this._listaRegiones = [...new Set(nombres)];
+      if (isSupervisor && this._listaRegiones.length === 1) {
+        this.filters.region = this._listaRegiones[0];
+        this.emitFilters();
+      }
+    }
   }
 
   cargarMarcas(): void {
@@ -346,7 +397,17 @@ export class FilterBarComponent implements OnInit {
     this._listaEstados = ['Activo', 'Inactivo', 'Pendiente', 'Aprobado', 'Rechazado'];
   }
 
+  syncClienteMarca(val: string): void {
+    this.filters.cliente = val;
+    this.filters.marca = val;
+  }
+
   emitFilters(): void {
+    if (this.filters.cliente && (!this.filters.marca || this.filters.marca === 'Todas')) {
+      this.filters.marca = this.filters.cliente;
+    } else if (this.filters.marca && (!this.filters.cliente || this.filters.cliente === 'Todas')) {
+      this.filters.cliente = this.filters.marca;
+    }
     this.filterChange.emit({ ...this.filters });
   }
 
@@ -450,6 +511,7 @@ export class FilterBarComponent implements OnInit {
     this.filters = {
       sucursal: 'Todas',
       region: 'Todas',
+      cliente: 'Todas',
       marca: 'Todas',
       bodega: 'Todas',
       operador: 'Todos',

@@ -57,7 +57,7 @@ const fileEnv = parseEnvFile(
 const env = { ...fileEnv, ...pickNgApp(process.env) };
 
 const production = isProd || bool(env.NG_APP_PRODUCTION, false);
-const useMocks = bool(env.NG_APP_USE_MOCKS, true);
+const useMocks = bool(env.NG_APP_USE_MOCKS, false);
 const apiDefault = production ? 'https://www.api.easydry.com' : 'https://www.testapi.easydry.com';
 const apiBaseUrl = str(env.NG_APP_API_BASE_URL, apiDefault);
 const appName = str(env.NG_APP_NAME, 'EasyDry®');

@@ -3,12 +3,12 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LucideAngularModule } from 'lucide-angular';
 import { ModalComponent } from '../../shared/components/modal/modal.component';
-import { InventarioMockService } from '../../core/services/inventario-mock.service';
+import { InventarioService } from '../../core/services/inventario.service';
 import { AuthService } from '../../core/services/auth.service';
-import { SucursalMockService } from '../../core/services/sucursal-mock.service';
+import { SucursalService } from '../../core/services/sucursal.service';
 import { ToastService } from '../../shared/services/toast.service';
-import { UsuarioMockService } from '../../core/services/usuario-mock.service';
-import { RegionMockService } from '../../core/services/region-mock.service';
+import { UsuarioService } from '../../core/services/usuario.service';
+import { RegionService } from '../../core/services/region.service';
 import { Usuario } from '../../core/models';
 import {
   ProductoInsumo,
@@ -98,8 +98,8 @@ import {
             [ngClass]="activeTab === 'stock_bajo' ? 'bg-rose-50 text-rose-700 font-extrabold border border-rose-200' : 'text-slate-600 hover:bg-slate-50'">
             <i-lucide name="alert-triangle" class="w-4 h-4"></i-lucide>
             <span>Stock Bajo</span>
-            <span *ngIf="resumenDashboard.productosStockBajo > 0" class="px-1.5 py-0.2 rounded-full text-[10px] bg-rose-500 text-white ml-1">
-              {{ resumenDashboard.productosStockBajo }}
+            <span *ngIf="(alertasStockList.length > 0 ? alertasStockList.length : resumenDashboard.productosStockBajo) > 0" class="px-1.5 py-0.2 rounded-full text-[10px] bg-rose-500 text-white ml-1">
+              {{ alertasStockList.length > 0 ? alertasStockList.length : resumenDashboard.productosStockBajo }}
             </span>
           </button>
 
@@ -764,11 +764,11 @@ import {
           <div class="flex items-center gap-2">
             <i-lucide name="check-circle-2" class="w-4 h-4 text-easydry-blue shrink-0"></i-lucide>
             <span class="font-medium">
-              Insumos requeridos por los servicios {{ isLiderOperador ? 'autorizados de tu sede' : 'del catálogo' }}.
+              {{ isLiderOperador ? 'Insumos requeridos por los servicios autorizados de tu sede.' : 'Catálogo maestro de insumos y suministros registrados en el sistema.' }}
             </span>
           </div>
           <span class="text-[11px] font-bold text-easydry-blue bg-blue-100/80 px-2.5 py-0.5 rounded-md font-mono">
-            {{ productosFiltrados.length }} insumos operativos
+            {{ productosFiltrados.length }} insumos registrados
           </span>
         </div>
 
@@ -1604,81 +1604,236 @@ import {
       <!-- ============================================================== -->
       <!-- TAB 4: STOCK BAJO                                              -->
       <!-- ============================================================== -->
-      <div *ngIf="activeTab === 'stock_bajo'" class="space-y-4 animate-fade-in">
-        <div class="bg-rose-50 border border-rose-200 rounded-2xl p-4 flex items-center justify-between">
-          <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-xl bg-rose-500 text-white flex items-center justify-center">
-              <i-lucide name="alert-triangle" class="w-5 h-5"></i-lucide>
+      <div *ngIf="activeTab === 'stock_bajo'" class="space-y-6 animate-fade-in">
+
+        <!-- ============================================================== -->
+        <!-- SECCIÓN 1: BANDEJA DE ALERTAS DE STOCK BAJO EN SUCURSALES      -->
+        <!-- ============================================================== -->
+        <div class="space-y-4">
+          <div class="bg-gradient-to-r from-rose-500/10 via-rose-500/5 to-amber-500/10 border border-rose-200/80 rounded-2xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm">
+            <div class="flex items-start gap-3.5">
+              <div class="w-12 h-12 rounded-xl bg-rose-600 text-white flex items-center justify-center font-bold shadow-md shadow-rose-200 shrink-0">
+                <i-lucide name="alert-triangle" class="w-6 h-6"></i-lucide>
+              </div>
+              <div>
+                <div class="flex flex-wrap items-center gap-2">
+                  <h3 class="text-base font-extrabold text-slate-900 font-outfit">
+                    Alertas de Stock Bajo emitidas por Sucursales
+                  </h3>
+                  <span *ngIf="esAdminGlobal || esGestorBodega" class="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-blue-100 text-blue-800 border border-blue-200">
+                    🌍 Red Nacional Completa · Ver Todo de Todos
+                  </span>
+                  <span *ngIf="esAsistenteBodega" class="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-purple-100 text-purple-800 border border-purple-200">
+                    📍 Región {{ userRegionDisplay }} · Solo Sucursales de tu Región
+                  </span>
+                </div>
+                <p class="text-xs text-slate-600 mt-1">
+                  {{ (esAdminGlobal || esGestorBodega)
+                    ? 'Monitoreo consolidado de alertas de desabastecimiento generadas por todas las sedes del país.'
+                    : 'Alertas generadas por consumo o déficit exclusivamente de las sedes de tu región asignada.' }}
+                </p>
+              </div>
             </div>
-            <div>
-              <h3 class="text-sm font-bold text-rose-900">Insumos con Nivel Crítico o Agotado</h3>
-              <p class="text-xs text-rose-700">Productos cuyo stock actual es menor o igual al umbral mínimo establecido.</p>
+
+            <div class="flex items-center gap-2 self-end md:self-center shrink-0">
+              <span class="px-3 py-1.5 rounded-xl font-mono text-xs font-black bg-white text-rose-700 border border-rose-200 shadow-2xs">
+                {{ alertasStockFiltradas.length }} alerta(s) activa(s)
+              </span>
+              <button
+                (click)="cargarAlertasStock()"
+                class="p-2 rounded-xl bg-white hover:bg-slate-50 text-slate-600 hover:text-slate-900 border border-slate-200 shadow-2xs transition cursor-pointer"
+                title="Actualizar alertas">
+                <i-lucide name="refresh-cw" class="w-4 h-4" [ngClass]="{ 'animate-spin': cargandoAlertasStock }"></i-lucide>
+              </button>
             </div>
           </div>
-          <button
-            (click)="abrirModalEntrada()"
-            class="px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer">
-            <i-lucide name="plus" class="w-4 h-4"></i-lucide>
-            <span>Abastecer Productos</span>
-          </button>
+
+          <!-- Filtros de la Bandeja de Alertas -->
+          <div class="flex flex-wrap items-center justify-between gap-3 bg-white p-3.5 rounded-xl border border-slate-100 shadow-2xs">
+            <div class="flex flex-wrap items-center gap-2 flex-1">
+              <div class="relative min-w-[220px] flex-1">
+                <i-lucide name="search" class="w-4 h-4 absolute left-3 top-2.5 text-slate-400"></i-lucide>
+                <input
+                  type="text"
+                  [(ngModel)]="filtroAlertaAgencia"
+                  (ngModelChange)="filtrarAlertasStock()"
+                  placeholder="Buscar por sucursal, insumo o detalle..."
+                  class="w-full pl-9 pr-3 py-1.5 text-xs rounded-lg border border-slate-200 focus:outline-none focus:border-rose-500 text-slate-700" />
+              </div>
+
+              <select
+                [(ngModel)]="filtroAlertaNivel"
+                (ngModelChange)="filtrarAlertasStock()"
+                class="px-3 py-1.5 text-xs rounded-lg border border-slate-200 bg-white focus:outline-none focus:border-rose-500 text-slate-700">
+                <option value="">Todos los Niveles</option>
+                <option value="CRITICO">🚨 Crítico / Agotado</option>
+                <option value="BAJO">⚠️ Bajo Mínimo</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Tabla de Alertas de Sucursales -->
+          <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry overflow-hidden">
+            <div class="overflow-x-auto">
+              <table class="w-full text-left text-xs text-slate-600">
+                <thead class="bg-slate-50 text-slate-400 text-[10px] font-bold uppercase tracking-wider">
+                  <tr>
+                    <th class="p-3.5">Sucursal / Región</th>
+                    <th class="p-3.5">Insumo Requerido</th>
+                    <th class="p-3.5">Nivel Alerta</th>
+                    <th class="p-3.5">Detalle Reportado</th>
+                    <th class="p-3.5">Fecha Reporte</th>
+                    <th class="p-3.5">Estado</th>
+                    <th class="p-3.5 text-right">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                  <tr *ngIf="alertasStockFiltradas.length === 0">
+                    <td colspan="7" class="p-8 text-center text-slate-400">
+                      <div class="flex flex-col items-center justify-center gap-1.5">
+                        <i-lucide name="check-circle-2" class="w-6 h-6 text-emerald-500"></i-lucide>
+                        <span class="font-medium text-slate-600">
+                          {{ esAsistenteBodega
+                            ? 'No hay alertas de stock bajo pendientes en las sucursales de tu región.'
+                            : 'No hay alertas de stock bajo pendientes en las sucursales.' }}
+                        </span>
+                      </div>
+                    </td>
+                  </tr>
+
+                  <tr *ngFor="let a of alertasStockFiltradas" class="hover:bg-slate-50/60 transition">
+                    <td class="p-3.5">
+                      <div class="font-bold text-slate-800">{{ a.agencia?.nombre || 'Bodega Central' }}</div>
+                      <span *ngIf="a.agencia?.region" class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200 mt-0.5 inline-block">
+                        {{ a.agencia.region }}
+                      </span>
+                    </td>
+                    <td class="p-3.5">
+                      <div class="font-bold text-slate-900">{{ a.insumo?.nombre || 'Insumo' }}</div>
+                      <span class="font-mono text-[10px] text-slate-400">{{ a.insumo?.codigoSKU }}</span>
+                    </td>
+                    <td class="p-3.5 whitespace-nowrap">
+                      <span
+                        class="px-2.5 py-1 rounded-md text-[11px] font-bold inline-flex items-center gap-1 border"
+                        [ngClass]="(a.nivel === 'CRITICO' || a.nivel === 'AGOTADO') ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-amber-50 text-amber-700 border-amber-200'">
+                        <i-lucide [name]="(a.nivel === 'CRITICO' || a.nivel === 'AGOTADO') ? 'alert-triangle' : 'alert-circle'" class="w-3.5 h-3.5"></i-lucide>
+                        <span>{{ (a.nivel === 'CRITICO' || a.nivel === 'AGOTADO') ? 'Crítico / Agotado' : 'Bajo Mínimo' }}</span>
+                      </span>
+                    </td>
+                    <td class="p-3.5 max-w-xs text-slate-700 font-medium">
+                      {{ a.mensaje || 'Nivel de existencias por debajo del umbral mínimo configurado.' }}
+                    </td>
+                    <td class="p-3.5 whitespace-nowrap font-mono text-slate-500 text-[11px]">
+                      {{ a.createdAt | date:'short' }}
+                    </td>
+                    <td class="p-3.5 whitespace-nowrap">
+                      <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase"
+                        [ngClass]="a.estado === 'RESUELTO' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'">
+                        {{ a.estado || 'PENDIENTE' }}
+                      </span>
+                    </td>
+                    <td class="p-3.5 text-right whitespace-nowrap space-x-1.5">
+                      <button
+                        *ngIf="a.agencia"
+                        (click)="abrirModalDespachoAgencia(a.agencia, a.insumo)"
+                        class="px-2.5 py-1 rounded-lg bg-easydry-blue hover:bg-blue-700 text-white font-bold text-[11px] transition shadow-2xs cursor-pointer inline-flex items-center gap-1">
+                        <i-lucide name="truck" class="w-3 h-3"></i-lucide>
+                        <span>Despachar</span>
+                      </button>
+                      <button
+                        *ngIf="a.estado !== 'RESUELTO'"
+                        (click)="resolverAlerta(a)"
+                        class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] transition border border-slate-200 cursor-pointer inline-flex items-center gap-1">
+                        <i-lucide name="check" class="w-3 h-3"></i-lucide>
+                        <span>Atendida</span>
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
 
-        <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry overflow-hidden">
-          <div class="overflow-x-auto">
-            <table class="w-full text-left text-xs text-slate-600">
-              <thead class="bg-slate-50 text-slate-400 text-[10px] font-bold uppercase tracking-wider">
-                <tr>
-                  <th class="p-3.5">SKU</th>
-                  <th class="p-3.5">Producto</th>
-                  <th class="p-3.5">Tipo</th>
-                  <th class="p-3.5">Contenido x Envase</th>
-                  <th class="p-3.5">Stock en Unidades</th>
-                  <th class="p-3.5">Stock Contenido</th>
-                  <th class="p-3.5">Stock Mínimo</th>
-                  <th class="p-3.5">Déficit</th>
-                  <th class="p-3.5 text-right">Acción</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-slate-100">
-                <tr *ngIf="productosStockBajoList.length === 0">
-                  <td colspan="9" class="p-8 text-center text-emerald-600 font-bold">
-                    ¡Excelente! Todos los productos cuentan con existencias óptimas.
-                  </td>
-                </tr>
+        <!-- ============================================================== -->
+        <!-- SECCIÓN 2: INSUMOS BAJO MÍNIMO EN BODEGA CENTRAL               -->
+        <!-- ============================================================== -->
+        <div class="space-y-4 pt-4 border-t border-slate-200">
+          <div class="bg-rose-50 border border-rose-200 rounded-2xl p-4 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-rose-500 text-white flex items-center justify-center font-bold">
+                <i-lucide name="package-x" class="w-5 h-5"></i-lucide>
+              </div>
+              <div>
+                <h3 class="text-sm font-bold text-rose-900">Insumos con Stock Bajo en Bodega Central</h3>
+                <p class="text-xs text-rose-700">Productos cuyo stock central es menor o igual al umbral mínimo de reposición establecido.</p>
+              </div>
+            </div>
+            <button
+              (click)="abrirModalEntrada()"
+              class="px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer">
+              <i-lucide name="plus" class="w-4 h-4"></i-lucide>
+              <span>Abastecer Productos</span>
+            </button>
+          </div>
 
-                <tr *ngFor="let p of productosStockBajoList" class="hover:bg-rose-50/30 transition">
-                  <td class="p-3.5 font-mono font-bold text-slate-800">{{ p.codigoSKU }}</td>
-                  <td class="p-3.5 font-bold text-slate-900">{{ p.nombre }}</td>
-                  <td class="p-3.5">{{ p.tipoProducto?.nombre || 'General' }}</td>
-                  <td class="p-3.5 font-mono font-bold text-slate-700 whitespace-nowrap">
-                    {{ (p.contenidoNeto || 1) | number:'1.0-2' }} {{ p.unidadMedida }}
-                  </td>
-                  <td class="p-3.5 whitespace-nowrap">
-                    <span class="px-2.5 py-1 rounded-md font-mono font-bold text-xs bg-rose-50 text-rose-700 border border-rose-200 inline-block">
-                      {{ getStockEnUnidades(p.stockActual, p.contenidoNeto) | number:'1.0-2' }} und
-                    </span>
-                  </td>
-                  <td class="p-3.5 font-mono font-bold text-rose-600 whitespace-nowrap">
-                    {{ p.stockActual | number:'1.0-2' }} {{ p.unidadMedida }}
-                  </td>
-                  <td class="p-3.5 font-mono text-slate-600 whitespace-nowrap">
-                    <b>{{ getStockEnUnidades(p.stockMinimoBodega, p.contenidoNeto) | number:'1.0-2' }} und</b>
-                    <span class="text-[10px] text-slate-400 block">({{ (p.stockMinimoBodega || 0) | number:'1.0-2' }} {{ p.unidadMedida }})</span>
-                  </td>
-                  <td class="p-3.5 font-mono font-bold text-rose-700 whitespace-nowrap">
-                    <b>-{{ getStockEnUnidades(((p.stockMinimoBodega || 0) - p.stockActual), p.contenidoNeto) | number:'1.0-2' }} und</b>
-                    <span class="text-[10px] text-rose-500 block">(-{{ ((p.stockMinimoBodega || 0) - p.stockActual) | number:'1.0-2' }} {{ p.unidadMedida }})</span>
-                  </td>
-                  <td class="p-3.5 text-right">
-                    <button
-                      (click)="seleccionarParaEntrada(p)"
-                      class="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] transition cursor-pointer">
-                      Ingresar Stock
-                    </button>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+          <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry overflow-hidden">
+            <div class="overflow-x-auto">
+              <table class="w-full text-left text-xs text-slate-600">
+                <thead class="bg-slate-50 text-slate-400 text-[10px] font-bold uppercase tracking-wider">
+                  <tr>
+                    <th class="p-3.5">SKU</th>
+                    <th class="p-3.5">Producto</th>
+                    <th class="p-3.5">Tipo</th>
+                    <th class="p-3.5">Contenido x Envase</th>
+                    <th class="p-3.5">Stock en Unidades</th>
+                    <th class="p-3.5">Stock Contenido</th>
+                    <th class="p-3.5">Stock Mínimo</th>
+                    <th class="p-3.5">Déficit</th>
+                    <th class="p-3.5 text-right">Acción</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                  <tr *ngIf="productosStockBajoList.length === 0">
+                    <td colspan="9" class="p-8 text-center text-emerald-600 font-bold">
+                      ¡Excelente! Todos los productos cuentan con existencias óptimas en bodega.
+                    </td>
+                  </tr>
+
+                  <tr *ngFor="let p of productosStockBajoList" class="hover:bg-rose-50/30 transition">
+                    <td class="p-3.5 font-mono font-bold text-slate-800">{{ p.codigoSKU }}</td>
+                    <td class="p-3.5 font-bold text-slate-900">{{ p.nombre }}</td>
+                    <td class="p-3.5">{{ p.tipoProducto?.nombre || 'General' }}</td>
+                    <td class="p-3.5 font-mono font-bold text-slate-700 whitespace-nowrap">
+                      {{ (p.contenidoNeto || 1) | number:'1.0-2' }} {{ p.unidadMedida }}
+                    </td>
+                    <td class="p-3.5 whitespace-nowrap">
+                      <span class="px-2.5 py-1 rounded-md font-mono font-bold text-xs bg-rose-50 text-rose-700 border border-rose-200 inline-block">
+                        {{ getStockEnUnidades(p.stockActual, p.contenidoNeto) | number:'1.0-2' }} und
+                      </span>
+                    </td>
+                    <td class="p-3.5 font-mono font-bold text-rose-600 whitespace-nowrap">
+                      {{ p.stockActual | number:'1.0-2' }} {{ p.unidadMedida }}
+                    </td>
+                    <td class="p-3.5 font-mono text-slate-600 whitespace-nowrap">
+                      <b>{{ getStockEnUnidades(p.stockMinimoBodega, p.contenidoNeto) | number:'1.0-2' }} und</b>
+                      <span class="text-[10px] text-slate-400 block">({{ (p.stockMinimoBodega || 0) | number:'1.0-2' }} {{ p.unidadMedida }})</span>
+                    </td>
+                    <td class="p-3.5 font-mono font-bold text-rose-700 whitespace-nowrap">
+                      <b>-{{ getStockEnUnidades(((p.stockMinimoBodega || 0) - p.stockActual), p.contenidoNeto) | number:'1.0-2' }} und</b>
+                      <span class="text-[10px] text-rose-500 block">(-{{ ((p.stockMinimoBodega || 0) - p.stockActual) | number:'1.0-2' }} {{ p.unidadMedida }})</span>
+                    </td>
+                    <td class="p-3.5 text-right">
+                      <button
+                        (click)="seleccionarParaEntrada(p)"
+                        class="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] transition cursor-pointer">
+                        Ingresar Stock
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </div>
@@ -2887,12 +3042,12 @@ import {
   `,
 })
 export class InventarioComponent implements OnInit {
-  private inventarioService = inject(InventarioMockService);
+  private inventarioService = inject(InventarioService);
   private toast = inject(ToastService);
   private auth = inject(AuthService);
-  private sucursalService = inject(SucursalMockService);
-  private usuarioService = inject(UsuarioMockService);
-  private regionService = inject(RegionMockService);
+  private sucursalService = inject(SucursalService);
+  private usuarioService = inject(UsuarioService);
+  private regionService = inject(RegionService);
 
   // Navegación
   activeTab: 'dashboard' | 'insumos_servicios' | 'productos' | 'bodegas' | 'agencias' | 'movimientos' | 'stock_bajo' | 'configuracion' = 'insumos_servicios';
@@ -3008,6 +3163,17 @@ export class InventarioComponent implements OnInit {
   totalMovimientos = 0;
   productosStockBajoList: ProductoInsumo[] = [];
 
+  // Bandeja de Alertas de Stock Bajo en Sucursales (AlertaStock)
+  alertasStockList: any[] = [];
+  alertasStockFiltradas: any[] = [];
+  cargandoAlertasStock = false;
+  filtroAlertaNivel = '';
+  filtroAlertaAgencia = '';
+  userRegionDisplay = '';
+  esGestorBodega = false;
+  esAsistenteBodega = false;
+  esAdminGlobal = false;
+
   // Estado Bodegas & Otras Agencias
   resumenBodegas: any = {
     bodega: null,
@@ -3118,6 +3284,11 @@ export class InventarioComponent implements OnInit {
     this.isLiderOperador = this.isOperador && (role === 'LIDER_OPERADOR' || role === 'LIDER_AGENCIA' || rolNombre.includes('lider'));
     this.esLiderAgencia = this.isLiderOperador;
 
+    this.esGestorBodega = (role === 'COORD_BODEGA' || role === 'DISTRIBUIDOR' || rolNombre.includes('coordinador') || rolNombre.includes('gestor'));
+    this.esAsistenteBodega = (role === 'ASISTENTE_BODEGA' || rolNombre.includes('asistente'));
+    this.esAdminGlobal = esAdminOSuperAdmin;
+    this.userRegionDisplay = this.currentUser?.region || this.currentUser?.regionNombre || ((esAdminOSuperAdmin || this.esGestorBodega) ? 'Red Nacional (Ver todo de todos)' : '');
+
     this.miAgenciaNombre = this.currentUser?.sucursalNombre || this.currentUser?.sucursal || '';
     this.miAgenciaId = (this.currentUser?.agenciaId ? String(this.currentUser.agenciaId) : '') || this.miAgenciaNombre;
 
@@ -3136,6 +3307,7 @@ export class InventarioComponent implements OnInit {
     this.cargarDespachosRechazadosSuperAdmin();
     this.cargarStockBodega();
     this.cargarStockAgencias();
+    this.cargarAlertasStock();
 
     // Cargar sedes activas para el selector de agencias
     this.sucursalService.getSucursales().subscribe((sucursales) => {
@@ -3189,14 +3361,16 @@ export class InventarioComponent implements OnInit {
     const role = (this.currentUser?.role || '').toUpperCase();
     const esAsistenteBodega = role === 'ASISTENTE_BODEGA';
     const userRegion = (this.currentUser?.region || this.currentUser?.regionNombre || '').toLowerCase().trim();
+    const userRegionId = (this.currentUser as any)?.regionId;
 
-    if (esAsistenteBodega && userRegion) {
+    if (esAsistenteBodega && (userRegion || userRegionId)) {
       // Asistente de Bodega: gestiona únicamente las agencias de su región asignada
       const regionales = this.sucursalesActivas.filter(s =>
+        (userRegionId && s.regionId && String(s.regionId) === String(userRegionId)) ||
         (s.regionNombre && s.regionNombre.toLowerCase().includes(userRegion)) ||
         (s.ciudad && s.ciudad.toLowerCase().includes(userRegion))
       );
-      return regionales.length > 0 ? regionales : this.sucursalesActivas;
+      return regionales.length > 0 ? regionales : [];
     }
 
     if (this.isOperador && this.miAgenciaId) {
@@ -3206,7 +3380,7 @@ export class InventarioComponent implements OnInit {
       return filtradas.length > 0 ? filtradas : this.sucursalesActivas;
     }
 
-    // Gestor de Bodega (COORD_BODEGA) y Admin: todas las agencias sin importar región ni marcas
+    // Gestor de Inventario (COORD_BODEGA), Super Admin y Admin: todas las agencias sin importar región ni marcas
     return this.sucursalesActivas;
   }
 
@@ -3634,29 +3808,81 @@ export class InventarioComponent implements OnInit {
     });
   }
 
+  public cargarAlertasStock(): void {
+    this.cargandoAlertasStock = true;
+    this.inventarioService.getAlertasStock().subscribe({
+      next: (alertas) => {
+        this.alertasStockList = alertas || [];
+        this.filtrarAlertasStock();
+        this.cargandoAlertasStock = false;
+      },
+      error: (err) => {
+        this.cargandoAlertasStock = false;
+        console.error('Error al cargar alertas de stock:', err);
+      }
+    });
+  }
+
+  public filtrarAlertasStock(): void {
+    let list = [...(this.alertasStockList || [])];
+    if (this.filtroAlertaNivel) {
+      list = list.filter((a) => (a.nivel || '').toUpperCase() === this.filtroAlertaNivel.toUpperCase());
+    }
+    if (this.filtroAlertaAgencia.trim()) {
+      const q = this.filtroAlertaAgencia.toLowerCase();
+      list = list.filter(
+        (a) =>
+          a.agencia?.nombre?.toLowerCase().includes(q) ||
+          a.agencia?.codigo?.toLowerCase().includes(q) ||
+          a.agencia?.region?.toLowerCase().includes(q) ||
+          a.insumo?.nombre?.toLowerCase().includes(q) ||
+          a.insumo?.codigoSKU?.toLowerCase().includes(q) ||
+          (a.mensaje && a.mensaje.toLowerCase().includes(q))
+      );
+    }
+    this.alertasStockFiltradas = list;
+  }
+
+  public resolverAlerta(alerta: any): void {
+    if (!alerta?.id) return;
+    this.inventarioService.atenderAlertaStock({ id: alerta.id, estado: 'RESUELTO', observacion: 'Atendida desde bandeja' }).subscribe({
+      next: () => {
+        this.toast.success('Alerta resuelta', 'La alerta de stock bajo ha sido atendida correctamente.');
+        this.cargarAlertasStock();
+      },
+      error: () => this.toast.error('Error', 'No se pudo actualizar el estado de la alerta.')
+    });
+  }
+
   public cargarBodegasDisponibles(): void {
     this.cargandoBodegas = true;
     this.inventarioService.getBodegas().subscribe({
       next: (bodegas) => {
-        this.bodegasDisponibles = bodegas || [];
+        const todas = bodegas || [];
         const role = (this.currentUser?.role || '').toUpperCase();
         const esAsistenteBodega = role === 'ASISTENTE_BODEGA';
         const userRegion = (this.currentUser?.region || this.currentUser?.regionNombre || '').toLowerCase().trim();
-        const userAgencia = (this.currentUser?.agencia || this.currentUser?.sucursal || '').toLowerCase().trim();
+        const userRegionId = (this.currentUser as any)?.regionId;
 
-        if (esAsistenteBodega && (userRegion || userAgencia)) {
-          const matching = this.bodegasDisponibles.find(
+        if (esAsistenteBodega && (userRegion || userRegionId)) {
+          // Asistente de Bodega: solo bodegas de su región asignada
+          const deRegion = todas.filter(
             (b) =>
+              (userRegionId && b.regionId && String(b.regionId) === String(userRegionId)) ||
               (userRegion && b.region && b.region.toLowerCase().includes(userRegion)) ||
-              (userAgencia && b.nombre.toLowerCase().includes(userAgencia))
+              (userRegion && b.ciudad && b.ciudad.toLowerCase().includes(userRegion))
           );
-          if (matching) {
-            this.bodegaSeleccionadaId = matching.id;
-          }
+          this.bodegasDisponibles = deRegion.length > 0 ? deRegion : todas;
+        } else {
+          // Gestor de Inventario, Admin y Super Admin: ven todas las bodegas del sistema
+          this.bodegasDisponibles = todas;
         }
 
-        if (!this.bodegaSeleccionadaId && this.bodegasDisponibles.length > 0) {
-          this.bodegaSeleccionadaId = this.bodegasDisponibles[0].id;
+        if (this.bodegasDisponibles.length > 0) {
+          const match = this.bodegasDisponibles.find((b) => b.id === this.bodegaSeleccionadaId);
+          if (!match) {
+            this.bodegaSeleccionadaId = this.bodegasDisponibles[0].id;
+          }
         }
 
         this.bodegaSeleccionada =
@@ -3668,7 +3894,7 @@ export class InventarioComponent implements OnInit {
       },
       error: (err) => {
         this.cargandoBodegas = false;
-        console.error('Error al cargar bodegas:', err);
+        console.error('Error al consultar bodegas:', err);
       },
     });
   }
@@ -3869,18 +4095,19 @@ export class InventarioComponent implements OnInit {
     const role = (this.currentUser?.role || '').toUpperCase();
     const esAsistenteBodega = role === 'ASISTENTE_BODEGA';
     const userRegion = (this.currentUser?.region || this.currentUser?.regionNombre || '').toLowerCase().trim();
-    const userAgencia = (this.currentUser?.agencia || this.currentUser?.sucursal || '').toLowerCase().trim();
+    const userRegionId = (this.currentUser as any)?.regionId;
 
-    if (esAsistenteBodega && (userRegion || userAgencia)) {
+    if (esAsistenteBodega && (userRegion || userRegionId)) {
       const asignadas = this.bodegasDisponibles.filter(
         (b) =>
+          (userRegionId && b.regionId && String(b.regionId) === String(userRegionId)) ||
           (userRegion && b.region && b.region.toLowerCase().includes(userRegion)) ||
-          (userAgencia && b.nombre.toLowerCase().includes(userAgencia))
+          (userRegion && b.ciudad && b.ciudad.toLowerCase().includes(userRegion))
       );
       if (asignadas.length > 0) return asignadas;
     }
 
-    // Admin, SuperAdmin, Gestor de Bodega (COORD_BODEGA): todas las bodegas creadas
+    // Admin, SuperAdmin, Gestor de Inventario (COORD_BODEGA): todas las bodegas creadas a nivel nacional
     return this.bodegasDisponibles;
   }
 
@@ -3938,14 +4165,19 @@ export class InventarioComponent implements OnInit {
     const role = (this.currentUser?.role || '').toUpperCase();
     const esAsistenteBodega = role === 'ASISTENTE_BODEGA';
     const userRegion = (this.currentUser?.region || this.currentUser?.regionNombre || '').toLowerCase().trim();
+    const userRegionId = (this.currentUser as any)?.regionId;
 
-    if (esAsistenteBodega && userRegion) {
-      // Asistente de Bodega: gestiona únicamente las agencias de su región
-      list = list.filter((a: any) =>
-        (a.agencia?.region && a.agencia.region.toLowerCase().includes(userRegion)) ||
-        (a.agencia?.ciudad && a.agencia.ciudad.toLowerCase().includes(userRegion)) ||
-        (a.agencia?.nombre && this.sucursalesActivas.some(s => s.nombre.toLowerCase() === a.agencia.nombre.toLowerCase()))
-      );
+    if (esAsistenteBodega && (userRegion || userRegionId)) {
+      // Asistente de Bodega: gestiona y visualiza ÚNICAMENTE las agencias de su región asignada
+      list = list.filter((a: any) => {
+        const regAgencia = (a.agencia?.region || '').toLowerCase();
+        const ciudadAgencia = (a.agencia?.ciudad || '').toLowerCase();
+        const regIdAgencia = a.agencia?.regionId ? String(a.agencia.regionId) : '';
+        const matchRegId = userRegionId && regIdAgencia === String(userRegionId);
+        const matchRegion = userRegion && regAgencia.includes(userRegion);
+        const matchCiudad = userRegion && ciudadAgencia.includes(userRegion);
+        return matchRegId || matchRegion || matchCiudad;
+      });
     } else if (this.isOperador && this.miAgenciaId) {
       const otras = list.filter(
         (a: any) =>
@@ -3956,6 +4188,7 @@ export class InventarioComponent implements OnInit {
         list = otras;
       }
     }
+    // Super Admin, Admin y Gestor de Inventario (COORD_BODEGA): ven todas las agencias del país sin restricción regional
     if (this.filtroAgenciaId) {
       list = list.filter((a: any) => a.agencia?.id === this.filtroAgenciaId);
     }

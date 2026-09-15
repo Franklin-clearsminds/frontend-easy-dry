@@ -2,12 +2,12 @@ import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LucideAngularModule } from 'lucide-angular';
-import { MaquinariaMockService } from '../../core/services/maquinaria-mock.service';
-import { MovimientoMaquinariaMockService } from '../../core/services/movimiento-maquinaria-mock.service';
-import { SucursalMockService } from '../../core/services/sucursal-mock.service';
-import { IncidenteMockService } from '../../core/services/incidente-mock.service';
-import { MantenimientoMockService } from '../../core/services/mantenimiento-mock.service';
-import { BahiaMockService } from '../../core/services/bahia-mock.service';
+import { MaquinariaService } from '../../core/services/maquinaria.service';
+import { MovimientoMaquinariaService } from '../../core/services/movimiento-maquinaria.service';
+import { SucursalService } from '../../core/services/sucursal.service';
+import { IncidenteService } from '../../core/services/incidente.service';
+import { MantenimientoService } from '../../core/services/mantenimiento.service';
+import { BahiaService } from '../../core/services/bahia.service';
 import { AuthService } from '../../core/services/auth.service';
 import { Maquinaria, MovimientoMaquinaria, Sucursal, Incidente, Mantenimiento, ArchivoAdjunto, Bahia } from '../../core/models';
 import { Role } from '../../core/models/roles.model';
@@ -37,7 +37,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
         [showOperador]="false"
         [showBahia]="true"
         [showRegion]="true"
-        [showMarca]="true"
+        [showCliente]="true"
         [showEstado]="true"
         [showFechas]="false"
         [showBusqueda]="true"
@@ -982,7 +982,7 @@ export class MaquinariaComponent implements OnInit {
 
   filtroTexto = '';
 
-  filtrosGlobales: FilterState = { sucursal: 'Todas', region: 'Todas', marca: 'Todas', operador: 'Todos', bahia: 'Todas', estado: 'Todos', fecha: 'Hoy' };
+  filtrosGlobales: FilterState = { sucursal: 'Todas', region: 'Todas', cliente: 'Todas', marca: 'Todas', operador: 'Todos', bahia: 'Todas', estado: 'Todos', fecha: 'Hoy' };
 
   // Mapa sucursal -> región (para el filtro de región)
   mapaRegionSucursal: Record<string, string> = {};
@@ -1036,12 +1036,12 @@ export class MaquinariaComponent implements OnInit {
 
   todasLasBahias: Bahia[] = [];
 
-  private maquinariaService = inject(MaquinariaMockService);
-  private movimientoService = inject(MovimientoMaquinariaMockService);
-  private sucursalService = inject(SucursalMockService);
-  private incidenteService = inject(IncidenteMockService);
-  private mantenimientoService = inject(MantenimientoMockService);
-  private bahiaService = inject(BahiaMockService);
+  private maquinariaService = inject(MaquinariaService);
+  private movimientoService = inject(MovimientoMaquinariaService);
+  private sucursalService = inject(SucursalService);
+  private incidenteService = inject(IncidenteService);
+  private mantenimientoService = inject(MantenimientoService);
+  private bahiaService = inject(BahiaService);
   private toastService = inject(ToastService);
   public authService = inject(AuthService);
 
@@ -1057,7 +1057,8 @@ export class MaquinariaComponent implements OnInit {
       this.mapaMarcaSucursal = {};
       list.forEach(s => {
         if (s.nombre && s.regionNombre) this.mapaRegionSucursal[s.nombre] = s.regionNombre;
-        if (s.nombre && s.marcaNombre) this.mapaMarcaSucursal[s.nombre] = s.marcaNombre;
+        const cNom = s.clienteNombre || s.marcaNombre;
+        if (s.nombre && cNom) this.mapaMarcaSucursal[s.nombre] = cNom;
       });
     });
 
@@ -1114,8 +1115,9 @@ export class MaquinariaComponent implements OnInit {
     if (this.filtrosGlobales.region && this.filtrosGlobales.region !== 'Todas') {
       resultados = resultados.filter(m => this.mapaRegionSucursal[m.agencia] === this.filtrosGlobales.region);
     }
-    if (this.filtrosGlobales.marca && this.filtrosGlobales.marca !== 'Todas') {
-      resultados = resultados.filter(m => this.mapaMarcaSucursal[m.agencia] === this.filtrosGlobales.marca);
+    const fCliente = this.filtrosGlobales.cliente || this.filtrosGlobales.marca;
+    if (fCliente && fCliente !== 'Todas' && fCliente !== 'Todos') {
+      resultados = resultados.filter(m => this.mapaMarcaSucursal[m.agencia] === fCliente);
     }
 
     return resultados;

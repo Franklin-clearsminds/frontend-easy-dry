@@ -8,7 +8,7 @@ import { apiUrl } from '../config/env';
 @Injectable({
   providedIn: 'root'
 })
-export class MaquinariaMockService {
+export class MaquinariaService {
   private http = inject(HttpClient);
   private maquinariaSubject = new BehaviorSubject<Maquinaria[]>([]);
   public maquinaria$ = this.maquinariaSubject.asObservable();

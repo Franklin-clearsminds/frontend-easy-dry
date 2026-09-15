@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { LucideAngularModule } from 'lucide-angular';
 import { AuthService } from '../../core/services/auth.service';
 import { ToastService } from '../../shared/services/toast.service';
-import { Role, ROLE_LABELS } from '../../core/models/roles.model';
+import { Role, ROLE_LABELS, UsuarioAuth } from '../../core/models/roles.model';
 import { ModalPortalDirective } from '../../shared/directives/modal-portal.directive';
 
 @Component({
@@ -139,17 +139,17 @@ import { ModalPortalDirective } from '../../shared/directives/modal-portal.direc
               </div>
             }
 
-            <h3 class="text-lg font-bold text-slate-900 leading-snug">{{ currentUser.nombre }} {{ currentUser.apellido }}</h3>
+            <h3 class="text-lg font-bold text-slate-900 leading-snug">{{ currentUser?.nombre }} {{ currentUser?.apellido }}</h3>
             <p class="text-[11px] font-extrabold text-easydry-blue uppercase tracking-widest mt-0.5">{{ rolLabel }}</p>
             
             <div class="mt-6 pt-5 border-t border-slate-100 text-left space-y-3 text-xs">
               <div class="flex items-center gap-3 text-slate-600">
                 <i-lucide name="mail" class="w-4 h-4 text-slate-400 flex-shrink-0"></i-lucide>
-                <span class="truncate">{{ currentUser.email }}</span>
+                <span class="truncate">{{ currentUser?.email }}</span>
               </div>
               <div class="flex items-center gap-3 text-slate-600">
                 <i-lucide name="building-2" class="w-4 h-4 text-slate-400 flex-shrink-0"></i-lucide>
-                <span class="truncate">{{ currentUser.sucursalNombre || 'Red Nacional EasyDry®' }}</span>
+                <span class="truncate">{{ currentUser?.sucursalNombre || 'Red Nacional EasyDry®' }}</span>
               </div>
               <div class="flex items-center gap-3 text-slate-600">
                 <i-lucide name="shield" class="w-4 h-4 text-slate-400 flex-shrink-0"></i-lucide>
@@ -480,7 +480,7 @@ export class PerfilComponent implements OnInit {
   private authService = inject(AuthService);
   private toastService = inject(ToastService);
 
-  currentUser = this.authService.getCurrentUser();
+  currentUser: UsuarioAuth | null = this.authService.getCurrentUser();
   
   isAdmin = false;
   modoEdicion = false;
@@ -528,6 +528,8 @@ export class PerfilComponent implements OnInit {
 
   cargarDatosUsuario(): void {
     this.currentUser = this.authService.getCurrentUser();
+    if (!this.currentUser) return;
+
     const roleStr = (this.currentUser.role || '').toString().toUpperCase();
     this.isAdmin = roleStr === Role.SUPER_ADMIN || roleStr.includes('ADMIN');
     

@@ -3,16 +3,16 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule, ActivatedRoute } from '@angular/router';
 import { LucideAngularModule } from 'lucide-angular';
-import { SucursalMockService } from '../../core/services/sucursal-mock.service';
-import { RegionMockService } from '../../core/services/region-mock.service';
-import { MarcaSucursalMockService } from '../../core/services/marca-sucursal-mock.service';
-import { BahiaMockService } from '../../core/services/bahia-mock.service';
-import { UsuarioMockService } from '../../core/services/usuario-mock.service';
+import { SucursalService } from '../../core/services/sucursal.service';
+import { RegionService } from '../../core/services/region.service';
+import { MarcaSucursalService } from '../../core/services/marca-sucursal.service';
+import { BahiaService } from '../../core/services/bahia.service';
+import { UsuarioService } from '../../core/services/usuario.service';
 import { AuthService } from '../../core/services/auth.service';
 import { Sucursal, CatalogoServicio, Bahia, Usuario, MarcaSucursal, MovimientoRedSucursal, RegionOperativa } from '../../core/models';
 import { ModalComponent } from '../../shared/components/modal/modal.component';
 import { ToastService } from '../../shared/services/toast.service';
-import { CatalogoServiciosMockService } from '../../core/services/catalogo-servicios-mock.service';
+import { CatalogoServiciosService } from '../../core/services/catalogo-servicios.service';
 import { FilterBarComponent, FilterState } from '../../shared/components/filter-bar/filter-bar.component';
 
 @Component({
@@ -29,7 +29,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
             <span>Gestión de Red Física y Operatividad en Vivo</span>
           </div>
           <h1 class="text-2xl font-extrabold text-slate-900 font-outfit">Agencias & Mapa de Red EasyDry®</h1>
-          <p class="text-slate-500 text-xs mt-1">Control administrativo de sedes, regiones operativas, marcas y trazabilidad jerárquica de bahías en tiempo real.</p>
+          <p class="text-slate-500 text-xs mt-1">Control administrativo de sedes, regiones operativas, clientes corporativos y trazabilidad jerárquica de bahías en tiempo real.</p>
         </div>
         <button
           *ngIf="tabActiva === 'agencias' || tabActiva === 'sucursales'"
@@ -207,7 +207,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
       @if (tabActiva === 'agencias' || tabActiva === 'sucursales') {
         <app-filter-bar
           [showRegion]="true"
-          [showMarca]="true"
+          [showCliente]="true"
           [showSucursal]="false"
           [showOperador]="false"
           [showBahia]="false"
@@ -403,11 +403,11 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
         </div>
       }
 
-      @if (tabActiva === 'marcas') {
+      @if (tabActiva === 'clientes' || tabActiva === 'marcas') {
         <div class="flex items-center justify-between">
-          <p class="text-xs text-slate-500">Crea marcas de agencia y asígnalas o transfiérelas entre locales.</p>
+          <p class="text-xs text-slate-500">Crea clientes corporativos de agencia y asígnalos o transfiérelos entre locales.</p>
           <button (click)="abrirModalMarca()" class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
-            <i-lucide name="plus" class="w-3.5 h-3.5"></i-lucide> Nueva Marca
+            <i-lucide name="plus" class="w-3.5 h-3.5"></i-lucide> Nuevo Cliente
           </button>
         </div>
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -437,7 +437,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
           </div>
           <div class="lg:col-span-2 bg-white rounded-2xl border border-slate-100 shadow-easydry p-6 min-h-[280px]">
             @if (!marcaSeleccionada) {
-              <p class="text-sm text-slate-500">Selecciona una marca para ver, asignar o transferir agencias.</p>
+              <p class="text-sm text-slate-500">Selecciona un cliente para ver, asignar o transferir agencias.</p>
             } @else {
               <div class="flex flex-wrap items-start justify-between gap-3 mb-4">
                 <div>
@@ -447,7 +447,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                 <div class="flex gap-2">
                   <button (click)="abrirModalMarca(marcaSeleccionada)" class="px-3 py-2 bg-slate-100 text-slate-700 font-bold rounded-xl text-xs">Editar</button>
                   <button (click)="abrirAsignarAMarca(marcaSeleccionada)" class="px-3 py-2 bg-easydry-green text-slate-950 font-bold rounded-xl text-xs">
-                    Asignar agencia a esta marca
+                    Asignar agencia a este cliente
                   </button>
                 </div>
               </div>
@@ -464,7 +464,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                     </div>
                   </div>
                 } @empty {
-                  <p class="text-xs text-slate-500">Ninguna agencia usa esta marca. Asigna una desde este panel.</p>
+                  <p class="text-xs text-slate-500">Ninguna agencia pertenece a este cliente. Asigna una desde este panel.</p>
                 }
               </div>
             }
@@ -672,18 +672,18 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
             </div>
             <div>
               <div class="flex items-center justify-between mb-1">
-                <label class="block text-xs font-bold text-slate-700 uppercase">Marca de agencia</label>
-                <button type="button" (click)="mostrarAltaMarca = !mostrarAltaMarca" class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">Crear marca</button>
+                <label class="block text-xs font-bold text-slate-700 uppercase">Cliente de agencia</label>
+                <button type="button" (click)="mostrarAltaMarca = !mostrarAltaMarca" class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">Crear cliente</button>
               </div>
-              <select [(ngModel)]="nuevaSucursal.marcaId" name="marcaId" class="w-full p-2.5 border rounded-xl text-sm font-semibold" required>
-                <option [ngValue]="0">Seleccione marca</option>
+              <select [(ngModel)]="nuevaSucursal.marcaId" (ngModelChange)="nuevaSucursal.clienteId = $event" name="marcaId" class="w-full p-2.5 border rounded-xl text-sm font-semibold" required>
+                <option [ngValue]="0">Seleccione cliente</option>
                 @for (m of marcasActivas; track m.id) {
                   <option [ngValue]="m.id">{{ m.nombre }}</option>
                 }
               </select>
               @if (mostrarAltaMarca) {
                 <div class="mt-2 flex gap-2">
-                  <input type="text" [(ngModel)]="altaRapidaMarca" name="altaRapidaMarca" placeholder="Nombre de la marca" class="flex-1 p-2 border rounded-xl text-xs">
+                  <input type="text" [(ngModel)]="altaRapidaMarca" name="altaRapidaMarca" placeholder="Nombre del cliente" class="flex-1 p-2 border rounded-xl text-xs">
                   <button type="button" (click)="crearMarcaRapida()" class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">Crear</button>
                 </div>
               }
@@ -956,25 +956,25 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
         </div>
       </app-modal>
 
-      <!-- Modal Marca -->
-      <app-modal [isOpen]="modalMarcaOpen" [title]="editandoMarca ? 'Editar Marca de Sucursal' : 'Nueva Marca de Sucursal'" icon="tag" (close)="modalMarcaOpen = false">
+      <!-- Modal Cliente -->
+      <app-modal [isOpen]="modalMarcaOpen" [title]="editandoMarca ? 'Editar Cliente de Agencia' : 'Nuevo Cliente de Agencia'" icon="briefcase" (close)="modalMarcaOpen = false">
         <form class="space-y-4">
           <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Nombre comercial</label>
-            <input type="text" [(ngModel)]="formMarca.nombre" name="marcaNombre" class="w-full p-2.5 border rounded-xl text-sm" placeholder="ej. EasyDry Premium">
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Nombre comercial del cliente</label>
+            <input type="text" [(ngModel)]="formMarca.nombre" name="marcaNombre" class="w-full p-2.5 border rounded-xl text-sm" placeholder="ej. Casabaca, Toyota, EasyDry">
           </div>
           <div>
             <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Descripción</label>
-            <input type="text" [(ngModel)]="formMarca.descripcion" name="marcaDesc" class="w-full p-2.5 border rounded-xl text-sm">
+            <textarea [(ngModel)]="formMarca.descripcion" name="marcaDescripcion" rows="2" class="w-full p-2.5 border rounded-xl text-sm" placeholder="Detalles o notas del cliente corporativo..."></textarea>
           </div>
           <div class="grid grid-cols-2 gap-4">
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Color</label>
-              <input type="color" [(ngModel)]="formMarca.color" name="marcaColor" class="w-full h-10 border rounded-xl">
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Color distintivo</label>
+              <input type="color" [(ngModel)]="formMarca.color" name="marcaColor" class="w-full h-10 border rounded-xl p-1 cursor-pointer">
             </div>
             <div>
               <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Estado</label>
-              <select [(ngModel)]="formMarca.estado" name="marcaEstado" class="w-full p-2.5 border rounded-xl text-sm font-semibold">
+              <select [(ngModel)]="formMarca.estado" name="marcaEstado" class="w-full p-2.5 border rounded-xl text-sm">
                 <option value="Activa">Activa</option>
                 <option value="Inactiva">Inactiva</option>
               </select>
@@ -983,7 +983,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
         </form>
         <div modal-footer>
           <button (click)="modalMarcaOpen = false" class="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs">Cancelar</button>
-          <button (click)="guardarMarca()" class="px-4 py-2 bg-easydry-blue text-white font-bold rounded-xl text-xs">Guardar Marca</button>
+          <button (click)="guardarMarca()" class="px-4 py-2 bg-easydry-blue text-white font-bold rounded-xl text-xs">Guardar Cliente</button>
         </div>
       </app-modal>
 
@@ -1008,7 +1008,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
               </select>
             </div>
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Nueva marca</label>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Nuevo cliente</label>
               <select [(ngModel)]="formTransfer.marcaId" name="transfMarca" class="w-full p-2.5 border rounded-xl text-sm font-semibold">
                 @for (m of marcasActivas; track m.id) {
                   <option [ngValue]="m.id">{{ m.nombre }}</option>
@@ -1037,13 +1037,13 @@ export class SucursalesComponent implements OnInit {
   catalogoServicios: CatalogoServicio[] = [];
   movimientos: MovimientoRedSucursal[] = [];
 
-  tabActiva: 'mapa' | 'agencias' | 'sucursales' | 'regiones' | 'marcas' | 'gerentes' = 'agencias';
+  tabActiva: 'mapa' | 'agencias' | 'sucursales' | 'regiones' | 'marcas' | 'clientes' | 'gerentes' = 'agencias';
   tabs = [
     { id: 'agencias' as const, label: 'Gestión de Agencias', icon: 'building-2' },
     { id: 'mapa' as const, label: 'Mapa Operativo en Vivo', icon: 'map' },
     { id: 'gerentes' as const, label: 'Gestión de Gerentes', icon: 'user-cog' },
     { id: 'regiones' as const, label: 'Regiones', icon: 'map-pin' },
-    { id: 'marcas' as const, label: 'Marcas', icon: 'tag' }
+    { id: 'clientes' as const, label: 'Clientes', icon: 'briefcase' }
   ];
 
   filtroRegionId: number | string = 0;
@@ -1102,12 +1102,12 @@ export class SucursalesComponent implements OnInit {
 
   nuevaSucursal: Sucursal = this.sucursalVacia();
 
-  private sucursalService = inject(SucursalMockService);
-  private regionService = inject(RegionMockService);
-  private marcaService = inject(MarcaSucursalMockService);
-  private catalogoService = inject(CatalogoServiciosMockService);
-  private bahiaService = inject(BahiaMockService);
-  private usuarioService = inject(UsuarioMockService);
+  private sucursalService = inject(SucursalService);
+  private regionService = inject(RegionService);
+  private marcaService = inject(MarcaSucursalService);
+  private catalogoService = inject(CatalogoServiciosService);
+  private bahiaService = inject(BahiaService);
+  private usuarioService = inject(UsuarioService);
   private toastService = inject(ToastService);
   public auth = inject(AuthService);
   private route = inject(ActivatedRoute);
@@ -1151,7 +1151,8 @@ export class SucursalesComponent implements OnInit {
         if (!matches) return false;
       }
       const okRegion = this.filtrosGlobales.region === 'Todas' || s.regionNombre === this.filtrosGlobales.region;
-      const okMarca = this.filtrosGlobales.marca === 'Todas' || s.marcaNombre === this.filtrosGlobales.marca;
+      const fCliente = this.filtrosGlobales.cliente || this.filtrosGlobales.marca;
+      const okMarca = !fCliente || fCliente === 'Todas' || fCliente === 'Todos' || s.clienteNombre === fCliente || s.marcaNombre === fCliente;
       const okEstado = this.filtrosGlobales.estado === 'Todos' || s.estado === this.filtrosGlobales.estado;
       return okRegion && okMarca && okEstado;
     });
@@ -1163,8 +1164,8 @@ export class SucursalesComponent implements OnInit {
 
   ngOnInit(): void {
     this.route.queryParams.subscribe(params => {
-      if (params['tab'] && ['mapa', 'agencias', 'sucursales', 'regiones', 'marcas', 'gerentes'].includes(params['tab'])) {
-        this.tabActiva = params['tab'] === 'sucursales' ? 'agencias' : params['tab'] as any;
+      if (params['tab'] && ['mapa', 'agencias', 'sucursales', 'regiones', 'marcas', 'clientes', 'gerentes'].includes(params['tab'])) {
+        this.tabActiva = params['tab'] === 'sucursales' ? 'agencias' : (params['tab'] === 'marcas' ? 'clientes' : params['tab'] as any);
       }
       if (params['sucursalId']) {
         this.filtroSucursalMapaId = Number(params['sucursalId']);
@@ -1612,7 +1613,7 @@ export class SucursalesComponent implements OnInit {
       const user = this.auth.getCurrentUser();
       this.sucursalService.actualizarSucursal(this.nuevaSucursal, {
         motivo: 'Actualización desde ficha de agencia',
-        realizadoPor: `${user.nombre} ${user.apellido}`.trim()
+        realizadoPor: `${user?.nombre || ''} ${user?.apellido || ''}`.trim() || 'Sistema'
       }).subscribe({
         next: (actualizada) => {
           this.bahiaService.sincronizarBahias(actualizada.id, actualizada.nombre, actualizada.cantidadBahias);
@@ -1781,7 +1782,7 @@ export class SucursalesComponent implements OnInit {
       regionId: this.formTransfer.regionId,
       marcaId: this.formTransfer.marcaId,
       motivo: this.formTransfer.motivo.trim(),
-      realizadoPor: `${user.nombre} ${user.apellido}`.trim()
+      realizadoPor: `${user?.nombre || ''} ${user?.apellido || ''}`.trim() || 'Sistema'
     }).subscribe(actualizada => {
       if (!actualizada) return;
       this.toastService.success(

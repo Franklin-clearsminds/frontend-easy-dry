@@ -10,8 +10,9 @@ export function apiUrl(path: string): string {
   return `${base}${suffix}`;
 }
 
+/** Modo demo deshabilitado: la app siempre usa la API. */
 export function isMockMode(): boolean {
-  return environment.useMocks || !environment.apiBaseUrl;
+  return false;
 }
 
 export function isCognitoConfigured(): boolean {

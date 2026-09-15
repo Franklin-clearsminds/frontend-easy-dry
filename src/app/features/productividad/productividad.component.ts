@@ -4,11 +4,11 @@ import { LucideAngularModule } from 'lucide-angular';
 import { ChartCardComponent } from '../../shared/components/chart-card/chart-card.component';
 import { FilterBarComponent, FilterState } from '../../shared/components/filter-bar/filter-bar.component';
 import { CrearRetoModalComponent } from './components/crear-reto-modal.component';
-import { AgenciaMockService } from '../../core/services/agencia-mock.service';
+import { AgenciaService } from '../../core/services/agencia.service';
 import { AuthService } from '../../core/services/auth.service';
 import { Agencia } from '../../core/models';
-import { SucursalMockService } from '../../core/services/sucursal-mock.service';
-import { RetosMockService } from '../../core/services/retos-mock.service';
+import { SucursalService } from '../../core/services/sucursal.service';
+import { RetosService } from '../../core/services/retos.service';
 import { Reto } from '../../core/models/reto.model';
 
 @Component({
@@ -214,7 +214,7 @@ import { Reto } from '../../core/models/reto.model';
         [showServicio]="true"
         [showBahia]="false"
         [showEstado]="false"
-        [showMarca]="true"
+        [showCliente]="true"
         [showFechas]="true"
         (filterChange)="aplicarFiltros($event)">
       </app-filter-bar>
@@ -431,10 +431,10 @@ export class ProductividadComponent implements OnInit, OnDestroy {
     ]
   };
 
-  private agenciaService = inject(AgenciaMockService);
+  private agenciaService = inject(AgenciaService);
   public authService = inject(AuthService);
-  private sucursalService = inject(SucursalMockService);
-  private retosService = inject(RetosMockService);
+  private sucursalService = inject(SucursalService);
+  private retosService = inject(RetosService);
 
   ngOnInit(): void {
     const user = this.authService.getCurrentUser();
@@ -564,10 +564,11 @@ export class ProductividadComponent implements OnInit, OnDestroy {
     if (filtros.region && filtros.region !== 'Todas') {
       res = res.filter(a => this.regionDeCiudad(a.ciudad) === filtros.region);
     }
-    if (filtros.marca && filtros.marca !== 'Todas') {
+    const fCliente = filtros.cliente || filtros.marca;
+    if (fCliente && fCliente !== 'Todas' && fCliente !== 'Todos') {
       res = res.filter(item => {
         const suc = this.sucursalService.getSucursalPorNombre(item.nombre);
-        return suc?.marcaNombre === filtros.marca;
+        return suc?.clienteNombre === fCliente || suc?.marcaNombre === fCliente || item.clienteNombre === fCliente || item.marcaNombre === fCliente;
       });
     }
     this.agencias = res.sort((a, b) => b.productividad - a.productividad);

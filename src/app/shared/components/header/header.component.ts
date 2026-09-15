@@ -27,11 +27,13 @@ import { environment } from '../../../core/config/env';
       <!-- Right: User Context, Notifications & Profile -->
       <div class="flex items-center gap-4">
 
-        <!-- Role Badge -->
-        <div class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-50 border border-purple-200 text-purple-800 text-xs font-bold shadow-2xs">
-          <i-lucide name="shield-check" class="w-4 h-4 text-purple-600"></i-lucide>
-          <span>{{ user.rolNombre || user.role }}</span>
-        </div>
+        @if (user; as u) {
+          <!-- Role Badge -->
+          <div class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-50 border border-purple-200 text-purple-800 text-xs font-bold shadow-2xs">
+            <i-lucide name="shield-check" class="w-4 h-4 text-purple-600"></i-lucide>
+            <span>{{ u.rolNombre || u.role }}</span>
+          </div>
+        }
 
         <!-- Notifications -->
         <a
@@ -46,19 +48,21 @@ import { environment } from '../../../core/config/env';
 
         <div class="h-8 w-px bg-slate-200"></div>
 
-        <!-- User Profile Quick Info -->
-        <div class="flex items-center gap-3 pl-1">
-          <img
-            [src]="user.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'"
-            alt="User Avatar"
-            class="w-10 h-10 rounded-full object-cover ring-2 ring-purple-400/40">
-          <div class="flex flex-col">
-            <span class="text-xs font-bold text-slate-900 leading-tight">{{ user.nombre }} {{ user.apellido }}</span>
-            <span class="text-[10px] font-extrabold text-purple-700 leading-tight uppercase tracking-wider">
-              {{ user.sucursal || 'EasyDry' }}
-            </span>
+        @if (user; as u) {
+          <!-- User Profile Quick Info -->
+          <div class="flex items-center gap-3 pl-1">
+            <img
+              [src]="u.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'"
+              alt="User Avatar"
+              class="w-10 h-10 rounded-full object-cover ring-2 ring-purple-400/40">
+            <div class="flex flex-col">
+              <span class="text-xs font-bold text-slate-900 leading-tight">{{ u.nombre }} {{ u.apellido }}</span>
+              <span class="text-[10px] font-extrabold text-purple-700 leading-tight uppercase tracking-wider">
+                {{ u.sucursal || 'EasyDry' }}
+              </span>
+            </div>
           </div>
-        </div>
+        }
 
       </div>
     </header>

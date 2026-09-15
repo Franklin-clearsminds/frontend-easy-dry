@@ -2,9 +2,9 @@ import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LucideAngularModule } from 'lucide-angular';
-import { OperadorMockService } from '../../core/services/operador-mock.service';
-import { SucursalMockService } from '../../core/services/sucursal-mock.service';
-import { BahiaMockService } from '../../core/services/bahia-mock.service';
+import { OperadorService } from '../../core/services/operador.service';
+import { SucursalService } from '../../core/services/sucursal.service';
+import { BahiaService } from '../../core/services/bahia.service';
 import { AuthService } from '../../core/services/auth.service';
 import { Operador, HistorialAsignacionOperador, Sucursal } from '../../core/models';
 import { ModalComponent } from '../../shared/components/modal/modal.component';
@@ -26,9 +26,9 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
             <span class="p-2 rounded-xl bg-easydry-blue/10 text-easydry-blue">
               <i-lucide name="user-check" class="w-5 h-5"></i-lucide>
             </span>
-            <h1 class="text-2xl font-extrabold text-slate-900 font-outfit">Gestión Unificada de Operadores</h1>
+            <h1 class="text-2xl font-extrabold text-slate-900 font-outfit">Gestión de Lavadores</h1>
           </div>
-          <p class="text-slate-500 text-xs mt-1">Directorio de personal técnico, asignación directa a agencia y bahía, productividad y trazabilidad histórica (100% Base de Datos).</p>
+          <p class="text-slate-500 text-xs mt-1">Directorio de personal de lavado, asignación directa a agencia y bahía, productividad y trazabilidad histórica (100% Base de Datos).</p>
           <div class="mt-2 inline-flex items-center gap-2 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-900 border border-emerald-200 text-[11px] font-medium">
             <i-lucide name="shield" class="w-3.5 h-3.5 text-emerald-600 shrink-0"></i-lucide>
             <span><strong>Rol Lavador:</strong> Registro y constancia técnica en bahía para trazabilidad. El acceso al sistema y registro de OTs lo efectúa el <strong>Líder</strong>.</span>
@@ -40,7 +40,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
           (click)="abrirModalCrear()"
           class="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-easydry-blue hover:bg-easydry-blue-dark text-white rounded-xl text-xs font-bold shadow-sm hover:shadow transition-all cursor-pointer">
           <i-lucide name="user-plus" class="w-4 h-4"></i-lucide>
-          <span>Registrar Operador</span>
+          <span>Registrar Lavador</span>
         </button>
       </div>
 
@@ -49,7 +49,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
         [showSucursal]="isSuperAdmin" 
         [showOperador]="false"
         [showBahia]="true"
-        [showMarca]="true"
+        [showCliente]="true"
         [showEstado]="true"
         [showFechas]="false"
         [showBusqueda]="true"
@@ -62,7 +62,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
       @if (cargando) {
         <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry p-10 flex flex-col items-center justify-center gap-3">
           <div class="w-10 h-10 border-4 border-easydry-blue border-t-transparent rounded-full animate-spin"></div>
-          <p class="text-xs font-bold text-slate-500">Cargando operadores desde base de datos...</p>
+          <p class="text-xs font-bold text-slate-500">Cargando lavadores desde base de datos...</p>
         </div>
       }
 
@@ -72,7 +72,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
           <table class="w-full text-left text-xs">
             <thead class="bg-slate-50 text-slate-500 text-[10px] font-extrabold uppercase tracking-wider border-b border-slate-200">
               <tr>
-                <th class="py-3.5 px-4">Operador</th>
+                <th class="py-3.5 px-4">Lavador</th>
                 <th class="py-3.5 px-4">Rol Operativo</th>
                 <th class="py-3.5 px-4">Estado</th>
                 <th class="py-3.5 px-4">Agencia Asignada</th>
@@ -86,8 +86,8 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                 <tr>
                   <td colspan="7" class="py-12 text-center text-slate-400">
                     <i-lucide name="user-x" class="w-8 h-8 mx-auto text-slate-300 mb-2"></i-lucide>
-                    <p class="font-bold text-sm text-slate-600">No se encontraron operadores registrados</p>
-                    <p class="text-xs text-slate-400 mt-1">Haga clic en "Registrar Operador" para dar de alta el primer colaborador en su agencia.</p>
+                    <p class="font-bold text-sm text-slate-600">No se encontraron lavadores registrados</p>
+                    <p class="text-xs text-slate-400 mt-1">Haga clic en "Registrar Lavador" para dar de alta el primer colaborador en su agencia.</p>
                   </td>
                 </tr>
               }
@@ -163,7 +163,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                       <button 
                         type="button"
                         (click)="abrirModalEditar(op)" 
-                        title="Editar operador"
+                        title="Editar lavador"
                         class="p-1.5 text-slate-400 hover:text-easydry-blue hover:bg-slate-100 rounded-lg transition-colors cursor-pointer flex items-center justify-center">
                         <i-lucide name="edit-3" class="w-4 h-4"></i-lucide>
                       </button>
@@ -216,7 +216,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
       <!-- Modal Crear / Registrar Nuevo Operador -->
       <app-modal
         [isOpen]="modalCrearOpen"
-        [title]="esEdicion ? 'Editar Datos de Operador' : 'Registrar Nuevo Operador'"
+        [title]="esEdicion ? 'Editar Datos de Lavador' : 'Registrar Nuevo Lavador'"
         [icon]="esEdicion ? 'pencil' : 'user-plus'"
         (close)="cerrarModalCrear()">
         
@@ -227,7 +227,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
             <div>
               <p class="font-bold">Constancia y Control de Personal Operativo</p>
               <p class="text-[11px] text-blue-800 mt-0.5">
-                Este registro es para constancia y seguimiento técnico en bahías de lavado. A diferencia del <strong>Líder de Agencia</strong> o administradores de sistema, los operadores no requieren usuario ni credenciales de acceso.
+                Este registro es para constancia y seguimiento técnico en bahías de lavado. A diferencia del <strong>Líder de Agencia</strong> o administradores de sistema, los lavadores no requieren usuario ni credenciales de acceso.
               </p>
             </div>
           </div>
@@ -287,7 +287,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
 
             <div>
               <label class="block text-xs font-bold text-slate-700 uppercase mb-1">
-                Estado del Operador
+                Estado del Lavador
               </label>
               <select
                 [(ngModel)]="formOperador.estado"
@@ -338,13 +338,13 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                   <p class="font-bold">¡Atención! Bahía actualmente ocupada</p>
                   <p class="text-[11px] text-amber-800 mt-0.5">
                     La <strong>{{ conflictoAsignacion.bahiaNombre }}</strong> está asignada a <strong>{{ conflictoAsignacion.operadorActualNombre }}</strong>.
-                    Al asignarla a este operador, <strong>{{ conflictoAsignacion.operadorActualNombre }}</strong> se quedará <strong>sin bahía asignada</strong>.
+                    Al asignarla a este lavador, <strong>{{ conflictoAsignacion.operadorActualNombre }}</strong> se quedará <strong>sin bahía asignada</strong>.
                   </p>
                 </div>
               </div>
             }
             <p class="text-[11px] text-slate-400 mt-1">
-              El operador quedará vinculado de inmediato en la base de datos a la bahía seleccionada.
+              El lavador quedará vinculado de inmediato en la base de datos a la bahía seleccionada.
             </p>
           </div>
         </div>
@@ -376,7 +376,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
         @if (operadorSeleccionado) {
           <div class="space-y-4">
             <div class="p-3 bg-blue-50 rounded-xl border border-blue-200 text-blue-900 text-xs">
-              Ubicación actual del operador: <strong>{{ operadorSeleccionado.sucursal }}</strong> — <strong>{{ operadorSeleccionado.bahia }}</strong>
+              Ubicación actual del lavador: <strong>{{ operadorSeleccionado.sucursal }}</strong> — <strong>{{ operadorSeleccionado.bahia }}</strong>
             </div>
 
             <div>
@@ -415,7 +415,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                     <p class="font-bold">¡Atención! Bahía actualmente ocupada</p>
                     <p class="text-[11px] text-amber-800 mt-0.5">
                       La <strong>{{ conflictoAsignacion.bahiaNombre }}</strong> está asignada a <strong>{{ conflictoAsignacion.operadorActualNombre }}</strong>.
-                      Si reasigna aquí a <strong>{{ conflictoAsignacion.nuevoOperadorNombre }}</strong>, el operador <strong>{{ conflictoAsignacion.operadorActualNombre }}</strong> se quedará <strong>sin bahía asignada</strong>.
+                      Si reasigna aquí a <strong>{{ conflictoAsignacion.nuevoOperadorNombre }}</strong>, el lavador <strong>{{ conflictoAsignacion.operadorActualNombre }}</strong> se quedará <strong>sin bahía asignada</strong>.
                     </p>
                   </div>
                 </div>
@@ -454,7 +454,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
       <!-- Modal Ficha de Operador & Productividad -->
       <app-modal 
         [isOpen]="modalFichaOpen" 
-        [title]="'Ficha de Operador & Productividad: ' + (operadorSeleccionado?.nombre || '')" 
+        [title]="'Ficha de Lavador & Productividad: ' + (operadorSeleccionado?.nombre || '')" 
         icon="trophy"
         (close)="modalFichaOpen = false">
         
@@ -514,7 +514,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
               
               <div class="space-y-2">
                 @if (historialOperador.length === 0) {
-                  <p class="text-xs text-slate-400 italic py-3 text-center">No hay registros históricos de asignación para este operador.</p>
+                  <p class="text-xs text-slate-400 italic py-3 text-center">No hay registros históricos de asignación para este lavador.</p>
                 }
                 @for (h of historialOperador; track h.id) {
                   <div class="p-3 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between text-xs hover:border-easydry-blue/30 transition-colors">
@@ -573,7 +573,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
               <i-lucide name="alert-triangle" class="w-5 h-5"></i-lucide>
             </div>
             <div>
-              <h4 class="text-sm font-bold text-slate-900">¿Desea cambiar de bahía sabiendo que el otro operador se quedará sin bahía?</h4>
+              <h4 class="text-sm font-bold text-slate-900">¿Desea cambiar de bahía sabiendo que el otro lavador se quedará sin bahía?</h4>
               <p class="text-xs text-amber-900 mt-1 leading-relaxed">
                 La <strong>{{ conflictoAsignacion?.bahiaNombre }}</strong> está ocupada actualmente por <strong>{{ conflictoAsignacion?.operadorActualNombre }}</strong>.
                 Al continuar con la asignación, <strong>{{ conflictoAsignacion?.operadorActualNombre }}</strong> se quedará <strong>sin bahía asignada</strong> (pasará a reserva/disponible).
@@ -587,11 +587,11 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
               <span class="font-bold text-slate-900">{{ conflictoAsignacion?.bahiaNombre }}</span>
             </div>
             <div class="flex items-center justify-between">
-              <span class="text-slate-500 font-bold uppercase">Nuevo Operador en Bahía:</span>
+              <span class="text-slate-500 font-bold uppercase">Nuevo Lavador en Bahía:</span>
               <span class="font-bold text-easydry-blue">{{ conflictoAsignacion?.nuevoOperadorNombre }}</span>
             </div>
             <div class="flex items-center justify-between">
-              <span class="text-slate-500 font-bold uppercase">Operador que queda sin bahía:</span>
+              <span class="text-slate-500 font-bold uppercase">Lavador que queda sin bahía:</span>
               <span class="font-bold text-rose-600">{{ conflictoAsignacion?.operadorActualNombre }} (Desvinculado a Reserva)</span>
             </div>
           </div>
@@ -661,20 +661,20 @@ export class OperadoresComponent implements OnInit {
   } | null = null;
 
   rolesOperativos: string[] = [
-    'OPERADOR',
-    'Operador de Bahía',
-    'Operador de Lavado Ecológico',
-    'Operador de Detallado & Pulido',
-    'Operador de Secado & Acabado',
-    'Operador de Lavado Integral',
-    'Operador Auxiliar / Móvil'
+    'LAVADOR',
+    'Lavador de Bahía',
+    'Lavador de Lavado Ecológico',
+    'Lavador de Detallado & Pulido',
+    'Lavador de Secado & Acabado',
+    'Lavador de Lavado Integral',
+    'Lavador Auxiliar / Móvil'
   ];
 
   formOperador = {
     nombre: '',
     cedula: '',
     telefono: '',
-    rol: 'OPERADOR',
+    rol: 'LAVADOR',
     sucursalNombre: '',
     sucursalId: '',
     bahiaNombre: '',
@@ -693,9 +693,9 @@ export class OperadoresComponent implements OnInit {
   };
   listaBahiasDisponibles: { id: string; nombre: string; operadorAsignado?: string | null; operadorId?: string | number | null }[] = [];
 
-  private operadorService = inject(OperadorMockService);
-  private sucursalService = inject(SucursalMockService);
-  private bahiaService = inject(BahiaMockService);
+  private operadorService = inject(OperadorService);
+  private sucursalService = inject(SucursalService);
+  private bahiaService = inject(BahiaService);
   private toastService = inject(ToastService);
   public authService = inject(AuthService);
 
@@ -902,7 +902,7 @@ export class OperadoresComponent implements OnInit {
         bahiaNombre: b.nombre,
         operadorActualId: b.operadorId,
         operadorActualNombre: b.operadorAsignado,
-        nuevoOperadorNombre: this.formOperador.nombre?.trim() || 'Nuevo Operador',
+        nuevoOperadorNombre: this.formOperador.nombre?.trim() || 'Nuevo Lavador',
         contexto: 'crear'
       };
     } else {
@@ -914,7 +914,7 @@ export class OperadoresComponent implements OnInit {
 
   guardarOperador(): void {
     if (!this.formOperador.nombre?.trim()) {
-      this.toastService.warning('Campo Obligatorio', 'Por favor ingrese el nombre completo del operador.');
+      this.toastService.warning('Campo Obligatorio', 'Por favor ingrese el nombre completo del lavador.');
       return;
     }
     if (!this.formOperador.cedula?.trim()) {
@@ -982,14 +982,14 @@ export class OperadoresComponent implements OnInit {
       }).subscribe({
         next: (nuevo) => {
           this.toastService.success(
-            'Operador Registrado en BD',
+            'Lavador Registrado en BD',
             `Se registró a ${nuevo.nombre} asignado a ${nuevo.sucursal} (${nuevo.bahia}).`
           );
           this.cerrarModalCrear();
           this.operadorService.getOperadores().subscribe();
         },
         error: (err) => {
-          this.toastService.error('Error al Registrar', err?.error?.message || 'No se pudo guardar el operador en la base de datos.');
+          this.toastService.error('Error al Registrar', err?.error?.message || 'No se pudo guardar el lavador en la base de datos.');
         }
       });
     }
@@ -997,7 +997,7 @@ export class OperadoresComponent implements OnInit {
 
   abrirModalAsignar(op: Operador): void {
     if (op.estado === 'Inactivo') {
-      this.toastService.warning('Operador Inactivo', 'No se puede asignar bahías a un colaborador inactivo. Debe activarlo primero.');
+      this.toastService.warning('Lavador Inactivo', 'No se puede asignar bahías a un colaborador inactivo. Debe activarlo primero.');
       return;
     }
     this.operadorSeleccionado = op;
@@ -1055,7 +1055,7 @@ export class OperadoresComponent implements OnInit {
         bahiaNombre: b.nombre,
         operadorActualId: b.operadorId,
         operadorActualNombre: b.operadorAsignado,
-        nuevoOperadorNombre: this.operadorSeleccionado?.nombre || 'Nuevo Operador',
+        nuevoOperadorNombre: this.operadorSeleccionado?.nombre || 'Nuevo Lavador',
         contexto: 'asignar'
       };
     } else {
@@ -1097,7 +1097,7 @@ export class OperadoresComponent implements OnInit {
     ).subscribe(actualizado => {
       this.toastService.success(
         'Asignación Guardada en BD',
-        `Operador ${op.nombre} asignado a ${bahiaNombre} en la base de datos.`
+        `Lavador ${op.nombre} asignado a ${bahiaNombre} en la base de datos.`
       );
       this.modalAsignarBahiaOpen = false;
       this.conflictoAsignacion = null;

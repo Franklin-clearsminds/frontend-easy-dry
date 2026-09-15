@@ -2,9 +2,9 @@ import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LucideAngularModule } from 'lucide-angular';
-import { OperadorMockService } from '../../core/services/operador-mock.service';
-import { BahiaMockService } from '../../core/services/bahia-mock.service';
-import { SucursalMockService } from '../../core/services/sucursal-mock.service';
+import { OperadorService } from '../../core/services/operador.service';
+import { BahiaService } from '../../core/services/bahia.service';
+import { SucursalService } from '../../core/services/sucursal.service';
 import { AuthService } from '../../core/services/auth.service';
 import { Operador, Sucursal, Bahia, HistorialAsignacionOperador } from '../../core/models';
 import { ToastService } from '../../shared/services/toast.service';
@@ -19,7 +19,7 @@ import { PaginationComponent } from '../../shared/components/pagination/paginati
       
       <!-- Header -->
       <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-easydry">
-        <h1 class="text-2xl font-extrabold text-slate-900 font-outfit">Asignación de Operadores a Bahías</h1>
+        <h1 class="text-2xl font-extrabold text-slate-900 font-outfit">Asignación de Lavadores a Bahías</h1>
         <p class="text-slate-500 text-xs mt-1">Matriz de asignación dinámica de personal técnico, cumplimiento de reglas de negocio y trazabilidad histórica.</p>
       </div>
 
@@ -56,11 +56,11 @@ import { PaginationComponent } from '../../shared/components/pagination/paginati
             <ul class="mt-4 space-y-3 text-xs text-slate-600">
               <li class="flex items-start gap-2">
                 <i-lucide name="check" class="w-4 h-4 text-easydry-blue shrink-0 mt-0.5"></i-lucide>
-                <span>1 Operador por bahía activa.</span>
+                <span>1 Lavador por bahía activa.</span>
               </li>
               <li class="flex items-start gap-2">
                 <i-lucide name="check" class="w-4 h-4 text-easydry-blue shrink-0 mt-0.5"></i-lucide>
-                <span>El operador sólo pertenece a una bahía principal.</span>
+                <span>El lavador sólo pertenece a una bahía principal.</span>
               </li>
               <li class="flex items-start gap-2">
                 <i-lucide name="check" class="w-4 h-4 text-easydry-blue shrink-0 mt-0.5"></i-lucide>
@@ -76,11 +76,11 @@ import { PaginationComponent } from '../../shared/components/pagination/paginati
 
         <!-- Interactive Form -->
         <div class="md:col-span-2 bg-white p-6 rounded-2xl border border-slate-100 shadow-easydry space-y-5">
-          <h3 class="font-bold text-slate-900 text-base font-outfit">Reasignar Operador a Nueva Bahía</h3>
+          <h3 class="font-bold text-slate-900 text-base font-outfit">Reasignar Lavador a Nueva Bahía</h3>
 
           <form (ngSubmit)="ejecutarAsignacion()" class="space-y-4">
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Seleccionar Operador</label>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Seleccionar Lavador</label>
               <select [(ngModel)]="operadorIdSeleccionado" name="operadorId" class="w-full p-2.5 border rounded-xl text-sm font-semibold" required>
                 @for (op of operadores; track op.id) {
                   <option [value]="op.id">{{ op.nombre }} (Actual: {{ op.sucursal }} — {{ getBahiaLabel(op) }})</option>
@@ -158,7 +158,7 @@ import { PaginationComponent } from '../../shared/components/pagination/paginati
           <table class="w-full text-left text-sm">
             <thead class="bg-slate-50 text-slate-500 text-xs font-bold uppercase tracking-wider border-b border-slate-200">
               <tr>
-                <th class="py-3.5 px-4">Operador</th>
+                <th class="py-3.5 px-4">Lavador</th>
                 <th class="py-3.5 px-4">Sucursal y Bahía</th>
                 <th class="py-3.5 px-4">Fecha Inicio</th>
                 <th class="py-3.5 px-4">Fecha Fin</th>
@@ -232,9 +232,9 @@ export class AsignacionesComponent implements OnInit {
   currentPage = 1;
   pageSize = 5;
 
-  private operadorService = inject(OperadorMockService);
-  private bahiaService = inject(BahiaMockService);
-  private sucursalService = inject(SucursalMockService);
+  private operadorService = inject(OperadorService);
+  private bahiaService = inject(BahiaService);
+  private sucursalService = inject(SucursalService);
   private toastService = inject(ToastService);
   public authService = inject(AuthService);
 

@@ -6,7 +6,7 @@ import { ServicioExtra } from '../models';
 import { apiUrl } from '../config/env';
 
 @Injectable({ providedIn: 'root' })
-export class ServiciosExtrasMockService {
+export class ServiciosExtrasService {
   private http = inject(HttpClient);
   private serviciosSubject = new BehaviorSubject<ServicioExtra[]>([]);
   public serviciosExtras$ = this.serviciosSubject.asObservable();

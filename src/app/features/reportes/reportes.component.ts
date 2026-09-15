@@ -2,13 +2,13 @@ import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LucideAngularModule } from 'lucide-angular';
-import { ReporteMockService } from '../../core/services/reporte-mock.service';
+import { ReporteService } from '../../core/services/reporte.service';
 import { Reporte } from '../../core/models';
 import { ToastService } from '../../shared/services/toast.service';
 import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
 import { FilterBarComponent, FilterState } from '../../shared/components/filter-bar/filter-bar.component';
 import { resolverRangoFechas, soloFecha } from '../../core/utils/fecha-rango';
-import { SucursalMockService } from '../../core/services/sucursal-mock.service';
+import { SucursalService } from '../../core/services/sucursal.service';
 
 @Component({
   selector: 'app-reportes',
@@ -64,7 +64,7 @@ import { SucursalMockService } from '../../core/services/sucursal-mock.service';
         [showOperador]="false"
         [showBahia]="false"
         [showEstado]="false"
-        [showMarca]="true"
+        [showCliente]="true"
         [showFechas]="true"
         (filterChange)="aplicarNuevosFiltros($event)">
       </app-filter-bar>
@@ -202,9 +202,9 @@ export class ReportesComponent implements OnInit {
   currentPage = 1;
   pageSize = 5;
 
-  private reporteService = inject(ReporteMockService);
+  private reporteService = inject(ReporteService);
   private toastService = inject(ToastService);
-  private sucursalService = inject(SucursalMockService);
+  private sucursalService = inject(SucursalService);
 
   ngOnInit(): void {
     this.reporteService.getReportes().subscribe(list => {

@@ -1,26 +1,48 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { BehaviorSubject, Observable, of } from 'rxjs';
+import { BehaviorSubject, Observable, of, throwError } from 'rxjs';
 import { map, tap, catchError } from 'rxjs/operators';
 import {
   RolPersonalizado,
   ModuloSistema,
-  MODULOS_SISTEMA,
-  ROLES_INICIALES,
   ROLE_LABELS,
   ROLE_COLORS,
-  ROLES_OFICIALES_NO_ELIMINABLES,
   isRolPermisosInmutable
 } from '../models/roles.model';
 import { apiUrl } from '../config/env';
 
+export const DEFAULT_ROLE_HEX_COLORS: Record<string, string> = {
+  SUPER_ADMIN: '#6D28D9',
+  ADMIN: '#7C3AED',
+  APROBADOR: '#6366F1',
+  SUPERVISOR: '#004282',
+  COORD_MANTENIMIENTO: '#D97706',
+  TECNICO: '#EA580C',
+  LIDER: '#0D9488',
+  LIDER_OPERADOR: '#0D9488',
+  LIDER_AGENCIA: '#0D9488',
+  LAVADOR: '#059669',
+  COORD_COMERCIAL: '#2563EB',
+  JEFE_COMERCIAL: '#1D4ED8',
+  COORD_SERVICIOS_ESPECIALES: '#004282',
+  PULIDOR: '#0891B2',
+  PULIDOR_FIJO: '#0891B2',
+  PULIDOR_MOVIL: '#0891B2',
+  COORD_BODEGA: '#475569',
+  DISTRIBUIDOR: '#475569',
+  ASISTENTE_BODEGA: '#0F766E',
+};
+
 @Injectable({
   providedIn: 'root'
 })
-export class RolMockService {
+export class RolService {
   private http = inject(HttpClient);
   private rolesSubject = new BehaviorSubject<RolPersonalizado[]>([]);
   public roles$ = this.rolesSubject.asObservable();
+
+  private modulosSubject = new BehaviorSubject<ModuloSistema[]>([]);
+  public modulos$ = this.modulosSubject.asObservable();
 
   constructor() {
     this.cargarRolesIniciales();
@@ -31,20 +53,38 @@ export class RolMockService {
     const nombre = ROLE_LABELS[codigo] || r.nombre || codigo;
     const badgeClass = ROLE_COLORS[codigo] || 'bg-slate-100 text-slate-800 border-slate-200';
     const estado = r.estado === 1 || r.estado === 'Activo' ? 'Activo' : 'Inactivo';
+    const color = r.color || DEFAULT_ROLE_HEX_COLORS[codigo] || '#7C3AED';
+
+    let fechaCreacion = new Date().toISOString().split('T')[0];
+    if (r.fechaCreacion) {
+      fechaCreacion = String(r.fechaCreacion).split(' ')[0].split('T')[0];
+    }
 
     return {
       id: String(r.id),
       codigo,
       nombre,
       descripcion: r.descripcion || '',
-      color: r.color || '#004282',
+      color,
       badgeClass,
       modulos: Array.isArray(r.permisos) ? r.permisos : [],
       estado,
       esSistema: codigo === 'SUPER_ADMIN' || codigo === 'ADMIN',
-      fechaCreacion: r.fechaCreacion || new Date().toISOString().split('T')[0],
+      fechaCreacion,
       fechaModificacion: r.fechaModificacion,
       usuariosCount: r.usuariosCount || 0
+    };
+  }
+
+  private mapBackendModulo(m: any): ModuloSistema {
+    return {
+      id: String(m.id ?? m.codigo ?? ''),
+      codigo: m.codigo || '',
+      nombre: m.nombre || m.codigo || '',
+      descripcion: m.descripcion || '',
+      icono: m.icono || 'circle',
+      rutaPrincipal: m.rutaPrincipal || `/${m.codigo || ''}`,
+      grupo: m.grupo || 'Otros'
     };
   }
 
@@ -59,21 +99,31 @@ export class RolMockService {
         if (Array.isArray(list) && list.length > 0) {
           return list.map(r => this.mapBackendRole(r));
         }
-        return ROLES_INICIALES;
+        return [];
       }),
       tap(roles => this.rolesSubject.next(roles)),
       catchError(err => {
-        console.warn('No se pudo obtener la lista de roles del backend, usando catálogo de respaldo', err);
-        const fallback = this.rolesSubject.value.length > 0 ? this.rolesSubject.value : ROLES_INICIALES;
-        this.rolesSubject.next(fallback);
-        return of(fallback);
+        console.error('No se pudo obtener la lista de roles del backend', err);
+        this.rolesSubject.next([]);
+        return of([]);
       })
     );
   }
 
-  /** Retorna el catálogo completo de módulos del sistema */
-  getModulos(): ModuloSistema[] {
-    return MODULOS_SISTEMA;
+  /** Catálogo de módulos desde API (POST /roles/modulos/list) */
+  getModulos(): Observable<ModuloSistema[]> {
+    return this.http.post<any[]>(apiUrl('/roles/modulos/list'), {}).pipe(
+      map(list => {
+        if (!Array.isArray(list)) return [];
+        return list.map(m => this.mapBackendModulo(m));
+      }),
+      tap(modulos => this.modulosSubject.next(modulos)),
+      catchError(err => {
+        console.error('No se pudo obtener el catálogo de módulos del backend', err);
+        this.modulosSubject.next([]);
+        return of([]);
+      })
+    );
   }
 
   /** Obtiene un rol por ID o código */
@@ -112,23 +162,8 @@ export class RolMockService {
         }
       }),
       catchError(err => {
-        console.warn('Error al crear rol en backend, aplicando en memoria', err);
-        const fallbackRol: RolPersonalizado = {
-          id: `rol_${Date.now()}`,
-          codigo: codigoGenerado,
-          nombre: data.nombre,
-          descripcion: data.descripcion || '',
-          color: data.color || '#004282',
-          badgeClass: 'bg-slate-100 text-slate-800 border-slate-200',
-          modulos: data.modulos,
-          estado: 'Activo',
-          esSistema: false,
-          fechaCreacion: new Date().toISOString().split('T')[0],
-          usuariosCount: 0
-        };
-        const current = this.rolesSubject.value;
-        this.rolesSubject.next([...current, fallbackRol]);
-        return of(fallbackRol);
+        console.error('Error al crear rol en backend', err);
+        return throwError(() => err);
       })
     );
   }
@@ -162,19 +197,8 @@ export class RolMockService {
         this.rolesSubject.next(list);
       }),
       catchError(err => {
-        console.warn('Error al actualizar rol en backend, aplicando en memoria', err);
-        if (rolExistente) {
-          const rolActualizado: RolPersonalizado = {
-            ...rolExistente,
-            descripcion: cambios.descripcion !== undefined ? cambios.descripcion : rolExistente.descripcion,
-            modulos: cambios.modulos !== undefined ? cambios.modulos : rolExistente.modulos,
-            estado: cambios.estado !== undefined ? (cambios.estado === 1 || cambios.estado === 'Activo' ? 'Activo' : 'Inactivo') : rolExistente.estado,
-          };
-          const list = this.rolesSubject.value.map(r => r.id === id ? rolActualizado : r);
-          this.rolesSubject.next(list);
-          return of(rolActualizado);
-        }
-        return of(null);
+        console.error('Error al actualizar rol en backend', err);
+        return throwError(() => err);
       })
     );
   }
@@ -195,12 +219,9 @@ export class RolMockService {
         return { success: true, message: res?.message || 'Rol eliminado exitosamente.' };
       }),
       catchError(err => {
-        console.warn('Error al eliminar rol en backend, aplicando en memoria', err);
-        const actualizados = this.rolesSubject.value.filter(r => r.id !== id);
-        this.rolesSubject.next(actualizados);
-        return of({ success: true, message: 'Rol eliminado exitosamente.' });
+        console.error('Error al eliminar rol en backend', err);
+        return throwError(() => err);
       })
     );
   }
 }
-

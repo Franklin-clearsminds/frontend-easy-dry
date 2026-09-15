@@ -2,12 +2,12 @@ import { Component, OnInit, inject, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LucideAngularModule } from 'lucide-angular';
-import { MantenimientoMockService } from '../../core/services/mantenimiento-mock.service';
-import { MaquinariaMockService } from '../../core/services/maquinaria-mock.service';
+import { MantenimientoService } from '../../core/services/mantenimiento.service';
+import { MaquinariaService } from '../../core/services/maquinaria.service';
 import { AuthService } from '../../core/services/auth.service';
 import { Mantenimiento, Maquinaria, ArchivoAdjunto } from '../../core/models';
 import { Role } from '../../core/models/roles.model';
-import { DEMO_CREDENTIALS } from '../../core/services/auth.service';
+import { UsuarioService } from '../../core/services/usuario.service';
 import { ModalComponent } from '../../shared/components/modal/modal.component';
 import { ToastService } from '../../shared/services/toast.service';
 import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
@@ -15,7 +15,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
 import { resolverRangoFechas, soloFecha } from '../../core/utils/fecha-rango';
 import { FileUploaderComponent } from '../../shared/components/file-uploader/file-uploader.component';
 import { ModalPortalDirective } from '../../shared/directives/modal-portal.directive';
-import { SucursalMockService } from '../../core/services/sucursal-mock.service';
+import { SucursalService } from '../../core/services/sucursal.service';
 
 @Component({
   selector: 'app-mantenimiento',
@@ -111,7 +111,7 @@ import { SucursalMockService } from '../../core/services/sucursal-mock.service';
         [showBahia]="true"
         [showEstado]="true"
         [showFechas]="true"
-        [showMarca]="true"
+        [showCliente]="true"
         [showBusqueda]="true"
         [listaEstados]="['Todos', 'Programado', 'En Proceso', 'Completado']"
         (filterChange)="aplicarNuevosFiltros($event)">
@@ -909,13 +909,7 @@ export class MantenimientoComponent implements OnInit {
 
   gestorActual: { id: string | number; nombreCompleto: string } = { id: 0, nombreCompleto: '' };
 
-  tecnicosDisponibles = DEMO_CREDENTIALS
-    .filter(c => c.role === Role.TECNICO)
-    .map(c => ({
-      id: DEMO_CREDENTIALS.indexOf(c) + 1,
-      nombre: c.nombre,
-      email: c.email,
-    }));
+  tecnicosDisponibles: { id: string | number; nombre: string; email: string }[] = [];
   
   filtrosGlobales: FilterState = { sucursal: 'Todas', operador: 'Todos', bahia: 'Todas', estado: 'Todos', fecha: 'Hoy', marca: 'Todas' };
   filtroTexto = '';
@@ -1058,11 +1052,12 @@ export class MantenimientoComponent implements OnInit {
     descripcion: ''
   };
 
-  private mantenimientoService = inject(MantenimientoMockService);
-  private maquinariaService = inject(MaquinariaMockService);
+  private mantenimientoService = inject(MantenimientoService);
+  private maquinariaService = inject(MaquinariaService);
   private toastService = inject(ToastService);
   public authService = inject(AuthService);
-  private sucursalService = inject(SucursalMockService);
+  private sucursalService = inject(SucursalService);
+  private usuarioService = inject(UsuarioService);
 
   /** Roles con alcance de red/taller nacional: no filtrar por agencia exacta. */
   private debeFiltrarPorSucursal(user: ReturnType<AuthService['getCurrentUser']>): boolean {
@@ -1085,6 +1080,20 @@ export class MantenimientoComponent implements OnInit {
       };
     }
 
+    this.usuarioService.getUsuarios(true, true).subscribe(list => {
+      this.tecnicosDisponibles = (list || [])
+        .filter(u => {
+          const rol = (u.rolNombre || u.rol || '').toUpperCase();
+          return rol === Role.TECNICO || rol.includes('TECNICO') || rol.includes('TÉCNICO');
+        })
+        .map(u => ({
+          id: u.id,
+          nombre: `${u.nombre} ${u.apellido}`.trim(),
+          email: u.email,
+        }));
+    });
+
+    this.mantenimientoService.getMantenimientos().subscribe();
     this.mantenimientoService.mantenimientos$.subscribe(list => {
       if (user && this.debeFiltrarPorSucursal(user)) {
         this.mantenimientos = list.filter(

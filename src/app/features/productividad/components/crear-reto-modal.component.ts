@@ -3,8 +3,8 @@ import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { LucideAngularModule } from 'lucide-angular';
 import { AuthService } from '../../../core/services/auth.service';
-import { SucursalMockService } from '../../../core/services/sucursal-mock.service';
-import { RetosMockService } from '../../../core/services/retos-mock.service';
+import { SucursalService } from '../../../core/services/sucursal.service';
+import { RetosService } from '../../../core/services/retos.service';
 
 import { ModalComponent } from '../../../shared/components/modal/modal.component';
 
@@ -55,11 +55,11 @@ import { ModalComponent } from '../../../shared/components/modal/modal.component
                 </select>
               </div>
 
-              <!-- Marca -->
+              <!-- Cliente -->
               <div>
-                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Marca</label>
+                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Cliente</label>
                 <select formControlName="marca" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:border-easydry-blue focus:ring-easydry-blue">
-                  <option value="Todas">Todas las Marcas</option>
+                  <option value="Todas">Todos los Clientes</option>
                   <option value="EasyDry">EasyDry</option>
                   <option value="EasyDry Premium">EasyDry Premium</option>
                   <option value="EasyDry Express">EasyDry Express</option>
@@ -71,7 +71,7 @@ import { ModalComponent } from '../../../shared/components/modal/modal.component
                 <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Sucursal Específica</label>
                 <select formControlName="sucursalId" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:border-easydry-blue focus:ring-easydry-blue">
                   @if (canSelectGlobal) {
-                    <option value="">Todas (Aplica Región/Marca)</option>
+                    <option value="">Todas (Aplica Región/Cliente)</option>
                   }
                   @for (s of sucursales; track s.id) {
                     <option [value]="s.id">{{ s.nombre }}</option>
@@ -130,8 +130,8 @@ export class CrearRetoModalComponent implements OnInit {
 
   private fb = inject(FormBuilder);
   private auth = inject(AuthService);
-  private sucursalService = inject(SucursalMockService);
-  private retosService = inject(RetosMockService);
+  private sucursalService = inject(SucursalService);
+  private retosService = inject(RetosService);
 
   constructor() {
     const today = new Date().toISOString().split('T')[0];

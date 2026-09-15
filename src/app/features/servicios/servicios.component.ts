@@ -2,9 +2,9 @@ import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LucideAngularModule } from 'lucide-angular';
-import { ServicioLavadoMockService } from '../../core/services/servicio-lavado-mock.service';
+import { ServicioLavadoService } from '../../core/services/servicio-lavado.service';
 import { AuthService } from '../../core/services/auth.service';
-import { InventarioMockService } from '../../core/services/inventario-mock.service';
+import { InventarioService } from '../../core/services/inventario.service';
 import { 
   VehiculoServicio, 
   CatalogoServicio, 
@@ -22,15 +22,15 @@ import {
 import { ModalComponent } from '../../shared/components/modal/modal.component';
 import { ToastService } from '../../shared/services/toast.service';
 import { Role } from '../../core/models/roles.model';
-import { CatalogoServiciosMockService } from '../../core/services/catalogo-servicios-mock.service';
-import { SucursalMockService } from '../../core/services/sucursal-mock.service';
-import { ServiciosExtrasMockService } from '../../core/services/servicios-extras-mock.service';
-import { OperadorMockService } from '../../core/services/operador-mock.service';
-import { BahiaMockService } from '../../core/services/bahia-mock.service';
+import { CatalogoServiciosService } from '../../core/services/catalogo-servicios.service';
+import { SucursalService } from '../../core/services/sucursal.service';
+import { ServiciosExtrasService } from '../../core/services/servicios-extras.service';
+import { OperadorService } from '../../core/services/operador.service';
+import { BahiaService } from '../../core/services/bahia.service';
 import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
 import { FilterBarComponent, FilterState } from '../../shared/components/filter-bar/filter-bar.component';
-import { MaquinariaMockService } from '../../core/services/maquinaria-mock.service';
-import { IncidenteMockService } from '../../core/services/incidente-mock.service';
+import { MaquinariaService } from '../../core/services/maquinaria.service';
+import { IncidenteService } from '../../core/services/incidente.service';
 import { PermissionService } from '../../core/services/permission.service';
 import { formatearPlaca, placasEquivalentes, validarPlaca } from '../../core/utils/placa.util';
 import { resolverRangoFechas, soloFecha } from '../../core/utils/fecha-rango';
@@ -153,78 +153,34 @@ import { RouterModule } from '@angular/router';
 
       </div>
 
-      <!-- Banner contextual para Servicios Especiales con contexto de Región y Rol -->
-      @if (tabActiva === 'especiales' && tieneServiciosEspeciales) {
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent p-4 rounded-2xl border border-amber-200/60 animate-fade-in">
-          <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-800 flex items-center justify-center shrink-0">
-              <i-lucide name="star" class="w-5 h-5 fill-amber-500 text-amber-600"></i-lucide>
+      <!-- Widget de Stock de Insumos en Custodia del Pulidor -->
+      @if (tabActiva === 'especiales' && isPulidor && stockPulidor.length > 0) {
+        <div class="p-4 bg-slate-900 text-white rounded-2xl shadow-easydry border border-slate-800 animate-fade-in space-y-3">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-2.5">
+            <div class="flex items-center gap-2">
+              <i-lucide name="package-check" class="w-4 h-4 text-emerald-400"></i-lucide>
+              <h3 class="text-xs font-black uppercase tracking-wider text-slate-200">
+                Mi Inventario de Químicos en Custodia (Unidad Móvil {{ userRegionNombre }})
+              </h3>
             </div>
-            <div>
-              <div class="flex items-center gap-2 flex-wrap">
-                <h2 class="text-sm font-extrabold text-slate-900 font-outfit">Control Regional de Servicios Especiales</h2>
-                <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-200 text-amber-900 font-mono">
-                  {{ userRegionNombre }}
-                </span>
-                @if (isCoordServiciosEspeciales) {
-                  <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-100 text-blue-800">
-                    Coordinador Zonal
-                  </span>
-                } @else if (isPulidor) {
-                  <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800">
-                    Pulidor Regional en Campo
-                  </span>
-                }
-              </div>
-              <p class="text-xs text-slate-600 mt-0.5">
-                Flujo con evidencias en vídeo (Inicial & Final) y deducción automática de insumos en custodia del pulidor.
-              </p>
-            </div>
-          </div>
-          <div class="flex items-center gap-2">
-            @if (isCoordServiciosEspeciales || isPulidor || isAdmin || isSuperAdmin) {
-              <button
-                (click)="abrirModalNuevoExtra()"
-                class="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white font-extrabold rounded-xl text-xs transition-all shadow-xs flex items-center gap-1.5 cursor-pointer">
-                <i-lucide name="plus" class="w-3.5 h-3.5"></i-lucide>
-                <span>{{ isCoordServiciosEspeciales ? '+ Asignar a Pulidor' : '+ Nuevo Servicio Especial' }}</span>
-              </button>
-            }
-            <span class="text-xs font-bold text-amber-800 bg-amber-100/80 px-3 py-1 rounded-full border border-amber-200 self-start sm:self-auto">
-              {{ extrasFiltrados.length }} OTs Especiales
+            <span class="text-[11px] text-slate-400">
+              Se descuenta automáticamente al finalizar cada servicio especial
             </span>
           </div>
-        </div>
-
-        <!-- Widget de Stock de Insumos en Custodia del Pulidor -->
-        @if (isPulidor && stockPulidor.length > 0) {
-          <div class="p-4 bg-slate-900 text-white rounded-2xl shadow-easydry border border-slate-800 animate-fade-in space-y-3">
-            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-2.5">
-              <div class="flex items-center gap-2">
-                <i-lucide name="package-check" class="w-4 h-4 text-emerald-400"></i-lucide>
-                <h3 class="text-xs font-black uppercase tracking-wider text-slate-200">
-                  Mi Inventario de Químicos en Custodia (Unidad Móvil {{ userRegionNombre }})
-                </h3>
-              </div>
-              <span class="text-[11px] text-slate-400">
-                Se descuenta automáticamente al finalizar cada servicio especial
-              </span>
-            </div>
-            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5">
-              @for (st of stockPulidor; track st.id) {
-                <div class="p-2.5 bg-slate-800/80 rounded-xl border border-slate-700/60 flex flex-col justify-between">
-                  <div class="text-[11px] font-bold text-slate-200 truncate" [title]="st.producto?.nombre">
-                    {{ st.producto?.nombre }}
-                  </div>
-                  <div class="mt-1.5 flex items-baseline justify-between">
-                    <span class="font-mono text-base font-black text-emerald-400">{{ st.cantidadDisponible }}</span>
-                    <span class="text-[10px] text-slate-400 font-semibold">{{ st.producto?.unidadMedida || 'und' }}</span>
-                  </div>
+          <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5">
+            @for (st of stockPulidor; track st.id) {
+              <div class="p-2.5 bg-slate-800/80 rounded-xl border border-slate-700/60 flex flex-col justify-between">
+                <div class="text-[11px] font-bold text-slate-200 truncate" [title]="st.producto?.nombre">
+                  {{ st.producto?.nombre }}
                 </div>
-              }
-            </div>
+                <div class="mt-1.5 flex items-baseline justify-between">
+                  <span class="font-mono text-base font-black text-emerald-400">{{ st.cantidadDisponible }}</span>
+                  <span class="text-[10px] text-slate-400 font-semibold">{{ st.producto?.unidadMedida || 'und' }}</span>
+                </div>
+              </div>
+            }
           </div>
-        }
+        </div>
       }
 
       <!-- Global Filter Bar (Contenedor Unificado de Filtros y Búsqueda) -->
@@ -234,13 +190,13 @@ import { RouterModule } from '@angular/router';
         [showBahia]="!isOperador && tabActiva === 'generales'"
         [showServicio]="true"
         [showRegion]="true"
-        [showMarca]="true"
+        [showCliente]="true"
         [showEstado]="true"
         [showFechas]="false"
         [showBusqueda]="true"
         [placeholderBusqueda]="tabActiva === 'generales' ? 'Buscar placa (ej. PBX-8932) u Orden OT...' : 'Buscar placa u OT especial (ej. SE-SIE-0001)...'"
         [listaServicios]="listaServiciosFiltro"
-        [listaEstados]="['Todos', 'Pendiente', 'En Proceso', 'Completado']"
+        [listaEstados]="tabActiva === 'generales' ? ['Todos', 'En Proceso', 'Por Aprobar', 'Realizados / Aprobados', 'Rechazados'] : ['Todos', 'Pendiente', 'En Proceso', 'Completado', 'Cancelado']"
         (filterChange)="aplicarNuevosFiltros($event)">
       </app-filter-bar>
 
@@ -770,7 +726,7 @@ import { RouterModule } from '@angular/router';
             <div class="flex items-center justify-between">
               <span class="text-xs font-bold text-slate-800 uppercase flex items-center gap-1.5">
                 <i-lucide name="map-pin" class="w-4 h-4 text-easydry-blue"></i-lucide>
-                Asignación de Sucursal, Bahía & Operador
+                Asignación de Sucursal, Bahía & Lavador
               </span>
               @if (isLiderOperador) {
                 <span class="px-2.5 py-0.5 rounded-full bg-teal-100 text-teal-800 text-[10px] font-extrabold border border-teal-200">
@@ -1162,6 +1118,17 @@ import { RouterModule } from '@angular/router';
           }
         </form>
 
+        <div modal-footer>
+          <button (click)="modalReportarFallaOpen = false" class="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs">Cancelar</button>
+          <button
+            (click)="guardarReporteFalla()"
+            [disabled]="maquinasReporte.length === 0"
+            class="px-4 py-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-bold rounded-xl text-xs">
+            Enviar Reporte
+          </button>
+        </div>
+      </app-modal>
+
       <!-- Modal Iniciar Servicio Especial (Obligatorio Vídeo Inicial) -->
       <app-modal
         [isOpen]="modalIniciarServicioEspecialOpen"
@@ -1454,7 +1421,7 @@ import { RouterModule } from '@angular/router';
                 [disabled]="isPulidor"
                 class="w-full p-2.5 border rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-amber-500 disabled:bg-slate-100">
                 @for (p of pulidoresDisponiblesRegion; track p.id) {
-                  <option [value]="p.id">{{ p.name }} {{ p.lastname }} ({{ p.email }})</option>
+                  <option [value]="p.id">{{ p.name }} {{ p.lastname }} - {{ p.agencia?.nombre ? ('Fijo en ' + p.agencia.nombre) : 'Móvil Zonal' }}</option>
                 }
               </select>
             </div>
@@ -1720,17 +1687,17 @@ export class ServiciosComponent implements OnInit {
   insumosConsumoForm: InsumoConsumidoServicio[] = [];
   despachosPendientesLider: any[] = [];
 
-  private catalogoMock = inject(CatalogoServiciosMockService);
-  private sucursalService = inject(SucursalMockService);
-  private extrasMock = inject(ServiciosExtrasMockService);
-  private operadorService = inject(OperadorMockService);
-  private bahiaService = inject(BahiaMockService);
-  private inventarioService = inject(InventarioMockService);
-  private servicioService = inject(ServicioLavadoMockService);
+  private catalogoMock = inject(CatalogoServiciosService);
+  private sucursalService = inject(SucursalService);
+  private extrasMock = inject(ServiciosExtrasService);
+  private operadorService = inject(OperadorService);
+  private bahiaService = inject(BahiaService);
+  private inventarioService = inject(InventarioService);
+  private servicioService = inject(ServicioLavadoService);
   public authService = inject(AuthService);
   private toastService = inject(ToastService);
-  private maquinariaService = inject(MaquinariaMockService);
-  private incidenteService = inject(IncidenteMockService);
+  private maquinariaService = inject(MaquinariaService);
+  private incidenteService = inject(IncidenteService);
   private permissions = inject(PermissionService);
 
   // ── Servicios Extras / Asignaciones Especiales ──
@@ -1798,7 +1765,7 @@ export class ServiciosComponent implements OnInit {
   get isLiderOperador() { return this.authService.isLiderOperador(); }
   get isCoordServiciosEspeciales() { return this.authService.hasRole(Role.COORD_SERVICIOS_ESPECIALES); }
   get isPulidor() {
-    return this.authService.hasAnyRole([Role.PULIDOR_MOVIL, Role.PULIDOR_FIJO, Role.OPERADOR_SERVICIOS_ESPECIALES]);
+    return this.authService.hasRole(Role.PULIDOR) || this.authService.hasAnyRole([Role.PULIDOR_MOVIL, Role.PULIDOR_FIJO, Role.OPERADOR_SERVICIOS_ESPECIALES]) || this.authService.isPulidor();
   }
   get isOperadorEspeciales() {
     return this.isCoordServiciosEspeciales || this.isPulidor;
@@ -1810,6 +1777,11 @@ export class ServiciosComponent implements OnInit {
   get isGerente() { return this.authService.hasAnyRole([Role.SUPER_ADMIN, Role.ADMIN, Role.GERENTE]); }
   get isSuperAdmin() { return this.authService.hasRole(Role.SUPER_ADMIN); }
   get isAdmin() { return this.authService.isAdmin(); }
+  get isSupervisor(): boolean {
+    const user = this.authService.getCurrentUser();
+    const rol = (user?.role || '').toUpperCase();
+    return (rol === 'SUPERVISOR' || rol === 'GERENTE_REGIONAL' || rol.includes('SUPERVISOR') || rol.includes('REGIONAL')) && !this.isAdmin && !this.isSuperAdmin;
+  }
   get isAprobador(): boolean {
     const user = this.authService.getCurrentUser();
     const rol = (user?.role || '').toUpperCase();
@@ -1827,16 +1799,19 @@ export class ServiciosComponent implements OnInit {
       && this.permissions.canRegistrarIncidente();
   }
 
-  /** Solo Gerente y SuperAdmin pueden aprobar servicios */
+  /** Solo Gerente, SuperAdmin y Admin pueden aprobar servicios */
   get canApprove() {
-    return this.authService.hasAnyRole([Role.SUPER_ADMIN, Role.ADMIN, Role.GERENTE]);
+    return this.authService.hasAnyRole([Role.SUPER_ADMIN, Role.ADMIN, Role.GERENTE, Role.APROBADOR]);
   }
 
   /** Helper para obtener filtros de alcance del usuario */
-  private _getFiltrosUsuario(): { agenciaId?: string } | undefined {
+  private _getFiltrosUsuario(): { agenciaId?: string; regionId?: string } | undefined {
     const user = this.authService.getCurrentUser();
     if (this.isAprobador && user?.agenciaId) {
       return { agenciaId: String(user.agenciaId) };
+    }
+    if (this.isSupervisor && user?.regionId) {
+      return { regionId: String(user.regionId) };
     }
     return undefined;
   }
@@ -1895,7 +1870,8 @@ export class ServiciosComponent implements OnInit {
       this.mapaMarcaSucursal = {};
       list.forEach(s => {
         if (s.nombre && s.regionNombre) this.mapaRegionSucursal[s.nombre] = s.regionNombre;
-        if (s.nombre && s.marcaNombre) this.mapaMarcaSucursal[s.nombre] = s.marcaNombre;
+        const clNombre = s.clienteNombre || s.marcaNombre;
+        if (s.nombre && clNombre) this.mapaMarcaSucursal[s.nombre] = clNombre;
       });
 
       this.onSucursalFormChange();
@@ -1959,7 +1935,13 @@ export class ServiciosComponent implements OnInit {
   cargarServiciosEspeciales() {
     const user = this.authService.getCurrentUser();
     const filtro: any = {};
-    if (this.isCoordServiciosEspeciales && user?.regionId) {
+    if (this.isSuperAdmin || this.isAdmin) {
+      // Super Admin y Admin: acceso nacional completo
+    } else if (this.isSupervisor && user?.regionId) {
+      filtro.regionId = String(user.regionId);
+    } else if (this.isAprobador && user?.agenciaId) {
+      filtro.agenciaId = String(user.agenciaId);
+    } else if (this.isCoordServiciosEspeciales && user?.regionId) {
       filtro.regionId = String(user.regionId);
     } else if (this.isPulidor && user?.id) {
       filtro.operadorId = String(user.id);
@@ -1967,7 +1949,7 @@ export class ServiciosComponent implements OnInit {
 
     this.extrasMock.getServiciosExtras(filtro).subscribe(extras => {
       this.serviciosExtras = extras || [];
-      if (this.serviciosExtras.length > 0) {
+      if (this.serviciosExtras.length > 0 || this.isSuperAdmin || this.isAdmin || this.isSupervisor) {
         this.tieneServiciosEspeciales = true;
       }
     });
@@ -1993,7 +1975,7 @@ export class ServiciosComponent implements OnInit {
     const user = this.authService.getCurrentUser();
     if (!user) { this.tieneServiciosEspeciales = false; return; }
 
-    if (this.isSuperAdmin || this.isAdmin || this.isGerente || this.isOperadorEspeciales) {
+    if (this.isSuperAdmin || this.isAdmin || this.isSupervisor || this.isGerente || this.isOperadorEspeciales) {
       this.tieneServiciosEspeciales = true;
       return;
     }
@@ -2281,10 +2263,22 @@ export class ServiciosComponent implements OnInit {
     const texto = this.filtroTexto.toLowerCase().trim();
 
     const isSuper = role === Role.SUPER_ADMIN || role === Role.ADMIN || role === 'SUPER_ADMIN' || role === 'ADMIN';
+    const isSupervisor = this.isSupervisor;
+    const isAprobador = this.isAprobador;
     const userSucClean = (this.userSucursal || user?.sucursalNombre || user?.sucursal || (user as any)?.agencia || '').replace(/EasyDry\s*/i, '').toLowerCase().trim();
+    const uReg = (user?.regionNombre || user?.region || '').toLowerCase();
 
     let resultados = this.servicios.filter(s => {
-      if (!isSuper && userSucClean) {
+      if (isAprobador && userSucClean) {
+        const itemSucClean = (s.agencia || '').replace(/EasyDry\s*/i, '').toLowerCase().trim();
+        const matchSucursal = !itemSucClean || itemSucClean.includes(userSucClean) || userSucClean.includes(itemSucClean);
+        if (!matchSucursal) return false;
+      } else if (isSupervisor && uReg) {
+        if (this.mapaRegionSucursal[s.agencia]) {
+          const sReg = (this.mapaRegionSucursal[s.agencia] || '').toLowerCase();
+          if (!sReg.includes(uReg) && !uReg.includes(sReg)) return false;
+        }
+      } else if (!isSuper && !isSupervisor && userSucClean) {
         const itemSucClean = (s.agencia || '').replace(/EasyDry\s*/i, '').toLowerCase().trim();
         const matchSucursal = !itemSucClean || itemSucClean.includes(userSucClean) || userSucClean.includes(itemSucClean);
         const matchOperador = user && s.empleado?.toLowerCase().includes((user.nombre || '').toLowerCase());
@@ -2306,6 +2300,15 @@ export class ServiciosComponent implements OnInit {
         const se = (s.estado || '').toUpperCase();
         if (fe === 'EN PROCESO' || fe === 'EN_PROCESO') {
           return se === 'EN PROCESO' || se === 'EN_PROCESO' || se === 'EN COLA' || se === 'EN_ESPERA';
+        }
+        if (fe === 'POR APROBAR' || fe === 'POR_APROBAR' || fe === 'FALTAN DE APROBAR') {
+          return se === 'FINALIZADO' && (!s.aprobadoPor || s.aprobadoPor.trim() === '');
+        }
+        if (fe === 'REALIZADOS / APROBADOS' || fe === 'REALIZADO' || fe === 'REALIZADOS' || fe === 'APROBADO') {
+          return se === 'APROBADO' || se === 'FINALIZADO';
+        }
+        if (fe === 'RECHAZADOS' || fe === 'RECHAZADO') {
+          return se === 'RECHAZADO';
         }
         return se === fe;
       });
@@ -2339,9 +2342,12 @@ export class ServiciosComponent implements OnInit {
         this.mapaRegionSucursal[s.agencia] === this.filtrosGlobales.region
       );
     }
-    if (this.filtrosGlobales.marca && this.filtrosGlobales.marca !== 'Todas') {
+    const targetClienteFiltro = (this.filtrosGlobales.cliente && this.filtrosGlobales.cliente !== 'Todas')
+      ? this.filtrosGlobales.cliente
+      : (this.filtrosGlobales.marca && this.filtrosGlobales.marca !== 'Todas' ? this.filtrosGlobales.marca : null);
+    if (targetClienteFiltro) {
       resultados = resultados.filter(s =>
-        this.mapaMarcaSucursal[s.agencia] === this.filtrosGlobales.marca
+        this.mapaMarcaSucursal[s.agencia] === targetClienteFiltro
       );
     }
     if (this.filtrosGlobales.busqueda?.trim()) {
@@ -2552,14 +2558,32 @@ export class ServiciosComponent implements OnInit {
   get extrasCancelados()  { return this.serviciosExtras.filter(e => e.estado === 'Cancelado').length; }
 
   get extrasFiltrados() {
+    const user = this.authService.getCurrentUser();
+    const isSupervisor = this.isSupervisor;
+    const isAprobador = this.isAprobador;
+    const uReg = (user?.regionNombre || user?.region || '').toLowerCase();
+    const uSuc = (this.userSucursal || user?.sucursalNombre || user?.sucursal || '').toLowerCase().trim();
+
     return this.serviciosExtras.filter(e => {
+      // Scope RBAC para Especiales:
+      if (isAprobador && uSuc) {
+        const hasSuc = (e.sucursales || []).some(s => s.toLowerCase().includes(uSuc) || uSuc.includes(s.toLowerCase()));
+        if (!hasSuc) return false;
+      } else if (isSupervisor && uReg) {
+        const eReg = (e.regionNombre || '').toLowerCase();
+        if (eReg && !eReg.includes(uReg) && !uReg.includes(eReg)) return false;
+      }
+
       const matchEst = this.filtrosGlobales.estado === 'Todos' ||
         e.estado?.toLowerCase() === this.filtrosGlobales.estado?.toLowerCase() ||
-        (this.filtrosGlobales.estado === 'En Proceso' && e.estado === 'En Proceso') ||
-        (this.filtrosGlobales.estado === 'Completado' && (e.estado === 'Completado' || (e.estado as string) === 'FINALIZADO'));
+        (this.filtrosGlobales.estado === 'En Proceso' && (e.estado === 'En Proceso' || e.estado === 'Pendiente')) ||
+        ((this.filtrosGlobales.estado === 'Completado' || this.filtrosGlobales.estado === 'Realizados / Aprobados') && (e.estado === 'Completado' || (e.estado as string) === 'FINALIZADO'));
 
       const matchReg = !this.filtrosGlobales.region || this.filtrosGlobales.region === 'Todas' ||
         (e.regionNombre || '').toLowerCase().includes(this.filtrosGlobales.region.toLowerCase());
+
+      const matchSuc = !this.filtrosGlobales.sucursal || this.filtrosGlobales.sucursal === 'Todas' ||
+        (e.sucursales || []).some(s => s.toLowerCase().includes(this.filtrosGlobales.sucursal.toLowerCase()));
 
       const matchOp = !this.filtrosGlobales.operador || this.filtrosGlobales.operador === 'Todos' ||
         (e.operadorNombre || '').toLowerCase().includes(this.filtrosGlobales.operador.toLowerCase());
@@ -2570,7 +2594,7 @@ export class ServiciosComponent implements OnInit {
         (e.vehiculoInfo?.placa || e.placa || '').toLowerCase().includes(this.filtroTexto.toLowerCase()) ||
         e.operadorNombre.toLowerCase().includes(this.filtroTexto.toLowerCase());
 
-      return matchEst && matchReg && matchOp && matchTxt;
+      return matchEst && matchReg && matchSuc && matchOp && matchTxt;
     });
   }
 

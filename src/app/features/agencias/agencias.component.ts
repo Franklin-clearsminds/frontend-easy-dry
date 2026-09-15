@@ -2,8 +2,8 @@ import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LucideAngularModule } from 'lucide-angular';
-import { AgenciaMockService } from '../../core/services/agencia-mock.service';
-import { MarcaSucursalMockService } from '../../core/services/marca-sucursal-mock.service';
+import { AgenciaService } from '../../core/services/agencia.service';
+import { MarcaSucursalService } from '../../core/services/marca-sucursal.service';
 import { Agencia, MarcaSucursal } from '../../core/models';
 import { ModalComponent } from '../../shared/components/modal/modal.component';
 import { ToastService } from '../../shared/services/toast.service';
@@ -27,10 +27,10 @@ import { ToastService } from '../../shared/services/toast.service';
       <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-easydry flex flex-wrap gap-4 items-end">
         <div class="flex-1 min-w-[170px]">
           <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-            <i-lucide name="tag" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide> Marca
+            <i-lucide name="briefcase" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide> Cliente
           </label>
           <select [(ngModel)]="filtroMarcaId" (change)="aplicarFiltros()" class="w-full bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-xl px-3 py-2 focus:ring-2 focus:ring-easydry-blue transition-colors appearance-none font-semibold cursor-pointer">
-            <option [ngValue]="0">Todas las Marcas</option>
+            <option [ngValue]="0">Todos los Clientes</option>
             @for (m of marcasActivas; track m.id) {
               <option [ngValue]="m.id">{{ m.nombre }}</option>
             }
@@ -294,8 +294,8 @@ export class AgenciasComponent implements OnInit {
     gerenteAsignado: 'Asignación Pendiente'
   };
 
-  private agenciaService = inject(AgenciaMockService);
-  private marcaService = inject(MarcaSucursalMockService);
+  private agenciaService = inject(AgenciaService);
+  private marcaService = inject(MarcaSucursalService);
   private toastService = inject(ToastService);
 
   ngOnInit(): void {

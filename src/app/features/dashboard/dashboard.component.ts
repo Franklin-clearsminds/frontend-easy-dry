@@ -7,7 +7,7 @@ import { StatCardComponent } from '../../shared/components/stat-card/stat-card.c
 import { ChartCardComponent } from '../../shared/components/chart-card/chart-card.component';
 import { DashboardOperativoService } from '../../core/services/dashboard-operativo.service';
 import { AuthService } from '../../core/services/auth.service';
-import { MarcaSucursalMockService } from '../../core/services/marca-sucursal-mock.service';
+import { MarcaSucursalService } from '../../core/services/marca-sucursal.service';
 import { Role, ROLE_LABELS } from '../../core/models/roles.model';
 import { AlertasWidgetComponent } from './components/alertas-widget.component';
 import { RankingOperadoresWidgetComponent } from './components/ranking-operadores-widget.component';
@@ -34,7 +34,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
 })
 export class DashboardComponent implements OnInit {
   private dashboardService = inject(DashboardOperativoService);
-  private marcaService = inject(MarcaSucursalMockService);
+  private marcaService = inject(MarcaSucursalService);
   public auth = inject(AuthService);
 
   produccion: any;
@@ -219,7 +219,7 @@ export class DashboardComponent implements OnInit {
 
   aplicarNuevosFiltros(filtros: FilterState) {
     this.sucursalFilter = filtros.sucursal;
-    this.marcaFilter = filtros.marca || 'Todas';
+    this.marcaFilter = filtros.cliente || filtros.marca || 'Todas';
     this.fechaFilter = filtros.fecha;
     this.aplicarFiltros();
   }
@@ -228,7 +228,7 @@ export class DashboardComponent implements OnInit {
     if (!this.baseProduccion || !this.baseServiciosData) return;
     let factor = 1.0;
     if (this.sucursalFilter !== 'Todas') factor *= 0.25;
-    if (this.marcaFilter !== 'Todas') factor *= 0.3;
+    if (this.marcaFilter !== 'Todas' && this.marcaFilter !== 'Todos') factor *= 0.3;
     if (this.modeloFilter !== 'Todos') factor *= 0.3;
     if (this.colorFilter !== 'Todos') factor *= 0.15;
     if (this.fechaFilter === 'Esta Semana') factor *= 5;

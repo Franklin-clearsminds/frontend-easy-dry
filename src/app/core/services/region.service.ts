@@ -8,7 +8,7 @@ import { apiUrl } from '../config/env';
 @Injectable({
   providedIn: 'root'
 })
-export class RegionMockService {
+export class RegionService {
   private http = inject(HttpClient);
   private regionesSubject = new BehaviorSubject<RegionOperativa[]>([]);
   public regiones$ = this.regionesSubject.asObservable();

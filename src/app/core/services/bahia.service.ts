@@ -8,7 +8,7 @@ import { apiUrl } from '../config/env';
 @Injectable({
   providedIn: 'root'
 })
-export class BahiaMockService {
+export class BahiaService {
   private http = inject(HttpClient);
   private bahiasSubject = new BehaviorSubject<Bahia[]>([]);
   public bahias$ = this.bahiasSubject.asObservable();

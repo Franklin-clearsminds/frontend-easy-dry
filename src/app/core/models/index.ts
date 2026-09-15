@@ -2,6 +2,9 @@ import { InsumoConsumidoServicio } from './inventario.model';
 export * from './roles.model';
 export * from './catalogo-servicio.model';
 export * from './inventario.model';
+export * from './reto.model';
+export * from './notificacion.model';
+export * from './dashboard.model';
 export type ModalidadPulidor = 'FIJO' | 'MOVIL';
 
 export interface Usuario {
@@ -23,6 +26,7 @@ export interface Usuario {
   modalidadPulidor?: ModalidadPulidor;
   agenciaId?: string;
   regionId?: string;
+  roleId?: string;
 }
 
 export interface Sucursal {
@@ -43,6 +47,8 @@ export interface Sucursal {
   serviciosRealizadosMes?: number;
   regionId?: number | string;
   regionNombre?: string;
+  clienteId?: number | string;
+  clienteNombre?: string;
   marcaId?: number | string;
   marcaNombre?: string;
   /** IDs del catálogo de servicios que esta sucursal ofrece. */
@@ -71,7 +77,7 @@ export interface RegionOperativa {
   estado: 'Activa' | 'Inactiva' | string;
 }
 
-export interface MarcaSucursal {
+export interface ClienteSucursal {
   id: number | string;
   codigo: string;
   nombre: string;
@@ -80,11 +86,13 @@ export interface MarcaSucursal {
   estado: 'Activa' | 'Inactiva' | string;
 }
 
+export type MarcaSucursal = ClienteSucursal;
+
 export interface MovimientoRedSucursal {
   id: number | string;
   sucursalId: number | string;
   sucursalNombre: string;
-  tipo: 'REGION' | 'MARCA';
+  tipo: 'REGION' | 'CLIENTE' | 'MARCA';
   valorAnterior: string;
   valorNuevo: string;
   motivo: string;
@@ -166,6 +174,8 @@ export interface Agencia {
   estado: 'Operativa' | 'Capacidad Máxima' | 'Mantenimiento' | 'Inactiva' | string;
   direccion?: string;
   gerenteAsignado?: string;
+  clienteId?: number | string;
+  clienteNombre?: string;
   marcaId?: number | string;
   marcaNombre?: string;
 }
@@ -262,6 +272,8 @@ export interface Mantenimiento {
   observacionCierre?: string;
   fechaCierre?: string;
   cerradoPor?: string;
+  repuestosUtilizados?: string[];
+  costoTotal?: number;
 }
 
 export interface ArchivoAdjunto {

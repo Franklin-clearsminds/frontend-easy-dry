@@ -8,7 +8,7 @@ import { apiUrl } from '../config/env';
 @Injectable({
   providedIn: 'root'
 })
-export class OperadorMockService {
+export class OperadorService {
   private http = inject(HttpClient);
   private operadoresSubject = new BehaviorSubject<Operador[]>([]);
   public operadores$ = this.operadoresSubject.asObservable();
@@ -40,7 +40,7 @@ export class OperadorMockService {
         return rawItems.map((h: any, index: number) => ({
           id: h.id || index + 1,
           operadorId: h.operadorId,
-          operadorNombre: h.operador ? `${h.operador.name || ''} ${h.operador.lastname || ''}`.trim() : 'Operador',
+          operadorNombre: h.operador ? `${h.operador.name || ''} ${h.operador.lastname || ''}`.trim() : 'Lavador',
           fechaInicio: h.fechaInicio ? h.fechaInicio.split('T')[0] : '',
           fechaFin: h.fechaFin ? h.fechaFin.split('T')[0] : undefined,
           sucursal: h.bahia?.agencia?.nombre || 'Agencia',
@@ -62,7 +62,7 @@ export class OperadorMockService {
         return rawItems.map((h: any, index: number) => ({
           id: h.id || index + 1,
           operadorId: h.operadorId,
-          operadorNombre: h.operador ? `${h.operador.name || ''} ${h.operador.lastname || ''}`.trim() : 'Operador',
+          operadorNombre: h.operador ? `${h.operador.name || ''} ${h.operador.lastname || ''}`.trim() : 'Lavador',
           fechaInicio: h.fechaInicio ? h.fechaInicio.split('T')[0] : (h.createdAt ? h.createdAt.split('T')[0] : ''),
           fechaFin: h.fechaFin ? h.fechaFin.split('T')[0] : undefined,
           sucursal: h.bahia?.agencia?.nombre || 'Agencia',
@@ -81,7 +81,7 @@ export class OperadorMockService {
       nombre: datos.nombre,
       cedula: datos.cedula,
       telefono: datos.telefono,
-      rol: datos.rol || 'OPERADOR',
+      rol: datos.rol || 'LAVADOR',
       agenciaId: datos.sucursalId ? String(datos.sucursalId) : datos.sucursal,
       bahiaId: datos.bahiaId || (datos.bahia && !datos.bahia.includes('Sin') ? datos.bahia : undefined),
       estado: datos.estado === 'Inactivo' ? 0 : 1

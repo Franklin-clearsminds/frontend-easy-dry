@@ -8,7 +8,7 @@ import { apiUrl } from '../config/env';
 @Injectable({
   providedIn: 'root'
 })
-export class ServicioLavadoMockService {
+export class ServicioLavadoService {
   private http = inject(HttpClient);
   private serviciosSubject = new BehaviorSubject<VehiculoServicio[]>([]);
   public servicios$ = this.serviciosSubject.asObservable();
@@ -75,10 +75,11 @@ export class ServicioLavadoMockService {
     };
   }
 
-  getServicios(filtros?: { sucursalId?: string; agenciaId?: string; estado?: string }): Observable<VehiculoServicio[]> {
+  getServicios(filtros?: { sucursalId?: string; agenciaId?: string; regionId?: string; estado?: string }): Observable<VehiculoServicio[]> {
     const body: any = {};
     if (filtros?.sucursalId) body.sucursalId = filtros.sucursalId;
     if (filtros?.agenciaId) body.agenciaId = filtros.agenciaId;
+    if (filtros?.regionId) body.regionId = filtros.regionId;
     if (filtros?.estado) body.estado = filtros.estado;
     return this.http.post<any>(apiUrl('/operaciones/servicios/list'), body).pipe(
       map(res => {

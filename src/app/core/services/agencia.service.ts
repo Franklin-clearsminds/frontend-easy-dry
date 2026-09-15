@@ -8,7 +8,7 @@ import { apiUrl } from '../config/env';
 @Injectable({
   providedIn: 'root'
 })
-export class AgenciaMockService {
+export class AgenciaService {
   private http = inject(HttpClient);
   private agenciasSubject = new BehaviorSubject<Agencia[]>([]);
   public agencias$ = this.agenciasSubject.asObservable();
@@ -24,8 +24,10 @@ export class AgenciaMockService {
       estado: a.estado === 1 ? 'Operativa' : 'Inactiva',
       direccion: a.direccion || '',
       gerenteAsignado: a.usuarios?.[0] ? `${a.usuarios[0].name} ${a.usuarios[0].lastname}`.trim() : 'Sin Asignar',
-      marcaId: a.marcaId || a.marca?.id,
-      marcaNombre: a.marca?.nombre || 'Sin marca'
+      clienteId: a.clienteId || a.cliente?.id || a.marcaId || a.marca?.id,
+      clienteNombre: a.cliente?.nombre || a.marca?.nombre || 'Sin cliente',
+      marcaId: a.clienteId || a.cliente?.id || a.marcaId || a.marca?.id,
+      marcaNombre: a.cliente?.nombre || a.marca?.nombre || 'Sin marca'
     };
   }
 

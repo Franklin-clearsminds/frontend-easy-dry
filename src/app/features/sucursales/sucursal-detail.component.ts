@@ -2,15 +2,15 @@ import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, RouterModule } from '@angular/router';
 import { LucideAngularModule } from 'lucide-angular';
-import { SucursalMockService } from '../../core/services/sucursal-mock.service';
-import { BahiaMockService } from '../../core/services/bahia-mock.service';
-import { MaquinariaMockService } from '../../core/services/maquinaria-mock.service';
+import { SucursalService } from '../../core/services/sucursal.service';
+import { BahiaService } from '../../core/services/bahia.service';
+import { MaquinariaService } from '../../core/services/maquinaria.service';
 import { Sucursal, Bahia, Maquinaria, CatalogoServicio } from '../../core/models';
 import { StatCardComponent } from '../../shared/components/stat-card/stat-card.component';
 import { ModalComponent } from '../../shared/components/modal/modal.component';
 import { FormsModule } from '@angular/forms';
 import { ToastService } from '../../shared/services/toast.service';
-import { CatalogoServiciosMockService } from '../../core/services/catalogo-servicios-mock.service';
+import { CatalogoServiciosService } from '../../core/services/catalogo-servicios.service';
 import { AuthService } from '../../core/services/auth.service';
 
 @Component({
@@ -295,10 +295,10 @@ export class SucursalDetailComponent implements OnInit {
   maquinaSeleccionadaId: number | null = null;
 
   private route = inject(ActivatedRoute);
-  private sucursalService = inject(SucursalMockService);
-  private bahiaService = inject(BahiaMockService);
-  private maquinariaService = inject(MaquinariaMockService);
-  private catalogoService = inject(CatalogoServiciosMockService);
+  private sucursalService = inject(SucursalService);
+  private bahiaService = inject(BahiaService);
+  private maquinariaService = inject(MaquinariaService);
+  private catalogoService = inject(CatalogoServiciosService);
   private auth = inject(AuthService);
   private toastService = inject(ToastService);
 
@@ -432,7 +432,7 @@ export class SucursalDetailComponent implements OnInit {
     };
     this.sucursalService.actualizarSucursal(actualizada, {
       motivo: 'Actualización de servicios de sucursal',
-      realizadoPor: `${user.nombre} ${user.apellido}`.trim()
+      realizadoPor: `${user?.nombre || ''} ${user?.apellido || ''}`.trim() || 'Sistema'
     }).subscribe(res => {
       this.sucursal = res;
       this.modalServiciosOpen = false;

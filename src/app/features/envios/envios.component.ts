@@ -7,8 +7,8 @@ import { of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { AuthService } from '../../core/services/auth.service';
 import { ToastService } from '../../shared/services/toast.service';
-import { SucursalMockService } from '../../core/services/sucursal-mock.service';
-import { InventarioMockService } from '../../core/services/inventario-mock.service';
+import { SucursalService } from '../../core/services/sucursal.service';
+import { InventarioService } from '../../core/services/inventario.service';
 import { ModalComponent } from '../../shared/components/modal/modal.component';
 import { FilterBarComponent } from '../../shared/components/filter-bar/filter-bar.component';
 import { EnvioSuministro, EstadoEnvio, Sucursal, InventarioItem } from '../../core/models';
@@ -468,8 +468,8 @@ export class EnviosComponent implements OnInit {
   private http = inject(HttpClient);
   private auth = inject(AuthService);
   private toastService = inject(ToastService);
-  private sucursalService = inject(SucursalMockService);
-  private inventarioService = inject(InventarioMockService);
+  private sucursalService = inject(SucursalService);
+  private inventarioService = inject(InventarioService);
 
   get isLiderOperador(): boolean {
     return this.auth.isLiderOperador();
@@ -575,7 +575,7 @@ export class EnviosComponent implements OnInit {
         this.sucursalesDisponibles = (sucs || []).filter(s => 
           (s.regionNombre && s.regionNombre.toLowerCase().includes(userRegion)) ||
           (s.ciudad && s.ciudad.toLowerCase().includes(userRegion)) ||
-          (s.regionId && user.regionId && String(s.regionId) === String(user.regionId))
+          (s.regionId && user?.regionId && String(s.regionId) === String(user.regionId))
         );
       } else {
         // Gestor de Bodega (COORD_BODEGA) y Admin: ve todas las sucursales sin importar región ni marcas
@@ -618,86 +618,8 @@ export class EnviosComponent implements OnInit {
     this.http.post<any[]>(apiUrl('/inventario/despachos/list'), payload).pipe(
       catchError(() => of([]))
     ).subscribe(items => {
-      let mapped = (items || []).map(m => this.mapBackendDespacho(m));
-      if (mapped.length === 0 && isLider) {
-        // Fallback demo para que el líder de bahía siempre pueda interactuar con el flujo
-        mapped = this.getMockEnviosFallback(user);
-      }
-      this.envios = mapped;
+      this.envios = (items || []).map(m => this.mapBackendDespacho(m));
     });
-  }
-
-  private getMockEnviosFallback(user: any): EnvioSuministro[] {
-    const sucursalNombre = user?.sucursalNombre || user?.sucursal || 'EasyDry Quito Norte';
-    const hoy = new Date().toISOString().split('T')[0];
-    return [
-      {
-        id: 'ENV-MOCK-001',
-        codigoEnvio: 'DSP-2026-0042',
-        fecha: hoy,
-        fechaEnvio: `${hoy} 08:30`,
-        horaInicio: '08:30',
-        sucursalId: user?.agenciaId || 'ag-1',
-        sucursalNombre,
-        ciudad: 'Quito',
-        productos: [
-          { productoId: 'QUIM-001', nombreProducto: 'Shampoo Ecológico Ultra-Espuma', cantidad: 4, unidad: 'Caneca 20L' },
-          { productoId: 'QUIM-002', nombreProducto: 'Cera Línea Cerámica Hidrofóbica', cantidad: 2, unidad: 'Galón' },
-          { productoId: 'TEX-001', nombreProducto: 'Paños de Microfibra 40x40 Premium', cantidad: 5, unidad: 'Pack x10' }
-        ],
-        responsableEnvio: 'Carlos Mendoza (Bodega Central)',
-        responsableRecepcion: undefined,
-        duracionMin: undefined,
-        estado: 'ENVIADO',
-        observaciones: 'Despacho regular de suministros para servicios y pulido'
-      },
-      {
-        id: 'ENV-MOCK-002',
-        codigoEnvio: 'DSP-2026-0038',
-        fecha: hoy,
-        fechaEnvio: `${hoy} 07:15`,
-        fechaRecepcion: `${hoy} 09:45`,
-        fechaResolucion: hoy,
-        horaInicio: '07:15',
-        horaFin: '09:45',
-        horaResolucion: '09:45',
-        duracionMin: 150,
-        sucursalId: user?.agenciaId || 'ag-1',
-        sucursalNombre,
-        ciudad: 'Quito',
-        productos: [
-          { productoId: 'QUIM-003', nombreProducto: 'Desengrasante Biodegradable Motores', cantidad: 3, unidad: 'Galón' },
-          { productoId: 'ACC-001', nombreProducto: 'Guantes de Nitrilo Industrial', cantidad: 6, unidad: 'Caja x50' }
-        ],
-        responsableEnvio: 'Carlos Mendoza (Bodega Central)',
-        responsableRecepcion: `${user?.nombre || 'Líder'} ${user?.apellido || 'Operador'}`,
-        estado: 'RECIBIDO',
-        observaciones: 'Entrega regular semanal verificada'
-      },
-      {
-        id: 'ENV-MOCK-003',
-        codigoEnvio: 'DSP-2026-0035',
-        fecha: hoy,
-        fechaEnvio: `${hoy} 06:40`,
-        fechaRecepcion: `${hoy} 08:15`,
-        fechaResolucion: hoy,
-        horaInicio: '06:40',
-        horaFin: '08:15',
-        horaResolucion: '08:15',
-        duracionMin: 95,
-        sucursalId: user?.agenciaId || 'ag-1',
-        sucursalNombre,
-        ciudad: 'Quito',
-        productos: [
-          { productoId: 'QUIM-004', nombreProducto: 'Sellador Acrílico de Cristales', cantidad: 3, unidad: 'Galón' }
-        ],
-        responsableEnvio: 'Carlos Mendoza (Bodega Central)',
-        responsableRecepcion: `${user?.nombre || 'Líder'} ${user?.apellido || 'Operador'}`,
-        estado: 'RECHAZADO',
-        observaciones: 'RECHAZO: Producto averiado / derrame en tránsito',
-        motivoRechazo: 'Producto averiado / derrame en tránsito'
-      }
-    ];
   }
 
   private mapBackendDespacho(m: any): EnvioSuministro {

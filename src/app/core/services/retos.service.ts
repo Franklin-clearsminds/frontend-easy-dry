@@ -3,9 +3,9 @@ import { Observable, of } from 'rxjs';
 import { delay } from 'rxjs/operators';
 import { Reto } from '../models/reto.model';
 import { AuthService } from './auth.service';
-import { SucursalMockService } from './sucursal-mock.service';
+import { SucursalService } from './sucursal.service';
 
-const STORAGE_KEY = 'easydry_retos_mock';
+const STORAGE_KEY = 'easydry_retos_v1';
 
 const RETOS_DEFAULT: Reto[] = [
   {
@@ -17,7 +17,7 @@ const RETOS_DEFAULT: Reto[] = [
     fechaFin: '2026-07-31',
     regiones: ['Todas'],
     marcas: ['Todas'],
-    sucursalesIds: [], // Todas
+    sucursalesIds: [],
     creadoPorId: 1,
     creadorNombre: 'Admin General',
     creadorRol: 'SUPER_ADMIN',
@@ -37,7 +37,7 @@ const RETOS_DEFAULT: Reto[] = [
     fechaFin: '2026-08-15',
     regiones: ['Costa', 'Sierra'],
     marcas: ['EasyDry Premium'],
-    sucursalesIds: [], 
+    sucursalesIds: [],
     creadoPorId: 1,
     creadorNombre: 'Admin General',
     creadorRol: 'SUPER_ADMIN',
@@ -46,66 +46,15 @@ const RETOS_DEFAULT: Reto[] = [
       '+20% Ventas en Premium Shield',
       'Atención al cliente 5 estrellas',
     ]
-  },
-  {
-    id: '3',
-    titulo: 'Desafío Interno Cumbayá: "Ninja del Detallado"',
-    descripcion: 'Mejorar los tiempos de detallado interior sin perder calidad',
-    premio: 'Kit Herramientas Pro + $100',
-    fechaInicio: '2026-08-10',
-    fechaFin: '2026-08-30',
-    regiones: ['Sierra'],
-    marcas: ['EasyDry'],
-    sucursalesIds: [1], // Asumiendo que 1 es Cumbayá
-    creadoPorId: 2,
-    creadorNombre: 'Juan Pérez (Gerente)',
-    creadorRol: 'GERENTE',
-    estado: 'ACTIVO',
-    criterios: [
-      'Detallado interior < 25 min',
-      'Aprobación de QA a la primera'
-    ]
-  },
-  {
-    id: '4',
-    titulo: 'Maratón de Lavado Ecológico Q1',
-    descripcion: 'Reducción de consumo de agua por vehículo en toda la red',
-    premio: 'Bono Trimestral de Sustentabilidad',
-    fechaInicio: '2026-01-01',
-    fechaFin: '2026-03-31',
-    regiones: ['Todas'],
-    marcas: ['Todas'],
-    sucursalesIds: [],
-    creadoPorId: 1,
-    creadorNombre: 'Admin General',
-    creadorRol: 'SUPER_ADMIN',
-    estado: 'FINALIZADO',
-    criterios: ['Uso < 2L por auto', 'Cero desperdicio de insumos']
-  },
-  {
-    id: '5',
-    titulo: 'Desafío de Apertura Agencia Manta',
-    descripcion: 'Promoción especial de inauguración y captación de clientes',
-    premio: 'Comisión Extra + Evento de Celebración',
-    fechaInicio: '2026-05-01',
-    fechaFin: '2026-05-31',
-    regiones: ['Costa'],
-    marcas: ['EasyDry'],
-    sucursalesIds: [],
-    creadoPorId: 1,
-    creadorNombre: 'Admin General',
-    creadorRol: 'SUPER_ADMIN',
-    estado: 'INACTIVO',
-    criterios: ['500 vehículos atendidos en el mes']
   }
 ];
 
 @Injectable({
   providedIn: 'root'
 })
-export class RetosMockService {
+export class RetosService {
   private auth = inject(AuthService);
-  private sucursalService = inject(SucursalMockService);
+  private sucursalService = inject(SucursalService);
 
   private getStoredRetos(): Reto[] {
     const data = localStorage.getItem(STORAGE_KEY);
@@ -134,7 +83,6 @@ export class RetosMockService {
       return of(todos);
     }
 
-    // Coord. Comercial: ve retos globales o de su región asignada
     if (user.role === 'COORD_COMERCIAL') {
       const region = user.region || 'Todas';
       const filtrados = todos.filter(reto => {
@@ -145,8 +93,7 @@ export class RetosMockService {
       return of(filtrados).pipe(delay(200));
     }
 
-    // Para el resto de roles (GERENTE, SUPERVISOR, OPERADOR, etc)
-    const userSucursal = user.sucursal; // es el ID
+    const userSucursal = user.sucursal;
     if (!userSucursal) return of([]);
 
     const filtrados = todos.filter(reto => {
@@ -165,7 +112,7 @@ export class RetosMockService {
     const retos = this.getStoredRetos();
     const reto: Reto = {
       ...nuevoReto,
-      id: Math.random().toString(36).substr(2, 9),
+      id: `RETO-${Date.now()}`,
       creadoPorId: user.id || 0,
       creadorNombre: user.nombre || 'Administrador',
       creadorRol: user.role || 'DESCONOCIDO',

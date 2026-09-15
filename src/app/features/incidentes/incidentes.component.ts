@@ -2,19 +2,19 @@ import { Component, OnInit, inject, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LucideAngularModule } from 'lucide-angular';
-import { IncidenteMockService } from '../../core/services/incidente-mock.service';
-import { MaquinariaMockService } from '../../core/services/maquinaria-mock.service';
+import { IncidenteService } from '../../core/services/incidente.service';
+import { MaquinariaService } from '../../core/services/maquinaria.service';
 import { AuthService } from '../../core/services/auth.service';
 import { Incidente, Maquinaria, ArchivoAdjunto } from '../../core/models';
 import { Role } from '../../core/models/roles.model';
-import { DEMO_CREDENTIALS } from '../../core/services/auth.service';
+import { UsuarioService } from '../../core/services/usuario.service';
 import { ModalComponent } from '../../shared/components/modal/modal.component';
 import { ToastService } from '../../shared/services/toast.service';
 import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
 import { FilterBarComponent, FilterState } from '../../shared/components/filter-bar/filter-bar.component';
 import { resolverRangoFechas, soloFecha } from '../../core/utils/fecha-rango';
 import { ModalPortalDirective } from '../../shared/directives/modal-portal.directive';
-import { SucursalMockService } from '../../core/services/sucursal-mock.service';
+import { SucursalService } from '../../core/services/sucursal.service';
 
 @Component({
   selector: 'app-incidentes',
@@ -47,7 +47,7 @@ import { SucursalMockService } from '../../core/services/sucursal-mock.service';
         [showEstado]="true"
         [showBusqueda]="true"
         [placeholderBusqueda]="'Buscar por máquina, código o prioridad...'"
-        [showMarca]="true"
+        [showCliente]="true"
         [showFechas]="true"
         [listaEstados]="['Todos', 'Pendiente', 'En Solución', 'Solucionado']"
         (filterChange)="aplicarNuevosFiltros($event)">
@@ -737,13 +737,7 @@ export class IncidentesComponent implements OnInit {
 
   incidenteAsignar?: Incidente;
 
-  tecnicosDisponibles = DEMO_CREDENTIALS
-    .filter(c => c.role === Role.TECNICO)
-    .map((c, i) => ({
-      id: DEMO_CREDENTIALS.indexOf(c) + 1,
-      nombre: c.nombre,
-      email: c.email,
-    }));
+  tecnicosDisponibles: { id: string | number; nombre: string; email: string }[] = [];
 
   gestorActual: { id: string | number; nombreCompleto: string } = { id: 0, nombreCompleto: '' };
 
@@ -769,11 +763,12 @@ export class IncidentesComponent implements OnInit {
     documentos: [] as ArchivoAdjunto[]
   };
 
-  private incidenteService = inject(IncidenteMockService);
-  private maquinariaService = inject(MaquinariaMockService);
+  private incidenteService = inject(IncidenteService);
+  private maquinariaService = inject(MaquinariaService);
   private authService = inject(AuthService);
   private toastService = inject(ToastService);
-  private sucursalService = inject(SucursalMockService);
+  private sucursalService = inject(SucursalService);
+  private usuarioService = inject(UsuarioService);
 
   ngOnInit(): void {
     const user = this.authService.getCurrentUser();
@@ -784,6 +779,20 @@ export class IncidentesComponent implements OnInit {
       };
     }
 
+    this.usuarioService.getUsuarios(true, true).subscribe(list => {
+      this.tecnicosDisponibles = (list || [])
+        .filter(u => {
+          const rol = (u.rolNombre || u.rol || '').toUpperCase();
+          return rol === Role.TECNICO || rol.includes('TECNICO') || rol.includes('TÉCNICO');
+        })
+        .map(u => ({
+          id: u.id,
+          nombre: `${u.nombre} ${u.apellido}`.trim(),
+          email: u.email,
+        }));
+    });
+
+    this.incidenteService.getIncidentes().subscribe();
     this.incidenteService.incidentes$.subscribe(list => {
       this.incidentes = list;
     });

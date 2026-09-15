@@ -176,6 +176,10 @@ export const routes: Routes = [
         path: 'asignaciones',
         redirectTo: 'operadores'
       },
+      {
+        path: 'lavadores',
+        redirectTo: 'operadores'
+      },
 
       {
         path: 'maquinaria',

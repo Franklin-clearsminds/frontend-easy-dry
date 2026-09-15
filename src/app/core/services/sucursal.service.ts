@@ -3,17 +3,17 @@ import { HttpClient } from '@angular/common/http';
 import { BehaviorSubject, Observable, of } from 'rxjs';
 import { map, tap, catchError } from 'rxjs/operators';
 import { MovimientoRedSucursal, Sucursal } from '../models';
-import { RegionMockService } from './region-mock.service';
-import { MarcaSucursalMockService } from './marca-sucursal-mock.service';
+import { RegionService } from './region.service';
+import { MarcaSucursalService } from './marca-sucursal.service';
 import { apiUrl } from '../config/env';
 
 @Injectable({
   providedIn: 'root'
 })
-export class SucursalMockService {
+export class SucursalService {
   private http = inject(HttpClient);
-  private regionService = inject(RegionMockService);
-  private marcaService = inject(MarcaSucursalMockService);
+  private regionService = inject(RegionService);
+  private marcaService = inject(MarcaSucursalService);
   private readonly STORAGE_KEY = 'easydry_sucursales_v2';
 
   private sucursalesSubject = new BehaviorSubject<Sucursal[]>([]);
@@ -128,8 +128,10 @@ export class SucursalMockService {
       serviciosRealizadosMes: a._count?.solicitudesAprobacion || 0,
       regionId: a.regionId || a.regionRel?.id,
       regionNombre: a.regionRel?.nombre || a.region || 'Sin región',
-      marcaId: a.marcaId || a.marca?.id,
-      marcaNombre: a.marca?.nombre || 'Sin marca',
+      clienteId: a.clienteId || a.cliente?.id || a.marcaId || a.marca?.id,
+      clienteNombre: a.cliente?.nombre || a.marca?.nombre || 'Sin cliente',
+      marcaId: a.clienteId || a.cliente?.id || a.marcaId || a.marca?.id,
+      marcaNombre: a.cliente?.nombre || a.marca?.nombre || 'Sin cliente',
       servicioIds,
       serviciosNombres,
       telefono: a.telefono || '',
@@ -209,7 +211,9 @@ export class SucursalMockService {
     const codigo = `AGN-${slug}-${Date.now().toString().slice(-4)}`;
 
     const regionIdStr = (suc.regionId && suc.regionId !== 0 && suc.regionId !== '0') ? String(suc.regionId) : undefined;
-    const marcaIdStr = (suc.marcaId && suc.marcaId !== 0 && suc.marcaId !== '0') ? String(suc.marcaId) : undefined;
+    const rawClienteId = suc.clienteId || suc.marcaId;
+    const clienteIdStr = (rawClienteId && rawClienteId !== 0 && rawClienteId !== '0') ? String(rawClienteId) : undefined;
+    const marcaIdStr = clienteIdStr;
     const gerenteIdStr = suc.gerenteId ? String(suc.gerenteId) : undefined;
 
     const payload = {
@@ -221,6 +225,7 @@ export class SucursalMockService {
       telefono: suc.telefono || '',
       numeroBahias: Number(suc.cantidadBahias) || 2,
       maxLavadoresPorBahia: Number(suc.maxLavadoresPorBahia) || 1,
+      clienteId: clienteIdStr,
       marcaId: marcaIdStr,
       estado: suc.estado === 'Inactivo' ? 0 : 1,
       gerenteId: gerenteIdStr,
@@ -267,7 +272,9 @@ export class SucursalMockService {
 
   actualizarSucursal(suc: Sucursal, auditoria?: { motivo?: string; realizadoPor?: string }): Observable<Sucursal> {
     const regionIdStr = (suc.regionId && suc.regionId !== 0 && suc.regionId !== '0') ? String(suc.regionId) : undefined;
-    const marcaIdStr = (suc.marcaId && suc.marcaId !== 0 && suc.marcaId !== '0') ? String(suc.marcaId) : undefined;
+    const rawClienteId = suc.clienteId || suc.marcaId;
+    const clienteIdStr = (rawClienteId && rawClienteId !== 0 && rawClienteId !== '0') ? String(rawClienteId) : undefined;
+    const marcaIdStr = clienteIdStr;
     const gerenteIdStr = suc.gerenteId ? String(suc.gerenteId) : (suc.requiereAprobacion === false ? '' : undefined);
 
     const payload = {
@@ -279,6 +286,7 @@ export class SucursalMockService {
       telefono: suc.telefono,
       numeroBahias: Number(suc.cantidadBahias),
       maxLavadoresPorBahia: Number(suc.maxLavadoresPorBahia) || 1,
+      clienteId: clienteIdStr,
       marcaId: marcaIdStr,
       estado: suc.estado === 'Inactivo' ? 0 : 1,
       gerenteId: gerenteIdStr,
@@ -333,6 +341,7 @@ export class SucursalMockService {
   transferirSucursal(params: {
     sucursalId: number | string;
     regionId?: number | string;
+    clienteId?: number | string;
     marcaId?: number | string;
     motivo: string;
     realizadoPor: string;
@@ -347,7 +356,11 @@ export class SucursalMockService {
 
     const payload: any = { id: String(params.sucursalId) };
     if (params.regionId) payload.regionId = String(params.regionId);
-    if (params.marcaId) payload.marcaId = String(params.marcaId);
+    const rawTargetClienteId = params.clienteId || params.marcaId;
+    if (rawTargetClienteId) {
+      payload.clienteId = String(rawTargetClienteId);
+      payload.marcaId = String(rawTargetClienteId);
+    }
 
     return this.http.post<any>(apiUrl('/agencias/update'), payload).pipe(
       map(res => this.mapBackendAgencia(res)),
@@ -360,9 +373,9 @@ export class SucursalMockService {
             id: nextMovId,
             sucursalId: original.id,
             sucursalNombre: original.nombre,
-            tipo: params.regionId ? 'REGION' : 'MARCA',
-            valorAnterior: original.regionNombre || original.marcaNombre || '',
-            valorNuevo: actualizada.regionNombre || actualizada.marcaNombre || '',
+            tipo: params.regionId ? 'REGION' : 'CLIENTE',
+            valorAnterior: original.regionNombre || original.clienteNombre || original.marcaNombre || '',
+            valorNuevo: actualizada.regionNombre || actualizada.clienteNombre || actualizada.marcaNombre || '',
             motivo: params.motivo,
             realizadoPor: params.realizadoPor,
             fecha: ahora
@@ -379,11 +392,13 @@ export class SucursalMockService {
     const marcas = this.marcaService.getActivas();
     const actualizadas = this.sucursalesSubject.value.map(s => {
       const region = regiones.find(r => String(r.id) === String(s.regionId)) || this.regionService.getById(s.regionId || 0);
-      const marca = marcas.find(m => String(m.id) === String(s.marcaId)) || this.marcaService.getById(s.marcaId || 0);
+      const targetClId = s.clienteId || s.marcaId;
+      const marca = marcas.find(m => String(m.id) === String(targetClId)) || this.marcaService.getById(targetClId || 0);
       return {
         ...s,
         regionNombre: region?.nombre || s.regionNombre,
-        marcaNombre: marca?.nombre || s.marcaNombre
+        clienteNombre: marca?.nombre || s.clienteNombre || s.marcaNombre,
+        marcaNombre: marca?.nombre || s.clienteNombre || s.marcaNombre
       };
     });
     this.sucursalesSubject.next(actualizadas);
@@ -414,15 +429,17 @@ export class SucursalMockService {
         fecha: ahora
       });
     }
-    if (actualizada.marcaId && actualizada.marcaId !== original.marcaId) {
+    const cambioCliente = (actualizada.clienteId && actualizada.clienteId !== original.clienteId) ||
+                          (actualizada.marcaId && actualizada.marcaId !== original.marcaId);
+    if (cambioCliente) {
       nextMovId += 1;
       movimientos.push({
         id: nextMovId,
         sucursalId: original.id,
         sucursalNombre: actualizada.nombre,
-        tipo: 'MARCA',
-        valorAnterior: original.marcaNombre || 'Sin marca',
-        valorNuevo: actualizada.marcaNombre || 'Sin marca',
+        tipo: 'CLIENTE',
+        valorAnterior: original.clienteNombre || original.marcaNombre || 'Sin cliente',
+        valorNuevo: actualizada.clienteNombre || actualizada.marcaNombre || 'Sin cliente',
         motivo,
         realizadoPor,
         fecha: ahora

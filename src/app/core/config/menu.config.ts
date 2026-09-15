@@ -53,7 +53,7 @@ export const MENU_CONFIG: MenuItem[] = [
     group: 'Operación & Agencias'
   },
   {
-    label: 'Gestión de Operadores',
+    label: 'Gestión de Lavadores',
     route: '/operadores',
     icon: 'user-check',
     moduloCodigo: 'operadores',

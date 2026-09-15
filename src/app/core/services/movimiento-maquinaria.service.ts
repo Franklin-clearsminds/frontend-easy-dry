@@ -1,24 +1,22 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable, of } from 'rxjs';
-import { delay, map } from 'rxjs/operators';
+import { map } from 'rxjs/operators';
 import { MovimientoMaquinaria } from '../models';
-import { MOCK_MOVIMIENTOS_MAQUINARIA } from '../mocks/movimientos-maquinaria.mock';
 
 @Injectable({
   providedIn: 'root'
 })
-export class MovimientoMaquinariaMockService {
-  private movimientosSubject = new BehaviorSubject<MovimientoMaquinaria[]>(MOCK_MOVIMIENTOS_MAQUINARIA);
+export class MovimientoMaquinariaService {
+  private movimientosSubject = new BehaviorSubject<MovimientoMaquinaria[]>([]);
   public movimientos$ = this.movimientosSubject.asObservable();
 
   getMovimientos(): Observable<MovimientoMaquinaria[]> {
-    return this.movimientos$.pipe(delay(200));
+    return of(this.movimientosSubject.value);
   }
 
   getMovimientosPorMaquina(codigo: string): Observable<MovimientoMaquinaria[]> {
     return this.movimientos$.pipe(
-      map(list => list.filter(m => m.maquinaCodigo.toLowerCase() === codigo.toLowerCase())),
-      delay(150)
+      map(list => list.filter(m => m.maquinaCodigo.toLowerCase() === codigo.toLowerCase()))
     );
   }
 
@@ -29,6 +27,6 @@ export class MovimientoMaquinariaMockService {
       id: Math.max(...current.map(m => m.id), 0) + 1
     };
     this.movimientosSubject.next([nuevo, ...current]);
-    return of(nuevo).pipe(delay(300));
+    return of(nuevo);
   }
 }
