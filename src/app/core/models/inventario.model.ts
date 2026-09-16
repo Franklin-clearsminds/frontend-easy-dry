@@ -171,6 +171,8 @@ export interface MovimientoInventarioGlobalItem {
   presentacionId?: string;
   presentacion?: { id: string; nombre: string; factorAUnidadBase: number };
   ubicacionId?: string;
+  origenUbicacion?: string;
+  destinoUbicacion?: string;
   responsableId?: string;
   responsable?: { id: string; name: string; lastname: string; email: string };
   motivoId?: string;
@@ -200,6 +202,7 @@ export interface RegistrarMovimientoPayload {
   presentacionId?: string;
   motivoId?: string;
   ubicacionId?: string;
+  bodegaId?: string;
   referencia?: string;
   observaciones?: string;
 }
@@ -285,5 +288,9 @@ export interface RecetaInsumoServicio {
   unidadMedida: string;
   unidadMedidaId?: string;
   cantidadSugerida: number;
+  insumoId?: string | number;
+  codigoSKU?: string;
+  insumoNombre?: string;
+  cantidad?: number;
 }
 

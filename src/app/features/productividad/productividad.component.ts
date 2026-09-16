@@ -4,6 +4,7 @@ import { LucideAngularModule } from 'lucide-angular';
 import { ChartCardComponent } from '../../shared/components/chart-card/chart-card.component';
 import { FilterBarComponent, FilterState } from '../../shared/components/filter-bar/filter-bar.component';
 import { CrearRetoModalComponent } from './components/crear-reto-modal.component';
+import { ModalPortalDirective } from '../../shared/directives/modal-portal.directive';
 import { AgenciaService } from '../../core/services/agencia.service';
 import { AuthService } from '../../core/services/auth.service';
 import { Agencia } from '../../core/models';
@@ -14,7 +15,7 @@ import { Reto } from '../../core/models/reto.model';
 @Component({
   selector: 'app-productividad',
   standalone: true,
-  imports: [CommonModule, LucideAngularModule, ChartCardComponent, FilterBarComponent, CrearRetoModalComponent],
+  imports: [CommonModule, LucideAngularModule, ChartCardComponent, FilterBarComponent, CrearRetoModalComponent, ModalPortalDirective],
   template: `
     <div class="space-y-6 animate-fade-in">
       
@@ -170,14 +171,14 @@ import { Reto } from '../../core/models/reto.model';
 
       <!-- Modal de Confirmación de Eliminación -->
       @if (showDeleteConfirmModal) {
-        <div class="fixed inset-0 z-50 flex items-center justify-center animate-fade-in">
+        <div appModalPortal class="fixed inset-0 z-[10050] flex items-center justify-center animate-fade-in">
           <!-- Backdrop -->
           <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" (click)="showDeleteConfirmModal = false"></div>
           
           <!-- Modal Panel -->
-          <div class="relative bg-white rounded-3xl shadow-2xl w-full max-w-md mx-4 overflow-hidden transform transition-all scale-100 border border-slate-100">
+          <div class="relative bg-white rounded-3xl shadow-2xl w-full max-w-md mx-4 overflow-hidden max-h-[90vh] flex flex-col transform transition-all scale-100 border border-slate-100">
             <!-- Header Rojo para eliminar -->
-            <div class="bg-red-50 border-b border-red-100 px-6 py-4 flex items-center justify-between">
+            <div class="shrink-0 bg-red-50 border-b border-red-100 px-6 py-4 flex items-center justify-between">
               <div class="flex items-center gap-3">
                 <div class="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center shadow-sm border border-red-200">
                   <i-lucide name="alert-triangle" class="w-5 h-5 text-red-600"></i-lucide>
@@ -189,12 +190,12 @@ import { Reto } from '../../core/models/reto.model';
               </button>
             </div>
             
-            <div class="p-6">
+            <div class="flex-1 min-h-0 overflow-y-auto p-6">
               <p class="text-sm text-slate-600 mb-2">¿Estás seguro que deseas eliminar el reto <span class="font-bold text-slate-800">"{{ retoToDelete?.titulo }}"</span>?</p>
               <p class="text-xs text-red-500 font-medium">Esta acción no se puede deshacer y borrará permanentemente este reto de la plataforma.</p>
             </div>
             
-            <div class="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
+            <div class="shrink-0 px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
               <button (click)="showDeleteConfirmModal = false" class="px-4 py-2 font-bold text-sm text-slate-600 bg-white border border-slate-200 hover:bg-slate-100 rounded-xl transition-colors">
                 Cancelar
               </button>

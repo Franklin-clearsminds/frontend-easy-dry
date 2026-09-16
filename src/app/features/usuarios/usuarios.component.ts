@@ -5,11 +5,12 @@ import { LucideAngularModule } from 'lucide-angular';
 import { UsuarioService } from '../../core/services/usuario.service';
 import { RolService } from '../../core/services/rol.service';
 import { AuthService } from '../../core/services/auth.service';
-import { Usuario, ModuloSistema, RolPersonalizado, Sucursal, ModalidadPulidor, BodegaInventario, RegionOperativa } from '../../core/models';
+import { Usuario, ModuloSistema, RolPersonalizado, Sucursal, ModalidadPulidor, BodegaInventario, RegionOperativa, CatalogoServicio } from '../../core/models';
 import { isRolPermisosInmutable, PermisoModuloAcciones } from '../../core/models/roles.model';
 import { SucursalService } from '../../core/services/sucursal.service';
 import { InventarioService } from '../../core/services/inventario.service';
 import { RegionService } from '../../core/services/region.service';
+import { CatalogoServiciosService } from '../../core/services/catalogo-servicios.service';
 import { esRolOperadorEspeciales } from '../../core/utils/modalidad-especiales.util';
 import { ModalComponent } from '../../shared/components/modal/modal.component';
 import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
@@ -578,7 +579,7 @@ interface ModuloGrupo {
                   }
                 </select>
               </div>
-              @if (!usuarioForm.agencia?.trim()) {
+              @if (!(usuarioForm.agencia || '').trim()) {
                 <div>
                   <label class="block text-xs font-bold text-slate-700 uppercase mb-1">
                     Región operativa <span class="text-cyan-600">*</span>
@@ -591,8 +592,36 @@ interface ModuloGrupo {
                   </select>
                   <p class="text-[11px] text-cyan-800 mt-1">El pulidor móvil opera solo en agencias de su región.</p>
                 </div>
+                <div>
+                  <div class="flex items-center justify-between mb-1.5">
+                    <label class="block text-xs font-bold text-slate-700 uppercase">
+                      Servicios que realizará <span class="text-cyan-600">*</span>
+                    </label>
+                    <span class="text-[10px] font-bold text-cyan-800 bg-white/80 px-2 py-0.5 rounded-md border border-cyan-200">
+                      {{ (usuarioForm.servicioIds || []).length }} seleccionados
+                    </span>
+                  </div>
+                  <p class="text-[11px] text-cyan-800 mb-2">Define qué servicios especiales usará para calcular los insumos de su kit.</p>
+                  <div class="max-h-44 overflow-y-auto space-y-1.5 rounded-xl border border-cyan-200 bg-white p-2.5">
+                    @for (s of serviciosEspecialesCatalogo; track s.id) {
+                      <label class="flex items-start gap-2.5 p-2 rounded-lg hover:bg-cyan-50 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          class="mt-0.5 rounded border-cyan-300 text-cyan-600 focus:ring-cyan-200"
+                          [checked]="servicioPulidorSeleccionado(s.id)"
+                          (change)="toggleServicioPulidor(s.id)">
+                        <span class="min-w-0">
+                          <span class="block text-xs font-bold text-slate-800">{{ s.nombre }}</span>
+                          <span class="block text-[10px] text-slate-500">{{ s.codigo }} · {{ s.categoria }}</span>
+                        </span>
+                      </label>
+                    } @empty {
+                      <p class="text-xs text-slate-500 p-2">No hay servicios especiales activos en el catálogo.</p>
+                    }
+                  </div>
+                </div>
               } @else {
-                <p class="text-xs font-semibold text-cyan-900">Modalidad: Fijo en agencia asignada</p>
+                <p class="text-xs font-semibold text-cyan-900">Modalidad: Fijo en agencia asignada (usa los servicios de la sede)</p>
               }
             </div>
           } @else if (esAdminOGlobal(usuarioForm.rol)) {
@@ -1203,6 +1232,7 @@ export class UsuariosComponent implements OnInit {
     confirmPassword?: string;
     cambiarPassword?: boolean;
     modalidadPulidor: ModalidadPulidor;
+    servicioIds: number[];
   } = {
     nombre: '',
     apellido: '',
@@ -1216,7 +1246,8 @@ export class UsuariosComponent implements OnInit {
     password: '',
     confirmPassword: '',
     cambiarPassword: false,
-    modalidadPulidor: 'MOVIL'
+    modalidadPulidor: 'MOVIL',
+    servicioIds: []
   };
 
   showPassword = false;
@@ -1294,10 +1325,12 @@ export class UsuariosComponent implements OnInit {
   private sucursalService = inject(SucursalService);
   private inventarioService = inject(InventarioService);
   private regionService = inject(RegionService);
+  private catalogoServiciosService = inject(CatalogoServiciosService);
   private toastService = inject(ToastService);
 
   bodegasDisponibles: BodegaInventario[] = [];
   regionesDisponibles: RegionOperativa[] = [];
+  serviciosEspecialesCatalogo: CatalogoServicio[] = [];
 
   get bodegasRegionales(): BodegaInventario[] {
     return (this.bodegasDisponibles || []).filter(b =>
@@ -1388,20 +1421,22 @@ export class UsuariosComponent implements OnInit {
   }
 
   get usuariosVisibles(): Usuario[] {
-    if (this.isSuperAdmin) {
-      return this.usuarios;
-    }
-    return this.usuarios.filter(u => {
-      const r = (u.rol || '').toUpperCase();
-      return r !== 'SUPER_ADMIN' && !r.includes('SUPER ADMIN') && !r.includes('SUPERADMIN') && !r.includes('SUPER ADMINISTRADOR');
-    });
+    return this.usuarios.filter(u => !this.esRolSuperAdmin(u.rolNombre || u.rol));
   }
 
   get rolesVisibles(): RolPersonalizado[] {
-    if (this.isSuperAdmin) {
-      return this.roles;
-    }
-    return this.roles.filter(r => r.codigo !== 'SUPER_ADMIN' && r.nombre !== 'Super Administrador');
+    return this.roles.filter(r => !this.esRolSuperAdmin(r.codigo || r.nombre));
+  }
+
+  /** SUPER_ADMIN nunca se lista en directorio de usuarios ni en catálogo de roles */
+  private esRolSuperAdmin(valor?: string | null): boolean {
+    const r = (valor || '').toUpperCase().trim();
+    return (
+      r === 'SUPER_ADMIN' ||
+      r.includes('SUPER ADMIN') ||
+      r.includes('SUPERADMIN') ||
+      r.includes('SUPER ADMINISTRADOR')
+    );
   }
 
   ngOnInit(): void {
@@ -1414,6 +1449,14 @@ export class UsuariosComponent implements OnInit {
       if (list && list.length) {
         this.regionesDisponibles = list.filter(r => r.estado === 'Activa' || (r as any).estado === 1);
       }
+    });
+
+    this.catalogoServiciosService.getServicios().subscribe(list => {
+      this.serviciosEspecialesCatalogo = (list || []).filter(s => {
+        const cat = String(s.categoria || '').trim().toUpperCase();
+        const activo = s.estado === 'Activo' || (s as any).estado === 1 || s.estado == null;
+        return activo && (cat === 'ESPECIAL' || cat === 'EXTRA' || cat.includes('ESPECIAL'));
+      });
     });
 
     this.inventarioService.bodegas$.subscribe(list => {
@@ -1593,7 +1636,8 @@ export class UsuariosComponent implements OnInit {
       password: '',
       confirmPassword: '',
       cambiarPassword: true,
-      modalidadPulidor: 'MOVIL'
+      modalidadPulidor: 'MOVIL',
+      servicioIds: []
     };
     this.showPassword = false;
     this.showConfirmPassword = false;
@@ -1638,7 +1682,10 @@ export class UsuariosComponent implements OnInit {
       password: '',
       confirmPassword: '',
       cambiarPassword: false,
-      modalidadPulidor: u.modalidadPulidor || (agenciaActual ? 'FIJO' : 'MOVIL')
+      modalidadPulidor: u.modalidadPulidor || (agenciaActual ? 'FIJO' : 'MOVIL'),
+      servicioIds: Array.isArray(u.servicioIds)
+        ? u.servicioIds.map(Number).filter(n => !isNaN(n) && n > 0)
+        : []
     };
     this.showPassword = false;
     this.showConfirmPassword = false;
@@ -1655,12 +1702,28 @@ export class UsuariosComponent implements OnInit {
   onPulidorAgenciaChange(agencia: string) {
     if (agencia?.trim()) {
       this.usuarioForm.modalidadPulidor = 'FIJO';
+      this.usuarioForm.servicioIds = [];
     } else {
       this.usuarioForm.modalidadPulidor = 'MOVIL';
       if (!this.usuarioForm.region || this.usuarioForm.region === 'Nacional') {
         this.usuarioForm.region = this.regionesDisponibles[0]?.nombre || 'Sierra';
       }
     }
+  }
+
+  servicioPulidorSeleccionado(id: number | string): boolean {
+    const numId = Number(id);
+    return (this.usuarioForm.servicioIds || []).some(x => Number(x) === numId);
+  }
+
+  toggleServicioPulidor(id: number | string): void {
+    const numId = Number(id);
+    if (isNaN(numId) || numId <= 0) return;
+    const ids = (this.usuarioForm.servicioIds || []).map(Number);
+    const idx = ids.indexOf(numId);
+    if (idx >= 0) ids.splice(idx, 1);
+    else ids.push(numId);
+    this.usuarioForm.servicioIds = Array.from(new Set(ids));
   }
 
   onBodegaAsistenteChange(bodegaId: string) {
@@ -1810,6 +1873,18 @@ export class UsuariosComponent implements OnInit {
       return;
     }
 
+    if (
+      esRolOperadorEspeciales(this.usuarioForm.rol) &&
+      this.usuarioForm.modalidadPulidor === 'MOVIL' &&
+      !(this.usuarioForm.servicioIds || []).length
+    ) {
+      this.toastService.warning(
+        'Servicios requeridos',
+        'Asigna al menos un servicio al pulidor móvil para poder calcular los insumos de su kit.'
+      );
+      return;
+    }
+
     if (this.esLiderOperadorRol(this.usuarioForm.rol) && !this.usuarioForm.agencia?.trim()) {
       this.toastService.warning('Agencia requerida', 'El Líder Operador debe estar asignado a una agencia.');
       return;
@@ -1918,6 +1993,7 @@ export class UsuariosComponent implements OnInit {
         estado: nuevoEstado,
         email: this.usuarioForm.email.trim(),
         modalidadPulidor: modalidad.modalidadPulidor,
+        servicioIds: isPulidorMovil ? [...(this.usuarioForm.servicioIds || [])] : [],
         ...(this.usuarioForm.cambiarPassword && this.usuarioForm.password?.trim()
           ? { password: this.usuarioForm.password.trim() }
           : {}),
@@ -1997,6 +2073,7 @@ export class UsuariosComponent implements OnInit {
         fechaAsignacion: new Date().toISOString().split('T')[0],
         avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
         modalidadPulidor: modalidad.modalidadPulidor,
+        servicioIds: isPulidorMovil ? [...(this.usuarioForm.servicioIds || [])] : [],
         password: this.usuarioForm.password?.trim(),
         roleId: roleIdToSend
       };

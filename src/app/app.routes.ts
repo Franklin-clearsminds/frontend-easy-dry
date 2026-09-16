@@ -227,7 +227,8 @@ export const routes: Routes = [
             Role.LIDER_OPERADOR,
             Role.OPERADOR,
             Role.DISTRIBUIDOR,
-            Role.ASISTENTE_BODEGA
+            Role.ASISTENTE_BODEGA,
+            Role.PULIDOR
           ], 'inventario')
         ]
       },
@@ -248,7 +249,8 @@ export const routes: Routes = [
             Role.COORD_SERVICIOS_ESPECIALES,
             Role.OPERADOR_SERVICIOS_ESPECIALES,
             Role.DISTRIBUIDOR,
-            Role.ASISTENTE_BODEGA
+            Role.ASISTENTE_BODEGA,
+            Role.PULIDOR
           ], 'envios')
         ]
       },

@@ -29,6 +29,8 @@ export interface Usuario {
   /** Bodega asignada (obligatoria para ASISTENTE_BODEGA → regional) */
   bodegaId?: string;
   roleId?: string;
+  /** Servicios especiales asignados (pulidor móvil) */
+  servicioIds?: number[];
 }
 
 export interface Sucursal {
@@ -319,6 +321,8 @@ export interface EnvioSuministro {
   estado: EstadoEnvio;
   observaciones?: string;
   motivoRechazo?: string;
+  /** Solo true si el usuario actual es el receptor del destino */
+  puedeConfirmar?: boolean;
 }
 
 export interface Incidente {

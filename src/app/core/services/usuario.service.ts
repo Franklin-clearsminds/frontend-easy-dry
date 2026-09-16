@@ -62,7 +62,10 @@ export class UsuarioService {
       agenciaId: (isGlobal || isSupervisor || isAsistente || (isPulidor && modalidadPulidor === 'MOVIL')) ? undefined : (u.agenciaId || u.agencia?.id),
       regionId: isGlobal ? undefined : (u.regionId || u.region?.id),
       bodegaId: isAsistente ? bodegaId : (bodegaId || undefined),
-      modalidadPulidor
+      modalidadPulidor,
+      servicioIds: Array.isArray(u.servicioIds)
+        ? u.servicioIds.map((n: any) => Number(n)).filter((n: number) => !isNaN(n) && n > 0)
+        : [],
     };
   }
 
@@ -70,7 +73,11 @@ export class UsuarioService {
     const payload = soloActivos ? { estado: 1 } : {};
     const opts = silent ? { headers: { 'x-silent': 'true' } } : {};
     return this.http.post<any[]>(apiUrl('/agencias/usuarios/list'), payload, opts).pipe(
-      map(items => (items || []).map(u => this.mapBackendUsuario(u))),
+      map(items =>
+        (items || [])
+          .map(u => this.mapBackendUsuario(u))
+          .filter(u => (u.rolNombre || '').toUpperCase() !== 'SUPER_ADMIN')
+      ),
       tap(mapped => {
         this.usuariosSubject.next(mapped);
       }),
@@ -110,6 +117,9 @@ export class UsuarioService {
       regionId: isGlobal ? undefined : (usr.regionId || (usr as any).regionId || undefined),
       bodegaId: isAsistente ? (usr.bodegaId || undefined) : (usr.bodegaId || undefined),
       modalidadPulidor: isPulidor ? (isPulidorMovil ? 'MOVIL' : 'FIJO') : undefined,
+      servicioIds: isPulidorMovil
+        ? (Array.isArray(usr.servicioIds) ? usr.servicioIds.map(Number).filter(n => !isNaN(n) && n > 0) : [])
+        : undefined,
       estado: usr.estado === 'Inactivo' ? 0 : 1
     };
 
@@ -176,7 +186,12 @@ export class UsuarioService {
       regionId: isGlobal ? null : (usr.regionId || (usr as any).regionId || undefined),
       agenciaId: (isGlobal || isSupervisor || isAsistente || isPulidorMovil) ? null : (usr.agenciaId ? String(usr.agenciaId) : undefined),
       agencia: (isGlobal || isSupervisor || isAsistente || isPulidorMovil) ? '' : (usr.agencia !== 'Sin asignar' ? usr.agencia : undefined),
-      bodegaId: isAsistente ? (usr.bodegaId ? String(usr.bodegaId) : null) : (usr.bodegaId ? String(usr.bodegaId) : null)
+      bodegaId: isAsistente ? (usr.bodegaId ? String(usr.bodegaId) : null) : (usr.bodegaId ? String(usr.bodegaId) : null),
+      servicioIds: isPulidor
+        ? (isPulidorMovil
+          ? (Array.isArray(usr.servicioIds) ? usr.servicioIds.map(Number).filter(n => !isNaN(n) && n > 0) : [])
+          : [])
+        : undefined,
     };
 
     if (usr.password && usr.password.trim().length >= 6) {

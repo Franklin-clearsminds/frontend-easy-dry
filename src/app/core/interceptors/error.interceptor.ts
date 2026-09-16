@@ -2,7 +2,6 @@ import { HttpInterceptorFn, HttpErrorResponse } from '@angular/common/http';
 import { inject } from '@angular/core';
 import { catchError, throwError } from 'rxjs';
 import { ToastService } from '../../shared/services/toast.service';
-import { AuthService } from '../services/auth.service';
 
 /**
  * EasyDry® Web — Interceptor Unificado de Errores HTTP
@@ -10,7 +9,6 @@ import { AuthService } from '../services/auth.service';
  */
 export const errorInterceptor: HttpInterceptorFn = (req, next) => {
   const toastService = inject(ToastService);
-  const authService = inject(AuthService);
 
   const isSilent = req.headers.has('X-Silent-Fallback') || req.headers.has('x-silent');
 
@@ -19,8 +17,8 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
       let userMessage = 'Ha ocurrido un inconveniente al procesar la solicitud.';
 
       if (error.status === 401) {
+        // El jwtInterceptor ya intentó refresh; solo informar si no es silencioso.
         userMessage = 'Sesión expirada o no autorizada. Inicie sesión nuevamente.';
-        authService.logout();
       } else if (error.status === 403) {
         userMessage = 'No tiene permisos suficientes para ejecutar esta acción.';
       } else if (error.error?.message) {

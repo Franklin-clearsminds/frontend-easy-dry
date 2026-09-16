@@ -421,6 +421,12 @@ export class InventarioService {
     );
   }
 
+  public getInsumosPorServiciosPulidor(pulidorId?: string, servicioIds?: number[]): Observable<any> {
+    return this.http.post<any>(apiUrl('/inventario/pulidor/insumos-servicios'), { pulidorId, servicioIds }).pipe(
+      catchError(() => of(null))
+    );
+  }
+
   public getDespachosPendientesAgencia(agenciaId?: string): Observable<any[]> {
     return this.http.post<any[]>(apiUrl('/inventario/despachos/agencia/pendientes'), { agenciaId }).pipe(
       catchError(() => of([]))
@@ -510,7 +516,7 @@ export class InventarioService {
           tipoProductoId: i.tipoProductoId,
           tipoProducto: i.tipoProducto,
           unidadMedida: i.unidadMedida?.simbolo || i.unidadMedida?.nombre || 'u',
-          unidadMedidaId: i.unidadMedidaId,
+          unidadMedidaId: String(i.unidadMedidaId || i.unidadMedida?.id || ''),
           unidadMedidaObj: i.unidadMedida,
           contenidoNeto: Number(i.contenidoNeto || 1),
           stockActual: Number(i.stockActual || 0),

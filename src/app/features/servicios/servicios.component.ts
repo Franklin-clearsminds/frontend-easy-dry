@@ -55,7 +55,7 @@ import { RouterModule } from '@angular/router';
           <p class="text-slate-500 text-xs mt-1">Digitalización del proceso físico: OT, placa, evidencias en vídeo/fotos y flujo de aprobación por Gerencia.</p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
-          @if (!isAprobador) {
+          @if (!isAprobador && !isPulidor) {
             <a
               routerLink="/configuracion/servicios"
               class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold rounded-xl text-xs transition-all flex items-center gap-2 cursor-pointer shadow-2xs border border-slate-200">
@@ -80,7 +80,7 @@ import { RouterModule } from '@angular/router';
               (click)="abrirModalNuevaOT()"
               class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
               <i-lucide name="plus" class="w-4 h-4"></i-lucide>
-              <span class="hidden sm:inline">{{ tabActiva === 'especiales' ? 'Nueva OT (Especial)' : 'Nueva Hoja de Control (OT)' }}</span>
+              <span class="hidden sm:inline">{{ (tabActiva === 'especiales' || isPulidor || isCoordServiciosEspeciales) ? 'Nueva OT (Especial)' : 'Nueva Hoja de Control (OT)' }}</span>
               <span class="sm:hidden">Nueva OT</span>
             </button>
           }
@@ -125,20 +125,22 @@ import { RouterModule } from '@angular/router';
       <!-- Tab Navigation: Generales y Especiales -->
       <div class="flex flex-wrap gap-2 p-1.5 bg-slate-200/80 rounded-2xl w-fit">
         
-        <!-- Pestaña 1: Servicios Generales -->
-        <button
-          (click)="cambiarTab('generales')"
-          [ngClass]="tabActiva === 'generales' ? 'bg-white text-easydry-blue shadow-md font-extrabold' : 'text-slate-600 hover:text-slate-900 font-semibold'"
-          class="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs transition-all cursor-pointer">
-          <i-lucide name="droplet" class="w-4 h-4 text-easydry-blue"></i-lucide>
-          <span>Servicios Generales</span>
-          <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-700 font-bold ml-1">
-            {{ countServiciosGenerales }}
-          </span>
-        </button>
+        <!-- Pestaña 1: Servicios Generales (visible para Admin, Super Admin y personal operativo general) -->
+        @if ((!isPulidor && !isCoordServiciosEspeciales) || isSuperAdmin || isAdmin) {
+          <button
+            (click)="cambiarTab('generales')"
+            [ngClass]="tabActiva === 'generales' ? 'bg-white text-easydry-blue shadow-md font-extrabold' : 'text-slate-600 hover:text-slate-900 font-semibold'"
+            class="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs transition-all cursor-pointer">
+            <i-lucide name="droplet" class="w-4 h-4 text-easydry-blue"></i-lucide>
+            <span>Servicios Generales</span>
+            <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-700 font-bold ml-1">
+              {{ countServiciosGenerales }}
+            </span>
+          </button>
+        }
 
-        <!-- Pestaña 2: Servicios Especiales -->
-        @if (tieneServiciosEspeciales) {
+        <!-- Pestaña 2: Servicios Especiales (visible para Admin, Super Admin, pulidores y agencias con especiales) -->
+        @if (tieneServiciosEspeciales || isPulidor || isCoordServiciosEspeciales || isSuperAdmin || isAdmin) {
           <button
             (click)="cambiarTab('especiales')"
             [ngClass]="tabActiva === 'especiales' ? 'bg-white text-amber-700 shadow-md font-extrabold' : 'text-slate-600 hover:text-slate-900 font-semibold'"
@@ -390,11 +392,11 @@ import { RouterModule } from '@angular/router';
                   <th class="py-3.5 px-4">Nº OT Especial</th>
                   <th class="py-3.5 px-4">Vehículo & Placa</th>
                   <th class="py-3.5 px-4">Servicio Especial</th>
+                  <th class="py-3.5 px-4">Agencia / Sucursal</th>
                   <th class="py-3.5 px-4">Región</th>
                   <th class="py-3.5 px-4">Pulidor Responsable</th>
                   <th class="py-3.5 px-4 text-center">Vídeo Inicial</th>
                   <th class="py-3.5 px-4 text-center">Vídeo Final</th>
-                  <th class="py-3.5 px-4 text-center">Calidad</th>
                   <th class="py-3.5 px-4">Estado</th>
                   <th class="py-3.5 px-4 text-right">Acciones</th>
                 </tr>
@@ -422,6 +424,13 @@ import { RouterModule } from '@angular/router';
                           {{ extra.insumosReceta.length }} insumo(s) químico(s)
                         </span>
                       }
+                    </td>
+
+                    <td class="py-3.5 px-4 text-xs font-bold text-slate-800">
+                      <div class="flex items-center gap-1.5">
+                        <i-lucide name="building-2" class="w-3.5 h-3.5 text-slate-400 shrink-0"></i-lucide>
+                        <span class="truncate">{{ extra.agenciaNombre || extra.agencia?.nombre || 'Sede Zonal' }}</span>
+                      </div>
                     </td>
 
                     <td class="py-3.5 px-4 text-xs font-bold text-slate-700">
@@ -467,17 +476,6 @@ import { RouterModule } from '@angular/router';
                       }
                     </td>
 
-                    <!-- Calificación de Calidad -->
-                    <td class="py-3.5 px-4 text-center">
-                      @if (extra.calificacionCalidad) {
-                        <span class="text-amber-500 font-black text-xs inline-flex items-center gap-0.5">
-                          ★ {{ extra.calificacionCalidad }}/5
-                        </span>
-                      } @else {
-                        <span class="text-xs text-slate-400">-</span>
-                      }
-                    </td>
-
                     <!-- Estado Workflow -->
                     <td class="py-3.5 px-4">
                       <span 
@@ -491,21 +489,29 @@ import { RouterModule } from '@angular/router';
                     <td class="py-3.5 px-4 text-right">
                       <div class="flex items-center justify-end gap-1.5">
                         @if (extra.estado === 'Pendiente') {
-                          <button
-                            (click)="abrirModalIniciarEspecial(extra)"
-                            class="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white font-extrabold rounded-lg text-xs inline-flex items-center gap-1 shadow-2xs transition-all cursor-pointer">
-                            <i-lucide name="play" class="w-3 h-3"></i-lucide>
-                            <span>Iniciar</span>
-                          </button>
+                          @if (puedeRealizarOT(extra)) {
+                            <button
+                              (click)="abrirModalIniciarEspecial(extra)"
+                              class="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white font-extrabold rounded-lg text-xs inline-flex items-center gap-1 shadow-2xs transition-all cursor-pointer">
+                              <i-lucide name="play" class="w-3 h-3"></i-lucide>
+                              <span>Iniciar</span>
+                            </button>
+                          } @else {
+                            <span class="text-[10px] text-slate-400 italic px-1.5 py-0.5 bg-slate-100 rounded">Asignado a otro</span>
+                          }
                         }
 
                         @if (extra.estado === 'En Proceso') {
-                          <button
-                            (click)="abrirModalFinalizarEspecial(extra)"
-                            class="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-lg text-xs inline-flex items-center gap-1 shadow-2xs transition-all cursor-pointer">
-                            <i-lucide name="check-circle-2" class="w-3.5 h-3.5"></i-lucide>
-                            <span>Finalizar</span>
-                          </button>
+                          @if (puedeRealizarOT(extra)) {
+                            <button
+                              (click)="abrirModalFinalizarEspecial(extra)"
+                              class="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-lg text-xs inline-flex items-center gap-1 shadow-2xs transition-all cursor-pointer">
+                              <i-lucide name="check-circle-2" class="w-3.5 h-3.5"></i-lucide>
+                              <span>Finalizar</span>
+                            </button>
+                          } @else {
+                            <span class="text-[10px] text-amber-700 font-semibold px-1.5 py-0.5 bg-amber-50 rounded">En proceso</span>
+                          }
                         }
 
                         @if (extra.estado === 'Completado') {
@@ -553,8 +559,12 @@ import { RouterModule } from '@angular/router';
                   </span>
                 </div>
 
-                <div class="text-xs font-semibold text-slate-700 mb-2">
+                <div class="text-xs font-semibold text-slate-700 mb-1">
                   {{ extra.servicioNombre }}
+                </div>
+                <div class="text-[11px] text-slate-600 flex items-center gap-1 mb-2">
+                  <i-lucide name="building-2" class="w-3.5 h-3.5 text-slate-400 shrink-0"></i-lucide>
+                  <span>{{ extra.agenciaNombre || extra.agencia?.nombre || 'Sede Zonal' }}</span>
                 </div>
 
                 <div class="flex items-center justify-between mt-3 text-xs gap-2 pt-2 border-t border-slate-100">
@@ -564,10 +574,18 @@ import { RouterModule } from '@angular/router';
                   </div>
                   <div class="flex items-center gap-1.5 shrink-0">
                     @if (extra.estado === 'Pendiente') {
-                      <button (click)="abrirModalIniciarEspecial(extra)" class="px-2.5 py-1 bg-amber-500 text-white rounded-lg text-xs font-bold">Iniciar</button>
+                      @if (puedeRealizarOT(extra)) {
+                        <button (click)="abrirModalIniciarEspecial(extra)" class="px-2.5 py-1 bg-amber-500 text-white rounded-lg text-xs font-bold">Iniciar</button>
+                      } @else {
+                        <span class="text-[10px] text-slate-400 italic">Asignado</span>
+                      }
                     }
                     @if (extra.estado === 'En Proceso') {
-                      <button (click)="abrirModalFinalizarEspecial(extra)" class="px-2.5 py-1 bg-emerald-600 text-white rounded-lg text-xs font-bold">Finalizar</button>
+                      @if (puedeRealizarOT(extra)) {
+                        <button (click)="abrirModalFinalizarEspecial(extra)" class="px-2.5 py-1 bg-emerald-600 text-white rounded-lg text-xs font-bold">Finalizar</button>
+                      } @else {
+                        <span class="text-[10px] text-amber-600">En proceso</span>
+                      }
                     }
                     <button (click)="abrirDetalleEspecial(extra)" class="p-1 text-slate-500 hover:bg-slate-100 rounded-lg"><i-lucide name="info" class="w-4 h-4"></i-lucide></button>
                   </div>
@@ -836,11 +854,17 @@ import { RouterModule } from '@angular/router';
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Hora Ingreso *</label>
-              <input type="time" [(ngModel)]="nuevoRegistro.horaIngreso" name="horaIngreso" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-800 focus:border-easydry-blue focus:ring-easydry-blue" required>
+              <div class="w-full p-2.5 bg-slate-100 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-700 flex items-center justify-between">
+                <span>{{ nuevoRegistro.horaIngreso || '--:--' }}</span>
+                <span class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Automática</span>
+              </div>
             </div>
             <div>
               <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Hora Salida Estimada *</label>
-              <input type="time" [(ngModel)]="nuevoRegistro.horaSalida" name="horaSalida" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-800 focus:border-easydry-blue focus:ring-easydry-blue" required>
+              <div class="w-full p-2.5 bg-slate-100 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-700 flex items-center justify-between">
+                <span>{{ nuevoRegistro.horaSalida || '--:--' }}</span>
+                <span class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Automática</span>
+              </div>
             </div>
           </div>
 
@@ -848,20 +872,24 @@ import { RouterModule } from '@angular/router';
           <div class="p-4 bg-slate-50/80 rounded-2xl border border-slate-200 space-y-3">
             <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider">Categoría de Servicio *</label>
             
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              <label 
-                class="p-2.5 rounded-xl border cursor-pointer flex items-center gap-2 text-xs font-bold transition-all"
-                [ngClass]="nuevoRegistro.categoriaServicio === 'GENERAL' ? 'bg-easydry-blue text-white border-easydry-blue shadow-xs' : 'bg-white text-slate-700 hover:border-slate-300'">
-                <input type="radio" [(ngModel)]="nuevoRegistro.categoriaServicio" name="catRadio" value="GENERAL" (change)="onCategoriaChange()" class="hidden">
-                <span class="flex items-center gap-1.5"><i-lucide name="droplet" class="w-4 h-4"></i-lucide> Generales</span>
-              </label>
+            <div class="grid gap-2.5" [ngClass]="(!isPulidor && agenciaFormTieneEspeciales) ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'">
+              @if (!isPulidor) {
+                <label 
+                  class="p-2.5 rounded-xl border cursor-pointer flex items-center gap-2 text-xs font-bold transition-all"
+                  [ngClass]="nuevoRegistro.categoriaServicio === 'GENERAL' ? 'bg-easydry-blue text-white border-easydry-blue shadow-xs' : 'bg-white text-slate-700 hover:border-slate-300'">
+                  <input type="radio" [(ngModel)]="nuevoRegistro.categoriaServicio" name="catRadio" value="GENERAL" (change)="onCategoriaChange()" class="hidden">
+                  <span class="flex items-center gap-1.5"><i-lucide name="droplet" class="w-4 h-4"></i-lucide> Generales</span>
+                </label>
+              }
 
-              <label 
-                class="p-2.5 rounded-xl border cursor-pointer flex items-center gap-2 text-xs font-bold transition-all"
-                [ngClass]="nuevoRegistro.categoriaServicio === 'ESPECIAL' ? 'bg-amber-600 text-white border-amber-600 shadow-xs' : 'bg-white text-slate-700 hover:border-slate-300'">
-                <input type="radio" [(ngModel)]="nuevoRegistro.categoriaServicio" name="catRadio" value="ESPECIAL" (change)="onCategoriaChange()" class="hidden">
-                <span class="flex items-center gap-1.5"><i-lucide name="star" class="w-4 h-4"></i-lucide> Especiales</span>
-              </label>
+              @if (agenciaFormTieneEspeciales || isPulidor) {
+                <label 
+                  class="p-2.5 rounded-xl border cursor-pointer flex items-center gap-2 text-xs font-bold transition-all"
+                  [ngClass]="nuevoRegistro.categoriaServicio === 'ESPECIAL' ? 'bg-amber-600 text-white border-amber-600 shadow-xs' : 'bg-white text-slate-700 hover:border-slate-300'">
+                  <input type="radio" [(ngModel)]="nuevoRegistro.categoriaServicio" name="catRadio" value="ESPECIAL" (change)="onCategoriaChange()" class="hidden">
+                  <span class="flex items-center gap-1.5"><i-lucide name="star" class="w-4 h-4"></i-lucide> Especiales</span>
+                </label>
+              }
             </div>
 
             <div>
@@ -885,9 +913,12 @@ import { RouterModule } from '@angular/router';
                 Descuento automático de: {{ nuevoRegistro.agencia }}
               </span>
             </div>
+            <p class="text-[10px] text-slate-500">
+              Cantidades fijas según la receta del servicio. Para cambiarlas, edita el servicio en Catálogo de Servicios.
+            </p>
 
             @if (insumosConsumoForm.length === 0) {
-              <p class="text-xs text-slate-400 italic">No hay insumos agregados para este servicio.</p>
+              <p class="text-xs text-slate-400 italic">No hay insumos asignados a la receta de este servicio.</p>
             } @else {
               <div class="space-y-2">
                 @for (ins of insumosConsumoForm; track ins.productoId; let idx = $index) {
@@ -910,14 +941,11 @@ import { RouterModule } from '@angular/router';
                       </div>
                     </div>
 
-                    <div class="flex items-center gap-2">
-                      <button type="button" (click)="disminuirCantidadInsumo(idx)" class="w-6 h-6 rounded-lg bg-slate-100 hover:bg-slate-200 font-extrabold flex items-center justify-center text-slate-700">-</button>
-                      <input type="number" [(ngModel)]="ins.cantidad" [name]="'cant_' + idx" min="0.01" step="0.1" class="w-14 text-center p-1 border rounded-lg text-xs font-mono font-bold text-easydry-blue">
-                      <span class="text-[10px] text-slate-500 font-bold">{{ ins.unidadMedida }}</span>
-                      <button type="button" (click)="aumentarCantidadInsumo(idx)" class="w-6 h-6 rounded-lg bg-slate-100 hover:bg-slate-200 font-extrabold flex items-center justify-center text-slate-700">+</button>
-                      <button type="button" (click)="eliminarInsumoConsumo(idx)" class="p-1 text-rose-500 hover:bg-rose-50 rounded-lg ml-1">
-                        <i-lucide name="trash-2" class="w-3.5 h-3.5"></i-lucide>
-                      </button>
+                    <div class="shrink-0 text-right">
+                      <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 font-mono font-bold text-xs">
+                        {{ ins.cantidad }} {{ ins.unidadMedida }}
+                      </span>
+                      <p class="text-[9px] text-slate-400 font-semibold mt-0.5">Receta fija</p>
                     </div>
                   </div>
                 }
@@ -935,24 +963,6 @@ import { RouterModule } from '@angular/router';
                 </div>
               </div>
             }
-
-            <!-- Selector para añadir insumo extra -->
-            <div class="flex items-center gap-2 pt-1">
-              <select #selectInsumoExtra class="flex-1 p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-800">
-                <option value="">+ Añadir otro insumo del inventario...</option>
-                @for (item of productosInventario; track item.producto.id) {
-                  <option [value]="item.producto.id">
-                    {{ item.producto.nombre }} ({{ item.producto.unidadMedida }}) - SKU: {{ item.producto.codigoSKU }}
-                  </option>
-                }
-              </select>
-              <button 
-                type="button" 
-                (click)="agregarInsumoExtra(selectInsumoExtra.value); selectInsumoExtra.value = ''"
-                class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
-                + Agregar
-              </button>
-            </div>
           </div>
 
           <!-- Video Proof Upload -->
@@ -1252,23 +1262,13 @@ import { RouterModule } from '@angular/router';
               </div>
             </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Calificación de Calidad</label>
-                <select [(ngModel)]="calificacionCalidadInput" class="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800">
-                  <option [ngValue]="5">⭐⭐⭐⭐⭐ 5 Estrellas (Excelente)</option>
-                  <option [ngValue]="4">⭐⭐⭐⭐ 4 Estrellas (Muy Bueno)</option>
-                  <option [ngValue]="3">⭐⭐⭐ 3 Estrellas (Aceptable)</option>
-                </select>
-              </div>
-              <div>
-                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Observaciones / Notas</label>
-                <input
-                  type="text"
-                  [(ngModel)]="notasFinalizacionInput"
-                  placeholder="Ej. Pulido de 3 pasos finalizado sin novedades..."
-                  class="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs">
-              </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Observaciones / Notas</label>
+              <input
+                type="text"
+                [(ngModel)]="notasFinalizacionInput"
+                placeholder="Ej. Pulido de 3 pasos finalizado sin novedades..."
+                class="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs">
             </div>
           </div>
         }
@@ -1391,7 +1391,7 @@ import { RouterModule } from '@angular/router';
       <!-- Modal Crear / Asignar Servicio Especial (Restringido a Región) -->
       <app-modal
         [isOpen]="showModalExtras"
-        [title]="isCoordServiciosEspeciales ? 'Asignar Servicio Especial a Pulidor de ' + userRegionNombre : 'Registrar Nuevo Servicio Especial'"
+        [title]="isCoordServiciosEspeciales ? 'Asignar Servicio Especial a Pulidor Móvil (Zonal ' + userRegionNombre + ')' : 'Registrar Nuevo Servicio Especial'"
         icon="star"
         (close)="cerrarModalExtras()">
 
@@ -1404,13 +1404,27 @@ import { RouterModule } from '@angular/router';
           <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
               <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Tipo de Servicio Especial *</label>
-              <input
-                type="text"
-                [(ngModel)]="extraForm.servicioNombre"
-                name="servicioNombreExtra"
-                placeholder="Ej. Pulido y Corrección de Pintura en 3 Pasos"
-                class="w-full p-2.5 border rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-amber-500"
-                required>
+              @if (serviciosEspecialesOpciones.length > 0) {
+                <select
+                  [(ngModel)]="extraForm.servicioNombre"
+                  name="servicioNombreExtra"
+                  (ngModelChange)="onServicioEspecialFormChange($event)"
+                  class="w-full p-2.5 border rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-amber-500"
+                  required>
+                  <option value="">Seleccione un servicio...</option>
+                  @for (s of serviciosEspecialesOpciones; track s.id) {
+                    <option [value]="s.nombre">{{ s.nombre }}</option>
+                  }
+                </select>
+              } @else {
+                <input
+                  type="text"
+                  [(ngModel)]="extraForm.servicioNombre"
+                  name="servicioNombreExtra"
+                  placeholder="Ej. Pulido y Corrección de Pintura en 3 Pasos"
+                  class="w-full p-2.5 border rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-amber-500"
+                  required>
+              }
             </div>
             <div>
               <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Pulidor Asignado *</label>
@@ -1420,12 +1434,78 @@ import { RouterModule } from '@angular/router';
                 (change)="onOperadorExtraChange()"
                 [disabled]="isPulidor"
                 class="w-full p-2.5 border rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-amber-500 disabled:bg-slate-100">
+                <option value="">Seleccione un pulidor...</option>
                 @for (p of pulidoresDisponiblesRegion; track p.id) {
                   <option [value]="p.id">{{ p.name }} {{ p.lastname }} - {{ p.agencia?.nombre ? ('Fijo en ' + p.agencia.nombre) : 'Móvil Zonal' }}</option>
                 }
               </select>
             </div>
           </div>
+
+          <!-- Selección de Agencia / Sucursal y Prioridad -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Agencia / Sucursal de Realización *</label>
+              @if (isPulidorFijo) {
+                <div class="p-2.5 bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 flex items-center justify-between">
+                  <span>{{ miAgenciaNombre || 'Agencia Asignada' }}</span>
+                  <span class="px-2 py-0.5 bg-amber-100 text-amber-800 rounded-md text-[10px] uppercase tracking-wider font-extrabold">Fijo en Sede</span>
+                </div>
+              } @else {
+                <select
+                  [(ngModel)]="extraFormAgenciaId"
+                  name="agenciaIdExtra"
+                  class="w-full p-2.5 border rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-amber-500"
+                  required>
+                  <option value="">Seleccione la agencia...</option>
+                  @for (ag of agenciasDisponiblesParaEspecial; track ag.id) {
+                    <option [value]="ag.id">{{ ag.nombre }} ({{ ag.regionNombre || ag.region?.nombre || userRegionNombre }})</option>
+                  }
+                </select>
+              }
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Prioridad del Servicio</label>
+              <select
+                [(ngModel)]="extraFormPrioridad"
+                name="prioridadExtra"
+                class="w-full p-2.5 border rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-amber-500">
+                <option value="Baja">Baja</option>
+                <option value="Media">Media (Estándar)</option>
+                <option value="Alta">Alta</option>
+                <option value="Urgente">Urgente (Prioritaria)</option>
+              </select>
+            </div>
+          </div>
+
+          @if (isSuperAdmin || isAdmin) {
+            <div class="p-2.5 rounded-xl border border-indigo-200 bg-indigo-50/70 text-xs text-indigo-900 font-semibold flex items-center gap-2">
+              <i-lucide name="shield-check" class="w-4 h-4 text-indigo-600 shrink-0"></i-lucide>
+              <span>Acceso Administrativo Global: Creación directa sin verificación de stock personal ni agencia fija.</span>
+            </div>
+          } @else {
+            @if (validandoStockPulidorOT) {
+              <div class="p-3 rounded-xl border border-blue-200 bg-blue-50 text-xs text-blue-900 flex items-center gap-2">
+                <i-lucide name="loader" class="w-4 h-4 animate-spin text-blue-600"></i-lucide>
+                <span>Verificando inventario en custodia del pulidor asignado...</span>
+              </div>
+            } @else if (faltantesInsumosOT.length > 0) {
+              <div class="p-3 rounded-xl border border-rose-300 bg-rose-50 text-xs text-rose-900 space-y-1">
+                <p class="font-extrabold uppercase tracking-wide flex items-center gap-1.5">
+                  <i-lucide name="alert-triangle" class="w-3.5 h-3.5 text-rose-600"></i-lucide>
+                  No puede crear la OT: el pulidor asignado no tiene los insumos necesarios en su kit
+                </p>
+                @for (f of faltantesInsumosOT; track f) {
+                  <p class="font-semibold">• {{ f }}</p>
+                }
+              </div>
+            } @else if (extraForm.insumosReceta.length > 0 && extraForm.operadorId) {
+              <div class="p-3 rounded-xl border border-emerald-200 bg-emerald-50 text-xs text-emerald-900 font-semibold flex items-center gap-2">
+                <i-lucide name="check-circle" class="w-4 h-4 text-emerald-600"></i-lucide>
+                <span>Kit del pulidor asignado suficiente para la receta ({{ extraForm.insumosReceta.length }} insumo(s) verificados).</span>
+              </div>
+            }
+          }
 
           <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div>
@@ -1476,9 +1556,10 @@ import { RouterModule } from '@angular/router';
           <button (click)="cerrarModalExtras()" class="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs">Cancelar</button>
           <button
             (click)="guardarServicioExtra()"
-            class="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-extrabold rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-xs">
+            [disabled]="!puedeCrearOTEspecialConInsumos"
+            class="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-extrabold rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-xs disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-amber-600">
             <i-lucide name="plus" class="w-3.5 h-3.5"></i-lucide>
-            <span>Crear y Notificar Servicio</span>
+            <span>{{ isCoordServiciosEspeciales ? 'Crear y Asignar OT a Pulidor' : 'Crear y Notificar Servicio' }}</span>
           </button>
         </div>
       </app-modal>
@@ -1491,8 +1572,12 @@ export class ServiciosComponent implements OnInit {
   tabActiva: 'generales' | 'especiales' = 'generales';
 
   cambiarTab(tab: 'generales' | 'especiales') {
+    if (this.isPulidor && !this.isSuperAdmin && !this.isAdmin && tab === 'generales') {
+      tab = 'especiales';
+    }
     this.tabActiva = tab;
     this.currentPage = 1;
+    this.currentPageExtras = 1;
     this.recalcularServiciosFiltrados();
   }
 
@@ -1501,7 +1586,8 @@ export class ServiciosComponent implements OnInit {
       this.toastService.warning('Acceso Restringido', 'El rol Aprobador no tiene permisos para crear órdenes de trabajo.');
       return;
     }
-    if (this.tabActiva === 'especiales' || this.isCoordServiciosEspeciales || this.isPulidor) {
+    // Pulidores solo crean OT especiales
+    if (this.isPulidor || this.tabActiva === 'especiales' || this.isCoordServiciosEspeciales) {
       this.abrirModalNuevoExtra();
       return;
     }
@@ -1523,15 +1609,17 @@ export class ServiciosComponent implements OnInit {
     this.nuevoRegistro.marca = '';
     this.nuevoRegistro.modelo = '';
     this.nuevoRegistro.color = '';
-    this.nuevoRegistro.horaSalida = '';
     this.nuevoRegistro.foto = '';
     this.nuevoRegistro.videoUrl = '';
     this.nuevoRegistro.fecha = new Date().toISOString().substring(0, 10);
-    this.nuevoRegistro.horaIngreso = new Date().toTimeString().substring(0, 5);
+    this.asignarHorasAutomaticasOT();
     this.placaTocada = false;
     this.videoFileSelected = false;
     this.videoFileName = '';
     this.onSucursalFormChange();
+    if (!this.agenciaFormTieneEspeciales) {
+      this.nuevoRegistro.categoriaServicio = 'GENERAL';
+    }
     this.onCategoriaChange();
     this.modalNuevoRegistroOpen = true;
   }
@@ -1542,6 +1630,27 @@ export class ServiciosComponent implements OnInit {
 
   get countServiciosEspeciales(): number {
     return this.serviciosExtras.length || this.servicios.filter(s => s.categoriaServicio === 'Servicios Especiales' || s.categoriaServicio === 'ESPECIAL' || s.categoriaServicio === 'EXTRA' || s.categoriaServicio === 'Servicios Extras').length;
+  }
+
+  /** En el modal OT: Especiales solo si la agencia de la OT los tiene habilitados. */
+  get agenciaFormTieneEspeciales(): boolean {
+    const key = String(this.nuevoRegistro?.agencia || '').trim();
+    if (!key) return false;
+    const suc = this.sucursales.find(
+      (s) => String(s.id) === key || s.nombre === key || s.nombre?.toLowerCase() === key.toLowerCase(),
+    );
+    if (!suc) {
+      return this.sucursalService.hasServiciosEspecialesActivos(key, key);
+    }
+    if ((suc as any).tieneServiciosEspeciales === true) return true;
+    if ((suc as any).tieneServiciosEspeciales === false) return false;
+
+    const espIds = new Set(
+      (this.catalogoCompleto || [])
+        .filter((c) => c.categoria === 'ESPECIAL' || c.categoria === 'EXTRA')
+        .map((c) => c.id),
+    );
+    return Boolean(suc.servicioIds?.some((id: number) => espIds.has(id)));
   }
 
   servicios: VehiculoServicio[] = [];
@@ -1664,8 +1773,10 @@ export class ServiciosComponent implements OnInit {
 
   /**
    * REGLA DE NEGOCIO: Solo no permitir si no se dispone de stock de uno de los suministros necesarios
+   * Super Admin y Admin no tienen inventario propio ni agencia fija; no verifican stock
    */
   get tieneInsumosSinStock(): boolean {
+    if (this.isSuperAdmin || this.isAdmin) return false;
     if (!this.insumosConsumoForm || this.insumosConsumoForm.length === 0) return false;
     return this.insumosConsumoForm.some(ins => {
       const stock = this.getStockDisponible(ins.productoId);
@@ -1722,6 +1833,8 @@ export class ServiciosComponent implements OnInit {
   extraFormMarca = '';
   extraFormModelo = '';
   extraFormColor = 'Plata';
+  extraFormAgenciaId = '';
+  extraFormPrioridad = 'Media';
 
   extraForm: {
     servicioNombre: string;
@@ -1747,6 +1860,8 @@ export class ServiciosComponent implements OnInit {
 
   // ── Control Regional & Evidencias en Vídeo de Especiales ──
   stockPulidor: any[] = [];
+  faltantesInsumosOT: string[] = [];
+  serviciosEspecialesOpciones: CatalogoServicio[] = [];
   pulidoresDisponiblesRegion: any[] = [];
   modalIniciarServicioEspecialOpen = false;
   modalFinalizarServicioEspecialOpen = false;
@@ -1761,13 +1876,61 @@ export class ServiciosComponent implements OnInit {
   notasFinalizacionInput = '';
 
   // ── Role helpers ──
-  get isOperador() { return this.authService.hasRole(Role.OPERADOR); }
-  get isLiderOperador() { return this.authService.isLiderOperador(); }
-  get isCoordServiciosEspeciales() { return this.authService.hasRole(Role.COORD_SERVICIOS_ESPECIALES); }
+  get isSuperAdmin() { return this.authService.isSuperAdmin() || this.authService.hasRole(Role.SUPER_ADMIN); }
+  get isAdmin() { return this.authService.isAdmin() || this.isSuperAdmin; }
+  get isOperador() {
+    if (this.isSuperAdmin || this.isAdmin) return false;
+    return this.authService.hasRole(Role.OPERADOR);
+  }
+  get isLiderOperador() {
+    if (this.isSuperAdmin || this.isAdmin) return false;
+    return this.authService.isLiderOperador();
+  }
+  get isCoordServiciosEspeciales() {
+    if (this.isSuperAdmin || this.isAdmin) return false;
+    return this.authService.hasRole(Role.COORD_SERVICIOS_ESPECIALES) || this.authService.isCoordServiciosEspeciales();
+  }
   get isPulidor() {
-    return this.authService.hasRole(Role.PULIDOR) || this.authService.hasAnyRole([Role.PULIDOR_MOVIL, Role.PULIDOR_FIJO, Role.OPERADOR_SERVICIOS_ESPECIALES]) || this.authService.isPulidor();
+    if (this.isSuperAdmin || this.isAdmin) return false;
+    if (this.isCoordServiciosEspeciales) return false;
+    return this.authService.hasRole(Role.PULIDOR) || this.authService.isPulidor();
+  }
+  get isPulidorFijo(): boolean {
+    if (this.isSuperAdmin || this.isAdmin) return false;
+    const user = this.authService.getCurrentUser();
+    const rol = (user?.role || '').toUpperCase();
+    return (rol.includes('PULIDOR_FIJO') || (rol.includes('PULIDOR') && !!user?.agenciaId));
+  }
+  get isPulidorMovil(): boolean {
+    if (this.isSuperAdmin || this.isAdmin) return false;
+    const user = this.authService.getCurrentUser();
+    const rol = (user?.role || '').toUpperCase();
+    return rol.includes('PULIDOR_MOVIL') || (rol.includes('PULIDOR') && !user?.agenciaId);
+  }
+  get miAgenciaNombre(): string {
+    const user = this.authService.getCurrentUser();
+    return user?.sucursalNombre || (user as any)?.agenciaNombre || (this.sucursales.find(s => String(s.id) === String(user?.agenciaId))?.nombre) || '';
+  }
+  get agenciasDisponiblesParaEspecial(): Sucursal[] {
+    const user = this.authService.getCurrentUser();
+    if (this.isSuperAdmin || this.isAdmin) {
+      return this.sucursales;
+    }
+    const regId = user?.regionId;
+    if (regId) {
+      return this.sucursales.filter(s => String(s.regionId) === String(regId) || String((s as any).region?.id) === String(regId));
+    }
+    return this.sucursales;
+  }
+  puedeRealizarOT(extra?: ServicioExtra): boolean {
+    if (!extra) return false;
+    if (this.isSuperAdmin || this.isAdmin) return true;
+    const user = this.authService.getCurrentUser();
+    if (!user) return false;
+    return String(extra.operadorId) === String(user.id);
   }
   get isOperadorEspeciales() {
+    if (this.isSuperAdmin || this.isAdmin) return false;
     return this.isCoordServiciosEspeciales || this.isPulidor;
   }
   get userRegionNombre(): string {
@@ -1775,8 +1938,6 @@ export class ServiciosComponent implements OnInit {
     return u?.region || u?.regionNombre || (u?.regionId === 'REG-COSTA' ? 'Costa' : 'Sierra');
   }
   get isGerente() { return this.authService.hasAnyRole([Role.SUPER_ADMIN, Role.ADMIN, Role.GERENTE]); }
-  get isSuperAdmin() { return this.authService.hasRole(Role.SUPER_ADMIN); }
-  get isAdmin() { return this.authService.isAdmin(); }
   get isSupervisor(): boolean {
     const user = this.authService.getCurrentUser();
     const rol = (user?.role || '').toUpperCase();
@@ -1826,9 +1987,15 @@ export class ServiciosComponent implements OnInit {
   ngOnInit(): void {
     const user = this.authService.getCurrentUser();
 
-    // Si el usuario es de servicios especiales, pre-seleccionar pestaña de especiales
-    if (this.isCoordServiciosEspeciales || this.isPulidor) {
+    // Si el usuario es de servicios especiales (pulidor o coord exclusivo), pre-seleccionar pestaña de especiales
+    if ((this.isCoordServiciosEspeciales || this.isPulidor) && !this.isSuperAdmin && !this.isAdmin) {
       this.tabActiva = 'especiales';
+      this.tieneServiciosEspeciales = true;
+    } else {
+      this.tabActiva = 'generales';
+    }
+
+    if (this.isSuperAdmin || this.isAdmin) {
       this.tieneServiciosEspeciales = true;
     }
 
@@ -1862,7 +2029,7 @@ export class ServiciosComponent implements OnInit {
         (s.nombre && s.nombre.toLowerCase() === sucClean) ||
         (s.nombre && sucClean && (s.nombre.toLowerCase().includes(sucClean) || sucClean.includes(s.nombre.toLowerCase())))
       ) || this.sucursalService.getSucursalPorNombre(user?.sucursalNombre || user?.sucursal);
-      this.sucursalServicioIds = suc?.servicioIds?.length ? suc.servicioIds : null;
+      this.sucursalServicioIds = Array.isArray(suc?.servicioIds) ? suc.servicioIds.map(Number) : [];
 
       // Construir mapa sucursal -> región para el filtro de región y lista disponible
       this.sucursalesDisponibles = list.map(s => s.nombre).filter(Boolean);
@@ -1968,6 +2135,9 @@ export class ServiciosComponent implements OnInit {
     const pulId = user?.id ? String(user.id) : undefined;
     this.extrasMock.getStockPulidor(pulId).subscribe(st => {
       this.stockPulidor = st || [];
+      if (this.showModalExtras) {
+        this.recalcularFaltantesInsumosOT();
+      }
     });
   }
 
@@ -1975,30 +2145,19 @@ export class ServiciosComponent implements OnInit {
     const user = this.authService.getCurrentUser();
     if (!user) { this.tieneServiciosEspeciales = false; return; }
 
-    if (this.isSuperAdmin || this.isAdmin || this.isSupervisor || this.isGerente || this.isOperadorEspeciales) {
+    // Admin y Super Admin: siempre tienen acceso completo a servicios especiales y generales
+    if (this.isSuperAdmin || this.isAdmin) {
       this.tieneServiciosEspeciales = true;
       return;
     }
 
-    const hayServiciosEspeciales = this.servicios.some(s =>
-      s.categoriaServicio === 'Servicios Especiales' ||
-      s.categoriaServicio === 'ESPECIAL' ||
-      s.categoriaServicio === 'EXTRA' ||
-      s.categoriaServicio === 'Servicios Extras'
-    ) || this.serviciosExtras.length > 0;
-    
-    if (hayServiciosEspeciales) {
+    // Coord/pulidor de especiales: siempre ven el módulo regional
+    if (this.isOperadorEspeciales) {
       this.tieneServiciosEspeciales = true;
       return;
     }
 
     const sucClean = (user.sucursalNombre || user.sucursal || (user as any).agencia || '').toLowerCase().trim();
-
-    if (!sucClean && !user.agenciaId) {
-      this.tieneServiciosEspeciales = true;
-      return;
-    }
-
     const suc = this.sucursales.find(s =>
       (user.agenciaId && String(s.id) === String(user.agenciaId)) ||
       (s.liderOperadorId && (user as any).id && String(s.liderOperadorId) === String((user as any).id)) ||
@@ -2006,31 +2165,38 @@ export class ServiciosComponent implements OnInit {
       (s.nombre && sucClean && (s.nombre.toLowerCase().includes(sucClean) || sucClean.includes(s.nombre.toLowerCase())))
     ) || this.sucursalService.getSucursalPorNombre(user.sucursalNombre || user.sucursal);
 
+    // Admin / supervisor sin agencia fija: pueden ver el módulo completo
+    if ((this.isSuperAdmin || this.isAdmin || this.isSupervisor || this.isGerente) && !suc && !user.agenciaId) {
+      this.tieneServiciosEspeciales = true;
+      return;
+    }
+
     if (!suc) {
       this.tieneServiciosEspeciales =
         Boolean(user.agenciaId !== undefined && user.agenciaId !== null && user.agenciaId !== ''
           ? this.sucursalService.hasServiciosEspecialesActivos(user.agenciaId, sucClean)
           : false);
+      if (!this.tieneServiciosEspeciales && this.tabActiva === 'especiales' && !this.isPulidor) {
+        this.cambiarTab('generales');
+      }
       return;
     }
 
-    const espIds = new Set(
-      (this.catalogoCompleto || [])
-        .filter(c => c.categoria === 'ESPECIAL' || c.categoria === 'EXTRA')
-        .map(c => c.id)
-    );
-    const espNombres = new Set(
-      (this.catalogoCompleto || [])
-        .filter(c => c.categoria === 'ESPECIAL' || c.categoria === 'EXTRA')
-        .map(c => c.nombre?.toLowerCase().trim())
-    );
+    // Fuente de verdad: flag de la agencia (Sucursales)
+    if ((suc as any).tieneServiciosEspeciales === true) {
+      this.tieneServiciosEspeciales = true;
+    } else if ((suc as any).tieneServiciosEspeciales === false) {
+      this.tieneServiciosEspeciales = false;
+    } else {
+      const espIds = new Set(
+        (this.catalogoCompleto || [])
+          .filter(c => c.categoria === 'ESPECIAL' || c.categoria === 'EXTRA')
+          .map(c => c.id)
+      );
+      this.tieneServiciosEspeciales = Boolean(suc.servicioIds?.some((id: number) => espIds.has(id)));
+    }
 
-    this.tieneServiciosEspeciales =
-      Boolean((suc as any).tieneServiciosEspeciales) ||
-      Boolean(suc.servicioIds?.some((id: number) => espIds.has(id))) ||
-      Boolean(suc.serviciosNombres?.some((n: string) => espNombres.has(String(n).toLowerCase().trim())));
-
-    if (!this.tieneServiciosEspeciales && this.tabActiva === 'especiales') {
+    if (!this.tieneServiciosEspeciales && this.tabActiva === 'especiales' && !this.isPulidor) {
       this.cambiarTab('generales');
     }
   }
@@ -2129,8 +2295,15 @@ export class ServiciosComponent implements OnInit {
     } else {
       this.opcionesServicios = this.catalogoCompleto.filter(s => s.categoria === 'GENERAL');
     }
-    if (this.sucursalServicioIds?.length) {
-      this.opcionesServicios = this.opcionesServicios.filter(s => this.sucursalServicioIds!.includes(s.id));
+    // Solo servicios de la lista asignada a la agencia (nunca catálogo global completo)
+    const idsAgencia = this.sucursalServicioIds;
+    if (idsAgencia === null) {
+      // Aún no se resolvió la sucursal: no mostrar nada hasta tener lista
+      this.opcionesServicios = [];
+    } else if (idsAgencia.length === 0) {
+      this.opcionesServicios = [];
+    } else {
+      this.opcionesServicios = this.opcionesServicios.filter(s => idsAgencia.includes(s.id));
     }
     if (this.opcionesServicios.length > 0) {
       this.nuevoRegistro.servicio = this.opcionesServicios[0].nombre;
@@ -2145,9 +2318,16 @@ export class ServiciosComponent implements OnInit {
 
   onServicioSelect() {
     const serv = this.opcionesServicios.find(s => s.nombre === this.nuevoRegistro.servicio) ||
-                 this.catalogoCompleto.find(s => s.nombre === this.nuevoRegistro.servicio);
+                 (this.sucursalServicioIds?.length
+                   ? this.catalogoCompleto.find(
+                       s =>
+                         s.nombre === this.nuevoRegistro.servicio &&
+                         this.sucursalServicioIds!.includes(s.id),
+                     )
+                   : undefined);
     if (serv) {
       this.nuevoRegistro.servicioId = serv.id;
+      this.asignarHorasAutomaticasOT(Number(serv.tiempoEstimadoMin) || 30);
       if (serv.insumosReceta && serv.insumosReceta.length > 0) {
         this.insumosConsumoForm = serv.insumosReceta.map(r => ({
           productoId: r.productoId,
@@ -2162,7 +2342,16 @@ export class ServiciosComponent implements OnInit {
     } else {
       this.nuevoRegistro.servicioId = 0;
       this.insumosConsumoForm = [];
+      this.asignarHorasAutomaticasOT(30);
     }
+  }
+
+  /** Hora ingreso = ahora; salida estimada = ingreso + duración del servicio (min). */
+  private asignarHorasAutomaticasOT(duracionMin = 30): void {
+    const ahora = new Date();
+    this.nuevoRegistro.horaIngreso = ahora.toTimeString().substring(0, 5);
+    const salida = new Date(ahora.getTime() + Math.max(1, duracionMin) * 60_000);
+    this.nuevoRegistro.horaSalida = salida.toTimeString().substring(0, 5);
   }
 
   aumentarCantidadInsumo(idx: number) {
@@ -2215,9 +2404,11 @@ export class ServiciosComponent implements OnInit {
 
   onSucursalFormChange(): void {
     const suc = this.sucursales.find(s => s.nombre === this.nuevoRegistro.agencia || String(s.id) === this.nuevoRegistro.agencia);
-    if (suc?.servicioIds?.length) {
-      this.sucursalServicioIds = suc.servicioIds;
+    this.sucursalServicioIds = Array.isArray(suc?.servicioIds) ? suc!.servicioIds.map(Number) : [];
+    if (!this.agenciaFormTieneEspeciales && this.nuevoRegistro.categoriaServicio === 'ESPECIAL') {
+      this.nuevoRegistro.categoriaServicio = 'GENERAL';
     }
+    this.onCategoriaChange();
     const sucId = suc ? String(suc.id) : this.nuevoRegistro.agencia;
     if (sucId) {
       this.bahiaService.getBahiasPorSucursal(sucId).subscribe(bahias => {
@@ -2566,7 +2757,10 @@ export class ServiciosComponent implements OnInit {
 
     return this.serviciosExtras.filter(e => {
       // Scope RBAC para Especiales:
-      if (isAprobador && uSuc) {
+      if (this.isPulidor && !this.isSuperAdmin && !this.isAdmin) {
+        // Los servicios especiales solo le salen al pulidor al que se le asignó la OT
+        if (String(e.operadorId) !== String(user?.id)) return false;
+      } else if (isAprobador && uSuc) {
         const hasSuc = (e.sucursales || []).some(s => s.toLowerCase().includes(uSuc) || uSuc.includes(s.toLowerCase()));
         if (!hasSuc) return false;
       } else if (isSupervisor && uReg) {
@@ -2606,36 +2800,212 @@ export class ServiciosComponent implements OnInit {
   onPageChangeExtras(page: number) { this.currentPageExtras = page; }
   onPageSizeChangeExtras(size: number) { this.pageSizeExtras = size; this.currentPageExtras = 1; }
 
+  get puedeCrearOTEspecialConInsumos(): boolean {
+    if (this.isSuperAdmin || this.isAdmin) {
+      // Super Admin y Admin no tienen inventario propio ni agencia fija; pueden crear directamente
+      return !!(this.extraForm.servicioNombre?.trim() && this.extraFormPlaca?.trim());
+    }
+    if (this.validandoStockPulidorOT) return false;
+    if (!this.extraForm.servicioNombre?.trim() || !this.extraForm.operadorId || !this.extraFormPlaca?.trim()) return false;
+    if (!this.extraForm.insumosReceta?.length) return false;
+    return this.faltantesInsumosOT.length === 0;
+  }
+
+  validandoStockPulidorOT = false;
+
+  private getStockCantidadInsumo(productoId: string | number, sku?: string, nombre?: string): number {
+    const id = String(productoId || '');
+    const byId = this.stockPulidor.find(s => String(s.insumoId) === id);
+    if (byId) return Number(byId.cantidadActual || 0);
+    if (sku) {
+      const bySku = this.stockPulidor.find(s => String(s.codigoSKU || '').toLowerCase() === String(sku).toLowerCase());
+      if (bySku) return Number(bySku.cantidadActual || 0);
+    }
+    if (nombre) {
+      const byName = this.stockPulidor.find(s => String(s.nombre || '').toLowerCase() === String(nombre).toLowerCase());
+      if (byName) return Number(byName.cantidadActual || 0);
+    }
+    return 0;
+  }
+
+  private recalcularFaltantesInsumosOT(): void {
+    this.faltantesInsumosOT = [];
+    const receta = this.extraForm.insumosReceta || [];
+    if (!receta.length) {
+      this.faltantesInsumosOT = ['El servicio no tiene receta de insumos configurada.'];
+      return;
+    }
+    if (!this.extraForm.operadorId) {
+      this.faltantesInsumosOT = ['Seleccione un pulidor móvil para validar su kit de insumos.'];
+      return;
+    }
+    const totalKit = this.stockPulidor.reduce((acc, s) => acc + Number(s.cantidadActual || 0), 0);
+    if (totalKit <= 0) {
+      const opLabel = this.extraForm.operadorNombre ? `El pulidor ${this.extraForm.operadorNombre}` : 'El pulidor asignado';
+      this.faltantesInsumosOT = [`${opLabel} no tiene insumos en su kit. Debe recibir y confirmar un despacho antes de que se le asigne la OT.`];
+      return;
+    }
+    for (const r of receta) {
+      const need = Number(r.cantidadSugerida || r.cantidad || 0);
+      if (need <= 0) continue;
+      const have = this.getStockCantidadInsumo(r.productoId || r.insumoId || '', r.productoSKU || r.codigoSKU, r.productoNombre || r.insumoNombre);
+      if (have < need) {
+        this.faltantesInsumosOT.push(
+          `${r.productoNombre || r.insumoNombre || r.productoSKU}: requiere ${need} ${r.unidadMedida || ''}, disponible ${have}`
+        );
+      }
+    }
+  }
+
+  private cargarStockPulidorParaOT(pulidorId: string | number | undefined, thenOpen = false): void {
+    if (!pulidorId) {
+      this.stockPulidor = [];
+      this.recalcularFaltantesInsumosOT();
+      return;
+    }
+    this.validandoStockPulidorOT = true;
+    this.extrasMock.getStockPulidor(String(pulidorId)).subscribe({
+      next: (st) => {
+        this.stockPulidor = st || [];
+        this.validandoStockPulidorOT = false;
+        this.recalcularFaltantesInsumosOT();
+        if (thenOpen) {
+          this.showModalExtras = true;
+        }
+      },
+      error: () => {
+        this.stockPulidor = [];
+        this.validandoStockPulidorOT = false;
+        this.recalcularFaltantesInsumosOT();
+        if (thenOpen) this.showModalExtras = true;
+      }
+    });
+  }
+
+  private cargarOpcionesServiciosEspeciales(): void {
+    const especiales = (this.catalogoCompleto || []).filter(s => {
+      const cat = String(s.categoria || '').toUpperCase();
+      const activo = s.estado === 'Activo' || (s as any).estado === 1 || s.estado == null;
+      return activo && (cat === 'ESPECIAL' || cat === 'EXTRA' || cat.includes('ESPECIAL'));
+    });
+    if (this.isPulidor && this.authService.isPulidorMovil()) {
+      const ids = (this.authService.getCurrentUser()?.servicioIds || []).map(Number);
+      this.serviciosEspecialesOpciones = ids.length
+        ? especiales.filter(s => ids.includes(Number(s.id)))
+        : especiales;
+    } else {
+      this.serviciosEspecialesOpciones = especiales;
+    }
+  }
+
+  onServicioEspecialFormChange(nombre: string): void {
+    const serv = this.serviciosEspecialesOpciones.find(s => s.nombre === nombre)
+      || this.catalogoCompleto.find(s => s.nombre === nombre);
+    this.extraForm.servicioDescripcion = serv?.descripcion || '';
+    this.extraForm.insumosReceta = serv?.insumosReceta
+      ? JSON.parse(JSON.stringify(serv.insumosReceta))
+      : [];
+    this.recalcularFaltantesInsumosOT();
+  }
+
   abrirModalNuevoExtra() {
     this.isEditingExtras = false;
     this.editandoExtraId = null;
+
+    // Super Admin y Admin: no tienen inventario en sí ni agencia fija; no verifican stock
+    if (this.isSuperAdmin || this.isAdmin) {
+      if (this.pulidoresDisponiblesRegion.length === 0) {
+        this.extrasMock.getPulidoresPorRegion().subscribe(list => {
+          this.pulidoresDisponiblesRegion = list || [];
+          this.abrirModalNuevoExtraConDatos();
+        });
+        return;
+      }
+      this.abrirModalNuevoExtraConDatos();
+      return;
+    }
+
+    // Si es pulidor directo (operador de campo), validar que él mismo tenga kit antes de abrir
+    if (this.isPulidor && !this.isCoordServiciosEspeciales) {
+      const user = this.authService.getCurrentUser();
+      const pulId = user?.id ? String(user.id) : undefined;
+      this.extrasMock.getStockPulidor(pulId).subscribe(st => {
+        this.stockPulidor = st || [];
+        const totalKit = this.stockPulidor.reduce((acc, s) => acc + Number(s.cantidadActual || 0), 0);
+        if (totalKit <= 0) {
+          this.toastService.warning(
+            'Sin insumos en kit',
+            'No puede crear una OT especial sin insumos en custodia. Solicite un despacho y confírmelo primero.'
+          );
+          return;
+        }
+        this.abrirModalNuevoExtraConDatos();
+      });
+      return;
+    }
+
+    // Para el Coordinador de Servicios Especiales:
+    // Asegurar que la lista de pulidores esté cargada antes de inicializar el formulario:
+    if (this.pulidoresDisponiblesRegion.length === 0) {
+      const user = this.authService.getCurrentUser();
+      const regId = user?.regionId ? String(user.regionId) : undefined;
+      this.extrasMock.getPulidoresPorRegion(regId).subscribe(list => {
+        this.pulidoresDisponiblesRegion = list || [];
+        this.abrirModalNuevoExtraConDatos();
+      });
+      return;
+    }
+
+    this.abrirModalNuevoExtraConDatos();
+  }
+
+  private abrirModalNuevoExtraConDatos() {
     const user = this.authService.getCurrentUser();
-    
-    // Asignar primer pulidor disponible de la región
+    this.cargarOpcionesServiciosEspeciales();
+
+    // Asignar primer pulidor disponible de la región si existe
     const primerPulidor = this.pulidoresDisponiblesRegion[0];
     const opId = this.isPulidor ? (user?.id || '') : (primerPulidor?.id || '');
-    const opNombre = this.isPulidor ? `${user?.nombre || ''} ${user?.apellido || ''}`.trim() : (primerPulidor ? `${primerPulidor.name} ${primerPulidor.lastname}`.trim() : 'Sin asignar');
+    const opNombre = this.isPulidor
+      ? `${user?.nombre || ''} ${user?.apellido || ''}`.trim()
+      : (primerPulidor ? `${primerPulidor.name} ${primerPulidor.lastname}`.trim() : '');
 
     this.extraFormPlaca = '';
     this.extraFormMarca = 'Toyota';
     this.extraFormModelo = 'Fortuner';
     this.extraFormColor = 'Plata';
 
+    // Asignación de Agencia:
+    if (this.isPulidorFijo) {
+      this.extraFormAgenciaId = user?.agenciaId ? String(user.agenciaId) : '';
+    } else {
+      const ags = this.agenciasDisponiblesParaEspecial;
+      this.extraFormAgenciaId = ags.length > 0 ? String(ags[0].id) : '';
+    }
+    this.extraFormPrioridad = 'Media';
+
+    const primerServicio = this.serviciosEspecialesOpciones[0];
     this.extraForm = {
-      servicioNombre: 'Pulido y Corrección de Pintura en 3 Pasos',
-      servicioDescripcion: 'Corrección con pad de corte, pulido de acabado y sellado sintético',
+      servicioNombre: primerServicio?.nombre || '',
+      servicioDescripcion: primerServicio?.descripcion || '',
       operadorId: opId,
       operadorNombre: opNombre,
       sucursalesSeleccionadas: [],
-      insumosReceta: [
-        { productoId: 1, productoSKU: 'QUI-COR-01', productoNombre: 'Compound de Corte Rápido 1L', unidadMedida: 'L', cantidadSugerida: 0.2 },
-        { productoId: 2, productoSKU: 'QUI-POL-01', productoNombre: 'Polish de Acabado Brillo Espejo 1L', unidadMedida: 'L', cantidadSugerida: 0.15 }
-      ],
+      insumosReceta: primerServicio?.insumosReceta
+        ? JSON.parse(JSON.stringify(primerServicio.insumosReceta))
+        : [],
       estado: 'Pendiente',
       fechaProgramada: new Date().toISOString().substring(0, 10),
       notas: ''
     };
-    this.showModalExtras = true;
+
+    if (opId && !this.isSuperAdmin && !this.isAdmin) {
+      this.cargarStockPulidorParaOT(opId, true);
+    } else {
+      this.stockPulidor = [];
+      this.recalcularFaltantesInsumosOT();
+      this.showModalExtras = true;
+    }
   }
 
   cerrarModalExtras() { this.showModalExtras = false; }
@@ -2643,11 +3013,18 @@ export class ServiciosComponent implements OnInit {
   onOperadorExtraChange() {
     const op = this.pulidoresDisponiblesRegion.find(o => String(o.id) === String(this.extraForm.operadorId));
     if (op) this.extraForm.operadorNombre = `${op.name} ${op.lastname}`.trim();
+    if (!this.isSuperAdmin && !this.isAdmin) {
+      this.cargarStockPulidorParaOT(this.extraForm.operadorId);
+    }
   }
 
   guardarServicioExtra() {
-    if (!this.extraForm.servicioNombre.trim() || !this.extraForm.operadorId) {
-      this.toastService.warning('Datos incompletos', 'Ingrese el tipo de servicio y seleccione un pulidor.');
+    if (!this.extraForm.servicioNombre?.trim()) {
+      this.toastService.warning('Datos incompletos', 'Ingrese el tipo de servicio especial.');
+      return;
+    }
+    if (!this.extraForm.operadorId && !this.isSuperAdmin && !this.isAdmin) {
+      this.toastService.warning('Datos incompletos', 'Seleccione un pulidor asignado.');
       return;
     }
     if (!this.extraFormPlaca.trim()) {
@@ -2656,16 +3033,35 @@ export class ServiciosComponent implements OnInit {
     }
 
     const user = this.authService.getCurrentUser();
+    const agenciaIdFinal = this.isPulidorFijo ? (user?.agenciaId || '') : this.extraFormAgenciaId;
+    if (!agenciaIdFinal && !this.isSuperAdmin && !this.isAdmin) {
+      this.toastService.warning('Agencia requerida', 'Debe seleccionar la agencia en la cual se realizará el servicio.');
+      return;
+    }
+
+    if (!this.isSuperAdmin && !this.isAdmin) {
+      this.recalcularFaltantesInsumosOT();
+      if (!this.puedeCrearOTEspecialConInsumos) {
+        this.toastService.error(
+          'Insumos insuficientes',
+          this.faltantesInsumosOT[0] || 'No puede crear la OT: el pulidor no tiene los insumos requeridos en su kit.'
+        );
+        return;
+      }
+    }
+
     const regId = user?.regionId ? String(user.regionId) : (user?.region === 'Costa' ? 'REG-COSTA' : 'REG-SIERRA');
     const regNombre = this.userRegionNombre;
 
     const payload: any = {
       servicioNombre: this.extraForm.servicioNombre.trim(),
       servicioDescripcion: this.extraForm.servicioDescripcion.trim(),
-      operadorId: String(this.extraForm.operadorId),
+      operadorId: this.extraForm.operadorId ? String(this.extraForm.operadorId) : undefined,
       operadorNombre: this.extraForm.operadorNombre,
+      agenciaId: agenciaIdFinal || undefined,
       regionId: regId,
       regionNombre: regNombre,
+      prioridad: this.extraFormPrioridad || 'Media',
       placa: this.extraFormPlaca.trim().toUpperCase(),
       vehiculoInfo: {
         placa: this.extraFormPlaca.trim().toUpperCase(),
@@ -2673,16 +3069,26 @@ export class ServiciosComponent implements OnInit {
         modelo: this.extraFormModelo.trim(),
         color: this.extraFormColor.trim()
       },
-      insumosReceta: this.extraForm.insumosReceta,
+      insumosReceta: (this.extraForm.insumosReceta || []).map(r => ({
+        ...r,
+        insumoId: r.insumoId || r.productoId,
+        productoId: r.insumoId || r.productoId,
+        codigoSKU: r.codigoSKU || r.productoSKU,
+        productoSKU: r.codigoSKU || r.productoSKU,
+        insumoNombre: r.insumoNombre || r.productoNombre || (r as any).nombre,
+        productoNombre: r.insumoNombre || r.productoNombre || (r as any).nombre,
+        cantidad: Number(r.cantidadSugerida || r.cantidad || 0),
+        cantidadSugerida: Number(r.cantidadSugerida || r.cantidad || 0),
+      })),
       estado: this.extraForm.estado,
       fechaProgramada: this.extraForm.fechaProgramada,
       notas: this.extraForm.notas,
-      creadoPor: `${user?.nombre || ''} ${user?.apellido || ''}`.trim() || 'Coordinador Zonal'
+      creadoPor: `${user?.nombre || ''} ${user?.apellido || ''}`.trim() || 'EasyDry Admin'
     };
 
     this.extrasMock.crearServicioExtra(payload).subscribe({
       next: (creado) => {
-        this.toastService.success('Servicio Asignado', `Servicio ${creado.codigoSE} asignado a ${this.extraForm.operadorNombre} en ${regNombre}.`);
+        this.toastService.success('Servicio Asignado', `Servicio ${creado.codigoSE} asignado en ${regNombre}.`);
         this.cerrarModalExtras();
         this.cargarServiciosEspeciales();
       },
@@ -2696,6 +3102,10 @@ export class ServiciosComponent implements OnInit {
 
   // ── Flujo de Evidencias en Vídeo de Especiales ──
   abrirModalIniciarEspecial(extra: ServicioExtra) {
+    if (!this.puedeRealizarOT(extra)) {
+      this.toastService.warning('Acceso Restringido', 'Solo el pulidor asignado a esta orden de trabajo puede iniciarla.');
+      return;
+    }
     this.servicioEspecialSeleccionado = extra;
     this.videoInicialInput = extra.videoInicialUrl || '';
     this.modalIniciarServicioEspecialOpen = true;
@@ -2707,6 +3117,10 @@ export class ServiciosComponent implements OnInit {
   }
 
   confirmarIniciarEspecial() {
+    if (!this.puedeRealizarOT(this.servicioEspecialSeleccionado)) {
+      this.toastService.warning('Acceso Restringido', 'Solo el pulidor asignado a esta orden de trabajo puede iniciar el servicio.');
+      return;
+    }
     if (!this.videoInicialInput.trim()) {
       this.toastService.warning('Vídeo Inicial Requerido', 'Debe adjuntar la evidencia en vídeo del estado inicial del vehículo.');
       return;
@@ -2727,6 +3141,10 @@ export class ServiciosComponent implements OnInit {
   }
 
   abrirModalFinalizarEspecial(extra: ServicioExtra) {
+    if (!this.puedeRealizarOT(extra)) {
+      this.toastService.warning('Acceso Restringido', 'Solo el pulidor asignado a esta orden de trabajo puede finalizarla.');
+      return;
+    }
     this.servicioEspecialSeleccionado = extra;
     this.videoFinalInput = extra.videoFinalUrl || '';
     this.calificacionCalidadInput = 5;
@@ -2740,6 +3158,10 @@ export class ServiciosComponent implements OnInit {
   }
 
   confirmarFinalizarEspecial() {
+    if (!this.puedeRealizarOT(this.servicioEspecialSeleccionado)) {
+      this.toastService.warning('Acceso Restringido', 'Solo el pulidor asignado a esta orden de trabajo puede finalizar el servicio.');
+      return;
+    }
     if (!this.videoFinalInput.trim()) {
       this.toastService.warning('Vídeo Final Requerido', 'Debe adjuntar la evidencia en vídeo del vehículo terminado.');
       return;
@@ -2749,7 +3171,6 @@ export class ServiciosComponent implements OnInit {
     this.extrasMock.actualizarServicioExtra(this.servicioEspecialSeleccionado.id, {
       estado: 'Completado',
       videoFinalUrl: this.videoFinalInput.trim(),
-      calificacionCalidad: this.calificacionCalidadInput,
       notas: this.notasFinalizacionInput
     }).subscribe({
       next: () => {

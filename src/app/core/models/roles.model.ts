@@ -146,6 +146,8 @@ export interface UsuarioAuth {
   regionId?: string | number;
   /** Bodega asignada (ASISTENTE_BODEGA → regional; opcional en otros roles) */
   bodegaId?: string | number;
+  /** Servicios asignados al pulidor móvil (ids CatalogoServicio) */
+  servicioIds?: number[];
   permisos?: PermisosRol;
 }
 
