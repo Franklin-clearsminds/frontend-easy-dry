@@ -28,29 +28,22 @@ import { apiUrl } from '../../core/config/env';
         <div>
           <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold mb-2">
             <i-lucide name="send" class="w-3.5 h-3.5"></i-lucide>
-            <span>{{ isLiderOperador ? 'Recepción de Suministros' : 'Logística de Suministros' }}</span>
+            <span>{{ isLiderOperador ? 'Recepción de Suministros' : (isPulidor ? 'Recepción de Insumos (Kit Pulidor)' : 'Logística de Suministros') }}</span>
           </div>
           <h1 class="text-2xl font-extrabold text-slate-900 font-outfit">
-            {{ isLiderOperador ? 'Envíos & Confirmación de Recepción — ' + liderSucursalNombre : 'Envíos & Confirmación de Recepción' }}
+            {{ isLiderOperador ? 'Envíos & Confirmación de Recepción — ' + liderSucursalNombre : (isPulidor ? 'Envíos & Confirmación — Mi Kit de Pulidor' : 'Envíos & Confirmación de Recepción') }}
           </h1>
           <p class="text-slate-500 text-xs mt-1">
             {{ isLiderOperador 
-              ? 'Control de suministros despachados desde Bodega Central para tu agencia. Revisa los insumos, confirma su llegada para alimentar el stock o rechaza irregularidades.' 
-              : 'Control logístico de envíos desde Bodega Central hacia Agencias receptoras con validación de estado y tiempos.' }}
+              ? 'Confirma o rechaza los suministros enviados a tu agencia. Al confirmar, el stock ingresa a tu sede.' 
+              : (isPulidor
+                ? 'Confirma o rechaza los insumos químicos enviados a tu kit personal. Al confirmar, el stock ingresa a tu inventario para servicios especiales.'
+                : 'Solo confirmación y seguimiento: crea los despachos desde Inventario. Aquí se aceptan, rechazan y alertan.') }}
           </p>
         </div>
-        @if (puedeDespachar) {
-          <button
-            type="button"
-            (click)="abrirModalCrearEnvio()"
-            class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
-            <i-lucide name="plus" class="w-4 h-4"></i-lucide>
-            <span>Crear Envío de Suministro</span>
-          </button>
-        }
       </div>
 
-      <!-- Alerta Destacada de Envíos Rechazados (Super Admin / Logística) -->
+      <!-- Alerta Destacada de Envíos Rechazados -->
       @if (countRechazados > 0) {
         <div class="p-5 bg-rose-50 border-2 border-rose-300 rounded-2xl shadow-sm space-y-3 animate-fade-in">
           <div class="flex items-center justify-between gap-3">
@@ -61,14 +54,14 @@ import { apiUrl } from '../../core/config/env';
               <div>
                 <div class="flex items-center gap-2">
                   <h3 class="text-sm font-black text-rose-950 uppercase tracking-wide">
-                    🚨 Alerta: {{ countRechazados }} Despacho(s) Rechazado(s) por la Agencia Receptora
+                    Alerta: {{ countRechazados }} despacho(s) rechazado(s)
                   </h3>
                   <span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-200 text-rose-900 animate-pulse">
-                    Stock Retornado a Bodega Central
+                    Stock permanece en origen (reserva liberada)
                   </span>
                 </div>
                 <p class="text-xs text-rose-800 mt-0.5">
-                  La sede reportó no conformidad o transporte no recibido. Revisa la razón indicada para coordinar la reposición.
+                  El destino no aceptó el envío. El stock nunca salió del origen; revisa el motivo para reenviar o gestionar.
                 </p>
               </div>
             </div>
@@ -92,7 +85,7 @@ import { apiUrl } from '../../core/config/env';
                   <div class="flex flex-wrap gap-1">
                     @for (p of rech.productos; track p.nombreProducto) {
                       <span class="inline-flex items-center gap-1 bg-slate-100 px-2 py-0.5 rounded text-[11px] font-semibold text-slate-800 border border-slate-200">
-                        <strong class="font-mono text-rose-700 font-black">{{ p.cantidad }} {{ p.unidad }}</strong> {{ p.nombreProducto }}
+                        <strong class="font-mono text-rose-700 font-black">{{ p.cantidad }} und</strong> {{ p.nombreProducto }}
                       </span>
                     }
                   </div>
@@ -175,7 +168,7 @@ import { apiUrl } from '../../core/config/env';
                     <div class="space-y-1">
                       @for (p of env.productos; track p.nombreProducto) {
                         <div class="inline-flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200/70 px-2 py-1 rounded-lg text-slate-800 font-semibold text-[11px] border border-slate-200/80 mr-1 mb-0.5">
-                          <span class="font-mono text-emerald-800 font-black bg-emerald-100 px-1.5 py-0.2 rounded text-[11px]">{{ p.cantidad }} {{ p.unidad }}</span>
+                          <span class="font-mono text-emerald-800 font-black bg-emerald-100 px-1.5 py-0.2 rounded text-[11px]">{{ p.cantidad }} und</span>
                           <span class="text-slate-900 font-bold">{{ p.nombreProducto }}</span>
                         </div>
                       }
@@ -248,11 +241,11 @@ import { apiUrl } from '../../core/config/env';
                     }
                   </td>
                   <td class="py-3.5 px-4 text-right">
-                    @if (env.estado === 'ENVIADO' && puedeAcciones) {
+                    @if (env.estado === 'ENVIADO' && puedeAccionesEnvio(env)) {
                       <div class="flex items-center justify-end gap-1.5">
                         <button
                           type="button"
-                          (click)="confirmarRecepcionEnvio(env)"
+                          (click)="abrirModalConfirmacion(env)"
                           class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 shadow-2xs">
                           <i-lucide name="check" class="w-3.5 h-3.5"></i-lucide>
                           <span>Confirmar</span>
@@ -265,6 +258,11 @@ import { apiUrl } from '../../core/config/env';
                           <span>Rechazar</span>
                         </button>
                       </div>
+                    } @else if (env.estado === 'ENVIADO') {
+                      <span class="inline-flex items-center gap-1 text-[11px] font-bold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200">
+                        <i-lucide name="truck" class="w-3.5 h-3.5"></i-lucide>
+                        <span>En tránsito · Esperando aceptación</span>
+                      </span>
                     } @else if (env.estado === 'RECIBIDO') {
                       <span class="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
                         <i-lucide name="check-circle" class="w-3.5 h-3.5 text-emerald-600"></i-lucide>
@@ -312,7 +310,7 @@ import { apiUrl } from '../../core/config/env';
               <div>
                 <p class="font-bold">¿Deseas reportar disconformidad para el envío {{ envioSeleccionadoRechazo.codigoEnvio }}?</p>
                 <p class="text-[11px] text-rose-700 mt-0.5">
-                  El despacho se marcará como rechazado, el stock retornará a Bodega Central y se notificará formalmente a logística.
+                  El despacho se marcará como rechazado y se liberará la reserva de stock en el origen (el físico no se había descontado).
                 </p>
               </div>
             </div>
@@ -359,6 +357,72 @@ import { apiUrl } from '../../core/config/env';
         </div>
       </app-modal>
 
+      <!-- MODAL CONFIRMAR RECEPCIÓN (permite parcial + observación) -->
+      <app-modal
+        [isOpen]="modalConfirmacionOpen"
+        title="Confirmar Recepción"
+        icon="check-circle"
+        (close)="modalConfirmacionOpen = false">
+        @if (envioSeleccionadoConfirmacion) {
+          <div class="space-y-3 text-xs">
+            <p class="text-slate-600">
+              Guía <b>{{ envioSeleccionadoConfirmacion.codigoEnvio }}</b> → {{ envioSeleccionadoConfirmacion.sucursalNombre }}.
+              Puedes recibir menos de lo enviado; si es parcial, la observación es obligatoria.
+            </p>
+            <div class="space-y-2">
+              @for (p of envioSeleccionadoConfirmacion.productos || []; track $index) {
+                <div class="p-2.5 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-between gap-3">
+                  <div class="min-w-0">
+                    <p class="font-bold text-slate-800 truncate">{{ p.nombreProducto }}</p>
+                    <p class="text-[10px] text-slate-500">Enviado: {{ p.cantidad }} und</p>
+                  </div>
+                  <div class="shrink-0">
+                    <label class="block text-[10px] font-bold text-slate-500 mb-0.5">Recibido (und)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      [max]="p.cantidad"
+                      [(ngModel)]="cantidadesRecepcion[$index]"
+                      [name]="'cantRec' + $index"
+                      class="w-20 p-1.5 rounded-lg border border-slate-200 font-mono font-bold text-slate-800" />
+                  </div>
+                </div>
+              }
+            </div>
+            <div>
+              <label class="block font-bold text-slate-700 mb-1">
+                Observación
+                @if (esRecepcionParcial) {
+                  <span class="text-rose-600">(obligatoria por recepción parcial)</span>
+                }
+              </label>
+              <textarea
+                [(ngModel)]="observacionRecepcion"
+                name="obsRecepcion"
+                rows="2"
+                class="w-full p-2.5 rounded-xl border border-slate-200"
+                [placeholder]="esRecepcionParcial ? 'Explica la diferencia de cantidades...' : 'Opcional'"></textarea>
+            </div>
+          </div>
+        }
+        <div modal-footer class="flex items-center justify-end gap-2 w-full">
+          <button
+            type="button"
+            (click)="modalConfirmacionOpen = false"
+            class="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer">
+            Cancelar
+          </button>
+          <button
+            type="button"
+            (click)="ejecutarConfirmacionRecepcion()"
+            [disabled]="esRecepcionParcial && !observacionRecepcion.trim()"
+            class="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50 cursor-pointer">
+            Confirmar Ingreso
+          </button>
+        </div>
+      </app-modal>
+
       <!-- MODAL CREAR ENVÍO -->
       <app-modal
         [isOpen]="modalCrearEnvioOpen"
@@ -369,19 +433,25 @@ import { apiUrl } from '../../core/config/env';
           
           <!-- Banner Informativo de Origen -->
           <div class="p-3 rounded-xl border flex items-center gap-2.5 text-xs font-bold"
-            [ngClass]="isAsistenteBodega ? 'bg-teal-50 border-teal-200 text-teal-900' : 'bg-blue-50 border-blue-200 text-blue-900'">
-            <i-lucide name="warehouse" class="w-4 h-4 shrink-0" [ngClass]="isAsistenteBodega ? 'text-teal-600' : 'text-easydry-blue'"></i-lucide>
+            [ngClass]="isAsistenteBodega ? 'bg-teal-50 border-teal-200 text-teal-900' : (isLiderOperador ? 'bg-purple-50 border-purple-200 text-purple-900' : 'bg-blue-50 border-blue-200 text-blue-900')">
+            <i-lucide name="warehouse" class="w-4 h-4 shrink-0" [ngClass]="isAsistenteBodega ? 'text-teal-600' : (isLiderOperador ? 'text-purple-600' : 'text-easydry-blue')"></i-lucide>
             <div>
-              <span>Origen: </span>
-              <span class="font-extrabold">{{ isAsistenteBodega ? ('Bodega Regional ' + (miRegionNombre || miBodegaNombre || 'Asignada')) : 'Bodega Central Nacional (HUB Global)' }}</span>
-              <span *ngIf="isAsistenteBodega" class="block text-[10px] font-normal text-teal-700 mt-0.5">
-                Alcance operativo: Suministro exclusivo a agencias y bodegas de la región {{ miRegionNombre || miBodegaNombre }}.
+              <span>Origen (tu stock): </span>
+              <span class="font-extrabold">
+                {{ isLiderOperador ? ('Sucursal ' + liderSucursalNombre) : (isAsistenteBodega ? ('Bodega Regional ' + (miRegionNombre || miBodegaNombre || 'Asignada')) : (miBodegaNombre || 'Bodega Central Nacional')) }}
+              </span>
+              <span *ngIf="isAsistenteBodega || isLiderOperador" class="block text-[10px] font-normal mt-0.5 opacity-80">
+                {{ isLiderOperador
+                  ? 'Alcance: solo otras agencias y pulidores de tu región.'
+                  : 'Alcance: agencias, pulidores y otras bodegas de tu región.' }}
               </span>
             </div>
           </div>
 
           <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Destino (Agencia o Bodega Receptora) *</label>
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">
+              {{ isLiderOperador ? 'Destino (Agencia o Pulidor) *' : 'Destino (Agencia, Bodega o Pulidor) *' }}
+            </label>
             <select
               [(ngModel)]="nuevoEnvioForm.sucursalId"
               (ngModelChange)="onSucursalChange($event)"
@@ -390,15 +460,21 @@ import { apiUrl } from '../../core/config/env';
               required>
               <option value="" disabled>Seleccione destino autorizado...</option>
               
-              <optgroup label="Agencias de la Región">
+              <optgroup label="Agencias / Sucursales">
                 @for (suc of sucursalesDisponibles; track suc.id) {
-                  <option [value]="suc.id">{{ suc.nombre }} ({{ suc.ciudad }})</option>
+                  <option [value]="'AG:' + suc.id">{{ suc.nombre }} ({{ suc.ciudad }})</option>
                 }
               </optgroup>
 
-              <optgroup *ngIf="bodegasDestinoDisponibles.length > 0" label="Bodegas de la Región">
+              <optgroup *ngIf="!isLiderOperador && bodegasDestinoDisponibles.length > 0" label="Bodegas">
                 @for (bod of bodegasDestinoDisponibles; track bod.id) {
-                  <option [value]="bod.id">{{ bod.nombre }} ({{ bod.ciudad }})</option>
+                  <option [value]="'BOD:' + bod.id">{{ bod.nombre }} ({{ bod.ciudad }})</option>
+                }
+              </optgroup>
+
+              <optgroup *ngIf="pulidoresDisponibles.length > 0" label="Pulidores">
+                @for (p of pulidoresDisponibles; track p.id) {
+                  <option [value]="'PUL:' + p.id">{{ p.nombre }}</option>
                 }
               </optgroup>
             </select>
@@ -414,7 +490,9 @@ import { apiUrl } from '../../core/config/env';
               required>
               <option value="" disabled>Seleccione insumo...</option>
               @for (ins of insumosDisponibles; track ins.producto.id) {
-                <option [value]="ins.producto.id">{{ ins.producto.nombre }} ({{ ins.producto.unidadMedida }})</option>
+                <option [value]="ins.producto.id">
+                  {{ ins.producto.nombre }} — {{ stockEnUnidadesItem(ins) | number:'1.0-0' }} und
+                </option>
               }
               @empty {
                 <option value="" disabled>No hay insumos en catálogo aún</option>
@@ -424,14 +502,16 @@ import { apiUrl } from '../../core/config/env';
 
           <div class="grid grid-cols-2 gap-3">
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Cantidad *</label>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Cantidad (unidades) *</label>
               <input
                 type="number"
                 [(ngModel)]="nuevoEnvioForm.cantidad"
                 name="cantidad"
                 min="1"
+                step="1"
                 class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-easydry-blue"
                 required>
+              <p class="text-[10px] text-slate-500 mt-1">Unidades completas (envases). Igual para agencia, pulidor o bodega.</p>
             </div>
             <div>
               <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Prioridad / Observación</label>
@@ -481,21 +561,23 @@ export class EnviosComponent implements OnInit {
   }
 
   get puedeDespachar(): boolean {
-    return !this.isLiderOperador && (
-      this.auth.can('despacharSuministros') ||
-      this.auth.isAdmin() ||
-      this.auth.hasRole(Role.COORD_BODEGA) ||
-      this.auth.hasRole(Role.DISTRIBUIDOR) ||
-      this.auth.hasRole(Role.ASISTENTE_BODEGA) ||
-      this.auth.hasRole('COORD_BODEGA' as any) ||
-      this.auth.hasRole('DISTRIBUIDOR' as any) ||
-      this.auth.hasRole('ASISTENTE_BODEGA' as any)
-    );
+    // Envíos es solo confirmación/seguimiento. La creación de despachos vive en Inventario.
+    return false;
   }
 
   get isAsistenteBodega(): boolean {
     const rol = (this.auth.getCurrentUser()?.role || '').toUpperCase();
     return rol === 'ASISTENTE_BODEGA';
+  }
+
+  get isPulidor(): boolean {
+    const rol = (this.auth.getCurrentUser()?.role || '').toUpperCase();
+    return rol.includes('PULIDOR') || this.auth.getCurrentUser()?.role === Role.PULIDOR;
+  }
+
+  get isCoordBodega(): boolean {
+    const rol = (this.auth.getCurrentUser()?.role || '').toUpperCase();
+    return rol === 'COORD_BODEGA' || rol === 'DISTRIBUIDOR';
   }
 
   get miRegionNombre(): string {
@@ -505,11 +587,24 @@ export class EnviosComponent implements OnInit {
 
   get miBodegaNombre(): string {
     const user = this.auth.getCurrentUser();
-    return (user?.sucursalNombre || user?.sucursal || (user as any)?.agencia || 'Bodega Central').trim();
+    return ((user as any)?.bodegaNombre || user?.sucursalNombre || user?.sucursal || (user as any)?.agencia || 'Bodega').trim();
   }
 
-  get puedeAcciones(): boolean {
-    return this.auth.isLiderOperador() || this.auth.can('accionesEnvios') || this.auth.isAdmin();
+  /** Solo el receptor del destino o el Super Admin pueden confirmar/rechazar. */
+  puedeAccionesEnvio(env: EnvioSuministro): boolean {
+    const user = this.auth.getCurrentUser();
+    const role = (user?.role || '').toUpperCase();
+    if (this.auth.isSuperAdmin() || role === 'SUPER_ADMIN' || (role.includes('SUPER') && role.includes('ADMIN'))) {
+      return true;
+    }
+    if ((env as any).puedeConfirmar) return true;
+    if (env.estado === 'ENVIADO' || env.estado === 'PENDIENTE') {
+      const destPulId = (env as any).destinoPulidorId || (env as any).usuarioRecibeId;
+      if (user?.id && destPulId && String(destPulId) === String(user.id)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   // Filtros
@@ -521,13 +616,24 @@ export class EnviosComponent implements OnInit {
   sucursalesDisponibles: Sucursal[] = [];
   bodegasDisponibles: BodegaInventario[] = [];
   bodegasDestinoDisponibles: BodegaInventario[] = [];
+  pulidoresDisponibles: Array<{ id: string; nombre: string }> = [];
   insumosDisponibles: InventarioItem[] = [];
 
   // Modales
   modalRechazoOpen = false;
   modalCrearEnvioOpen = false;
+  modalConfirmacionOpen = false;
   envioSeleccionadoRechazo: EnvioSuministro | null = null;
+  envioSeleccionadoConfirmacion: EnvioSuministro | null = null;
   motivoRechazoTexto = '';
+  observacionRecepcion = '';
+  cantidadesRecepcion: number[] = [];
+
+  get esRecepcionParcial(): boolean {
+    const env = this.envioSeleccionadoConfirmacion;
+    if (!env?.productos?.length) return false;
+    return env.productos.some((p, i) => Number(this.cantidadesRecepcion[i] ?? p.cantidad) < Number(p.cantidad));
+  }
 
   motivosFrecuentes: string[] = [
     'Transporte nunca llegó a la agencia',
@@ -589,18 +695,35 @@ export class EnviosComponent implements OnInit {
       const rol = (user?.role || '').toUpperCase();
       const esAsistenteBodega = rol === 'ASISTENTE_BODEGA' || (rol.includes('ASISTENTE') && rol.includes('BODEGA'));
       const userRegion = (user?.region || (user as any)?.regionNombre || '').toLowerCase().trim();
+      const miBodegaId = String((user as any)?.bodegaId || '');
 
-      if (esAsistenteBodega && userRegion) {
-        this.bodegasDestinoDisponibles = this.bodegasDisponibles.filter(b => 
-          (b.region && b.region.toLowerCase().includes(userRegion))
-        );
-      } else {
-        this.bodegasDestinoDisponibles = this.bodegasDisponibles;
+      // Líder: solo agencias y pulidores de su región (no bodegas)
+      if (this.auth.isLiderOperador()) {
+        this.bodegasDestinoDisponibles = [];
+        return;
       }
+
+      let destinos = this.bodegasDisponibles.filter(b => String(b.id) !== miBodegaId);
+      if (esAsistenteBodega && userRegion) {
+        destinos = destinos.filter(b =>
+          !b.esCentral && (b.region && b.region.toLowerCase().includes(userRegion))
+        );
+      }
+      this.bodegasDestinoDisponibles = destinos;
     });
 
     this.inventarioService.getItems().subscribe(items => {
       this.insumosDisponibles = items || [];
+    });
+
+    const user = this.auth.getCurrentUser();
+    this.http.post<any[]>(apiUrl('/operaciones/servicios-especiales/pulidores'), {
+      regionId: user?.regionId || undefined
+    }).pipe(catchError(() => of([]))).subscribe((list) => {
+      this.pulidoresDisponibles = (list || []).map((p: any) => ({
+        id: String(p.id),
+        nombre: `${p.name || p.nombre || ''} ${p.lastname || p.apellido || ''}`.trim() || p.email || p.id,
+      }));
     });
   }
 
@@ -610,13 +733,19 @@ export class EnviosComponent implements OnInit {
 
   cargarEnvios(): void {
     const user = this.auth.getCurrentUser();
-    const rol = user?.role;
+    const rol = (user?.role || '').toUpperCase();
     const isLider = this.auth.isLiderOperador();
-    const verTodas = !isLider && (rol === 'SUPER_ADMIN' || rol === 'ADMIN' || rol === 'DISTRIBUIDOR' || rol === 'COORD_BODEGA' || rol === 'ASISTENTE_BODEGA' || (rol as any) === Role.COORD_BODEGA);
-    const payload = verTodas ? {} : { sucursalId: user?.agenciaId || user?.sucursalNombre || user?.sucursal };
+    const isPulidor = this.isPulidor;
+    const verTodas = !isLider && !isPulidor && (rol === 'SUPER_ADMIN' || rol === 'ADMIN' || rol === 'DISTRIBUIDOR' || rol === 'COORD_BODEGA' || rol === 'ASISTENTE_BODEGA' || (rol as any) === Role.COORD_BODEGA);
+    const payload = isPulidor
+      ? { pulidorId: user?.id }
+      : (verTodas ? {} : { sucursalId: user?.agenciaId || user?.sucursalNombre || user?.sucursal });
 
     this.http.post<any[]>(apiUrl('/inventario/despachos/list'), payload).pipe(
-      catchError(() => of([]))
+      catchError((err) => {
+        console.error('Error listando despachos:', err);
+        return of([]);
+      })
     ).subscribe(items => {
       this.envios = (items || []).map(m => this.mapBackendDespacho(m));
     });
@@ -664,7 +793,7 @@ export class EnviosComponent implements OnInit {
     const sucursalNombre = m.destinoUbicacion
       ?.replace(/Agencia\s*/i, '')
       ?.replace(/\[.*\]/, '')
-      ?.trim() || m.destinoUbicacion || 'Agencia Destino';
+      ?.trim() || m.destinoUbicacion || 'Destino';
 
     let motivoRechazo = m.motivoRechazo;
     if (!motivoRechazo && m.observaciones && m.observaciones.includes('RECHAZO:')) {
@@ -683,21 +812,28 @@ export class EnviosComponent implements OnInit {
       horaFin: horaFin,
       horaResolucion: horaRes,
       duracionMin: m.duracionMin || undefined,
-      sucursalId: m.destinoAgenciaId || m.destinoUbicacion,
+      sucursalId: m.destinoAgenciaId || m.destinoBodegaId || m.destinoPulidorId || m.destinoUbicacion,
       sucursalNombre,
-      ciudad: 'Ecuador',
+      ciudad: m.tipo === 'DESPACHO_BODEGA' ? 'Bodega' : (m.tipo === 'DESPACHO_PULIDOR' ? 'Pulidor' : 'Agencia'),
       productos: (m.detalles || []).map((d: any) => ({
+        id: d.id,
+        detalleId: d.id,
         productoId: d.insumoId,
         nombreProducto: d.insumo?.nombre || 'Insumo',
         cantidad: Number(d.cantidadEnviada || 0),
-        unidad: d.insumo?.unidadMedida?.simbolo || d.insumo?.unidadMedida?.nombre || d.insumo?.unidadMedida || 'Unidad'
+        unidad: 'und'
       })),
+      detalles: (m.detalles || []).map((d: any) => ({ id: d.id, detalleId: d.id, cantidadEnviada: d.cantidadEnviada })),
       responsableEnvio: userDesp,
       responsableRecepcion: userRec,
       estado,
       observaciones: m.observaciones,
-      motivoRechazo: motivoRechazo || undefined
-    };
+      motivoRechazo: motivoRechazo || undefined,
+      puedeConfirmar: !!m.puedeConfirmar,
+      tipoDespacho: m.tipo,
+      destinoPulidorId: m.destinoPulidorId,
+      usuarioRecibeId: m.usuarioRecibeId,
+    } as any;
   }
 
   get enviosFiltrados(): EnvioSuministro[] {
@@ -728,8 +864,19 @@ export class EnviosComponent implements OnInit {
         ) : false;
 
         matchPermisoRol = matchPropio || matchRegion || matchBodega;
+      } else if (!matchPermisoRol && this.isPulidor) {
+        // Pulidor: ve envíos asignados a su persona (recibidos o en tránsito)
+        const destPulId = (env as any).destinoPulidorId || (env as any).usuarioRecibeId;
+        const matchId = Boolean(user?.id && destPulId && String(destPulId) === String(user.id));
+        const matchNombre = Boolean(
+          user?.nombre && env.responsableRecepcion && env.responsableRecepcion.toLowerCase().includes(user.nombre.toLowerCase())
+        );
+        const matchSucursal = Boolean(
+          user?.nombre && env.sucursalNombre && env.sucursalNombre.toLowerCase().includes(user.nombre.toLowerCase())
+        );
+        matchPermisoRol = matchId || matchNombre || matchSucursal;
       } else if (!matchPermisoRol) {
-        // Líder de Agencia / Operador: solo recepciones de su sede
+        // Líder Operador: solo recepciones / despachos de su sede y región
         matchPermisoRol = Boolean(
           (user?.agenciaId && String(env.sucursalId) === String(user.agenciaId)) ||
           (userSucursal && (env.sucursalNombre.toLowerCase().includes(userSucursal) || userSucursal.includes(env.sucursalNombre.toLowerCase())))
@@ -757,6 +904,13 @@ export class EnviosComponent implements OnInit {
   }
 
   abrirModalCrearEnvio(): void {
+    if (!this.puedeDespachar) {
+      this.toastService.warning(
+        'Sin permiso',
+        'Admin / Super Admin no pueden generar envíos. Solo coordinadores, asistentes de bodega o líderes.'
+      );
+      return;
+    }
     const primeraSuc = this.sucursalesDisponibles[0];
     const primerIns = this.insumosDisponibles[0];
     this.nuevoEnvioForm = {
@@ -771,13 +925,20 @@ export class EnviosComponent implements OnInit {
   }
 
   onSucursalChange(id: any): void {
-    const suc = this.sucursalesDisponibles.find(s => String(s.id) === String(id));
+    const raw = String(id || '');
+    const cleanId = raw.replace(/^(AG:|BOD:|PUL:)/, '');
+    const suc = this.sucursalesDisponibles.find(s => String(s.id) === cleanId);
     if (suc) {
       this.nuevoEnvioForm.sucursalNombre = suc.nombre;
-    } else {
-      const bod = this.bodegasDestinoDisponibles.find(b => String(b.id) === String(id));
-      if (bod) this.nuevoEnvioForm.sucursalNombre = bod.nombre;
+      return;
     }
+    const bod = this.bodegasDestinoDisponibles.find(b => String(b.id) === cleanId);
+    if (bod) {
+      this.nuevoEnvioForm.sucursalNombre = bod.nombre;
+      return;
+    }
+    const pul = this.pulidoresDisponibles.find(p => String(p.id) === cleanId);
+    if (pul) this.nuevoEnvioForm.sucursalNombre = pul.nombre;
   }
 
   onInsumoChange(id: any): void {
@@ -785,9 +946,24 @@ export class EnviosComponent implements OnInit {
     if (ins) this.nuevoEnvioForm.insumoNombre = ins.producto.nombre;
   }
 
+  /** Stock disponible del ítem en unidades (envases), no volumen. */
+  stockEnUnidadesItem(ins: InventarioItem): number {
+    const cNeto = Number(ins?.producto?.contenidoNeto) || 1;
+    const stockBase = Number(ins?.stockBodegaCentral ?? ins?.stockTotalRed ?? 0);
+    if (cNeto <= 0) return stockBase;
+    return Math.floor(stockBase / cNeto + 1e-9);
+  }
+
   guardarNuevoEnvio(): void {
+    if (!this.puedeDespachar) {
+      this.toastService.warning(
+        'Sin permiso',
+        'Admin / Super Admin no pueden generar envíos.'
+      );
+      return;
+    }
     if (!this.nuevoEnvioForm.sucursalId) {
-      this.toastService.warning('Destino requerido', 'Seleccione la agencia o bodega destino.');
+      this.toastService.warning('Destino requerido', 'Seleccione la agencia, bodega o pulidor destino.');
       return;
     }
     if (!this.nuevoEnvioForm.insumoId) {
@@ -795,89 +971,117 @@ export class EnviosComponent implements OnInit {
       return;
     }
 
-    const origenLabel = this.isAsistenteBodega
-      ? `Bodega Regional ${this.miRegionNombre || this.miBodegaNombre}`
-      : 'Bodega Central Nacional';
+    const cantRaw = Number(this.nuevoEnvioForm.cantidad);
+    if (!Number.isFinite(cantRaw) || cantRaw <= 0) {
+      this.toastService.warning('Cantidad inválida', 'La cantidad debe ser mayor a 0.');
+      return;
+    }
+    if (Math.abs(cantRaw - Math.round(cantRaw)) > 1e-9) {
+      this.toastService.warning('Cantidad inválida', 'Solo se permiten unidades completas (números enteros).');
+      return;
+    }
+    const unidades = Math.round(cantRaw);
 
-    const payload = {
-      tipo: 'DESPACHO_AGENCIA',
-      agenciaId: String(this.nuevoEnvioForm.sucursalId),
-      sucursalDestinoId: String(this.nuevoEnvioForm.sucursalId),
-      agenciaDestinoId: String(this.nuevoEnvioForm.sucursalId),
+    const rawDestino = String(this.nuevoEnvioForm.sucursalId);
+    const esBodega = rawDestino.startsWith('BOD:');
+    const esPulidor = rawDestino.startsWith('PUL:');
+    const destinoId = rawDestino.replace(/^(AG:|BOD:|PUL:)/, '');
+
+    const origenLabel = this.isLiderOperador
+      ? `Sucursal ${this.liderSucursalNombre}`
+      : this.isAsistenteBodega
+        ? `Bodega Regional ${this.miRegionNombre || this.miBodegaNombre}`
+        : (this.miBodegaNombre || 'Bodega Central Nacional');
+
+    const payload: any = {
+      tipo: esPulidor ? 'DESPACHO_PULIDOR' : (esBodega ? 'DESPACHO_BODEGA' : 'DESPACHO_AGENCIA'),
       origenUbicacion: origenLabel,
       observaciones: this.nuevoEnvioForm.observacion || `Despacho desde ${origenLabel}`,
       detalles: [
         {
           insumoId: String(this.nuevoEnvioForm.insumoId),
-          cantidadEnviada: Number(this.nuevoEnvioForm.cantidad) || 1
+          cantidadEnviada: unidades
         }
       ]
     };
 
+    if (esPulidor) {
+      payload.pulidorDestinoId = destinoId;
+      payload.destinoPulidorId = destinoId;
+    } else if (esBodega) {
+      payload.destinoBodegaId = destinoId;
+    } else {
+      payload.agenciaId = destinoId;
+      payload.sucursalDestinoId = destinoId;
+      payload.agenciaDestinoId = destinoId;
+    }
+
     this.http.post<any>(apiUrl('/inventario/despachos/crear'), payload).pipe(
       catchError(err => {
-        console.warn('Error al persistir despacho en backend, registrando en memoria:', err);
-        const nextId = 'ENV-' + Date.now().toString().slice(-4);
-        const user = this.auth.getCurrentUser();
-        const nuevo: EnvioSuministro = {
-          id: nextId,
-          codigoEnvio: nextId,
-          fecha: new Date().toISOString().split('T')[0],
-          fechaEnvio: `${new Date().toISOString().split('T')[0]} ${new Date().toLocaleTimeString().substring(0, 5)}`,
-          horaInicio: new Date().toLocaleTimeString().substring(0, 5),
-          sucursalId: this.nuevoEnvioForm.sucursalId,
-          sucursalNombre: this.nuevoEnvioForm.sucursalNombre || 'Agencia Destino',
-          ciudad: 'Ecuador',
-          productos: [
-            {
-              productoId: this.nuevoEnvioForm.insumoId,
-              nombreProducto: this.nuevoEnvioForm.insumoNombre || 'Insumo',
-              cantidad: this.nuevoEnvioForm.cantidad,
-              unidad: 'Unidad'
-            }
-          ],
-          responsableEnvio: `${user?.nombre || 'Distribuidor'} ${user?.apellido || 'Central'}`.trim(),
-          estado: 'ENVIADO',
-          observaciones: this.nuevoEnvioForm.observacion
-        };
-        this.envios.unshift(nuevo);
-        return of(nuevo);
+        this.toastService.error(
+          'Error al despachar',
+          err?.error?.message || 'No se pudo registrar el envío'
+        );
+        return of(null);
       })
-    ).subscribe(() => {
+    ).subscribe((res) => {
+      if (!res) return;
       this.modalCrearEnvioOpen = false;
       this.toastService.success(
         'Envío Despachado',
-        `Envío en tránsito hacia ${this.nuevoEnvioForm.sucursalNombre || 'agencia'}.`
+        `Envío en tránsito hacia ${this.nuevoEnvioForm.sucursalNombre || 'destino'}. Stock reservado (${unidades} und) hasta confirmación.`
       );
       this.cargarEnvios();
     });
   }
 
-  confirmarRecepcionEnvio(env: EnvioSuministro): void {
+  abrirModalConfirmacion(env: EnvioSuministro): void {
+    this.envioSeleccionadoConfirmacion = env;
+    this.observacionRecepcion = '';
+    this.cantidadesRecepcion = (env.productos || []).map((p) => Number(p.cantidad) || 0);
+    this.modalConfirmacionOpen = true;
+  }
+
+  ejecutarConfirmacionRecepcion(): void {
+    const env = this.envioSeleccionadoConfirmacion;
+    if (!env) return;
+    if (this.esRecepcionParcial && !this.observacionRecepcion.trim()) {
+      this.toastService.warning('Observación requerida', 'En recepción parcial debes explicar la diferencia.');
+      return;
+    }
+
     const user = this.auth.getCurrentUser();
     const agenciaId = env.sucursalId || user?.agenciaId || user?.sucursalNombre || user?.sucursal || '';
+    const cantidadesRecibidas = (env.productos || []).map((p: any, i) => ({
+      detalleId: String(p.detalleId || p.id || ''),
+      cantidadRecibida: Number(this.cantidadesRecepcion[i] ?? p.cantidad) || 0,
+    })).filter((c) => c.detalleId);
 
-    this.http.post<any>(apiUrl('/inventario/despachos/confirmar-recepcion'), {
+    for (const c of cantidadesRecibidas) {
+      if (Math.abs(c.cantidadRecibida - Math.round(c.cantidadRecibida)) > 1e-9) {
+        this.toastService.warning('Cantidad inválida', 'La recepción debe ser en unidades completas (enteros).');
+        return;
+      }
+      c.cantidadRecibida = Math.round(c.cantidadRecibida);
+    }
+
+    const body: any = {
       movimientoId: String(env.id),
       agenciaId: String(agenciaId),
       sucursalId: String(agenciaId),
-      accion: 'RECIBIDO'
-    }).subscribe({
-      next: () => {
-        const ahora = new Date();
-        const fechaStr = ahora.toISOString().split('T')[0];
-        const horaStr = `${String(ahora.getHours()).padStart(2, '0')}:${String(ahora.getMinutes()).padStart(2, '0')}`;
-        env.estado = 'RECIBIDO';
-        env.fechaRecepcion = fechaStr;
-        env.horaFin = horaStr;
-        env.fechaResolucion = fechaStr;
-        env.horaResolucion = horaStr;
-        env.responsableRecepcion = `${user?.nombre || 'Líder'} ${user?.apellido || 'Operador'} (Receptor)`.trim();
-        env.duracionMin = 120;
+      accion: 'RECIBIDO',
+      observaciones: this.observacionRecepcion.trim() || undefined,
+    };
+    if (cantidadesRecibidas.length > 0) {
+      body.cantidadesRecibidas = cantidadesRecibidas;
+    }
 
+    this.http.post<any>(apiUrl('/inventario/despachos/confirmar-recepcion'), body).subscribe({
+      next: () => {
+        this.modalConfirmacionOpen = false;
         this.toastService.success(
           'Recepción Confirmada',
-          `El envío ${env.codigoEnvio} fue recibido e ingresado al stock de ${env.sucursalNombre}.`
+          `El envío ${env.codigoEnvio} ingresó al stock de ${env.sucursalNombre}.`
         );
         this.cargarEnvios();
       },
@@ -886,6 +1090,10 @@ export class EnviosComponent implements OnInit {
         this.toastService.error('Error al Confirmar', msg);
       }
     });
+  }
+
+  confirmarRecepcionEnvio(env: EnvioSuministro): void {
+    this.abrirModalConfirmacion(env);
   }
 
   abrirModalRechazo(env: EnvioSuministro): void {
@@ -921,7 +1129,7 @@ export class EnviosComponent implements OnInit {
 
         this.toastService.warning(
           'Envío Rechazado',
-          `Se registró disconformidad para ${env.codigoEnvio}: ${motivo}. El stock fue retornado a Bodega Central.`
+          `Se registró disconformidad para ${env.codigoEnvio}: ${motivo}. Se liberó la reserva en el origen.`
         );
         this.cargarEnvios();
       },

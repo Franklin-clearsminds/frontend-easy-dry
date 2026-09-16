@@ -1,8 +1,12 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { HttpClient } from '@angular/common/http';
 import { LucideAngularModule } from 'lucide-angular';
+import { of } from 'rxjs';
+import { catchError } from 'rxjs/operators';
 import { ModalComponent } from '../../shared/components/modal/modal.component';
+import { ModalPortalDirective } from '../../shared/directives/modal-portal.directive';
 import { InventarioService } from '../../core/services/inventario.service';
 import { AuthService } from '../../core/services/auth.service';
 import { SucursalService } from '../../core/services/sucursal.service';
@@ -20,11 +24,12 @@ import {
   DashboardInventarioResumen,
   BodegaInventario,
 } from '../../core/models/inventario.model';
+import { apiUrl } from '../../core/config/env';
 
 @Component({
   selector: 'app-inventario',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent],
+  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, ModalPortalDirective],
   template: `
     <div class="space-y-6 animate-fade-in pb-16">
 
@@ -47,24 +52,19 @@ import {
           <!-- Acciones Rápidas -->
           <div class="flex items-center gap-2 flex-wrap">
             <button
-              (click)="abrirModalDespachoAgencia()"
+              *ngIf="puedeGenerarDespacho || puedeDespacharABodega"
+              (click)="abrirModalDespacho()"
               class="px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer">
               <i-lucide name="truck" class="w-4 h-4"></i-lucide>
-              <span>Despachar a Agencia</span>
+              <span>Despachar</span>
             </button>
 
             <button
+              *ngIf="puedeRegistrarIngreso"
               (click)="abrirModalEntrada()"
               class="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer">
               <i-lucide name="plus-circle" class="w-4 h-4"></i-lucide>
               <span>Registrar Entrada</span>
-            </button>
-
-            <button
-              (click)="abrirModalConsumo()"
-              class="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer">
-              <i-lucide name="droplet" class="w-4 h-4"></i-lucide>
-              <span>Registrar Consumo</span>
             </button>
 
             <button
@@ -77,33 +77,74 @@ import {
           </div>
         </div>
 
-        <!-- Barra de Submenús Principales -->
+        <!-- Barra de Submenús Principales (orden por prioridad operativa) -->
         <div class="flex items-center gap-2 sm:gap-4 mt-5 pt-3 border-t border-slate-100 overflow-x-auto">
-          <!-- 1. Insumos de mi Sede / Insumos por Servicios (Visible Operador y Admin) -->
+          <!-- 1. Dashboard — panorama general -->
+          <button
+            *ngIf="!isOperador"
+            (click)="activeTab = 'dashboard'"
+            class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+            [ngClass]="activeTab === 'dashboard' ? 'bg-blue-50 text-easydry-blue' : 'text-slate-600 hover:bg-slate-50'">
+            <i-lucide name="layout-dashboard" class="w-4 h-4"></i-lucide>
+            <span>Dashboard</span>
+          </button>
+
+          <!-- 2. Bodegas — CENTRAL / REGIONAL -->
+          <button
+            *ngIf="!isOperador"
+            (click)="activeTab = 'bodegas'"
+            class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+            [ngClass]="activeTab === 'bodegas' ? 'bg-blue-50 text-easydry-blue' : 'text-slate-600 hover:bg-slate-50'">
+            <i-lucide name="warehouse" class="w-4 h-4"></i-lucide>
+            <span>Bodegas</span>
+          </button>
+
+          <!-- 3. Productos — catálogo de insumos -->
+          <button
+            *ngIf="!isOperador"
+            (click)="activeTab = 'productos'"
+            class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+            [ngClass]="activeTab === 'productos' ? 'bg-blue-50 text-easydry-blue' : 'text-slate-600 hover:bg-slate-50'">
+            <i-lucide name="package" class="w-4 h-4"></i-lucide>
+            <span>Productos</span>
+            <span class="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-200 text-slate-700 ml-1">{{ productos.length }}</span>
+          </button>
+
+          <!-- 4. Movimientos (Kardex) — compras y despachos -->
+          <button
+            *ngIf="!isOperador"
+            (click)="activeTab = 'movimientos'"
+            class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+            [ngClass]="activeTab === 'movimientos' ? 'bg-blue-50 text-easydry-blue' : 'text-slate-600 hover:bg-slate-50'">
+            <i-lucide name="refresh-cw" class="w-4 h-4"></i-lucide>
+            <span>Movimientos (Kardex)</span>
+          </button>
+
+          <!-- 5. Insumos por Servicios / de mi Sede — operación diaria -->
           <button
             (click)="activeTab = 'insumos_servicios'"
             class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
             [ngClass]="activeTab === 'insumos_servicios' ? 'bg-teal-50 text-teal-700 font-extrabold border border-teal-200' : 'text-slate-600 hover:bg-slate-50'">
             <i-lucide name="layout-list" class="w-4 h-4 text-teal-600"></i-lucide>
-            <span>{{ isOperador ? 'Insumos de mi Sede' : 'Insumos por Servicios' }}</span>
+            <span>{{ isPulidor ? (isPulidorFijo ? 'Insumos de mi kit (Pulidor Fijo)' : 'Insumos de mis servicios (Pulidor Móvil)') : (isOperador ? 'Insumos de mi Sede' : 'Insumos por Servicios') }}</span>
             <span *ngIf="resumenInsumosServicios?.totalAlertas > 0" class="px-1.5 py-0.2 rounded-full text-[10px] bg-rose-500 text-white ml-1">
               {{ resumenInsumosServicios.totalAlertas }}
             </span>
           </button>
 
-          <!-- 2. Stock Bajo (Visible Operador y Admin) -->
+          <!-- 6. Stock Bajo — alertas -->
           <button
             (click)="activeTab = 'stock_bajo'"
             class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
             [ngClass]="activeTab === 'stock_bajo' ? 'bg-rose-50 text-rose-700 font-extrabold border border-rose-200' : 'text-slate-600 hover:bg-slate-50'">
             <i-lucide name="alert-triangle" class="w-4 h-4"></i-lucide>
             <span>Stock Bajo</span>
-            <span *ngIf="(alertasStockList.length > 0 ? alertasStockList.length : resumenDashboard.productosStockBajo) > 0" class="px-1.5 py-0.2 rounded-full text-[10px] bg-rose-500 text-white ml-1">
-              {{ alertasStockList.length > 0 ? alertasStockList.length : resumenDashboard.productosStockBajo }}
+            <span *ngIf="contadorBadgeStockBajo > 0" class="px-1.5 py-0.2 rounded-full text-[10px] bg-rose-500 text-white ml-1">
+              {{ contadorBadgeStockBajo }}
             </span>
           </button>
 
-          <!-- 3. Otras Agencias (Visible Operador y Admin: permite al operador despachar a otras agencias) -->
+          <!-- 7. Otras Agencias — stock / despacho entre sedes -->
           <button
             (click)="activeTab = 'agencias'"
             class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
@@ -115,48 +156,7 @@ import {
             </span>
           </button>
 
-          <!-- 4. Dashboard (Solo Super Admin / Admin) -->
-          <button
-            *ngIf="!isOperador"
-            (click)="activeTab = 'dashboard'"
-            class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
-            [ngClass]="activeTab === 'dashboard' ? 'bg-blue-50 text-easydry-blue' : 'text-slate-600 hover:bg-slate-50'">
-            <i-lucide name="layout-dashboard" class="w-4 h-4"></i-lucide>
-            <span>Dashboard</span>
-          </button>
-
-          <!-- 5. Productos (Solo Super Admin / Admin) -->
-          <button
-            *ngIf="!isOperador"
-            (click)="activeTab = 'productos'"
-            class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
-            [ngClass]="activeTab === 'productos' ? 'bg-blue-50 text-easydry-blue' : 'text-slate-600 hover:bg-slate-50'">
-            <i-lucide name="package" class="w-4 h-4"></i-lucide>
-            <span>Productos</span>
-            <span class="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-200 text-slate-700 ml-1">{{ productos.length }}</span>
-          </button>
-
-          <!-- 6. Bodegas (Solo Super Admin / Admin) -->
-          <button
-            *ngIf="!isOperador"
-            (click)="activeTab = 'bodegas'"
-            class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
-            [ngClass]="activeTab === 'bodegas' ? 'bg-blue-50 text-easydry-blue' : 'text-slate-600 hover:bg-slate-50'">
-            <i-lucide name="warehouse" class="w-4 h-4"></i-lucide>
-            <span>Bodegas</span>
-          </button>
-
-          <!-- 7. Movimientos Kardex (Solo Super Admin / Admin) -->
-          <button
-            *ngIf="!isOperador"
-            (click)="activeTab = 'movimientos'"
-            class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
-            [ngClass]="activeTab === 'movimientos' ? 'bg-blue-50 text-easydry-blue' : 'text-slate-600 hover:bg-slate-50'">
-            <i-lucide name="refresh-cw" class="w-4 h-4"></i-lucide>
-            <span>Movimientos (Kardex)</span>
-          </button>
-
-          <!-- 8. Configuración (Solo Super Admin / Admin) -->
+          <!-- 8. Configuración — al final -->
           <button
             *ngIf="!isOperador"
             (click)="activeTab = 'configuracion'"
@@ -179,22 +179,27 @@ import {
             <div>
               <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-teal-50 border border-teal-200 text-teal-800 text-xs font-bold mb-2">
                 <i-lucide name="store" class="w-3.5 h-3.5 text-teal-600"></i-lucide>
-                <span>Sede: {{ infoAgenciaInsumos?.nombre || miAgenciaNombre }}</span>
+                <span>{{ isPulidor ? (isPulidorFijo ? ('Pulidor Fijo · ' + (infoAgenciaInsumos?.nombre || miAgenciaNombre || 'Sucursal')) : (infoAgenciaInsumos?.nombre || 'Kit móvil')) : ('Sede: ' + (infoAgenciaInsumos?.nombre || miAgenciaNombre)) }}</span>
                 <span class="text-teal-400">•</span>
-                <span class="text-teal-700 font-normal">Recetas de Servicios Autorizados</span>
+                <span class="text-teal-700 font-normal">{{ isPulidor ? (isPulidorFijo ? 'Servicios de Pulido de Sucursal' : 'Servicios asignados al pulidor') : 'Recetas de Servicios Autorizados' }}</span>
               </div>
               <h2 class="text-xl font-black text-slate-900 font-outfit">
-                {{ isLiderOperador ? 'Insumos de mi Sede Requeridos por Servicios' : 'Insumos Requeridos por Servicios de Sede' }}
+                {{ isPulidor
+                  ? (isPulidorFijo ? 'Insumos y químicos de mi kit asignado a sucursal' : 'Insumos de mi kit según servicios asignados')
+                  : (isLiderOperador ? 'Insumos de mi Sede Requeridos por Servicios' : 'Insumos Requeridos por Servicios de Sede') }}
               </h2>
               <p class="text-slate-500 text-xs mt-1 max-w-3xl">
-                Control de insumos indispensables según las recetas de cada servicio de lavado.
-                El stock se descuenta automáticamente con cada Orden de Trabajo (OT) creada, alertando de niveles críticos antes de que afecten la operación.
+                {{ isPulidor
+                  ? (isPulidorFijo
+                      ? 'Control y existencias de los insumos en tu custodia para los servicios especiales de tu sucursal. Tu inventario se descuenta automáticamente con cada servicio atendido.'
+                      : 'Muestra los insumos que necesitas según los servicios especiales que te asignaron. El stock refleja tu kit personal.')
+                  : 'Control de insumos indispensables según las recetas de cada servicio de lavado. El stock se descuenta automáticamente con cada Orden de Trabajo (OT) creada, alertando de niveles críticos antes de que afecten la operación.' }}
               </p>
             </div>
 
             <div class="flex items-center gap-2.5 flex-wrap">
               <!-- Selector de Sede para Insumos por Servicios -->
-              <div *ngIf="sucursalesActivas.length > 0" class="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl shadow-2xs">
+              <div *ngIf="sucursalesActivas.length > 0 && !isPulidor" class="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl shadow-2xs">
                 <i-lucide name="store" class="w-3.5 h-3.5 text-teal-600"></i-lucide>
                 <label class="text-[11px] font-bold text-slate-600 whitespace-nowrap">Sede:</label>
                 <select
@@ -271,7 +276,7 @@ import {
                 <span class="text-[10px] font-bold text-slate-400 uppercase">Insumos y Cantidades Despachadas:</span>
                 <div class="flex flex-wrap gap-1">
                   <div *ngFor="let det of rech.detalles" class="px-2 py-1 bg-slate-100 rounded-lg text-slate-800 font-semibold text-[11px] border border-slate-200">
-                    <span class="font-mono text-rose-700 font-black">{{ det.cantidadEnviada }} {{ det.insumo?.unidadMedida?.simbolo || 'u' }}</span> - {{ det.insumo?.nombre }}
+                    <span class="font-mono text-rose-700 font-black">{{ det.cantidadEnviada }} und</span> - {{ det.insumo?.nombre }}
                   </div>
                 </div>
               </div>
@@ -343,7 +348,7 @@ import {
                       <span class="text-[10px] font-mono text-slate-400">{{ det.insumo?.codigoSKU }}</span>
                     </div>
                     <span class="px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 font-mono font-extrabold text-xs shrink-0">
-                      {{ det.cantidadEnviada }} {{ det.insumo?.unidadMedida?.simbolo || 'u' }}
+                      {{ det.cantidadEnviada }} und
                     </span>
                   </div>
                 </div>
@@ -470,6 +475,7 @@ import {
               <option value="BAJO">Bajo Mínimo</option>
               <option value="CRITICO">Crítico</option>
               <option value="AGOTADO">Agotado</option>
+              <option value="NO_NECESARIO">No necesario</option>
             </select>
           </div>
 
@@ -478,104 +484,129 @@ import {
           </div>
         </div>
 
-        <!-- Tabla Detallada de Insumos x Servicios de la Sede -->
+        <!-- Tabla estilo Productos (alcance: solo insumos de la sede / servicios) -->
         <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry overflow-hidden">
           <div class="overflow-x-auto">
             <table class="w-full text-left text-xs text-slate-600">
               <thead class="bg-slate-50 text-slate-400 text-[10px] font-bold uppercase tracking-wider">
                 <tr>
-                  <th class="p-3.5">Insumo / SKU</th>
-                  <th class="p-3.5">Servicios que lo Utilizan (Recetas)</th>
-                  <th class="p-3.5">Stock en Sede</th>
-                  <th class="p-3.5">Stock Mínimo</th>
-                  <th class="p-3.5">Capacidad de Lavados</th>
+                  <th class="p-3.5">Código SKU</th>
+                  <th class="p-3.5">Producto</th>
+                  <th class="p-3.5">Tipo</th>
+                  <th class="p-3.5">Contenido x Envase</th>
+                  <th class="p-3.5">Stock en Unidades</th>
+                  <th class="p-3.5">Stock Contenido Total</th>
+                  <th class="p-3.5">Stock Mín. Agencia</th>
+                  <th class="p-3.5">Alerta de Stock</th>
                   <th class="p-3.5">Estado</th>
                   <th class="p-3.5 text-right">Acciones</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-slate-100">
                 <tr *ngIf="cargandoInsumosServicios">
-                  <td colspan="7" class="p-8 text-center text-slate-400">
+                  <td colspan="10" class="p-8 text-center text-slate-400">
                     <i-lucide name="refresh-cw" class="w-5 h-5 mx-auto animate-spin text-teal-600 mb-2"></i-lucide>
-                    <span>Cargando insumos requeridos por servicios de la sede...</span>
+                    <span>Cargando insumos de la sede...</span>
                   </td>
                 </tr>
 
                 <tr *ngIf="!cargandoInsumosServicios && insumosServiciosFiltrados.length === 0">
-                  <td colspan="7" class="p-8 text-center text-slate-400">
-                    No se encontraron insumos que coincidan con el filtro seleccionado.
+                  <td colspan="10" class="p-8 text-center text-slate-400">
+                    No se encontraron insumos de servicios asignados a esta sede.
                   </td>
                 </tr>
 
                 <tr *ngFor="let item of insumosServiciosFiltrados" class="hover:bg-slate-50/60 transition">
-                  <!-- Col 1: Insumo y SKU -->
+                  <td class="p-3.5 font-mono font-bold text-slate-800">{{ item.codigoSKU }}</td>
                   <td class="p-3.5">
-                    <div class="font-bold text-slate-900">{{ item.nombre }}</div>
-                    <div class="flex items-center gap-1.5 mt-0.5">
-                      <span class="font-mono text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.2 rounded">{{ item.codigoSKU }}</span>
-                      <span *ngIf="item.categoria" class="text-[10px] text-slate-400">• {{ item.categoria }}</span>
+                    <div>
+                      <span class="font-bold text-slate-900 block">{{ item.nombre }}</span>
+                      <span class="text-[10px] text-slate-400 line-clamp-1">{{ item.descripcion || 'Sin descripción' }}</span>
+                      <div *ngIf="item.serviciosQueLoUsan?.length && item.estado !== 'NO_NECESARIO'" class="flex flex-wrap gap-1 mt-1.5">
+                        <span *ngFor="let s of item.serviciosQueLoUsan" class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-50 text-easydry-blue border border-blue-200">
+                          <i-lucide name="sparkles" class="w-2.5 h-2.5"></i-lucide>
+                          <span>{{ s.nombre }}</span>
+                          <span *ngIf="s.cantidadPorServicio" class="font-mono">({{ s.cantidadPorServicio }} {{ s.unidad || item.unidadMedida }})</span>
+                        </span>
+                      </div>
+                      <div *ngIf="item.estado === 'NO_NECESARIO'" class="mt-1.5">
+                        <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                          Sin servicio de la sede que lo requiera
+                        </span>
+                      </div>
                     </div>
                   </td>
-
-                  <!-- Col 2: Servicios Asociados -->
-                  <td class="p-3.5 max-w-xs">
-                    <div class="flex flex-wrap gap-1">
-                      <span
-                        *ngFor="let s of item.serviciosQueLoUsan"
-                        class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-blue-50 text-blue-800 border border-blue-100">
-                        <span>{{ s.nombre }}</span>
-                        <span class="font-mono text-blue-600 font-bold">({{ s.cantidadPorServicio }} {{ item.unidadMedida }})</span>
-                      </span>
-                    </div>
+                  <td class="p-3.5 whitespace-nowrap">
+                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-easydry-blue border border-blue-100">
+                      {{ item.tipoProducto || item.categoria || 'General' }}
+                    </span>
                   </td>
-
-                  <!-- Col 3: Stock en Sede -->
+                  <td class="p-3.5 font-mono font-bold text-slate-700 whitespace-nowrap">
+                    {{ (item.contenidoNeto || 1) | number:'1.0-2' }} {{ item.unidadMedida }}
+                  </td>
+                  <td class="p-3.5 whitespace-nowrap">
+                    <span class="px-2.5 py-1 rounded-md font-mono font-bold text-xs bg-indigo-50 text-indigo-700 border border-indigo-200 inline-block">
+                      {{ getStockEnUnidades(item.stockActual, item.contenidoNeto) | number:'1.0-2' }} und
+                    </span>
+                  </td>
                   <td class="p-3.5 whitespace-nowrap">
                     <span
                       class="px-2.5 py-1 rounded-md font-mono font-bold text-xs inline-block"
                       [ngClass]="{
                         'bg-rose-100 text-rose-800 border border-rose-200': item.estado === 'AGOTADO' || item.estado === 'CRITICO',
                         'bg-amber-100 text-amber-800 border border-amber-200': item.estado === 'BAJO',
-                        'bg-emerald-100 text-emerald-800 border border-emerald-200': item.estado === 'OPTIMO'
+                        'bg-emerald-100 text-emerald-800 border border-emerald-200': item.estado === 'OPTIMO',
+                        'bg-slate-100 text-slate-600 border border-slate-200': item.estado === 'NO_NECESARIO'
                       }">
                       {{ item.stockActual | number:'1.0-2' }} {{ item.unidadMedida }}
                     </span>
                   </td>
-
-                  <!-- Col 4: Stock Mínimo -->
-                  <td class="p-3.5 font-mono text-slate-600 whitespace-nowrap">
-                    <b>{{ item.stockMinimo | number:'1.0-2' }} {{ item.unidadMedida }}</b>
+                  <td class="p-3.5 text-slate-600 font-mono whitespace-nowrap">
+                    <b>{{ getStockEnUnidades(item.stockMinimoAgencia || item.stockMinimo, item.contenidoNeto) | number:'1.0-2' }} und</b>
+                    <span class="text-[10px] text-slate-400 block">({{ (item.stockMinimoAgencia || item.stockMinimo || 0) | number:'1.0-2' }} {{ item.unidadMedida }})</span>
                   </td>
-
-                  <!-- Col 5: Capacidad Estimada de Lavados -->
-                  <td class="p-3.5 whitespace-nowrap">
-                    <div class="flex items-center gap-1.5">
-                      <i-lucide name="car" class="w-3.5 h-3.5 text-slate-400"></i-lucide>
-                      <span
-                        class="font-mono font-bold text-xs"
-                        [ngClass]="item.capacidadServiciosRestantes <= 0 ? 'text-rose-600' : (item.capacidadServiciosRestantes < 10 ? 'text-amber-600' : 'text-slate-800')">
-                        {{ item.capacidadServiciosRestantes > 0 ? (item.capacidadServiciosRestantes + ' lavados') : 'Sin capacidad' }}
-                      </span>
-                    </div>
-                  </td>
-
-                  <!-- Col 6: Estado con Pill -->
                   <td class="p-3.5 whitespace-nowrap">
                     <span
-                      class="px-2.5 py-0.5 rounded-full text-[10px] font-bold inline-flex items-center gap-1"
+                      class="px-2.5 py-1 rounded-full text-[11px] font-bold inline-flex items-center gap-1"
                       [ngClass]="{
                         'bg-rose-100 text-rose-800': item.estado === 'AGOTADO' || item.estado === 'CRITICO',
                         'bg-amber-100 text-amber-800': item.estado === 'BAJO',
-                        'bg-emerald-100 text-emerald-800': item.estado === 'OPTIMO'
-                      }">
-                      <i-lucide [name]="item.estado === 'OPTIMO' ? 'check-circle' : (item.estado === 'AGOTADO' ? 'x-circle' : 'alert-triangle')" class="w-3 h-3"></i-lucide>
-                      <span>{{ item.estado }}</span>
+                        'bg-emerald-100 text-emerald-800': item.estado === 'OPTIMO',
+                        'bg-slate-100 text-slate-600': item.estado === 'NO_NECESARIO'
+                      }"
+                      [title]="item.mensajeAlerta || ''">
+                      <i-lucide
+                        [name]="item.estado === 'NO_NECESARIO' ? 'minus-circle' : (item.estado === 'OPTIMO' ? 'check-circle' : (item.estado === 'AGOTADO' ? 'x-circle' : 'alert-triangle'))"
+                        class="w-3.5 h-3.5"></i-lucide>
+                      <span>{{ getLabelEstadoInsumoServicio(item.estado) }}</span>
                     </span>
                   </td>
-
-                  <!-- Col 7: Acciones -->
-                  <td class="p-3.5 text-right whitespace-nowrap">
+                  <td class="p-3.5 whitespace-nowrap">
+                    <span
+                      class="px-2 py-0.5 rounded-full text-[10px] font-bold"
+                      [ngClass]="item.activo !== false ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'">
+                      {{ item.activo !== false ? 'Activo' : 'Inactivo' }}
+                    </span>
+                  </td>
+                  <td class="p-3.5 text-right space-x-1 whitespace-nowrap">
                     <button
+                      *ngIf="(isLiderOperador || esSuperAdmin) && puedeGenerarDespacho && item.estado !== 'NO_NECESARIO'"
+                      (click)="abrirModalDespachoAgencia(undefined, item)"
+                      title="Despachar a otra agencia o pulidor"
+                      class="px-2.5 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-800 text-[11px] font-bold transition cursor-pointer inline-flex items-center gap-1 border border-purple-200">
+                      <i-lucide name="send" class="w-3 h-3"></i-lucide>
+                      <span>Despachar</span>
+                    </button>
+                    <button
+                      *ngIf="(isLiderOperador || esSuperAdmin) && puedeGenerarDespacho && item.estado === 'NO_NECESARIO' && item.stockActual > 0"
+                      (click)="abrirModalDespachoAgencia(undefined, item)"
+                      title="Reubicar stock no requerido por servicios"
+                      class="px-2.5 py-1 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-700 text-[11px] font-bold transition cursor-pointer inline-flex items-center gap-1 border border-slate-200">
+                      <i-lucide name="send" class="w-3 h-3"></i-lucide>
+                      <span>Reubicar</span>
+                    </button>
+                    <button
+                      *ngIf="item.estado !== 'NO_NECESARIO'"
                       (click)="solicitarReabastecimiento(item)"
                       class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold transition cursor-pointer inline-flex items-center gap-1">
                       <i-lucide name="truck" class="w-3 h-3 text-slate-500"></i-lucide>
@@ -674,20 +705,20 @@ import {
                 <tr *ngFor="let m of resumenDashboard.ultimosMovimientos" class="hover:bg-slate-50/50">
                   <td class="p-3 text-slate-500 whitespace-nowrap">{{ m.fechaMovimiento | date:'short' }}</td>
                   <td class="p-3 font-mono font-bold text-slate-700">{{ m.numeroComprobante }}</td>
-                  <td class="p-3 font-bold text-slate-800">{{ m.insumo.nombre }}</td>
+                  <td class="p-3 font-bold text-slate-800">{{ m.insumo.nombre || '—' }}</td>
                   <td class="p-3">
                     <span
                       class="px-2 py-0.5 rounded-full text-[10px] font-bold inline-block"
-                      [ngClass]="m.tipoMovimiento.esEntrada ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'">
-                      {{ m.tipoMovimiento.nombre }}
+                      [ngClass]="getClaseTipoMovimiento(m)">
+                      {{ getLabelTipoMovimiento(m) }}
                     </span>
                   </td>
                   <td class="p-3">
                     <span *ngIf="m.presentacion">{{ m.cantidad }} × {{ m.presentacion.nombre }}</span>
-                    <span *ngIf="!m.presentacion">{{ m.cantidad }} {{ m.unidad.simbolo }}</span>
+                    <span *ngIf="!m.presentacion">{{ m.cantidad }} {{ m.unidad.simbolo || m.insumo.unidadMedida?.simbolo || '' }}</span>
                   </td>
                   <td class="p-3 font-mono font-bold" [ngClass]="m.tipoMovimiento.esEntrada ? 'text-emerald-600' : 'text-amber-600'">
-                    {{ m.cantidadBase > 0 ? '+' : '' }}{{ m.cantidadBase | number:'1.0-2' }} {{ m.insumo.unidadMedida?.simbolo }}
+                    {{ m.cantidadBase > 0 ? '+' : '' }}{{ m.cantidadBase | number:'1.0-2' }} {{ m.insumo.unidadMedida?.simbolo || m.unidad.simbolo || '' }}
                   </td>
                   <td class="p-3 text-slate-500">{{ m.responsable ? (m.responsable.name + ' ' + m.responsable.lastname) : 'Sistema' }}</td>
                 </tr>
@@ -752,6 +783,16 @@ import {
               <option value="moderado">🟡 Stock Moderado</option>
               <option value="optimo">✅ Stock Óptimo</option>
             </select>
+
+            <!-- Filtro Activo / Inactivo (inactivos siguen visibles) -->
+            <select
+              [(ngModel)]="filtroEstadoProducto"
+              (change)="filtrarProductos()"
+              class="px-3 py-1.5 text-xs rounded-lg border border-slate-200 bg-white focus:outline-none focus:border-easydry-blue text-slate-700">
+              <option value="">Todos (Activos e Inactivos)</option>
+              <option value="activo">Solo Activos</option>
+              <option value="inactivo">Solo Inactivos</option>
+            </select>
           </div>
 
           <div class="text-xs text-slate-500 font-medium whitespace-nowrap">
@@ -784,8 +825,9 @@ import {
                   <th class="p-3.5">Contenido x Envase</th>
                   <th class="p-3.5">Stock en Unidades</th>
                   <th class="p-3.5">Stock Contenido Total</th>
-                  <th class="p-3.5">Stock Mínimo</th>
-                  <th class="p-3.5">Stock Óptimo</th>
+                  <th class="p-3.5">Stock Mín. Bodega</th>
+                  <th class="p-3.5">Stock Mín. Agencia</th>
+                  <th class="p-3.5">Stock Óptimo Bodega</th>
                   <th class="p-3.5">Alerta de Stock</th>
                   <th class="p-3.5">Estado</th>
                   <th class="p-3.5 text-right">Acciones</th>
@@ -793,7 +835,7 @@ import {
               </thead>
               <tbody class="divide-y divide-slate-100">
                 <tr *ngIf="productosFiltrados.length === 0">
-                  <td colspan="11" class="p-8 text-center text-slate-400">
+                  <td colspan="12" class="p-8 text-center text-slate-400">
                     No se encontraron productos registrados que coincidan con los filtros aplicados.
                   </td>
                 </tr>
@@ -852,6 +894,10 @@ import {
                     <b>{{ getStockEnUnidades(p.stockMinimoBodega, p.contenidoNeto) | number:'1.0-2' }} und</b>
                     <span class="text-[10px] text-slate-400 block">({{ (p.stockMinimoBodega || 0) | number:'1.0-2' }} {{ p.unidadMedida }})</span>
                   </td>
+                  <td class="p-3.5 text-slate-600 font-mono whitespace-nowrap">
+                    <b>{{ getStockEnUnidades(p.stockMinimoAgencia, p.contenidoNeto) | number:'1.0-2' }} und</b>
+                    <span class="text-[10px] text-slate-400 block">({{ (p.stockMinimoAgencia || 0) | number:'1.0-2' }} {{ p.unidadMedida }})</span>
+                  </td>
                   <td class="p-3.5 text-slate-500 font-mono whitespace-nowrap">
                     <b>{{ getStockEnUnidades(p.stockOptimoBodega, p.contenidoNeto) | number:'1.0-2' }} und</b>
                     <span class="text-[10px] text-slate-400 block">({{ (p.stockOptimoBodega || 0) | number:'1.0-2' }} {{ p.unidadMedida }})</span>
@@ -873,8 +919,9 @@ import {
                   </td>
                   <td class="p-3.5 text-right space-x-1 whitespace-nowrap">
                     <button
+                      *ngIf="puedeRegistrarIngreso"
                       (click)="seleccionarParaEntrada(p)"
-                      title="Registrar Entrada de Stock"
+                      title="Registrar Entrada de Stock (solo Bodega Central)"
                       class="p-1.5 rounded-lg hover:bg-emerald-50 text-slate-400 hover:text-emerald-600 transition cursor-pointer">
                       <i-lucide name="plus-circle" class="w-3.5 h-3.5"></i-lucide>
                     </button>
@@ -885,8 +932,9 @@ import {
                       <i-lucide name="pencil" class="w-3.5 h-3.5"></i-lucide>
                     </button>
                     <button
+                      *ngIf="puedeCambiarEstadoProducto()"
                       (click)="toggleEstadoProducto(p)"
-                      [title]="p.activo ? 'Desactivar' : 'Activar'"
+                      [title]="p.activo ? 'Desactivar producto (conserva historial)' : 'Activar producto'"
                       class="p-1.5 rounded-lg hover:bg-slate-100 transition cursor-pointer"
                       [ngClass]="p.activo ? 'text-rose-400 hover:text-rose-600' : 'text-emerald-400 hover:text-emerald-600'">
                       <i-lucide [name]="p.activo ? 'x-circle' : 'check-circle'" class="w-3.5 h-3.5"></i-lucide>
@@ -952,8 +1000,8 @@ import {
                 <div class="flex items-center gap-1">
                   <span
                     class="px-2 py-0.5 rounded-full text-[10px] font-bold"
-                    [ngClass]="bod.esCentral ? 'bg-blue-100 text-blue-800 border border-blue-200' : 'bg-slate-100 text-slate-700 border border-slate-200'">
-                    {{ bod.esCentral ? 'HUB Central' : 'Bodega Regional' }}
+                    [ngClass]="(bod.tipo === 'CENTRAL' || bod.esCentral) ? 'bg-blue-100 text-blue-800 border border-blue-200' : 'bg-slate-100 text-slate-700 border border-slate-200'">
+                    {{ (bod.tipo === 'CENTRAL' || bod.esCentral) ? 'CENTRAL' : 'REGIONAL' }}
                   </span>
                   <button
                     *ngIf="esGestorGlobalOBodegaAdmin"
@@ -984,8 +1032,7 @@ import {
                 </p>
               </div>
 
-              <div class="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px]">
-                <span class="font-mono text-slate-400 text-[10px]">{{ bod.codigo }}</span>
+              <div class="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-end text-[11px]">
                 <span class="inline-flex items-center gap-1 font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md text-[10px]">
                   <i-lucide name="users" class="w-3 h-3 text-easydry-blue"></i-lucide>
                   <span>{{ getAsistentesDeBodega(bod).length }} Asistente(s)</span>
@@ -1013,17 +1060,33 @@ import {
                 </span>
               </div>
               <p class="text-xs text-slate-500 mt-0.5">
-                Código: <b class="font-mono">{{ bodegaSeleccionada?.codigo || resumenBodegas.bodega?.codigo || 'BOD-CENTRAL' }}</b> • Ubicación: {{ bodegaSeleccionada?.ciudad || resumenBodegas.bodega?.ciudad || 'Quito' }} ({{ bodegaSeleccionada?.region || resumenBodegas.bodega?.region || 'Pichincha' }})
+                Ubicación: {{ bodegaSeleccionada?.ciudad || resumenBodegas.bodega?.ciudad || 'Quito' }}
+                <span *ngIf="bodegaSeleccionada?.region || resumenBodegas.bodega?.region">
+                  ({{ bodegaSeleccionada?.region || resumenBodegas.bodega?.region }})
+                </span>
               </p>
             </div>
           </div>
 
-          <div class="flex items-center gap-2">
+          <div class="flex items-center gap-2 flex-wrap justify-end" *ngIf="esBodegaCentralActual">
             <button
               (click)="abrirModalEntrada()"
               class="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer">
               <i-lucide name="plus-circle" class="w-4 h-4"></i-lucide>
-              <span>Ingresar Stock a Bodega</span>
+              <span>Ingresar Stock a Bodega Central</span>
+            </button>
+          </div>
+          <div class="flex items-center gap-2 flex-wrap justify-end" *ngIf="!esBodegaCentralActual && (esGestorBodega || esAsistenteBodega || esSuperAdmin)">
+            <span class="text-[11px] text-slate-500 font-medium max-w-xs text-right">
+              Esta bodega se abastece por <b>Envíos</b> desde Central (no admite ingresos directos).
+            </span>
+            <button
+              *ngIf="esGestorBodega || esSuperAdmin"
+              type="button"
+              (click)="abrirModalDespachoHaciaBodegaSeleccionada()"
+              class="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer shrink-0">
+              <i-lucide name="warehouse" class="w-4 h-4"></i-lucide>
+              <span>Despachar a esta Bodega</span>
             </button>
           </div>
         </div>
@@ -1187,6 +1250,7 @@ import {
               <option value="Bajo">Bajo</option>
               <option value="Crítico">Crítico</option>
               <option value="Agotado">Agotado</option>
+              <option value="No necesario">No necesario</option>
             </select>
           </div>
 
@@ -1245,7 +1309,8 @@ import {
                       [ngClass]="{
                         'bg-rose-100 text-rose-800 border border-rose-200': item.estado === 'Agotado' || item.estado === 'Crítico',
                         'bg-amber-100 text-amber-800 border border-amber-200': item.estado === 'Bajo',
-                        'bg-emerald-100 text-emerald-800 border border-emerald-200': item.estado === 'Óptimo'
+                        'bg-emerald-100 text-emerald-800 border border-emerald-200': item.estado === 'Óptimo',
+                        'bg-slate-100 text-slate-600 border border-slate-200': item.estado === 'No necesario'
                       }">
                       {{ item.stockActual | number:'1.0-2' }} {{ item.unidad }}
                     </span>
@@ -1270,25 +1335,32 @@ import {
                       [ngClass]="{
                         'bg-rose-100 text-rose-800 border border-rose-200': item.estado === 'Agotado' || item.estado === 'Crítico',
                         'bg-amber-100 text-amber-800 border border-amber-200': item.estado === 'Bajo',
-                        'bg-emerald-100 text-emerald-800 border border-emerald-200': item.estado === 'Óptimo'
+                        'bg-emerald-100 text-emerald-800 border border-emerald-200': item.estado === 'Óptimo',
+                        'bg-slate-100 text-slate-600 border border-slate-200': item.estado === 'No necesario'
                       }">
-                      <span>{{ item.estado === 'Crítico' ? '🚨 Crítico (< Mín)' : (item.estado === 'Bajo' ? '⚠️ Stock Bajo (Umbral ' + (item.porcentajeAlerta || 20) + '%)' : item.estado) }}</span>
+                      <span>{{ getLabelEstadoBodega(item) }}</span>
                     </span>
                   </td>
                   <td class="p-3.5 text-right space-x-1.5 whitespace-nowrap">
                     <button
-                      *ngIf="!esLiderAgencia && miAgenciaId"
-                      (click)="abrirModalDespachoAgencia(miAgenciaId, item)"
-                      title="Despachar desde Bodega Central a esta sede"
+                      *ngIf="puedeGenerarDespacho && (esGestorBodega || esAsistenteBodega || esSuperAdmin)"
+                      (click)="abrirModalDespachoDesdeBodegaActual(item)"
+                      title="Despachar este insumo desde la bodega seleccionada"
                       class="px-2.5 py-1 rounded-lg bg-easydry-blue hover:bg-blue-700 text-white font-bold text-[11px] transition cursor-pointer inline-flex items-center gap-1">
                       <i-lucide name="truck" class="w-3 h-3"></i-lucide>
                       <span>Despachar</span>
                     </button>
                     <button
+                      *ngIf="esBodegaCentralActual && puedeRegistrarIngreso"
                       (click)="seleccionarParaEntrada(item)"
                       class="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] transition cursor-pointer">
                       Ingresar Stock
                     </button>
+                    <span
+                      *ngIf="!esBodegaCentralActual && esAdminGlobal && !esSuperAdmin"
+                      class="text-[10px] text-slate-400 font-medium">
+                      Solo supervisión
+                    </span>
                   </td>
                 </tr>
               </tbody>
@@ -1323,6 +1395,7 @@ import {
           </div>
 
           <button
+            *ngIf="puedeGenerarDespacho"
             (click)="abrirModalDespachoAgencia()"
             class="px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition flex items-center gap-2 shadow-sm cursor-pointer shrink-0">
             <i-lucide name="truck" class="w-4 h-4"></i-lucide>
@@ -1507,6 +1580,7 @@ import {
                     </td>
                     <td class="p-3 text-right">
                       <button
+                        *ngIf="puedeGenerarDespacho"
                         (click)="seleccionarParaDespachoAgencia(itemAg.agencia, ins)"
                         class="px-2.5 py-1 rounded-lg bg-easydry-blue hover:bg-blue-700 text-white font-bold text-[11px] transition cursor-pointer">
                         Despachar
@@ -1557,6 +1631,7 @@ import {
                   <th class="p-3">Comprobante</th>
                   <th class="p-3">Producto</th>
                   <th class="p-3">Tipo</th>
+                  <th class="p-3">Origen → Destino</th>
                   <th class="p-3">Movimiento</th>
                   <th class="p-3">Cantidad Base</th>
                   <th class="p-3">Stock Anterior</th>
@@ -1567,7 +1642,7 @@ import {
               </thead>
               <tbody class="divide-y divide-slate-100">
                 <tr *ngIf="historialMovimientos.length === 0">
-                  <td colspan="10" class="p-8 text-center text-slate-400">
+                  <td colspan="11" class="p-8 text-center text-slate-400">
                     No hay movimientos registrados en el Kardex.
                   </td>
                 </tr>
@@ -1575,20 +1650,28 @@ import {
                 <tr *ngFor="let m of historialMovimientos" class="hover:bg-slate-50/50 transition">
                   <td class="p-3 text-slate-500 whitespace-nowrap">{{ m.fechaMovimiento | date:'dd/MM/yyyy HH:mm' }}</td>
                   <td class="p-3 font-mono font-bold text-slate-700">{{ m.numeroComprobante }}</td>
-                  <td class="p-3 font-bold text-slate-900">{{ m.insumo.nombre }}</td>
+                  <td class="p-3 font-bold text-slate-900">{{ m.insumo.nombre || '—' }}</td>
                   <td class="p-3">
                     <span
                       class="px-2 py-0.5 rounded-full text-[10px] font-bold inline-block"
-                      [ngClass]="m.tipoMovimiento.esEntrada ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'">
-                      {{ m.tipoMovimiento.nombre }}
+                      [ngClass]="getClaseTipoMovimiento(m)">
+                      {{ getLabelTipoMovimiento(m) }}
                     </span>
+                  </td>
+                  <td class="p-3 min-w-[200px]">
+                    <div class="flex flex-col gap-0.5 leading-tight">
+                      <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wide">Desde</span>
+                      <span class="font-semibold text-slate-700">{{ m.origenUbicacion || '—' }}</span>
+                      <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wide mt-1">Hacia</span>
+                      <span class="font-semibold text-easydry-blue">{{ m.destinoUbicacion || '—' }}</span>
+                    </div>
                   </td>
                   <td class="p-3 text-slate-700">
                     <span *ngIf="m.presentacion">{{ m.cantidad }} × {{ m.presentacion.nombre }}</span>
-                    <span *ngIf="!m.presentacion">{{ m.cantidad }} {{ m.unidad.simbolo }}</span>
+                    <span *ngIf="!m.presentacion">{{ m.cantidad }} {{ m.unidad.simbolo || m.insumo.unidadMedida?.simbolo || '' }}</span>
                   </td>
                   <td class="p-3 font-mono font-bold" [ngClass]="m.cantidadBase >= 0 ? 'text-emerald-600' : 'text-amber-600'">
-                    {{ m.cantidadBase > 0 ? '+' : '' }}{{ m.cantidadBase | number:'1.0-2' }} {{ m.insumo.unidadMedida?.simbolo }}
+                    {{ m.cantidadBase > 0 ? '+' : '' }}{{ m.cantidadBase | number:'1.0-2' }} {{ m.insumo.unidadMedida?.simbolo || m.unidad.simbolo || '' }}
                   </td>
                   <td class="p-3 font-mono text-slate-500">{{ m.stockAnterior | number:'1.0-2' }}</td>
                   <td class="p-3 font-mono font-bold text-slate-800">{{ m.stockNuevo | number:'1.0-2' }}</td>
@@ -1618,7 +1701,7 @@ import {
               <div>
                 <div class="flex flex-wrap items-center gap-2">
                   <h3 class="text-base font-extrabold text-slate-900 font-outfit">
-                    Alertas de Stock Bajo emitidas por Sucursales
+                    {{ isLiderOperador ? 'Alertas de Stock Bajo de mi Sede' : 'Alertas de Stock Bajo emitidas por Sucursales' }}
                   </h3>
                   <span *ngIf="esAdminGlobal || esGestorBodega" class="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-blue-100 text-blue-800 border border-blue-200">
                     🌍 Red Nacional Completa · Ver Todo de Todos
@@ -1626,11 +1709,16 @@ import {
                   <span *ngIf="esAsistenteBodega" class="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-purple-100 text-purple-800 border border-purple-200">
                     📍 Región {{ userRegionDisplay }} · Solo Sucursales de tu Región
                   </span>
+                  <span *ngIf="isLiderOperador" class="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-teal-100 text-teal-800 border border-teal-200">
+                    🏢 Solo mi sede · {{ miAgenciaNombre || 'Agencia asignada' }}
+                  </span>
                 </div>
                 <p class="text-xs text-slate-600 mt-1">
                   {{ (esAdminGlobal || esGestorBodega)
                     ? 'Monitoreo consolidado de alertas de desabastecimiento generadas por todas las sedes del país.'
-                    : 'Alertas generadas por consumo o déficit exclusivamente de las sedes de tu región asignada.' }}
+                    : (isLiderOperador
+                      ? 'Solo alertas generadas o asociadas a tu sucursal. No verás alertas de otras sedes ni de Bodega Central.'
+                      : 'Alertas generadas por consumo o déficit exclusivamente de las sedes de tu región asignada.') }}
                 </p>
               </div>
             </div>
@@ -1693,9 +1781,11 @@ import {
                       <div class="flex flex-col items-center justify-center gap-1.5">
                         <i-lucide name="check-circle-2" class="w-6 h-6 text-emerald-500"></i-lucide>
                         <span class="font-medium text-slate-600">
-                          {{ esAsistenteBodega
-                            ? 'No hay alertas de stock bajo pendientes en las sucursales de tu región.'
-                            : 'No hay alertas de stock bajo pendientes en las sucursales.' }}
+                          {{ isLiderOperador
+                            ? 'No hay alertas de stock bajo pendientes en tu sede.'
+                            : (esAsistenteBodega
+                              ? 'No hay alertas de stock bajo pendientes en las sucursales de tu región.'
+                              : 'No hay alertas de stock bajo pendientes en las sucursales.') }}
                         </span>
                       </div>
                     </td>
@@ -1703,7 +1793,12 @@ import {
 
                   <tr *ngFor="let a of alertasStockFiltradas" class="hover:bg-slate-50/60 transition">
                     <td class="p-3.5">
-                      <div class="font-bold text-slate-800">{{ a.agencia?.nombre || 'Bodega Central' }}</div>
+                      <div class="font-bold text-slate-800" *ngIf="a.pulidor">
+                        Kit · {{ a.pulidor.name }} {{ a.pulidor.lastname }}
+                      </div>
+                      <div class="font-bold text-slate-800" *ngIf="!a.pulidor">
+                        {{ a.agencia?.nombre || 'Bodega Central' }}
+                      </div>
                       <span *ngIf="a.agencia?.region" class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200 mt-0.5 inline-block">
                         {{ a.agencia.region }}
                       </span>
@@ -1734,8 +1829,8 @@ import {
                     </td>
                     <td class="p-3.5 text-right whitespace-nowrap space-x-1.5">
                       <button
-                        *ngIf="a.agencia"
-                        (click)="abrirModalDespachoAgencia(a.agencia, a.insumo)"
+                        *ngIf="puedeGenerarDespacho && (a.agencia || a.pulidor)"
+                        (click)="abrirDespachoDesdeAlerta(a)"
                         class="px-2.5 py-1 rounded-lg bg-easydry-blue hover:bg-blue-700 text-white font-bold text-[11px] transition shadow-2xs cursor-pointer inline-flex items-center gap-1">
                         <i-lucide name="truck" class="w-3 h-3"></i-lucide>
                         <span>Despachar</span>
@@ -1756,9 +1851,9 @@ import {
         </div>
 
         <!-- ============================================================== -->
-        <!-- SECCIÓN 2: INSUMOS BAJO MÍNIMO EN BODEGA CENTRAL               -->
+        <!-- SECCIÓN 2: INSUMOS BAJO MÍNIMO EN BODEGA CENTRAL (solo bodega/admin) -->
         <!-- ============================================================== -->
-        <div class="space-y-4 pt-4 border-t border-slate-200">
+        <div *ngIf="puedeVerStockBajoBodegaCentral" class="space-y-4 pt-4 border-t border-slate-200">
           <div class="bg-rose-50 border border-rose-200 rounded-2xl p-4 flex items-center justify-between">
             <div class="flex items-center gap-3">
               <div class="w-10 h-10 rounded-xl bg-rose-500 text-white flex items-center justify-center font-bold">
@@ -1770,6 +1865,7 @@ import {
               </div>
             </div>
             <button
+              *ngIf="puedeRegistrarIngreso"
               (click)="abrirModalEntrada()"
               class="px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer">
               <i-lucide name="plus" class="w-4 h-4"></i-lucide>
@@ -1828,6 +1924,56 @@ import {
                         (click)="seleccionarParaEntrada(p)"
                         class="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] transition cursor-pointer">
                         Ingresar Stock
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Líder / Asistente: stock bajo operativo de su alcance (no Bodega Central) -->
+        <div *ngIf="isLiderOperador && insumosBajosMiSede.length > 0" class="space-y-4 pt-4 border-t border-slate-200">
+          <div class="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold">
+              <i-lucide name="package-x" class="w-5 h-5"></i-lucide>
+            </div>
+            <div>
+              <h3 class="text-sm font-bold text-amber-900">Insumos bajo mínimo en mi sede</h3>
+              <p class="text-xs text-amber-800">Validados contra los servicios asignados a tu sucursal (excluye “No necesario”).</p>
+            </div>
+          </div>
+          <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry overflow-hidden">
+            <div class="overflow-x-auto">
+              <table class="w-full text-left text-xs text-slate-600">
+                <thead class="bg-slate-50 text-slate-400 text-[10px] font-bold uppercase tracking-wider">
+                  <tr>
+                    <th class="p-3.5">SKU</th>
+                    <th class="p-3.5">Producto</th>
+                    <th class="p-3.5">Stock und</th>
+                    <th class="p-3.5">Estado</th>
+                    <th class="p-3.5 text-right">Acción</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                  <tr *ngFor="let item of insumosBajosMiSede" class="hover:bg-amber-50/40 transition">
+                    <td class="p-3.5 font-mono font-bold">{{ item.codigoSKU }}</td>
+                    <td class="p-3.5 font-bold text-slate-900">{{ item.nombre }}</td>
+                    <td class="p-3.5 font-mono">
+                      {{ getStockEnUnidades(item.stockActual, item.contenidoNeto) | number:'1.0-2' }} und
+                    </td>
+                    <td class="p-3.5">
+                      <span class="px-2 py-0.5 rounded-full text-[10px] font-bold"
+                        [ngClass]="item.estado === 'AGOTADO' ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-amber-800'">
+                        {{ getLabelEstadoInsumoServicio(item.estado) }}
+                      </span>
+                    </td>
+                    <td class="p-3.5 text-right">
+                      <button
+                        (click)="solicitarReabastecimiento(item)"
+                        class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold cursor-pointer">
+                        Pedir Reabastecimiento
                       </button>
                     </td>
                   </tr>
@@ -1966,21 +2112,25 @@ import {
       <!-- ============================================================== -->
       <!-- MODAL: REGISTRAR ENTRADA DE STOCK                              -->
       <!-- ============================================================== -->
-      <div *ngIf="modalEntradaAbierto" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-fade-in">
-        <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-100">
-          <div class="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
-            <div class="flex items-center gap-2">
-              <div class="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
+      <div *ngIf="modalEntradaAbierto" appModalPortal class="fixed inset-0 z-[10050] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+        <div class="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-100 max-h-[90vh] flex flex-col overflow-hidden" (click)="$event.stopPropagation()">
+          <div class="shrink-0 px-6 py-4 flex items-center justify-between border-b border-slate-100 bg-white">
+            <div class="flex items-center gap-2 min-w-0">
+              <div class="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold shrink-0">
                 <i-lucide name="plus-circle" class="w-5 h-5"></i-lucide>
               </div>
-              <h3 class="text-base font-bold text-slate-900">Registrar Entrada de Inventario</h3>
+              <h3 class="text-base font-bold text-slate-900 truncate">{{ productoEntradaFijo?.nombre || 'Registrar Entrada de Inventario' }}</h3>
             </div>
-            <button (click)="cerrarModalEntrada()" class="text-slate-400 hover:text-slate-600 cursor-pointer">
+            <button (click)="cerrarModalEntrada()" class="text-slate-400 hover:text-slate-600 cursor-pointer shrink-0">
               <i-lucide name="x" class="w-5 h-5"></i-lucide>
             </button>
           </div>
 
-          <div class="space-y-4 text-xs">
+          <div class="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-4 text-xs">
+            <div *ngIf="formEntrada.bodegaId || bodegaSeleccionada" class="p-2.5 rounded-xl bg-blue-50 border border-blue-100 text-[11px] text-easydry-blue font-bold flex items-center gap-2">
+              <i-lucide name="warehouse" class="w-3.5 h-3.5 shrink-0"></i-lucide>
+              <span>Destino del ingreso: <b>Bodega Central Nacional</b> (única que admite compras/ingresos)</span>
+            </div>
             <!-- Insumo Fijo (Bloqueado) si viene preseleccionado -->
             <div *ngIf="productoEntradaFijo" class="p-3 bg-emerald-50/80 rounded-xl border border-emerald-200 flex items-center justify-between">
               <div class="flex items-center gap-2.5 truncate mr-2">
@@ -2152,7 +2302,7 @@ import {
             </div>
           </div>
 
-          <div class="flex items-center justify-end gap-3 mt-6 border-t border-slate-100 pt-4">
+          <div class="shrink-0 flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50">
             <button
               (click)="cerrarModalEntrada()"
               class="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 text-xs font-bold transition cursor-pointer">
@@ -2170,153 +2320,21 @@ import {
       </div>
 
       <!-- ============================================================== -->
-      <!-- MODAL: REGISTRAR CONSUMO DE STOCK                              -->
-      <!-- ============================================================== -->
-      <div *ngIf="modalConsumoAbierto" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-fade-in">
-        <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-100">
-          <div class="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
-            <div class="flex items-center gap-2">
-              <div class="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center font-bold">
-                <i-lucide name="droplet" class="w-5 h-5"></i-lucide>
-              </div>
-              <h3 class="text-base font-bold text-slate-900">Registrar Consumo Operativo</h3>
-            </div>
-            <button (click)="cerrarModalConsumo()" class="text-slate-400 hover:text-slate-600 cursor-pointer">
-              <i-lucide name="x" class="w-5 h-5"></i-lucide>
-            </button>
-          </div>
-
-          <div class="space-y-4 text-xs">
-            <!-- Producto -->
-            <div>
-              <label class="block font-bold text-slate-700 mb-1">Producto / Insumo *</label>
-              <select
-                [(ngModel)]="formConsumo.insumoId"
-                (change)="alCambiarProductoConsumo()"
-                class="w-full p-2.5 rounded-xl border border-slate-200 bg-white focus:outline-none focus:border-easydry-blue">
-                <option value="">Seleccione el producto consumido...</option>
-                <option *ngFor="let p of productos" [value]="p.id">
-                  {{ p.nombre }} — Disponible: {{ p.stockActual | number:'1.0-2' }} {{ p.unidadMedida }}
-                </option>
-              </select>
-            </div>
-
-            <!-- Cantidad -->
-            <div>
-              <label class="block font-bold text-slate-700 mb-1">
-                Cantidad a Consumir ({{ productoConsumoSeleccionado?.unidadMedida || 'Unidad Base' }}) *
-              </label>
-              <input
-                type="number"
-                min="0.001"
-                step="any"
-                [(ngModel)]="formConsumo.cantidad"
-                (input)="calcularPreviewConsumo()"
-                class="w-full p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:border-easydry-blue" />
-            </div>
-
-            <!-- Observaciones -->
-            <div>
-              <label class="block font-bold text-slate-700 mb-1">Observaciones / Área de Aplicación</label>
-              <input
-                type="text"
-                [(ngModel)]="formConsumo.observaciones"
-                placeholder="ej. Limpieza de bahía 2, servicio especial"
-                class="w-full p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:border-easydry-blue" />
-            </div>
-
-            <!-- Evidencia Fotográfica de Consumo (Estilo Dropzone) -->
-            <div class="space-y-1.5 pt-1">
-              <label class="block font-bold text-slate-700 uppercase tracking-wider text-[11px]">Evidencia Fotográfica de Consumo</label>
-              
-              <div class="relative w-full border-2 border-dashed border-amber-300 rounded-xl p-4 flex flex-col items-center justify-center hover:bg-amber-50/50 transition-colors cursor-pointer"
-                   (click)="imageConsumoInput.click()">
-                <input 
-                  #imageConsumoInput
-                  type="file" 
-                  accept="image/*" 
-                  class="hidden"
-                  (change)="onImagenConsumoSeleccionada($event)">
-                
-                <div *ngIf="imagenConsumoPreview" class="relative w-full flex flex-col items-center justify-center">
-                  <img [src]="imagenConsumoPreview" alt="Evidencia de Consumo" class="max-h-36 rounded-lg object-contain border border-amber-200 mb-2 shadow-xs" />
-                  <div class="flex items-center gap-2 text-amber-800">
-                    <i-lucide name="check-circle-2" class="w-4 h-4"></i-lucide>
-                    <span class="text-xs font-bold">{{ imagenConsumoNombre || 'Evidencia cargada' }}</span>
-                  </div>
-                  <div class="flex items-center gap-3 mt-2">
-                    <span class="text-[10px] text-slate-500 hover:underline">Toca para cambiar la imagen</span>
-                    <button type="button" (click)="$event.stopPropagation(); eliminarImagenConsumo()" class="text-[10px] font-bold text-rose-600 hover:underline">Eliminar foto</button>
-                  </div>
-                </div>
-
-                <div *ngIf="!imagenConsumoPreview" class="flex flex-col items-center justify-center">
-                  <div class="p-3 bg-amber-100/80 text-amber-700 rounded-full mb-2">
-                    <i-lucide name="camera" class="w-6 h-6"></i-lucide>
-                  </div>
-                  <p class="text-xs font-bold text-slate-700 text-center">Toca para capturar o subir evidencia de uso/consumo</p>
-                  <p class="text-[10px] text-slate-400 text-center mt-1">Foto del envase usado o dosificación realizada</p>
-                </div>
-              </div>
-            </div>
-
-            <!-- Vista Previa de Saldo Estimado -->
-            <div *ngIf="productoConsumoSeleccionado" class="p-3 rounded-xl border" [ngClass]="previewConsumoInvalido ? 'bg-rose-50 border-rose-200' : 'bg-amber-50 border-amber-200'">
-              <div class="flex items-center justify-between text-[11px] mb-1">
-                <span class="text-slate-600">Stock actual:</span>
-                <span class="font-bold text-slate-800">{{ productoConsumoSeleccionado.stockActual | number:'1.0-2' }} {{ productoConsumoSeleccionado.unidadMedida }}</span>
-              </div>
-              <div class="flex items-center justify-between text-[11px] mb-1">
-                <span class="text-slate-600">Consumo solicitado:</span>
-                <span class="font-bold text-amber-700">-{{ (formConsumo.cantidad || 0) | number:'1.0-2' }} {{ productoConsumoSeleccionado.unidadMedida }}</span>
-              </div>
-              <div class="flex items-center justify-between font-bold border-t border-slate-200 pt-1 text-xs">
-                <span class="text-slate-800">Nuevo stock estimado:</span>
-                <span [ngClass]="previewConsumoInvalido ? 'text-rose-600 font-extrabold' : 'text-slate-900'">
-                  {{ (productoConsumoSeleccionado.stockActual - (formConsumo.cantidad || 0)) | number:'1.0-2' }} {{ productoConsumoSeleccionado.unidadMedida }}
-                </span>
-              </div>
-
-              <!-- Alerta de Stock Insuficiente -->
-              <div *ngIf="previewConsumoInvalido" class="mt-2 text-rose-700 text-[11px] font-bold flex items-center gap-1">
-                <i-lucide name="alert-triangle" class="w-3.5 h-3.5"></i-lucide>
-                <span>Stock insuficiente. No se puede consumir más de la existencia actual.</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="flex items-center justify-end gap-3 mt-6 border-t border-slate-100 pt-4">
-            <button
-              (click)="cerrarModalConsumo()"
-              class="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 text-xs font-bold transition cursor-pointer">
-              Cancelar
-            </button>
-            <button
-              (click)="guardarConsumo()"
-              [disabled]="guardandoMovimiento || previewConsumoInvalido"
-              class="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer disabled:opacity-50">
-              <i-lucide *ngIf="!guardandoMovimiento" name="check" class="w-4 h-4"></i-lucide>
-              <span>{{ guardandoMovimiento ? 'Validando...' : 'Confirmar Consumo' }}</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- ============================================================== -->
       <!-- MODAL: GESTIÓN DE PRESENTACIONES POR PRODUCTO                  -->
       <!-- ============================================================== -->
-      <div *ngIf="modalPresentacionesAbierto" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-fade-in">
-        <div class="bg-white rounded-2xl max-w-xl w-full p-6 shadow-2xl border border-slate-100 max-h-[90vh] overflow-y-auto">
-          <div class="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
-            <div>
-              <h3 class="text-base font-bold text-slate-900">Presentaciones del Producto</h3>
-              <p class="text-xs text-slate-500">{{ productoPresentacionesSeleccionado?.nombre }} (Base: {{ productoPresentacionesSeleccionado?.unidadMedida }})</p>
+      <div *ngIf="modalPresentacionesAbierto" appModalPortal class="fixed inset-0 z-[10050] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+        <div class="bg-white rounded-2xl max-w-xl w-full shadow-2xl border border-slate-100 max-h-[90vh] flex flex-col overflow-hidden" (click)="$event.stopPropagation()">
+          <div class="shrink-0 px-6 py-4 flex items-center justify-between border-b border-slate-100 bg-white">
+            <div class="min-w-0">
+              <h3 class="text-base font-bold text-slate-900 truncate">Presentaciones del Producto</h3>
+              <p class="text-xs text-slate-500 truncate">{{ productoPresentacionesSeleccionado?.nombre }} (Base: {{ productoPresentacionesSeleccionado?.unidadMedida }})</p>
             </div>
-            <button (click)="modalPresentacionesAbierto = false" class="text-slate-400 hover:text-slate-600 cursor-pointer">
+            <button (click)="modalPresentacionesAbierto = false" class="text-slate-400 hover:text-slate-600 cursor-pointer shrink-0">
               <i-lucide name="x" class="w-5 h-5"></i-lucide>
             </button>
           </div>
 
+          <div class="flex-1 min-h-0 overflow-y-auto px-6 py-4">
           <!-- Formulario Agregar Presentación -->
           <div class="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3 mb-4 text-xs">
             <h4 class="font-bold text-slate-800">Agregar Nueva Presentación</h4>
@@ -2388,6 +2406,15 @@ import {
                 </span>
               </div>
             </div>
+          </div>
+          </div>
+
+          <div class="shrink-0 flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50">
+            <button
+              (click)="modalPresentacionesAbierto = false"
+              class="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 text-xs font-bold transition cursor-pointer">
+              Cerrar
+            </button>
           </div>
         </div>
       </div>
@@ -2467,26 +2494,91 @@ import {
               </p>
             </div>
 
-            <!-- Stock Mínimo y Óptimo -->
-            <div class="grid grid-cols-2 gap-3">
+            <!-- Stocks obligatorios (ingreso en unidades físicas; se guarda en cantidad base) -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <label class="block font-bold text-slate-700 mb-1">Stock Mínimo Alerta (Unidad Base) *</label>
-                <input
-                  type="number"
-                  [(ngModel)]="formProducto.stockMinimoBodega"
-                  name="stockMinimoBodega"
-                  placeholder="ej. 1000"
-                  class="w-full p-2.5 rounded-xl border border-slate-200" />
+                <label class="block font-bold text-slate-700 mb-1">Stock Mín. Bodega *</label>
+                <div class="relative">
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    [(ngModel)]="formProducto.stockMinimoBodega"
+                    name="stockMinimoBodega"
+                    placeholder="ej. 5"
+                    required
+                    class="w-full p-2.5 pr-14 rounded-xl border border-slate-200" />
+                  <span class="absolute right-3 top-2.5 text-[11px] font-bold text-slate-400">und</span>
+                </div>
+                <p class="text-[10px] text-slate-400 mt-1">
+                  ≈ {{ getCantidadDesdeUnidades(formProducto.stockMinimoBodega, formProducto.contenidoNeto) | number:'1.0-2' }}
+                  <span *ngIf="getSimboloUnidadSeleccionada()"> {{ getSimboloUnidadSeleccionada() }}</span>
+                  <span *ngIf="!getSimboloUnidadSeleccionada()"> (cantidad base)</span>
+                </p>
               </div>
               <div>
-                <label class="block font-bold text-slate-700 mb-1">Stock Óptimo Bodega</label>
-                <input
-                  type="number"
-                  [(ngModel)]="formProducto.stockOptimoBodega"
-                  name="stockOptimoBodega"
-                  placeholder="ej. 5000"
-                  class="w-full p-2.5 rounded-xl border border-slate-200" />
+                <label class="block font-bold text-slate-700 mb-1">Stock Mín. Agencia *</label>
+                <div class="relative">
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    [(ngModel)]="formProducto.stockMinimoAgencia"
+                    name="stockMinimoAgencia"
+                    placeholder="ej. 2"
+                    required
+                    class="w-full p-2.5 pr-14 rounded-xl border border-slate-200" />
+                  <span class="absolute right-3 top-2.5 text-[11px] font-bold text-slate-400">und</span>
+                </div>
+                <p class="text-[10px] text-slate-400 mt-1">
+                  ≈ {{ getCantidadDesdeUnidades(formProducto.stockMinimoAgencia, formProducto.contenidoNeto) | number:'1.0-2' }}
+                  <span *ngIf="getSimboloUnidadSeleccionada()"> {{ getSimboloUnidadSeleccionada() }}</span>
+                  <span *ngIf="!getSimboloUnidadSeleccionada()"> (cantidad base)</span>
+                </p>
               </div>
+              <div>
+                <label class="block font-bold text-slate-700 mb-1">Stock Óptimo Bodega *</label>
+                <div class="relative">
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    [(ngModel)]="formProducto.stockOptimoBodega"
+                    name="stockOptimoBodega"
+                    placeholder="ej. 20"
+                    required
+                    class="w-full p-2.5 pr-14 rounded-xl border border-slate-200" />
+                  <span class="absolute right-3 top-2.5 text-[11px] font-bold text-slate-400">und</span>
+                </div>
+                <p class="text-[10px] text-slate-400 mt-1">
+                  ≈ {{ getCantidadDesdeUnidades(formProducto.stockOptimoBodega, formProducto.contenidoNeto) | number:'1.0-2' }}
+                  <span *ngIf="getSimboloUnidadSeleccionada()"> {{ getSimboloUnidadSeleccionada() }}</span>
+                  <span *ngIf="!getSimboloUnidadSeleccionada()"> (cantidad base)</span>
+                </p>
+              </div>
+            </div>
+
+            <!-- Estado Activo / Inactivo (edición) -->
+            <div *ngIf="editandoProducto" class="flex items-center justify-between p-3 rounded-xl border border-slate-200 bg-slate-50/80">
+              <div>
+                <p class="text-xs font-bold text-slate-800">Estado del producto</p>
+                <p class="text-[11px] text-slate-500">Desactivar conserva historial; no elimina el registro.</p>
+              </div>
+              <label class="inline-flex items-center gap-2 cursor-pointer select-none">
+                <span class="text-[11px] font-bold" [ngClass]="formProducto.estado === 1 ? 'text-emerald-600' : 'text-slate-500'">
+                  {{ formProducto.estado === 1 ? 'Activo' : 'Inactivo' }}
+                </span>
+                <button
+                  type="button"
+                  (click)="formProducto.estado = formProducto.estado === 1 ? 0 : 1"
+                  class="relative w-11 h-6 rounded-full transition-colors cursor-pointer"
+                  [ngClass]="formProducto.estado === 1 ? 'bg-emerald-500' : 'bg-slate-300'"
+                  [attr.aria-pressed]="formProducto.estado === 1">
+                  <span
+                    class="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform"
+                    [style.transform]="formProducto.estado === 1 ? 'translateX(1.25rem)' : 'translateX(0)'"></span>
+                </button>
+              </label>
             </div>
 
             <!-- Descripción -->
@@ -2581,16 +2673,16 @@ import {
       <!-- ============================================================== -->
       <!-- MODAL: CONFIGURAR TIPO DE PRODUCTO (CRUD DINÁMICO)             -->
       <!-- ============================================================== -->
-      <div *ngIf="modalTipoAbierto" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-fade-in">
-        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100">
-          <div class="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
-            <h3 class="text-base font-bold text-slate-900">{{ formTipo.id ? 'Editar Tipo de Producto' : 'Nuevo Tipo de Producto' }}</h3>
-            <button (click)="modalTipoAbierto = false" class="text-slate-400 hover:text-slate-600 cursor-pointer">
+      <div *ngIf="modalTipoAbierto" appModalPortal class="fixed inset-0 z-[10050] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+        <div class="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-100 max-h-[90vh] flex flex-col overflow-hidden" (click)="$event.stopPropagation()">
+          <div class="shrink-0 px-6 py-4 flex items-center justify-between border-b border-slate-100 bg-white">
+            <h3 class="text-base font-bold text-slate-900 truncate">{{ formTipo.id ? 'Editar Tipo de Producto' : 'Nuevo Tipo de Producto' }}</h3>
+            <button (click)="modalTipoAbierto = false" class="text-slate-400 hover:text-slate-600 cursor-pointer shrink-0">
               <i-lucide name="x" class="w-5 h-5"></i-lucide>
             </button>
           </div>
 
-          <div class="space-y-3 text-xs">
+          <div class="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-3 text-xs">
             <div>
               <label class="block font-bold text-slate-700 mb-1">Código Único *</label>
               <input
@@ -2617,7 +2709,7 @@ import {
             </div>
           </div>
 
-          <div class="flex items-center justify-end gap-3 mt-6 border-t border-slate-100 pt-4">
+          <div class="shrink-0 flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50">
             <button (click)="modalTipoAbierto = false" class="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 text-xs font-bold cursor-pointer">
               Cancelar
             </button>
@@ -2631,16 +2723,16 @@ import {
       <!-- ============================================================== -->
       <!-- MODAL: CONFIGURAR UNIDAD DE MEDIDA (CRUD DINÁMICO)             -->
       <!-- ============================================================== -->
-      <div *ngIf="modalUnidadAbierto" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-fade-in">
-        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100">
-          <div class="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
-            <h3 class="text-base font-bold text-slate-900">{{ formUnidad.id ? 'Editar Unidad de Medida' : 'Nueva Unidad de Medida' }}</h3>
-            <button (click)="modalUnidadAbierto = false" class="text-slate-400 hover:text-slate-600 cursor-pointer">
+      <div *ngIf="modalUnidadAbierto" appModalPortal class="fixed inset-0 z-[10050] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+        <div class="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-100 max-h-[90vh] flex flex-col overflow-hidden" (click)="$event.stopPropagation()">
+          <div class="shrink-0 px-6 py-4 flex items-center justify-between border-b border-slate-100 bg-white">
+            <h3 class="text-base font-bold text-slate-900 truncate">{{ formUnidad.id ? 'Editar Unidad de Medida' : 'Nueva Unidad de Medida' }}</h3>
+            <button (click)="modalUnidadAbierto = false" class="text-slate-400 hover:text-slate-600 cursor-pointer shrink-0">
               <i-lucide name="x" class="w-5 h-5"></i-lucide>
             </button>
           </div>
 
-          <div class="space-y-3 text-xs">
+          <div class="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-3 text-xs">
             <div class="grid grid-cols-2 gap-3">
               <div>
                 <label class="block font-bold text-slate-700 mb-1">Código *</label>
@@ -2690,7 +2782,7 @@ import {
             </div>
           </div>
 
-          <div class="flex items-center justify-end gap-3 mt-6 border-t border-slate-100 pt-4">
+          <div class="shrink-0 flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50">
             <button (click)="modalUnidadAbierto = false" class="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 text-xs font-bold cursor-pointer">
               Cancelar
             </button>
@@ -2704,20 +2796,21 @@ import {
       <!-- ============================================================== -->
       <!-- MODAL: RECHAZAR DESPACHO DE SUMINISTROS (NO LLEGÓ / ANOMALÍA)  -->
       <!-- ============================================================== -->
-      <div *ngIf="modalRechazoDespachoOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-fade-in">
-        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-4">
-          <div class="flex items-center justify-between border-b border-slate-100 pb-3">
-            <div class="flex items-center gap-2">
-              <div class="w-8 h-8 rounded-lg bg-rose-100 text-rose-600 flex items-center justify-center font-bold">
+      <div *ngIf="modalRechazoDespachoOpen" appModalPortal class="fixed inset-0 z-[10050] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+        <div class="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-100 max-h-[90vh] flex flex-col overflow-hidden" (click)="$event.stopPropagation()">
+          <div class="shrink-0 px-6 py-4 flex items-center justify-between border-b border-slate-100 bg-white">
+            <div class="flex items-center gap-2 min-w-0">
+              <div class="w-8 h-8 rounded-lg bg-rose-100 text-rose-600 flex items-center justify-center font-bold shrink-0">
                 <i-lucide name="alert-triangle" class="w-4 h-4"></i-lucide>
               </div>
-              <h3 class="text-sm font-black text-slate-900">Rechazar Recepción de Suministros</h3>
+              <h3 class="text-sm font-black text-slate-900 truncate">Rechazar Recepción de Suministros</h3>
             </div>
-            <button (click)="modalRechazoDespachoOpen = false" class="text-slate-400 hover:text-slate-600 cursor-pointer">
+            <button (click)="modalRechazoDespachoOpen = false" class="text-slate-400 hover:text-slate-600 cursor-pointer shrink-0">
               <i-lucide name="x" class="w-5 h-5"></i-lucide>
             </button>
           </div>
 
+          <div class="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-4">
           <div class="p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-800 space-y-1">
             <p class="font-bold">Guía: {{ despachoSeleccionadoRechazo?.numeroGuia }}</p>
             <p class="text-[11px]">
@@ -2743,8 +2836,9 @@ import {
                 class="w-full p-2.5 rounded-xl border border-slate-200 text-xs focus:outline-none focus:border-rose-500"></textarea>
             </div>
           </div>
+          </div>
 
-          <div class="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+          <div class="shrink-0 flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50">
             <button
               (click)="modalRechazoDespachoOpen = false"
               class="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 text-xs font-bold cursor-pointer">
@@ -2761,58 +2855,182 @@ import {
       </div>
 
       <!-- ============================================================== -->
-      <!-- MODAL: DESPACHAR SUMINISTRO A SEDE / AGENCIA                   -->
+      <!-- MODAL: DESPACHAR SUMINISTRO (AGENCIA / BODEGA / PULIDOR)       -->
       <!-- ============================================================== -->
-      <div *ngIf="modalDespachoAgenciaOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-        <div class="bg-white w-full max-w-lg rounded-2xl shadow-2xl border border-slate-100 p-5 space-y-4 animate-fade-in">
-          <div class="flex items-center justify-between pb-2 border-b border-slate-100">
-            <div class="flex items-center gap-2">
-              <div class="w-8 h-8 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center font-bold">
-                <i-lucide name="truck" class="w-4 h-4"></i-lucide>
+      <div *ngIf="modalDespachoAgenciaOpen" appModalPortal class="fixed inset-0 z-[10050] overflow-y-auto p-4 sm:p-6 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+        <div class="relative bg-white w-full max-w-xl rounded-2xl shadow-2xl border border-slate-100 my-auto flex flex-col max-h-[88vh] overflow-hidden animate-fade-in" (click)="$event.stopPropagation()">
+          
+          <!-- Header Fijo Superior (Sticky) -->
+          <div class="shrink-0 px-6 py-4 flex items-center justify-between border-b border-slate-100 bg-white sticky top-0 z-20">
+            <div class="flex items-center gap-3 min-w-0">
+              <div class="w-9 h-9 rounded-xl flex items-center justify-center font-bold shrink-0 transition-colors"
+                [ngClass]="modoDespachoDestino === 'bodega' ? 'bg-indigo-100 text-indigo-700' : (modoDespachoDestino === 'pulidor' ? 'bg-cyan-100 text-cyan-700' : (modoDespachoDestino === 'pulidor_fijo' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'))">
+                <i-lucide [name]="modoDespachoDestino === 'bodega' ? 'warehouse' : (modoDespachoDestino === 'pulidor' ? 'user' : (modoDespachoDestino === 'pulidor_fijo' ? 'user-check' : 'truck'))" class="w-5 h-5"></i-lucide>
               </div>
-              <div>
-                <h3 class="text-sm font-black text-slate-900">Despachar Suministro a Sede</h3>
-                <p class="text-[11px] text-slate-500">Envío desde Bodega Central con confirmación obligatoria en destino</p>
+              <div class="min-w-0">
+                <h3 class="text-sm font-black text-slate-900 truncate">
+                  {{ modoDespachoDestino === 'bodega'
+                    ? 'Despachar Suministro a Bodega'
+                    : (modoDespachoDestino === 'pulidor_fijo'
+                      ? 'Despachar a Pulidor Fijo (Sucursal)'
+                      : (modoDespachoDestino === 'pulidor' ? 'Despachar a Pulidor Móvil' : 'Despachar Suministro a Sede')) }}
+                </h3>
+                <p class="text-[11px] text-slate-500 truncate">
+                  {{ modoDespachoDestino === 'bodega'
+                    ? 'Envío entre bodegas con confirmación obligatoria en destino'
+                    : (modoDespachoDestino === 'pulidor_fijo'
+                      ? 'Envío a pulidor fijo de sucursal; confirmación requerida al recibir'
+                      : (modoDespachoDestino === 'pulidor'
+                        ? 'Envío a pulidor móvil regional; confirmación requerida al recibir'
+                        : 'Envío con confirmación obligatoria en la agencia destino')) }}
+                </p>
               </div>
             </div>
-            <button (click)="modalDespachoAgenciaOpen = false" class="text-slate-400 hover:text-slate-600 cursor-pointer">
+            <button
+              type="button"
+              (click)="modalDespachoAgenciaOpen = false"
+              class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer shrink-0"
+              title="Cerrar modal">
               <i-lucide name="x" class="w-5 h-5"></i-lucide>
             </button>
           </div>
 
-          <form (submit)="$event.preventDefault(); ejecutarDespachoAgencia()" class="space-y-3 text-xs">
-            <!-- Sede Destino -->
-            <div>
+          <!-- Cuerpo con Scroll Interno -->
+          <div class="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-4 text-xs">
+            
+            <!-- Selector de Tipo de Destino (Agencia / Bodega / Pulidor Móvil / Pulidor Fijo) -->
+            <div *ngIf="!agenciaDespachoFija">
+              <label class="block font-bold text-slate-700 mb-1.5">Destino del Despacho *</label>
+              <div class="grid gap-2" [ngClass]="puedeDespacharABodega ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-3'">
+                <button
+                  type="button"
+                  (click)="cambiarTipoDestinoDespacho('agencia')"
+                  class="px-2.5 py-2.5 rounded-xl text-xs font-bold border transition flex items-center justify-center gap-1.5 cursor-pointer"
+                  [ngClass]="modoDespachoDestino === 'agencia' ? 'bg-purple-600 text-white border-purple-600 shadow-sm' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'">
+                  <i-lucide name="store" class="w-4 h-4"></i-lucide>
+                  <span>A Agencia</span>
+                </button>
+                <button
+                  *ngIf="puedeDespacharABodega"
+                  type="button"
+                  (click)="cambiarTipoDestinoDespacho('bodega')"
+                  class="px-2.5 py-2.5 rounded-xl text-xs font-bold border transition flex items-center justify-center gap-1.5 cursor-pointer"
+                  [ngClass]="modoDespachoDestino === 'bodega' ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'">
+                  <i-lucide name="warehouse" class="w-4 h-4"></i-lucide>
+                  <span>A Bodega</span>
+                </button>
+                <button
+                  type="button"
+                  (click)="cambiarTipoDestinoDespacho('pulidor')"
+                  class="px-2.5 py-2.5 rounded-xl text-xs font-bold border transition flex items-center justify-center gap-1.5 cursor-pointer"
+                  [ngClass]="modoDespachoDestino === 'pulidor' ? 'bg-cyan-600 text-white border-cyan-600 shadow-sm' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'">
+                  <i-lucide name="user" class="w-4 h-4"></i-lucide>
+                  <span>Pulidor Móvil</span>
+                </button>
+                <button
+                  type="button"
+                  (click)="cambiarTipoDestinoDespacho('pulidor_fijo')"
+                  class="px-2.5 py-2.5 rounded-xl text-xs font-bold border transition flex items-center justify-center gap-1.5 cursor-pointer"
+                  [ngClass]="modoDespachoDestino === 'pulidor_fijo' ? 'bg-blue-600 text-white border-blue-600 shadow-sm' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'">
+                  <i-lucide name="user-check" class="w-4 h-4"></i-lucide>
+                  <span>Pulidor Fijo</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Destino Agencia -->
+            <div *ngIf="modoDespachoDestino === 'agencia'">
               <label class="block font-bold text-slate-700 mb-1">Agencia / Sede Receptora *</label>
-              <div *ngIf="agenciaDespachoFija" class="p-2.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
+              <div *ngIf="agenciaDespachoFija" class="p-3 bg-purple-50/60 rounded-xl border border-purple-200 flex items-center justify-between">
                 <div class="flex items-center gap-2">
                   <i-lucide name="store" class="w-4 h-4 text-purple-700 shrink-0"></i-lucide>
                   <span class="font-bold text-slate-800 text-xs">{{ agenciaDespachoFija.nombre }}</span>
-                  <span *ngIf="agenciaDespachoFija.ciudad" class="text-slate-400 text-[11px]">({{ agenciaDespachoFija.ciudad }})</span>
+                  <span *ngIf="agenciaDespachoFija.ciudad" class="text-slate-500 text-[11px]">({{ agenciaDespachoFija.ciudad }})</span>
                 </div>
-                <span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-200/80 text-slate-700 border border-slate-300/80 shrink-0">
+                <span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-200/80 text-purple-800 shrink-0">
                   Sede Asignada
                 </span>
               </div>
-              <select
-                *ngIf="!agenciaDespachoFija"
-                [(ngModel)]="despachoAgenciaForm.agenciaId"
-                (change)="alCambiarAgenciaDespacho()"
-                name="agenciaId"
-                class="w-full p-2.5 rounded-xl border border-slate-200 bg-white font-medium text-slate-800"
-                required>
-                <option value="" disabled>Seleccione sede destino...</option>
-                <option *ngFor="let ag of getAgenciasDestinoDisponibles()" [value]="ag.id">
-                  {{ ag.nombre }} ({{ ag.ciudad || 'Sede' }})
-                </option>
-              </select>
+              <div *ngIf="!agenciaDespachoFija">
+                <select
+                  [(ngModel)]="despachoAgenciaForm.agenciaId"
+                  (change)="alCambiarAgenciaDespacho()"
+                  name="agenciaId"
+                  class="w-full p-2.5 rounded-xl border border-slate-200 bg-white font-medium text-slate-800 focus:outline-none focus:border-purple-500"
+                  required>
+                  <option value="" disabled>Seleccione sede destino...</option>
+                  <option *ngFor="let ag of getAgenciasDestinoDisponibles()" [value]="ag.id">
+                    {{ ag.nombre }} ({{ ag.ciudad || 'Sede' }})
+                  </option>
+                </select>
+                <p *ngIf="getAgenciasDestinoDisponibles().length === 0" class="text-[11px] text-rose-600 mt-1 font-semibold">
+                  No hay otras agencias disponibles en tu alcance.
+                </p>
+              </div>
             </div>
 
-            <!-- Insumo a Despachar (Bloqueado si se seleccionó en fila) -->
+            <!-- Destino Bodega -->
+            <div *ngIf="modoDespachoDestino === 'bodega'">
+              <label class="block font-bold text-slate-700 mb-1">Bodega Receptora *</label>
+              <select
+                [(ngModel)]="despachoAgenciaForm.bodegaId"
+                name="bodegaIdDestino"
+                class="w-full p-2.5 rounded-xl border border-slate-200 bg-white font-medium text-slate-800 focus:outline-none focus:border-indigo-500"
+                required>
+                <option value="" disabled>Seleccione bodega destino...</option>
+                <option *ngFor="let bod of getBodegasDestinoDespacho()" [value]="bod.id">
+                  {{ bod.nombre }} ({{ bod.ciudad || bod.region || 'Bodega' }})
+                </option>
+              </select>
+              <p *ngIf="getBodegasDestinoDespacho().length === 0" class="text-[11px] text-amber-600 mt-1">
+                No hay otras bodegas regionales registradas.
+              </p>
+              <p *ngIf="getBodegasDestinoDespacho().length > 0" class="text-[11px] text-slate-500 mt-1">
+                No se lista tu bodega de origen. El receptor deberá confirmar el envío al llegar.
+              </p>
+            </div>
+
+            <!-- Destino Pulidor Móvil -->
+            <div *ngIf="modoDespachoDestino === 'pulidor'">
+              <label class="block font-bold text-slate-700 mb-1">Pulidor Móvil *</label>
+              <select
+                [(ngModel)]="despachoAgenciaForm.pulidorId"
+                name="pulidorIdDestino"
+                class="w-full p-2.5 rounded-xl border border-slate-200 bg-white font-medium text-slate-800 focus:outline-none focus:border-cyan-500"
+                required>
+                <option value="" disabled>Seleccione pulidor móvil destino...</option>
+                <option *ngFor="let p of getPulidoresDestino('pulidor')" [value]="p.id">
+                  {{ p.nombre || (p.name + ' ' + (p.lastname || '')) }} {{ p.regionNombre ? '· Región: ' + p.regionNombre : '(Móvil)' }}
+                </option>
+              </select>
+              <p *ngIf="getPulidoresDestino('pulidor').length === 0" class="text-[11px] text-rose-600 mt-1 font-semibold">
+                No hay pulidores móviles disponibles en tu región.
+              </p>
+            </div>
+
+            <!-- Destino Pulidor Fijo -->
+            <div *ngIf="modoDespachoDestino === 'pulidor_fijo'">
+              <label class="block font-bold text-slate-700 mb-1">Pulidor Fijo (Asignado a Sucursal) *</label>
+              <select
+                [(ngModel)]="despachoAgenciaForm.pulidorId"
+                name="pulidorFijoIdDestino"
+                class="w-full p-2.5 rounded-xl border border-slate-200 bg-white font-medium text-slate-800 focus:outline-none focus:border-blue-500"
+                required>
+                <option value="" disabled>Seleccione pulidor fijo destino...</option>
+                <option *ngFor="let p of getPulidoresDestino('pulidor_fijo')" [value]="p.id">
+                  {{ p.nombre || (p.name + ' ' + (p.lastname || '')) }} {{ p.agenciaNombre ? '· Sucursal: ' + p.agenciaNombre : '(Sede Fija)' }}
+                </option>
+              </select>
+              <p *ngIf="getPulidoresDestino('pulidor_fijo').length === 0" class="text-[11px] text-rose-600 mt-1 font-semibold">
+                No hay pulidores fijos asignados a sucursal disponibles.
+              </p>
+            </div>
+
+            <!-- Insumo a Despachar -->
             <div>
               <label class="block font-bold text-slate-700 mb-1">Insumo / Producto a Despachar *</label>
               
-              <!-- Caso 1: Producto Fijo Bloqueado (no permite cambiar) -->
+              <!-- Caso 1: Producto Fijo Bloqueado -->
               <div *ngIf="productoDespachoFijo" class="p-3 bg-purple-50/70 rounded-xl border border-purple-200 flex items-center justify-between">
                 <div class="flex items-center gap-2.5 truncate mr-2">
                   <div class="w-8 h-8 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center font-bold shrink-0">
@@ -2821,46 +3039,53 @@ import {
                   <div class="truncate">
                     <p class="font-extrabold text-slate-900 text-xs truncate">{{ productoDespachoFijo.nombre }}</p>
                     <span class="text-[10px] font-mono text-purple-900/80 block">
-                      SKU: {{ productoDespachoFijo.codigoSKU }} | Unidad: {{ productoDespachoFijo.unidadMedida || 'u' }}
+                      SKU: {{ productoDespachoFijo.codigoSKU }} | Contenido: {{ (productoDespachoFijo.contenidoNeto || 1) | number:'1.0-2' }} {{ productoDespachoFijo.unidadMedida || 'u' }}
                       <span *ngIf="productoDespachoFijo.stockActual !== undefined">
-                        • Stock Bodega: <b>{{ productoDespachoFijo.stockActual }}</b>
+                        • Stock: <b>{{ getStockEnUnidades(productoDespachoFijo.stockActual, productoDespachoFijo.contenidoNeto) | number:'1.0-0' }} und</b>
                       </span>
                     </span>
                   </div>
                 </div>
                 <span class="px-2.5 py-1 rounded-lg text-[10px] font-extrabold bg-purple-200/80 text-purple-900 border border-purple-300 shrink-0">
-                  Insumo Fijo (Bloqueado)
+                  Insumo Fijo
                 </span>
               </div>
 
-              <!-- Caso 2: Selector normal si se abrió sin insumo preseleccionado -->
+              <!-- Caso 2: Selector normal -->
               <div *ngIf="!productoDespachoFijo" class="space-y-1">
                 <select
                   [(ngModel)]="despachoAgenciaForm.insumoId"
                   name="insumoId"
-                  class="w-full p-2.5 rounded-xl border border-slate-200 bg-white font-medium text-slate-800"
+                  class="w-full p-2.5 rounded-xl border border-slate-200 bg-white font-medium text-slate-800 focus:outline-none focus:border-purple-500"
                   required>
-                  <option value="" disabled>Seleccione insumo requerido por esta sede...</option>
+                  <option value="" disabled>Seleccione insumo a despachar...</option>
                   <option *ngFor="let p of insumosDisponiblesDespacho" [value]="p.id">
-                    {{ p.nombre }} (SKU: {{ p.codigoSKU }} | Stock Bodega: {{ p.stockActual || 0 }} {{ p.unidadMedida || 'u' }})
+                    {{ p.nombre }} (SKU: {{ p.codigoSKU }} | Stock: {{ getStockEnUnidades(p.stockActual, p.contenidoNeto) | number:'1.0-0' }} und)
                   </option>
                 </select>
-                <p class="text-[11px] text-slate-500">
-                  Solo se listan los insumos que esta sede utiliza para sus servicios asignados.
+                <p *ngIf="insumosDisponiblesDespacho.length === 0" class="text-[11px] text-rose-600 font-medium">
+                  No hay insumos disponibles.
+                </p>
+                <p *ngIf="insumosDisponiblesDespacho.length > 0" class="text-[11px] text-slate-500">
+                  {{ isLiderOperador ? 'Solo se listan los insumos que tu sede utiliza para sus servicios.' : 'Listado de insumos con stock en bodega.' }}
                 </p>
               </div>
             </div>
 
-            <div class="grid grid-cols-2 gap-3">
+            <!-- Cantidad y Nota -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label class="block font-bold text-slate-700 mb-1">Cantidad a Enviar *</label>
+                <label class="block font-bold text-slate-700 mb-1">Cantidad a Enviar (unidades) *</label>
                 <input
                   type="number"
                   [(ngModel)]="despachoAgenciaForm.cantidad"
                   name="cantidad"
                   min="1"
-                  class="w-full p-2.5 rounded-xl border border-slate-200 font-bold text-slate-900"
+                  step="1"
+                  placeholder="1"
+                  class="w-full p-2.5 rounded-xl border border-slate-200 font-bold text-slate-900 bg-white focus:outline-none focus:border-purple-500"
                   required />
+                <p class="text-[10px] text-slate-500 mt-1">Solo unidades completas (envases). No se envía por volumen (L/ml).</p>
               </div>
               <div>
                 <label class="block font-bold text-slate-700 mb-1">Nota u Observación</label>
@@ -2869,32 +3094,69 @@ import {
                   [(ngModel)]="despachoAgenciaForm.observacion"
                   name="observacion"
                   placeholder="ej. Reposición de químicos"
-                  class="w-full p-2.5 rounded-xl border border-slate-200" />
+                  class="w-full p-2.5 rounded-xl border border-slate-200 bg-white focus:outline-none focus:border-purple-500" />
               </div>
             </div>
 
-            <div class="p-3 bg-purple-50 rounded-xl border border-purple-200 text-purple-900 text-[11px] space-y-0.5">
-              <p class="font-bold">Información del Flujo:</p>
-              <p>1. Se creará una guía en estado <b>EN TRÁNSITO</b> visible de inmediato en <b>Envíos & Confirmación</b>.</p>
-              <p>2. La sede receptora deberá verificar físicamente y presionar <b>Confirmar</b> para alimentar su stock o <b>Rechazar</b> con una razón obligatoria.</p>
+            <!-- Información del Flujo -->
+            <div
+              class="p-3.5 rounded-xl text-[11px] space-y-1"
+              [ngClass]="modoDespachoDestino === 'bodega'
+                ? 'bg-indigo-50 border border-indigo-200 text-indigo-900'
+                : (modoDespachoDestino === 'pulidor_fijo'
+                  ? 'bg-blue-50 border border-blue-200 text-blue-900'
+                  : (modoDespachoDestino === 'pulidor' ? 'bg-cyan-50 border border-cyan-200 text-cyan-900' : 'bg-purple-50 border border-purple-200 text-purple-900'))">
+              <p class="font-bold flex items-center gap-1.5">
+                <i-lucide name="info" class="w-3.5 h-3.5"></i-lucide>
+                <span>Información del Flujo:</span>
+              </p>
+              <p>1. La cantidad es en <b>unidades completas</b> (envases). El sistema convierte a volumen al reservar stock.</p>
+              <p>2. Se creará una guía en estado <b>EN TRÁNSITO</b> visible de inmediato en <b>Envíos & Confirmación</b>.</p>
+              <p *ngIf="modoDespachoDestino === 'agencia'">
+                3. La sede receptora deberá verificar físicamente y presionar <b>Confirmar</b> para alimentar su stock o <b>Rechazar</b> con una razón obligatoria.
+              </p>
+              <p *ngIf="modoDespachoDestino === 'bodega'">
+                3. La bodega receptora deberá verificar físicamente y presionar <b>Confirmar</b> para alimentar su stock o <b>Rechazar</b> con una razón obligatoria.
+              </p>
+              <p *ngIf="modoDespachoDestino === 'pulidor'">
+                3. El pulidor móvil deberá verificar físicamente y presionar <b>Confirmar</b> para alimentar su stock personal o <b>Rechazar</b> con una razón obligatoria.
+              </p>
+              <p *ngIf="modoDespachoDestino === 'pulidor_fijo'">
+                3. El pulidor fijo de sede deberá verificar físicamente y presionar <b>Confirmar</b> para alimentar su inventario local asignado o <b>Rechazar</b> con una razón obligatoria.
+              </p>
             </div>
 
-            <div class="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
-              <button
-                type="button"
-                (click)="modalDespachoAgenciaOpen = false"
-                class="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 text-xs font-bold cursor-pointer">
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                [disabled]="procesandoDespachoAgencia || !despachoAgenciaForm.agenciaId || (!productoDespachoFijo && !despachoAgenciaForm.insumoId) || !despachoAgenciaForm.cantidad || despachoAgenciaForm.cantidad <= 0"
-                class="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-black cursor-pointer shadow-sm flex items-center gap-1.5 disabled:opacity-50">
-                <i-lucide name="send" class="w-3.5 h-3.5"></i-lucide>
-                <span>{{ procesandoDespachoAgencia ? 'Despachando...' : 'Confirmar Envío a Sede' }}</span>
-              </button>
-            </div>
-          </form>
+          </div>
+
+          <!-- Footer Fijo Inferior (Sticky) -->
+          <div class="shrink-0 flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50 sticky bottom-0 z-20">
+            <button
+              type="button"
+              (click)="modalDespachoAgenciaOpen = false"
+              class="px-4 py-2.5 rounded-xl text-slate-600 hover:bg-slate-200 text-xs font-bold transition cursor-pointer">
+              Cancelar
+            </button>
+            <button
+              type="button"
+              (click)="ejecutarDespachoAgencia()"
+              [disabled]="procesandoDespachoAgencia || !puedeConfirmarDespachoModal() || (!productoDespachoFijo && !despachoAgenciaForm.insumoId) || !despachoAgenciaForm.cantidad || despachoAgenciaForm.cantidad <= 0"
+              class="px-5 py-2.5 rounded-xl text-white text-xs font-black shadow-md flex items-center gap-2 cursor-pointer transition disabled:opacity-50 disabled:cursor-not-allowed"
+              [ngClass]="modoDespachoDestino === 'bodega'
+                ? 'bg-indigo-600 hover:bg-indigo-700'
+                : (modoDespachoDestino === 'pulidor_fijo'
+                  ? 'bg-blue-600 hover:bg-blue-700'
+                  : (modoDespachoDestino === 'pulidor' ? 'bg-cyan-600 hover:bg-cyan-700' : 'bg-purple-600 hover:bg-purple-700'))">
+              <i-lucide name="send" class="w-4 h-4"></i-lucide>
+              <span>{{ procesandoDespachoAgencia
+                ? 'Despachando...'
+                : (modoDespachoDestino === 'bodega'
+                  ? 'Confirmar Envío a Bodega'
+                  : (modoDespachoDestino === 'pulidor_fijo'
+                    ? 'Confirmar Envío a Pulidor Fijo'
+                    : (modoDespachoDestino === 'pulidor' ? 'Confirmar Envío a Pulidor Móvil' : 'Confirmar Envío a Sede'))) }}</span>
+            </button>
+          </div>
+
         </div>
       </div>
 
@@ -2923,33 +3185,37 @@ import {
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label class="block text-xs font-bold text-slate-700 uppercase mb-1">
-                Región Asignada (Obligatoria) <span class="text-rose-500">*</span>
+                Tipo de Bodega <span class="text-rose-500">*</span>
+              </label>
+              <select
+                [(ngModel)]="bodegaForm.tipo"
+                name="bodegaTipo"
+                class="w-full p-2.5 rounded-xl border border-slate-200 text-sm font-semibold bg-white focus:border-easydry-blue outline-none"
+                required>
+                <option value="REGIONAL">REGIONAL</option>
+                <option value="CENTRAL">CENTRAL (única nacional)</option>
+              </select>
+              <p class="text-[11px] text-slate-400 mt-1">
+                Solo puede existir una bodega CENTRAL a nivel nacional.
+              </p>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">
+                Región Asignada <span *ngIf="bodegaForm.tipo !== 'CENTRAL'" class="text-rose-500">*</span>
               </label>
               <select
                 [(ngModel)]="bodegaForm.regionId"
                 name="bodegaRegion"
                 class="w-full p-2.5 rounded-xl border border-slate-200 text-sm font-semibold bg-white focus:border-easydry-blue outline-none"
-                required>
+                [required]="bodegaForm.tipo !== 'CENTRAL'">
                 <option value="" disabled>Seleccione una región</option>
                 <option *ngFor="let r of regionesDisponibles" [value]="r.id">
                   {{ r.nombre }} ({{ r.codigo }})
                 </option>
               </select>
               <p class="text-[11px] text-slate-400 mt-1">
-                Cada bodega debe pertenecer formalmente a una región del sistema.
+                Obligatoria para REGIONAL; opcional para CENTRAL.
               </p>
-            </div>
-
-            <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">
-                Código Identificador
-              </label>
-              <input
-                type="text"
-                [(ngModel)]="bodegaForm.codigo"
-                name="bodegaCodigo"
-                placeholder="ej. BOD-MANABI"
-                class="w-full p-2.5 rounded-xl border border-slate-200 text-sm font-mono focus:border-easydry-blue outline-none" />
             </div>
           </div>
 
@@ -2965,7 +3231,6 @@ import {
                 placeholder="ej. Manta"
                 class="w-full p-2.5 rounded-xl border border-slate-200 text-sm focus:border-easydry-blue outline-none" />
             </div>
-
             <div>
               <label class="block text-xs font-bold text-slate-700 uppercase mb-1">
                 Teléfono de Contacto
@@ -2979,8 +3244,7 @@ import {
             </div>
           </div>
 
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
+          <div>
               <label class="block text-xs font-bold text-slate-700 uppercase mb-1">
                 Dirección Física / HUB Logístico
               </label>
@@ -2990,9 +3254,9 @@ import {
                 name="bodegaDireccion"
                 placeholder="ej. Av. 4 de Noviembre y Calle 114"
                 class="w-full p-2.5 rounded-xl border border-slate-200 text-sm focus:border-easydry-blue outline-none" />
-            </div>
+          </div>
 
-            <div>
+          <div>
               <label class="block text-xs font-bold text-slate-700 uppercase mb-1">
                 % Umbral Alerta Mínimo de Stock
               </label>
@@ -3010,7 +3274,6 @@ import {
               <p class="text-[10px] text-slate-400 mt-0.5">
                 Margen sobre el mínimo para alerta preventiva.
               </p>
-            </div>
           </div>
 
           <div class="p-3 bg-blue-50 rounded-xl border border-blue-200 text-blue-900 text-xs flex items-start gap-2">
@@ -3029,7 +3292,7 @@ import {
             </button>
             <button
               type="submit"
-              [disabled]="guardandoBodega || !bodegaForm.nombre.trim() || !bodegaForm.regionId"
+              [disabled]="guardandoBodega || !bodegaForm.nombre.trim() || (bodegaForm.tipo !== 'CENTRAL' && !bodegaForm.regionId)"
               class="px-5 py-2 rounded-xl bg-easydry-blue hover:bg-blue-700 text-white text-xs font-black cursor-pointer shadow-sm flex items-center gap-1.5 disabled:opacity-50">
               <i-lucide name="save" class="w-3.5 h-3.5"></i-lucide>
               <span>{{ guardandoBodega ? 'Guardando...' : (editandoBodega ? 'Guardar Cambios' : 'Registrar Bodega') }}</span>
@@ -3048,6 +3311,7 @@ export class InventarioComponent implements OnInit {
   private sucursalService = inject(SucursalService);
   private usuarioService = inject(UsuarioService);
   private regionService = inject(RegionService);
+  private http = inject(HttpClient);
 
   // Navegación
   activeTab: 'dashboard' | 'insumos_servicios' | 'productos' | 'bodegas' | 'agencias' | 'movimientos' | 'stock_bajo' | 'configuracion' = 'insumos_servicios';
@@ -3055,8 +3319,9 @@ export class InventarioComponent implements OnInit {
 
   // Bodegas & Asistentes
   bodegasDisponibles: BodegaInventario[] = [];
-  bodegaSeleccionadaId: string = 'bod_central';
+  bodegaSeleccionadaId: string = '';
   bodegaSeleccionada: BodegaInventario | null = null;
+  private stockBodegaRequestSeq = 0;
   todosLosUsuarios: Usuario[] = [];
   cargandoBodegas: boolean = false;
   regionesDisponibles: any[] = [];
@@ -3067,6 +3332,7 @@ export class InventarioComponent implements OnInit {
     nombre: '',
     codigo: '',
     regionId: '',
+    tipo: 'REGIONAL' as 'CENTRAL' | 'REGIONAL',
     ciudad: '',
     direccion: '',
     telefono: '',
@@ -3089,9 +3355,84 @@ export class InventarioComponent implements OnInit {
     );
   }
 
+  /** Solo Bodega Central admite ingresos; regionales se abastecen por envíos. */
+  get esBodegaCentralActual(): boolean {
+    const bod = this.bodegaSeleccionada || this.resumenBodegas?.bodega;
+    if (!bod) {
+      return this.bodegaSeleccionadaId === 'bod_central';
+    }
+    return !!(bod.esCentral || bod.tipo === 'CENTRAL' || bod.id === 'bod_central' || bod.codigo === 'BOD-CENTRAL');
+  }
+
+  /** Quién puede registrar compra/ingreso (siempre a Central). Asistente regional no. */
+  get puedeRegistrarIngreso(): boolean {
+    return !!(this.esAdminGlobal || this.esGestorBodega);
+  }
+
+  get esSuperAdmin(): boolean {
+    const role = (this.currentUser?.role || '').toUpperCase();
+    return (
+      this.auth.isSuperAdmin() ||
+      role === 'SUPER_ADMIN' ||
+      (role.includes('SUPER') && role.includes('ADMIN'))
+    );
+  }
+
+  /** Generar despachos/envíos: Super Admin (acceso total), Coord, Asistente o Líder. */
+  get puedeGenerarDespacho(): boolean {
+    if (this.esSuperAdmin) return true;
+    if (this.esAdminGlobal) return false;
+    return !!(this.esGestorBodega || this.esAsistenteBodega || this.isLiderOperador || this.esLiderAgencia);
+  }
+
+  /** Despacho entre bodegas: Super Admin y personal de bodega. */
+  get puedeDespacharABodega(): boolean {
+    if (this.esSuperAdmin) return true;
+    if (this.esAdminGlobal) return false;
+    return !!(this.esGestorBodega || this.esAsistenteBodega);
+  }
+
+  /** Catálogo stock bajo de Bodega Central: solo Admin / Coord (no líder ni asistente regional). */
+  get puedeVerStockBajoBodegaCentral(): boolean {
+    return !!(this.esAdminGlobal || this.esGestorBodega);
+  }
+
+  /** Insumos de la sede del líder con alerta real (no “No necesario”). */
+  get insumosBajosMiSede(): any[] {
+    return (this.insumosServiciosList || []).filter(
+      (i: any) =>
+        i.necesario !== false &&
+        i.estado !== 'NO_NECESARIO' &&
+        (i.estado === 'BAJO' || i.estado === 'CRITICO' || i.estado === 'AGOTADO'),
+    );
+  }
+
+  get contadorBadgeStockBajo(): number {
+    const alertas = (this.alertasStockList || []).filter(
+      (a: any) => (a.estado || '').toUpperCase() !== 'RESUELTO',
+    ).length;
+    if (this.isLiderOperador) {
+      return alertas + this.insumosBajosMiSede.length;
+    }
+    if (this.esAsistenteBodega) {
+      return alertas;
+    }
+    return alertas > 0 ? alertas : Number(this.resumenDashboard?.productosStockBajo || 0);
+  }
+
+  private obtenerIdBodegaCentral(): string {
+    const central = (this.bodegasDisponibles || []).find(
+      (b) => b.esCentral || b.tipo === 'CENTRAL' || b.id === 'bod_central' || b.codigo === 'BOD-CENTRAL'
+    );
+    return (central?.id || 'bod_central').toString();
+  }
+
   // Usuario y Sede Actual
   currentUser: any = null;
   isOperador: boolean = false;
+  isPulidor: boolean = false;
+  isPulidorMovil: boolean = false;
+  isPulidorFijo: boolean = false;
   isLiderOperador: boolean = false;
   esLiderAgencia: boolean = false;
   miAgenciaId: string = '';
@@ -3131,10 +3472,15 @@ export class InventarioComponent implements OnInit {
   // Despachos rechazados para visibilidad de Super Admin
   despachosRechazadosSuperAdmin: any[] = [];
   modalDespachoAgenciaOpen: boolean = false;
+  modoDespachoDestino: 'agencia' | 'bodega' | 'pulidor' | 'pulidor_fijo' = 'agencia';
+  pulidoresDestinoDisponibles: any[] = [];
   productoDespachoFijo: any = null;
   agenciaDespachoFija: any = null;
   despachoAgenciaForm = {
     agenciaId: '',
+    bodegaId: '',
+    pulidorId: '',
+    origenBodegaId: '',
     insumoId: '',
     insumoNombre: '',
     cantidad: 1,
@@ -3199,12 +3545,12 @@ export class InventarioComponent implements OnInit {
   filtroTextoProducto = '';
   filtroTipoProductoId = '';
   filtroAlertaStock = '';
+  filtroEstadoProducto = '';
   filtroMovimientoTipoId = '';
   filtroMovimientoInsumoId = '';
 
   // Estados de Modales
   modalEntradaAbierto = false;
-  modalConsumoAbierto = false;
   modalProductoAbierto = false;
   modalPresentacionesAbierto = false;
   modalTipoAbierto = false;
@@ -3216,21 +3562,13 @@ export class InventarioComponent implements OnInit {
     insumoId: '',
     cantidadUnidades: 1,
     observaciones: '',
+    bodegaId: '' as string,
   };
   busquedaProductoEntrada = '';
   productosEntradaFiltrados: ProductoInsumo[] = [];
   productoEntradaSeleccionado: ProductoInsumo | null = null;
   productoEntradaFijo: any = null;
   previewEntradaCantidadBase = 0;
-
-  // Formulario de Consumo
-  formConsumo = {
-    insumoId: '',
-    cantidad: 1,
-    observaciones: '',
-  };
-  productoConsumoSeleccionado: ProductoInsumo | null = null;
-  previewConsumoInvalido = false;
 
   // Formulario Producto
   editandoProducto = false;
@@ -3241,8 +3579,10 @@ export class InventarioComponent implements OnInit {
     tipoProductoId: '',
     unidadMedidaId: '',
     contenidoNeto: 1,
-    stockMinimoBodega: 10,
-    stockOptimoBodega: 50,
+    stockMinimoBodega: null as number | null,
+    stockMinimoAgencia: null as number | null,
+    stockOptimoBodega: null as number | null,
+    estado: 1,
     descripcion: '',
   };
 
@@ -3281,7 +3621,10 @@ export class InventarioComponent implements OnInit {
     const esAdminOBodega = esAdminOSuperAdmin || esBodega;
 
     this.isOperador = !esAdminOBodega;
-    this.isLiderOperador = this.isOperador && (role === 'LIDER_OPERADOR' || role === 'LIDER_AGENCIA' || rolNombre.includes('lider'));
+    this.isPulidor = this.auth.isPulidor();
+    this.isPulidorMovil = this.isPulidor && this.auth.isPulidorMovil();
+    this.isPulidorFijo = this.isPulidor && !this.isPulidorMovil;
+    this.isLiderOperador = this.isOperador && !this.isPulidor && (role === 'LIDER' || role === 'LIDER_OPERADOR' || role === 'LIDER_AGENCIA' || rolNombre.includes('lider'));
     this.esLiderAgencia = this.isLiderOperador;
 
     this.esGestorBodega = (role === 'COORD_BODEGA' || role === 'DISTRIBUIDOR' || rolNombre.includes('coordinador') || rolNombre.includes('gestor'));
@@ -3292,16 +3635,26 @@ export class InventarioComponent implements OnInit {
     this.miAgenciaNombre = this.currentUser?.sucursalNombre || this.currentUser?.sucursal || '';
     this.miAgenciaId = (this.currentUser?.agenciaId ? String(this.currentUser.agenciaId) : '') || this.miAgenciaNombre;
 
+    // Asistente: contexto = su bodega asignada (nunca Central por defecto)
+    if (this.esAsistenteBodega && this.currentUser?.bodegaId) {
+      this.bodegaSeleccionadaId = String(this.currentUser.bodegaId);
+    } else if (!this.esAsistenteBodega) {
+      this.bodegaSeleccionadaId = this.bodegaSeleccionadaId || 'bod_central';
+    }
+
     if (this.isOperador) {
+      // Líder / pulidor: operación diaria de su sede
       this.activeTab = 'insumos_servicios';
-    } else if (esBodega) {
-      this.activeTab = 'bodegas';
+    } else {
+      // Admin / Coord Bodega / Asistente: panorama primero
+      this.activeTab = 'dashboard';
     }
 
     this.cargarTodosLosCatalogos();
     this.cargarRegiones();
     this.cargarBodegasDisponibles();
     this.cargarUsuariosYAsistentes();
+    this.cargarPulidoresDestino();
     this.cargarInsumosPorServicios();
     this.cargarDespachosPendientes();
     this.cargarDespachosRechazadosSuperAdmin();
@@ -3319,7 +3672,7 @@ export class InventarioComponent implements OnInit {
         if (encontrada) {
           this.miAgenciaId = String(encontrada.id);
           this.miAgenciaNombre = encontrada.nombre;
-        } else if (!this.currentUser?.agenciaId && !this.miAgenciaId) {
+        } else if (!this.isPulidorMovil && !this.currentUser?.agenciaId && !this.miAgenciaId) {
           this.miAgenciaId = String(this.sucursalesActivas[0].id);
           this.miAgenciaNombre = this.sucursalesActivas[0].nombre;
         }
@@ -3359,32 +3712,286 @@ export class InventarioComponent implements OnInit {
 
   public getAgenciasDestinoDisponibles(): any[] {
     const role = (this.currentUser?.role || '').toUpperCase();
-    const esAsistenteBodega = role === 'ASISTENTE_BODEGA';
+    const esAsistenteBodega = role === 'ASISTENTE_BODEGA' || this.esAsistenteBodega;
     const userRegion = (this.currentUser?.region || this.currentUser?.regionNombre || '').toLowerCase().trim();
     const userRegionId = (this.currentUser as any)?.regionId;
+    const miId = String(this.miAgenciaId || '');
 
-    if (esAsistenteBodega && (userRegion || userRegionId)) {
-      // Asistente de Bodega: gestiona únicamente las agencias de su región asignada
-      const regionales = this.sucursalesActivas.filter(s =>
-        (userRegionId && s.regionId && String(s.regionId) === String(userRegionId)) ||
-        (s.regionNombre && s.regionNombre.toLowerCase().includes(userRegion)) ||
-        (s.ciudad && s.ciudad.toLowerCase().includes(userRegion))
+    const sameRegion = (s: any) =>
+      (userRegionId && s.regionId && String(s.regionId) === String(userRegionId)) ||
+      (userRegion && s.regionNombre && String(s.regionNombre).toLowerCase().includes(userRegion)) ||
+      (userRegion && s.region && String(s.region).toLowerCase().includes(userRegion)) ||
+      (userRegion && s.ciudad && String(s.ciudad).toLowerCase().includes(userRegion));
+
+    // Líder: solo otras agencias de su región (nunca la propia)
+    if (this.isLiderOperador) {
+      const otras = this.sucursalesActivas.filter(
+        (s) =>
+          String(s.id) !== miId &&
+          s.nombre?.toLowerCase() !== (this.miAgenciaNombre || '').toLowerCase() &&
+          (!userRegion && !userRegionId ? true : sameRegion(s)),
       );
-      return regionales.length > 0 ? regionales : [];
+      return otras;
     }
 
-    if (this.isOperador && this.miAgenciaId) {
-      const filtradas = this.sucursalesActivas.filter(
-        (s) => String(s.id) !== String(this.miAgenciaId) && s.nombre?.toLowerCase() !== this.miAgenciaNombre?.toLowerCase()
-      );
-      return filtradas.length > 0 ? filtradas : this.sucursalesActivas;
+    if (esAsistenteBodega) {
+      const regionales = this.sucursalesActivas.filter((s) => sameRegion(s));
+      return regionales.length > 0 ? regionales : this.sucursalesActivas;
     }
 
-    // Gestor de Inventario (COORD_BODEGA), Super Admin y Admin: todas las agencias sin importar región ni marcas
+    // Coord / Admin: todas
     return this.sucursalesActivas;
   }
 
+  public esPulidorFijo(p: any): boolean {
+    return p?.modalidad === 'FIJO' || Boolean(p?.agenciaId);
+  }
+
+  public esPulidorMovil(p: any): boolean {
+    return p?.modalidad === 'MOVIL' || (!p?.agenciaId && p?.modalidad !== 'FIJO');
+  }
+
+  public getPulidoresDestino(tipo: 'pulidor' | 'pulidor_fijo'): any[] {
+    if (tipo === 'pulidor_fijo') {
+      return (this.pulidoresDestinoDisponibles || []).filter((p) => this.esPulidorFijo(p));
+    } else {
+      return (this.pulidoresDestinoDisponibles || []).filter((p) => this.esPulidorMovil(p));
+    }
+  }
+
+  public cargarPulidoresDestino(): void {
+    const regionId = (this.currentUser as any)?.regionId || undefined;
+    this.http
+      .post<any[]>(apiUrl('/operaciones/servicios-especiales/pulidores'), { regionId })
+      .pipe(catchError(() => of([])))
+      .subscribe((list) => {
+        this.pulidoresDestinoDisponibles = (list || []).map((p: any) => {
+          const esFijo = p.modalidad === 'FIJO' || Boolean(p.agenciaId);
+          return {
+            id: String(p.id),
+            nombre:
+              `${p.name || p.nombre || ''} ${p.lastname || p.apellido || ''}`.trim() ||
+              p.email ||
+              p.id,
+            email: p.email,
+            agenciaId: p.agenciaId || null,
+            agenciaNombre: p.agencia?.nombre || null,
+            regionId: p.regionId || null,
+            regionNombre: p.region?.nombre || null,
+            modalidad: esFijo ? 'FIJO' : 'MOVIL',
+          };
+        });
+
+        if (
+          (this.modoDespachoDestino === 'pulidor' || this.modoDespachoDestino === 'pulidor_fijo') &&
+          !this.despachoAgenciaForm.pulidorId
+        ) {
+          const disponibles = this.getPulidoresDestino(this.modoDespachoDestino);
+          if (disponibles.length > 0) {
+            this.despachoAgenciaForm.pulidorId = String(disponibles[0].id);
+          }
+        }
+      });
+  }
+
+  public cambiarTipoDestinoDespacho(tipo: 'agencia' | 'bodega' | 'pulidor' | 'pulidor_fijo'): void {
+    this.modoDespachoDestino = tipo;
+    this.agenciaDespachoFija = null;
+
+    if (tipo === 'agencia') {
+      this.despachoAgenciaForm.pulidorId = '';
+      this.despachoAgenciaForm.bodegaId = '';
+      const ops = this.getAgenciasDestinoDisponibles();
+      this.despachoAgenciaForm.agenciaId = ops[0] ? String(ops[0].id) : '';
+      if (!this.isLiderOperador) {
+        this.alCambiarAgenciaDespacho();
+      } else {
+        this.insumosDisponiblesDespacho = (this.insumosServiciosList || [])
+          .filter((i: any) => i.necesario !== false && i.estado !== 'NO_NECESARIO')
+          .map((i: any) => ({
+            id: i.id || i.insumoId,
+            nombre: i.nombre,
+            codigoSKU: i.codigoSKU,
+            unidadMedida: i.unidadMedida || 'u',
+            contenidoNeto: Number(i.contenidoNeto || 1),
+            stockActual: Number(i.stockActual || 0),
+          }));
+      }
+    } else if (tipo === 'bodega') {
+      this.despachoAgenciaForm.agenciaId = '';
+      this.despachoAgenciaForm.pulidorId = '';
+      const destinos = this.getBodegasDestinoDespacho();
+      this.despachoAgenciaForm.bodegaId = destinos[0] ? String(destinos[0].id) : '';
+      this.despachoAgenciaForm.origenBodegaId = String(
+        this.obtenerBodegaIdContexto() || this.obtenerIdBodegaCentral() || ''
+      );
+      this.insumosDisponiblesDespacho = [...this.productos];
+    } else {
+      // 'pulidor' o 'pulidor_fijo'
+      this.despachoAgenciaForm.agenciaId = '';
+      this.despachoAgenciaForm.bodegaId = '';
+      if (this.pulidoresDestinoDisponibles.length === 0) {
+        this.cargarPulidoresDestino();
+      }
+      const disponibles = this.getPulidoresDestino(tipo);
+      this.despachoAgenciaForm.pulidorId = disponibles[0]
+        ? String(disponibles[0].id)
+        : '';
+      this.insumosDisponiblesDespacho = [...this.productos];
+    }
+
+    if (!this.productoDespachoFijo && this.insumosDisponiblesDespacho.length > 0) {
+      const currentId = this.despachoAgenciaForm.insumoId;
+      const exists = this.insumosDisponiblesDespacho.some((p) => String(p.id) === String(currentId));
+      if (!exists) {
+        this.despachoAgenciaForm.insumoId = String(this.insumosDisponiblesDespacho[0].id);
+      }
+    }
+  }
+
+  public abrirModalDespacho(destinoInicial?: 'agencia' | 'bodega' | 'pulidor' | 'pulidor_fijo', agenciaParam?: any, insumoParam?: any): void {
+    if (this.pulidoresDestinoDisponibles.length === 0) {
+      this.cargarPulidoresDestino();
+    }
+    if (!this.productos || this.productos.length === 0) {
+      this.cargarProductos();
+    }
+    if (!this.bodegasDisponibles || this.bodegasDisponibles.length === 0) {
+      this.cargarBodegasDisponibles();
+    }
+    const dest = destinoInicial || 'agencia';
+    this.abrirModalDespachoAgencia(agenciaParam, insumoParam);
+    if (dest !== 'agencia') {
+      this.cambiarTipoDestinoDespacho(dest);
+    }
+  }
+
+  public abrirModalDespachoHaciaBodegaSeleccionada(): void {
+    if (!this.puedeDespacharABodega) {
+      this.toast.warning('Sin permiso', 'Solo el coordinador de bodega puede abastecer bodegas regionales.');
+      return;
+    }
+    const destinoId = String(this.bodegaSeleccionadaId || this.bodegaSeleccionada?.id || '').trim();
+    if (!destinoId) {
+      this.toast.warning('Bodega requerida', 'Selecciona una bodega regional destino');
+      return;
+    }
+    if (this.esBodegaCentralActual) {
+      this.toast.warning('Destino inválido', 'Usa Despachar a Bodega para enviar a otra bodega desde Central');
+      return;
+    }
+    this.modoDespachoDestino = 'bodega';
+    this.agenciaDespachoFija = null;
+    this.productoDespachoFijo = null;
+    this.insumosDisponiblesDespacho = [...this.productos];
+    const bod = this.bodegaSeleccionada || this.bodegasDisponibles.find((b) => String(b.id) === destinoId);
+    this.despachoAgenciaForm = {
+      agenciaId: '',
+      bodegaId: destinoId,
+      pulidorId: '',
+      origenBodegaId: this.obtenerIdBodegaCentral(),
+      insumoId: this.productos.length > 0 ? String(this.productos[0].id) : '',
+      insumoNombre: '',
+      cantidad: 1,
+      observacion: `Abastecimiento desde Central hacia ${bod?.nombre || 'bodega regional'}`,
+    };
+    this.modalDespachoAgenciaOpen = true;
+  }
+
+  public abrirModalDespachoDesdeBodegaActual(insumoParam?: any): void {
+    const origenId = String(this.bodegaSeleccionadaId || this.bodegaSeleccionada?.id || '').trim();
+    this.abrirModalDespachoAgencia(undefined, insumoParam);
+    this.despachoAgenciaForm.origenBodegaId = origenId || this.obtenerIdBodegaCentral();
+    if (origenId && this.bodegaSeleccionada?.nombre) {
+      this.despachoAgenciaForm.observacion =
+        this.despachoAgenciaForm.observacion ||
+        `Despacho desde ${this.bodegaSeleccionada.nombre} hacia sede`;
+    }
+  }
+
+  public getBodegasDestinoDespacho(): BodegaInventario[] {
+    const origenId = String(
+      this.despachoAgenciaForm?.origenBodegaId ||
+        this.bodegaSeleccionadaId ||
+        this.currentUser?.bodegaId ||
+        '',
+    ).trim();
+    return (this.bodegasDisponibles || []).filter((b) => String(b.id) !== origenId);
+  }
+
+  public puedeConfirmarDespachoModal(): boolean {
+    if (this.modoDespachoDestino === 'bodega') {
+      return !!this.despachoAgenciaForm.bodegaId;
+    }
+    if (this.modoDespachoDestino === 'pulidor' || this.modoDespachoDestino === 'pulidor_fijo') {
+      return !!this.despachoAgenciaForm.pulidorId;
+    }
+    return !!this.despachoAgenciaForm.agenciaId;
+  }
+
+  public abrirModalDespachoBodega(insumoParam?: any): void {
+    if (!this.puedeDespacharABodega) {
+      this.toast.warning(
+        'Sin permiso',
+        'Admin / Super Admin no pueden generar envíos. Solo coordinadores o asistentes de bodega.'
+      );
+      return;
+    }
+    this.modoDespachoDestino = 'bodega';
+    this.agenciaDespachoFija = null;
+
+    const destinos = this.getBodegasDestinoDespacho();
+    if (!destinos.length) {
+      this.toast.warning('Sin Destino', 'No hay otras bodegas disponibles para despachar');
+      return;
+    }
+
+    let insId = '';
+    let prodFijo: any = null;
+    let cantidad = 1;
+
+    if (insumoParam) {
+      insId = String(insumoParam.insumoId || insumoParam.id || '');
+      const found = this.productos.find((p) => String(p.id) === insId);
+      prodFijo = found
+        ? { ...found, stockActual: Number(insumoParam.stockActual ?? found.stockActual ?? 0) }
+        : {
+            id: insId,
+            nombre: insumoParam.nombre || '',
+            codigoSKU: insumoParam.codigoSKU || 'SKU',
+            unidadMedida: insumoParam.unidad || insumoParam.unidadMedida || 'u',
+            stockActual: Number(insumoParam.stockActual || 0)
+          };
+      cantidad = Number(insumoParam.deficit) > 0 ? Number(insumoParam.deficit) : 1;
+    } else {
+      insId = this.productos.length > 0 ? String(this.productos[0].id) : '';
+    }
+
+    this.productoDespachoFijo = insumoParam ? prodFijo : null;
+    this.insumosDisponiblesDespacho = [...this.productos];
+    this.despachoAgenciaForm = {
+      agenciaId: '',
+      bodegaId: String(destinos[0].id),
+      pulidorId: '',
+      origenBodegaId: String(this.obtenerBodegaIdContexto() || this.obtenerIdBodegaCentral() || ''),
+      insumoId: insId,
+      insumoNombre: prodFijo ? prodFijo.nombre : '',
+      cantidad,
+      observacion: `Despacho entre bodegas hacia: ${destinos[0].nombre || ''}`
+    };
+    this.modalDespachoAgenciaOpen = true;
+  }
+
   public abrirModalDespachoAgencia(agenciaParam?: any, insumoParam?: any): void {
+    if (!this.puedeGenerarDespacho) {
+      this.toast.warning(
+        'Sin permiso',
+        'Admin / Super Admin no pueden generar envíos. Solo personal de bodega o líderes de sede.'
+      );
+      return;
+    }
+    // Líder nunca despacha a bodega desde este modal
+    this.modoDespachoDestino = 'agencia';
     let agId = '';
     let agObj: any = null;
 
@@ -3404,6 +4011,20 @@ export class InventarioComponent implements OnInit {
 
     this.agenciaDespachoFija = agenciaParam ? agObj : null;
 
+    // Catálogo modal líder: solo insumos que SÍ requieren los servicios de la sede
+    const catalogoInsumos = this.isLiderOperador
+      ? (this.insumosServiciosList || [])
+          .filter((i: any) => i.necesario !== false && i.estado !== 'NO_NECESARIO')
+          .map((i: any) => ({
+            id: i.id || i.insumoId,
+            nombre: i.nombre,
+            codigoSKU: i.codigoSKU,
+            unidadMedida: i.unidadMedida || 'u',
+            contenidoNeto: Number(i.contenidoNeto || 1),
+            stockActual: Number(i.stockActual || 0),
+          }))
+      : [...this.productos];
+
     let insId = '';
     let insNombre = '';
     let insDeficit = 1;
@@ -3414,19 +4035,19 @@ export class InventarioComponent implements OnInit {
       insNombre = insumoParam.nombre || '';
       insDeficit = Number(insumoParam.deficit) > 0 ? Number(insumoParam.deficit) : 1;
 
-      // Buscar en catálogo de productos para enlazar SKU, unidad y stock
-      const found = this.productos.find(
-        (p) =>
-          p.id.toString() === insId ||
-          (p.codigoSKU && insumoParam.codigoSKU && p.codigoSKU.toLowerCase() === insumoParam.codigoSKU.toLowerCase()) ||
+      const found = catalogoInsumos.find(
+        (p: any) =>
+          String(p.id) === insId ||
+          (p.codigoSKU && insumoParam.codigoSKU && p.codigoSKU.toLowerCase() === String(insumoParam.codigoSKU).toLowerCase()) ||
           (p.nombre && insNombre && p.nombre.toLowerCase().trim() === insNombre.toLowerCase().trim())
       );
 
       if (found) {
-        insId = found.id.toString();
+        insId = String(found.id);
         prodFijo = {
           ...found,
-          stockActual: found.stockActual ?? insumoParam.stockActual
+          stockActual: Number(insumoParam.stockActual ?? found.stockActual ?? 0),
+          contenidoNeto: Number(insumoParam.contenidoNeto ?? found.contenidoNeto ?? 1),
         };
       } else {
         prodFijo = {
@@ -3434,28 +4055,61 @@ export class InventarioComponent implements OnInit {
           nombre: insNombre,
           codigoSKU: insumoParam.codigoSKU || 'SKU',
           unidadMedida: insumoParam.unidad || insumoParam.unidadMedida || 'u',
-          stockActual: insumoParam.stockActual || 0
+          contenidoNeto: Number(insumoParam.contenidoNeto || 1),
+          stockActual: Number(insumoParam.stockActual || 0),
         };
       }
     } else {
-      insId = this.productos.length > 0 ? String(this.productos[0].id) : '';
+      insId = catalogoInsumos.length > 0 ? String(catalogoInsumos[0].id) : '';
     }
 
     this.productoDespachoFijo = insumoParam ? prodFijo : null;
+    this.insumosDisponiblesDespacho = catalogoInsumos;
+
+    if (this.isLiderOperador && agenciasOpciones.length === 0 && this.pulidoresDestinoDisponibles.length === 0) {
+      this.toast.warning(
+        'Sin destinos',
+        'No hay otras agencias ni pulidores en tu región para despachar.'
+      );
+    }
 
     this.despachoAgenciaForm = {
       agenciaId: agId,
+      bodegaId: '',
+      pulidorId: '',
+      // Líder despacha desde stock de su agencia (BE usa usuario.agenciaId)
+      origenBodegaId: this.isLiderOperador
+        ? ''
+        : String(this.obtenerBodegaIdContexto() || this.obtenerIdBodegaCentral() || ''),
       insumoId: insId,
       insumoNombre: prodFijo ? prodFijo.nombre : '',
       cantidad: insDeficit,
-      observacion: agObj ? `Despacho central asignado a sede: ${agObj.nombre || ''} (${agObj.codigo || ''})` : ''
+      observacion: agObj
+        ? `Despacho hacia sede: ${agObj.nombre || ''} (${agObj.codigo || ''})`
+        : (this.isLiderOperador ? 'Despacho desde stock de mi sede' : ''),
     };
-    this.alCambiarAgenciaDespacho();
+    if (!this.isLiderOperador) {
+      this.alCambiarAgenciaDespacho();
+    } else if (agenciasOpciones.length === 0 && this.pulidoresDestinoDisponibles.length > 0) {
+      this.cambiarTipoDestinoDespacho('pulidor');
+    }
     this.modalDespachoAgenciaOpen = true;
   }
 
   public alCambiarAgenciaDespacho(): void {
     const agId = this.despachoAgenciaForm.agenciaId;
+    if (!this.isLiderOperador) {
+      this.insumosDisponiblesDespacho = this.productos && this.productos.length > 0 ? [...this.productos] : [];
+      if (
+        this.insumosDisponiblesDespacho.length > 0 &&
+        (!this.despachoAgenciaForm.insumoId ||
+          !this.insumosDisponiblesDespacho.some((p) => String(p.id) === String(this.despachoAgenciaForm.insumoId)))
+      ) {
+        this.despachoAgenciaForm.insumoId = String(this.insumosDisponiblesDespacho[0].id);
+      }
+      return;
+    }
+
     if (!agId) {
       this.insumosDisponiblesDespacho = [...this.productos];
       return;
@@ -3479,6 +4133,7 @@ export class InventarioComponent implements OnInit {
           nombre: i.nombre,
           codigoSKU: i.codigoSKU,
           unidadMedida: i.unidad || 'u',
+          contenidoNeto: Number(i.contenidoNeto || 1),
           stockActual: i.stockActual || 0
         }));
       }
@@ -3495,7 +4150,21 @@ export class InventarioComponent implements OnInit {
   }
 
   public ejecutarDespachoAgencia(): void {
-    if (!this.despachoAgenciaForm.agenciaId) {
+    if (!this.puedeGenerarDespacho && !this.puedeDespacharABodega) {
+      this.toast.warning('Sin permiso', 'Admin / Super Admin no pueden generar envíos.');
+      return;
+    }
+    const esBodega = this.modoDespachoDestino === 'bodega';
+    const esPulidor = this.modoDespachoDestino === 'pulidor' || this.modoDespachoDestino === 'pulidor_fijo';
+    if (esBodega && !this.despachoAgenciaForm.bodegaId) {
+      this.toast.warning('Bodega Requerida', 'Selecciona la bodega de destino');
+      return;
+    }
+    if (esPulidor && !this.despachoAgenciaForm.pulidorId) {
+      this.toast.warning('Pulidor Requerido', this.modoDespachoDestino === 'pulidor_fijo' ? 'Selecciona el pulidor fijo de destino' : 'Selecciona el pulidor móvil de destino');
+      return;
+    }
+    if (!esBodega && !esPulidor && !this.despachoAgenciaForm.agenciaId) {
       this.toast.warning('Agencia Requerida', 'Selecciona la agencia o sucursal de destino');
       return;
     }
@@ -3508,21 +4177,48 @@ export class InventarioComponent implements OnInit {
       this.toast.warning('Cantidad Inválida', 'La cantidad debe ser mayor a 0');
       return;
     }
+    const cantUnd = Number(this.despachoAgenciaForm.cantidad);
+    if (!Number.isFinite(cantUnd) || Math.abs(cantUnd - Math.round(cantUnd)) > 1e-9) {
+      this.toast.warning('Cantidad Inválida', 'Solo se permiten unidades completas (números enteros).');
+      return;
+    }
+    const unidades = Math.round(cantUnd);
 
     this.procesandoDespachoAgencia = true;
-    const payload = {
-      tipo: 'DESPACHO_AGENCIA',
-      agenciaId: String(this.despachoAgenciaForm.agenciaId),
-      sucursalDestinoId: String(this.despachoAgenciaForm.agenciaId),
-      agenciaDestinoId: String(this.despachoAgenciaForm.agenciaId),
-      observaciones: this.despachoAgenciaForm.observacion || 'Despacho directo desde sección de suministros',
-      detalles: [
-        {
-          insumoId: String(targetInsumoId),
-          cantidadEnviada: Number(this.despachoAgenciaForm.cantidad)
-        }
-      ]
-    };
+    const origenBodegaId = String(
+      this.despachoAgenciaForm.origenBodegaId || this.obtenerBodegaIdContexto() || this.obtenerIdBodegaCentral() || '',
+    );
+
+    let payload: any;
+    if (esBodega) {
+      payload = {
+        tipo: 'DESPACHO_BODEGA',
+        destinoBodegaId: String(this.despachoAgenciaForm.bodegaId),
+        origenBodegaId: origenBodegaId || undefined,
+        observaciones: this.despachoAgenciaForm.observacion || 'Despacho entre bodegas desde sección de suministros',
+        detalles: [{ insumoId: String(targetInsumoId), cantidadEnviada: unidades }],
+      };
+    } else if (esPulidor) {
+      const esFijo = this.modoDespachoDestino === 'pulidor_fijo';
+      payload = {
+        tipo: 'DESPACHO_PULIDOR',
+        pulidorDestinoId: String(this.despachoAgenciaForm.pulidorId),
+        destinoPulidorId: String(this.despachoAgenciaForm.pulidorId),
+        origenBodegaId: origenBodegaId || undefined,
+        observaciones: this.despachoAgenciaForm.observacion || (esFijo ? 'Despacho a pulidor fijo desde sección de suministros' : 'Despacho a pulidor móvil desde sección de suministros'),
+        detalles: [{ insumoId: String(targetInsumoId), cantidadEnviada: unidades }],
+      };
+    } else {
+      payload = {
+        tipo: 'DESPACHO_AGENCIA',
+        agenciaId: String(this.despachoAgenciaForm.agenciaId),
+        sucursalDestinoId: String(this.despachoAgenciaForm.agenciaId),
+        agenciaDestinoId: String(this.despachoAgenciaForm.agenciaId),
+        origenBodegaId: origenBodegaId || undefined,
+        observaciones: this.despachoAgenciaForm.observacion || 'Despacho directo desde sección de suministros',
+        detalles: [{ insumoId: String(targetInsumoId), cantidadEnviada: unidades }],
+      };
+    }
 
     this.inventarioService.crearDespacho(payload).subscribe({
       next: (res: any) => {
@@ -3530,17 +4226,20 @@ export class InventarioComponent implements OnInit {
         this.modalDespachoAgenciaOpen = false;
         this.toast.success(
           'Despacho Generado con Éxito',
-          `Guía ${res.numeroGuia || ''} despachada hacia la sede. Aparece en tránsito en Envíos & Confirmación.`
+          `Guía ${res.numeroGuia || ''} en tránsito (stock reservado). El destino debe confirmar en Envíos.`
         );
         this.cargarProductos();
         this.cargarDespachosPendientes();
         this.cargarDespachosRechazadosSuperAdmin();
-        if (this.activeTab === 'agencias') this.cargarStockAgencias();
-        if (this.activeTab === 'bodegas') this.cargarStockBodega();
+        this.cargarStockAgencias();
+        this.cargarStockBodega(this.bodegaSeleccionadaId || origenBodegaId);
+        if (this.isLiderOperador) {
+          this.cargarInsumosPorServicios();
+        }
       },
       error: (err: any) => {
         this.procesandoDespachoAgencia = false;
-        const msg = err?.error?.message || 'Error al despachar el suministro desde bodega central';
+        const msg = err?.error?.message || 'Error al despachar el suministro desde bodega';
         this.toast.error('Error en Despacho', msg);
       }
     });
@@ -3618,27 +4317,51 @@ export class InventarioComponent implements OnInit {
   }
 
   private ejecutarCargaInsumosServicios(servicioIds?: number[]): void {
-    if (!this.miAgenciaId) return;
     this.cargandoInsumosServicios = true;
-    this.inventarioService.getInsumosPorServiciosAgencia(this.miAgenciaId, servicioIds).subscribe({
-      next: (res) => {
-        this.cargandoInsumosServicios = false;
-        if (res) {
-          this.infoAgenciaInsumos = res.agencia;
-          this.resumenInsumosServicios = res.resumen || {
-            totalInsumosRequeridos: 0,
-            insumosOptimos: 0,
-            insumosBajoMinimo: 0,
-            insumosAgotados: 0,
-            totalAlertas: 0,
-            alertas: []
-          };
-          this.insumosServiciosList = res.insumos || [];
-        } else {
-          this.insumosServiciosList = [];
+
+    const applyRes = (res: any) => {
+      this.cargandoInsumosServicios = false;
+      if (res) {
+        this.infoAgenciaInsumos = res.agencia;
+        this.resumenInsumosServicios = res.resumen || {
+          totalInsumosRequeridos: 0,
+          insumosOptimos: 0,
+          insumosBajoMinimo: 0,
+          insumosAgotados: 0,
+          totalAlertas: 0,
+          alertas: []
+        };
+        this.insumosServiciosList = res.insumos || [];
+      } else {
+        this.insumosServiciosList = [];
+      }
+      this.filtrarInsumosServicios();
+    };
+
+    if (this.isPulidor) {
+      const pulidorId = this.currentUser?.id ? String(this.currentUser.id) : undefined;
+      const ids = servicioIds?.length
+        ? servicioIds
+        : (Array.isArray((this.currentUser as any)?.servicioIds)
+          ? (this.currentUser as any).servicioIds
+          : undefined);
+      this.inventarioService.getInsumosPorServiciosPulidor(pulidorId, ids).subscribe({
+        next: applyRes,
+        error: (err) => {
+          this.cargandoInsumosServicios = false;
+          console.error('Error al cargar insumos del pulidor:', err);
         }
-        this.filtrarInsumosServicios();
-      },
+      });
+      return;
+    }
+
+    if (!this.miAgenciaId) {
+      this.cargandoInsumosServicios = false;
+      return;
+    }
+
+    this.inventarioService.getInsumosPorServiciosAgencia(this.miAgenciaId, servicioIds).subscribe({
+      next: applyRes,
       error: (err) => {
         this.cargandoInsumosServicios = false;
         console.error('Error al cargar insumos por servicios:', err);
@@ -3700,10 +4423,22 @@ export class InventarioComponent implements OnInit {
     });
   }
 
+  private obtenerBodegaIdContexto(): string {
+    if (this.esAsistenteBodega) {
+      return String(this.currentUser?.bodegaId || this.bodegaSeleccionadaId || '').trim();
+    }
+    return String(
+      this.bodegaSeleccionadaId || this.bodegaSeleccionada?.id || this.currentUser?.bodegaId || this.obtenerIdBodegaCentral() || '',
+    ).trim();
+  }
+
   public cargarProductos(): void {
     const dto: any = {};
     if (this.isOperador && this.miAgenciaId) {
       dto.agenciaId = this.miAgenciaId;
+    } else {
+      const bodegaId = this.obtenerBodegaIdContexto();
+      if (bodegaId) dto.bodegaId = bodegaId;
     }
     this.inventarioService.getProductos(dto).subscribe((prods) => {
       this.productos = prods;
@@ -3733,6 +4468,11 @@ export class InventarioComponent implements OnInit {
         }
         return info.nivel === this.filtroAlertaStock;
       });
+    }
+    if (this.filtroEstadoProducto === 'activo') {
+      list = list.filter((p) => !!p.activo);
+    } else if (this.filtroEstadoProducto === 'inactivo') {
+      list = list.filter((p) => !p.activo);
     }
     this.productosFiltrados = list;
   }
@@ -3802,7 +4542,43 @@ export class InventarioComponent implements OnInit {
     });
   }
 
+  public getLabelTipoMovimiento(m: {
+    tipoMovimiento?: { codigo?: string; nombre?: string };
+  }): string {
+    const codigo = (m?.tipoMovimiento?.codigo || '').toUpperCase();
+    const map: Record<string, string> = {
+      ENTRY: 'Ingreso',
+      CONSUMPTION: 'Consumo',
+      POSITIVE_ADJUSTMENT: 'Ajuste (+)',
+      NEGATIVE_ADJUSTMENT: 'Ajuste (−)',
+      WASTE: 'Merma',
+      RETURN: 'Devolución',
+      TRANSFER: 'Envío / Transferencia',
+    };
+    return map[codigo] || m?.tipoMovimiento?.nombre || 'Movimiento';
+  }
+
+  public getClaseTipoMovimiento(m: {
+    tipoMovimiento?: { codigo?: string; esEntrada?: boolean };
+  }): string {
+    const codigo = (m?.tipoMovimiento?.codigo || '').toUpperCase();
+    if (codigo === 'TRANSFER') {
+      return 'bg-indigo-50 text-indigo-700 border border-indigo-200';
+    }
+    if (codigo === 'WASTE' || codigo === 'NEGATIVE_ADJUSTMENT') {
+      return 'bg-rose-50 text-rose-700 border border-rose-200';
+    }
+    if (m?.tipoMovimiento?.esEntrada) {
+      return 'bg-emerald-50 text-emerald-700 border border-emerald-200';
+    }
+    return 'bg-amber-50 text-amber-700 border border-amber-200';
+  }
+
   public cargarStockBajo(): void {
+    if (!this.puedeVerStockBajoBodegaCentral) {
+      this.productosStockBajoList = [];
+      return;
+    }
     this.inventarioService.getStockBajo().subscribe((res) => {
       this.productosStockBajoList = res.items || [];
     });
@@ -3810,7 +4586,12 @@ export class InventarioComponent implements OnInit {
 
   public cargarAlertasStock(): void {
     this.cargandoAlertasStock = true;
-    this.inventarioService.getAlertasStock().subscribe({
+    const dto: any = {};
+    if (this.isLiderOperador && this.miAgenciaId) {
+      dto.sucursalId = this.miAgenciaId;
+      dto.agenciaId = this.miAgenciaId;
+    }
+    this.inventarioService.getAlertasStock(dto).subscribe({
       next: (alertas) => {
         this.alertasStockList = alertas || [];
         this.filtrarAlertasStock();
@@ -3843,6 +4624,38 @@ export class InventarioComponent implements OnInit {
     this.alertasStockFiltradas = list;
   }
 
+  public abrirDespachoDesdeAlerta(alerta: any): void {
+    if (!alerta) return;
+
+    if (alerta.pulidor?.id) {
+      const pulidorId = String(alerta.pulidor.id);
+      if (!this.pulidoresDestinoDisponibles.some((p) => String(p.id) === pulidorId)) {
+        this.pulidoresDestinoDisponibles = [
+          ...this.pulidoresDestinoDisponibles,
+          {
+            id: pulidorId,
+            nombre:
+              `${alerta.pulidor.name || ''} ${alerta.pulidor.lastname || ''}`.trim() ||
+              pulidorId,
+          },
+        ];
+      }
+
+      this.abrirModalDespachoAgencia(undefined, alerta.insumo);
+      if (!this.modalDespachoAgenciaOpen) return;
+      this.modoDespachoDestino = 'pulidor';
+      this.agenciaDespachoFija = null;
+      this.despachoAgenciaForm.agenciaId = '';
+      this.despachoAgenciaForm.bodegaId = '';
+      this.despachoAgenciaForm.pulidorId = pulidorId;
+      this.despachoAgenciaForm.observacion =
+        `Despacho por alerta al kit de ${alerta.pulidor.name || 'pulidor'} ${alerta.pulidor.lastname || ''}`.trim();
+      return;
+    }
+
+    this.abrirModalDespachoAgencia(alerta.agencia, alerta.insumo);
+  }
+
   public resolverAlerta(alerta: any): void {
     if (!alerta?.id) return;
     this.inventarioService.atenderAlertaStock({ id: alerta.id, estado: 'RESUELTO', observacion: 'Atendida desde bandeja' }).subscribe({
@@ -3859,29 +4672,22 @@ export class InventarioComponent implements OnInit {
     this.inventarioService.getBodegas().subscribe({
       next: (bodegas) => {
         const todas = bodegas || [];
-        const role = (this.currentUser?.role || '').toUpperCase();
-        const esAsistenteBodega = role === 'ASISTENTE_BODEGA';
-        const userRegion = (this.currentUser?.region || this.currentUser?.regionNombre || '').toLowerCase().trim();
-        const userRegionId = (this.currentUser as any)?.regionId;
+        const miBodegaId = String(this.currentUser?.bodegaId || '').trim();
 
-        if (esAsistenteBodega && (userRegion || userRegionId)) {
-          // Asistente de Bodega: solo bodegas de su región asignada
-          const deRegion = todas.filter(
-            (b) =>
-              (userRegionId && b.regionId && String(b.regionId) === String(userRegionId)) ||
-              (userRegion && b.region && b.region.toLowerCase().includes(userRegion)) ||
-              (userRegion && b.ciudad && b.ciudad.toLowerCase().includes(userRegion))
-          );
-          this.bodegasDisponibles = deRegion.length > 0 ? deRegion : todas;
+        if (this.esAsistenteBodega) {
+          // Solo su bodega asignada
+          const propia = miBodegaId ? todas.filter((b) => String(b.id) === miBodegaId) : [];
+          this.bodegasDisponibles = propia.length > 0 ? propia : todas.filter((b) => !b.esCentral && b.tipo !== 'CENTRAL');
+          if (this.bodegasDisponibles.length > 0) {
+            this.bodegaSeleccionadaId = String(this.bodegasDisponibles[0].id);
+          }
         } else {
-          // Gestor de Inventario, Admin y Super Admin: ven todas las bodegas del sistema
           this.bodegasDisponibles = todas;
-        }
-
-        if (this.bodegasDisponibles.length > 0) {
-          const match = this.bodegasDisponibles.find((b) => b.id === this.bodegaSeleccionadaId);
-          if (!match) {
-            this.bodegaSeleccionadaId = this.bodegasDisponibles[0].id;
+          if (this.bodegasDisponibles.length > 0) {
+            const match = this.bodegasDisponibles.find((b) => b.id === this.bodegaSeleccionadaId);
+            if (!match) {
+              this.bodegaSeleccionadaId = this.bodegasDisponibles[0].id;
+            }
           }
         }
 
@@ -3891,6 +4697,7 @@ export class InventarioComponent implements OnInit {
           null;
         this.cargandoBodegas = false;
         this.cargarStockBodega(this.bodegaSeleccionadaId);
+        this.cargarProductos();
       },
       error: (err) => {
         this.cargandoBodegas = false;
@@ -3919,6 +4726,7 @@ export class InventarioComponent implements OnInit {
       nombre: '',
       codigo: '',
       regionId: primeraRegion,
+      tipo: 'REGIONAL' as 'CENTRAL' | 'REGIONAL',
       ciudad: '',
       direccion: '',
       telefono: '',
@@ -3937,6 +4745,7 @@ export class InventarioComponent implements OnInit {
       nombre: bod.nombre,
       codigo: bod.codigo,
       regionId: bod.regionId || regMatch?.id || this.regionesDisponibles[0]?.id || '',
+      tipo: (bod.tipo === 'CENTRAL' || bod.esCentral) ? 'CENTRAL' : 'REGIONAL',
       ciudad: bod.ciudad || '',
       direccion: bod.direccion || '',
       telefono: bod.telefono || '',
@@ -3951,8 +4760,8 @@ export class InventarioComponent implements OnInit {
       return;
     }
 
-    if (!this.bodegaForm.regionId) {
-      this.toast.warning('Región obligatoria', 'Cada bodega debe estar estrictamente vinculada a una región.');
+    if (this.bodegaForm.tipo !== 'CENTRAL' && !this.bodegaForm.regionId) {
+      this.toast.warning('Región obligatoria', 'Cada bodega regional debe estar vinculada a una región.');
       return;
     }
 
@@ -3964,7 +4773,8 @@ export class InventarioComponent implements OnInit {
           id: this.editandoBodega.id,
           nombre: this.bodegaForm.nombre.trim(),
           codigo: this.bodegaForm.codigo?.trim() || undefined,
-          regionId: this.bodegaForm.regionId,
+          regionId: this.bodegaForm.tipo === 'CENTRAL' ? (this.bodegaForm.regionId || undefined) : this.bodegaForm.regionId,
+          tipo: this.bodegaForm.tipo,
           ciudad: this.bodegaForm.ciudad?.trim() || undefined,
           direccion: this.bodegaForm.direccion?.trim() || undefined,
           telefono: this.bodegaForm.telefono?.trim() || undefined,
@@ -3988,7 +4798,8 @@ export class InventarioComponent implements OnInit {
         .crearBodega({
           nombre: this.bodegaForm.nombre.trim(),
           codigo: this.bodegaForm.codigo?.trim() || undefined,
-          regionId: this.bodegaForm.regionId,
+          regionId: this.bodegaForm.tipo === 'CENTRAL' ? (this.bodegaForm.regionId || undefined) : this.bodegaForm.regionId,
+          tipo: this.bodegaForm.tipo,
           ciudad: this.bodegaForm.ciudad?.trim() || undefined,
           direccion: this.bodegaForm.direccion?.trim() || undefined,
           telefono: this.bodegaForm.telefono?.trim() || undefined,
@@ -3998,7 +4809,7 @@ export class InventarioComponent implements OnInit {
           next: (res) => {
             this.guardandoBodega = false;
             this.modalBodegaOpen = false;
-            this.toast.success('Bodega Registrada', res.message || 'Bodega creada exitosamente vinculada a su región.');
+            this.toast.success('Bodega Registrada', res.message || 'Bodega creada exitosamente.');
             this.cargarBodegasDisponibles();
           },
           error: (err) => {
@@ -4011,7 +4822,7 @@ export class InventarioComponent implements OnInit {
   }
 
   public eliminarBodega(bod: BodegaInventario): void {
-    if (bod.esCentral) {
+    if (bod.esCentral || bod.tipo === 'CENTRAL') {
       this.toast.warning('Acción no permitida', 'La Bodega Central Nacional no puede eliminarse.');
       return;
     }
@@ -4044,7 +4855,41 @@ export class InventarioComponent implements OnInit {
   public seleccionarBodega(bodegaId: string): void {
     this.bodegaSeleccionadaId = bodegaId;
     this.bodegaSeleccionada = this.bodegasDisponibles.find((b) => b.id === bodegaId) || null;
+    // Limpiar tabla de inmediato para no mostrar stock de otra bodega mientras carga
+    this.insumosBodegaFiltrados = [];
+    this.resumenBodegas = {
+      bodega: this.bodegaSeleccionada,
+      metricas: { totalInsumos: 0, stockTotalUnidades: 0, insumosBajoMinimo: 0, insumosOptimos: 0 },
+      insumos: [],
+    };
     this.cargarStockBodega(bodegaId);
+    this.cargarProductos();
+  }
+
+  public cargarStockBodega(bodegaId?: string): void {
+    const id = (bodegaId || this.bodegaSeleccionadaId || '').toString().trim();
+    if (!id) return;
+
+    const seq = ++this.stockBodegaRequestSeq;
+    this.inventarioService.getStockBodegasResumen({ bodegaId: id }).subscribe({
+      next: (res) => {
+        // Ignorar respuestas atrasadas de otra bodega
+        if (seq !== this.stockBodegaRequestSeq) return;
+        if (res?.bodega?.id && String(res.bodega.id) !== String(id)) return;
+
+        this.resumenBodegas = res || {
+          bodega: this.bodegaSeleccionada,
+          metricas: { totalInsumos: 0, stockTotalUnidades: 0, insumosBajoMinimo: 0, insumosOptimos: 0 },
+          insumos: [],
+        };
+        if (res?.bodega) {
+          this.bodegaSeleccionada = res.bodega;
+          this.bodegaSeleccionadaId = res.bodega.id;
+        }
+        this.filtrarInsumosBodega();
+      },
+      error: (err) => console.error('Error al cargar stock de bodegas:', err),
+    });
   }
 
   public getAsistentesDeBodega(bodega: BodegaInventario | null): Usuario[] {
@@ -4111,24 +4956,6 @@ export class InventarioComponent implements OnInit {
     return this.bodegasDisponibles;
   }
 
-  public cargarStockBodega(bodegaId?: string): void {
-    const id = bodegaId || this.bodegaSeleccionadaId;
-    this.inventarioService.getStockBodegasResumen({ bodegaId: id }).subscribe({
-      next: (res) => {
-        this.resumenBodegas = res || {
-          bodega: null,
-          metricas: { totalInsumos: 0, stockTotalUnidades: 0, insumosBajoMinimo: 0, insumosOptimos: 0 },
-          insumos: [],
-        };
-        if (res?.bodega) {
-          this.bodegaSeleccionada = res.bodega;
-        }
-        this.filtrarInsumosBodega();
-      },
-      error: (err) => console.error('Error al cargar stock de bodegas:', err),
-    });
-  }
-
   public filtrarInsumosBodega(): void {
     let list = [...(this.resumenBodegas?.insumos || [])];
     if (this.filtroTextoBodega.trim()) {
@@ -4143,6 +4970,30 @@ export class InventarioComponent implements OnInit {
       list = list.filter((i: any) => i.estado === this.filtroEstadoBodega);
     }
     this.insumosBodegaFiltrados = list;
+  }
+
+  public getLabelEstadoBodega(item: { estado?: string; porcentajeAlerta?: number }): string {
+    if (item.estado === 'Crítico') return '🚨 Crítico (< Mín)';
+    if (item.estado === 'Bajo') return `⚠️ Stock Bajo (Umbral ${item.porcentajeAlerta || 20}%)`;
+    if (item.estado === 'No necesario') return 'No necesario';
+    return item.estado || 'Óptimo';
+  }
+
+  public getLabelEstadoInsumoServicio(estado?: string): string {
+    switch (estado) {
+      case 'OPTIMO':
+        return 'Stock Óptimo';
+      case 'BAJO':
+        return 'Bajo Mínimo';
+      case 'CRITICO':
+        return 'Crítico';
+      case 'AGOTADO':
+        return 'Agotado';
+      case 'NO_NECESARIO':
+        return 'No necesario';
+      default:
+        return estado || '—';
+    }
   }
 
   public cargarStockAgencias(): void {
@@ -4226,11 +5077,30 @@ export class InventarioComponent implements OnInit {
     return Math.round((s / c) * 100) / 100;
   }
 
+  /** Convierte unidades físicas → cantidad en unidad base (ej. 10 und × 4 L = 40 L) */
+  public getCantidadDesdeUnidades(unidades: number | undefined | null, contenidoNeto: number | undefined | null): number {
+    const u = Number(unidades) || 0;
+    const c = Number(contenidoNeto) || 1;
+    if (c <= 0) return u;
+    return Math.round(u * c * 100) / 100;
+  }
+
   // ==============================================================
   // REGISTRAR ENTRADA
   // ==============================================================
 
   public abrirModalEntrada(prodFijo?: any): void {
+    if (!this.puedeRegistrarIngreso) {
+      this.toast.warning(
+        'Ingreso no permitido',
+        'Solo se registran ingresos en Bodega Central. Las demás bodegas se abastecen por envíos.'
+      );
+      return;
+    }
+
+    // Los ingresos siempre van a Bodega Central
+    const bodegaDestino = this.obtenerIdBodegaCentral();
+
     if (prodFijo) {
       const pId = (prodFijo.id || prodFijo.insumoId || '').toString();
       this.productoEntradaFijo = {
@@ -4245,6 +5115,7 @@ export class InventarioComponent implements OnInit {
         insumoId: pId,
         cantidadUnidades: 1,
         observaciones: '',
+        bodegaId: bodegaDestino,
       };
       this.productoEntradaSeleccionado = this.productoEntradaFijo;
       this.calcularPreviewEntrada();
@@ -4256,6 +5127,7 @@ export class InventarioComponent implements OnInit {
         insumoId: this.productos[0]?.id?.toString() || '',
         cantidadUnidades: 1,
         observaciones: '',
+        bodegaId: bodegaDestino,
       };
       this.alCambiarProductoEntrada();
     }
@@ -4287,7 +5159,14 @@ export class InventarioComponent implements OnInit {
     const targetProd = this.productos.find(
       (prod) => prod.id.toString() === id || prod.nombre?.toLowerCase().trim() === (p.nombre || '').toLowerCase().trim()
     );
-    this.abrirModalEntrada(targetProd || p);
+    this.abrirModalEntrada({
+      ...(targetProd || {}),
+      ...p,
+      id: id || targetProd?.id,
+      insumoId: id,
+      stockActual: p.stockActual ?? targetProd?.stockActual ?? 0,
+      bodegaId: this.obtenerIdBodegaCentral(),
+    });
   }
 
   public alCambiarProductoEntrada(): void {
@@ -4329,38 +5208,28 @@ export class InventarioComponent implements OnInit {
     this.imagenEntradaNombre = '';
   }
 
-  public imagenConsumoPreview: string | null = null;
-  public imagenConsumoNombre: string = '';
-
-  public onImagenConsumoSeleccionada(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    if (input.files && input.files[0]) {
-      const file = input.files[0];
-      this.imagenConsumoNombre = file.name;
-      const reader = new FileReader();
-      reader.onload = () => {
-        const result = reader.result as string;
-        this.imagenConsumoPreview = result;
-        this.toast.success('Evidencia de consumo cargada', `${file.name} lista para guardar.`);
-      };
-      reader.readAsDataURL(file);
-    }
-  }
-
-  public eliminarImagenConsumo(): void {
-    this.imagenConsumoPreview = null;
-    this.imagenConsumoNombre = '';
-  }
-
   public cerrarModalEntrada(): void {
     this.modalEntradaAbierto = false;
     this.productoEntradaFijo = null;
     this.eliminarImagenEntrada();
   }
 
-  public cerrarModalConsumo(): void {
-    this.modalConsumoAbierto = false;
-    this.eliminarImagenConsumo();
+  /** Resuelve el UUID de unidad de medida del producto (nunca undefined) */
+  private resolverUnidadIdProducto(producto: ProductoInsumo | null): string {
+    if (!producto) return '';
+    const fromProduct = (producto.unidadMedidaId || (producto as any).unidadMedidaObj?.id || '').toString().trim();
+    if (fromProduct) return fromProduct;
+
+    const simbolo = (producto.unidadMedida || '').toString().trim().toLowerCase();
+    if (!simbolo) return '';
+
+    const match = this.unidadesMedida.find((u) => {
+      const s = (u.simbolo || '').toLowerCase();
+      const n = (u.nombre || '').toLowerCase();
+      const c = (u.codigo || '').toLowerCase();
+      return s === simbolo || n === simbolo || c === simbolo;
+    });
+    return match?.id?.toString() || '';
   }
 
   public guardarEntrada(): void {
@@ -4380,6 +5249,12 @@ export class InventarioComponent implements OnInit {
       return;
     }
 
+    const unidadId = this.resolverUnidadIdProducto(this.productoEntradaSeleccionado);
+    if (!unidadId) {
+      this.toast.error('Error', 'El producto no tiene una unidad de medida válida configurada');
+      return;
+    }
+
     const cNeto = Number(this.productoEntradaSeleccionado?.contenidoNeto) || 1;
     const totalContenidoBase = Math.round(cantUnidades * cNeto * 100) / 100;
     const uMedida = this.productoEntradaSeleccionado?.unidadMedida || 'und';
@@ -4390,12 +5265,21 @@ export class InventarioComponent implements OnInit {
       ? `${this.formEntrada.observaciones} ${detalleIngreso}`
       : detalleIngreso;
 
+    const bodegaDestino = this.obtenerIdBodegaCentral();
+
+    if (!bodegaDestino) {
+      this.toast.warning('Bodega requerida', 'No se encontró la Bodega Central para registrar el ingreso');
+      return;
+    }
+
     const payload: any = {
-      insumoId: this.formEntrada.insumoId,
-      tipoMovimientoId: tipoEntry.id,
+      insumoId: String(this.formEntrada.insumoId),
+      tipoMovimientoId: String(tipoEntry.id),
       cantidad: totalContenidoBase,
-      unidadId: this.productoEntradaSeleccionado?.unidadMedidaId,
+      unidadId: String(unidadId),
       observaciones: obsFinal,
+      ubicacionId: bodegaDestino,
+      bodegaId: bodegaDestino,
     };
 
     this.inventarioService.registrarMovimiento(payload).subscribe({
@@ -4410,92 +5294,12 @@ export class InventarioComponent implements OnInit {
         this.cargarDashboardResumen();
         this.cargarHistorialMovimientos();
         this.cargarStockBajo();
-        this.cargarStockBodega();
+        this.cargarStockBodega(bodegaDestino);
         this.cargarStockAgencias();
       },
       error: (err) => {
         this.guardandoMovimiento = false;
         this.toast.error('Error', err?.error?.message || 'Error al registrar entrada');
-      },
-    });
-  }
-
-  // ==============================================================
-  // REGISTRAR CONSUMO
-  // ==============================================================
-
-  public abrirModalConsumo(): void {
-    this.formConsumo = {
-      insumoId: this.productos[0]?.id?.toString() || '',
-      cantidad: 1,
-      observaciones: '',
-    };
-    this.alCambiarProductoConsumo();
-    this.modalConsumoAbierto = true;
-  }
-
-  public alCambiarProductoConsumo(): void {
-    this.productoConsumoSeleccionado =
-      this.productos.find((p) => p.id.toString() === this.formConsumo.insumoId) || null;
-    this.calcularPreviewConsumo();
-  }
-
-  public calcularPreviewConsumo(): void {
-    if (!this.productoConsumoSeleccionado) {
-      this.previewConsumoInvalido = false;
-      return;
-    }
-    const cant = Number(this.formConsumo.cantidad) || 0;
-    this.previewConsumoInvalido = cant > this.productoConsumoSeleccionado.stockActual;
-  }
-
-  public guardarConsumo(): void {
-    if (!this.formConsumo.insumoId) {
-      this.toast.warning('Advertencia', 'Seleccione el producto a consumir');
-      return;
-    }
-    if (!this.formConsumo.cantidad || this.formConsumo.cantidad <= 0) {
-      this.toast.warning('Advertencia', 'La cantidad de consumo debe ser mayor a cero');
-      return;
-    }
-    if (this.previewConsumoInvalido) {
-      this.toast.error('Error', 'Stock insuficiente. No se puede consumir más de la existencia actual.');
-      return;
-    }
-
-    const tipoConsumo = this.tiposMovimiento.find((t) => t.codigo === 'CONSUMPTION');
-    if (!tipoConsumo) {
-      this.toast.error('Error', 'Tipo de movimiento CONSUMPTION no encontrado');
-      return;
-    }
-
-    this.guardandoMovimiento = true;
-    const payload: any = {
-      insumoId: this.formConsumo.insumoId,
-      tipoMovimientoId: tipoConsumo.id,
-      cantidad: Number(this.formConsumo.cantidad),
-      unidadId: this.productoConsumoSeleccionado?.unidadMedidaId,
-      observaciones: this.formConsumo.observaciones || undefined,
-    };
-
-    this.inventarioService.registrarMovimiento(payload).subscribe({
-      next: (res) => {
-        this.guardandoMovimiento = false;
-        this.toast.success(
-          'Éxito',
-          `Consumo registrado exitosamente. Stock restante: ${res.stockNuevo}`
-        );
-        this.cerrarModalConsumo();
-        this.cargarProductos();
-        this.cargarDashboardResumen();
-        this.cargarHistorialMovimientos();
-        this.cargarStockBajo();
-        this.cargarStockBodega();
-        this.cargarStockAgencias();
-      },
-      error: (err) => {
-        this.guardandoMovimiento = false;
-        this.toast.error('Error', err?.error?.message || 'Error al registrar consumo');
       },
     });
   }
@@ -4608,8 +5412,10 @@ export class InventarioComponent implements OnInit {
       tipoProductoId: this.tiposProducto[0]?.id || '',
       unidadMedidaId: this.unidadesMedida[0]?.id || '',
       contenidoNeto: 1,
-      stockMinimoBodega: 10,
-      stockOptimoBodega: 50,
+      stockMinimoBodega: null,
+      stockMinimoAgencia: null,
+      stockOptimoBodega: null,
+      estado: 1,
       descripcion: '',
       imagenUrl: '',
       imagen: '',
@@ -4621,15 +5427,19 @@ export class InventarioComponent implements OnInit {
     this.editandoProducto = true;
     this.imagenInsumoPreview = p.imagenUrl || p.imagen || null;
     this.imagenInsumoNombre = (p.imagenUrl || p.imagen) ? 'Imagen actual del insumo' : '';
+    const cNeto = Number(p.contenidoNeto) || 1;
     this.formProducto = {
       id: p.id.toString(),
       codigoSKU: p.codigoSKU,
       nombre: p.nombre,
       tipoProductoId: p.tipoProductoId || '',
       unidadMedidaId: p.unidadMedidaId || this.unidadesMedida[0]?.id || '',
-      contenidoNeto: p.contenidoNeto || 1,
-      stockMinimoBodega: p.stockMinimoBodega || 10,
-      stockOptimoBodega: p.stockOptimoBodega || 50,
+      contenidoNeto: cNeto,
+      // Formulario en unidades físicas; en BD se guarda cantidad base
+      stockMinimoBodega: p.stockMinimoBodega != null ? this.getStockEnUnidades(p.stockMinimoBodega, cNeto) : null,
+      stockMinimoAgencia: p.stockMinimoAgencia != null ? this.getStockEnUnidades(p.stockMinimoAgencia, cNeto) : null,
+      stockOptimoBodega: p.stockOptimoBodega != null ? this.getStockEnUnidades(p.stockOptimoBodega, cNeto) : null,
+      estado: (p.activo || p.estado === 1) ? 1 : 0,
       descripcion: p.descripcion || '',
       imagenUrl: p.imagenUrl || p.imagen || '',
       imagen: p.imagen || p.imagenUrl || '',
@@ -4639,6 +5449,10 @@ export class InventarioComponent implements OnInit {
 
   public cerrarModalProducto(): void {
     this.modalProductoAbierto = false;
+  }
+
+  public puedeCambiarEstadoProducto(): boolean {
+    return !!(this.esAdminGlobal || this.esGestorBodega);
   }
 
   public guardarProducto(): void {
@@ -4659,6 +5473,31 @@ export class InventarioComponent implements OnInit {
       return;
     }
 
+    const minBodUnd = Number(this.formProducto.stockMinimoBodega);
+    const minAgeUnd = Number(this.formProducto.stockMinimoAgencia);
+    const optBodUnd = Number(this.formProducto.stockOptimoBodega);
+    if (!minBodUnd || minBodUnd <= 0) {
+      this.toast.warning('Advertencia', 'El stock mínimo de bodega es obligatorio (en unidades) y debe ser mayor a 0');
+      return;
+    }
+    if (!minAgeUnd || minAgeUnd <= 0) {
+      this.toast.warning('Advertencia', 'El stock mínimo de agencia es obligatorio (en unidades) y debe ser mayor a 0');
+      return;
+    }
+    if (!optBodUnd || optBodUnd <= 0) {
+      this.toast.warning('Advertencia', 'El stock óptimo de bodega es obligatorio (en unidades) y debe ser mayor a 0');
+      return;
+    }
+    if (optBodUnd < minBodUnd) {
+      this.toast.warning('Advertencia', 'El stock óptimo de bodega debe ser mayor o igual al stock mínimo de bodega');
+      return;
+    }
+
+    const cNeto = Number(this.formProducto.contenidoNeto) || 1;
+    const minBod = this.getCantidadDesdeUnidades(minBodUnd, cNeto);
+    const minAge = this.getCantidadDesdeUnidades(minAgeUnd, cNeto);
+    const optBod = this.getCantidadDesdeUnidades(optBodUnd, cNeto);
+
     if (this.editandoProducto) {
       const payload: any = {
         id: this.formProducto.id,
@@ -4667,8 +5506,10 @@ export class InventarioComponent implements OnInit {
         tipoProductoId: this.formProducto.tipoProductoId,
         unidadMedidaId: this.formProducto.unidadMedidaId,
         contenidoNeto: Number(this.formProducto.contenidoNeto),
-        stockMinimoBodega: Number(this.formProducto.stockMinimoBodega),
-        stockOptimoBodega: Number(this.formProducto.stockOptimoBodega),
+        stockMinimoBodega: minBod,
+        stockMinimoAgencia: minAge,
+        stockOptimoBodega: optBod,
+        estado: Number(this.formProducto.estado) === 1 ? 1 : 0,
         descripcion: this.formProducto.descripcion,
         imagenUrl: this.formProducto.imagenUrl || this.formProducto.imagen || undefined,
         imagen: this.formProducto.imagen || this.formProducto.imagenUrl || undefined,
@@ -4692,8 +5533,9 @@ export class InventarioComponent implements OnInit {
         tipoProductoId: this.formProducto.tipoProductoId,
         unidadMedidaId: this.formProducto.unidadMedidaId,
         contenidoNeto: Number(this.formProducto.contenidoNeto),
-        stockMinimoBodega: Number(this.formProducto.stockMinimoBodega),
-        stockOptimoBodega: Number(this.formProducto.stockOptimoBodega),
+        stockMinimoBodega: minBod,
+        stockMinimoAgencia: minAge,
+        stockOptimoBodega: optBod,
         descripcion: this.formProducto.descripcion,
         imagenUrl: this.formProducto.imagenUrl || this.formProducto.imagen || undefined,
         imagen: this.formProducto.imagen || this.formProducto.imagenUrl || undefined,
@@ -4716,11 +5558,16 @@ export class InventarioComponent implements OnInit {
   }
 
   public toggleEstadoProducto(p: ProductoInsumo): void {
+    if (!this.puedeCambiarEstadoProducto()) {
+      this.toast.warning('Sin permiso', 'Solo Admin, Super Admin o Coordinador de Bodega pueden cambiar el estado.');
+      return;
+    }
     const nuevoEstado = p.activo ? 0 : 1;
     this.inventarioService.actualizarProducto({ id: p.id.toString(), estado: nuevoEstado }).subscribe({
       next: () => {
         p.activo = nuevoEstado === 1;
-        this.toast.success('Éxito', `Producto ${nuevoEstado === 1 ? 'activado' : 'desactivado'}`);
+        p.estado = nuevoEstado;
+        this.toast.success('Éxito', `Producto ${nuevoEstado === 1 ? 'activado' : 'desactivado'} (se conserva el historial)`);
         this.filtrarProductos();
       },
       error: () => this.toast.error('Error', 'No se pudo cambiar el estado del producto'),

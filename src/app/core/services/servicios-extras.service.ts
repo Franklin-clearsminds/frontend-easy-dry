@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { BehaviorSubject, Observable, of } from 'rxjs';
+import { BehaviorSubject, Observable, of, throwError } from 'rxjs';
 import { map, tap, catchError } from 'rxjs/operators';
 import { ServicioExtra } from '../models';
 import { apiUrl } from '../config/env';
@@ -50,7 +50,7 @@ export class ServiciosExtrasService {
       fechaProgramada: item.fechaProgramada || (item.createdAt ? String(item.createdAt).split('T')[0] : new Date().toISOString().substring(0, 10)),
       fechaCompletado: item.fechaFin ? String(item.fechaFin).split('T')[0] : (item.finalizadoEn ? String(item.finalizadoEn).split('T')[0] : item.fechaCompletado),
       notas: item.observaciones || item.notas || '',
-      creadoPor: item.creadoPor || 'Coordinador Zonal',
+      creadoPor: item.creadoPor || item.operadorNombre || '',
       fechaCreacion: item.createdAt ? String(item.createdAt).split('T')[0] : new Date().toISOString().substring(0, 10)
     };
   }
@@ -73,23 +73,35 @@ export class ServiciosExtrasService {
     );
   }
 
-  crearServicioExtra(data: Omit<ServicioExtra, 'id' | 'codigoSE' | 'fechaCreacion'> & { videoInicialUrl?: string; regionId?: string; regionNombre?: string }): Observable<ServicioExtra> {
-    const vInfo = data.vehiculoInfo || {
-      placa: data.placa || 'ABC-1234',
-      marca: 'Vehículo',
-      modelo: data.servicioNombre || 'Servicio Especial',
-      color: 'Gris'
+  crearServicioExtra(data: Omit<ServicioExtra, 'id' | 'codigoSE' | 'fechaCreacion'> & { videoInicialUrl?: string; regionId?: string; regionNombre?: string; agenciaId?: string; prioridad?: string }): Observable<ServicioExtra> {
+    const placa = (data.vehiculoInfo?.placa || data.placa || '').trim().toUpperCase();
+    if (!placa) {
+      return throwError(() => new Error('La placa del vehículo es obligatoria.'));
+    }
+    if (!data.servicioNombre?.trim()) {
+      return throwError(() => new Error('El tipo de servicio especial es obligatorio.'));
+    }
+
+    const vInfo = {
+      placa,
+      marca: (data.vehiculoInfo?.marca || '').trim(),
+      modelo: (data.vehiculoInfo?.modelo || '').trim(),
+      color: (data.vehiculoInfo?.color || '').trim(),
+      cliente: data.vehiculoInfo?.cliente || ''
     };
 
     const payload = {
-      tipoServicio: data.servicioNombre || 'Pulido y Recubrimiento Cerámico',
+      tipoServicio: data.servicioNombre.trim(),
       observaciones: data.notas || data.servicioDescripcion || '',
       operadorId: data.operadorId ? String(data.operadorId) : undefined,
+      agenciaId: data.agenciaId ? String(data.agenciaId) : undefined,
       regionId: data.regionId,
       regionNombre: data.regionNombre,
+      prioridad: data.prioridad,
       videoInicialUrl: data.videoInicialUrl,
       recetaInsumos: data.insumosReceta,
-      vehiculoInfo: vInfo
+      vehiculoInfo: vInfo,
+      placa
     };
 
     return this.http.post<any>(apiUrl('/operaciones/servicios-especiales/crear'), payload).pipe(

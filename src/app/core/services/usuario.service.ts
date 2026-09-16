@@ -29,6 +29,8 @@ export class UsuarioService {
     const modalidadPulidor: 'FIJO' | 'MOVIL' | undefined = isPulidor
       ? (hasAgencia ? 'FIJO' : 'MOVIL')
       : undefined;
+    const bodegaId = u.bodegaId || u.bodega?.id || undefined;
+    const bodegaNombre = u.bodega?.nombre;
 
     let agenciaDisplay = u.agencia?.nombre || 'Sin asignar';
     if (isGlobal) {
@@ -36,9 +38,10 @@ export class UsuarioService {
     } else if (isSupervisor) {
       agenciaDisplay = u.region?.nombre ? `Región ${u.region.nombre}` : 'Sin Región Asignada';
     } else if (isAsistente) {
-      agenciaDisplay = u.region?.nombre ? `Bodega Regional ${u.region.nombre}` : 'Bodega Regional (Sin Región)';
+      agenciaDisplay = bodegaNombre
+        || (u.region?.nombre ? `Bodega Regional ${u.region.nombre}` : 'Bodega Regional (Sin Bodega)');
     } else if (isPulidor && modalidadPulidor === 'MOVIL') {
-      agenciaDisplay = u.region?.nombre ? `Móvil · Región ${u.region.nombre}` : 'Red Nacional · Móvil';
+      agenciaDisplay = u.region?.nombre ? `Móvil · Región ${u.region.nombre}` : 'Móvil · Sin región';
     } else if (u.region?.nombre && (!u.agencia || u.agencia?.nombre === 'Sin asignar' || !u.agencia?.nombre)) {
       agenciaDisplay = `Región ${u.region.nombre}`;
     }
@@ -58,7 +61,11 @@ export class UsuarioService {
       region: u.region?.nombre || (isGlobal ? 'Nacional' : undefined),
       agenciaId: (isGlobal || isSupervisor || isAsistente || (isPulidor && modalidadPulidor === 'MOVIL')) ? undefined : (u.agenciaId || u.agencia?.id),
       regionId: isGlobal ? undefined : (u.regionId || u.region?.id),
-      modalidadPulidor
+      bodegaId: isAsistente ? bodegaId : (bodegaId || undefined),
+      modalidadPulidor,
+      servicioIds: Array.isArray(u.servicioIds)
+        ? u.servicioIds.map((n: any) => Number(n)).filter((n: number) => !isNaN(n) && n > 0)
+        : [],
     };
   }
 
@@ -66,7 +73,11 @@ export class UsuarioService {
     const payload = soloActivos ? { estado: 1 } : {};
     const opts = silent ? { headers: { 'x-silent': 'true' } } : {};
     return this.http.post<any[]>(apiUrl('/agencias/usuarios/list'), payload, opts).pipe(
-      map(items => (items || []).map(u => this.mapBackendUsuario(u))),
+      map(items =>
+        (items || [])
+          .map(u => this.mapBackendUsuario(u))
+          .filter(u => (u.rolNombre || '').toUpperCase() !== 'SUPER_ADMIN')
+      ),
       tap(mapped => {
         this.usuariosSubject.next(mapped);
       }),
@@ -77,7 +88,7 @@ export class UsuarioService {
     );
   }
 
-  crearUsuario(usr: Omit<Usuario, 'id'> & { password?: string; roleId?: string; regionId?: string }): Observable<Usuario> {
+  crearUsuario(usr: Omit<Usuario, 'id'> & { password?: string; roleId?: string; regionId?: string; bodegaId?: string }): Observable<Usuario> {
     const normRol = (usr.rol || '').toUpperCase();
     const isGlobal =
       (normRol.includes('SUPER') && normRol.includes('ADMIN')) ||
@@ -86,7 +97,8 @@ export class UsuarioService {
       normRol === 'COORD_BODEGA' ||
       normRol === 'DISTRIBUIDOR' ||
       (normRol.includes('GESTOR') && normRol.includes('INVENTARIO')) ||
-      (normRol.includes('GESTOR') && normRol.includes('BODEGA'));
+      (normRol.includes('GESTOR') && normRol.includes('BODEGA')) ||
+      (normRol.includes('COORD') && normRol.includes('BODEGA') && !normRol.includes('ASISTENTE'));
     const isSupervisor = normRol.includes('SUPERVISOR');
     const isAsistente = normRol === 'ASISTENTE_BODEGA' || (normRol.includes('ASISTENTE') && normRol.includes('BODEGA'));
     const isPulidor = normRol.includes('PULIDOR');
@@ -97,25 +109,30 @@ export class UsuarioService {
       name: usr.nombre,
       lastname: usr.apellido,
       email: usr.email,
-      password: usr.password || 'Admin123*',
+      password: usr.password,
       rolNombre: usr.rol,
       roleId: usr.roleId || (usr as any).roleId || undefined,
       agencia: (isGlobal || isSupervisor || isAsistente || isPulidorMovil || agenciaFinal === 'Sin asignar') ? undefined : agenciaFinal,
       agenciaId: (isGlobal || isSupervisor || isAsistente || isPulidorMovil) ? undefined : (usr.agenciaId || undefined),
       regionId: isGlobal ? undefined : (usr.regionId || (usr as any).regionId || undefined),
+      bodegaId: isAsistente ? (usr.bodegaId || undefined) : (usr.bodegaId || undefined),
       modalidadPulidor: isPulidor ? (isPulidorMovil ? 'MOVIL' : 'FIJO') : undefined,
+      servicioIds: isPulidorMovil
+        ? (Array.isArray(usr.servicioIds) ? usr.servicioIds.map(Number).filter(n => !isNaN(n) && n > 0) : [])
+        : undefined,
       estado: usr.estado === 'Inactivo' ? 0 : 1
     };
 
+    if (!isAsistente && !usr.bodegaId) {
+      delete payload.bodegaId;
+    }
+
     return this.http.post<any>(apiUrl('/agencias/usuarios/create'), payload).pipe(
       map(res => {
-        const u = res?.user ? this.mapBackendUsuario(res.user) : {
-          ...usr,
-          id: 'usr-' + Date.now().toString().slice(-4),
-          agencia: isGlobal ? 'Nacional (Acceso Global)' : (isSupervisor ? (usr.region ? `Región ${usr.region}` : 'Sin Región') : (isAsistente ? `Bodega Regional ${usr.region || 'Regional'}` : agenciaFinal)),
-          sucursal: isGlobal ? 'Nacional (Acceso Global)' : (isSupervisor ? (usr.region ? `Región ${usr.region}` : 'Sin Región') : (isAsistente ? `Bodega Regional ${usr.region || 'Regional'}` : agenciaFinal)),
-          region: isGlobal ? 'Nacional' : (usr.region || 'Sin asignar')
-        };
+        if (!res?.user) {
+          throw new Error('El backend no devolvió el usuario creado.');
+        }
+        const u = this.mapBackendUsuario(res.user);
         const current = this.usuariosSubject.value.filter(item =>
           String(item.id) !== String(u.id) && item.email.toLowerCase() !== u.email.toLowerCase()
         );
@@ -124,21 +141,12 @@ export class UsuarioService {
       }),
       catchError(err => {
         console.error('Error al crear usuario en backend:', err);
-        const fallback: Usuario = {
-          ...usr,
-          agencia: isGlobal ? 'Nacional (Acceso Global)' : (isSupervisor ? (usr.region ? `Región ${usr.region}` : 'Sin Región') : (isAsistente ? `Bodega Regional ${usr.region || 'Regional'}` : agenciaFinal)),
-          sucursal: isGlobal ? 'Nacional (Acceso Global)' : (isSupervisor ? (usr.region ? `Región ${usr.region}` : 'Sin Región') : (isAsistente ? `Bodega Regional ${usr.region || 'Regional'}` : agenciaFinal)),
-          region: isGlobal ? 'Nacional' : (usr.region || 'Sin asignar'),
-          id: 'usr-' + Date.now().toString().slice(-4)
-        };
-        const current = this.usuariosSubject.value;
-        this.usuariosSubject.next([fallback, ...current]);
-        return of(fallback);
+        return throwError(() => err);
       })
     );
   }
 
-  actualizarUsuario(usr: Usuario & { password?: string; roleId?: string; regionId?: string }): Observable<Usuario> {
+  actualizarUsuario(usr: Usuario & { password?: string; roleId?: string; regionId?: string; bodegaId?: string }): Observable<Usuario> {
     const normRol = (usr.rol || '').toUpperCase();
     const isGlobal =
       (normRol.includes('SUPER') && normRol.includes('ADMIN')) ||
@@ -147,7 +155,8 @@ export class UsuarioService {
       normRol === 'COORD_BODEGA' ||
       normRol === 'DISTRIBUIDOR' ||
       (normRol.includes('GESTOR') && normRol.includes('INVENTARIO')) ||
-      (normRol.includes('GESTOR') && normRol.includes('BODEGA'));
+      (normRol.includes('GESTOR') && normRol.includes('BODEGA')) ||
+      (normRol.includes('COORD') && normRol.includes('BODEGA') && !normRol.includes('ASISTENTE'));
     const isSupervisor = normRol.includes('SUPERVISOR');
     const isAsistente = normRol === 'ASISTENTE_BODEGA' || (normRol.includes('ASISTENTE') && normRol.includes('BODEGA'));
     const isPulidor = normRol.includes('PULIDOR');
@@ -163,7 +172,13 @@ export class UsuarioService {
       roleId: usr.roleId || (usr as any).roleId || undefined,
       regionId: isGlobal ? null : (usr.regionId || (usr as any).regionId || undefined),
       agenciaId: (isGlobal || isSupervisor || isAsistente || isPulidorMovil) ? null : (usr.agenciaId ? String(usr.agenciaId) : undefined),
-      agencia: (isGlobal || isSupervisor || isAsistente || isPulidorMovil) ? '' : (usr.agencia !== 'Sin asignar' ? usr.agencia : undefined)
+      agencia: (isGlobal || isSupervisor || isAsistente || isPulidorMovil) ? '' : (usr.agencia !== 'Sin asignar' ? usr.agencia : undefined),
+      bodegaId: isAsistente ? (usr.bodegaId ? String(usr.bodegaId) : null) : (usr.bodegaId ? String(usr.bodegaId) : null),
+      servicioIds: isPulidor
+        ? (isPulidorMovil
+          ? (Array.isArray(usr.servicioIds) ? usr.servicioIds.map(Number).filter(n => !isNaN(n) && n > 0) : [])
+          : [])
+        : undefined,
     };
 
     if (usr.password && usr.password.trim().length >= 6) {

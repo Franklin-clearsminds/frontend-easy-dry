@@ -92,12 +92,14 @@ export class RolService {
     this.getRoles().subscribe();
   }
 
-  /** Retorna todos los roles desde el backend (POST /roles/list) */
+  /** Retorna todos los roles desde el backend (POST /roles/list). SUPER_ADMIN nunca se expone en UI. */
   getRoles(): Observable<RolPersonalizado[]> {
     return this.http.post<any[]>(apiUrl('/roles/list'), {}).pipe(
       map(list => {
         if (Array.isArray(list) && list.length > 0) {
-          return list.map(r => this.mapBackendRole(r));
+          return list
+            .map(r => this.mapBackendRole(r))
+            .filter(r => (r.codigo || '').toUpperCase() !== 'SUPER_ADMIN');
         }
         return [];
       }),

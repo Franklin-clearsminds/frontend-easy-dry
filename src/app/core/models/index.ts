@@ -26,7 +26,11 @@ export interface Usuario {
   modalidadPulidor?: ModalidadPulidor;
   agenciaId?: string;
   regionId?: string;
+  /** Bodega asignada (obligatoria para ASISTENTE_BODEGA → regional) */
+  bodegaId?: string;
   roleId?: string;
+  /** Servicios especiales asignados (pulidor móvil) */
+  servicioIds?: number[];
 }
 
 export interface Sucursal {
@@ -47,6 +51,7 @@ export interface Sucursal {
   serviciosRealizadosMes?: number;
   regionId?: number | string;
   regionNombre?: string;
+  region?: { id?: string | number; nombre?: string; [key: string]: any } | any;
   clienteId?: number | string;
   clienteNombre?: string;
   marcaId?: number | string;
@@ -317,6 +322,8 @@ export interface EnvioSuministro {
   estado: EstadoEnvio;
   observaciones?: string;
   motivoRechazo?: string;
+  /** Solo true si el usuario actual es el receptor del destino */
+  puedeConfirmar?: boolean;
 }
 
 export interface Incidente {
@@ -378,6 +385,13 @@ export interface ServicioExtra {
   operadorNombre: string;
   regionId?: string;
   regionNombre?: string;
+  agenciaId?: string;
+  agenciaNombre?: string;
+  agencia?: {
+    id?: string | number;
+    nombre?: string;
+    [key: string]: any;
+  } | any;
   placa?: string;
   vehiculoInfo?: {
     placa?: string;

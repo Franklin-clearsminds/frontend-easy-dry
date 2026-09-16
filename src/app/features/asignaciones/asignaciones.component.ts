@@ -40,7 +40,7 @@ import { PaginationComponent } from '../../shared/components/pagination/paginati
             </div>
           </div>
           <span class="px-3 py-1 bg-white border border-blue-200 rounded-full font-bold text-[11px] text-easydry-blue shadow-xs">
-            Líder de Agencia
+            Líder Operador
           </span>
         </div>
       }

@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { BehaviorSubject, Observable, of } from 'rxjs';
-import { delay, map, catchError } from 'rxjs/operators';
+import { delay, map, catchError, finalize, shareReplay } from 'rxjs/operators';
 import {
   Role,
   UsuarioAuth,
@@ -15,6 +15,9 @@ import { RolService } from './rol.service';
 import { apiUrl } from '../config/env';
 
 const STORAGE_KEY = 'easydry_auth_user_v5';
+/** Renovar el access token ~5 min antes de que expire. */
+const REFRESH_SKEW_MS = 5 * 60 * 1000;
+const FALLBACK_REFRESH_MS = 45 * 60 * 1000;
 
 @Injectable({
   providedIn: 'root'
@@ -27,11 +30,140 @@ export class AuthService {
   private currentUserSubject = new BehaviorSubject<UsuarioAuth | null>(this.getStoredUser());
   public currentUser$ = this.currentUserSubject.asObservable();
 
+  private refreshInFlight$: Observable<boolean> | null = null;
+  private refreshTimerId: ReturnType<typeof setTimeout> | null = null;
+
   constructor() {
     const user = this.getStoredUser();
     if (user?.token) {
       this.rolService.getRoles().subscribe();
       this.rolService.getModulos().subscribe();
+      this.scheduleProactiveRefresh();
+    }
+  }
+
+  getAccessToken(): string | null {
+    return this.currentUserSubject.value?.token
+      || localStorage.getItem('easydry_access_token');
+  }
+
+  getRefreshToken(): string | null {
+    return this.currentUserSubject.value?.refreshToken
+      || localStorage.getItem('easydry_refresh_token');
+  }
+
+  /** true si el access JWT ya venció o vence dentro de `skewMs`. */
+  isAccessTokenExpiringSoon(skewMs = REFRESH_SKEW_MS): boolean {
+    const token = this.getAccessToken();
+    if (!token) return true;
+    const exp = this.getJwtExpMs(token);
+    if (exp == null) return false;
+    return Date.now() >= exp - skewMs;
+  }
+
+  isAccessTokenExpired(): boolean {
+    const token = this.getAccessToken();
+    if (!token) return true;
+    const exp = this.getJwtExpMs(token);
+    if (exp == null) return false;
+    return Date.now() >= exp;
+  }
+
+  /**
+   * Renueva access + refresh tokens. Deduplica llamadas concurrentes.
+   * No cierra sesión aquí: el caller decide (401 vs refresco proactivo).
+   */
+  refreshSession(): Observable<boolean> {
+    const refreshToken = this.getRefreshToken();
+    if (!refreshToken) {
+      return of(false);
+    }
+    if (this.refreshInFlight$) {
+      return this.refreshInFlight$;
+    }
+
+    this.refreshInFlight$ = this.http.post<{
+      success: boolean;
+      accessToken: string;
+      refreshToken: string;
+    }>(
+      apiUrl('/auth/refresh'),
+      { refreshToken },
+      {
+        headers: {
+          'X-Skip-Auth-Refresh': '1',
+          'X-Silent-Fallback': '1',
+        },
+      }
+    ).pipe(
+      map(res => {
+        if (!res?.success || !res.accessToken) return false;
+        this.applyTokens(res.accessToken, res.refreshToken || refreshToken);
+        return true;
+      }),
+      catchError(() => of(false)),
+      finalize(() => {
+        this.refreshInFlight$ = null;
+      }),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
+
+    return this.refreshInFlight$;
+  }
+
+  private applyTokens(accessToken: string, refreshToken: string): void {
+    localStorage.setItem('easydry_access_token', accessToken);
+    localStorage.setItem('easydry_refresh_token', refreshToken);
+    const current = this.currentUserSubject.value;
+    if (current) {
+      const updated: UsuarioAuth = { ...current, token: accessToken, refreshToken };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      this.currentUserSubject.next(updated);
+    }
+    this.scheduleProactiveRefresh();
+  }
+
+  private getJwtExpMs(token: string): number | null {
+    try {
+      const part = token.split('.')[1];
+      if (!part) return null;
+      const padded = part.replace(/-/g, '+').replace(/_/g, '/');
+      const json = atob(padded);
+      const payload = JSON.parse(json) as { exp?: number };
+      return typeof payload.exp === 'number' ? payload.exp * 1000 : null;
+    } catch {
+      return null;
+    }
+  }
+
+  scheduleProactiveRefresh(): void {
+    this.clearRefreshTimer();
+    if (!this.getRefreshToken()) return;
+
+    const token = this.getAccessToken();
+    const exp = token ? this.getJwtExpMs(token) : null;
+    const delayMs = exp != null
+      ? Math.max(exp - Date.now() - REFRESH_SKEW_MS, 15_000)
+      : FALLBACK_REFRESH_MS;
+
+    this.refreshTimerId = setTimeout(() => {
+      this.refreshSession().subscribe(ok => {
+        if (!ok && this.isAccessTokenExpired()) {
+          this.logout();
+        } else if (ok) {
+          // timer reprogramado en applyTokens
+        } else {
+          // fallo temporal (red): reintentar en 1 min
+          this.refreshTimerId = setTimeout(() => this.scheduleProactiveRefresh(), 60_000);
+        }
+      });
+    }, delayMs);
+  }
+
+  private clearRefreshTimer(): void {
+    if (this.refreshTimerId != null) {
+      clearTimeout(this.refreshTimerId);
+      this.refreshTimerId = null;
     }
   }
 
@@ -46,7 +178,7 @@ export class AuthService {
       'APROBADOR': Role.APROBADOR,
       'LIDER': Role.LIDER_OPERADOR,
       'LIDER_OPERADOR': Role.LIDER_OPERADOR,
-      'LIDER_AGENCIA': Role.LIDER_AGENCIA,
+      'LIDER_AGENCIA': Role.LIDER_OPERADOR,
       'OPERADOR': Role.OPERADOR,
       'COORD_SERVICIOS_ESPECIALES': Role.COORD_SERVICIOS_ESPECIALES,
       'PULIDOR': Role.PULIDOR,
@@ -80,6 +212,9 @@ export class AuthService {
           parsed.modulosPermitidos = Array.isArray(parsed.modulosPermitidos)
             ? parsed.modulosPermitidos
             : [];
+          if (parsed.role === Role.PULIDOR && !parsed.modulosPermitidos.includes('envios')) {
+            parsed.modulosPermitidos.push('envios');
+          }
           parsed.permisos = this.normalizeAcciones(parsed.permisos);
           return parsed;
         }
@@ -142,6 +277,7 @@ export class AuthService {
         regionId: string | number;
         region: { id: string | number; codigo: string; nombre: string };
         regionNombre: string;
+        bodegaId?: string | number;
         estado: number;
       };
     }>(apiUrl('/auth/login'), { email: normalizedEmail, password: normalizedPass }).pipe(
@@ -149,13 +285,16 @@ export class AuthService {
         if (!res.success) return { success: false, message: 'Credenciales incorrectas.' };
 
         const role = this.mapBackendRole(res.user.role);
-        const modulosPermitidos = res.user.permisos || res.user.modulos || [];
+        const modulosPermitidos = [...(res.user.permisos || res.user.modulos || [])];
         const permisos = this.normalizeAcciones(res.user.acciones);
 
         const isGlobalAdmin = role === Role.SUPER_ADMIN || role === Role.ADMIN || role === Role.COORD_BODEGA;
         const isSupervisor = role === Role.SUPERVISOR;
         const isAsistente = role === Role.ASISTENTE_BODEGA;
         const isPulidor = role === Role.PULIDOR;
+        if (isPulidor && !modulosPermitidos.includes('envios')) {
+          modulosPermitidos.push('envios');
+        }
         const modalidadPulidor = isPulidor
           ? (res.user.agenciaId || res.user.agencia?.id ? 'FIJO' : 'MOVIL')
           : undefined;
@@ -173,7 +312,11 @@ export class AuthService {
           region: res.user.regionNombre || res.user.region?.nombre || (isGlobalAdmin ? 'Nacional' : undefined),
           agenciaId: (isGlobalAdmin || isSupervisor || isAsistente || (isPulidor && modalidadPulidor === 'MOVIL')) ? undefined : res.user.agenciaId,
           regionId: isGlobalAdmin ? undefined : res.user.regionId,
+          bodegaId: (res.user as any).bodegaId,
           modalidadPulidor,
+          servicioIds: Array.isArray((res.user as any).servicioIds)
+            ? (res.user as any).servicioIds.map((n: any) => Number(n)).filter((n: number) => !isNaN(n) && n > 0)
+            : [],
           estado: res.user.estado === 1 ? 'Activo' : 'Inactivo',
           token: res.accessToken,
           refreshToken: res.refreshToken,
@@ -199,6 +342,7 @@ export class AuthService {
     if (user?.token) {
       this.rolService.getRoles().subscribe();
       this.rolService.getModulos().subscribe();
+      this.scheduleProactiveRefresh();
     }
   }
 
@@ -226,7 +370,10 @@ export class AuthService {
   }
 
   logout(): void {
+    this.clearRefreshTimer();
     localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem('easydry_access_token');
+    localStorage.removeItem('easydry_refresh_token');
     this.currentUserSubject.next(null);
     this.router.navigate(['/login']);
   }
@@ -253,7 +400,7 @@ export class AuthService {
   }
 
   isLiderOperador(): boolean {
-    return this.hasAnyRole([Role.LIDER_OPERADOR, Role.LIDER_AGENCIA]);
+    return this.currentUserSubject.value?.role === Role.LIDER_OPERADOR;
   }
 
   isOperador(): boolean {
@@ -267,7 +414,6 @@ export class AuthService {
   hasAnyRole(roles: (Role | string)[]): boolean {
     const currentRole = this.currentUserSubject.value?.role;
     if (!currentRole) return false;
-    if (currentRole === Role.SUPER_ADMIN) return true;
     return roles.includes(currentRole);
   }
 
@@ -281,6 +427,9 @@ export class AuthService {
     if (user.role === Role.SUPER_ADMIN) return true;
 
     const cleanCodigo = moduloCodigo.replace(/^\//, '');
+    if (user.role === Role.PULIDOR && (cleanCodigo === 'envios' || cleanCodigo === 'inventario')) {
+      return true;
+    }
     return (user.modulosPermitidos || []).some(m => m === cleanCodigo || cleanCodigo.startsWith(m));
   }
 
@@ -293,7 +442,13 @@ export class AuthService {
   can(permiso: keyof PermisosRol): boolean {
     const user = this.currentUserSubject.value;
     if (!user) return false;
-    if (user.role === Role.SUPER_ADMIN) return true;
+    // Super Admin tiene acceso total e irrestricto a todas las acciones de la plataforma
+    if (user.role === Role.SUPER_ADMIN) {
+      return true;
+    }
+    if (user.role === Role.PULIDOR && (permiso === 'accionesEnvios' || permiso === 'gestionarInventario')) {
+      return true;
+    }
     const permisos = this.normalizeAcciones(user.permisos);
     return !!permisos[permiso];
   }
@@ -315,10 +470,13 @@ export class AuthService {
   }
 
   isCoordServiciosEspeciales(): boolean {
+    if (this.isAdmin()) return false;
     return this.currentUserSubject.value?.role === Role.COORD_SERVICIOS_ESPECIALES;
   }
 
   isPulidor(): boolean {
+    if (this.isAdmin()) return false;
+    if (this.isCoordServiciosEspeciales()) return false;
     const r = this.currentUserSubject.value?.role;
     return r === Role.PULIDOR || r === Role.PULIDOR_MOVIL || r === Role.PULIDOR_FIJO || r === Role.OPERADOR_SERVICIOS_ESPECIALES || (typeof r === 'string' && r.toUpperCase().includes('PULIDOR'));
   }

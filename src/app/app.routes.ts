@@ -51,7 +51,6 @@ export const routes: Routes = [
             Role.COORD_MANTENIMIENTO,
             Role.TECNICO,
             Role.LIDER_OPERADOR,
-            Role.LIDER_AGENCIA,
             Role.COORD_COMERCIAL,
             Role.COORD_SERVICIOS_ESPECIALES,
             Role.OPERADOR_SERVICIOS_ESPECIALES,
@@ -73,7 +72,6 @@ export const routes: Routes = [
             Role.GERENTE,
             Role.SUPERVISOR,
             Role.LIDER_OPERADOR,
-            Role.LIDER_AGENCIA,
             Role.COORD_COMERCIAL,
             Role.COORD_SERVICIOS_ESPECIALES,
             Role.OPERADOR_SERVICIOS_ESPECIALES
@@ -167,7 +165,6 @@ export const routes: Routes = [
             Role.ADMIN,
             Role.SUPERVISOR,
             Role.LIDER_OPERADOR,
-            Role.LIDER_AGENCIA,
             Role.COORD_SERVICIOS_ESPECIALES
           ], 'operadores')
         ]
@@ -194,7 +191,6 @@ export const routes: Routes = [
             Role.COORD_MANTENIMIENTO,
             Role.TECNICO,
             Role.LIDER_OPERADOR,
-            Role.LIDER_AGENCIA,
             Role.COORD_SERVICIOS_ESPECIALES
           ], 'maquinaria')
         ]
@@ -229,10 +225,10 @@ export const routes: Routes = [
             Role.COORD_MANTENIMIENTO,
             Role.TECNICO,
             Role.LIDER_OPERADOR,
-            Role.LIDER_AGENCIA,
             Role.OPERADOR,
             Role.DISTRIBUIDOR,
-            Role.ASISTENTE_BODEGA
+            Role.ASISTENTE_BODEGA,
+            Role.PULIDOR
           ], 'inventario')
         ]
       },
@@ -249,12 +245,12 @@ export const routes: Routes = [
             Role.SUPERVISOR,
             Role.COORD_MANTENIMIENTO,
             Role.LIDER_OPERADOR,
-            Role.LIDER_AGENCIA,
             Role.OPERADOR,
             Role.COORD_SERVICIOS_ESPECIALES,
             Role.OPERADOR_SERVICIOS_ESPECIALES,
             Role.DISTRIBUIDOR,
-            Role.ASISTENTE_BODEGA
+            Role.ASISTENTE_BODEGA,
+            Role.PULIDOR
           ], 'envios')
         ]
       },
@@ -308,8 +304,7 @@ export const routes: Routes = [
             Role.JEFE_COMERCIAL,
             Role.COORD_COMERCIAL,
             Role.COORD_SERVICIOS_ESPECIALES,
-            Role.LIDER_OPERADOR,
-            Role.LIDER_AGENCIA
+            Role.LIDER_OPERADOR
           ], 'configuracion/servicios')
         ]
       },

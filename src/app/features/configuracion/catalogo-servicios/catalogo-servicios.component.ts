@@ -9,6 +9,7 @@ import { SucursalService } from '../../../core/services/sucursal.service';
 import { CatalogoServicio, RecetaInsumoServicio, InventarioItem, Sucursal, Role } from '../../../core/models';
 import { PaginationComponent } from '../../../shared/components/pagination/pagination.component';
 import { ModalPortalDirective } from '../../../shared/directives/modal-portal.directive';
+import { ToastService } from '../../../shared/services/toast.service';
 
 import { RouterModule } from '@angular/router';
 
@@ -23,6 +24,7 @@ export class CatalogoServiciosComponent implements OnInit {
   private inventarioService = inject(InventarioService);
   public authService = inject(AuthService);
   private sucursalService = inject(SucursalService);
+  private toast = inject(ToastService);
 
   // ── Scoping por sucursal (Líder / Aprobador) ────────────────────────────
   sucursalUsuario: Sucursal | null = null;
@@ -59,6 +61,7 @@ export class CatalogoServiciosComponent implements OnInit {
   servicioActual: Partial<CatalogoServicio> = {
     categoria: 'GENERAL',
     estado: 'Activo',
+    tiempoEstimadoMin: 30,
     insumosReceta: []
   };
 
@@ -293,6 +296,7 @@ export class CatalogoServiciosComponent implements OnInit {
       descripcion: '',
       categoria: categoria,
       estado: 'Activo',
+      tiempoEstimadoMin: 30,
       insumosReceta: []
     };
     this.insumoSeleccionadoId = '';
@@ -305,12 +309,21 @@ export class CatalogoServiciosComponent implements OnInit {
     this.isEditing = true;
     this.servicioActual = {
       ...servicio,
+      tiempoEstimadoMin: Number(servicio.tiempoEstimadoMin) > 0 ? Number(servicio.tiempoEstimadoMin) : 30,
       insumosReceta: servicio.insumosReceta ? JSON.parse(JSON.stringify(servicio.insumosReceta)) : []
     };
     this.insumoSeleccionadoId = '';
     this.cantidadADescontar = 0.25;
     this.busquedaInsumoReceta = '';
     this.showModal = true;
+  }
+
+  get ejemploHoraSalidaCatalogo(): string {
+    const min = Math.max(1, Number(this.servicioActual?.tiempoEstimadoMin) || 30);
+    const base = new Date();
+    base.setHours(10, 0, 0, 0);
+    const out = new Date(base.getTime() + min * 60_000);
+    return out.toTimeString().substring(0, 5);
   }
 
   cerrarModal() { this.showModal = false; }
@@ -338,7 +351,7 @@ export class CatalogoServiciosComponent implements OnInit {
         productoSKU: item.producto.codigoSKU,
         productoNombre: item.producto.nombre,
         unidadMedida: item.producto.unidadMedida || 'u',
-        unidadMedidaId: item.producto.unidadMedidaId,
+        unidadMedidaId: item.producto.unidadMedidaId || (item.producto.unidadMedidaObj as any)?.id || undefined,
         cantidadSugerida: Math.round(cant * 100) / 100
       });
     }
@@ -371,10 +384,37 @@ export class CatalogoServiciosComponent implements OnInit {
   }
 
   guardarServicio() {
+    if (!this.servicioActual.codigo?.trim() || !this.servicioActual.nombre?.trim()) {
+      this.toast.warning('Datos incompletos', 'Código y nombre del servicio son obligatorios.');
+      return;
+    }
+    const mins = Number(this.servicioActual.tiempoEstimadoMin);
+    if (!Number.isFinite(mins) || mins < 1) {
+      this.toast.warning('Tiempo requerido', 'Indica el tiempo estimado en minutos (≥ 1). Se usa para calcular la hora de salida en la OT.');
+      return;
+    }
+    this.servicioActual.tiempoEstimadoMin = Math.round(mins);
+
     if (this.isEditing && this.servicioActual.id) {
-      this.catalogoService.actualizarServicio(this.servicioActual.id, this.servicioActual).subscribe(() => this.cerrarModal());
+      this.catalogoService.actualizarServicio(this.servicioActual.id, this.servicioActual).subscribe({
+        next: () => {
+          this.toast.success('Servicio Actualizado', 'El servicio y su receta fueron guardados en base de datos.');
+          this.cerrarModal();
+        },
+        error: (err) => {
+          this.toast.error('Error al guardar', err?.error?.message || 'No se pudo actualizar el servicio.');
+        }
+      });
     } else {
-      this.catalogoService.crearServicio(this.servicioActual as any).subscribe(() => this.cerrarModal());
+      this.catalogoService.crearServicio(this.servicioActual as any).subscribe({
+        next: () => {
+          this.toast.success('Servicio Creado', 'El servicio y su receta fueron guardados en base de datos.');
+          this.cerrarModal();
+        },
+        error: (err) => {
+          this.toast.error('Error al crear', err?.error?.message || 'No se pudo crear el servicio.');
+        }
+      });
     }
   }
 

@@ -66,7 +66,7 @@ export class SucursalService {
 
     const ger = a.usuarios?.find((u: any) => {
       const r = (u.role?.namerol || u.role || '').toUpperCase();
-      return r === 'GERENTE' || r === 'APROBADOR' || r.includes('GERENTE') || r.includes('APROBADOR') || r === 'LIDER_AGENCIA';
+      return r === 'GERENTE' || r === 'APROBADOR' || r.includes('GERENTE') || r.includes('APROBADOR') || r === 'LIDER' || r === 'LIDER_AGENCIA';
     });
 
     const responsable = ger
@@ -88,21 +88,13 @@ export class SucursalService {
       ? `${lider.name || ''} ${lider.lastname || ''}`.trim()
       : (a.liderOperador && a.liderOperador !== 'Sin Asignar' ? a.liderOperador : (stored.liderOperador || 'Sin Asignar'));
 
-    const tieneServiciosEspeciales = a.tieneServiciosEspeciales !== undefined && a.tieneServiciosEspeciales !== null
-      ? Boolean(a.tieneServiciosEspeciales)
-      : (stored.tieneServiciosEspeciales !== undefined ? Boolean(stored.tieneServiciosEspeciales) : false);
+    const tieneServiciosEspeciales = Boolean(a.tieneServiciosEspeciales);
 
-    // Origen de verdad: base de datos (agencia.servicioIds)
-    let servicioIds: number[] = [];
-    if (Array.isArray(a.servicioIds)) {
-      servicioIds = Array.from(new Set(a.servicioIds.map((id: any) => Number(id)).filter((n: number) => !isNaN(n) && n > 0)));
-    } else if (Array.isArray(stored.servicioIds) && stored.servicioIds.length > 0) {
-      servicioIds = Array.from(new Set(stored.servicioIds.map((id: any) => Number(id)).filter((n: number) => !isNaN(n) && n > 0)));
-    }
+    const servicioIds: number[] = Array.isArray(a.servicioIds)
+      ? Array.from(new Set(a.servicioIds.map((id: any) => Number(id)).filter((n: number) => !isNaN(n) && n > 0)))
+      : [];
 
-    const serviciosNombres: string[] = Array.isArray(a.serviciosNombres)
-      ? a.serviciosNombres
-      : (Array.isArray(stored.serviciosNombres) ? stored.serviciosNombres : []);
+    const serviciosNombres: string[] = Array.isArray(a.serviciosNombres) ? a.serviciosNombres : [];
 
     // Filtrar operadores estrictos (excluyendo roles directivos / gerenciales)
     const operadores = (a.usuarios || []).filter((u: any) => {
@@ -114,7 +106,7 @@ export class SucursalService {
     return {
       id: a.id,
       nombre: a.nombre,
-      ciudad: a.regionRel?.nombre || a.region || 'Quito',
+      ciudad: a.regionRel?.nombre || a.region || '',
       direccion: a.direccion || '',
       estado: a.estado === 1 ? 'Activo' : (a.estado === 0 ? 'Inactivo' : 'Mantenimiento'),
       cantidadBahias: a.numeroBahias || (a.bahias?.length ?? a._count?.bahias ?? 0),

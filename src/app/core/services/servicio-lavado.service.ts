@@ -60,7 +60,7 @@ export class ServicioLavadoService {
       fotos: s.fotoIngresoUrl ? [s.fotoIngresoUrl] : (s.fotos || []),
       video: s.video || s.videoUrl || '',
       videoUrl: s.videoUrl || s.video || '',
-      tiempoEstimadoMin: s.catalogo?.tiempoEstimadoMin || s.catalogoRel?.tiempoEstimadoMin || 30,
+      tiempoEstimadoMin: s.catalogo?.tiempoEstimadoMin ?? s.catalogoRel?.tiempoEstimadoMin ?? 0,
       notas: s.observaciones || s.notas || '',
       observacionGerente: s.observacionGerente || '',
       aprobadoPor: s.aprobadoPor || '',
