@@ -9,6 +9,9 @@ import { PaginationComponent } from '../../shared/components/pagination/paginati
 import { FilterBarComponent, FilterState } from '../../shared/components/filter-bar/filter-bar.component';
 import { resolverRangoFechas, soloFecha } from '../../core/utils/fecha-rango';
 import { SucursalService } from '../../core/services/sucursal.service';
+import { StorageUploadService } from '../../core/services/storage-upload.service';
+import { AuthService } from '../../core/services/auth.service';
+import { jsPDF } from 'jspdf';
 
 @Component({
   selector: 'app-reportes',
@@ -205,6 +208,8 @@ export class ReportesComponent implements OnInit {
   private reporteService = inject(ReporteService);
   private toastService = inject(ToastService);
   private sucursalService = inject(SucursalService);
+  private storageUploadService = inject(StorageUploadService);
+  private authService = inject(AuthService);
 
   ngOnInit(): void {
     this.reporteService.getReportes().subscribe(list => {
@@ -250,11 +255,31 @@ export class ReportesComponent implements OnInit {
     this.toastService.success('Exportación Exitosa', `Archivo Excel (CSV) descargado para: ${reporte.titulo}`);
   }
 
-  exportarPDF(reporte: Reporte) {
-    // Print/PDF trigger simulation
-    this.toastService.info('Exportación PDF', `Generando PDF descargable para "${reporte.titulo}"...`);
-    setTimeout(() => {
-      window.print();
-    }, 400);
+  async exportarPDF(reporte: Reporte) {
+    this.toastService.info('Exportación PDF', `Generando y respaldando "${reporte.titulo}"...`);
+    const pdf = new jsPDF();
+    pdf.setFontSize(18);
+    pdf.text('EasyDry - Reporte Operativo', 20, 24);
+    pdf.setFontSize(12);
+    pdf.text(reporte.titulo, 20, 38);
+    pdf.text(`Tipo: ${reporte.tipo}`, 20, 50);
+    pdf.text(`Agencia: ${reporte.agencia}`, 20, 60);
+    pdf.text(`Fecha: ${reporte.fechaGeneracion}`, 20, 70);
+    pdf.text(`Total de servicios: ${reporte.totalServicios}`, 20, 80);
+    pdf.text(`Eficiencia general: ${reporte.eficienciaGeneral}%`, 20, 90);
+
+    const safeId = String(reporte.id).replace(/[^a-zA-Z0-9_-]/g, '-');
+    const fileName = `EasyDry_Reporte_${safeId}_${reporte.fechaGeneracion}.pdf`;
+    const blob = pdf.output('blob');
+    pdf.save(fileName);
+
+    try {
+      const agenciaId = String(this.authService.currentUserValue?.agenciaId || reporte.agencia);
+      const url = await this.storageUploadService.uploadClosurePdf(blob, agenciaId, fileName);
+      this.toastService.success('PDF exportado', `Descargado y respaldado en storage: ${url}`);
+    } catch (error) {
+      console.error(error);
+      this.toastService.warning('PDF descargado', 'El archivo se descargó, pero no pudo respaldarse en storage.');
+    }
   }
 }
