@@ -1238,8 +1238,8 @@ export class UsuariosComponent implements OnInit {
     apellido: '',
     rol: 'Aprobador',
     roleId: undefined,
-    agencia: 'EasyDry Quito Norte',
-    region: 'Sierra',
+    agencia: '',
+    region: '',
     bodegaId: '',
     estado: 'Activo',
     email: '',
@@ -1629,7 +1629,7 @@ export class UsuariosComponent implements OnInit {
       rol: primerRol,
       roleId: defaultRol?.id,
       agencia: agenciaInicial,
-      region: this.regionesDisponibles[0]?.nombre || 'Sierra',
+      region: this.regionesDisponibles[0]?.nombre || '',
       bodegaId: '',
       estado: 'Activo',
       email: '',
@@ -1659,7 +1659,7 @@ export class UsuariosComponent implements OnInit {
 
     const regionActual = (u.region && u.region !== 'Sin asignar' && u.region !== 'Nacional')
       ? u.region
-      : (this.regionesDisponibles[0]?.nombre || 'Sierra');
+      : (this.regionesDisponibles[0]?.nombre || '');
 
     const rolMatch = this.roles.find(r =>
       (u.roleId && r.id === u.roleId) ||
@@ -1706,7 +1706,7 @@ export class UsuariosComponent implements OnInit {
     } else {
       this.usuarioForm.modalidadPulidor = 'MOVIL';
       if (!this.usuarioForm.region || this.usuarioForm.region === 'Nacional') {
-        this.usuarioForm.region = this.regionesDisponibles[0]?.nombre || 'Sierra';
+        this.usuarioForm.region = this.regionesDisponibles[0]?.nombre || '';
       }
     }
   }
@@ -1801,7 +1801,7 @@ export class UsuariosComponent implements OnInit {
     if (modalidad === 'MOVIL') {
       this.usuarioForm.agencia = '';
       if (!this.usuarioForm.region || this.usuarioForm.region === 'Nacional') {
-        this.usuarioForm.region = this.regionesDisponibles[0]?.nombre || 'Sierra';
+        this.usuarioForm.region = this.regionesDisponibles[0]?.nombre || '';
       }
     }
   }
@@ -1958,19 +1958,19 @@ export class UsuariosComponent implements OnInit {
         finalRegion = 'Nacional';
         finalRegionId = undefined;
       } else if (isSupervisor || isRegional) {
-        finalRegion = regionMatch?.nombre || this.usuarioForm.region || 'Sierra';
+        finalRegion = regionMatch?.nombre || this.usuarioForm.region || '';
         finalRegionId = regionMatch?.id ? String(regionMatch.id) : this.editandoUsuario.regionId;
         finalAgencia = `Región ${finalRegion}`;
         finalAgenciaId = undefined;
       } else if (isAsistente) {
-        finalRegion = bodegaMatch?.region || regionMatch?.nombre || this.usuarioForm.region || 'Sierra';
+        finalRegion = bodegaMatch?.region || regionMatch?.nombre || this.usuarioForm.region || '';
         finalRegionId = bodegaMatch?.regionId
           ? String(bodegaMatch.regionId)
           : (regionMatch?.id ? String(regionMatch.id) : this.editandoUsuario.regionId);
         finalAgencia = bodegaMatch?.nombre || `Bodega Regional ${finalRegion}`;
         finalAgenciaId = undefined;
       } else if (isPulidorMovil) {
-        finalRegion = regionMatch?.nombre || this.usuarioForm.region || 'Sierra';
+        finalRegion = regionMatch?.nombre || this.usuarioForm.region || '';
         finalRegionId = regionMatch?.id ? String(regionMatch.id) : this.editandoUsuario.regionId;
         finalAgencia = `Móvil · Región ${finalRegion}`;
         finalAgenciaId = undefined;
@@ -2040,19 +2040,19 @@ export class UsuariosComponent implements OnInit {
         finalRegion = 'Nacional';
         finalRegionId = undefined;
       } else if (isSupervisor || isRegional) {
-        finalRegion = regionMatch?.nombre || this.usuarioForm.region || 'Sierra';
+        finalRegion = regionMatch?.nombre || this.usuarioForm.region || '';
         finalRegionId = regionMatch?.id ? String(regionMatch.id) : undefined;
         finalAgencia = `Región ${finalRegion}`;
         finalAgenciaId = undefined;
       } else if (isAsistente) {
-        finalRegion = bodegaMatch?.region || regionMatch?.nombre || this.usuarioForm.region || 'Sierra';
+        finalRegion = bodegaMatch?.region || regionMatch?.nombre || this.usuarioForm.region || '';
         finalRegionId = bodegaMatch?.regionId
           ? String(bodegaMatch.regionId)
           : (regionMatch?.id ? String(regionMatch.id) : undefined);
         finalAgencia = bodegaMatch?.nombre || `Bodega Regional ${finalRegion}`;
         finalAgenciaId = undefined;
       } else if (isPulidorMovil) {
-        finalRegion = regionMatch?.nombre || this.usuarioForm.region || 'Sierra';
+        finalRegion = regionMatch?.nombre || this.usuarioForm.region || '';
         finalRegionId = regionMatch?.id ? String(regionMatch.id) : undefined;
         finalAgencia = `Móvil · Región ${finalRegion}`;
         finalAgenciaId = undefined;

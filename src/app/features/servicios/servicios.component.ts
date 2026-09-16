@@ -254,7 +254,7 @@ import { RouterModule } from '@angular/router';
 
                     <td class="py-3.5 px-4 text-xs">
                       <p class="font-bold text-slate-800">{{ item.agencia }}</p>
-                      <p class="text-[11px] text-easydry-blue font-semibold">{{ item.bahia || 'Bahía 1' }}</p>
+                      <p class="text-[11px] text-easydry-blue font-semibold">{{ item.bahia || 'Sin bahía' }}</p>
                     </td>
 
                     <td class="py-3.5 px-4 text-xs font-mono">
@@ -640,7 +640,7 @@ import { RouterModule } from '@angular/router';
               <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
                 <span class="block text-[10px] text-slate-400 font-bold uppercase mb-1">Sucursal / Bahía</span>
                 <span class="font-bold text-slate-800 block">{{ servicioDetalleSeleccionado.agencia }}</span>
-                <span class="text-slate-500 mt-0.5">{{ servicioDetalleSeleccionado.bahia || 'Bahía 1' }}</span>
+                <span class="text-slate-500 mt-0.5">{{ servicioDetalleSeleccionado.bahia || 'Sin bahía' }}</span>
               </div>
               <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
                 <span class="block text-[10px] text-slate-400 font-bold uppercase mb-1">Horarios</span>
@@ -1020,12 +1020,16 @@ import { RouterModule } from '@angular/router';
         @if (servicioSeleccionado) {
           <div class="space-y-4">
             <div class="aspect-video bg-black rounded-2xl overflow-hidden shadow-inner flex items-center justify-center">
-              <video 
-                [src]="servicioSeleccionado.videoUrl || servicioSeleccionado.video || 'https://assets.mixkit.co/videos/preview/mixkit-car-wash-in-a-machine-41484-large.mp4'" 
-                controls 
-                autoplay 
-                class="w-full h-full object-contain">
-              </video>
+              @if (servicioSeleccionado.videoUrl || servicioSeleccionado.video) {
+                <video 
+                  [src]="servicioSeleccionado.videoUrl || servicioSeleccionado.video" 
+                  controls 
+                  autoplay 
+                  class="w-full h-full object-contain">
+                </video>
+              } @else {
+                <p class="text-white/80 text-sm font-medium px-6 text-center">No hay vídeo de evidencia registrado para este servicio.</p>
+              }
             </div>
 
             <div class="p-3 bg-slate-50 rounded-xl text-xs space-y-1">
@@ -1099,10 +1103,6 @@ import { RouterModule } from '@angular/router';
                   <span>Seleccionar Archivos</span>
                   <input type="file" multiple accept="image/*,video/*" (change)="onSubirArchivosFallo($event)" class="hidden">
                 </label>
-                <button type="button" (click)="agregarEvidenciaFalloDemo()"
-                  class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold">
-                  + Evidencia de prueba
-                </button>
               </div>
               @if (archivosFalloSubidos.length > 0) {
                 <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2">
@@ -1173,16 +1173,6 @@ import { RouterModule } from '@angular/router';
                   placeholder="URL o enlace del vídeo inicial (ej. https://.../video_inicial.mp4)"
                   class="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-mono">
               </div>
-
-              <div class="flex items-center gap-2 flex-wrap">
-                <button
-                  type="button"
-                  (click)="agregarVideoInicialDemo()"
-                  class="px-3 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold rounded-xl text-xs transition-all flex items-center gap-1.5 cursor-pointer">
-                  <i-lucide name="sparkles" class="w-3.5 h-3.5 text-amber-700"></i-lucide>
-                  <span>+ Usar Vídeo de Inspección Inicial Demo</span>
-                </button>
-              </div>
             </div>
           </div>
         }
@@ -1249,16 +1239,6 @@ import { RouterModule } from '@angular/router';
                   [(ngModel)]="videoFinalInput"
                   placeholder="URL o enlace del vídeo final (ej. https://.../video_final.mp4)"
                   class="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-mono">
-              </div>
-
-              <div class="flex items-center gap-2 flex-wrap">
-                <button
-                  type="button"
-                  (click)="agregarVideoFinalDemo()"
-                  class="px-3 py-1.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-900 font-bold rounded-xl text-xs transition-all flex items-center gap-1.5 cursor-pointer">
-                  <i-lucide name="sparkles" class="w-3.5 h-3.5 text-emerald-700"></i-lucide>
-                  <span>+ Usar Vídeo de Acabado Final Demo</span>
-                </button>
               </div>
             </div>
 
@@ -1832,7 +1812,7 @@ export class ServiciosComponent implements OnInit {
   extraFormPlaca = '';
   extraFormMarca = '';
   extraFormModelo = '';
-  extraFormColor = 'Plata';
+  extraFormColor = '';
   extraFormAgenciaId = '';
   extraFormPrioridad = 'Media';
 
@@ -1935,7 +1915,7 @@ export class ServiciosComponent implements OnInit {
   }
   get userRegionNombre(): string {
     const u = this.authService.getCurrentUser();
-    return u?.region || u?.regionNombre || (u?.regionId === 'REG-COSTA' ? 'Costa' : 'Sierra');
+    return u?.regionNombre || u?.region || '';
   }
   get isGerente() { return this.authService.hasAnyRole([Role.SUPER_ADMIN, Role.ADMIN, Role.GERENTE]); }
   get isSupervisor(): boolean {
@@ -2231,18 +2211,6 @@ export class ServiciosComponent implements OnInit {
       });
     });
     this.toastService.success('Archivos cargados', `${input.files.length} evidencia(s) lista(s).`);
-  }
-
-  agregarEvidenciaFalloDemo(): void {
-    this.archivosFalloSubidos.push({
-      id: `demo-f-${Date.now()}`,
-      nombre: 'falla_equipo_especial.jpg',
-      tipo: 'imagen',
-      extension: 'JPG',
-      url: 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=800&auto=format&fit=crop&q=80',
-      tamanio: '2.1 MB',
-      fechaSubida: 'Hoy'
-    });
   }
 
   eliminarArchivoFallo(index: number): void {
@@ -2971,9 +2939,9 @@ export class ServiciosComponent implements OnInit {
       : (primerPulidor ? `${primerPulidor.name} ${primerPulidor.lastname}`.trim() : '');
 
     this.extraFormPlaca = '';
-    this.extraFormMarca = 'Toyota';
-    this.extraFormModelo = 'Fortuner';
-    this.extraFormColor = 'Plata';
+    this.extraFormMarca = '';
+    this.extraFormModelo = '';
+    this.extraFormColor = '';
 
     // Asignación de Agencia:
     if (this.isPulidorFijo) {
@@ -3038,6 +3006,10 @@ export class ServiciosComponent implements OnInit {
       this.toastService.warning('Agencia requerida', 'Debe seleccionar la agencia en la cual se realizará el servicio.');
       return;
     }
+    if (!this.extraFormMarca.trim() || !this.extraFormModelo.trim()) {
+      this.toastService.warning('Datos incompletos', 'Ingrese marca y modelo del vehículo.');
+      return;
+    }
 
     if (!this.isSuperAdmin && !this.isAdmin) {
       this.recalcularFaltantesInsumosOT();
@@ -3050,8 +3022,12 @@ export class ServiciosComponent implements OnInit {
       }
     }
 
-    const regId = user?.regionId ? String(user.regionId) : (user?.region === 'Costa' ? 'REG-COSTA' : 'REG-SIERRA');
+    const regId = user?.regionId ? String(user.regionId) : '';
     const regNombre = this.userRegionNombre;
+    if (!regId && !this.isSuperAdmin && !this.isAdmin) {
+      this.toastService.warning('Región requerida', 'El usuario no tiene una región asignada en la base de datos.');
+      return;
+    }
 
     const payload: any = {
       servicioNombre: this.extraForm.servicioNombre.trim(),
@@ -3083,7 +3059,7 @@ export class ServiciosComponent implements OnInit {
       estado: this.extraForm.estado,
       fechaProgramada: this.extraForm.fechaProgramada,
       notas: this.extraForm.notas,
-      creadoPor: `${user?.nombre || ''} ${user?.apellido || ''}`.trim() || 'EasyDry Admin'
+      creadoPor: `${user?.nombre || ''} ${user?.apellido || ''}`.trim()
     };
 
     this.extrasMock.crearServicioExtra(payload).subscribe({
@@ -3109,11 +3085,6 @@ export class ServiciosComponent implements OnInit {
     this.servicioEspecialSeleccionado = extra;
     this.videoInicialInput = extra.videoInicialUrl || '';
     this.modalIniciarServicioEspecialOpen = true;
-  }
-
-  agregarVideoInicialDemo() {
-    this.videoInicialInput = 'https://assets.mixkit.co/videos/preview/mixkit-car-polishing-process-in-auto-detailing-shop-41485-large.mp4';
-    this.toastService.info('Vídeo demo asignado', 'Se adjuntó la inspección inicial.');
   }
 
   confirmarIniciarEspecial() {
@@ -3150,11 +3121,6 @@ export class ServiciosComponent implements OnInit {
     this.calificacionCalidadInput = 5;
     this.notasFinalizacionInput = extra.notas || '';
     this.modalFinalizarServicioEspecialOpen = true;
-  }
-
-  agregarVideoFinalDemo() {
-    this.videoFinalInput = 'https://assets.mixkit.co/videos/preview/mixkit-shiny-black-luxury-car-after-detailing-41486-large.mp4';
-    this.toastService.info('Vídeo demo asignado', 'Se adjuntó la evidencia de entrega y brillo final.');
   }
 
   confirmarFinalizarEspecial() {

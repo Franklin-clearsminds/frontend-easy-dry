@@ -806,10 +806,6 @@ import { SucursalService } from '../../core/services/sucursal.service';
                   <span>Subir Fotos / Videos</span>
                   <input type="file" multiple accept="image/*,video/*" (change)="onSubirMultimediaCompletar($event)" class="hidden">
                 </label>
-                <button type="button" (click)="agregarMultimediaCompletarDemo()"
-                  class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold">
-                  + Cargar Fotos/Video Demo
-                </button>
               </div>
               @if (multimediaCompletar.length > 0) {
                 <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2">
@@ -1252,27 +1248,6 @@ export class MantenimientoComponent implements OnInit {
     });
     this.toastService.success('Archivos cargados', `${input.files.length} evidencia(s) lista(s).`);
     input.value = '';
-  }
-
-  agregarMultimediaCompletarDemo(): void {
-    this.multimediaCompletar.push({
-      id: `demo-mc-${Date.now()}-1`,
-      nombre: 'mantenimiento_realizado.jpg',
-      tipo: 'imagen',
-      extension: 'JPG',
-      url: 'https://images.unsplash.com/photo-1581092918056-0c4c3acd3789?w=800&auto=format&fit=crop&q=80',
-      tamanio: '1.8 MB',
-      fechaSubida: 'Hoy'
-    });
-    this.multimediaCompletar.push({
-      id: `demo-mc-${Date.now()}-2`,
-      nombre: 'video_prueba_operacion.mp4',
-      tipo: 'video',
-      extension: 'MP4',
-      url: 'https://assets.mixkit.co/videos/preview/mixkit-circuit-board-details-close-up-42289-large.mp4',
-      tamanio: '8.2 MB',
-      fechaSubida: 'Hoy'
-    });
   }
 
   eliminarMultimediaCompletar(index: number): void {

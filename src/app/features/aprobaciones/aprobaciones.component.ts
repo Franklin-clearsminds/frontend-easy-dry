@@ -116,7 +116,7 @@ import { Role } from '../../core/models/roles.model';
               <div class="mt-3 p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-1">
                 <div class="flex items-center justify-between text-xs">
                   <span class="text-slate-400 font-bold uppercase text-[10px]">Sucursal / Bahía:</span>
-                  <span class="font-bold text-slate-700 text-right truncate max-w-[180px]">{{ item.agencia }} • {{ item.bahia || 'Bahía 1' }}</span>
+                  <span class="font-bold text-slate-700 text-right truncate max-w-[180px]">{{ item.agencia }} • {{ item.bahia || 'Sin bahía' }}</span>
                 </div>
                 <div class="flex items-center justify-between text-xs">
                   <span class="text-slate-400 font-bold uppercase text-[10px]">Servicio:</span>
@@ -219,12 +219,16 @@ import { Role } from '../../core/models/roles.model';
         @if (servicioVideo) {
           <div class="space-y-4">
             <div class="aspect-video bg-black rounded-2xl overflow-hidden shadow-inner flex items-center justify-center">
-              <video 
-                [src]="servicioVideo.videoUrl || servicioVideo.video || 'https://assets.mixkit.co/videos/preview/mixkit-car-wash-in-a-machine-41484-large.mp4'" 
-                controls 
-                autoplay 
-                class="w-full h-full object-contain">
-              </video>
+              @if (servicioVideo.videoUrl || servicioVideo.video) {
+                <video 
+                  [src]="servicioVideo.videoUrl || servicioVideo.video" 
+                  controls 
+                  autoplay 
+                  class="w-full h-full object-contain">
+                </video>
+              } @else {
+                <p class="text-white/80 text-sm font-medium px-6 text-center">No hay vídeo de evidencia registrado para este servicio.</p>
+              }
             </div>
             <p class="text-xs text-slate-600 font-bold text-center">Vídeo de evidencia tomado en ingreso a bahía.</p>
           </div>

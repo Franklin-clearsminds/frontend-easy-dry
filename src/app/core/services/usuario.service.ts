@@ -109,7 +109,7 @@ export class UsuarioService {
       name: usr.nombre,
       lastname: usr.apellido,
       email: usr.email,
-      password: usr.password || 'Admin123*',
+      password: usr.password,
       rolNombre: usr.rol,
       roleId: usr.roleId || (usr as any).roleId || undefined,
       agencia: (isGlobal || isSupervisor || isAsistente || isPulidorMovil || agenciaFinal === 'Sin asignar') ? undefined : agenciaFinal,
@@ -129,14 +129,10 @@ export class UsuarioService {
 
     return this.http.post<any>(apiUrl('/agencias/usuarios/create'), payload).pipe(
       map(res => {
-        const u = res?.user ? this.mapBackendUsuario(res.user) : {
-          ...usr,
-          id: 'usr-' + Date.now().toString().slice(-4),
-          agencia: isGlobal ? 'Nacional (Acceso Global)' : (isSupervisor ? (usr.region ? `Región ${usr.region}` : 'Sin Región') : (isAsistente ? `Bodega Regional ${usr.region || 'Regional'}` : agenciaFinal)),
-          sucursal: isGlobal ? 'Nacional (Acceso Global)' : (isSupervisor ? (usr.region ? `Región ${usr.region}` : 'Sin Región') : (isAsistente ? `Bodega Regional ${usr.region || 'Regional'}` : agenciaFinal)),
-          region: isGlobal ? 'Nacional' : (usr.region || 'Sin asignar'),
-          bodegaId: usr.bodegaId
-        };
+        if (!res?.user) {
+          throw new Error('El backend no devolvió el usuario creado.');
+        }
+        const u = this.mapBackendUsuario(res.user);
         const current = this.usuariosSubject.value.filter(item =>
           String(item.id) !== String(u.id) && item.email.toLowerCase() !== u.email.toLowerCase()
         );
@@ -145,16 +141,7 @@ export class UsuarioService {
       }),
       catchError(err => {
         console.error('Error al crear usuario en backend:', err);
-        const fallback: Usuario = {
-          ...usr,
-          agencia: isGlobal ? 'Nacional (Acceso Global)' : (isSupervisor ? (usr.region ? `Región ${usr.region}` : 'Sin Región') : (isAsistente ? `Bodega Regional ${usr.region || 'Regional'}` : agenciaFinal)),
-          sucursal: isGlobal ? 'Nacional (Acceso Global)' : (isSupervisor ? (usr.region ? `Región ${usr.region}` : 'Sin Región') : (isAsistente ? `Bodega Regional ${usr.region || 'Regional'}` : agenciaFinal)),
-          region: isGlobal ? 'Nacional' : (usr.region || 'Sin asignar'),
-          id: 'usr-' + Date.now().toString().slice(-4)
-        };
-        const current = this.usuariosSubject.value;
-        this.usuariosSubject.next([fallback, ...current]);
-        return of(fallback);
+        return throwError(() => err);
       })
     );
   }

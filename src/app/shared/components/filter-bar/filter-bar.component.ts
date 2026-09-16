@@ -8,6 +8,8 @@ import { OperadorService } from '../../../core/services/operador.service';
 import { RegionService } from '../../../core/services/region.service';
 import { MarcaSucursalService } from '../../../core/services/marca-sucursal.service';
 import { AuthService } from '../../../core/services/auth.service';
+import { CatalogoServiciosService } from '../../../core/services/catalogo-servicios.service';
+import { InventarioService } from '../../../core/services/inventario.service';
 import { MarcaSucursal } from '../../../core/models';
 
 export interface FilterState {
@@ -246,7 +248,7 @@ export class FilterBarComponent implements OnInit {
   get listaClientes(): string[] { return this._listaMarcas; }
   @Input() set listaMarcas(v: string[]) { this._listaMarcas = v; this.customMarcas = true; }
   get listaMarcas(): string[] { return this._listaMarcas; }
-  @Input() set listaBodegas(v: string[]) { this._listaBodegas = v; }
+  @Input() set listaBodegas(v: string[]) { this._listaBodegas = v; this.customBodegas = true; }
   get listaBodegas(): string[] { return this._listaBodegas; }
   @Input() set listaSucursales(v: string[]) { this._listaSucursales = v; this.customSucursales = true; }
   get listaSucursales(): string[] { return this._listaSucursales; }
@@ -268,14 +270,16 @@ export class FilterBarComponent implements OnInit {
   private regionService = inject(RegionService);
   private marcaService = inject(MarcaSucursalService);
   private authService = inject(AuthService);
+  private catalogoServicios = inject(CatalogoServiciosService);
+  private inventarioService = inject(InventarioService);
 
-  private _listaRegiones: string[] = ['Región Sierra', 'Región Costa', 'Región Austro'];
-  private _listaMarcas: string[] = ['EasyDry', 'EasyDry Premium', 'EasyDry Express'];
-  private _listaBodegas: string[] = ['Bodega Central', 'Bodega Norte', 'Bodega Sur'];
-  private _listaSucursales: string[] = ['Quito Norte', 'Quito Sur', 'Cumbayá', 'Guayaquil', 'Cuenca'];
-  private _listaOperadores: string[] = ['Carlos Torres', 'Marta Ruiz', 'Luis Mendez', 'Ana Gómez', 'Diego Pulido Norte'];
-  private _listaServicios: string[] = ['Express', 'Completo', 'Deluxe', 'Pulido Especial', 'Micro pulido', 'Recubrimiento Cerámico', 'Lavado motor'];
-  private _listaBahias: string[] = ['Bahía 1', 'Bahía 2', 'Bahía 3', 'Bahía 4', 'Bahía 5'];
+  private _listaRegiones: string[] = [];
+  private _listaMarcas: string[] = [];
+  private _listaBodegas: string[] = [];
+  private _listaSucursales: string[] = [];
+  private _listaOperadores: string[] = [];
+  private _listaServicios: string[] = [];
+  private _listaBahias: string[] = [];
   private _listaEstados: string[] = ['Activo', 'Inactivo', 'Pendiente', 'Aprobado', 'Rechazado'];
 
   private customSucursales = false;
@@ -285,6 +289,7 @@ export class FilterBarComponent implements OnInit {
   private customMarcas = false;
   private customServicios = false;
   private customEstados = false;
+  private customBodegas = false;
 
   filters: FilterState = {
     sucursal: 'Todas',
@@ -310,6 +315,7 @@ export class FilterBarComponent implements OnInit {
     if (!this.customMarcas) this.cargarMarcas();
     if (!this.customServicios) this.cargarServicios();
     if (!this.customEstados) this.cargarEstados();
+    if (!this.customBodegas) this.cargarBodegas();
   }
 
   cargarSucursales(): void {
@@ -335,27 +341,25 @@ export class FilterBarComponent implements OnInit {
         );
       }
       const nombres = Array.from(new Set(filtered.map(s => s.nombre))).sort();
-      if (nombres.length) {
-        this._listaSucursales = nombres;
-        if (isAprobador && nombres.length === 1) {
-          this.filters.sucursal = nombres[0];
-          this.emitFilters();
-        }
+      this._listaSucursales = nombres;
+      if (isAprobador && nombres.length === 1) {
+        this.filters.sucursal = nombres[0];
+        this.emitFilters();
       }
     });
   }
 
   cargarBahias(): void {
     this.bahiaService.getBahias().subscribe(list => {
-      const nombres = Array.from(new Set(list.map(b => b.nombre))).sort();
-      if (nombres.length) this._listaBahias = nombres;
+      this._listaBahias = Array.from(new Set(list.map(b => b.nombre))).sort();
     });
   }
 
   cargarOperadores(): void {
     this.operadorService.getOperadores().subscribe(list => {
-      const nombres = Array.from(new Set(list.filter(o => o.estado === 'Activo').map(o => o.nombre || o.cedula).filter(Boolean))).sort();
-      if (nombres.length) this._listaOperadores = nombres;
+      this._listaOperadores = Array.from(new Set(
+        list.filter(o => o.estado === 'Activo').map(o => o.nombre || o.cedula).filter(Boolean)
+      )).sort();
     });
   }
 
@@ -364,33 +368,43 @@ export class FilterBarComponent implements OnInit {
     const rol = (user?.role || '').toUpperCase();
     const isSupervisor = rol === 'SUPERVISOR' || rol === 'GERENTE_REGIONAL' || rol.includes('SUPERVISOR') || rol.includes('REGIONAL');
 
-    let regiones = this.regionService.getActivas();
-    if (isSupervisor && (user?.regionId || user?.region || user?.regionNombre)) {
-      const uReg = (user.regionNombre || user.region || '').toLowerCase();
-      regiones = regiones.filter(r =>
-        (user.regionId && String(r.id) === String(user.regionId)) ||
-        (uReg && r.nombre.toLowerCase() === uReg)
-      );
-    }
-    const nombres = regiones.map(r => r.nombre).filter(Boolean);
-    if (nombres.length) {
-      this._listaRegiones = [...new Set(nombres)];
+    this.regionService.getRegiones().subscribe(list => {
+      let regiones = list.filter(r => r.estado === 'Activa');
+      if (isSupervisor && (user?.regionId || user?.region || user?.regionNombre)) {
+        const uReg = (user.regionNombre || user.region || '').toLowerCase();
+        regiones = regiones.filter(r =>
+          (user.regionId && String(r.id) === String(user.regionId)) ||
+          (uReg && r.nombre.toLowerCase() === uReg)
+        );
+      }
+      this._listaRegiones = [...new Set(regiones.map(r => r.nombre).filter(Boolean))];
       if (isSupervisor && this._listaRegiones.length === 1) {
         this.filters.region = this._listaRegiones[0];
         this.emitFilters();
       }
-    }
+    });
   }
 
   cargarMarcas(): void {
-    const marcas = this.marcaService.getActivas();
-    const nombres = marcas.map((m: MarcaSucursal) => m.nombre).filter(Boolean);
-    if (nombres.length) this._listaMarcas = [...new Set(nombres)];
+    this.marcaService.getMarcas().subscribe(marcas => {
+      this._listaMarcas = [...new Set(marcas.filter((m: MarcaSucursal) => m.estado === 'Activa').map((m: MarcaSucursal) => m.nombre).filter(Boolean))];
+    });
   }
 
   cargarServicios(): void {
-    // Mantener una lista base razonable de servicios de lavado del catálogo.
-    this._listaServicios = ['Express', 'Completo', 'Deluxe', 'Retoque', 'Pulido', 'Micro pulido', 'Recubrimiento Cerámico', 'Lavado motor', 'Tratamientos especiales'];
+    this.catalogoServicios.getServicios().subscribe(list => {
+      this._listaServicios = Array.from(new Set(
+        (list || []).map(s => s.nombre).filter(Boolean)
+      )).sort();
+    });
+  }
+
+  cargarBodegas(): void {
+    this.inventarioService.getBodegas().subscribe(list => {
+      this._listaBodegas = Array.from(new Set(
+        (list || []).filter(b => b.activa !== false).map(b => b.nombre).filter(Boolean)
+      )).sort();
+    });
   }
 
   cargarEstados(): void {

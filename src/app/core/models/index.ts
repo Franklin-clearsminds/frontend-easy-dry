@@ -51,6 +51,7 @@ export interface Sucursal {
   serviciosRealizadosMes?: number;
   regionId?: number | string;
   regionNombre?: string;
+  region?: { id?: string | number; nombre?: string; [key: string]: any } | any;
   clienteId?: number | string;
   clienteNombre?: string;
   marcaId?: number | string;
@@ -384,6 +385,13 @@ export interface ServicioExtra {
   operadorNombre: string;
   regionId?: string;
   regionNombre?: string;
+  agenciaId?: string;
+  agenciaNombre?: string;
+  agencia?: {
+    id?: string | number;
+    nombre?: string;
+    [key: string]: any;
+  } | any;
   placa?: string;
   vehiculoInfo?: {
     placa?: string;

@@ -41,7 +41,7 @@ export class CatalogoServiciosService {
       descripcion: s.descripcion || '',
       estado: 'Activo',
       precio: Number(s.precio || 0),
-      tiempoEstimadoMin: Number(s.tiempoEstimadoMin || 30),
+      tiempoEstimadoMin: s.tiempoEstimadoMin != null ? Number(s.tiempoEstimadoMin) : 0,
       requiereFoto: s.categoria === 'ESPECIAL',
       requiereVideo: s.categoria === 'ESPECIAL',
       insumosReceta: recetas,

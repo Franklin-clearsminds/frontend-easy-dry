@@ -277,12 +277,6 @@ import { SucursalService } from '../../core/services/sucursal.service';
                   class="hidden">
               </label>
 
-              <button 
-                type="button"
-                (click)="agregarEvidenciaFalloDemo()"
-                class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold">
-                + Cargar Evidencias de Prueba
-              </button>
             </div>
 
             <!-- Previsualización de archivos subidos del fallo -->
@@ -944,28 +938,6 @@ export class IncidentesComponent implements OnInit {
       });
       this.toastService.success('Archivos Cargados', `${input.files.length} archivo(s) de evidencia listos.`);
     }
-  }
-
-  agregarEvidenciaFalloDemo() {
-    this.archivosFalloSubidos.push({
-      id: `demo-f-${Date.now()}-1`,
-      nombre: 'falla_recalentamiento_motor.jpg',
-      tipo: 'imagen',
-      extension: 'JPG',
-      url: 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=800&auto=format&fit=crop&q=80',
-      tamanio: '2.3 MB',
-      fechaSubida: 'Hoy'
-    });
-    this.archivosFalloSubidos.push({
-      id: `demo-f-${Date.now()}-2`,
-      nombre: 'video_fuga_agua_presion.mp4',
-      tipo: 'video',
-      extension: 'MP4',
-      url: 'https://assets.mixkit.co/videos/preview/mixkit-circuit-board-details-close-up-42289-large.mp4',
-      tamanio: '12.4 MB',
-      fechaSubida: 'Hoy'
-    });
-    this.toastService.info('Demo', 'Se agregaron 1 foto y 1 video de prueba del fallo.');
   }
 
   eliminarArchivoFallo(index: number) {

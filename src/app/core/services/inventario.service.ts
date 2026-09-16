@@ -8,7 +8,6 @@ import {
   MovimientoStock,
   AlertaReabastecimiento,
   BodegaInventario,
-  BODEGA_CENTRAL_ID,
   TipoProductoCatalog,
   UnidadMedidaCatalog,
   PresentacionInsumoCatalog,
@@ -18,71 +17,6 @@ import {
   RegistrarMovimientoPayload,
 } from '../models/inventario.model';
 import { apiUrl } from '../config/env';
-
-export const BODEGA_CENTRAL: BodegaInventario = {
-  id: BODEGA_CENTRAL_ID,
-  codigo: 'BOD-CENTRAL',
-  nombre: 'Bodega Central Nacional',
-  ciudad: 'Quito',
-  region: 'Nacional',
-  esCentral: true,
-  activa: true,
-  fechaCreacion: '2026-01-01',
-};
-
-export const BODEGAS_INICIALES: BodegaInventario[] = [
-  BODEGA_CENTRAL,
-  {
-    id: 'bod_gye',
-    codigo: 'BOD-GYE',
-    nombre: 'Bodega Regional Guayaquil',
-    ciudad: 'Guayaquil',
-    region: 'Costa',
-    esCentral: false,
-    activa: true,
-    fechaCreacion: '2026-01-15',
-  },
-  {
-    id: 'bod_uio_sur',
-    codigo: 'BOD-UIO-SUR',
-    nombre: 'Bodega Regional Quito Sur',
-    ciudad: 'Quito',
-    region: 'Sierra',
-    esCentral: false,
-    activa: true,
-    fechaCreacion: '2026-02-01',
-  },
-  {
-    id: 'bod_cue',
-    codigo: 'BOD-CUE',
-    nombre: 'Bodega Regional Cuenca',
-    ciudad: 'Cuenca',
-    region: 'Austro',
-    esCentral: false,
-    activa: true,
-    fechaCreacion: '2026-02-10',
-  },
-  {
-    id: 'bod_mta',
-    codigo: 'BOD-MTA',
-    nombre: 'Bodega Regional Manta',
-    ciudad: 'Manta',
-    region: 'Manabí',
-    esCentral: false,
-    activa: true,
-    fechaCreacion: '2026-02-15',
-  },
-  {
-    id: 'bod_std',
-    codigo: 'BOD-STD',
-    nombre: 'Bodega Regional Santo Domingo',
-    ciudad: 'Santo Domingo',
-    region: 'Santo Domingo',
-    esCentral: false,
-    activa: true,
-    fechaCreacion: '2026-02-20',
-  },
-];
 
 @Injectable({
   providedIn: 'root',
@@ -568,7 +502,7 @@ export class InventarioService {
   public getStockBodegasResumen(dto: any = {}): Observable<any> {
     return this.http.post<any>(apiUrl('/inventario/stock/bodegas-resumen'), dto).pipe(
       catchError(() => of({
-        bodega: { id: 'bod_central', codigo: 'BOD-CENTRAL', nombre: 'Bodega Central Nacional', ciudad: 'Quito', esCentral: true, activa: true },
+        bodega: null,
         metricas: { totalInsumos: 0, stockTotalUnidades: 0, insumosBajoMinimo: 0, insumosOptimos: 0 },
         insumos: []
       }))
