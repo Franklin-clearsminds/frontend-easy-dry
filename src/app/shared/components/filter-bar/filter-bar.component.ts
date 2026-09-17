@@ -26,6 +26,7 @@ export interface FilterState {
   fechaInicio?: string;
   fechaFin?: string;
   busqueda?: string;
+  rol?: string;
   [customKey: string]: any;
 }
 
@@ -170,6 +171,21 @@ export interface FilterState {
         </div>
       }
 
+      <!-- Rol -->
+      @if (showRol) {
+        <div class="flex-1 min-w-[140px] max-w-full">
+          <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+            <i-lucide name="shield" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide> Rol
+          </label>
+          <select [(ngModel)]="filters.rol" (change)="emitFilters()" class="w-full bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-xl px-3 py-2 focus:ring-2 focus:ring-easydry-blue transition-colors appearance-none font-semibold cursor-pointer">
+            <option value="Todos">Todos los Roles</option>
+            @for (r of listaRoles; track r) {
+              <option [value]="r">{{ r }}</option>
+            }
+          </select>
+        </div>
+      }
+
       <!-- Estado -->
       @if (showEstado) {
         <div class="flex-1 min-w-[120px] max-w-full">
@@ -237,11 +253,14 @@ export class FilterBarComponent implements OnInit {
   @Input() showServicio = false;
   @Input() showBahia = false;
   @Input() showEstado = false;
+  @Input() showRol = false;
   @Input() showFechas = true;
   @Input() showBusqueda = false;
 
   @Input() placeholderBusqueda = 'Buscar por nombre, documento u otro criterio...';
 
+  @Input() set listaRoles(v: string[]) { this._listaRoles = v; this.customRoles = true; }
+  get listaRoles(): string[] { return this._listaRoles; }
   @Input() set listaRegiones(v: string[]) { this._listaRegiones = v; this.customRegiones = true; }
   get listaRegiones(): string[] { return this._listaRegiones; }
   @Input() set listaClientes(v: string[]) { this._listaMarcas = v; this.customMarcas = true; }
@@ -274,6 +293,7 @@ export class FilterBarComponent implements OnInit {
   private inventarioService = inject(InventarioService);
 
   private _listaRegiones: string[] = [];
+  private _listaRoles: string[] = [];
   private _listaMarcas: string[] = [];
   private _listaBodegas: string[] = [];
   private _listaSucursales: string[] = [];
@@ -283,6 +303,7 @@ export class FilterBarComponent implements OnInit {
   private _listaEstados: string[] = ['Activo', 'Inactivo', 'Pendiente', 'Aprobado', 'Rechazado'];
 
   private customSucursales = false;
+  private customRoles = false;
   private customBahias = false;
   private customOperadores = false;
   private customRegiones = false;
@@ -301,6 +322,7 @@ export class FilterBarComponent implements OnInit {
     servicio: 'Todos',
     bahia: 'Todas',
     estado: 'Todos',
+    rol: 'Todos',
     fecha: 'Mes',
     fechaInicio: '',
     fechaFin: '',
@@ -532,6 +554,7 @@ export class FilterBarComponent implements OnInit {
       servicio: 'Todos',
       bahia: 'Todas',
       estado: 'Todos',
+      rol: 'Todos',
       fecha: 'Mes',
       fechaInicio: '',
       fechaFin: '',

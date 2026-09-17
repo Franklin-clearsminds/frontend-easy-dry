@@ -52,8 +52,16 @@ export class NotificacionService {
       catchError(() => of([]))
     );
 
-    return forkJoin([alertasStock$, incidentes$, aprobaciones$]).pipe(
-      map(([alertasStock, incidentes, aprobaciones]) => {
+    const despachos$ = this.http.post<any[]>(apiUrl('/inventario/despachos/pendientes'), {}).pipe(
+      catchError(() =>
+        this.http.post<any[]>(apiUrl('/inventario/despachos/list'), { estadoDespacho: 'EN_TRANSITO' }).pipe(
+          catchError(() => of([]))
+        )
+      )
+    );
+
+    return forkJoin([alertasStock$, incidentes$, aprobaciones$, despachos$]).pipe(
+      map(([alertasStock, incidentes, aprobaciones, despachos]) => {
         const notifs: Notificacion[] = [];
 
         // 1. Alertas de Stock
@@ -113,10 +121,35 @@ export class NotificacionService {
           });
         });
 
+        // 4. Despachos en Tránsito (Pendientes de Confirmación)
+        (despachos || []).forEach((d: any) => {
+          const idStr = `desp-${d.id}`;
+          const isLeida = leidas.has(idStr) || d.estadoDespacho === 'RECIBIDO' || d.estadoDespacho === 'RECHAZADO';
+          const fechaObj = d.fechaDespacho ? new Date(d.fechaDespacho) : (d.createdAt ? new Date(d.createdAt) : new Date());
+          const guia = d.numeroGuia || d.codigoDespacho || `ENV-${String(d.id).substring(0, 6)}`;
+          const destino = d.destinoUbicacion || 'Destino';
+          notifs.push({
+            id: idStr,
+            titulo: `Despacho en Tránsito: ${guia}`,
+            mensaje: `Se han despachado suministros hacia ${destino}. Pendiente de confirmación física de recepción.`,
+            tipo: 'alerta',
+            fecha: fechaObj.toISOString().split('T')[0],
+            hora: fechaObj.toTimeString().substring(0, 5),
+            leida: isLeida,
+            sucursal: destino,
+            enlace: '/envios',
+            enlaceLabel: 'Confirmar Recepción'
+          });
+        });
+
         return notifs;
       }),
       tap(items => this.notificacionesSubject.next(items))
     );
+  }
+
+  recargar(): void {
+    this.getNotificaciones().subscribe();
   }
 
   marcarComoLeida(id: string | number): void {

@@ -1,8 +1,9 @@
-import { Component, inject } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { LucideAngularModule } from 'lucide-angular';
 import { AuthService } from '../../../core/services/auth.service';
+import { NotificacionService } from '../../../core/services/notificacion.service';
 import { environment } from '../../../core/config/env';
 
 @Component({
@@ -68,11 +69,20 @@ import { environment } from '../../../core/config/env';
     </header>
   `
 })
-export class HeaderComponent {
+export class HeaderComponent implements OnInit {
   readonly env = environment;
   public authService = inject(AuthService);
+  private notificacionService = inject(NotificacionService);
 
   unreadCount = 0;
 
   get user() { return this.authService.getCurrentUser(); }
+
+  ngOnInit(): void {
+    this.notificacionService.notificaciones$.subscribe((list) => {
+      this.unreadCount = (list || []).filter(n => !n.leida).length;
+    });
+    this.notificacionService.getNotificaciones().subscribe();
+  }
 }
+

@@ -46,6 +46,15 @@ export class UsuarioService {
       agenciaDisplay = `Región ${u.region.nombre}`;
     }
 
+    const rawDate = u.createdAt || u.fechaCreacion || u.fechaAsignacion;
+    let fechaFormatted = '-';
+    if (rawDate) {
+      const d = new Date(rawDate);
+      if (!isNaN(d.getTime())) {
+        fechaFormatted = d.toLocaleDateString('es-EC', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      }
+    }
+
     return {
       id: u.id,
       nombre: u.name || '',
@@ -56,6 +65,7 @@ export class UsuarioService {
       roleId: u.role?.id || u.roleId,
       avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
       estado: u.estado === 1 ? 'Activo' : 'Inactivo',
+      fechaAsignacion: fechaFormatted,
       agencia: agenciaDisplay,
       sucursal: agenciaDisplay,
       region: u.region?.nombre || (isGlobal ? 'Nacional' : undefined),

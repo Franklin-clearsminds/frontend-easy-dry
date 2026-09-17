@@ -9,6 +9,7 @@ import { AuthService } from '../../core/services/auth.service';
 import { ToastService } from '../../shared/services/toast.service';
 import { SucursalService } from '../../core/services/sucursal.service';
 import { InventarioService } from '../../core/services/inventario.service';
+import { NotificacionService } from '../../core/services/notificacion.service';
 import { ModalComponent } from '../../shared/components/modal/modal.component';
 import { FilterBarComponent } from '../../shared/components/filter-bar/filter-bar.component';
 import { EnvioSuministro, EstadoEnvio, Sucursal, InventarioItem } from '../../core/models';
@@ -550,6 +551,7 @@ export class EnviosComponent implements OnInit {
   private toastService = inject(ToastService);
   private sucursalService = inject(SucursalService);
   private inventarioService = inject(InventarioService);
+  private notificacionService = inject(NotificacionService);
 
   get isLiderOperador(): boolean {
     return this.auth.isLiderOperador();
@@ -601,6 +603,16 @@ export class EnviosComponent implements OnInit {
     if (env.estado === 'ENVIADO' || env.estado === 'PENDIENTE') {
       const destPulId = (env as any).destinoPulidorId || (env as any).usuarioRecibeId;
       if (user?.id && destPulId && String(destPulId) === String(user.id)) {
+        return true;
+      }
+      const isAsistente = role === 'ASISTENTE_BODEGA' || (role.includes('ASISTENTE') && role.includes('BODEGA'));
+      const destBodId = (env as any).destinoBodegaId;
+      if (isAsistente && user?.bodegaId && (String(destBodId) === String(user.bodegaId) || String(env.sucursalId) === String(user.bodegaId))) {
+        return true;
+      }
+      const isLider = this.auth.isLiderOperador();
+      const destAgId = (env as any).destinoAgenciaId;
+      if (isLider && user?.agenciaId && (String(destAgId) === String(user.agenciaId) || String(env.sucursalId) === String(user.agenciaId))) {
         return true;
       }
     }
@@ -853,17 +865,26 @@ export class EnviosComponent implements OnInit {
           (user?.nombre && env.responsableEnvio && env.responsableEnvio.toLowerCase().includes(user.nombre.toLowerCase())) ||
           (user?.id && env.responsableEnvio && env.responsableEnvio.includes(String(user.id)))
         );
+        const matchBodegaId = Boolean(
+          user?.bodegaId && (
+            String(env.sucursalId) === String(user.bodegaId) ||
+            String((env as any).destinoBodegaId) === String(user.bodegaId) ||
+            String((env as any).origenBodegaId) === String(user.bodegaId)
+          )
+        );
+        const matchPuedeConfirmar = Boolean((env as any).puedeConfirmar);
         const matchRegion = userRegion ? Boolean(
           (env.ciudad && env.ciudad.toLowerCase().includes(userRegion)) ||
           (this.sucursalesDisponibles.length > 0 && env.sucursalNombre && this.sucursalesDisponibles.some(s => s.nombre.toLowerCase() === env.sucursalNombre.toLowerCase())) ||
-          (env.observaciones && env.observaciones.toLowerCase().includes(userRegion))
+          (env.observaciones && env.observaciones.toLowerCase().includes(userRegion)) ||
+          (env.sucursalNombre && env.sucursalNombre.toLowerCase().includes(userRegion))
         ) : false;
         const matchBodega = userSucursal ? Boolean(
           (env.observaciones && env.observaciones.toLowerCase().includes(userSucursal)) ||
           (env.sucursalNombre && env.sucursalNombre.toLowerCase().includes(userSucursal))
         ) : false;
 
-        matchPermisoRol = matchPropio || matchRegion || matchBodega;
+        matchPermisoRol = matchPropio || matchBodegaId || matchPuedeConfirmar || matchRegion || matchBodega;
       } else if (!matchPermisoRol && this.isPulidor) {
         // Pulidor: ve envíos asignados a su persona (recibidos o en tránsito)
         const destPulId = (env as any).destinoPulidorId || (env as any).usuarioRecibeId;
@@ -1084,6 +1105,7 @@ export class EnviosComponent implements OnInit {
           `El envío ${env.codigoEnvio} ingresó al stock de ${env.sucursalNombre}.`
         );
         this.cargarEnvios();
+        this.notificacionService.recargar();
       },
       error: (err: any) => {
         const msg = err?.error?.message || 'Error al confirmar la recepción en el servidor';
@@ -1132,6 +1154,7 @@ export class EnviosComponent implements OnInit {
           `Se registró disconformidad para ${env.codigoEnvio}: ${motivo}. Se liberó la reserva en el origen.`
         );
         this.cargarEnvios();
+        this.notificacionService.recargar();
       },
       error: (err: any) => {
         const msg = err?.error?.message || 'Error al rechazar el despacho en el servidor';

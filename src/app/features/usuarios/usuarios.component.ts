@@ -67,20 +67,153 @@ interface ModuloGrupo {
       <!-- ======================================================== -->
       @if (activeTab === 'usuarios') {
         <div class="space-y-6">
-          <!-- Global Filter Bar -->
+          <!-- Global Filter Bar con Filtro de Rol y Cascada -->
           <app-filter-bar 
+            [showRol]="true"
+            [listaRoles]="rolesParaFiltro"
             [showRegion]="true"
+            [listaRegiones]="regionesParaFiltro"
             [showSucursal]="true" 
+            [listaSucursales]="sucursalesParaFiltro"
             [showOperador]="false"
             [showBahia]="false"
             [showCliente]="true"
             [showEstado]="true"
             [showFechas]="false"
             [showBusqueda]="true"
-            placeholderBusqueda="Buscar por nombre, apellido, correo o rol..."
+            placeholderBusqueda="Buscar por nombre, correo, rol, agencia o ID (USR-...)..."
             [listaEstados]="['Todos', 'Activo', 'Inactivo']"
             (filterChange)="aplicarNuevosFiltros($event)">
           </app-filter-bar>
+
+          <!-- Píldoras Rápidas de Segmentación en 1 Clic -->
+          <div class="flex items-center gap-2 overflow-x-auto pb-1 select-none scrollbar-none">
+            <button
+              type="button"
+              (click)="setQuickPill('todos')"
+              class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 cursor-pointer"
+              [ngClass]="filtroPillRapida === 'todos' ? 'bg-easydry-blue text-white shadow-xs' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'">
+              <span>Todos</span>
+              <span class="px-1.5 py-0.2 rounded-full text-[10px]" [ngClass]="filtroPillRapida === 'todos' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'">
+                {{ usuariosVisibles.length }}
+              </span>
+            </button>
+            <button
+              type="button"
+              (click)="setQuickPill('lavadores')"
+              class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 cursor-pointer"
+              [ngClass]="filtroPillRapida === 'lavadores' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'">
+              <i-lucide name="sparkles" class="w-3.5 h-3.5"></i-lucide>
+              <span>Lavadores</span>
+              <span class="px-1.5 py-0.2 rounded-full text-[10px]" [ngClass]="filtroPillRapida === 'lavadores' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'">
+                {{ countLavadores }}
+              </span>
+            </button>
+            <button
+              type="button"
+              (click)="setQuickPill('supervisores')"
+              class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 cursor-pointer"
+              [ngClass]="filtroPillRapida === 'supervisores' ? 'bg-amber-600 text-white shadow-xs' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'">
+              <i-lucide name="user-check" class="w-3.5 h-3.5"></i-lucide>
+              <span>Supervisores</span>
+              <span class="px-1.5 py-0.2 rounded-full text-[10px]" [ngClass]="filtroPillRapida === 'supervisores' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'">
+                {{ countSupervisores }}
+              </span>
+            </button>
+            <button
+              type="button"
+              (click)="setQuickPill('bodega')"
+              class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 cursor-pointer"
+              [ngClass]="filtroPillRapida === 'bodega' ? 'bg-purple-600 text-white shadow-xs' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'">
+              <i-lucide name="warehouse" class="w-3.5 h-3.5"></i-lucide>
+              <span>Bodega e Inventario</span>
+              <span class="px-1.5 py-0.2 rounded-full text-[10px]" [ngClass]="filtroPillRapida === 'bodega' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'">
+                {{ countBodega }}
+              </span>
+            </button>
+            <button
+              type="button"
+              (click)="setQuickPill('admins')"
+              class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 cursor-pointer"
+              [ngClass]="filtroPillRapida === 'admins' ? 'bg-slate-800 text-white shadow-xs' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'">
+              <i-lucide name="shield" class="w-3.5 h-3.5"></i-lucide>
+              <span>Administrativos</span>
+              <span class="px-1.5 py-0.2 rounded-full text-[10px]" [ngClass]="filtroPillRapida === 'admins' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'">
+                {{ countAdmins }}
+              </span>
+            </button>
+            <button
+              type="button"
+              (click)="setQuickPill('inactivos')"
+              class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 cursor-pointer"
+              [ngClass]="filtroPillRapida === 'inactivos' ? 'bg-rose-600 text-white shadow-xs' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'">
+              <i-lucide name="user-x" class="w-3.5 h-3.5"></i-lucide>
+              <span>Inactivos</span>
+              <span class="px-1.5 py-0.2 rounded-full text-[10px]" [ngClass]="filtroPillRapida === 'inactivos' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'">
+                {{ countInactivos }}
+              </span>
+            </button>
+          </div>
+
+          <!-- Etiquetas (Chips) de Filtros Activos -->
+          @if (hayFiltrosActivos) {
+            <div class="flex items-center gap-2 flex-wrap text-xs bg-slate-50 p-3 rounded-xl border border-slate-200 animate-fade-in">
+              <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wide flex items-center gap-1">
+                <i-lucide name="filter" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide> Filtros Activos:
+              </span>
+
+              @if (filtroPillRapida !== 'todos') {
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-easydry-blue/10 text-easydry-blue font-bold border border-easydry-blue/20">
+                  Segmento: {{ filtroPillRapida | titlecase }}
+                  <button type="button" (click)="removerFiltro('pill')" class="hover:text-easydry-blue-dark cursor-pointer"><i-lucide name="x" class="w-3 h-3"></i-lucide></button>
+                </span>
+              }
+              @if (filtrosGlobales.rol && filtrosGlobales.rol !== 'Todos') {
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-purple-100 text-purple-800 font-bold border border-purple-200">
+                  Rol: {{ filtrosGlobales.rol }}
+                  <button type="button" (click)="removerFiltro('rol')" class="hover:text-purple-950 cursor-pointer"><i-lucide name="x" class="w-3 h-3"></i-lucide></button>
+                </span>
+              }
+              @if (filtrosGlobales.region && filtrosGlobales.region !== 'Todas') {
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-100 text-blue-800 font-bold border border-blue-200">
+                  Región: {{ filtrosGlobales.region }}
+                  <button type="button" (click)="removerFiltro('region')" class="hover:text-blue-950 cursor-pointer"><i-lucide name="x" class="w-3 h-3"></i-lucide></button>
+                </span>
+              }
+              @if (filtrosGlobales.sucursal && filtrosGlobales.sucursal !== 'Todas') {
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-cyan-100 text-cyan-800 font-bold border border-cyan-200">
+                  Agencia: {{ filtrosGlobales.sucursal }}
+                  <button type="button" (click)="removerFiltro('sucursal')" class="hover:text-cyan-950 cursor-pointer"><i-lucide name="x" class="w-3 h-3"></i-lucide></button>
+                </span>
+              }
+              @if (filtrosGlobales.cliente && filtrosGlobales.cliente !== 'Todas') {
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-100 text-amber-800 font-bold border border-amber-200">
+                  Cliente: {{ filtrosGlobales.cliente }}
+                  <button type="button" (click)="removerFiltro('cliente')" class="hover:text-amber-950 cursor-pointer"><i-lucide name="x" class="w-3 h-3"></i-lucide></button>
+                </span>
+              }
+              @if (filtrosGlobales.estado && filtrosGlobales.estado !== 'Todos') {
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-200 text-slate-800 font-bold border border-slate-300">
+                  Estado: {{ filtrosGlobales.estado }}
+                  <button type="button" (click)="removerFiltro('estado')" class="hover:text-black cursor-pointer"><i-lucide name="x" class="w-3 h-3"></i-lucide></button>
+                </span>
+              }
+              @if (filtroTexto.trim()) {
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-800 font-bold border border-emerald-200">
+                  "{{ filtroTexto }}"
+                  <button type="button" (click)="removerFiltro('busqueda')" class="hover:text-emerald-950 cursor-pointer"><i-lucide name="x" class="w-3 h-3"></i-lucide></button>
+                </span>
+              }
+
+              <button
+                type="button"
+                (click)="limpiarTodosFiltros()"
+                class="ml-auto text-[11px] font-extrabold text-rose-600 hover:text-rose-700 hover:underline cursor-pointer flex items-center gap-1">
+                <i-lucide name="trash-2" class="w-3 h-3"></i-lucide>
+                Limpiar filtros
+              </button>
+            </div>
+          }
 
           <!-- Users Grid / Table -->
           <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry overflow-hidden">
@@ -94,6 +227,14 @@ interface ModuloGrupo {
                   {{ usuariosFiltrados.length }} Usuarios Encontrados
                 </span>
                 <button
+                  type="button"
+                  (click)="exportarUsuariosCSV()"
+                  title="Exportar listado a CSV / Excel"
+                  class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors flex items-center gap-1.5 cursor-pointer border border-slate-200">
+                  <i-lucide name="download" class="w-4 h-4 text-slate-600"></i-lucide>
+                  <span>Exportar</span>
+                </button>
+                <button
                   (click)="abrirModalCrearUsuario()"
                   class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
                   <i-lucide name="user-plus" class="w-4 h-4"></i-lucide>
@@ -104,19 +245,68 @@ interface ModuloGrupo {
 
             <div class="overflow-x-auto">
               <table class="w-full text-left text-sm">
-                <thead class="bg-slate-50 text-slate-500 text-xs font-bold uppercase tracking-wider border-b border-slate-200">
+                <thead class="bg-slate-50 text-slate-500 text-xs font-bold uppercase tracking-wider border-b border-slate-200 select-none">
                   <tr>
-                    <th class="py-3.5 px-4">Usuario</th>
-                    <th class="py-3.5 px-4">Rol Asignado</th>
-                    <th class="py-3.5 px-4">Agencia o Región</th>
-                    <th class="py-3.5 px-4">Correo Electrónico</th>
-                    <th class="py-3.5 px-4">Fecha Ingreso</th>
-                    <th class="py-3.5 px-4">Estado</th>
+                    <th (click)="toggleSort('nombre')" class="py-3.5 px-4 cursor-pointer hover:bg-slate-100 transition-colors">
+                      <div class="flex items-center gap-1.5">
+                        <span>Usuario</span>
+                        <i-lucide [name]="sortColumn === 'nombre' ? (sortDirection === 'asc' ? 'arrow-up' : 'arrow-down') : 'arrow-up-down'" class="w-3.5 h-3.5" [ngClass]="sortColumn === 'nombre' ? 'text-easydry-blue' : 'text-slate-300'"></i-lucide>
+                      </div>
+                    </th>
+                    <th (click)="toggleSort('rol')" class="py-3.5 px-4 cursor-pointer hover:bg-slate-100 transition-colors">
+                      <div class="flex items-center gap-1.5">
+                        <span>Rol Asignado</span>
+                        <i-lucide [name]="sortColumn === 'rol' ? (sortDirection === 'asc' ? 'arrow-up' : 'arrow-down') : 'arrow-up-down'" class="w-3.5 h-3.5" [ngClass]="sortColumn === 'rol' ? 'text-easydry-blue' : 'text-slate-300'"></i-lucide>
+                      </div>
+                    </th>
+                    <th (click)="toggleSort('agencia')" class="py-3.5 px-4 cursor-pointer hover:bg-slate-100 transition-colors">
+                      <div class="flex items-center gap-1.5">
+                        <span>Agencia o Región</span>
+                        <i-lucide [name]="sortColumn === 'agencia' ? (sortDirection === 'asc' ? 'arrow-up' : 'arrow-down') : 'arrow-up-down'" class="w-3.5 h-3.5" [ngClass]="sortColumn === 'agencia' ? 'text-easydry-blue' : 'text-slate-300'"></i-lucide>
+                      </div>
+                    </th>
+                    <th (click)="toggleSort('email')" class="py-3.5 px-4 cursor-pointer hover:bg-slate-100 transition-colors">
+                      <div class="flex items-center gap-1.5">
+                        <span>Correo Electrónico</span>
+                        <i-lucide [name]="sortColumn === 'email' ? (sortDirection === 'asc' ? 'arrow-up' : 'arrow-down') : 'arrow-up-down'" class="w-3.5 h-3.5" [ngClass]="sortColumn === 'email' ? 'text-easydry-blue' : 'text-slate-300'"></i-lucide>
+                      </div>
+                    </th>
+                    <th (click)="toggleSort('fechaAsignacion')" class="py-3.5 px-4 cursor-pointer hover:bg-slate-100 transition-colors">
+                      <div class="flex items-center gap-1.5">
+                        <span>Fecha Ingreso</span>
+                        <i-lucide [name]="sortColumn === 'fechaAsignacion' ? (sortDirection === 'asc' ? 'arrow-up' : 'arrow-down') : 'arrow-up-down'" class="w-3.5 h-3.5" [ngClass]="sortColumn === 'fechaAsignacion' ? 'text-easydry-blue' : 'text-slate-300'"></i-lucide>
+                      </div>
+                    </th>
+                    <th (click)="toggleSort('estado')" class="py-3.5 px-4 cursor-pointer hover:bg-slate-100 transition-colors">
+                      <div class="flex items-center gap-1.5">
+                        <span>Estado</span>
+                        <i-lucide [name]="sortColumn === 'estado' ? (sortDirection === 'asc' ? 'arrow-up' : 'arrow-down') : 'arrow-up-down'" class="w-3.5 h-3.5" [ngClass]="sortColumn === 'estado' ? 'text-easydry-blue' : 'text-slate-300'"></i-lucide>
+                      </div>
+                    </th>
                     <th class="py-3.5 px-4 text-right">Acción</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
-                  @for (u of paginatedUsuarios; track u.id) {
+                  @if (usuariosFiltrados.length === 0) {
+                    <tr>
+                      <td colspan="7" class="py-12 px-4 text-center">
+                        <div class="flex flex-col items-center justify-center max-w-sm mx-auto text-slate-400">
+                          <div class="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mb-3">
+                            <i-lucide name="search-x" class="w-6 h-6"></i-lucide>
+                          </div>
+                          <p class="font-bold text-slate-700 text-sm">No se encontraron colaboradores</p>
+                          <p class="text-xs text-slate-400 mt-1">No hay usuarios que coincidan con los criterios y filtros seleccionados.</p>
+                          <button
+                            type="button"
+                            (click)="limpiarTodosFiltros()"
+                            class="mt-3 px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors cursor-pointer">
+                            Limpiar filtros
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  } @else {
+                    @for (u of paginatedUsuarios; track u.id) {
                     <tr class="hover:bg-slate-50/80 transition-colors" [ngClass]="{'opacity-60 bg-slate-50/40': u.estado === 'Inactivo'}">
                       <td class="py-3.5 px-4">
                         <div class="flex items-center gap-3">
@@ -234,6 +424,7 @@ interface ModuloGrupo {
                       </td>
                     </tr>
                   }
+                }
                 </tbody>
               </table>
 
@@ -592,36 +783,29 @@ interface ModuloGrupo {
                   </select>
                   <p class="text-[11px] text-cyan-800 mt-1">El pulidor móvil opera solo en agencias de su región.</p>
                 </div>
-                <div>
-                  <div class="flex items-center justify-between mb-1.5">
-                    <label class="block text-xs font-bold text-slate-700 uppercase">
-                      Servicios que realizará <span class="text-cyan-600">*</span>
-                    </label>
-                    <span class="text-[10px] font-bold text-cyan-800 bg-white/80 px-2 py-0.5 rounded-md border border-cyan-200">
-                      {{ (usuarioForm.servicioIds || []).length }} seleccionados
-                    </span>
+                <div class="p-3 rounded-xl border border-cyan-300/80 bg-white/95 flex items-center gap-3">
+                  <div class="w-8 h-8 rounded-lg bg-cyan-100 flex items-center justify-center text-cyan-700 flex-shrink-0">
+                    <i-lucide name="sparkles" class="w-4 h-4"></i-lucide>
                   </div>
-                  <p class="text-[11px] text-cyan-800 mb-2">Define qué servicios especiales usará para calcular los insumos de su kit.</p>
-                  <div class="max-h-44 overflow-y-auto space-y-1.5 rounded-xl border border-cyan-200 bg-white p-2.5">
-                    @for (s of serviciosEspecialesCatalogo; track s.id) {
-                      <label class="flex items-start gap-2.5 p-2 rounded-lg hover:bg-cyan-50 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          class="mt-0.5 rounded border-cyan-300 text-cyan-600 focus:ring-cyan-200"
-                          [checked]="servicioPulidorSeleccionado(s.id)"
-                          (change)="toggleServicioPulidor(s.id)">
-                        <span class="min-w-0">
-                          <span class="block text-xs font-bold text-slate-800">{{ s.nombre }}</span>
-                          <span class="block text-[10px] text-slate-500">{{ s.codigo }} · {{ s.categoria }}</span>
-                        </span>
-                      </label>
-                    } @empty {
-                      <p class="text-xs text-slate-500 p-2">No hay servicios especiales activos en el catálogo.</p>
-                    }
+                  <div>
+                    <p class="text-xs font-bold text-cyan-900">Catálogo Completo Asignado Automáticamente</p>
+                    <p class="text-[11px] text-cyan-800 leading-snug">
+                      Este pulidor móvil realiza todos los <strong>{{ serviciosEspecialesCatalogo.length }} servicios especiales</strong> de la empresa. Su kit incluirá todos los insumos correspondientes.
+                    </p>
                   </div>
                 </div>
               } @else {
-                <p class="text-xs font-semibold text-cyan-900">Modalidad: Fijo en agencia asignada (usa los servicios de la sede)</p>
+                <div class="p-3 rounded-xl border border-cyan-300/80 bg-white/95 flex items-center gap-3">
+                  <div class="w-8 h-8 rounded-lg bg-cyan-100 flex items-center justify-center text-cyan-700 flex-shrink-0">
+                    <i-lucide name="sparkles" class="w-4 h-4"></i-lucide>
+                  </div>
+                  <div>
+                    <p class="text-xs font-bold text-cyan-900">Pulidor Fijo · Catálogo Completo Habilitado</p>
+                    <p class="text-[11px] text-cyan-800 leading-snug">
+                      Asignado a <strong>{{ usuarioForm.agencia }}</strong> con los <strong>{{ serviciosEspecialesCatalogo.length }} servicios especiales</strong> y su kit de insumos.
+                    </p>
+                  </div>
+                </div>
               }
             </div>
           } @else if (esAdminOGlobal(usuarioForm.rol)) {
@@ -1209,11 +1393,15 @@ export class UsuariosComponent implements OnInit {
   modulosDisponibles: ModuloSistema[] = [];
   modulosAgrupados: ModuloGrupo[] = [];
 
-  filtrosGlobales: FilterState = { sucursal: 'Todas', region: 'Todas', marca: 'Todas', operador: 'Todos', bahia: 'Todas', estado: 'Todos', fecha: 'Hoy' };
+  filtrosGlobales: FilterState = { sucursal: 'Todas', region: 'Todas', cliente: 'Todas', marca: 'Todas', operador: 'Todos', bahia: 'Todas', estado: 'Todos', rol: 'Todos', fecha: 'Hoy' };
   filtroTexto = '';
+  filtroPillRapida: 'todos' | 'lavadores' | 'supervisores' | 'bodega' | 'admins' | 'inactivos' = 'todos';
+
+  sortColumn: 'nombre' | 'rol' | 'agencia' | 'email' | 'fechaAsignacion' | 'estado' = 'nombre';
+  sortDirection: 'asc' | 'desc' = 'asc';
 
   currentPage = 1;
-  pageSize = 5;
+  pageSize = 10;
 
   // Modales
   modalUsuarioOpen = false;
@@ -1530,8 +1718,179 @@ export class UsuariosComponent implements OnInit {
     }));
   }
 
+  // -------------------------------------------------------------
+  // GETTERS PARA DROPDOWNS Y FILTROS EN CASCADA
+  // -------------------------------------------------------------
+  get rolesParaFiltro(): string[] {
+    const set = new Set<string>();
+    this.rolesVisibles.forEach(r => { if (r.nombre) set.add(r.nombre); });
+    this.usuariosVisibles.forEach(u => { if (u.rol) set.add(u.rol); });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'es'));
+  }
+
+  get regionesParaFiltro(): string[] {
+    const set = new Set<string>();
+    this.regionesDisponibles.forEach(r => { if (r.nombre) set.add(r.nombre); });
+    this.sucursales.forEach(s => {
+      const reg = s.regionNombre || s.region?.nombre;
+      if (reg) set.add(reg);
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'es'));
+  }
+
+  get sucursalesParaFiltro(): string[] {
+    let list = this.sucursales;
+    if (this.filtrosGlobales.region && this.filtrosGlobales.region !== 'Todas') {
+      const reg = this.filtrosGlobales.region.toLowerCase().trim();
+      list = list.filter(s => (s.regionNombre || s.region?.nombre || '').toLowerCase().trim() === reg);
+    }
+    if (this.filtrosGlobales.cliente && this.filtrosGlobales.cliente !== 'Todas') {
+      const cli = this.filtrosGlobales.cliente.toLowerCase().trim();
+      list = list.filter(s => (s.clienteNombre || s.marcaNombre || '').toLowerCase().trim() === cli);
+    }
+    return Array.from(new Set(list.map(s => s.nombre).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'es'));
+  }
+
+  // -------------------------------------------------------------
+  // CONTEOS PARA PÍLDORAS RÁPIDAS
+  // -------------------------------------------------------------
+  get countLavadores(): number {
+    return this.usuariosVisibles.filter(u => {
+      const r = (u.rol || '').toLowerCase();
+      return r.includes('lavador') || r.includes('pulidor') || r.includes('operador');
+    }).length;
+  }
+
+  get countSupervisores(): number {
+    return this.usuariosVisibles.filter(u => {
+      const r = (u.rol || '').toLowerCase();
+      return r.includes('supervisor') || r.includes('coordinador');
+    }).length;
+  }
+
+  get countBodega(): number {
+    return this.usuariosVisibles.filter(u => {
+      const r = (u.rol || '').toLowerCase();
+      return r.includes('bodega') || r.includes('distribuidor') || r.includes('inventario');
+    }).length;
+  }
+
+  get countAdmins(): number {
+    return this.usuariosVisibles.filter(u => {
+      const r = (u.rol || '').toLowerCase();
+      return r.includes('admin') || r.includes('gerente') || r.includes('auditor');
+    }).length;
+  }
+
+  get countInactivos(): number {
+    return this.usuariosVisibles.filter(u => u.estado === 'Inactivo').length;
+  }
+
+  setQuickPill(pill: 'todos' | 'lavadores' | 'supervisores' | 'bodega' | 'admins' | 'inactivos'): void {
+    this.filtroPillRapida = pill;
+    this.currentPage = 1;
+  }
+
+  // -------------------------------------------------------------
+  // CHIPS DE FILTROS ACTIVOS Y LIMPIEZA
+  // -------------------------------------------------------------
+  get hayFiltrosActivos(): boolean {
+    return (
+      (!!this.filtrosGlobales.rol && this.filtrosGlobales.rol !== 'Todos') ||
+      (!!this.filtrosGlobales.region && this.filtrosGlobales.region !== 'Todas') ||
+      (!!this.filtrosGlobales.sucursal && this.filtrosGlobales.sucursal !== 'Todas') ||
+      (!!this.filtrosGlobales.cliente && this.filtrosGlobales.cliente !== 'Todas') ||
+      (!!this.filtrosGlobales.estado && this.filtrosGlobales.estado !== 'Todos') ||
+      !!this.filtroTexto.trim() ||
+      this.filtroPillRapida !== 'todos'
+    );
+  }
+
+  limpiarTodosFiltros(): void {
+    this.filtrosGlobales = {
+      sucursal: 'Todas',
+      region: 'Todas',
+      cliente: 'Todas',
+      marca: 'Todas',
+      bodega: 'Todas',
+      operador: 'Todos',
+      servicio: 'Todos',
+      bahia: 'Todas',
+      estado: 'Todos',
+      rol: 'Todos',
+      fecha: 'Mes',
+      fechaInicio: '',
+      fechaFin: '',
+      busqueda: ''
+    };
+    this.filtroTexto = '';
+    this.filtroPillRapida = 'todos';
+    this.currentPage = 1;
+  }
+
+  removerFiltro(tipo: 'rol' | 'region' | 'sucursal' | 'cliente' | 'estado' | 'busqueda' | 'pill'): void {
+    if (tipo === 'rol') this.filtrosGlobales.rol = 'Todos';
+    if (tipo === 'region') this.filtrosGlobales.region = 'Todas';
+    if (tipo === 'sucursal') this.filtrosGlobales.sucursal = 'Todas';
+    if (tipo === 'cliente') this.filtrosGlobales.cliente = 'Todas';
+    if (tipo === 'estado') this.filtrosGlobales.estado = 'Todos';
+    if (tipo === 'busqueda') {
+      this.filtroTexto = '';
+      this.filtrosGlobales.busqueda = '';
+    }
+    if (tipo === 'pill') this.filtroPillRapida = 'todos';
+    this.currentPage = 1;
+  }
+
+  // -------------------------------------------------------------
+  // ORDENAMIENTO DINÁMICO POR COLUMNAS
+  // -------------------------------------------------------------
+  toggleSort(columna: 'nombre' | 'rol' | 'agencia' | 'email' | 'fechaAsignacion' | 'estado'): void {
+    if (this.sortColumn === columna) {
+      this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
+    } else {
+      this.sortColumn = columna;
+      this.sortDirection = 'asc';
+    }
+  }
+
+  // -------------------------------------------------------------
+  // EXPORTAR COLABORADORES FILTRADOS A CSV
+  // -------------------------------------------------------------
+  exportarUsuariosCSV(): void {
+    const rows = this.usuariosFiltrados.map(u => ({
+      ID: `USR-00${u.id}`,
+      Nombre: u.nombre,
+      Apellido: u.apellido,
+      Rol: u.rol,
+      Agencia: u.agencia,
+      Region: u.region || '-',
+      Email: u.email,
+      FechaIngreso: u.fechaAsignacion || '-',
+      Estado: u.estado
+    }));
+    if (!rows.length) {
+      this.toastService.warning('Exportación', 'No hay colaboradores para exportar con los filtros actuales.');
+      return;
+    }
+    const headers = Object.keys(rows[0]);
+    const csvContent = [
+      headers.join(';'),
+      ...rows.map(r => Object.values(r).map(v => `"${String(v).replace(/"/g, '""')}"`).join(';'))
+    ].join('\r\n');
+
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.setAttribute('download', `usuarios_easydry_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    this.toastService.success('Exportación Exitosa', `${rows.length} colaboradores exportados a CSV.`);
+  }
+
   aplicarNuevosFiltros(filtros: FilterState) {
-    this.filtrosGlobales = filtros;
+    this.filtrosGlobales = { ...this.filtrosGlobales, ...filtros };
     if (filtros.busqueda !== undefined) {
       this.filtroTexto = filtros.busqueda;
     }
@@ -1544,12 +1903,61 @@ export class UsuariosComponent implements OnInit {
 
   get usuariosFiltrados() {
     let resultados = this.usuariosVisibles;
-    if (this.filtrosGlobales.estado !== 'Todos') {
+
+    // 1. Filtro rápido por píldoras
+    if (this.filtroPillRapida === 'lavadores') {
+      resultados = resultados.filter(u => {
+        const r = (u.rol || '').toLowerCase();
+        return r.includes('lavador') || r.includes('pulidor') || r.includes('operador');
+      });
+    } else if (this.filtroPillRapida === 'supervisores') {
+      resultados = resultados.filter(u => {
+        const r = (u.rol || '').toLowerCase();
+        return r.includes('supervisor') || r.includes('coordinador');
+      });
+    } else if (this.filtroPillRapida === 'bodega') {
+      resultados = resultados.filter(u => {
+        const r = (u.rol || '').toLowerCase();
+        return r.includes('bodega') || r.includes('distribuidor') || r.includes('inventario');
+      });
+    } else if (this.filtroPillRapida === 'admins') {
+      resultados = resultados.filter(u => {
+        const r = (u.rol || '').toLowerCase();
+        return r.includes('admin') || r.includes('gerente') || r.includes('auditor');
+      });
+    } else if (this.filtroPillRapida === 'inactivos') {
+      resultados = resultados.filter(u => u.estado === 'Inactivo');
+    }
+
+    // 2. Filtro por Rol (dropdown)
+    if (this.filtrosGlobales.rol && this.filtrosGlobales.rol !== 'Todos') {
+      const targetRol = this.filtrosGlobales.rol.toLowerCase().trim();
+      resultados = resultados.filter(u => (u.rol || '').toLowerCase().trim() === targetRol);
+    }
+
+    // 3. Filtro por Estado
+    if (this.filtrosGlobales.estado && this.filtrosGlobales.estado !== 'Todos') {
       resultados = resultados.filter(u => u.estado === this.filtrosGlobales.estado);
     }
-    if (this.filtrosGlobales.sucursal !== 'Todas') {
+
+    // 4. Filtro por Región (directo o por la agencia asignada)
+    if (this.filtrosGlobales.region && this.filtrosGlobales.region !== 'Todas') {
+      const reg = this.filtrosGlobales.region.toLowerCase().trim();
+      resultados = resultados.filter(u => {
+        const uReg = (u.region || '').toLowerCase().trim();
+        if (uReg === reg) return true;
+        const suc = this.sucursalService.getSucursalPorNombre(u.agencia);
+        const sucReg = (suc?.regionNombre || suc?.region?.nombre || '').toLowerCase().trim();
+        return sucReg === reg;
+      });
+    }
+
+    // 5. Filtro por Agencia / Sucursal
+    if (this.filtrosGlobales.sucursal && this.filtrosGlobales.sucursal !== 'Todas') {
       resultados = resultados.filter(u => u.agencia === this.filtrosGlobales.sucursal);
     }
+
+    // 6. Filtro por Cliente
     const targetClienteFiltro = (this.filtrosGlobales.cliente && this.filtrosGlobales.cliente !== 'Todas')
       ? this.filtrosGlobales.cliente
       : (this.filtrosGlobales.marca && this.filtrosGlobales.marca !== 'Todas' ? this.filtrosGlobales.marca : null);
@@ -1559,16 +1967,62 @@ export class UsuariosComponent implements OnInit {
         return (suc?.clienteNombre || suc?.marcaNombre) === targetClienteFiltro;
       });
     }
+
+    // 7. Búsqueda por texto (Universal: nombre, apellido, correo, rol, agencia, ID)
     if (this.filtroTexto.trim()) {
       const b = this.filtroTexto.trim().toLowerCase();
-      resultados = resultados.filter(u =>
-        (u.nombre || '').toLowerCase().includes(b) ||
-        (u.apellido || '').toLowerCase().includes(b) ||
-        `${u.nombre || ''} ${u.apellido || ''}`.toLowerCase().includes(b) ||
-        (u.email || '').toLowerCase().includes(b) ||
-        (u.rol || '').toLowerCase().includes(b)
-      );
+      resultados = resultados.filter(u => {
+        const nombreCompleto = `${u.nombre || ''} ${u.apellido || ''}`.toLowerCase();
+        const idStr = `usr-00${u.id || ''}`.toLowerCase();
+        const rawId = String(u.id || '').toLowerCase();
+        return (
+          nombreCompleto.includes(b) ||
+          (u.nombre || '').toLowerCase().includes(b) ||
+          (u.apellido || '').toLowerCase().includes(b) ||
+          (u.email || '').toLowerCase().includes(b) ||
+          (u.rol || '').toLowerCase().includes(b) ||
+          (u.agencia || '').toLowerCase().includes(b) ||
+          (u.region || '').toLowerCase().includes(b) ||
+          idStr.includes(b) ||
+          rawId.includes(b)
+        );
+      });
     }
+
+    // 8. Ordenamiento dinámico
+    resultados = [...resultados].sort((a, b) => {
+      let valA: string = '';
+      let valB: string = '';
+      switch (this.sortColumn) {
+        case 'nombre':
+          valA = `${a.nombre} ${a.apellido}`.toLowerCase();
+          valB = `${b.nombre} ${b.apellido}`.toLowerCase();
+          break;
+        case 'rol':
+          valA = (a.rol || '').toLowerCase();
+          valB = (b.rol || '').toLowerCase();
+          break;
+        case 'agencia':
+          valA = (a.agencia || '').toLowerCase();
+          valB = (b.agencia || '').toLowerCase();
+          break;
+        case 'email':
+          valA = (a.email || '').toLowerCase();
+          valB = (b.email || '').toLowerCase();
+          break;
+        case 'fechaAsignacion':
+          valA = (a.fechaAsignacion || '').toLowerCase();
+          valB = (b.fechaAsignacion || '').toLowerCase();
+          break;
+        case 'estado':
+          valA = (a.estado || '').toLowerCase();
+          valB = (b.estado || '').toLowerCase();
+          break;
+      }
+      const cmp = valA.localeCompare(valB, 'es', { numeric: true });
+      return this.sortDirection === 'asc' ? cmp : -cmp;
+    });
+
     return resultados;
   }
 
@@ -1669,6 +2123,11 @@ export class UsuariosComponent implements OnInit {
       r.nombre.toLowerCase() === u.rolNombre?.toLowerCase()
     );
 
+    const isPul = this.esOperadorEspecialesRol(u.rol) || (rolMatch && this.esOperadorEspecialesRol(rolMatch.nombre));
+    const finalServiciosPulidor = isPul
+      ? this.serviciosEspecialesCatalogo.map(s => Number(s.id))
+      : (Array.isArray(u.servicioIds) ? u.servicioIds.map(Number).filter(n => !isNaN(n) && n > 0) : []);
+
     this.usuarioForm = {
       nombre: u.nombre,
       apellido: u.apellido,
@@ -1683,9 +2142,7 @@ export class UsuariosComponent implements OnInit {
       confirmPassword: '',
       cambiarPassword: false,
       modalidadPulidor: u.modalidadPulidor || (agenciaActual ? 'FIJO' : 'MOVIL'),
-      servicioIds: Array.isArray(u.servicioIds)
-        ? u.servicioIds.map(Number).filter(n => !isNaN(n) && n > 0)
-        : []
+      servicioIds: finalServiciosPulidor
     };
     this.showPassword = false;
     this.showConfirmPassword = false;
@@ -1700,9 +2157,9 @@ export class UsuariosComponent implements OnInit {
   }
 
   onPulidorAgenciaChange(agencia: string) {
+    this.usuarioForm.servicioIds = this.serviciosEspecialesCatalogo.map(s => Number(s.id));
     if (agencia?.trim()) {
       this.usuarioForm.modalidadPulidor = 'FIJO';
-      this.usuarioForm.servicioIds = [];
     } else {
       this.usuarioForm.modalidadPulidor = 'MOVIL';
       if (!this.usuarioForm.region || this.usuarioForm.region === 'Nacional') {
@@ -1873,16 +2330,8 @@ export class UsuariosComponent implements OnInit {
       return;
     }
 
-    if (
-      esRolOperadorEspeciales(this.usuarioForm.rol) &&
-      this.usuarioForm.modalidadPulidor === 'MOVIL' &&
-      !(this.usuarioForm.servicioIds || []).length
-    ) {
-      this.toastService.warning(
-        'Servicios requeridos',
-        'Asigna al menos un servicio al pulidor móvil para poder calcular los insumos de su kit.'
-      );
-      return;
+    if (esRolOperadorEspeciales(this.usuarioForm.rol)) {
+      this.usuarioForm.servicioIds = this.serviciosEspecialesCatalogo.map(s => Number(s.id));
     }
 
     if (this.esLiderOperadorRol(this.usuarioForm.rol) && !this.usuarioForm.agencia?.trim()) {
@@ -1993,7 +2442,7 @@ export class UsuariosComponent implements OnInit {
         estado: nuevoEstado,
         email: this.usuarioForm.email.trim(),
         modalidadPulidor: modalidad.modalidadPulidor,
-        servicioIds: isPulidorMovil ? [...(this.usuarioForm.servicioIds || [])] : [],
+        servicioIds: isPulidor ? this.serviciosEspecialesCatalogo.map(s => Number(s.id)) : [],
         ...(this.usuarioForm.cambiarPassword && this.usuarioForm.password?.trim()
           ? { password: this.usuarioForm.password.trim() }
           : {}),
@@ -2073,7 +2522,7 @@ export class UsuariosComponent implements OnInit {
         fechaAsignacion: new Date().toISOString().split('T')[0],
         avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
         modalidadPulidor: modalidad.modalidadPulidor,
-        servicioIds: isPulidorMovil ? [...(this.usuarioForm.servicioIds || [])] : [],
+        servicioIds: isPulidor ? this.serviciosEspecialesCatalogo.map(s => Number(s.id)) : [],
         password: this.usuarioForm.password?.trim(),
         roleId: roleIdToSend
       };

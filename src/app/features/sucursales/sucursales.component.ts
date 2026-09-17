@@ -794,7 +794,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                     <p class="text-xs font-extrabold text-slate-800 uppercase">Cuenta con Servicios Especiales</p>
                     @if (nuevaSucursal.tieneServiciosEspeciales) {
                       <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-200 text-amber-900 border border-amber-300">
-                        {{ cantidadEspecialesSeleccionados }} de {{ serviciosEspeciales.length }} activos
+                        {{ serviciosEspeciales.length }} servicios especiales habilitados
                       </span>
                     }
                   </div>
@@ -808,31 +808,19 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                       [ngClass]="nuevaSucursal.tieneServiciosEspeciales ? 'left-5' : 'left-0.5'"></span>
               </div>
             </div>
-            <!-- Selección de servicios especiales (solo si toggle activo) -->
+            <!-- Información de servicios especiales automáticos -->
             @if (nuevaSucursal.tieneServiciosEspeciales) {
               <div class="px-4 pb-4 border-t border-amber-200 pt-3">
-                <div class="flex items-center justify-between mb-2">
-                  <p class="text-[11px] text-amber-700 font-bold uppercase">Seleccione los servicios especiales disponibles en esta sucursal</p>
-                  <div class="flex items-center gap-2">
-                    <span class="text-[11px] font-extrabold text-amber-800 bg-amber-200/80 px-2 py-0.5 rounded-md">
-                      {{ cantidadEspecialesSeleccionados }} / {{ serviciosEspeciales.length }} seleccionados
-                    </span>
-                    <button type="button" (click)="seleccionarTodosEspeciales($event)" class="text-[10px] text-amber-700 font-bold hover:underline cursor-pointer">Todos</button>
-                    <span class="text-amber-300 text-xs">|</span>
-                    <button type="button" (click)="deseleccionarTodosEspeciales($event)" class="text-[10px] text-amber-700 font-bold hover:underline cursor-pointer">Ninguno</button>
+                <div class="flex items-center gap-3 p-3 bg-amber-100/70 border border-amber-300/80 rounded-xl text-amber-950">
+                  <div class="w-7 h-7 rounded-lg bg-amber-200 flex items-center justify-center flex-shrink-0 text-amber-800">
+                    <i-lucide name="sparkles" class="w-4 h-4"></i-lucide>
                   </div>
-                </div>
-                <div class="grid grid-cols-1 gap-1 max-h-36 overflow-y-auto pr-1">
-                  @for (s of serviciosEspeciales; track s.id) {
-                    <label class="flex items-center gap-2.5 py-1.5 px-2 rounded-lg hover:bg-amber-100/60 cursor-pointer transition-colors">
-                      <input type="checkbox" class="rounded border-amber-300 text-amber-500 focus:ring-amber-400"
-                             [checked]="servicioSeleccionado(s.id)" (change)="toggleServicio(s.id, s.nombre)">
-                      <span class="text-xs font-semibold text-slate-800">{{ s.nombre }}</span>
-                    </label>
-                  }
-                  @empty {
-                    <p class="text-[11px] text-slate-500 italic">No hay servicios especiales en el catálogo.</p>
-                  }
+                  <div>
+                    <p class="text-xs font-bold text-amber-900">Catálogo Completo de Servicios Especiales Asignado</p>
+                    <p class="text-[11px] text-amber-800 leading-snug">
+                      Esta sucursal queda habilitada con los <strong>{{ serviciosEspeciales.length }} servicios especiales corporativos</strong> (pulido fino/medio/corte, vitrificados cerámicos, sellados acrílicos y detallado). No requiere selección individual.
+                    </p>
+                  </div>
                 </div>
               </div>
             }
@@ -1386,6 +1374,8 @@ export class SucursalesComponent implements OnInit {
 
     if (!tieneEsp) {
       sIds = sIds.filter(id => !idsEspeciales.has(id));
+    } else {
+      this.serviciosEspeciales.forEach(s => sIds.push(Number(s.id)));
     }
 
     sIds = Array.from(new Set(sIds));
@@ -1426,10 +1416,7 @@ export class SucursalesComponent implements OnInit {
     const idsEspeciales = new Set(this.serviciosEspeciales.map(s => Number(s.id)));
     if (activo) {
       const actuales = new Set((this.nuevaSucursal.servicioIds || []).map(Number));
-      const tieneAlguno = (this.nuevaSucursal.servicioIds || []).some(id => idsEspeciales.has(Number(id)));
-      if (!tieneAlguno) {
-        this.serviciosEspeciales.forEach(s => actuales.add(Number(s.id)));
-      }
+      this.serviciosEspeciales.forEach(s => actuales.add(Number(s.id)));
       this.nuevaSucursal.servicioIds = Array.from(actuales);
     } else {
       this.nuevaSucursal.servicioIds = (this.nuevaSucursal.servicioIds || [])
@@ -1561,8 +1548,10 @@ export class SucursalesComponent implements OnInit {
       .map(id => Number(id))
       .filter(id => !isNaN(id) && id > 0 && (catalogoIds.size === 0 || catalogoIds.has(id)));
 
-    // Si servicios especiales no está activo, remover cualquier servicio especial
-    if (!this.nuevaSucursal.tieneServiciosEspeciales) {
+    // Si servicios especiales está activo, incorporar TODOS los servicios especiales
+    if (this.nuevaSucursal.tieneServiciosEspeciales) {
+      this.serviciosEspeciales.forEach(s => serviciosLimpios.push(Number(s.id)));
+    } else {
       serviciosLimpios = serviciosLimpios.filter(id => !idsEspeciales.has(id));
     }
 
@@ -1823,8 +1812,7 @@ export class SucursalesComponent implements OnInit {
 
   get cantidadEspecialesSeleccionados(): number {
     if (!this.nuevaSucursal.tieneServiciosEspeciales) return 0;
-    const ids = new Set((this.nuevaSucursal.servicioIds || []).map(Number));
-    return this.serviciosEspeciales.filter(s => ids.has(Number(s.id))).length;
+    return this.serviciosEspeciales.length;
   }
 
   seleccionarTodosGenerales(): void {

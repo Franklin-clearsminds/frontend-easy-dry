@@ -514,4 +514,16 @@ export class InventarioService {
       catchError(() => of({ totalAgencias: 0, agenciasEnAlerta: 0, insumosCriticosTotal: 0, agencias: [] }))
     );
   }
+
+  public getStockPulidoresResumen(dto: any = {}): Observable<any> {
+    return this.http.post<any>(apiUrl('/inventario/stock/pulidores-resumen'), dto).pipe(
+      catchError(() => of({ totalPulidores: 0, pulidoresEnAlerta: 0, insumosCriticosTotal: 0, pulidores: [] }))
+    );
+  }
+
+  public getDespachosPendientes(): Observable<any[]> {
+    return this.http.post<any[]>(apiUrl('/inventario/despachos/pendientes'), {}).pipe(
+      catchError(() => of([]))
+    );
+  }
 }
