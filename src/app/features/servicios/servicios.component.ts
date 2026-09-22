@@ -440,7 +440,7 @@ import { VideoRecorderComponent } from '../../shared/components/video-recorder/v
             <table class="w-full text-left text-sm">
               <thead class="bg-amber-50/70 text-amber-900 text-xs font-bold uppercase tracking-wider border-b border-amber-200">
                 <tr>
-                  <th class="py-3.5 px-4">Nº OT Especial</th>
+                  <th class="py-3.5 px-4">Nº OT</th>
                   <th class="py-3.5 px-4">Vehículo & Placa</th>
                   <th class="py-3.5 px-4">Servicio Especial</th>
                   <th class="py-3.5 px-4">Agencia / Sucursal</th>
@@ -460,7 +460,7 @@ import { VideoRecorderComponent } from '../../shared/components/video-recorder/v
                   <tr class="hover:bg-amber-50/30 transition-colors">
                     <td class="py-3.5 px-4">
                       <span class="font-mono font-black text-xs text-amber-900 bg-amber-100 px-2.5 py-1 rounded-lg block w-fit border border-amber-300">
-                        {{ extra.codigoSE }}
+                        {{ extra.ordenTrabajoOT || extra.codigoSE }}
                       </span>
                       <span class="text-[10px] text-slate-400 font-mono mt-0.5 block">{{ extra.fechaProgramada }}</span>
                     </td>
@@ -663,7 +663,7 @@ import { VideoRecorderComponent } from '../../shared/components/video-recorder/v
                 <div class="flex items-start justify-between mb-2">
                   <div>
                     <span class="font-mono font-black text-xs text-amber-900 bg-amber-100 px-2 py-0.5 rounded-md border border-amber-200">
-                      {{ extra.codigoSE }}
+                      {{ extra.ordenTrabajoOT || extra.codigoSE }}
                     </span>
                     <div class="font-bold text-slate-900 text-sm mt-1.5">{{ extra.vehiculoInfo?.marca }} {{ extra.vehiculoInfo?.modelo }}</div>
                     <div class="text-[11px] font-mono font-black text-easydry-blue">{{ extra.vehiculoInfo?.placa || extra.placa }}</div>
@@ -1693,8 +1693,8 @@ import { VideoRecorderComponent } from '../../shared/components/video-recorder/v
           <div class="space-y-4 text-xs">
             <div class="grid grid-cols-2 gap-3">
               <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                <span class="block text-[10px] text-slate-400 font-bold uppercase mb-1">Nº OT Especial</span>
-                <span class="font-mono font-black text-amber-800">{{ servicioEspecialSeleccionado.codigoSE }}</span>
+                <span class="block text-[10px] text-slate-400 font-bold uppercase mb-1">Nº OT</span>
+                <span class="font-mono font-black text-amber-800">{{ servicioEspecialSeleccionado.ordenTrabajoOT || servicioEspecialSeleccionado.codigoSE }}</span>
               </div>
               <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
                 <span class="block text-[10px] text-slate-400 font-bold uppercase mb-1">Región</span>
@@ -3924,11 +3924,13 @@ export class ServiciosComponent implements OnInit {
       const matchOp = !this.filtrosGlobales.operador || this.filtrosGlobales.operador === 'Todos' ||
         (e.operadorNombre || '').toLowerCase().includes(this.filtrosGlobales.operador.toLowerCase());
 
-      const matchTxt = !this.filtroTexto ||
-        e.servicioNombre.toLowerCase().includes(this.filtroTexto.toLowerCase()) ||
-        e.codigoSE.toLowerCase().includes(this.filtroTexto.toLowerCase()) ||
-        (e.vehiculoInfo?.placa || e.placa || '').toLowerCase().includes(this.filtroTexto.toLowerCase()) ||
-        e.operadorNombre.toLowerCase().includes(this.filtroTexto.toLowerCase());
+      const busq = (this.filtrosGlobales.busqueda || this.filtroTexto || '').trim().toLowerCase();
+      const matchTxt = !busq ||
+        e.servicioNombre.toLowerCase().includes(busq) ||
+        (e.ordenTrabajoOT || '').toLowerCase().includes(busq) ||
+        e.codigoSE.toLowerCase().includes(busq) ||
+        (e.vehiculoInfo?.placa || e.placa || '').toLowerCase().includes(busq) ||
+        e.operadorNombre.toLowerCase().includes(busq);
 
       return matchEst && matchReg && matchSuc && matchOp && matchTxt;
     });
