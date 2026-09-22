@@ -157,35 +157,6 @@ import { VideoRecorderComponent } from '../../shared/components/video-recorder/v
 
       </div>
 
-      <!-- Widget de Stock de Insumos en Custodia del Pulidor -->
-      @if (tabActiva === 'especiales' && isPulidor && stockPulidor.length > 0) {
-        <div class="p-4 bg-slate-900 text-white rounded-2xl shadow-easydry border border-slate-800 animate-fade-in space-y-3">
-          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-2.5">
-            <div class="flex items-center gap-2">
-              <i-lucide name="package-check" class="w-4 h-4 text-emerald-400"></i-lucide>
-              <h3 class="text-xs font-black uppercase tracking-wider text-slate-200">
-                Mi Inventario de Químicos en Custodia (Unidad Móvil {{ userRegionNombre }})
-              </h3>
-            </div>
-            <span class="text-[11px] text-slate-400">
-              Se descuenta automáticamente al finalizar cada servicio especial
-            </span>
-          </div>
-          <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5">
-            @for (st of stockPulidor; track st.id) {
-              <div class="p-2.5 bg-slate-800/80 rounded-xl border border-slate-700/60 flex flex-col justify-between">
-                <div class="text-[11px] font-bold text-slate-200 truncate" [title]="st.producto?.nombre">
-                  {{ st.producto?.nombre }}
-                </div>
-                <div class="mt-1.5 flex items-baseline justify-between">
-                  <span class="font-mono text-base font-black text-emerald-400">{{ st.cantidadDisponible }}</span>
-                  <span class="text-[10px] text-slate-400 font-semibold">{{ st.producto?.unidadMedida || 'und' }}</span>
-                </div>
-              </div>
-            }
-          </div>
-        </div>
-      }
 
       <!-- Global Filter Bar (Contenedor Unificado de Filtros y Búsqueda) -->
       <app-filter-bar 
