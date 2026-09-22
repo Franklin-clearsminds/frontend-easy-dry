@@ -84,6 +84,18 @@ export class CatalogoServiciosService {
     );
   }
 
+  getServiciosEspeciales(): Observable<CatalogoServicio[]> {
+    return this.http.post<any>(apiUrl('/catalogos/servicios/list'), { categoria: 'ESPECIAL' }).pipe(
+      map(res => {
+        const raw = Array.isArray(res) ? res : (Array.isArray(res?.servicios) ? res.servicios : []);
+        return raw
+          .map((s: any) => this.mapBackendServicio(s))
+          .filter((s: CatalogoServicio) => String(s.categoria || '').toUpperCase() === 'ESPECIAL' && (s.estado === 'Activo' || !s.estado));
+      }),
+      catchError(() => of([]))
+    );
+  }
+
   crearServicio(servicio: Omit<CatalogoServicio, 'id' | 'fechaCreacion'>): Observable<CatalogoServicio> {
     const payload = {
       codigo: (servicio.codigo || '').trim().toUpperCase(),

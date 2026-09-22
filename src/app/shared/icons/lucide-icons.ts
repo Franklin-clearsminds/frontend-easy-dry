@@ -112,11 +112,18 @@ import {
   ShieldAlert,
   Circle,
   PackageCheck,
-  PackageMinus
+  PackageMinus,
+  Pause,
+  PauseCircle,
+  ExternalLink,
+  Crop,
+  ImagePlus
 } from 'lucide-angular';
 
 export const EASYDRY_ICONS = {
   // PascalCase
+  Pause,
+  PauseCircle,
   LayoutDashboard,
   Building2,
   Car,
@@ -231,8 +238,14 @@ export const EASYDRY_ICONS = {
   Circle,
   PackageCheck,
   PackageMinus,
+  ExternalLink,
+  Crop,
+  ImagePlus,
 
   // Kebab-case mappings
+  'external-link': ExternalLink,
+  'crop': Crop,
+  'image-plus': ImagePlus,
   'layout-dashboard': LayoutDashboard,
   'building-2': Building2,
   'car': Car,
@@ -346,5 +359,7 @@ export const EASYDRY_ICONS = {
   'shield-alert': ShieldAlert,
   'circle': Circle,
   'package-check': PackageCheck,
-  'package-minus': PackageMinus
+  'package-minus': PackageMinus,
+  'pause': Pause,
+  'pause-circle': PauseCircle
 };

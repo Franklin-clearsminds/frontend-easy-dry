@@ -79,7 +79,10 @@ import { SucursalService } from '../../core/services/sucursal.service';
                   <p class="text-xs text-slate-500">{{ diaSeleccionado.evento || 'Visita preventiva programada' }}</p>
                 </div>
               </div>
-              <button (click)="diaSeleccionado = null" class="text-slate-400 hover:text-slate-600 text-xs font-bold">Cerrar ✕</button>
+              <button (click)="diaSeleccionado = null" class="text-slate-400 hover:text-slate-600 text-xs font-bold inline-flex items-center gap-1 cursor-pointer">
+                <span>Cerrar</span>
+                <i-lucide name="x" class="w-3.5 h-3.5"></i-lucide>
+              </button>
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs">

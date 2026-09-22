@@ -1,10 +1,11 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, ViewChild, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LucideAngularModule } from 'lucide-angular';
 import { ServicioLavadoService } from '../../core/services/servicio-lavado.service';
 import { AuthService } from '../../core/services/auth.service';
 import { InventarioService } from '../../core/services/inventario.service';
+import { StorageUploadService } from '../../core/services/storage-upload.service';
 import { 
   VehiculoServicio, 
   CatalogoServicio, 
@@ -36,11 +37,12 @@ import { formatearPlaca, placasEquivalentes, validarPlaca } from '../../core/uti
 import { resolverRangoFechas, soloFecha } from '../../core/utils/fecha-rango';
 
 import { RouterModule } from '@angular/router';
+import { VideoRecorderComponent } from '../../shared/components/video-recorder/video-recorder.component';
 
 @Component({
   selector: 'app-servicios',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, LucideAngularModule, ModalComponent, PaginationComponent, FilterBarComponent],
+  imports: [CommonModule, RouterModule, FormsModule, LucideAngularModule, ModalComponent, PaginationComponent, FilterBarComponent, VideoRecorderComponent],
   template: `
     <div class="space-y-6 animate-fade-in">
       
@@ -198,7 +200,7 @@ import { RouterModule } from '@angular/router';
         [showBusqueda]="true"
         [placeholderBusqueda]="tabActiva === 'generales' ? 'Buscar placa (ej. PBX-8932) u Orden OT...' : 'Buscar placa u OT especial (ej. SE-SIE-0001)...'"
         [listaServicios]="listaServiciosFiltro"
-        [listaEstados]="tabActiva === 'generales' ? ['Todos', 'En Proceso', 'Por Aprobar', 'Realizados / Aprobados', 'Rechazados'] : ['Todos', 'Pendiente', 'En Proceso', 'Completado', 'Cancelado']"
+        [listaEstados]="tabActiva === 'generales' ? ['Todos', 'En Proceso', 'Por Aprobar', 'Realizados / Aprobados', 'Rechazados'] : ['Todos', 'Pendiente', 'En Proceso', 'Pausado', 'Completado', 'Cancelado']"
         (filterChange)="aplicarNuevosFiltros($event)">
       </app-filter-bar>
 
@@ -225,7 +227,8 @@ import { RouterModule } from '@angular/router';
                   <th class="py-3.5 px-4">Horarios</th>
                   <th class="py-3.5 px-4">Lavador</th>
                   <th class="py-3.5 px-4">Estado Workflow</th>
-                  <th class="py-3.5 px-4 text-center">Evidencia</th>
+                  <th class="py-3.5 px-4 text-center">Evidencia Inicio</th>
+                  <th class="py-3.5 px-4 text-center">Evidencia Fin</th>
                   <th class="py-3.5 px-4 text-right">Acciones</th>
                 </tr>
               </thead>
@@ -259,9 +262,16 @@ import { RouterModule } from '@angular/router';
 
                     <td class="py-3.5 px-4 text-xs font-mono">
                       <p class="text-slate-700 font-semibold">Ing: {{ item.horaIngreso || '08:30' }}</p>
-                      <p class="text-slate-400">Sal: {{ item.horaSalida || '09:30' }}</p>
-                      <span class="mt-0.5 inline-block px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 text-[10px] font-bold">
-                        {{ calcularDuracion(item.horaIngreso || '', item.horaSalida || '') }}
+                      <p class="text-slate-400">Sal: {{ item.horaSalida || '--:--' }}</p>
+                      <span class="mt-0.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold font-mono border"
+                        [ngClass]="{
+                          'bg-emerald-50 text-emerald-800 border-emerald-200': item.estado === 'FINALIZADO' || item.estado === 'APROBADO',
+                          'bg-amber-50 text-amber-800 border-amber-200': item.estado === 'EN PROCESO',
+                          'bg-slate-100 text-slate-600 border-slate-200': item.estado !== 'FINALIZADO' && item.estado !== 'APROBADO' && item.estado !== 'EN PROCESO'
+                        }"
+                        title="Duración total del servicio de lavado">
+                        <i-lucide name="timer" class="w-3.5 h-3.5"></i-lucide>
+                        <span>{{ item.duracionFormateada || calcularDuracion(item.horaIngreso || '', item.horaSalida || '') }}</span>
                       </span>
                     </td>
 
@@ -282,16 +292,33 @@ import { RouterModule } from '@angular/router';
                       </span>
                     </td>
 
+                    <!-- Evidencia Inicio (Servicios Generales) -->
                     <td class="py-3.5 px-4 text-center">
-                      @if (item.video || item.videoUrl) {
+                      @if (getVideoInicial(item); as vidIni) {
                         <button 
-                          (click)="verVideoEvidencia(item)"
-                          title="Ver video evidencia"
-                          class="p-1.5 bg-slate-100 hover:bg-easydry-blue hover:text-white text-easydry-blue rounded-lg transition-colors cursor-pointer inline-flex items-center justify-center">
-                          <i-lucide name="film" class="w-4 h-4"></i-lucide>
+                          (click)="verVideoGenerico(vidIni, 'Evidencia de Inicio — OT: ' + (item.ordenTrabajoOT || item.placa))"
+                          title="Ver evidencia de inicio"
+                          class="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded-lg text-xs font-bold inline-flex items-center gap-1 shadow-2xs transition-all cursor-pointer">
+                          <i-lucide name="video" class="w-3.5 h-3.5 text-amber-600"></i-lucide>
+                          <span>Inicio</span>
                         </button>
                       } @else {
-                        <span class="text-[11px] text-slate-400 italic">Sin vídeo</span>
+                        <span class="text-xs text-slate-400 font-mono">-</span>
+                      }
+                    </td>
+
+                    <!-- Evidencia Fin (Servicios Generales) -->
+                    <td class="py-3.5 px-4 text-center">
+                      @if (getVideoFinal(item); as vidFin) {
+                        <button 
+                          (click)="verVideoGenerico(vidFin, 'Evidencia Final / Entrega — OT: ' + (item.ordenTrabajoOT || item.placa))"
+                          title="Ver evidencia final / entrega"
+                          class="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg text-xs font-bold inline-flex items-center gap-1 shadow-2xs transition-all cursor-pointer">
+                          <i-lucide name="film" class="w-3.5 h-3.5 text-emerald-600"></i-lucide>
+                          <span>Fin</span>
+                        </button>
+                      } @else {
+                        <span class="text-xs text-slate-400 font-mono" [title]="(item.estado === 'EN PROCESO' || item.estado === 'EN_PROCESO') ? 'Pendiente hasta finalizar el servicio' : 'Sin evidencia final'">-</span>
                       }
                     </td>
 
@@ -299,11 +326,21 @@ import { RouterModule } from '@angular/router';
                       <div class="flex items-center justify-end gap-1">
                         @if (canFinalizar(item)) {
                           <button
-                            (click)="finalizarServicio(item)"
-                            title="Finalizar servicio e ingresar insumos"
+                            (click)="abrirModalFinalizarServicio(item)"
+                            title="Finalizar servicio y adjuntar evidencia en vídeo"
                             class="px-2.5 py-1 bg-easydry-blue/10 hover:bg-easydry-blue text-easydry-blue hover:text-white rounded-lg transition-colors cursor-pointer inline-flex items-center gap-1.5 text-xs font-bold shadow-2xs">
                             <i-lucide name="check-circle" class="w-3.5 h-3.5"></i-lucide>
                             <span>Finalizar</span>
+                          </button>
+                        }
+
+                        @if (item.estado === 'FINALIZADO' && canCrearOT) {
+                          <button
+                            (click)="abrirModalAgregarServicioAOT(item); $event.stopPropagation()"
+                            title="Agregar otro servicio a esta misma OT"
+                            class="px-2.5 py-1 bg-violet-50 hover:bg-violet-600 text-violet-700 hover:text-white border border-violet-200 rounded-lg transition-colors cursor-pointer inline-flex items-center gap-1.5 text-xs font-bold shadow-2xs">
+                            <i-lucide name="plus-circle" class="w-3.5 h-3.5"></i-lucide>
+                            <span>+ Servicio</span>
                           </button>
                         }
 
@@ -359,14 +396,57 @@ import { RouterModule } from '@angular/router';
                 </div>
                 
                 <div class="flex items-center justify-between mt-3 text-xs">
+                  @if (item.estado === 'FINALIZADO' && canCrearOT) {
+                    <button
+                      (click)="abrirModalAgregarServicioAOT(item); $event.stopPropagation()"
+                      title="Agregar otro servicio a esta misma OT"
+                      class="mb-2 w-full px-2.5 py-1.5 bg-violet-50 hover:bg-violet-600 text-violet-700 hover:text-white border border-violet-200 rounded-lg transition-colors cursor-pointer inline-flex items-center justify-center gap-1.5 text-xs font-bold">
+                      <i-lucide name="plus-circle" class="w-3.5 h-3.5"></i-lucide>
+                      <span>+ Agregar servicio a esta OT</span>
+                    </button>
+                  }
                   <div class="flex items-center gap-1.5 text-slate-500">
                     <i-lucide name="clock" class="w-3.5 h-3.5"></i-lucide>
                     <span>{{ item.horaIngreso || '08:30' }}</span>
+                    @if (item.duracionFormateada || calcularDuracion(item.horaIngreso || '', item.horaSalida || '')) {
+                      <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-extrabold font-mono border"
+                        [ngClass]="{
+                          'bg-emerald-50 text-emerald-800 border-emerald-200': item.estado === 'FINALIZADO' || item.estado === 'APROBADO',
+                          'bg-amber-50 text-amber-800 border-amber-200': item.estado === 'EN PROCESO',
+                          'bg-slate-100 text-slate-600 border-slate-200': item.estado !== 'FINALIZADO' && item.estado !== 'APROBADO' && item.estado !== 'EN PROCESO'
+                        }">
+                        <i-lucide name="clock" class="w-3 h-3"></i-lucide>
+                        <span>{{ item.duracionFormateada || calcularDuracion(item.horaIngreso || '', item.horaSalida || '') }}</span>
+                      </span>
+                    }
                   </div>
                   <div class="font-semibold text-slate-700">
                     {{ item.servicio }}
                   </div>
                 </div>
+
+                @if (getVideoInicial(item) || getVideoFinal(item)) {
+                  <div class="flex flex-wrap items-center gap-2 mt-2.5 pt-2 border-t border-slate-100">
+                    @if (getVideoInicial(item); as vidIni) {
+                      <button
+                        type="button"
+                        (click)="$event.stopPropagation(); verVideoGenerico(vidIni, 'Evidencia de Inicio — OT: ' + (item.ordenTrabajoOT || item.placa))"
+                        class="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded-lg text-[10px] font-bold inline-flex items-center gap-1 shadow-2xs">
+                        <i-lucide name="video" class="w-3 h-3 text-amber-600"></i-lucide>
+                        <span>Evidencia Inicio</span>
+                      </button>
+                    }
+                    @if (getVideoFinal(item); as vidFin) {
+                      <button
+                        type="button"
+                        (click)="$event.stopPropagation(); verVideoGenerico(vidFin, 'Evidencia Final — OT: ' + (item.ordenTrabajoOT || item.placa))"
+                        class="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg text-[10px] font-bold inline-flex items-center gap-1 shadow-2xs">
+                        <i-lucide name="film" class="w-3 h-3 text-emerald-600"></i-lucide>
+                        <span>Evidencia Fin</span>
+                      </button>
+                    }
+                  </div>
+                }
               </div>
             } @empty {
               <div class="py-8 text-center text-slate-400 text-xs font-medium">
@@ -395,8 +475,11 @@ import { RouterModule } from '@angular/router';
                   <th class="py-3.5 px-4">Agencia / Sucursal</th>
                   <th class="py-3.5 px-4">Región</th>
                   <th class="py-3.5 px-4">Pulidor Responsable</th>
-                  <th class="py-3.5 px-4 text-center">Vídeo Inicial</th>
-                  <th class="py-3.5 px-4 text-center">Vídeo Final</th>
+                  <th class="py-3.5 px-4 text-center">T. Pausa</th>
+                  <th class="py-3.5 px-4 text-center">T. Efectivo</th>
+                  <th class="py-3.5 px-4 text-center">Evidencia Inicio</th>
+                  <th class="py-3.5 px-4 text-center">Evidencias Pausas</th>
+                  <th class="py-3.5 px-4 text-center">Evidencia Fin</th>
                   <th class="py-3.5 px-4">Estado</th>
                   <th class="py-3.5 px-4 text-right">Acciones</th>
                 </tr>
@@ -446,30 +529,69 @@ import { RouterModule } from '@angular/router';
                       </div>
                     </td>
 
+                    <!-- Tiempo Total de Pausa -->
+                    <td class="py-3.5 px-4 text-center">
+                      @if (extra.tiempoPausaTotalSeg && extra.tiempoPausaTotalSeg > 0) {
+                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-mono text-[11px] font-extrabold bg-amber-50 text-amber-900 border border-amber-200" title="Tiempo total acumulado de pausas">
+                          <i-lucide name="pause-circle" class="w-3 h-3"></i-lucide>
+                          <span>{{ extra.tiempoPausaFormateado || '0 min' }}</span>
+                        </span>
+                      } @else {
+                        <span class="text-xs text-slate-400 font-mono">-</span>
+                      }
+                    </td>
+
+                    <!-- Tiempo Efectivo Desarrollado -->
+                    <td class="py-3.5 px-4 text-center">
+                      @if (extra.tiempoEfectivoFormateado || (extra.tiempoEfectivoSeg && extra.tiempoEfectivoSeg > 0)) {
+                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-mono text-[11px] font-extrabold bg-blue-50 text-blue-900 border border-blue-200" title="Tiempo neto de trabajo desarrollado">
+                          <i-lucide name="timer" class="w-3 h-3"></i-lucide>
+                          <span>{{ extra.tiempoEfectivoFormateado || '0 min' }}</span>
+                        </span>
+                      } @else {
+                        <span class="text-xs text-slate-400 font-mono">-</span>
+                      }
+                    </td>
+
                     <!-- Evidencia Vídeo Inicial -->
                     <td class="py-3.5 px-4 text-center">
-                      @if (extra.videoInicialUrl) {
+                      @if (extra.videoInicialUrl || extra.videoInicial) {
                         <button
-                          (click)="verVideoGenerico(extra.videoInicialUrl, 'Vídeo Inicial OT: ' + extra.codigoSE)"
+                          (click)="verVideoGenerico(extra.videoInicialUrl || extra.videoInicial, 'Vídeo Inicial OT: ' + extra.codigoSE)"
                           class="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded-lg text-xs font-bold inline-flex items-center gap-1 shadow-2xs transition-all cursor-pointer">
                           <i-lucide name="video" class="w-3.5 h-3.5 text-amber-600"></i-lucide>
-                          <span>Ver Inicial</span>
+                          <span>Inicio</span>
                         </button>
                       } @else {
                         <span class="text-[10px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded font-bold border border-amber-200">
-                          Requerido al Iniciar
+                          Al Iniciar
                         </span>
+                      }
+                    </td>
+
+                    <!-- Evidencias Vídeos de Pausas -->
+                    <td class="py-3.5 px-4 text-center">
+                      @if ((extra.historialPausas && extra.historialPausas.length > 0) || extra.videoUltimaPausaUrl || extra.videoPausa) {
+                        <button
+                          (click)="verEvidenciasPausas(extra)"
+                          title="Ver evidencias de pausas y reanudaciones"
+                          class="px-2.5 py-1 bg-orange-50 hover:bg-orange-100 text-orange-900 border border-orange-300 rounded-lg text-xs font-bold inline-flex items-center gap-1 shadow-2xs transition-all cursor-pointer">
+                          <i-lucide name="pause-circle" class="w-3.5 h-3.5 text-orange-600"></i-lucide>
+                          <span>Pausas {{ extra.historialPausas && extra.historialPausas.length > 0 ? '(' + extra.historialPausas.length + ')' : '' }}</span>
+                        </button>
+                      } @else {
+                        <span class="text-xs text-slate-400 font-mono">-</span>
                       }
                     </td>
 
                     <!-- Evidencia Vídeo Final -->
                     <td class="py-3.5 px-4 text-center">
-                      @if (extra.videoFinalUrl) {
+                      @if (extra.videoFinalUrl || extra.videoFinal) {
                         <button
-                          (click)="verVideoGenerico(extra.videoFinalUrl, 'Vídeo Final OT: ' + extra.codigoSE)"
+                          (click)="verVideoGenerico(extra.videoFinalUrl || extra.videoFinal, 'Vídeo Final OT: ' + extra.codigoSE)"
                           class="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg text-xs font-bold inline-flex items-center gap-1 shadow-2xs transition-all cursor-pointer">
                           <i-lucide name="film" class="w-3.5 h-3.5 text-emerald-600"></i-lucide>
-                          <span>Ver Final</span>
+                          <span>Fin</span>
                         </button>
                       } @else {
                         <span class="text-xs text-slate-400 font-mono">-</span>
@@ -504,6 +626,14 @@ import { RouterModule } from '@angular/router';
                         @if (extra.estado === 'En Proceso') {
                           @if (puedeRealizarOT(extra)) {
                             <button
+                              (click)="abrirModalPausarEspecial(extra)"
+                              title="Pausar servicio con motivo y vídeo de pausa"
+                              class="px-2.5 py-1 bg-amber-500/15 hover:bg-amber-500 text-amber-900 hover:text-white border border-amber-400 rounded-lg text-xs font-extrabold inline-flex items-center gap-1 shadow-2xs transition-all cursor-pointer">
+                              <i-lucide name="pause" class="w-3.5 h-3.5"></i-lucide>
+                              <span>Pausar</span>
+                            </button>
+
+                            <button
                               (click)="abrirModalFinalizarEspecial(extra)"
                               class="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-lg text-xs inline-flex items-center gap-1 shadow-2xs transition-all cursor-pointer">
                               <i-lucide name="check-circle-2" class="w-3.5 h-3.5"></i-lucide>
@@ -511,6 +641,20 @@ import { RouterModule } from '@angular/router';
                             </button>
                           } @else {
                             <span class="text-[10px] text-amber-700 font-semibold px-1.5 py-0.5 bg-amber-50 rounded">En proceso</span>
+                          }
+                        }
+
+                        @if (extra.estado === 'Pausado') {
+                          @if (puedeRealizarOT(extra)) {
+                            <button
+                              (click)="abrirModalReanudarEspecial(extra)"
+                              title="Reanudar servicio con vídeo de reanudación"
+                              class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white font-extrabold rounded-lg text-xs inline-flex items-center gap-1 shadow-2xs transition-all cursor-pointer">
+                              <i-lucide name="play" class="w-3.5 h-3.5"></i-lucide>
+                              <span>Reanudar</span>
+                            </button>
+                          } @else {
+                            <span class="text-[10px] text-orange-700 font-semibold px-1.5 py-0.5 bg-orange-50 rounded">Pausado</span>
                           }
                         }
 
@@ -532,7 +676,7 @@ import { RouterModule } from '@angular/router';
                   </tr>
                 } @empty {
                   <tr>
-                    <td colspan="10" class="py-12 text-center text-slate-400 text-xs font-medium">
+                    <td colspan="12" class="py-12 text-center text-slate-400 text-xs font-medium">
                       No hay servicios especiales asignados o registrados en la región {{ userRegionNombre }}.
                     </td>
                   </tr>
@@ -567,6 +711,54 @@ import { RouterModule } from '@angular/router';
                   <span>{{ extra.agenciaNombre || extra.agencia?.nombre || 'Sede Zonal' }}</span>
                 </div>
 
+                @if ((extra.tiempoPausaTotalSeg && extra.tiempoPausaTotalSeg > 0) || extra.tiempoEfectivoFormateado) {
+                  <div class="flex flex-wrap items-center gap-1.5 mb-2 text-[10px] font-mono font-bold">
+                    @if (extra.tiempoPausaTotalSeg && extra.tiempoPausaTotalSeg > 0) {
+                      <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 text-amber-900 border border-amber-200 rounded-md">
+                        <i-lucide name="pause-circle" class="w-3 h-3"></i-lucide>
+                        <span>Pausa: {{ extra.tiempoPausaFormateado }}</span>
+                      </span>
+                    }
+                    @if (extra.tiempoEfectivoFormateado) {
+                      <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-900 border border-blue-200 rounded-md">
+                        <i-lucide name="timer" class="w-3 h-3"></i-lucide>
+                        <span>Neto: {{ extra.tiempoEfectivoFormateado }}</span>
+                      </span>
+                    }
+                  </div>
+                }
+
+                <!-- Botones de Evidencia en Móvil -->
+                <div class="flex flex-wrap items-center gap-2 mb-2.5">
+                  @if (extra.videoInicialUrl || extra.videoInicial) {
+                    <button
+                      type="button"
+                      (click)="verVideoGenerico(extra.videoInicialUrl || extra.videoInicial, 'Vídeo Inicial OT: ' + extra.codigoSE)"
+                      class="px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded-lg text-[10px] font-bold inline-flex items-center gap-1 shadow-2xs">
+                      <i-lucide name="video" class="w-3 h-3 text-amber-600"></i-lucide>
+                      <span>Vídeo Inicio</span>
+                    </button>
+                  }
+                  @if ((extra.historialPausas && extra.historialPausas.length > 0) || extra.videoUltimaPausaUrl || extra.videoPausa) {
+                    <button
+                      type="button"
+                      (click)="verEvidenciasPausas(extra)"
+                      class="px-2 py-1 bg-orange-50 hover:bg-orange-100 text-orange-900 border border-orange-300 rounded-lg text-[10px] font-bold inline-flex items-center gap-1 shadow-2xs">
+                      <i-lucide name="pause-circle" class="w-3 h-3 text-orange-600"></i-lucide>
+                      <span>Pausas {{ extra.historialPausas && extra.historialPausas.length > 0 ? '(' + extra.historialPausas.length + ')' : '' }}</span>
+                    </button>
+                  }
+                  @if (extra.videoFinalUrl || extra.videoFinal) {
+                    <button
+                      type="button"
+                      (click)="verVideoGenerico(extra.videoFinalUrl || extra.videoFinal, 'Vídeo Final OT: ' + extra.codigoSE)"
+                      class="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg text-[10px] font-bold inline-flex items-center gap-1 shadow-2xs">
+                      <i-lucide name="film" class="w-3 h-3 text-emerald-600"></i-lucide>
+                      <span>Vídeo Fin</span>
+                    </button>
+                  }
+                </div>
+
                 <div class="flex items-center justify-between mt-3 text-xs gap-2 pt-2 border-t border-slate-100">
                   <div class="flex items-center gap-1 text-slate-500 truncate">
                     <i-lucide name="user" class="w-3.5 h-3.5 text-amber-600 shrink-0"></i-lucide>
@@ -582,9 +774,17 @@ import { RouterModule } from '@angular/router';
                     }
                     @if (extra.estado === 'En Proceso') {
                       @if (puedeRealizarOT(extra)) {
+                        <button (click)="abrirModalPausarEspecial(extra)" class="px-2 py-1 bg-amber-500/20 text-amber-900 border border-amber-400 rounded-lg text-xs font-bold">Pausar</button>
                         <button (click)="abrirModalFinalizarEspecial(extra)" class="px-2.5 py-1 bg-emerald-600 text-white rounded-lg text-xs font-bold">Finalizar</button>
                       } @else {
                         <span class="text-[10px] text-amber-600">En proceso</span>
+                      }
+                    }
+                    @if (extra.estado === 'Pausado') {
+                      @if (puedeRealizarOT(extra)) {
+                        <button (click)="abrirModalReanudarEspecial(extra)" class="px-2.5 py-1 bg-blue-600 text-white rounded-lg text-xs font-bold">Reanudar</button>
+                      } @else {
+                        <span class="text-[10px] text-orange-600">Pausado</span>
                       }
                     }
                     <button (click)="abrirDetalleEspecial(extra)" class="p-1 text-slate-500 hover:bg-slate-100 rounded-lg"><i-lucide name="info" class="w-4 h-4"></i-lucide></button>
@@ -692,23 +892,54 @@ import { RouterModule } from '@angular/router';
                 </div>
               </div>
             }
+            <!-- Evidencias en Vídeo (Ingreso y Salida) -->
+            @if (servicioDetalleSeleccionado.fotoIngresoUrl || servicioDetalleSeleccionado.fotoSalidaUrl || servicioDetalleSeleccionado.video || servicioDetalleSeleccionado.videoUrl) {
+              <div class="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 text-xs space-y-2">
+                <span class="text-[11px] text-slate-800 font-extrabold uppercase flex items-center gap-1.5">
+                  <i-lucide name="film" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide>
+                  Evidencias en Vídeo Registradas
+                </span>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  @if (servicioDetalleSeleccionado.fotoIngresoUrl || servicioDetalleSeleccionado.video || servicioDetalleSeleccionado.videoUrl) {
+                    <button
+                      type="button"
+                      (click)="verVideoGenerico(servicioDetalleSeleccionado.fotoIngresoUrl || servicioDetalleSeleccionado.video || servicioDetalleSeleccionado.videoUrl, 'Vídeo de Ingreso: ' + servicioDetalleSeleccionado.placa)"
+                      class="p-2.5 bg-white hover:bg-slate-100 rounded-xl border border-slate-200 flex items-center gap-2 font-bold text-slate-800 text-xs transition-colors cursor-pointer shadow-2xs">
+                      <div class="w-7 h-7 rounded-lg bg-easydry-blue/10 text-easydry-blue flex items-center justify-center">
+                        <i-lucide name="play" class="w-3.5 h-3.5"></i-lucide>
+                      </div>
+                      <div class="text-left">
+                        <p class="text-xs font-bold text-slate-900">Vídeo de Ingreso</p>
+                        <p class="text-[10px] text-slate-400 font-normal">Recepción del auto</p>
+                      </div>
+                    </button>
+                  }
+                  @if (servicioDetalleSeleccionado.fotoSalidaUrl) {
+                    <button
+                      type="button"
+                      (click)="verVideoGenerico(servicioDetalleSeleccionado.fotoSalidaUrl, 'Vídeo de Salida: ' + servicioDetalleSeleccionado.placa)"
+                      class="p-2.5 bg-white hover:bg-slate-100 rounded-xl border border-slate-200 flex items-center gap-2 font-bold text-slate-800 text-xs transition-colors cursor-pointer shadow-2xs">
+                      <div class="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                        <i-lucide name="check-circle-2" class="w-3.5 h-3.5"></i-lucide>
+                      </div>
+                      <div class="text-left">
+                        <p class="text-xs font-bold text-slate-900">Vídeo de Salida</p>
+                        <p class="text-[10px] text-slate-400 font-normal">Entrega y acabado</p>
+                      </div>
+                    </button>
+                  }
+                </div>
+              </div>
+            }
           </div>
         }
 
         <div modal-footer class="flex flex-col gap-2 w-full">
           @if (servicioDetalleSeleccionado) {
-            @if (servicioDetalleSeleccionado.video || servicioDetalleSeleccionado.videoUrl) {
-              <button 
-                (click)="verVideoEvidencia(servicioDetalleSeleccionado); modalDetalleOpen = false"
-                class="w-full px-4 py-2.5 bg-slate-100 hover:bg-easydry-blue hover:text-white text-easydry-blue rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-2 shadow-sm">
-                <i-lucide name="film" class="w-4 h-4"></i-lucide> Ver Vídeo Evidencia
-              </button>
-            }
-            
             @if (canFinalizar(servicioDetalleSeleccionado)) {
               <button
-                (click)="finalizarServicio(servicioDetalleSeleccionado); modalDetalleOpen = false"
-                class="w-full px-4 py-2.5 bg-easydry-blue text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 shadow-sm">
+                (click)="modalDetalleOpen = false; abrirModalFinalizarServicio(servicioDetalleSeleccionado)"
+                class="w-full px-4 py-2.5 bg-easydry-blue text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 shadow-sm cursor-pointer">
                 <i-lucide name="check-circle-2" class="w-4 h-4"></i-lucide> Finalizar Servicio
               </button>
             }
@@ -728,11 +959,27 @@ import { RouterModule } from '@angular/router';
       <!-- Modal Digital HOJA DE CONTROL DE SERVICIO (Nueva OT) -->
       <app-modal 
         [isOpen]="modalNuevoRegistroOpen" 
-        title="Digitalización: HOJA DE CONTROL DE SERVICIO" 
+        [title]="agregarServicioOTFuente ? 'Agregar Servicio — OT: ' + (agregarServicioOTFuente.ordenTrabajoOT || '') : 'Digitalización: HOJA DE CONTROL DE SERVICIO'" 
         icon="car"
-        (close)="modalNuevoRegistroOpen = false">
+        (close)="agregarServicioOTFuente = null; modalNuevoRegistroOpen = false">
         
         <form (ngSubmit)="guardarHojaServicio()" class="space-y-5">
+
+          @if (agregarServicioOTFuente) {
+            <div class="p-3 bg-violet-50 rounded-xl border border-violet-200 flex items-start gap-2.5">
+              <i-lucide name="plus-circle" class="w-4 h-4 text-violet-600 mt-0.5 shrink-0"></i-lucide>
+              <div>
+                <p class="text-xs font-extrabold text-violet-900 uppercase tracking-wide">Agregando servicio a trabajo existente</p>
+                <p class="text-[11px] text-violet-700 mt-0.5">
+                  OT: <strong class="font-mono">{{ agregarServicioOTFuente.ordenTrabajoOT }}</strong>
+                  &nbsp;&bull;&nbsp; Placa: <strong class="font-mono">{{ agregarServicioOTFuente.placa }}</strong>
+                  &nbsp;&bull;&nbsp; {{ agregarServicioOTFuente.marca }} {{ agregarServicioOTFuente.modelo }}
+                  &nbsp;&bull;&nbsp; Color: {{ agregarServicioOTFuente.color }}
+                </p>
+                <p class="text-[10px] text-violet-500 mt-1">Los datos del vehículo están bloqueados. Solo selecciona la bahía, el lavador y el nuevo servicio.</p>
+              </div>
+            </div>
+          }
           
           <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs font-bold text-easydry-blue flex items-center justify-between">
             <span>REGISTRO DE ORDEN DE TRABAJO (OT)</span>
@@ -771,17 +1018,34 @@ import { RouterModule } from '@angular/router';
 
               <!-- Bahía -->
               <div>
-                <label class="block text-[11px] font-bold text-slate-700 uppercase mb-1">Bahía de Atención</label>
+                <label class="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                  Bahía de Atención *
+                  @if (bahiaOcupadaActual) {
+                    <span class="text-rose-600 font-extrabold text-[10px] ml-1">
+                      (Ocupada por {{ bahiaOcupadaActual.placa }})
+                    </span>
+                  }
+                </label>
                 <select
-                  [(ngModel)]="nuevoRegistro.bahia"
+                  [(ngModel)]="nuevoRegistro.bahiaId"
                   name="bahiaSelect"
                   (change)="onBahiaFormChange()"
-                  class="w-full p-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800">
-                  <option value="Sin Bahía Específica">Sin Bahía Específica</option>
+                  [ngClass]="bahiaOcupadaActual ? 'border-rose-400 bg-rose-50/70 text-rose-900 font-bold' : 'border-slate-200 bg-white'"
+                  class="w-full p-2 border rounded-xl text-xs font-semibold text-slate-800">
+                  <option value="">Sin Bahía Específica</option>
                   @for (b of bahiasSucursalForm; track b.id) {
-                    <option [value]="b.nombre">{{ b.nombre }} - {{ b.operadorAsignado ? b.operadorAsignado : 'Sin asignar' }}</option>
+                    @let ocupante = getVehiculoOcupanteBahia(b.id, b.nombre);
+                    <option [value]="b.id">
+                      {{ b.nombre }} {{ ocupante ? '[En uso: ' + ocupante.placa + ' - ' + ocupante.ordenTrabajoOT + ']' : '[Disponible]' }}
+                    </option>
                   }
                 </select>
+                @if (bahiaOcupadaActual) {
+                  <p class="text-[10px] text-rose-600 font-bold mt-1 flex items-center gap-1.5">
+                    <i-lucide name="alert-triangle" class="w-3.5 h-3.5 shrink-0"></i-lucide>
+                    <span>La {{ nuevoRegistro.bahia || 'bahía seleccionada' }} ya tiene un vehículo en proceso ({{ bahiaOcupadaActual.placa }} - {{ bahiaOcupadaActual.ordenTrabajoOT }}). Selecciona una bahía disponible.</span>
+                  </p>
+                }
               </div>
 
               <!-- Operador Técnico (Trazabilidad) -->
@@ -811,43 +1075,54 @@ import { RouterModule } from '@angular/router';
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Nº OT (Orden Trabajo) *</label>
-              <input type="text" [(ngModel)]="nuevoRegistro.ordenTrabajoOT" name="ordenTrabajoOT" placeholder="OT-9840" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-easydry-blue focus:border-easydry-blue focus:ring-easydry-blue" required>
+              <input type="text" [(ngModel)]="nuevoRegistro.ordenTrabajoOT" name="ordenTrabajoOT" placeholder="OT-9840"
+                [disabled]="!!agregarServicioOTFuente"
+                class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-easydry-blue focus:border-easydry-blue focus:ring-easydry-blue disabled:bg-violet-50 disabled:border-violet-200 disabled:text-violet-800 disabled:opacity-90" required>
             </div>
             <div>
               <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Placa Vehículo *</label>
               <input
                 type="text"
                 [ngModel]="nuevoRegistro.placa"
-                (ngModelChange)="onPlacaChange($event)"
+                (ngModelChange)="agregarServicioOTFuente ? null : onPlacaChange($event)"
                 name="placa"
                 placeholder="PBX-1234"
                 maxlength="8"
                 autocomplete="off"
-                class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold uppercase tracking-wide focus:border-easydry-blue focus:ring-easydry-blue"
-                [class.border-rose-400]="placaTocada && !placaValida"
-                [class.border-easydry-green]="placaValida"
+                [disabled]="!!agregarServicioOTFuente"
+                class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold uppercase tracking-wide focus:border-easydry-blue focus:ring-easydry-blue disabled:bg-violet-50 disabled:border-violet-200 disabled:text-violet-800 disabled:opacity-90"
+                [class.border-rose-400]="!agregarServicioOTFuente && placaTocada && !placaValida"
+                [class.border-easydry-green]="!agregarServicioOTFuente && placaValida"
                 required>
-              <p class="text-[10px] mt-1 font-semibold"
-                [class.text-easydry-green-dark]="placaValida"
-                [class.text-rose-600]="placaTocada && !placaValida"
-                [class.text-slate-400]="!placaTocada && !placaValida">
-                {{ placaMensaje }}
-              </p>
+              @if (!agregarServicioOTFuente) {
+                <p class="text-[10px] mt-1 font-semibold"
+                  [class.text-easydry-green-dark]="placaValida"
+                  [class.text-rose-600]="placaTocada && !placaValida"
+                  [class.text-slate-400]="!placaTocada && !placaValida">
+                  {{ placaMensaje }}
+                </p>
+              }
             </div>
           </div>
 
           <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Marca *</label>
-              <input type="text" [(ngModel)]="nuevoRegistro.marca" name="marca" placeholder="Toyota" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:border-easydry-blue focus:ring-easydry-blue" required>
+              <input type="text" [(ngModel)]="nuevoRegistro.marca" name="marca" placeholder="Toyota"
+                [disabled]="!!agregarServicioOTFuente"
+                class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:border-easydry-blue focus:ring-easydry-blue disabled:bg-violet-50 disabled:border-violet-200 disabled:text-violet-800 disabled:opacity-90" required>
             </div>
             <div>
               <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Modelo *</label>
-              <input type="text" [(ngModel)]="nuevoRegistro.modelo" name="modelo" placeholder="Corolla Cross" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:border-easydry-blue focus:ring-easydry-blue" required>
+              <input type="text" [(ngModel)]="nuevoRegistro.modelo" name="modelo" placeholder="Corolla Cross"
+                [disabled]="!!agregarServicioOTFuente"
+                class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:border-easydry-blue focus:ring-easydry-blue disabled:bg-violet-50 disabled:border-violet-200 disabled:text-violet-800 disabled:opacity-90" required>
             </div>
             <div>
               <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Color *</label>
-              <input type="text" [(ngModel)]="nuevoRegistro.color" name="color" placeholder="Blanco" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:border-easydry-blue focus:ring-easydry-blue" required>
+              <input type="text" [(ngModel)]="nuevoRegistro.color" name="color" placeholder="Blanco"
+                [disabled]="!!agregarServicioOTFuente"
+                class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:border-easydry-blue focus:ring-easydry-blue disabled:bg-violet-50 disabled:border-violet-200 disabled:text-violet-800 disabled:opacity-90" required>
             </div>
           </div>
 
@@ -922,30 +1197,38 @@ import { RouterModule } from '@angular/router';
             } @else {
               <div class="space-y-2">
                 @for (ins of insumosConsumoForm; track ins.productoId; let idx = $index) {
+                  @let stockDisp = getStockDisponible(ins.productoId, ins.productoSKU);
+                  @let faltaStock = stockDisp < ins.cantidad;
                   <div 
-                    class="p-2.5 rounded-xl border flex items-center justify-between gap-3 shadow-2xs transition-colors"
-                    [ngClass]="getStockDisponible(ins.productoId) < ins.cantidad ? 'bg-rose-50/70 border-rose-300' : 'bg-white border-slate-200'">
+                    class="p-2.5 rounded-xl border flex items-center justify-between gap-3 shadow-2xs transition-all"
+                    [ngClass]="faltaStock ? 'bg-rose-50/90 border-2 border-rose-400 ring-2 ring-rose-400/20' : 'bg-white border-slate-200'">
                     <div class="overflow-hidden flex-1">
-                      <p class="font-bold text-slate-900 text-xs truncate">{{ ins.productoNombre }}</p>
-                      <div class="flex items-center gap-2 text-[10px] text-slate-500 flex-wrap">
+                      <div class="flex items-center gap-1.5">
+                        @if (faltaStock) {
+                          <i-lucide name="alert-triangle" class="w-3.5 h-3.5 text-rose-600 shrink-0"></i-lucide>
+                        }
+                        <p class="font-bold text-xs truncate" [ngClass]="faltaStock ? 'text-rose-950 font-extrabold' : 'text-slate-900'">{{ ins.productoNombre }}</p>
+                      </div>
+                      <div class="flex items-center gap-2 text-[10px] text-slate-500 flex-wrap mt-0.5">
                         <span class="font-mono bg-slate-100 px-1 py-0.2 rounded">{{ ins.productoSKU }}</span>
                         <span>•</span>
-                        <span [class.text-rose-700]="getStockDisponible(ins.productoId) < ins.cantidad" [class.text-easydry-blue]="getStockDisponible(ins.productoId) >= ins.cantidad" class="font-semibold">
-                          Stock en {{ nuevoRegistro.agencia }}: {{ getStockDisponible(ins.productoId) }} {{ ins.unidadMedida }}
+                        <span [class.text-rose-700]="faltaStock" [class.font-extrabold]="faltaStock" [class.text-easydry-blue]="!faltaStock" class="font-semibold">
+                          Stock en {{ nuevoRegistro.agencia }}: {{ stockDisp }} {{ ins.unidadMedida }}
                         </span>
-                        @if (getStockDisponible(ins.productoId) <= 0) {
-                          <span class="px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 font-extrabold text-[9px]">¡Agotado en Agencia!</span>
-                        } @else if (getStockDisponible(ins.productoId) < ins.cantidad) {
-                          <span class="px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 font-extrabold text-[9px]">¡Stock Insuficiente (Faltan {{ (ins.cantidad - getStockDisponible(ins.productoId)).toFixed(2) }} {{ ins.unidadMedida }})!</span>
+                        @if (stockDisp <= 0) {
+                          <span class="px-1.5 py-0.5 rounded-full bg-rose-600 text-white font-black text-[9px] uppercase tracking-wider animate-pulse">¡Agotado en Agencia!</span>
+                        } @else if (faltaStock) {
+                          <span class="px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-300 font-extrabold text-[9px]">¡Stock Insuficiente (Faltan {{ (ins.cantidad - stockDisp).toFixed(1) }} {{ ins.unidadMedida }})!</span>
                         }
                       </div>
                     </div>
 
                     <div class="shrink-0 text-right">
-                      <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 font-mono font-bold text-xs">
+                      <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg font-mono font-bold text-xs"
+                        [ngClass]="faltaStock ? 'bg-rose-100 text-rose-900 border border-rose-300' : 'bg-indigo-50 text-indigo-700 border border-indigo-200'">
                         {{ ins.cantidad }} {{ ins.unidadMedida }}
                       </span>
-                      <p class="text-[9px] text-slate-400 font-semibold mt-0.5">Receta fija</p>
+                      <p class="text-[9px] font-semibold mt-0.5" [ngClass]="faltaStock ? 'text-rose-600 font-bold' : 'text-slate-400'">{{ faltaStock ? 'Sin existencias' : 'Receta fija' }}</p>
                     </div>
                   </div>
                 }
@@ -965,47 +1248,86 @@ import { RouterModule } from '@angular/router';
             }
           </div>
 
-          <!-- Video Proof Upload -->
-          <div class="space-y-1.5">
-            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Evidencia Vídeo de Ingreso</label>
-            
-            <div class="relative w-full border-2 border-dashed border-slate-300 rounded-xl p-4 flex flex-col items-center justify-center hover:bg-slate-50 transition-colors cursor-pointer"
-                 (click)="fileInput.click()">
-              <input 
-                #fileInput
-                type="file" 
-                accept="video/*" 
-                capture="environment"
-                class="hidden"
-                (change)="onFileSelected($event)">
-              
-              @if (videoFileSelected) {
-                <div class="flex items-center gap-2 text-easydry-green-dark">
-                  <i-lucide name="check-circle-2" class="w-6 h-6"></i-lucide>
-                  <span class="text-xs font-bold">{{ videoFileName }}</span>
-                </div>
-                <p class="text-[10px] text-slate-500 mt-1">Vídeo listo para subir</p>
-              } @else {
-                <div class="p-3 bg-easydry-blue/10 text-easydry-blue rounded-full mb-2">
-                  <i-lucide name="video" class="w-6 h-6"></i-lucide>
-                </div>
-                <p class="text-xs font-bold text-slate-700 text-center">Toca para grabar o seleccionar vídeo</p>
-                <p class="text-[10px] text-slate-400 text-center mt-1">Accede a la cámara o galería</p>
-              }
-            </div>
-          </div>
+          <!-- Video Proof Upload with Live Device Camera -->
+          <app-video-recorder
+            #videoIngresoRecorder
+            label="Vídeo de Evidencia de Ingreso (Recepción)"
+            description="Graba con la cámara del dispositivo las condiciones y detalles del vehículo al ingresar a la bahía."
+            [evidenceType]="'VIDEO_INICIAL'"
+            [category]="'SERVICIOS_GENERALES'"
+            [agenciaId]="agenciaFormId || userSucursal"
+            [servicioId]="nuevoRegistro.ordenTrabajoOT || nuevoRegistro.placa"
+            [(videoUrl)]="nuevoRegistro.videoUrl"
+            [required]="true">
+          </app-video-recorder>
 
         </form>
 
         <div modal-footer class="flex flex-col-reverse sm:flex-row gap-2 w-full sm:w-auto">
-          <button (click)="modalNuevoRegistroOpen = false" class="w-full sm:w-auto px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs flex justify-center">Cancelar</button>
+          <button (click)="agregarServicioOTFuente = null; modalNuevoRegistroOpen = false" [disabled]="guardandoServicio" class="w-full sm:w-auto px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs flex justify-center disabled:opacity-50">Cancelar</button>
           <button 
             (click)="guardarHojaServicio()" 
-            [disabled]="tieneInsumosSinStock"
-            [class.opacity-50]="tieneInsumosSinStock"
-            [class.cursor-not-allowed]="tieneInsumosSinStock"
-            class="w-full sm:w-auto px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs flex justify-center items-center gap-1.5 transition-all">
-            Guardar e Iniciar Servicio
+            [disabled]="tieneInsumosSinStock || !!bahiaOcupadaActual || guardandoServicio"
+            [class.opacity-50]="tieneInsumosSinStock || !!bahiaOcupadaActual || guardandoServicio"
+            [class.cursor-not-allowed]="tieneInsumosSinStock || !!bahiaOcupadaActual || guardandoServicio"
+            class="w-full sm:w-auto px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs flex justify-center items-center gap-1.5 transition-all cursor-pointer">
+            <i-lucide *ngIf="guardandoServicio" name="loader" class="w-4 h-4 animate-spin"></i-lucide>
+            <span>{{ guardandoServicio ? 'Guardando...' : agregarServicioOTFuente ? '+ Agregar Servicio a OT' : 'Guardar e Iniciar Servicio' }}</span>
+          </button>
+        </div>
+      </app-modal>
+
+      <!-- Modal Finalizar Servicio de Lavado General (Vídeo de Salida con Cámara) -->
+      <app-modal
+        [isOpen]="modalFinalizarServicioOpen"
+        [title]="tituloModalFinalizar"
+        icon="check-circle-2"
+        (close)="cerrarModalFinalizarServicio()">
+
+        @if (servicioAFinalizar) {
+          <div class="space-y-4">
+            <div class="p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-xs space-y-1">
+              <p class="font-extrabold text-emerald-950">
+                {{ servicioAFinalizar.marca }} {{ servicioAFinalizar.modelo }} — Placa: {{ servicioAFinalizar.placa }}
+              </p>
+              <p class="text-emerald-800">
+                Servicio: <strong>{{ servicioAFinalizar.servicio }}</strong> • Bahía: <strong>{{ servicioAFinalizar.bahia }}</strong> • Operador: <strong>{{ servicioAFinalizar.empleado }}</strong>
+              </p>
+            </div>
+
+            <!-- Grabador de Vídeo de Salida con Cámara del Dispositivo -->
+            <app-video-recorder
+              #videoSalidaRecorder
+              label="Vídeo de Evidencia de Salida (Entrega del Vehículo)"
+              description="Graba con la cámara del dispositivo el acabado y limpieza del vehículo antes de liberarlo."
+              [evidenceType]="'VIDEO_FINAL'"
+              [category]="'SERVICIOS_GENERALES'"
+              [agenciaId]="servicioAFinalizar.agencia || userSucursal"
+              [servicioId]="servicioAFinalizar.ordenTrabajoOT || servicioAFinalizar.placa || servicioAFinalizar.id"
+              [(videoUrl)]="videoSalidaInput"
+              [required]="true">
+            </app-video-recorder>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Observaciones de Entrega (Opcional)</label>
+              <input
+                type="text"
+                [(ngModel)]="observacionesSalidaInput"
+                placeholder="Ej. Servicio concluido, aspirado y secado verificado..."
+                class="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs">
+            </div>
+          </div>
+        }
+
+        <div modal-footer class="flex items-center justify-end gap-2 w-full">
+          <button (click)="cerrarModalFinalizarServicio()" [disabled]="finalizandoServicio" class="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs disabled:opacity-50">Cancelar</button>
+          <button
+            (click)="confirmarFinalizarServicio()"
+            [disabled]="finalizandoServicio"
+            class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-50">
+            <i-lucide *ngIf="finalizandoServicio" name="loader" class="w-3.5 h-3.5 animate-spin"></i-lucide>
+            <i-lucide *ngIf="!finalizandoServicio" name="check-circle-2" class="w-3.5 h-3.5"></i-lucide>
+            <span>{{ finalizandoServicio ? 'Finalizando...' : 'Confirmar y Finalizar Servicio' }}</span>
           </button>
         </div>
       </app-modal>
@@ -1020,9 +1342,9 @@ import { RouterModule } from '@angular/router';
         @if (servicioSeleccionado) {
           <div class="space-y-4">
             <div class="aspect-video bg-black rounded-2xl overflow-hidden shadow-inner flex items-center justify-center">
-              @if (servicioSeleccionado.videoUrl || servicioSeleccionado.video) {
+              @if (servicioSeleccionado.videoUrl || servicioSeleccionado.video || servicioSeleccionado.fotoIngresoUrl || servicioSeleccionado.fotoSalidaUrl) {
                 <video 
-                  [src]="servicioSeleccionado.videoUrl || servicioSeleccionado.video" 
+                  [src]="storageUploadService.resolveBackendUrl(servicioSeleccionado.videoUrl || servicioSeleccionado.video || servicioSeleccionado.fotoIngresoUrl || servicioSeleccionado.fotoSalidaUrl)" 
                   controls 
                   autoplay 
                   class="w-full h-full object-contain">
@@ -1157,33 +1479,30 @@ import { RouterModule } from '@angular/router';
               </p>
             </div>
 
-            <div class="p-4 bg-slate-50 rounded-2xl border-2 border-dashed border-amber-300 space-y-3">
-              <label class="block text-xs font-extrabold text-slate-800 uppercase flex items-center gap-1.5">
-                <i-lucide name="video" class="w-4 h-4 text-amber-600"></i-lucide>
-                <span>Vídeo de Evidencia Inicial (Obligatorio para Iniciar)</span>
-              </label>
-              <p class="text-[11px] text-slate-500">
-                Registra o sube el vídeo del estado de recepción y pintura del vehículo antes de iniciar el pulido.
-              </p>
-
-              <div>
-                <input
-                  type="text"
-                  [(ngModel)]="videoInicialInput"
-                  placeholder="URL o enlace del vídeo inicial (ej. https://.../video_inicial.mp4)"
-                  class="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-mono">
-              </div>
-            </div>
+            <!-- Grabador de Vídeo Inicial con Cámara del Dispositivo -->
+            <app-video-recorder
+              #videoInicialRecorder
+              label="Vídeo de Evidencia Inicial (Obligatorio para Iniciar)"
+              description="Graba con la cámara del dispositivo el estado de recepción y pintura del vehículo antes de iniciar."
+              [evidenceType]="'VIDEO_INICIAL'"
+              [category]="'SERVICIOS_ESPECIALES'"
+              [agenciaId]="servicioEspecialSeleccionado.agenciaId || userSucursal"
+              [servicioId]="servicioEspecialSeleccionado.codigoSE || servicioEspecialSeleccionado.placa || servicioEspecialSeleccionado.id"
+              [(videoUrl)]="videoInicialInput"
+              [required]="true">
+            </app-video-recorder>
           </div>
         }
 
         <div modal-footer class="flex items-center justify-end gap-2 w-full">
-          <button (click)="modalIniciarServicioEspecialOpen = false" class="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs">Cancelar</button>
+          <button (click)="modalIniciarServicioEspecialOpen = false" [disabled]="iniciandoEspecial" class="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs disabled:opacity-50">Cancelar</button>
           <button
             (click)="confirmarIniciarEspecial()"
-            class="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-extrabold rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-xs">
-            <i-lucide name="play" class="w-3.5 h-3.5"></i-lucide>
-            <span>Iniciar Trabajo</span>
+            [disabled]="iniciandoEspecial || (!videoInicialInput && !videoInicialRecorder?.hasPendingUpload)"
+            class="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-extrabold rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-xs disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer">
+            <i-lucide *ngIf="iniciandoEspecial" name="loader" class="w-3.5 h-3.5 animate-spin"></i-lucide>
+            <i-lucide *ngIf="!iniciandoEspecial" name="play" class="w-3.5 h-3.5"></i-lucide>
+            <span>{{ iniciandoEspecial ? 'Iniciando Trabajo...' : 'Iniciar Trabajo' }}</span>
           </button>
         </div>
       </app-modal>
@@ -1224,23 +1543,18 @@ import { RouterModule } from '@angular/router';
               </div>
             }
 
-            <div class="p-4 bg-slate-50 rounded-2xl border-2 border-dashed border-emerald-300 space-y-3">
-              <label class="block text-xs font-extrabold text-slate-800 uppercase flex items-center gap-1.5">
-                <i-lucide name="film" class="w-4 h-4 text-emerald-600"></i-lucide>
-                <span>Vídeo de Evidencia Final / Entrega (Obligatorio)</span>
-              </label>
-              <p class="text-[11px] text-slate-500">
-                Registra o sube el vídeo demostrando el acabado de brillo, protección cerámica y corrección de pintura.
-              </p>
-
-              <div>
-                <input
-                  type="text"
-                  [(ngModel)]="videoFinalInput"
-                  placeholder="URL o enlace del vídeo final (ej. https://.../video_final.mp4)"
-                  class="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-mono">
-              </div>
-            </div>
+            <!-- Grabador de Vídeo Final con Cámara del Dispositivo -->
+            <app-video-recorder
+              #videoFinalRecorder
+              label="Vídeo de Evidencia Final / Entrega (Obligatorio)"
+              description="Graba con la cámara del dispositivo el acabado de brillo, protección cerámica y corrección de pintura."
+              [evidenceType]="'VIDEO_FINAL'"
+              [category]="'SERVICIOS_ESPECIALES'"
+              [agenciaId]="servicioEspecialSeleccionado.agenciaId || userSucursal"
+              [servicioId]="servicioEspecialSeleccionado.codigoSE || servicioEspecialSeleccionado.placa || servicioEspecialSeleccionado.id"
+              [(videoUrl)]="videoFinalInput"
+              [required]="true">
+            </app-video-recorder>
 
             <div>
               <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Observaciones / Notas</label>
@@ -1254,12 +1568,145 @@ import { RouterModule } from '@angular/router';
         }
 
         <div modal-footer class="flex items-center justify-end gap-2 w-full">
-          <button (click)="modalFinalizarServicioEspecialOpen = false" class="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs">Cancelar</button>
+          <button (click)="modalFinalizarServicioEspecialOpen = false" [disabled]="finalizandoEspecial" class="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs disabled:opacity-50">Cancelar</button>
           <button
             (click)="confirmarFinalizarEspecial()"
-            class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-xs">
-            <i-lucide name="check-circle" class="w-3.5 h-3.5"></i-lucide>
-            <span>Finalizar y Descontar Químicos</span>
+            [disabled]="finalizandoEspecial"
+            class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-xs disabled:opacity-50 cursor-pointer">
+            <i-lucide *ngIf="finalizandoEspecial" name="loader" class="w-3.5 h-3.5 animate-spin"></i-lucide>
+            <i-lucide *ngIf="!finalizandoEspecial" name="check-circle" class="w-3.5 h-3.5"></i-lucide>
+            <span>{{ finalizandoEspecial ? 'Finalizando...' : 'Finalizar y Descontar Químicos' }}</span>
+          </button>
+        </div>
+      </app-modal>
+
+      <!-- Modal Pausar Servicio Especial (Motivo + Vídeo Obligatorio) -->
+      <app-modal
+        [isOpen]="modalPausarServicioEspecialOpen"
+        [title]="'Pausar Servicio Especial: ' + (servicioEspecialSeleccionado?.codigoSE || '')"
+        icon="pause"
+        (close)="modalPausarServicioEspecialOpen = false">
+
+        @if (servicioEspecialSeleccionado) {
+          <div class="space-y-4">
+            <div class="p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs space-y-1">
+              <p class="font-extrabold text-amber-950">
+                {{ servicioEspecialSeleccionado.vehiculoInfo?.marca }} {{ servicioEspecialSeleccionado.vehiculoInfo?.modelo }} ({{ servicioEspecialSeleccionado.vehiculoInfo?.placa || servicioEspecialSeleccionado.placa }})
+              </p>
+              <p class="text-amber-800">
+                Servicio: <strong>{{ servicioEspecialSeleccionado.servicioNombre }}</strong> • Pulidor: <strong>{{ servicioEspecialSeleccionado.operadorNombre }}</strong>
+              </p>
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Motivo de la Pausa *</label>
+              <select
+                [(ngModel)]="motivoPausaInput"
+                class="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-amber-500">
+                <option value="Pausa para almuerzo / descanso reglamentario">Pausa para almuerzo / descanso reglamentario</option>
+                <option value="Esperando insumos o repuestos adicionados">Esperando insumos o repuestos adicionados</option>
+                <option value="Condiciones climáticas / lluvia intensa">Condiciones climáticas / lluvia intensa</option>
+                <option value="Vehículo retirado temporalmente por cliente / concesionario">Vehículo retirado temporalmente por cliente / concesionario</option>
+                <option value="Mantenimiento o calibración de pulidora / pad">Mantenimiento o calibración de pulidora / pad</option>
+                <option value="Otro motivo operativo">Otro motivo operativo</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Detalle o Justificación Adicional</label>
+              <textarea
+                [(ngModel)]="motivoPausaDetalleInput"
+                rows="2"
+                placeholder="Explica brevemente la razón de la pausa..."
+                class="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs">
+              </textarea>
+            </div>
+
+            <!-- Grabador de Vídeo de Pausa con Cámara del Dispositivo -->
+            <app-video-recorder
+              #videoPausaRecorder
+              label="Vídeo de Evidencia de Pausa (Obligatorio)"
+              description="Graba con la cámara del dispositivo el estado actual en el que queda el vehículo al detener el proceso."
+              [evidenceType]="'VIDEO_PAUSA'"
+              [category]="'SERVICIOS_ESPECIALES'"
+              [agenciaId]="servicioEspecialSeleccionado.agenciaId || userSucursal"
+              [servicioId]="servicioEspecialSeleccionado.codigoSE || servicioEspecialSeleccionado.placa || servicioEspecialSeleccionado.id"
+              [(videoUrl)]="videoPausaInput"
+              [required]="true">
+            </app-video-recorder>
+          </div>
+        }
+
+        <div modal-footer class="flex items-center justify-end gap-2 w-full">
+          <button (click)="modalPausarServicioEspecialOpen = false" [disabled]="pausandoEspecial" class="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs disabled:opacity-50">Cancelar</button>
+          <button
+            (click)="confirmarPausarEspecial()"
+            [disabled]="pausandoEspecial"
+            class="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-extrabold rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-xs disabled:opacity-50 cursor-pointer">
+            <i-lucide *ngIf="pausandoEspecial" name="loader" class="w-3.5 h-3.5 animate-spin"></i-lucide>
+            <i-lucide *ngIf="!pausandoEspecial" name="pause" class="w-3.5 h-3.5"></i-lucide>
+            <span>{{ pausandoEspecial ? 'Pausando...' : 'Pausar Servicio' }}</span>
+          </button>
+        </div>
+      </app-modal>
+
+      <!-- Modal Reanudar Servicio Especial (Vídeo Obligatorio) -->
+      <app-modal
+        [isOpen]="modalReanudarEspecialOpen"
+        [title]="'Reanudar Servicio Especial: ' + (servicioEspecialSeleccionado?.codigoSE || '')"
+        icon="play"
+        (close)="modalReanudarEspecialOpen = false">
+
+        @if (servicioEspecialSeleccionado) {
+          <div class="space-y-4">
+            <div class="p-3 bg-blue-50 rounded-xl border border-blue-200 text-xs space-y-1">
+              <p class="font-extrabold text-blue-950">
+                {{ servicioEspecialSeleccionado.vehiculoInfo?.marca }} {{ servicioEspecialSeleccionado.vehiculoInfo?.modelo }} ({{ servicioEspecialSeleccionado.vehiculoInfo?.placa || servicioEspecialSeleccionado.placa }})
+              </p>
+              <p class="text-blue-800">
+                Servicio: <strong>{{ servicioEspecialSeleccionado.servicioNombre }}</strong> • Pulidor: <strong>{{ servicioEspecialSeleccionado.operadorNombre }}</strong>
+              </p>
+              @if (servicioEspecialSeleccionado.motivoUltimaPausa) {
+                <p class="text-[11px] text-amber-800 font-bold mt-1 inline-flex items-center gap-1">
+                  <i-lucide name="pause-circle" class="w-3.5 h-3.5"></i-lucide>
+                  <span>Motivo de pausa: {{ servicioEspecialSeleccionado.motivoUltimaPausa }}</span>
+                </p>
+              }
+            </div>
+
+            <!-- Grabador de Vídeo de Reanudación con Cámara del Dispositivo -->
+            <app-video-recorder
+              #videoReanudarRecorder
+              label="Vídeo de Evidencia al Reanudar (Obligatorio)"
+              description="Graba con la cámara del dispositivo las condiciones del vehículo al retomar el servicio de pulido."
+              [evidenceType]="'VIDEO_REANUDAR'"
+              [category]="'SERVICIOS_ESPECIALES'"
+              [agenciaId]="servicioEspecialSeleccionado.agenciaId || userSucursal"
+              [servicioId]="servicioEspecialSeleccionado.codigoSE || servicioEspecialSeleccionado.placa || servicioEspecialSeleccionado.id"
+              [(videoUrl)]="videoReanudarInput"
+              [required]="true">
+            </app-video-recorder>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Observaciones de Reanudación</label>
+              <input
+                type="text"
+                [(ngModel)]="observacionesReanudarInput"
+                placeholder="Ej. Se retoma pulido tras descanso..."
+                class="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs">
+            </div>
+          </div>
+        }
+
+        <div modal-footer class="flex items-center justify-end gap-2 w-full">
+          <button (click)="modalReanudarEspecialOpen = false" [disabled]="reanudandoEspecial" class="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs disabled:opacity-50">Cancelar</button>
+          <button
+            (click)="confirmarReanudarEspecial()"
+            [disabled]="reanudandoEspecial"
+            class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-extrabold rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-xs disabled:opacity-50 cursor-pointer">
+            <i-lucide *ngIf="reanudandoEspecial" name="loader" class="w-3.5 h-3.5 animate-spin"></i-lucide>
+            <i-lucide *ngIf="!reanudandoEspecial" name="play" class="w-3.5 h-3.5"></i-lucide>
+            <span>{{ reanudandoEspecial ? 'Reanudando...' : 'Reanudar Servicio' }}</span>
           </button>
         </div>
       </app-modal>
@@ -1307,33 +1754,84 @@ import { RouterModule } from '@angular/router';
               </div>
             </div>
 
-            <!-- Evidencias en Vídeo -->
+            <!-- Tiempos de Pausa y Efectivo -->
             <div class="grid grid-cols-2 gap-3">
-              <div class="p-3 bg-slate-50 rounded-xl border border-slate-100 flex flex-col justify-between">
+              <div class="p-3 bg-amber-50/60 rounded-xl border border-amber-200">
+                <span class="block text-[10px] text-amber-800 font-bold uppercase mb-0.5">Tiempo Pausado</span>
+                <span class="inline-flex items-center gap-1 font-mono font-black text-amber-900 text-xs">
+                  <i-lucide name="pause-circle" class="w-3.5 h-3.5"></i-lucide>
+                  <span>{{ servicioEspecialSeleccionado.tiempoPausaFormateado || '0 min' }}</span>
+                </span>
+                @if (servicioEspecialSeleccionado.motivoUltimaPausa) {
+                  <p class="text-[10px] text-slate-500 mt-1 truncate" [title]="servicioEspecialSeleccionado.motivoUltimaPausa">
+                    {{ servicioEspecialSeleccionado.motivoUltimaPausa }}
+                  </p>
+                }
+              </div>
+              <div class="p-3 bg-blue-50/60 rounded-xl border border-blue-200">
+                <span class="block text-[10px] text-blue-800 font-bold uppercase mb-0.5">Tiempo Efectivo (Neto)</span>
+                <span class="inline-flex items-center gap-1 font-mono font-black text-blue-900 text-xs">
+                  <i-lucide name="timer" class="w-3.5 h-3.5"></i-lucide>
+                  <span>{{ servicioEspecialSeleccionado.tiempoEfectivoFormateado || '0 min' }}</span>
+                </span>
+              </div>
+            </div>
+
+            <!-- Evidencias en Vídeo -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <div class="p-2.5 bg-slate-50 rounded-xl border border-slate-100 flex flex-col justify-between">
                 <span class="text-[10px] text-slate-400 font-bold uppercase mb-1">Vídeo Inicial</span>
-                @if (servicioEspecialSeleccionado.videoInicialUrl) {
+                @if (servicioEspecialSeleccionado.videoInicialUrl || servicioEspecialSeleccionado.videoInicial) {
                   <button
-                    (click)="verVideoGenerico(servicioEspecialSeleccionado.videoInicialUrl, 'Vídeo Inicial OT: ' + servicioEspecialSeleccionado.codigoSE)"
-                    class="px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1 shadow-2xs">
-                    <i-lucide name="play" class="w-3.5 h-3.5"></i-lucide>
-                    <span>Ver Inicial</span>
+                    (click)="verVideoGenerico(servicioEspecialSeleccionado.videoInicialUrl || servicioEspecialSeleccionado.videoInicial, 'Vídeo Inicial: ' + servicioEspecialSeleccionado.codigoSE)"
+                    class="px-2 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-bold text-[11px] flex items-center justify-center gap-1 shadow-2xs">
+                    <i-lucide name="play" class="w-3 h-3"></i-lucide>
+                    <span>Inicial</span>
                   </button>
                 } @else {
-                  <span class="text-[11px] text-slate-400 italic">No registrado</span>
+                  <span class="text-[10px] text-slate-400 italic text-center py-1">-</span>
                 }
               </div>
 
-              <div class="p-3 bg-slate-50 rounded-xl border border-slate-100 flex flex-col justify-between">
-                <span class="text-[10px] text-slate-400 font-bold uppercase mb-1">Vídeo Final</span>
-                @if (servicioEspecialSeleccionado.videoFinalUrl) {
+              <div class="p-2.5 bg-slate-50 rounded-xl border border-slate-100 flex flex-col justify-between">
+                <span class="text-[10px] text-slate-400 font-bold uppercase mb-1">Vídeo Pausa</span>
+                @if (servicioEspecialSeleccionado.videoPausa || servicioEspecialSeleccionado.videoUltimaPausaUrl) {
                   <button
-                    (click)="verVideoGenerico(servicioEspecialSeleccionado.videoFinalUrl, 'Vídeo Final OT: ' + servicioEspecialSeleccionado.codigoSE)"
-                    class="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1 shadow-2xs">
-                    <i-lucide name="play" class="w-3.5 h-3.5"></i-lucide>
-                    <span>Ver Final</span>
+                    (click)="verVideoGenerico(servicioEspecialSeleccionado.videoPausa || servicioEspecialSeleccionado.videoUltimaPausaUrl, 'Vídeo de Pausa: ' + servicioEspecialSeleccionado.codigoSE)"
+                    class="px-2 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-bold text-[11px] flex items-center justify-center gap-1 shadow-2xs">
+                    <i-lucide name="pause" class="w-3 h-3"></i-lucide>
+                    <span>Pausa</span>
                   </button>
                 } @else {
-                  <span class="text-[11px] text-slate-400 italic">No registrado</span>
+                  <span class="text-[10px] text-slate-400 italic text-center py-1">-</span>
+                }
+              </div>
+
+              <div class="p-2.5 bg-slate-50 rounded-xl border border-slate-100 flex flex-col justify-between">
+                <span class="text-[10px] text-slate-400 font-bold uppercase mb-1">Vídeo Reanudar</span>
+                @if (servicioEspecialSeleccionado.videoReanudacion || servicioEspecialSeleccionado.videoUltimaReanudacionUrl) {
+                  <button
+                    (click)="verVideoGenerico(servicioEspecialSeleccionado.videoReanudacion || servicioEspecialSeleccionado.videoUltimaReanudacionUrl, 'Vídeo Reanudación: ' + servicioEspecialSeleccionado.codigoSE)"
+                    class="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-[11px] flex items-center justify-center gap-1 shadow-2xs">
+                    <i-lucide name="play" class="w-3 h-3"></i-lucide>
+                    <span>Reanudar</span>
+                  </button>
+                } @else {
+                  <span class="text-[10px] text-slate-400 italic text-center py-1">-</span>
+                }
+              </div>
+
+              <div class="p-2.5 bg-slate-50 rounded-xl border border-slate-100 flex flex-col justify-between">
+                <span class="text-[10px] text-slate-400 font-bold uppercase mb-1">Vídeo Final</span>
+                @if (servicioEspecialSeleccionado.videoFinalUrl || servicioEspecialSeleccionado.videoFinal) {
+                  <button
+                    (click)="verVideoGenerico(servicioEspecialSeleccionado.videoFinalUrl || servicioEspecialSeleccionado.videoFinal, 'Vídeo Final: ' + servicioEspecialSeleccionado.codigoSE)"
+                    class="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-[11px] flex items-center justify-center gap-1 shadow-2xs">
+                    <i-lucide name="play" class="w-3 h-3"></i-lucide>
+                    <span>Final</span>
+                  </button>
+                } @else {
+                  <span class="text-[10px] text-slate-400 italic text-center py-1">-</span>
                 }
               </div>
             </div>
@@ -1352,19 +1850,119 @@ import { RouterModule } from '@angular/router';
         icon="film"
         (close)="modalVideoGenericoOpen = false">
 
-        <div class="space-y-4">
-          <div class="aspect-video bg-black rounded-2xl overflow-hidden shadow-inner flex items-center justify-center">
+        <div class="space-y-3">
+          <!-- Visor de Video Principal -->
+          <div class="relative aspect-video bg-black rounded-2xl overflow-hidden shadow-inner flex items-center justify-center group">
             <video
+              #modalVideoPlayer
               [src]="videoGenericoUrl"
               controls
               autoplay
+              playsinline
+              preload="auto"
+              (loadedmetadata)="onVideoMetadataLoaded($event)"
+              (progress)="onVideoProgress($event)"
+              (timeupdate)="onVideoTimeUpdate($event)"
+              (canplay)="onVideoCanPlay($event)"
+              (waiting)="onVideoWaiting()"
+              (playing)="onVideoPlaying()"
               class="w-full h-full object-contain">
             </video>
+
+            <!-- Rueda de carga (Spinner) centrada sin texto -->
+            @if (videoCargandoBuffer) {
+              <div class="absolute inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center pointer-events-none z-10 transition-all">
+                <div class="w-10 h-10 border-4 border-easydry-green border-t-transparent rounded-full animate-spin"></div>
+              </div>
+            }
           </div>
         </div>
 
         <div modal-footer class="w-full sm:w-auto">
-          <button (click)="modalVideoGenericoOpen = false" class="w-full sm:w-auto px-4 py-2 bg-slate-200 text-slate-800 font-bold rounded-xl text-xs">Cerrar Reproductor</button>
+          <button (click)="modalVideoGenericoOpen = false" class="w-full sm:w-auto px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold rounded-xl text-xs cursor-pointer transition-colors">Cerrar Reproductor</button>
+        </div>
+      </app-modal>
+
+      <!-- Modal Historial de Evidencias de Pausas -->
+      <app-modal
+        [isOpen]="modalPausasDetalleOpen"
+        [title]="'Evidencias de Pausas: ' + (servicioPausasSeleccionado?.codigoSE || '')"
+        icon="pause-circle"
+        (close)="modalPausasDetalleOpen = false">
+
+        @if (servicioPausasSeleccionado) {
+          <div class="space-y-4">
+            <div class="p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs flex items-center justify-between">
+              <div>
+                <p class="font-extrabold text-amber-950">
+                  {{ servicioPausasSeleccionado.vehiculoInfo?.marca }} {{ servicioPausasSeleccionado.vehiculoInfo?.modelo }} — Placa: {{ servicioPausasSeleccionado.vehiculoInfo?.placa || servicioPausasSeleccionado.placa }}
+                </p>
+                <p class="text-amber-800">
+                  Servicio: <strong>{{ servicioPausasSeleccionado.servicioNombre }}</strong> • Pulidor: <strong>{{ servicioPausasSeleccionado.operadorNombre }}</strong>
+                </p>
+              </div>
+              <div class="text-right">
+                <span class="text-[10px] text-amber-800 font-bold uppercase block">Tiempo Pausado</span>
+                <span class="inline-flex items-center gap-1 font-mono font-black text-amber-950 text-xs">
+                  <i-lucide name="pause-circle" class="w-3.5 h-3.5"></i-lucide>
+                  <span>{{ servicioPausasSeleccionado.tiempoPausaFormateado || '0 min' }}</span>
+                </span>
+              </div>
+            </div>
+
+            <div class="space-y-2.5 max-h-[60vh] overflow-y-auto pr-1">
+              @for (p of pausasSeleccionadas; track p.id || $index; let idx = $index) {
+                <div class="p-3.5 bg-white rounded-xl border border-slate-200 shadow-2xs space-y-2">
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                      <span class="w-6 h-6 rounded-lg bg-amber-100 text-amber-800 font-black text-xs flex items-center justify-center">
+                        #{{ idx + 1 }}
+                      </span>
+                      <div>
+                        <span class="font-extrabold text-xs text-slate-900 block">{{ p.motivo || 'Pausa Operativa' }}</span>
+                        @if (p.fechaInicio) {
+                          <span class="text-[10px] text-slate-400 font-mono">{{ p.fechaInicio | date:'short' }}</span>
+                        }
+                      </div>
+                    </div>
+                    @if (p.duracionSegundos) {
+                      <span class="px-2 py-0.5 rounded-md font-mono text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                        {{ p.duracionFormateada || (Math.round(p.duracionSegundos / 60) + ' min') }}
+                      </span>
+                    }
+                  </div>
+
+                  <div class="flex items-center gap-2 pt-1 border-t border-slate-100 flex-wrap">
+                    @if (p.videoPausaUrl) {
+                      <button
+                        type="button"
+                        (click)="verVideoGenerico(p.videoPausaUrl, 'Vídeo de Pausa #' + (idx + 1) + ' — OT: ' + (servicioPausasSeleccionado.codigoSE || ''))"
+                        class="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-xs inline-flex items-center gap-1 shadow-2xs cursor-pointer">
+                        <i-lucide name="pause" class="w-3.5 h-3.5"></i-lucide>
+                        <span>Vídeo de Pausa</span>
+                      </button>
+                    } @else {
+                      <span class="text-[10px] text-slate-400 italic">Sin vídeo de pausa</span>
+                    }
+
+                    @if (p.videoReanudacionUrl) {
+                      <button
+                        type="button"
+                        (click)="verVideoGenerico(p.videoReanudacionUrl, 'Vídeo de Reanudación #' + (idx + 1) + ' — OT: ' + (servicioPausasSeleccionado.codigoSE || ''))"
+                        class="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-xs inline-flex items-center gap-1 shadow-2xs cursor-pointer">
+                        <i-lucide name="play" class="w-3.5 h-3.5"></i-lucide>
+                        <span>Vídeo de Reanudación</span>
+                      </button>
+                    }
+                  </div>
+                </div>
+              }
+            </div>
+          </div>
+        }
+
+        <div modal-footer class="w-full">
+          <button (click)="modalPausasDetalleOpen = false" class="w-full px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs">Cerrar</button>
         </div>
       </app-modal>
 
@@ -1377,148 +1975,347 @@ import { RouterModule } from '@angular/router';
 
         <form (ngSubmit)="guardarServicioExtra()" class="space-y-4">
           <div class="p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs font-bold text-amber-900 flex items-center justify-between">
-            <span>ZONA OPERATIVA: {{ userRegionNombre }}</span>
+            <span>REGISTRO DE ORDEN DE TRABAJO (SERVICIO ESPECIAL)</span>
             <span class="font-mono">Fecha: {{ extraForm.fechaProgramada }}</span>
           </div>
 
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Tipo de Servicio Especial *</label>
-              @if (serviciosEspecialesOpciones.length > 0) {
-                <select
-                  [(ngModel)]="extraForm.servicioNombre"
-                  name="servicioNombreExtra"
-                  (ngModelChange)="onServicioEspecialFormChange($event)"
-                  class="w-full p-2.5 border rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-amber-500"
-                  required>
-                  <option value="">Seleccione un servicio...</option>
-                  @for (s of serviciosEspecialesOpciones; track s.id) {
-                    <option [value]="s.nombre">{{ s.nombre }}</option>
-                  }
-                </select>
-              } @else {
-                <input
-                  type="text"
-                  [(ngModel)]="extraForm.servicioNombre"
-                  name="servicioNombreExtra"
-                  placeholder="Ej. Pulido y Corrección de Pintura en 3 Pasos"
-                  class="w-full p-2.5 border rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-amber-500"
-                  required>
-              }
-            </div>
-            <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Pulidor Asignado *</label>
-              <select
-                [(ngModel)]="extraForm.operadorId"
-                name="operadorIdExtra"
-                (change)="onOperadorExtraChange()"
-                [disabled]="isPulidor"
-                class="w-full p-2.5 border rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-amber-500 disabled:bg-slate-100">
-                <option value="">Seleccione un pulidor...</option>
-                @for (p of pulidoresDisponiblesRegion; track p.id) {
-                  <option [value]="p.id">{{ p.name }} {{ p.lastname }} - {{ p.agencia?.nombre ? ('Fijo en ' + p.agencia.nombre) : 'Móvil Zonal' }}</option>
-                }
-              </select>
-            </div>
-          </div>
-
-          <!-- Selección de Agencia / Sucursal y Prioridad -->
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Agencia / Sucursal de Realización *</label>
+          <!-- Asignación Operativa: Sucursal & Pulidor (Trazabilidad) -->
+          <div class="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold text-slate-800 uppercase flex items-center gap-1.5">
+                <i-lucide name="map-pin" class="w-4 h-4 text-amber-600"></i-lucide>
+                Asignación de Sucursal & Pulidor
+              </span>
               @if (isPulidorFijo) {
-                <div class="p-2.5 bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 flex items-center justify-between">
-                  <span>{{ miAgenciaNombre || 'Agencia Asignada' }}</span>
-                  <span class="px-2 py-0.5 bg-amber-100 text-amber-800 rounded-md text-[10px] uppercase tracking-wider font-extrabold">Fijo en Sede</span>
-                </div>
-              } @else {
-                <select
-                  [(ngModel)]="extraFormAgenciaId"
-                  name="agenciaIdExtra"
-                  class="w-full p-2.5 border rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-amber-500"
-                  required>
-                  <option value="">Seleccione la agencia...</option>
-                  @for (ag of agenciasDisponiblesParaEspecial; track ag.id) {
-                    <option [value]="ag.id">{{ ag.nombre }} ({{ ag.regionNombre || ag.region?.nombre || userRegionNombre }})</option>
-                  }
-                </select>
+                <span class="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-extrabold border border-amber-200">
+                  Fijo en Sede: {{ miAgenciaNombre }}
+                </span>
               }
             </div>
-            <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Prioridad del Servicio</label>
-              <select
-                [(ngModel)]="extraFormPrioridad"
-                name="prioridadExtra"
-                class="w-full p-2.5 border rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-amber-500">
-                <option value="Baja">Baja</option>
-                <option value="Media">Media (Estándar)</option>
-                <option value="Alta">Alta</option>
-                <option value="Urgente">Urgente (Prioritaria)</option>
-              </select>
-            </div>
-          </div>
 
-          @if (isSuperAdmin || isAdmin) {
-            <div class="p-2.5 rounded-xl border border-indigo-200 bg-indigo-50/70 text-xs text-indigo-900 font-semibold flex items-center gap-2">
-              <i-lucide name="shield-check" class="w-4 h-4 text-indigo-600 shrink-0"></i-lucide>
-              <span>Acceso Administrativo Global: Creación directa sin verificación de stock personal ni agencia fija.</span>
-            </div>
-          } @else {
-            @if (validandoStockPulidorOT) {
-              <div class="p-3 rounded-xl border border-blue-200 bg-blue-50 text-xs text-blue-900 flex items-center gap-2">
-                <i-lucide name="loader" class="w-4 h-4 animate-spin text-blue-600"></i-lucide>
-                <span>Verificando inventario en custodia del pulidor asignado...</span>
-              </div>
-            } @else if (faltantesInsumosOT.length > 0) {
-              <div class="p-3 rounded-xl border border-rose-300 bg-rose-50 text-xs text-rose-900 space-y-1">
-                <p class="font-extrabold uppercase tracking-wide flex items-center gap-1.5">
-                  <i-lucide name="alert-triangle" class="w-3.5 h-3.5 text-rose-600"></i-lucide>
-                  No puede crear la OT: el pulidor asignado no tiene los insumos necesarios en su kit
-                </p>
-                @for (f of faltantesInsumosOT; track f) {
-                  <p class="font-semibold">• {{ f }}</p>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <!-- Sucursal / Agencia -->
+              <div>
+                <label class="block text-[11px] font-bold text-slate-700 uppercase mb-1">Sucursal / Agencia *</label>
+                @if (isPulidorFijo) {
+                  <div class="p-2.5 bg-slate-100 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 flex items-center justify-between">
+                    <span>{{ miAgenciaNombre || 'Agencia Asignada' }}</span>
+                  </div>
+                } @else {
+                  <select
+                    [(ngModel)]="extraFormAgenciaId"
+                    name="agenciaIdExtra"
+                    (change)="onSucursalExtraFormChange()"
+                    class="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-amber-500"
+                    required>
+                    <option value="">Seleccione la agencia...</option>
+                    @for (ag of agenciasDisponiblesParaEspecial; track ag.id) {
+                      <option [value]="ag.id">{{ ag.nombre }} ({{ ag.regionNombre || ag.region?.nombre || userRegionNombre }})</option>
+                    }
+                  </select>
                 }
               </div>
-            } @else if (extraForm.insumosReceta.length > 0 && extraForm.operadorId) {
-              <div class="p-3 rounded-xl border border-emerald-200 bg-emerald-50 text-xs text-emerald-900 font-semibold flex items-center gap-2">
-                <i-lucide name="check-circle" class="w-4 h-4 text-emerald-600"></i-lucide>
-                <span>Kit del pulidor asignado suficiente para la receta ({{ extraForm.insumosReceta.length }} insumo(s) verificados).</span>
-              </div>
-            }
-          }
 
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <!-- Pulidor Asignado (Fijo bloqueado o Selección de Móvil) -->
+              <div>
+                <label class="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                  Pulidor Asignado *
+                  @if (pulidorFijoAgenciaSeleccionada) {
+                    <span class="text-emerald-700 font-bold text-[10px]">(Fijo en Sede)</span>
+                  } @else {
+                    <span class="text-blue-700 font-bold text-[10px]">(Pulidor Móvil Requerido)</span>
+                  }
+                </label>
+
+                @if (isPulidor) {
+                  <div class="p-2.5 bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 flex items-center justify-between">
+                    <span>{{ extraForm.operadorNombre || 'Pulidor' }}</span>
+                    <span class="px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[10px] font-extrabold border border-blue-200">
+                      Tú
+                    </span>
+                  </div>
+                } @else if (pulidorFijoAgenciaSeleccionada) {
+                  <!-- Si la agencia tiene pulidor fijo: se autorrellenan los campos y NO se puede editar -->
+                  <div class="p-2.5 bg-slate-100 border border-emerald-300 rounded-xl text-xs font-bold text-slate-800 flex items-center justify-between shadow-xs">
+                    <div class="flex items-center gap-2">
+                      <span class="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-extrabold border border-emerald-200 flex items-center gap-1">
+                        <i-lucide name="award" class="w-3 h-3 text-emerald-700"></i-lucide>
+                        <span>Pulidor Fijo</span>
+                      </span>
+                      <span class="text-slate-900 font-bold">{{ pulidorFijoAgenciaSeleccionada.name }} {{ pulidorFijoAgenciaSeleccionada.lastname }}</span>
+                    </div>
+                    <i-lucide name="lock" class="w-3.5 h-3.5 text-slate-400"></i-lucide>
+                  </div>
+                  <p class="text-[10px] text-slate-500 mt-1 flex items-center gap-1">
+                    <i-lucide name="lock" class="w-3 h-3 text-slate-400 shrink-0"></i-lucide>
+                    <span>Esta agencia cuenta con pulidor fijo asignado permanentemente.</span>
+                  </p>
+                } @else {
+                  <!-- Si NO tiene pulidor fijo: se salta la lista de pulidores móviles -->
+                  <select
+                    [(ngModel)]="extraForm.operadorId"
+                    name="operadorIdExtra"
+                    (change)="onOperadorExtraChange()"
+                    class="w-full p-2.5 bg-white border border-blue-300 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-blue-500 shadow-xs"
+                    required>
+                    <option value="">Seleccione el pulidor móvil que acudirá...</option>
+                    @for (p of pulidoresMovilesDisponibles; track p.id) {
+                      <option [value]="p.id">{{ p.name }} {{ p.lastname }} (Pulidor Móvil Zonal)</option>
+                    }
+                  </select>
+                  <p class="text-[10px] text-blue-700 font-semibold mt-1 flex items-center gap-1">
+                    <i-lucide name="car" class="w-3 h-3 text-blue-600 shrink-0"></i-lucide>
+                    <span>Esta agencia no tiene pulidor fijo. Selecciona el pulidor móvil que viajará a atender la orden.</span>
+                  </p>
+                }
+              </div>
+            </div>
+            <p class="text-[11px] text-slate-500">
+              El servicio especial computará en la trazabilidad operativa y kit en custodia del pulidor asignado.
+            </p>
+          </div>
+
+          <!-- Identificación del Servicio: OT y Placa -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Placa *</label>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Nº OT (Orden Trabajo) *</label>
+              <input
+                type="text"
+                [(ngModel)]="extraFormOT"
+                name="extraOT"
+                placeholder="OT-9840"
+                class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-amber-800 focus:border-amber-500 focus:ring-amber-500"
+                required>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Placa Vehículo *</label>
               <input
                 type="text"
                 [(ngModel)]="extraFormPlaca"
                 name="extraPlaca"
-                placeholder="PBX-1001"
-                class="w-full p-2.5 border rounded-xl text-xs font-mono font-bold uppercase focus:ring-2 focus:ring-amber-500"
-                required>
-            </div>
-            <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Marca *</label>
-              <input
-                type="text"
-                [(ngModel)]="extraFormMarca"
-                name="extraMarca"
-                placeholder="Toyota"
-                class="w-full p-2.5 border rounded-xl text-xs font-bold focus:ring-2 focus:ring-amber-500"
-                required>
-            </div>
-            <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Modelo *</label>
-              <input
-                type="text"
-                [(ngModel)]="extraFormModelo"
-                name="extraModelo"
-                placeholder="Fortuner"
-                class="w-full p-2.5 border rounded-xl text-xs font-bold focus:ring-2 focus:ring-amber-500"
+                placeholder="PBX-1234"
+                maxlength="8"
+                autocomplete="off"
+                class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold uppercase tracking-wide focus:border-amber-500 focus:ring-amber-500"
                 required>
             </div>
           </div>
+
+          <!-- Datos del Vehículo -->
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Marca *</label>
+              <input type="text" [(ngModel)]="extraFormMarca" name="extraMarca" placeholder="Toyota" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:border-amber-500 focus:ring-amber-500" required>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Modelo *</label>
+              <input type="text" [(ngModel)]="extraFormModelo" name="extraModelo" placeholder="Fortuner" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:border-amber-500 focus:ring-amber-500" required>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Color *</label>
+              <input type="text" [(ngModel)]="extraFormColor" name="extraColor" placeholder="Negro" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:border-amber-500 focus:ring-amber-500" required>
+            </div>
+          </div>
+
+          <!-- Horas de Ingreso y Salida Estimada -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Hora Ingreso *</label>
+              <div class="w-full p-2.5 bg-slate-100 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-700 flex items-center justify-between">
+                <span>{{ extraFormHoraIngreso || '--:--' }}</span>
+                <span class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Automática</span>
+              </div>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Hora Salida Estimada *</label>
+              <div class="w-full p-2.5 bg-slate-100 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-700 flex items-center justify-between">
+                <span>{{ extraFormHoraSalida || '--:--' }}</span>
+                <span class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Estimada Catálogo</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Selección del Servicio Especial -->
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Tipo de Servicio Especial *</label>
+            @if (serviciosEspecialesOpciones.length > 0) {
+              <select
+                [(ngModel)]="extraForm.servicioNombre"
+                name="servicioNombreExtra"
+                (ngModelChange)="onServicioEspecialFormChange($event)"
+                class="w-full p-2.5 border rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-amber-500"
+                required>
+                <option value="">Seleccione un servicio...</option>
+                @for (s of serviciosEspecialesOpciones; track s.id) {
+                  <option [value]="s.nombre">{{ s.nombre }} ({{ s.tiempoEstimadoMin || 60 }} min)</option>
+                }
+              </select>
+            } @else {
+              <input
+                type="text"
+                [(ngModel)]="extraForm.servicioNombre"
+                name="servicioNombreExtra"
+                placeholder="Ej. Pulido y Corrección de Pintura en 3 Pasos"
+                class="w-full p-2.5 border rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-amber-500"
+                required>
+            }
+          </div>
+
+          <!-- Insumos Requeridos por el Servicio Especial -->
+          @if (extraForm.insumosReceta && extraForm.insumosReceta.length > 0) {
+            <div class="p-4 bg-slate-50/80 rounded-2xl border border-slate-200 space-y-3">
+              <div class="flex items-center justify-between">
+                <label class="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                  <i-lucide name="boxes" class="w-4 h-4 text-amber-600"></i-lucide>
+                  Insumos Requeridos (Receta del Servicio)
+                </label>
+                @if (extraForm.operadorId) {
+                  <span class="text-[10px] text-slate-500 font-semibold bg-white px-2 py-0.5 rounded border border-slate-200 flex items-center gap-1">
+                    <span class="w-2 h-2 rounded-full" [ngClass]="pulidorSeleccionadoActual?.esMovil ? 'bg-blue-500' : 'bg-emerald-500'"></span>
+                    Kit de: <b class="text-slate-800">{{ extraForm.operadorNombre || 'Pulidor asignado' }}</b>
+                    <span class="text-[9px] text-slate-400">({{ pulidorSeleccionadoActual?.esMovil ? 'Móvil' : 'Fijo' }})</span>
+                  </span>
+                } @else {
+                  <span class="text-[10px] text-amber-700 font-semibold bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                    Sin pulidor seleccionado
+                  </span>
+                }
+              </div>
+              <p class="text-[10px] text-slate-500">
+                Cantidades fijas según la receta del servicio especial. Se verifica el kit del pulidor asignado (móvil o fijo) en tiempo real.
+              </p>
+
+              @if (validandoStockPulidorOT) {
+                <div class="p-2.5 rounded-xl border border-blue-200 bg-blue-50 text-xs text-blue-900 flex items-center gap-2 animate-pulse">
+                  <i-lucide name="loader" class="w-4 h-4 animate-spin text-blue-600 shrink-0"></i-lucide>
+                  <span>Verificando inventario en custodia del pulidor {{ extraForm.operadorNombre ? '(' + extraForm.operadorNombre + ')' : '' }}...</span>
+                </div>
+              }
+
+              <div class="space-y-2">
+                @for (ins of extraForm.insumosReceta; track ins.productoId; let idx = $index) {
+                  @if (!extraForm.operadorId) {
+                    <!-- Sin pulidor: muestra receta fija indicando asignación pendiente -->
+                    <div class="p-2.5 rounded-xl border border-slate-200 bg-white flex items-center justify-between gap-3 shadow-2xs">
+                      <div class="overflow-hidden flex-1">
+                        <p class="font-bold text-xs text-slate-900 truncate">{{ ins.productoNombre || ins.insumoNombre }}</p>
+                        <div class="flex items-center gap-2 text-[10px] text-slate-500 flex-wrap mt-0.5">
+                          <span class="font-mono bg-slate-100 px-1 py-0.2 rounded">{{ ins.productoSKU || ins.codigoSKU || '—' }}</span>
+                          <span>•</span>
+                          <span class="italic text-amber-700">Seleccione un pulidor para validar existencias</span>
+                        </div>
+                      </div>
+                      <div class="shrink-0 text-right">
+                        <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg font-mono font-bold text-xs bg-amber-50 text-amber-900 border border-amber-200">
+                          {{ ins.cantidadSugerida || ins.cantidad || 0 }} {{ ins.unidadMedida || '' }}
+                        </span>
+                        <p class="text-[9px] font-semibold text-slate-400 mt-0.5">Receta requerida</p>
+                      </div>
+                    </div>
+                  } @else {
+                    <!-- Pulidor seleccionado: muestra stock en kit vs necesario con validación en tiempo real -->
+                    <div
+                      class="p-2.5 rounded-xl border flex items-center justify-between gap-3 shadow-2xs transition-all"
+                      [ngClass]="getStockCantidadInsumoPublic(ins.productoId || ins.insumoId || '', ins.productoSKU || ins.codigoSKU, ins.productoNombre || ins.insumoNombre) < (ins.cantidadSugerida || ins.cantidad || 0) ? 'bg-rose-50/90 border-2 border-rose-400 ring-2 ring-rose-400/20' : 'bg-white border-slate-200'">
+                      <div class="overflow-hidden flex-1">
+                        <div class="flex items-center gap-1.5">
+                          @if (getStockCantidadInsumoPublic(ins.productoId || ins.insumoId || '', ins.productoSKU || ins.codigoSKU, ins.productoNombre || ins.insumoNombre) < (ins.cantidadSugerida || ins.cantidad || 0)) {
+                            <i-lucide name="alert-triangle" class="w-3.5 h-3.5 text-rose-600 shrink-0"></i-lucide>
+                          } @else {
+                            <i-lucide name="check-circle" class="w-3.5 h-3.5 text-emerald-500 shrink-0"></i-lucide>
+                          }
+                          <p class="font-bold text-xs truncate"
+                            [ngClass]="getStockCantidadInsumoPublic(ins.productoId || ins.insumoId || '', ins.productoSKU || ins.codigoSKU, ins.productoNombre || ins.insumoNombre) < (ins.cantidadSugerida || ins.cantidad || 0) ? 'text-rose-950 font-extrabold' : 'text-slate-900'">
+                            {{ ins.productoNombre || ins.insumoNombre }}
+                          </p>
+                        </div>
+                        <div class="flex items-center gap-2 text-[10px] text-slate-500 flex-wrap mt-0.5">
+                          <span class="font-mono bg-slate-100 px-1 py-0.2 rounded">{{ ins.productoSKU || ins.codigoSKU || '—' }}</span>
+                          <span>•</span>
+                          <span class="font-semibold"
+                            [class.text-rose-700]="getStockCantidadInsumoPublic(ins.productoId || ins.insumoId || '', ins.productoSKU || ins.codigoSKU, ins.productoNombre || ins.insumoNombre) < (ins.cantidadSugerida || ins.cantidad || 0)"
+                            [class.font-extrabold]="getStockCantidadInsumoPublic(ins.productoId || ins.insumoId || '', ins.productoSKU || ins.codigoSKU, ins.productoNombre || ins.insumoNombre) < (ins.cantidadSugerida || ins.cantidad || 0)"
+                            [class.text-emerald-700]="getStockCantidadInsumoPublic(ins.productoId || ins.insumoId || '', ins.productoSKU || ins.codigoSKU, ins.productoNombre || ins.insumoNombre) >= (ins.cantidadSugerida || ins.cantidad || 0)">
+                            Kit del pulidor: {{ getStockCantidadInsumoPublic(ins.productoId || ins.insumoId || '', ins.productoSKU || ins.codigoSKU, ins.productoNombre || ins.insumoNombre) }} {{ ins.unidadMedida || '' }}
+                          </span>
+                          @if (getStockCantidadInsumoPublic(ins.productoId || ins.insumoId || '', ins.productoSKU || ins.codigoSKU, ins.productoNombre || ins.insumoNombre) <= 0) {
+                            <span class="px-1.5 py-0.5 rounded-full bg-rose-600 text-white font-black text-[9px] uppercase tracking-wider animate-pulse">¡Agotado!</span>
+                          } @else if (getStockCantidadInsumoPublic(ins.productoId || ins.insumoId || '', ins.productoSKU || ins.codigoSKU, ins.productoNombre || ins.insumoNombre) < (ins.cantidadSugerida || ins.cantidad || 0)) {
+                            <span class="px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-300 font-extrabold text-[9px]">
+                              ¡Insuficiente!
+                            </span>
+                          }
+                        </div>
+                      </div>
+                      <div class="shrink-0 text-right">
+                        <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg font-mono font-bold text-xs"
+                          [ngClass]="getStockCantidadInsumoPublic(ins.productoId || ins.insumoId || '', ins.productoSKU || ins.codigoSKU, ins.productoNombre || ins.insumoNombre) < (ins.cantidadSugerida || ins.cantidad || 0) ? 'bg-rose-100 text-rose-900 border border-rose-300' : 'bg-emerald-50 text-emerald-800 border border-emerald-200'">
+                          {{ ins.cantidadSugerida || ins.cantidad || 0 }} {{ ins.unidadMedida || '' }}
+                        </span>
+                        <p class="text-[9px] font-semibold mt-0.5"
+                          [ngClass]="getStockCantidadInsumoPublic(ins.productoId || ins.insumoId || '', ins.productoSKU || ins.codigoSKU, ins.productoNombre || ins.insumoNombre) < (ins.cantidadSugerida || ins.cantidad || 0) ? 'text-rose-600 font-bold' : 'text-slate-400'">
+                          {{ getStockCantidadInsumoPublic(ins.productoId || ins.insumoId || '', ins.productoSKU || ins.codigoSKU, ins.productoNombre || ins.insumoNombre) < (ins.cantidadSugerida || ins.cantidad || 0) ? 'Insuficiente' : 'Verificado' }}
+                        </p>
+                      </div>
+                    </div>
+                  }
+                }
+              </div>
+
+              @if (faltantesInsumosOT.length > 0 && extraForm.operadorId) {
+                <div class="p-3 bg-rose-50 border border-rose-300 rounded-xl flex items-start gap-2.5 text-rose-900 text-xs shadow-2xs">
+                  <i-lucide name="alert-triangle" class="w-4 h-4 text-rose-600 mt-0.5 shrink-0"></i-lucide>
+                  <div>
+                    <p class="font-bold">No se puede crear la OT: insumos insuficientes en el kit del pulidor</p>
+                    <p class="text-[11px] text-rose-700 mt-0.5 leading-relaxed">
+                      El pulidor asignado ({{ extraForm.operadorNombre || 'pulidor' }}) no cuenta con todos los insumos requeridos. Solicite un despacho y asegúrese de que el pulidor lo confirme antes de asignarle esta OT.
+                    </p>
+                  </div>
+                </div>
+              }
+              @if (!validandoStockPulidorOT && faltantesInsumosOT.length === 0 && extraForm.insumosReceta.length > 0 && extraForm.operadorId) {
+                <div class="p-2.5 rounded-xl border border-emerald-200 bg-emerald-50 text-xs text-emerald-900 font-semibold flex items-center gap-2">
+                  <i-lucide name="check-circle" class="w-4 h-4 text-emerald-600"></i-lucide>
+                  <span>Kit del pulidor verificado y suficiente para ejecutar este servicio.</span>
+                </div>
+              }
+            </div>
+          } @else if (extraForm.servicioNombre && !validandoStockPulidorOT) {
+            <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-500 flex items-center gap-2">
+              <i-lucide name="info" class="w-4 h-4 text-slate-400 shrink-0"></i-lucide>
+              <span>Este servicio no tiene una receta de insumos configurada en el catálogo.</span>
+            </div>
+          }
+
+          @if (isSuperAdmin || isAdmin) {
+            <div class="p-2.5 rounded-xl border border-indigo-200 bg-indigo-50/70 text-xs text-indigo-900 font-semibold flex items-center gap-2">
+              <i-lucide name="shield-check" class="w-4 h-4 text-indigo-600 shrink-0"></i-lucide>
+              <span>Acceso Administrativo Global: Creación directa con asignación de sucursal, bahía y pulidor.</span>
+            </div>
+          }
+
+          @if (!isSuperAdmin && !isAdmin && !isCoordServiciosEspeciales) {
+            <!-- Vídeo de Evidencia de Ingreso (Solo si es pulidor registrando directamente) -->
+            <app-video-recorder
+              #videoIngresoExtraRecorder
+              label="Vídeo de Evidencia de Ingreso (Recepción)"
+              description="Graba con la cámara del dispositivo las condiciones y detalles del vehículo al ingresar."
+              [evidenceType]="'VIDEO_INICIAL'"
+              [category]="'SERVICIOS_ESPECIALES'"
+              [agenciaId]="extraFormAgenciaId || userSucursal"
+              [servicioId]="extraFormOT || extraFormPlaca"
+              [(videoUrl)]="extraFormVideoUrl"
+              [required]="false">
+            </app-video-recorder>
+          } @else {
+            <div class="p-3 bg-amber-50/80 border border-amber-200 rounded-xl text-xs text-amber-900 flex items-center gap-2.5">
+              <i-lucide name="film" class="w-4 h-4 text-amber-600 shrink-0"></i-lucide>
+              <div class="space-y-0.5">
+                <p class="font-bold">Evidencia de Vídeo Inicial diferida al Pulidor</p>
+                <p class="text-[11px] text-amber-800/90">El pulidor asignado grabará obligatoriamente el vídeo de recepción con la cámara de su dispositivo al momento de iniciar el trabajo en la bahía o sede.</p>
+              </div>
+            </div>
+          }
 
           <div>
             <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Observaciones / Instrucciones</label>
@@ -1571,6 +2368,7 @@ export class ServiciosComponent implements OnInit {
       this.abrirModalNuevoExtra();
       return;
     }
+    this.agregarServicioOTFuente = null;
     this.nuevoRegistro.categoriaServicio = 'GENERAL';
     const user = this.authService.getCurrentUser();
     if (user) {
@@ -1591,15 +2389,61 @@ export class ServiciosComponent implements OnInit {
     this.nuevoRegistro.color = '';
     this.nuevoRegistro.foto = '';
     this.nuevoRegistro.videoUrl = '';
+    this.nuevoRegistro.bahiaId = '';
     this.nuevoRegistro.fecha = new Date().toISOString().substring(0, 10);
     this.asignarHorasAutomaticasOT();
     this.placaTocada = false;
     this.videoFileSelected = false;
     this.videoFileName = '';
+    this.inventarioService.cargarItems();
     this.onSucursalFormChange();
     if (!this.agenciaFormTieneEspeciales) {
       this.nuevoRegistro.categoriaServicio = 'GENERAL';
     }
+    this.onCategoriaChange();
+    this.modalNuevoRegistroOpen = true;
+  }
+
+  /**
+   * Abre el modal de nueva OT en modo "agregar servicio a OT existente".
+   * Pre-rellena los datos del vehículo y bloquea los campos de identidad del
+   * vehículo, permitiendo solo elegir bahía, lavador y servicio nuevo.
+   */
+  abrirModalAgregarServicioAOT(item: VehiculoServicio): void {
+    if (item.estado !== 'FINALIZADO') return;
+    if (this.isAprobador) {
+      this.toastService.warning('Acceso Restringido', 'El rol Aprobador no puede agregar servicios.');
+      return;
+    }
+
+    this.agregarServicioOTFuente = item;
+
+    // Misma inicialización base que abrirModalNuevaOT pero manteniendo los datos del vehículo
+    const user = this.authService.getCurrentUser();
+    if (user) {
+      const nombreCompleto = `${user.nombre} ${user.apellido}`.trim();
+      this.nuevoRegistro.empleado = nombreCompleto;
+    }
+
+    // Preservar datos del vehículo original
+    this.nuevoRegistro.ordenTrabajoOT = item.ordenTrabajoOT || '';
+    this.nuevoRegistro.placa = item.placa || '';
+    this.nuevoRegistro.marca = item.marca || '';
+    this.nuevoRegistro.modelo = item.modelo || '';
+    this.nuevoRegistro.color = item.color || '';
+    this.nuevoRegistro.agencia = item.agencia || '';
+    this.nuevoRegistro.foto = '';
+    this.nuevoRegistro.videoUrl = '';
+    this.nuevoRegistro.bahiaId = item.bahiaId ? String(item.bahiaId) : '';
+    this.nuevoRegistro.fecha = new Date().toISOString().substring(0, 10);
+    this.nuevoRegistro.categoriaServicio = 'GENERAL';
+
+    this.asignarHorasAutomaticasOT();
+    this.placaTocada = false;
+    this.videoFileSelected = false;
+    this.videoFileName = '';
+    this.inventarioService.cargarItems();
+    this.onSucursalFormChange();
     this.onCategoriaChange();
     this.modalNuevoRegistroOpen = true;
   }
@@ -1613,6 +2457,14 @@ export class ServiciosComponent implements OnInit {
   }
 
   /** En el modal OT: Especiales solo si la agencia de la OT los tiene habilitados. */
+  /** Devuelve el UUID de la agencia seleccionada en el form de nueva OT para usar como agenciaId en S3. */
+  get agenciaFormId(): string {
+    const key = String(this.nuevoRegistro?.agencia || '').trim();
+    if (!key) return this.authService.getCurrentUser()?.agenciaId ? String(this.authService.getCurrentUser()!.agenciaId) : '';
+    const suc = this.sucursales.find(s => String(s.id) === key || s.nombre === key || s.nombre?.toLowerCase() === key.toLowerCase());
+    return suc ? String(suc.id) : key;
+  }
+
   get agenciaFormTieneEspeciales(): boolean {
     const key = String(this.nuevoRegistro?.agencia || '').trim();
     if (!key) return false;
@@ -1752,14 +2604,12 @@ export class ServiciosComponent implements OnInit {
   }
 
   /**
-   * REGLA DE NEGOCIO: Solo no permitir si no se dispone de stock de uno de los suministros necesarios
-   * Super Admin y Admin no tienen inventario propio ni agencia fija; no verifican stock
+   * REGLA DE NEGOCIO: Bloquear y advertir si no se dispone de stock suficiente del insumo en la agencia de la OT
    */
   get tieneInsumosSinStock(): boolean {
-    if (this.isSuperAdmin || this.isAdmin) return false;
     if (!this.insumosConsumoForm || this.insumosConsumoForm.length === 0) return false;
     return this.insumosConsumoForm.some(ins => {
-      const stock = this.getStockDisponible(ins.productoId);
+      const stock = this.getStockDisponible(ins.productoId, ins.productoSKU);
       return stock < ins.cantidad;
     });
   }
@@ -1767,11 +2617,33 @@ export class ServiciosComponent implements OnInit {
   get insumosSinStockDetalle(): string[] {
     if (!this.insumosConsumoForm) return [];
     return this.insumosConsumoForm
-      .filter(ins => this.getStockDisponible(ins.productoId) < ins.cantidad)
+      .filter(ins => this.getStockDisponible(ins.productoId, ins.productoSKU) < ins.cantidad)
       .map(ins => {
-        const stock = this.getStockDisponible(ins.productoId);
-        return `${ins.productoNombre} (Disponible: ${stock} ${ins.unidadMedida}, Requerido: ${ins.cantidad} ${ins.unidadMedida})`;
+        const stock = this.getStockDisponible(ins.productoId, ins.productoSKU);
+        return `${ins.productoNombre} (Disponible en ${this.nuevoRegistro.agencia}: ${stock} ${ins.unidadMedida}, Requerido: ${ins.cantidad} ${ins.unidadMedida})`;
       });
+  }
+
+  getVehiculoOcupanteBahia(bahiaId: string | number, bahiaNombre?: string): VehiculoServicio | undefined {
+    return this.servicios.find(s => {
+      const enProceso = s.estado === 'EN PROCESO' || s.estado === 'EN_PROCESO' || s.estado === 'EN_ESPERA' || s.estado === 'EN COLA';
+      if (!enProceso) return false;
+      const matchAgencia = !s.agencia || !this.nuevoRegistro.agencia ||
+        s.agencia.toLowerCase().includes(this.nuevoRegistro.agencia.toLowerCase()) ||
+        this.nuevoRegistro.agencia.toLowerCase().includes(s.agencia.toLowerCase());
+      if (!matchAgencia) return false;
+      return (s.bahiaId && String(s.bahiaId) === String(bahiaId)) ||
+        (bahiaNombre && s.bahia && s.bahia.trim().toLowerCase() === bahiaNombre.trim().toLowerCase());
+    });
+  }
+
+  isBahiaOcupada(b: Bahia): boolean {
+    return Boolean(this.getVehiculoOcupanteBahia(b.id, b.nombre));
+  }
+
+  get bahiaOcupadaActual(): VehiculoServicio | undefined {
+    if (!this.nuevoRegistro.bahiaId && !this.nuevoRegistro.bahia) return undefined;
+    return this.getVehiculoOcupanteBahia(this.nuevoRegistro.bahiaId, this.nuevoRegistro.bahia);
   }
 
   productosInventario: InventarioItem[] = [];
@@ -1785,6 +2657,7 @@ export class ServiciosComponent implements OnInit {
   private bahiaService = inject(BahiaService);
   private inventarioService = inject(InventarioService);
   private servicioService = inject(ServicioLavadoService);
+  public storageUploadService = inject(StorageUploadService);
   public authService = inject(AuthService);
   private toastService = inject(ToastService);
   private maquinariaService = inject(MaquinariaService);
@@ -1805,16 +2678,28 @@ export class ServiciosComponent implements OnInit {
   currentPageExtras = 1;
   pageSizeExtras = 5;
 
+  /** Servicio de lavado FINALIZADO que activa el modo 'agregar a OT existente' */
+  agregarServicioOTFuente: VehiculoServicio | null = null;
+
   showModalExtras = false;
   isEditingExtras = false;
   editandoExtraId: number | null = null;
 
+  extraFormOT = '';
   extraFormPlaca = '';
   extraFormMarca = '';
   extraFormModelo = '';
   extraFormColor = '';
+  extraFormCliente = '';
   extraFormAgenciaId = '';
+  extraFormBahiaId = '';
+  extraFormBahia = '';
+  extraFormHoraIngreso = '';
+  extraFormHoraSalida = '';
   extraFormPrioridad = 'Media';
+  extraFormVideoUrl = '';
+  bahiasSucursalExtraForm: Bahia[] = [];
+  @ViewChild('videoIngresoExtraRecorder') videoIngresoExtraRecorder?: VideoRecorderComponent;
 
   extraForm: {
     servicioNombre: string;
@@ -1843,17 +2728,59 @@ export class ServiciosComponent implements OnInit {
   faltantesInsumosOT: string[] = [];
   serviciosEspecialesOpciones: CatalogoServicio[] = [];
   pulidoresDisponiblesRegion: any[] = [];
+  modalFinalizarServicioOpen = false;
+  servicioAFinalizar: VehiculoServicio | null = null;
+  get tituloModalFinalizar(): string {
+    if (!this.servicioAFinalizar) return 'Finalizar Servicio';
+    const ot = this.servicioAFinalizar.ordenTrabajoOT ? ` — ${this.servicioAFinalizar.ordenTrabajoOT}` : '';
+    return `Finalizar Servicio: ${this.servicioAFinalizar.placa || ''}${ot}`;
+  }
+  videoSalidaInput = '';
+  observacionesSalidaInput = '';
   modalIniciarServicioEspecialOpen = false;
   modalFinalizarServicioEspecialOpen = false;
+  modalPausarServicioEspecialOpen = false;
+  modalReanudarEspecialOpen = false;
   modalDetalleEspecialOpen = false;
   modalVideoGenericoOpen = false;
   videoGenericoUrl = '';
   videoGenericoTitulo = '';
+  videoCurrentTime = 0;
+  videoDuration = 0;
+  videoBufferedSeconds = 0;
+  videoBufferedPercent = 0;
+  videoPlaybackPercent = 0;
+  videoCargandoBuffer = false;
+  videoBufferListo = false;
+  modalPausasDetalleOpen = false;
+  servicioPausasSeleccionado: ServicioExtra | null = null;
+  pausasSeleccionadas: any[] = [];
+  Math = Math;
   servicioEspecialSeleccionado?: ServicioExtra;
   videoInicialInput = '';
   videoFinalInput = '';
+  videoPausaInput = '';
+  videoReanudarInput = '';
+  motivoPausaInput = 'Pausa para almuerzo / descanso reglamentario';
+  motivoPausaDetalleInput = '';
+  observacionesReanudarInput = '';
   calificacionCalidadInput = 5;
   notasFinalizacionInput = '';
+
+  // ── ViewChild Recorders para Evidencias en Vídeo con Carga Diferida a S3 ──
+  @ViewChild('videoIngresoRecorder') videoIngresoRecorder?: VideoRecorderComponent;
+  @ViewChild('videoSalidaRecorder') videoSalidaRecorder?: VideoRecorderComponent;
+  @ViewChild('videoInicialRecorder') videoInicialRecorder?: VideoRecorderComponent;
+  @ViewChild('videoFinalRecorder') videoFinalRecorder?: VideoRecorderComponent;
+  @ViewChild('videoPausaRecorder') videoPausaRecorder?: VideoRecorderComponent;
+  @ViewChild('videoReanudarRecorder') videoReanudarRecorder?: VideoRecorderComponent;
+
+  guardandoServicio = false;
+  finalizandoServicio = false;
+  iniciandoEspecial = false;
+  finalizandoEspecial = false;
+  pausandoEspecial = false;
+  reanudandoEspecial = false;
 
   // ── Role helpers ──
   get isSuperAdmin() { return this.authService.isSuperAdmin() || this.authService.hasRole(Role.SUPER_ADMIN); }
@@ -1891,16 +2818,65 @@ export class ServiciosComponent implements OnInit {
     const user = this.authService.getCurrentUser();
     return user?.sucursalNombre || (user as any)?.agenciaNombre || (this.sucursales.find(s => String(s.id) === String(user?.agenciaId))?.nombre) || '';
   }
+  sucursalTieneEspeciales(suc: Sucursal): boolean {
+    if (!suc) return false;
+    if (suc.tieneServiciosEspeciales === true) return true;
+    if (this.sucursalService.hasServiciosEspecialesActivos(suc.id, suc.nombre)) return true;
+
+    const espIds = new Set(
+      (this.catalogoCompleto || [])
+        .filter((c) => {
+          const cat = (c.categoria || '').toUpperCase();
+          return cat === 'ESPECIAL' || cat === 'EXTRA' || cat.includes('ESPECIAL');
+        })
+        .map((c) => c.id),
+    );
+    return Boolean(suc.servicioIds?.some((id: number) => espIds.has(id)));
+  }
+
   get agenciasDisponiblesParaEspecial(): Sucursal[] {
     const user = this.authService.getCurrentUser();
-    if (this.isSuperAdmin || this.isAdmin) {
-      return this.sucursales;
+    let lista = [...this.sucursales];
+    if (!this.isSuperAdmin && !this.isAdmin) {
+      const regId = user?.regionId;
+      if (regId) {
+        lista = lista.filter(s => String(s.regionId) === String(regId) || String((s as any).region?.id) === String(regId));
+      }
     }
-    const regId = user?.regionId;
-    if (regId) {
-      return this.sucursales.filter(s => String(s.regionId) === String(regId) || String((s as any).region?.id) === String(regId));
-    }
-    return this.sucursales;
+    // Todas las sucursales con o sin servicios especiales
+    return lista.sort((a, b) => (a.nombre || '').localeCompare(b.nombre || ''));
+  }
+
+  get pulidorFijoAgenciaSeleccionada(): any | undefined {
+    const agId = String(this.extraFormAgenciaId || '');
+    if (!agId) return undefined;
+    return this.pulidoresDisponiblesRegion.find(p => String(p.agenciaId || p.agencia?.id) === agId);
+  }
+
+  get pulidoresFijosAgenciaSeleccionada(): any[] {
+    const agId = String(this.extraFormAgenciaId || '');
+    if (!agId) return [];
+    return this.pulidoresDisponiblesRegion.filter(p => String(p.agenciaId || p.agencia?.id) === agId);
+  }
+
+  get pulidoresMovilesDisponibles(): any[] {
+    return this.pulidoresDisponiblesRegion.filter(p => !p.agenciaId && !p.agencia?.id);
+  }
+
+  get otrosPulidoresRegion(): any[] {
+    const agId = String(this.extraFormAgenciaId || '');
+    return this.pulidoresDisponiblesRegion.filter(p => (p.agenciaId || p.agencia?.id) && String(p.agenciaId || p.agencia?.id) !== agId);
+  }
+
+  get pulidorSeleccionadoActual(): any | undefined {
+    const op = this.pulidoresDisponiblesRegion.find(p => String(p.id) === String(this.extraForm.operadorId));
+    if (!op) return undefined;
+    const esMovil = !op.agenciaId && !op.agencia?.id;
+    return { ...op, esMovil };
+  }
+
+  isPulidorDeAgenciaActual(op: any): boolean {
+    return Boolean(op?.agenciaId && String(op.agenciaId) === String(this.extraFormAgenciaId));
   }
   puedeRealizarOT(extra?: ServicioExtra): boolean {
     if (!extra) return false;
@@ -1962,6 +2938,28 @@ export class ServiciosComponent implements OnInit {
     if (this.isAprobador) return false;
     const estado = (item.estado || '').toUpperCase();
     return estado === 'EN PROCESO' || estado === 'EN_PROCESO' || estado === 'EN COLA' || estado === 'EN_ESPERA';
+  }
+
+  /** Obtiene la evidencia de inicio del servicio si existe */
+  getVideoInicial(item: VehiculoServicio): string | null {
+    if (!item) return null;
+    return item.videoInicialUrl || item.fotoIngresoUrl || item.foto || item.videoInicial || null;
+  }
+
+  /**
+   * REGLA ESTRICTA: La evidencia final solo está disponible cuando el servicio ha sido formalmente finalizado
+   * y cuenta con su archivo propio de fin/salida (nunca muestra ni reproduce la evidencia de inicio).
+   */
+  getVideoFinal(item: VehiculoServicio): string | null {
+    if (!item) return null;
+    const estado = (item.estado || '').toUpperCase();
+    const enProceso = estado === 'EN PROCESO' || estado === 'EN_PROCESO' || estado === 'EN COLA' || estado === 'EN_ESPERA';
+    if (enProceso) return null;
+    const url = item.fotoSalidaUrl || item.videoFinalUrl || item.videoFinal;
+    if (url && url !== item.fotoIngresoUrl && url !== item.videoInicialUrl) {
+      return url;
+    }
+    return null;
   }
 
   ngOnInit(): void {
@@ -2358,8 +3356,11 @@ export class ServiciosComponent implements OnInit {
     }
   }
 
-  getStockDisponible(productoId: number | string): number {
-    return this.inventarioService.getStockDisponibleSucursal(productoId, this.nuevoRegistro.agencia);
+  getStockDisponible(productoId: number | string, productoSKU?: string): number {
+    const suc = this.sucursales.find(s => s.nombre === this.nuevoRegistro.agencia || String(s.id) === this.nuevoRegistro.agencia);
+    const sucId = suc ? String(suc.id) : undefined;
+    const sucNombre = suc ? suc.nombre : this.nuevoRegistro.agencia;
+    return this.inventarioService.getStockDisponibleSucursal(productoId, sucId, sucNombre, productoSKU);
   }
 
   onFileSelected(event: any) {
@@ -2382,29 +3383,88 @@ export class ServiciosComponent implements OnInit {
       this.bahiaService.getBahiasPorSucursal(sucId).subscribe(bahias => {
         this.bahiasSucursalForm = bahias || [];
         if (this.bahiasSucursalForm.length > 0) {
-          const matchBahia = this.bahiasSucursalForm.find(b => b.nombre === this.nuevoRegistro.bahia || b.id === this.nuevoRegistro.bahiaId);
-          if (matchBahia) {
+          const matchBahia = this.bahiasSucursalForm.find(b => String(b.id) === String(this.nuevoRegistro.bahiaId));
+          if (matchBahia && !this.isBahiaOcupada(matchBahia)) {
             this.nuevoRegistro.bahia = matchBahia.nombre;
             this.nuevoRegistro.bahiaId = String(matchBahia.id);
           } else {
-            this.nuevoRegistro.bahia = this.bahiasSucursalForm[0].nombre;
-            this.nuevoRegistro.bahiaId = String(this.bahiasSucursalForm[0].id);
+            const libre = this.bahiasSucursalForm.find(b => !this.isBahiaOcupada(b)) || this.bahiasSucursalForm[0];
+            this.nuevoRegistro.bahia = libre.nombre;
+            this.nuevoRegistro.bahiaId = String(libre.id);
           }
           this.onBahiaFormChange();
+        } else {
+          this.nuevoRegistro.bahia = 'Sin Bahía Específica';
+          this.nuevoRegistro.bahiaId = '';
         }
       });
     }
   }
 
   onBahiaFormChange(): void {
-    const b = this.bahiasSucursalForm.find(x => x.nombre === this.nuevoRegistro.bahia || x.id === this.nuevoRegistro.bahiaId);
+    const b = this.bahiasSucursalForm.find(x => String(x.id) === String(this.nuevoRegistro.bahiaId));
     if (b) {
       this.nuevoRegistro.bahia = b.nombre;
       this.nuevoRegistro.bahiaId = String(b.id);
       if (b.operadorAsignado && b.operadorAsignado !== 'Sin Asignar') {
         this.nuevoRegistro.empleado = b.operadorAsignado;
       }
+    } else if (this.nuevoRegistro.bahiaId === '') {
+      this.nuevoRegistro.bahia = 'Sin Bahía Específica';
     }
+  }
+
+  onSucursalExtraFormChange(): void {
+    const agId = this.extraFormAgenciaId;
+    this.extraFormBahiaId = '';
+    this.extraFormBahia = '';
+
+    if (this.isPulidor) return;
+
+    // Buscar si la agencia tiene un pulidor fijo asignado
+    const fijo = this.pulidoresDisponiblesRegion.find(p => String(p.agenciaId || p.agencia?.id) === String(agId));
+    if (fijo) {
+      // Tiene pulidor fijo: se autorrellenan los campos y queda asignado
+      this.extraForm.operadorId = String(fijo.id);
+      this.extraForm.operadorNombre = `${fijo.name} ${fijo.lastname}`.trim();
+      this.cargarStockPulidorParaOT(fijo.id);
+    } else {
+      // NO tiene pulidor fijo: asignar pulidor móvil
+      const opActual = this.pulidoresDisponiblesRegion.find(p => String(p.id) === String(this.extraForm.operadorId));
+      const esMovil = opActual && !opActual.agenciaId && !opActual.agencia?.id;
+      if (!esMovil) {
+        const primerMovil = this.pulidoresMovilesDisponibles[0];
+        if (primerMovil) {
+          this.extraForm.operadorId = String(primerMovil.id);
+          this.extraForm.operadorNombre = `${primerMovil.name} ${primerMovil.lastname}`.trim();
+          this.cargarStockPulidorParaOT(primerMovil.id);
+        } else {
+          this.extraForm.operadorId = '';
+          this.extraForm.operadorNombre = '';
+          this.stockPulidor = [];
+          this.recalcularFaltantesInsumosOT();
+        }
+      } else {
+        // Ya tenía un pulidor móvil asignado, verificar sus existencias
+        this.cargarStockPulidorParaOT(opActual.id);
+      }
+    }
+  }
+
+  onBahiaExtraFormChange(): void {
+    const b = this.bahiasSucursalExtraForm.find(x => String(x.id) === String(this.extraFormBahiaId));
+    if (b) {
+      this.extraFormBahia = b.nombre;
+      this.extraFormBahiaId = String(b.id);
+    } else {
+      this.extraFormBahia = 'Sin Bahía Específica';
+      this.extraFormBahiaId = '';
+    }
+  }
+
+  get bahiaExtraOcupadaActual(): VehiculoServicio | undefined {
+    if (!this.extraFormBahiaId && !this.extraFormBahia) return undefined;
+    return this.getVehiculoOcupanteBahia(this.extraFormBahiaId, this.extraFormBahia);
   }
 
   get operadoresSucursalForm(): Operador[] {
@@ -2548,11 +3608,20 @@ export class ServiciosComponent implements OnInit {
   }
 
   calcularDuracion(inicio: string, fin: string): string {
-    if (!inicio || !fin) return '';
+    if (!inicio) return '';
     const parse = (t: string): number => {
       const [h, m] = t.split(':').map(Number);
       return (h || 0) * 60 + (m || 0);
     };
+    if (!fin || fin === '--:--') {
+      const ahora = new Date();
+      const horaActual = `${String(ahora.getHours()).padStart(2, '0')}:${String(ahora.getMinutes()).padStart(2, '0')}`;
+      let min = parse(horaActual) - parse(inicio);
+      if (min < 0) min += 24 * 60;
+      const h = Math.floor(min / 60);
+      const m = min % 60;
+      return h > 0 ? `${h}h ${m}min` : `${m}min`;
+    }
     let min = parse(fin) - parse(inicio);
     if (min < 0) min += 24 * 60;
     const h = Math.floor(min / 60);
@@ -2560,7 +3629,7 @@ export class ServiciosComponent implements OnInit {
     return h > 0 ? `${h}h ${m}min` : `${m}min`;
   }
 
-  guardarHojaServicio() {
+  async guardarHojaServicio() {
     this.placaTocada = true;
     const resultado = validarPlaca(this.nuevoRegistro.placa);
     if (!resultado.valida) {
@@ -2569,8 +3638,21 @@ export class ServiciosComponent implements OnInit {
     }
     this.nuevoRegistro.placa = resultado.placa;
 
-    if (!this.nuevoRegistro.ordenTrabajoOT) {
+    if (!this.nuevoRegistro.ordenTrabajoOT?.trim()) {
       this.toastService.warning('Campos Incompletos', 'Ingrese el Nº de OT.');
+      return;
+    }
+    const otGenUpper = this.nuevoRegistro.ordenTrabajoOT.trim().toUpperCase();
+    this.nuevoRegistro.ordenTrabajoOT = otGenUpper;
+
+    const existeEnGenerales = this.servicios.some(s =>
+      s.ordenTrabajoOT?.toUpperCase() === otGenUpper && s.estado !== 'CANCELADO'
+    );
+    const existeEnEspeciales = this.serviciosExtras.some(e =>
+      (e.codigoSE || (e as any).ordenTrabajoOT)?.toUpperCase() === otGenUpper && e.estado !== 'Cancelado'
+    );
+    if (existeEnGenerales || existeEnEspeciales) {
+      this.toastService.warning('Orden de Trabajo Duplicada', `La OT "${otGenUpper}" ya se encuentra registrada en el sistema. Ingrese un número de OT único.`);
       return;
     }
 
@@ -2590,9 +3672,18 @@ export class ServiciosComponent implements OnInit {
     if (this.tieneInsumosSinStock) {
       const detalles = this.insumosSinStockDetalle.join('\n• ');
       this.toastService.error(
-        'Stock Insuficiente',
-        `No se puede iniciar el servicio. Faltan suministros en la agencia:\n• ${detalles}\nSolicite suministros a Bodega Central.`
+        'Stock Insuficiente en Agencia',
+        `No se puede iniciar el servicio. Faltan suministros en ${this.nuevoRegistro.agencia}:\n• ${detalles}\nSolicite suministros a Bodega Central.`
       );
+      return;
+    }
+
+    if (this.bahiaOcupadaActual) {
+      this.toastService.warning(
+        'Bahía ocupada',
+        `La "${this.nuevoRegistro.bahia || 'bahía seleccionada'}" ya se encuentra ocupada por el vehículo ${this.bahiaOcupadaActual.placa} (OT: ${this.bahiaOcupadaActual.ordenTrabajoOT || 'En curso'}). Seleccione otra bahía disponible.`
+      );
+      this.guardandoServicio = false;
       return;
     }
 
@@ -2608,9 +3699,38 @@ export class ServiciosComponent implements OnInit {
       return;
     }
 
-    const bMatch = this.bahiasSucursalForm.find(b => b.nombre === this.nuevoRegistro.bahia || b.id === this.nuevoRegistro.bahiaId)
+    // Subir vídeo de ingreso a S3 al guardar si fue grabado o seleccionado
+    if (this.videoIngresoRecorder?.hasPendingUpload) {
+      try {
+        this.guardandoServicio = true;
+        this.videoIngresoRecorder.servicioId = this.nuevoRegistro.ordenTrabajoOT || this.nuevoRegistro.placa;
+        this.videoIngresoRecorder.agenciaId = this.nuevoRegistro.agencia || this.userSucursal;
+        const uploadedUrl = await this.videoIngresoRecorder.uploadNow();
+        if (uploadedUrl) {
+          this.nuevoRegistro.videoUrl = uploadedUrl;
+        }
+      } catch (err: any) {
+        console.error('Error al subir vídeo de ingreso:', err);
+        this.toastService.error('Error de Subida a S3', err?.message || 'No se pudo subir la evidencia en vídeo al bucket.');
+        this.guardandoServicio = false;
+        return;
+      }
+    }
+
+    if (!this.nuevoRegistro.videoUrl?.trim()) {
+      this.toastService.warning(
+        'Vídeo de Ingreso Requerido',
+        'El vídeo de evidencia de ingreso (recepción) es un campo obligatorio para registrar la orden de trabajo.'
+      );
+      this.guardandoServicio = false;
+      return;
+    }
+
+    const bMatch = this.bahiasSucursalForm.find(b => String(b.id) === String(this.nuevoRegistro.bahiaId))
+      || this.bahiasSucursalForm.find(b => b.nombre === this.nuevoRegistro.bahia)
       || this.bahiasSucursalForm[0];
-    const bahiaId = bMatch?.id || this.nuevoRegistro.bahiaId;
+    const bahiaId = bMatch ? String(bMatch.id) : this.nuevoRegistro.bahiaId;
+    const bahiaNombre = bMatch ? bMatch.nombre : this.nuevoRegistro.bahia;
 
     const hoyStr = new Date().toISOString().substring(0, 10);
     const ahoraStr = new Date().toTimeString().substring(0, 5);
@@ -2621,23 +3741,28 @@ export class ServiciosComponent implements OnInit {
       horaIngreso: this.nuevoRegistro.horaIngreso || ahoraStr,
       estado: 'EN_PROCESO',
       bahiaId,
+      bahia: bahiaNombre,
       servicioCatalogoId: this.nuevoRegistro.servicioId,
       insumosUtilizados: [...this.insumosConsumoForm]
     };
 
+    this.guardandoServicio = true;
     this.servicioService.crearRegistroHojaServicio(payload as any).subscribe({
       next: (creado) => {
+        this.guardandoServicio = false;
         this.toastService.success(
           'Hoja de Control Creada',
           `Servicio ${creado?.ordenTrabajoOT || this.nuevoRegistro.ordenTrabajoOT} (${creado?.placa || this.nuevoRegistro.placa}) registrado e iniciado con éxito.`
         );
         this.modalNuevoRegistroOpen = false;
+        this.videoIngresoRecorder?.eliminarVideo();
 
         this.filtroTexto = '';
         this.filtroCategoria = 'Todas';
         this.filtrosGlobales.busqueda = '';
         this.filtrosGlobales.estado = 'Todos';
         this.currentPage = 1;
+        this.agregarServicioOTFuente = null;
 
         this.inventarioService.cargarItems();
         this.servicioService.getServicios(this._getFiltrosUsuario()).subscribe(list => {
@@ -2646,6 +3771,7 @@ export class ServiciosComponent implements OnInit {
         });
       },
       error: (err) => {
+        this.guardandoServicio = false;
         console.error('Error al crear servicio:', err);
         const backendMsg = err?.error?.message || err?.message || 'Error de comunicación al registrar el servicio.';
         this.toastService.error('No se pudo registrar servicio', Array.isArray(backendMsg) ? backendMsg.join('. ') : backendMsg);
@@ -2653,19 +3779,91 @@ export class ServiciosComponent implements OnInit {
     });
   }
 
-  finalizarServicio(item: VehiculoServicio) {
+  abrirModalFinalizarServicio(item: VehiculoServicio) {
     if (this.isAprobador) {
       this.toastService.warning('Acceso Restringido', 'El rol Aprobador no puede finalizar servicios; solo auditar y aprobar/rechazar.');
       return;
     }
-    this.servicioService.finalizarServicioOperador(item.id).subscribe({
+
+    // Resolver la OT real del servicio
+    let otReal = item.ordenTrabajoOT;
+    const urlBusqueda = item.videoInicialUrl || item.fotoIngresoUrl || item.video || item.foto;
+    if (urlBusqueda) {
+      const match = urlBusqueda.match(/\/servicios\/(?:generales|especiales)\/([^/]+)\//i);
+      if (match && match[1] && match[1] !== 'sin-orden') {
+        otReal = match[1].toUpperCase();
+      }
+    }
+    if (otReal) {
+      item.ordenTrabajoOT = otReal;
+    }
+
+    this.servicioAFinalizar = item;
+    this.videoSalidaInput = '';
+    this.observacionesSalidaInput = '';
+    this.videoSalidaRecorder?.eliminarVideo();
+    this.modalFinalizarServicioOpen = true;
+  }
+
+  cerrarModalFinalizarServicio() {
+    this.modalFinalizarServicioOpen = false;
+    this.servicioAFinalizar = null;
+    this.videoSalidaRecorder?.eliminarVideo();
+    this.videoSalidaInput = '';
+    this.observacionesSalidaInput = '';
+  }
+
+  async confirmarFinalizarServicio() {
+    if (!this.servicioAFinalizar) return;
+    const item = this.servicioAFinalizar;
+
+    // Subir vídeo de salida a S3 al finalizar si fue grabado o seleccionado
+    if (this.videoSalidaRecorder?.hasPendingUpload) {
+      try {
+        this.finalizandoServicio = true;
+        const targetOT = item.ordenTrabajoOT ||
+          (item.fotoIngresoUrl || item.videoInicialUrl)?.match(/\/servicios\/(?:generales|especiales)\/([^/]+)\//i)?.[1]?.toUpperCase() ||
+          item.placa ||
+          item.id;
+
+        this.videoSalidaRecorder.servicioId = targetOT;
+        this.videoSalidaRecorder.agenciaId = item.agencia || item.sucursalNombre || this.userSucursal;
+        const uploadedUrl = await this.videoSalidaRecorder.uploadNow();
+        if (uploadedUrl) {
+          this.videoSalidaInput = uploadedUrl;
+        }
+      } catch (err: any) {
+        console.error('Error al subir vídeo de salida:', err);
+        this.toastService.error('Error de Subida a S3', err?.message || 'No se pudo subir la evidencia en vídeo al bucket.');
+        this.finalizandoServicio = false;
+        return;
+      }
+    }
+
+    if (!this.videoSalidaInput?.trim()) {
+      this.toastService.warning(
+        'Vídeo Final Requerido',
+        'El vídeo de evidencia final (entrega del vehículo) es obligatorio para finalizar el servicio.'
+      );
+      this.finalizandoServicio = false;
+      return;
+    }
+
+    this.finalizandoServicio = true;
+    this.servicioService.finalizarServicioOperador(item.id, {
+      videoUrl: this.videoSalidaInput.trim() || undefined,
+      observaciones: this.observacionesSalidaInput.trim() || undefined
+    }).subscribe({
       next: (res) => {
+        this.finalizandoServicio = false;
+        this.modalFinalizarServicioOpen = false;
+        this.servicioAFinalizar = null;
         if (res) {
           const autoAprobado = res.estado === 'APROBADO';
           const titulo = autoAprobado ? 'Servicio Finalizado y Aprobado' : 'Servicio Finalizado';
           const msg = autoAprobado
-            ? `Vehículo ${item.placa} finalizado y aprobado automáticamente (agencia sin aprobador asignado).`
-            : `Vehículo ${item.placa} finalizado. Enviado a revisión del Gerente/Aprobador.`;
+            ? `Vehículo ${item.placa} finalizado con evidencia y aprobado automáticamente.`
+            : `Vehículo ${item.placa} finalizado con evidencia de entrega. Enviado a revisión del Gerente/Aprobador.`;
           this.toastService.success(titulo, msg);
           this.servicioService.getServicios(this._getFiltrosUsuario()).subscribe(list => {
             this.servicios = list;
@@ -2674,11 +3872,16 @@ export class ServiciosComponent implements OnInit {
         }
       },
       error: (err) => {
+        this.finalizandoServicio = false;
         console.error('Error al finalizar servicio:', err);
         const msg = err?.error?.message || err?.message || 'No se pudo finalizar el servicio.';
         this.toastService.error('Error al Finalizar', Array.isArray(msg) ? msg.join('. ') : msg);
       }
     });
+  }
+
+  finalizarServicio(item: VehiculoServicio) {
+    this.abrirModalFinalizarServicio(item);
   }
 
   aprobarServicio(item: VehiculoServicio) {
@@ -2769,10 +3972,6 @@ export class ServiciosComponent implements OnInit {
   onPageSizeChangeExtras(size: number) { this.pageSizeExtras = size; this.currentPageExtras = 1; }
 
   get puedeCrearOTEspecialConInsumos(): boolean {
-    if (this.isSuperAdmin || this.isAdmin) {
-      // Super Admin y Admin no tienen inventario propio ni agencia fija; pueden crear directamente
-      return !!(this.extraForm.servicioNombre?.trim() && this.extraFormPlaca?.trim());
-    }
     if (this.validandoStockPulidorOT) return false;
     if (!this.extraForm.servicioNombre?.trim() || !this.extraForm.operadorId || !this.extraFormPlaca?.trim()) return false;
     if (!this.extraForm.insumosReceta?.length) return false;
@@ -2796,6 +3995,11 @@ export class ServiciosComponent implements OnInit {
     return 0;
   }
 
+  /** Wrapper público de getStockCantidadInsumo para uso en templates (@let). */
+  getStockCantidadInsumoPublic(productoId: string | number, sku?: string, nombre?: string): number {
+    return this.getStockCantidadInsumo(productoId, sku, nombre);
+  }
+
   private recalcularFaltantesInsumosOT(): void {
     this.faltantesInsumosOT = [];
     const receta = this.extraForm.insumosReceta || [];
@@ -2804,7 +4008,7 @@ export class ServiciosComponent implements OnInit {
       return;
     }
     if (!this.extraForm.operadorId) {
-      this.faltantesInsumosOT = ['Seleccione un pulidor móvil para validar su kit de insumos.'];
+      this.faltantesInsumosOT = ['Seleccione un pulidor asignado para validar su kit de insumos.'];
       return;
     }
     const totalKit = this.stockPulidor.reduce((acc, s) => acc + Number(s.cantidadActual || 0), 0);
@@ -2829,6 +4033,7 @@ export class ServiciosComponent implements OnInit {
     if (!pulidorId) {
       this.stockPulidor = [];
       this.recalcularFaltantesInsumosOT();
+      if (thenOpen) this.showModalExtras = true;
       return;
     }
     this.validandoStockPulidorOT = true;
@@ -2854,7 +4059,7 @@ export class ServiciosComponent implements OnInit {
     const especiales = (this.catalogoCompleto || []).filter(s => {
       const cat = String(s.categoria || '').toUpperCase();
       const activo = s.estado === 'Activo' || (s as any).estado === 1 || s.estado == null;
-      return activo && (cat === 'ESPECIAL' || cat === 'EXTRA' || cat.includes('ESPECIAL'));
+      return activo && cat === 'ESPECIAL';
     });
     if (this.isPulidor && this.authService.isPulidorMovil()) {
       const ids = (this.authService.getCurrentUser()?.servicioIds || []).map(Number);
@@ -2873,23 +4078,36 @@ export class ServiciosComponent implements OnInit {
     this.extraForm.insumosReceta = serv?.insumosReceta
       ? JSON.parse(JSON.stringify(serv.insumosReceta))
       : [];
-    this.recalcularFaltantesInsumosOT();
+    if (this.extraFormHoraIngreso) {
+      const partes = this.extraFormHoraIngreso.split(':');
+      const d = new Date();
+      if (partes.length === 2) {
+        d.setHours(Number(partes[0]), Number(partes[1]), 0, 0);
+      }
+      const durMin = serv?.tiempoEstimadoMin || 60;
+      const salida = new Date(d.getTime() + Math.max(1, durMin) * 60_000);
+      this.extraFormHoraSalida = salida.toTimeString().substring(0, 5);
+    }
+    // Validar en tiempo real los insumos del pulidor asignado (móvil o fijo)
+    if (this.extraForm.operadorId) {
+      this.cargarStockPulidorParaOT(this.extraForm.operadorId);
+    } else {
+      this.recalcularFaltantesInsumosOT();
+    }
   }
 
   abrirModalNuevoExtra() {
     this.isEditingExtras = false;
     this.editandoExtraId = null;
 
-    // Super Admin y Admin: no tienen inventario en sí ni agencia fija; no verifican stock
-    if (this.isSuperAdmin || this.isAdmin) {
-      if (this.pulidoresDisponiblesRegion.length === 0) {
-        this.extrasMock.getPulidoresPorRegion().subscribe(list => {
-          this.pulidoresDisponiblesRegion = list || [];
-          this.abrirModalNuevoExtraConDatos();
-        });
-        return;
-      }
-      this.abrirModalNuevoExtraConDatos();
+    // Asegurar que la lista de pulidores esté cargada antes de inicializar el formulario:
+    if (this.pulidoresDisponiblesRegion.length === 0) {
+      const user = this.authService.getCurrentUser();
+      const regId = (this.isSuperAdmin || this.isAdmin) ? undefined : (user?.regionId ? String(user.regionId) : undefined);
+      this.extrasMock.getPulidoresPorRegion(regId).subscribe(list => {
+        this.pulidoresDisponiblesRegion = list || [];
+        this.abrirModalNuevoExtraConDatos();
+      });
       return;
     }
 
@@ -2912,18 +4130,6 @@ export class ServiciosComponent implements OnInit {
       return;
     }
 
-    // Para el Coordinador de Servicios Especiales:
-    // Asegurar que la lista de pulidores esté cargada antes de inicializar el formulario:
-    if (this.pulidoresDisponiblesRegion.length === 0) {
-      const user = this.authService.getCurrentUser();
-      const regId = user?.regionId ? String(user.regionId) : undefined;
-      this.extrasMock.getPulidoresPorRegion(regId).subscribe(list => {
-        this.pulidoresDisponiblesRegion = list || [];
-        this.abrirModalNuevoExtraConDatos();
-      });
-      return;
-    }
-
     this.abrirModalNuevoExtraConDatos();
   }
 
@@ -2931,17 +4137,22 @@ export class ServiciosComponent implements OnInit {
     const user = this.authService.getCurrentUser();
     this.cargarOpcionesServiciosEspeciales();
 
-    // Asignar primer pulidor disponible de la región si existe
-    const primerPulidor = this.pulidoresDisponiblesRegion[0];
-    const opId = this.isPulidor ? (user?.id || '') : (primerPulidor?.id || '');
-    const opNombre = this.isPulidor
-      ? `${user?.nombre || ''} ${user?.apellido || ''}`.trim()
-      : (primerPulidor ? `${primerPulidor.name} ${primerPulidor.lastname}`.trim() : '');
-
+    this.extraFormOT = '';
     this.extraFormPlaca = '';
     this.extraFormMarca = '';
     this.extraFormModelo = '';
     this.extraFormColor = '';
+    this.extraFormCliente = '';
+    this.extraFormBahiaId = '';
+    this.extraFormBahia = '';
+    this.extraFormVideoUrl = '';
+
+    const ahora = new Date();
+    this.extraFormHoraIngreso = ahora.toTimeString().substring(0, 5);
+    const primerServicio = this.serviciosEspecialesOpciones[0];
+    const durMin = primerServicio?.tiempoEstimadoMin || 60;
+    const salida = new Date(ahora.getTime() + Math.max(1, durMin) * 60_000);
+    this.extraFormHoraSalida = salida.toTimeString().substring(0, 5);
 
     // Asignación de Agencia:
     if (this.isPulidorFijo) {
@@ -2952,7 +4163,22 @@ export class ServiciosComponent implements OnInit {
     }
     this.extraFormPrioridad = 'Media';
 
-    const primerServicio = this.serviciosEspecialesOpciones[0];
+    // Asignar pulidor: si es pulidor, él mismo. Si es Admin o Coordinador, sugerir el fijo de la agencia o el primer móvil
+    let opId = '';
+    let opNombre = '';
+    if (this.isPulidor) {
+      opId = String(user?.id || '');
+      opNombre = `${user?.nombre || ''} ${user?.apellido || ''}`.trim();
+    } else {
+      const fijo = this.pulidoresDisponiblesRegion.find(p => String(p.agenciaId || p.agencia?.id) === String(this.extraFormAgenciaId));
+      const movil = this.pulidoresDisponiblesRegion.find(p => !p.agenciaId && !p.agencia?.id);
+      const primerPulidor = fijo || movil || this.pulidoresDisponiblesRegion[0];
+      if (primerPulidor) {
+        opId = String(primerPulidor.id);
+        opNombre = `${primerPulidor.name || ''} ${primerPulidor.lastname}`.trim();
+      }
+    }
+
     this.extraForm = {
       servicioNombre: primerServicio?.nombre || '',
       servicioDescripcion: primerServicio?.descripcion || '',
@@ -2967,12 +4193,15 @@ export class ServiciosComponent implements OnInit {
       notas: ''
     };
 
-    if (opId && !this.isSuperAdmin && !this.isAdmin) {
-      this.cargarStockPulidorParaOT(opId, true);
+    this.onSucursalExtraFormChange();
+
+    this.showModalExtras = true;
+    const finalOpId = this.extraForm.operadorId || opId;
+    if (finalOpId) {
+      this.cargarStockPulidorParaOT(finalOpId);
     } else {
       this.stockPulidor = [];
       this.recalcularFaltantesInsumosOT();
-      this.showModalExtras = true;
     }
   }
 
@@ -2981,17 +4210,38 @@ export class ServiciosComponent implements OnInit {
   onOperadorExtraChange() {
     const op = this.pulidoresDisponiblesRegion.find(o => String(o.id) === String(this.extraForm.operadorId));
     if (op) this.extraForm.operadorNombre = `${op.name} ${op.lastname}`.trim();
-    if (!this.isSuperAdmin && !this.isAdmin) {
+    if (this.extraForm.operadorId) {
       this.cargarStockPulidorParaOT(this.extraForm.operadorId);
+    } else {
+      this.stockPulidor = [];
+      this.recalcularFaltantesInsumosOT();
     }
   }
 
-  guardarServicioExtra() {
+  async guardarServicioExtra() {
+    if (!this.extraFormOT?.trim()) {
+      this.toastService.warning('Campos Incompletos', 'Ingrese el Nº de Orden de Trabajo (OT).');
+      return;
+    }
+    const otUpper = this.extraFormOT.trim().toUpperCase();
+
+    // Validar unicidad de OT en el cliente antes de enviar
+    const existeEnEspeciales = this.serviciosExtras.some(e =>
+      (e.codigoSE || (e as any).ordenTrabajoOT)?.toUpperCase() === otUpper && e.estado !== 'Cancelado'
+    );
+    const existeEnGenerales = this.servicios.some(s =>
+      s.ordenTrabajoOT?.toUpperCase() === otUpper && s.estado !== 'CANCELADO'
+    );
+    if (existeEnEspeciales || existeEnGenerales) {
+      this.toastService.warning('Orden de Trabajo Duplicada', `La OT "${otUpper}" ya se encuentra registrada en el sistema. Ingrese un número de OT único.`);
+      return;
+    }
+
     if (!this.extraForm.servicioNombre?.trim()) {
       this.toastService.warning('Datos incompletos', 'Ingrese el tipo de servicio especial.');
       return;
     }
-    if (!this.extraForm.operadorId && !this.isSuperAdmin && !this.isAdmin) {
+    if (!this.extraForm.operadorId) {
       this.toastService.warning('Datos incompletos', 'Seleccione un pulidor asignado.');
       return;
     }
@@ -3002,7 +4252,7 @@ export class ServiciosComponent implements OnInit {
 
     const user = this.authService.getCurrentUser();
     const agenciaIdFinal = this.isPulidorFijo ? (user?.agenciaId || '') : this.extraFormAgenciaId;
-    if (!agenciaIdFinal && !this.isSuperAdmin && !this.isAdmin) {
+    if (!agenciaIdFinal) {
       this.toastService.warning('Agencia requerida', 'Debe seleccionar la agencia en la cual se realizará el servicio.');
       return;
     }
@@ -3011,39 +4261,66 @@ export class ServiciosComponent implements OnInit {
       return;
     }
 
-    if (!this.isSuperAdmin && !this.isAdmin) {
-      this.recalcularFaltantesInsumosOT();
-      if (!this.puedeCrearOTEspecialConInsumos) {
-        this.toastService.error(
-          'Insumos insuficientes',
-          this.faltantesInsumosOT[0] || 'No puede crear la OT: el pulidor no tiene los insumos requeridos en su kit.'
-        );
+    this.recalcularFaltantesInsumosOT();
+    if (!this.puedeCrearOTEspecialConInsumos) {
+      this.toastService.error(
+        'Insumos insuficientes',
+        this.faltantesInsumosOT[0] || 'No puede crear la OT: el pulidor asignado no cuenta con los insumos requeridos en su kit.'
+      );
+      return;
+    }
+
+    const agenciaSeleccionada = this.sucursales.find(s => String(s.id) === String(agenciaIdFinal));
+    const regId = user?.regionId ? String(user.regionId) : (agenciaSeleccionada?.regionId ? String(agenciaSeleccionada.regionId) : '');
+    const regNombre = this.userRegionNombre || agenciaSeleccionada?.region?.nombre || agenciaSeleccionada?.regionNombre || '';
+    if (!regId && !this.isSuperAdmin && !this.isAdmin) {
+      this.toastService.warning('Región requerida', 'El usuario o agencia seleccionada no tiene una región asignada en la base de datos.');
+      return;
+    }
+
+    // Subida de vídeo de recepción/ingreso si está pendiente en el componente de grabación
+    if (this.videoIngresoExtraRecorder?.hasPendingUpload) {
+      try {
+        this.videoIngresoExtraRecorder.servicioId = otUpper || this.extraFormPlaca;
+        this.videoIngresoExtraRecorder.agenciaId = agenciaIdFinal || this.userSucursal;
+        const uploadedUrl = await this.videoIngresoExtraRecorder.uploadNow();
+        if (uploadedUrl) {
+          this.extraFormVideoUrl = uploadedUrl;
+        }
+      } catch (err: any) {
+        console.error('Error al subir vídeo de ingreso especial:', err);
+        this.toastService.error('Error de Subida a S3', err?.message || 'No se pudo subir la evidencia en vídeo al bucket.');
         return;
       }
     }
 
-    const regId = user?.regionId ? String(user.regionId) : '';
-    const regNombre = this.userRegionNombre;
-    if (!regId && !this.isSuperAdmin && !this.isAdmin) {
-      this.toastService.warning('Región requerida', 'El usuario no tiene una región asignada en la base de datos.');
-      return;
-    }
-
     const payload: any = {
+      codigoSE: otUpper,
+      ordenTrabajoOT: otUpper,
       servicioNombre: this.extraForm.servicioNombre.trim(),
+      tipoServicio: this.extraForm.servicioNombre.trim(),
       servicioDescripcion: this.extraForm.servicioDescripcion.trim(),
       operadorId: this.extraForm.operadorId ? String(this.extraForm.operadorId) : undefined,
       operadorNombre: this.extraForm.operadorNombre,
       agenciaId: agenciaIdFinal || undefined,
+      bahiaId: this.extraFormBahiaId || undefined,
+      bahia: this.extraFormBahia || undefined,
+      horaIngreso: this.extraFormHoraIngreso || undefined,
+      horaEstimada: this.extraFormHoraSalida || undefined,
       regionId: regId,
       regionNombre: regNombre,
       prioridad: this.extraFormPrioridad || 'Media',
       placa: this.extraFormPlaca.trim().toUpperCase(),
+      color: this.extraFormColor.trim(),
+      cliente: this.extraFormCliente?.trim() || undefined,
+      clienteNombre: this.extraFormCliente?.trim() || undefined,
+      videoInicialUrl: this.extraFormVideoUrl || undefined,
       vehiculoInfo: {
         placa: this.extraFormPlaca.trim().toUpperCase(),
         marca: this.extraFormMarca.trim(),
         modelo: this.extraFormModelo.trim(),
-        color: this.extraFormColor.trim()
+        color: this.extraFormColor.trim(),
+        cliente: this.extraFormCliente?.trim() || undefined
       },
       insumosReceta: (this.extraForm.insumosReceta || []).map(r => ({
         ...r,
@@ -3087,24 +4364,46 @@ export class ServiciosComponent implements OnInit {
     this.modalIniciarServicioEspecialOpen = true;
   }
 
-  confirmarIniciarEspecial() {
+  async confirmarIniciarEspecial() {
     if (!this.puedeRealizarOT(this.servicioEspecialSeleccionado)) {
       this.toastService.warning('Acceso Restringido', 'Solo el pulidor asignado a esta orden de trabajo puede iniciar el servicio.');
       return;
     }
-    if (!this.videoInicialInput.trim()) {
-      this.toastService.warning('Vídeo Inicial Requerido', 'Debe adjuntar la evidencia en vídeo del estado inicial del vehículo.');
-      return;
-    }
     if (!this.servicioEspecialSeleccionado) return;
 
+    if (this.videoInicialRecorder?.hasPendingUpload) {
+      try {
+        this.iniciandoEspecial = true;
+        this.videoInicialRecorder.servicioId = this.servicioEspecialSeleccionado.codigoSE || this.servicioEspecialSeleccionado.placa || this.servicioEspecialSeleccionado.id;
+        this.videoInicialRecorder.agenciaId = this.servicioEspecialSeleccionado.agenciaId || this.userSucursal;
+        const uploadedUrl = await this.videoInicialRecorder.uploadNow();
+        if (uploadedUrl) {
+          this.videoInicialInput = uploadedUrl;
+        }
+      } catch (err: any) {
+        console.error('Error al subir vídeo inicial:', err);
+        this.toastService.error('Error de Subida a S3', err?.message || 'No se pudo subir la evidencia inicial al bucket.');
+        this.iniciandoEspecial = false;
+        return;
+      }
+    }
+
+    if (!this.videoInicialInput.trim()) {
+      this.toastService.warning('Vídeo Inicial Requerido', 'Debe adjuntar la evidencia en vídeo del estado inicial del vehículo.');
+      this.iniciandoEspecial = false;
+      return;
+    }
+
+    this.iniciandoEspecial = true;
     this.extrasMock.cambiarEstado(this.servicioEspecialSeleccionado.id, 'En Proceso', this.videoInicialInput.trim()).subscribe({
       next: () => {
+        this.iniciandoEspecial = false;
         this.toastService.success('Servicio Iniciado', `OT ${this.servicioEspecialSeleccionado?.codigoSE} en proceso. Evidencia inicial grabada.`);
         this.modalIniciarServicioEspecialOpen = false;
         this.cargarServiciosEspeciales();
       },
       error: (err) => {
+        this.iniciandoEspecial = false;
         console.error('Error al iniciar:', err);
         this.toastService.error('Error al iniciar', 'No se pudo registrar el inicio del servicio.');
       }
@@ -3123,23 +4422,44 @@ export class ServiciosComponent implements OnInit {
     this.modalFinalizarServicioEspecialOpen = true;
   }
 
-  confirmarFinalizarEspecial() {
+  async confirmarFinalizarEspecial() {
     if (!this.puedeRealizarOT(this.servicioEspecialSeleccionado)) {
       this.toastService.warning('Acceso Restringido', 'Solo el pulidor asignado a esta orden de trabajo puede finalizar el servicio.');
       return;
     }
-    if (!this.videoFinalInput.trim()) {
-      this.toastService.warning('Vídeo Final Requerido', 'Debe adjuntar la evidencia en vídeo del vehículo terminado.');
-      return;
-    }
     if (!this.servicioEspecialSeleccionado) return;
 
+    if (this.videoFinalRecorder?.hasPendingUpload) {
+      try {
+        this.finalizandoEspecial = true;
+        this.videoFinalRecorder.servicioId = this.servicioEspecialSeleccionado.codigoSE || this.servicioEspecialSeleccionado.placa || this.servicioEspecialSeleccionado.id;
+        this.videoFinalRecorder.agenciaId = this.servicioEspecialSeleccionado.agenciaId || this.userSucursal;
+        const uploadedUrl = await this.videoFinalRecorder.uploadNow();
+        if (uploadedUrl) {
+          this.videoFinalInput = uploadedUrl;
+        }
+      } catch (err: any) {
+        console.error('Error al subir vídeo final:', err);
+        this.toastService.error('Error de Subida a S3', err?.message || 'No se pudo subir la evidencia final al bucket.');
+        this.finalizandoEspecial = false;
+        return;
+      }
+    }
+
+    if (!this.videoFinalInput.trim()) {
+      this.toastService.warning('Vídeo Final Requerido', 'Debe adjuntar la evidencia en vídeo del vehículo terminado.');
+      this.finalizandoEspecial = false;
+      return;
+    }
+
+    this.finalizandoEspecial = true;
     this.extrasMock.actualizarServicioExtra(this.servicioEspecialSeleccionado.id, {
       estado: 'Completado',
       videoFinalUrl: this.videoFinalInput.trim(),
       notas: this.notasFinalizacionInput
     }).subscribe({
       next: () => {
+        this.finalizandoEspecial = false;
         this.toastService.success('Servicio Completado', `OT ${this.servicioEspecialSeleccionado?.codigoSE} finalizada con éxito. Insumos descontados de tu custodia.`);
         this.modalFinalizarServicioEspecialOpen = false;
         this.cargarServiciosEspeciales();
@@ -3148,8 +4468,131 @@ export class ServiciosComponent implements OnInit {
         }
       },
       error: (err) => {
+        this.finalizandoEspecial = false;
         console.error('Error al finalizar:', err);
         this.toastService.error('Error al finalizar', 'No se pudo completar el servicio.');
+      }
+    });
+  }
+
+  // ── Flujo de Pausa y Reanudación de Servicios Especiales ──
+  abrirModalPausarEspecial(extra: ServicioExtra) {
+    if (!this.puedeRealizarOT(extra)) {
+      this.toastService.warning('Acceso Restringido', 'Solo el pulidor asignado a esta orden de trabajo puede pausar el servicio.');
+      return;
+    }
+    this.servicioEspecialSeleccionado = extra;
+    this.motivoPausaInput = 'Pausa para almuerzo / descanso reglamentario';
+    this.motivoPausaDetalleInput = '';
+    this.videoPausaInput = '';
+    this.modalPausarServicioEspecialOpen = true;
+  }
+
+  async confirmarPausarEspecial() {
+    if (!this.puedeRealizarOT(this.servicioEspecialSeleccionado)) {
+      this.toastService.warning('Acceso Restringido', 'Solo el pulidor asignado a esta orden de trabajo puede pausar el servicio.');
+      return;
+    }
+    if (!this.servicioEspecialSeleccionado) return;
+
+    if (this.videoPausaRecorder?.hasPendingUpload) {
+      try {
+        this.pausandoEspecial = true;
+        this.videoPausaRecorder.servicioId = this.servicioEspecialSeleccionado.codigoSE || this.servicioEspecialSeleccionado.placa || this.servicioEspecialSeleccionado.id;
+        this.videoPausaRecorder.agenciaId = this.servicioEspecialSeleccionado.agenciaId || this.userSucursal;
+        const uploadedUrl = await this.videoPausaRecorder.uploadNow();
+        if (uploadedUrl) {
+          this.videoPausaInput = uploadedUrl;
+        }
+      } catch (err: any) {
+        console.error('Error al subir vídeo de pausa:', err);
+        this.toastService.error('Error de Subida a S3', err?.message || 'No se pudo subir la evidencia de pausa al bucket.');
+        this.pausandoEspecial = false;
+        return;
+      }
+    }
+
+    if (!this.videoPausaInput.trim()) {
+      this.toastService.warning('Vídeo de Pausa Requerido', 'Debe adjuntar la evidencia en vídeo del estado en que se deja el vehículo.');
+      this.pausandoEspecial = false;
+      return;
+    }
+
+    const motivoFinal = this.motivoPausaDetalleInput.trim()
+      ? `${this.motivoPausaInput}: ${this.motivoPausaDetalleInput.trim()}`
+      : this.motivoPausaInput;
+
+    this.pausandoEspecial = true;
+    this.extrasMock.pausarServicioExtra(this.servicioEspecialSeleccionado.id, motivoFinal, this.videoPausaInput.trim()).subscribe({
+      next: (res) => {
+        this.pausandoEspecial = false;
+        this.toastService.success('Servicio Pausado', `OT ${res.codigoSE || this.servicioEspecialSeleccionado?.codigoSE} ha sido pausada exitosamente.`);
+        this.modalPausarServicioEspecialOpen = false;
+        this.cargarServiciosEspeciales();
+      },
+      error: (err) => {
+        this.pausandoEspecial = false;
+        console.error('Error al pausar servicio especial:', err);
+        const msg = err?.error?.message || err?.message || 'No se pudo pausar el servicio especial.';
+        this.toastService.error('Error al pausar', Array.isArray(msg) ? msg.join('. ') : msg);
+      }
+    });
+  }
+
+  abrirModalReanudarEspecial(extra: ServicioExtra) {
+    if (!this.puedeRealizarOT(extra)) {
+      this.toastService.warning('Acceso Restringido', 'Solo el pulidor asignado a esta orden de trabajo puede reanudar el servicio.');
+      return;
+    }
+    this.servicioEspecialSeleccionado = extra;
+    this.videoReanudarInput = '';
+    this.observacionesReanudarInput = '';
+    this.modalReanudarEspecialOpen = true;
+  }
+
+  async confirmarReanudarEspecial() {
+    if (!this.puedeRealizarOT(this.servicioEspecialSeleccionado)) {
+      this.toastService.warning('Acceso Restringido', 'Solo el pulidor asignado a esta orden de trabajo puede reanudar el servicio.');
+      return;
+    }
+    if (!this.servicioEspecialSeleccionado) return;
+
+    if (this.videoReanudarRecorder?.hasPendingUpload) {
+      try {
+        this.reanudandoEspecial = true;
+        this.videoReanudarRecorder.servicioId = this.servicioEspecialSeleccionado.codigoSE || this.servicioEspecialSeleccionado.placa || this.servicioEspecialSeleccionado.id;
+        this.videoReanudarRecorder.agenciaId = this.servicioEspecialSeleccionado.agenciaId || this.userSucursal;
+        const uploadedUrl = await this.videoReanudarRecorder.uploadNow();
+        if (uploadedUrl) {
+          this.videoReanudarInput = uploadedUrl;
+        }
+      } catch (err: any) {
+        console.error('Error al subir vídeo de reanudación:', err);
+        this.toastService.error('Error de Subida a S3', err?.message || 'No se pudo subir la evidencia de reanudación al bucket.');
+        this.reanudandoEspecial = false;
+        return;
+      }
+    }
+
+    if (!this.videoReanudarInput.trim()) {
+      this.toastService.warning('Vídeo de Reanudación Requerido', 'Debe adjuntar la evidencia en vídeo de las condiciones del vehículo al reanudar.');
+      this.reanudandoEspecial = false;
+      return;
+    }
+
+    this.reanudandoEspecial = true;
+    this.extrasMock.reanudarServicioExtra(this.servicioEspecialSeleccionado.id, this.videoReanudarInput.trim(), this.observacionesReanudarInput.trim()).subscribe({
+      next: (res) => {
+        this.reanudandoEspecial = false;
+        this.toastService.success('Servicio Reanudado', `OT ${res.codigoSE || this.servicioEspecialSeleccionado?.codigoSE} retomada en proceso.`);
+        this.modalReanudarEspecialOpen = false;
+        this.cargarServiciosEspeciales();
+      },
+      error: (err) => {
+        this.reanudandoEspecial = false;
+        console.error('Error al reanudar servicio especial:', err);
+        const msg = err?.error?.message || err?.message || 'No se pudo reanudar el servicio especial.';
+        this.toastService.error('Error al reanudar', Array.isArray(msg) ? msg.join('. ') : msg);
       }
     });
   }
@@ -3159,16 +4602,127 @@ export class ServiciosComponent implements OnInit {
     this.modalDetalleEspecialOpen = true;
   }
 
-  verVideoGenerico(url: string, titulo: string) {
-    this.videoGenericoUrl = url;
+  async verVideoGenerico(url?: string | null, titulo: string = 'Vídeo de Evidencia') {
+    if (!url) {
+      this.toastService.warning('Vídeo no disponible', 'No hay vídeo registrado para esta evidencia.');
+      return;
+    }
     this.videoGenericoTitulo = titulo;
+    this.videoCurrentTime = 0;
+    this.videoDuration = 0;
+    this.videoBufferedSeconds = 0;
+    this.videoBufferedPercent = 0;
+    this.videoPlaybackPercent = 0;
+    this.videoCargandoBuffer = true;
+    this.videoBufferListo = false;
     this.modalVideoGenericoOpen = true;
+
+    // Obtener URL de streaming directa (S3 Presigned) para soporte nativo de HTTP 206 Partial Content
+    try {
+      this.videoGenericoUrl = await this.storageUploadService.getDirectStreamingUrl(url);
+    } catch {
+      this.videoGenericoUrl = this.storageUploadService.resolveBackendUrl(url);
+    }
+  }
+
+  onVideoMetadataLoaded(event: any): void {
+    const video = event.target as HTMLVideoElement;
+    if (video) {
+      this.videoDuration = video.duration || 0;
+      this.updateVideoBuffer(video);
+    }
+  }
+
+  onVideoProgress(event: any): void {
+    const video = event.target as HTMLVideoElement;
+    if (video) {
+      this.updateVideoBuffer(video);
+    }
+  }
+
+  onVideoTimeUpdate(event: any): void {
+    const video = event.target as HTMLVideoElement;
+    if (video) {
+      this.videoCurrentTime = video.currentTime || 0;
+      this.videoPlaybackPercent = this.videoDuration > 0 ? (this.videoCurrentTime / this.videoDuration) * 100 : 0;
+      this.updateVideoBuffer(video);
+    }
+  }
+
+  onVideoCanPlay(event: any): void {
+    const video = event.target as HTMLVideoElement;
+    if (video) {
+      this.updateVideoBuffer(video);
+      this.videoCargandoBuffer = false;
+      // Arrancar inmediatamente tan pronto los primeros 2-3 segundos de búfer estén listos
+      if (video.paused) {
+        video.play().catch(() => {});
+      }
+    }
+  }
+
+  onVideoWaiting(): void {
+    this.videoCargandoBuffer = true;
+  }
+
+  onVideoPlaying(): void {
+    this.videoCargandoBuffer = false;
+  }
+
+  formatTimeSec(sec: number): string {
+    if (!sec || isNaN(sec)) return '0:00';
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    return `${m}:${s < 10 ? '0' : ''}${s}`;
+  }
+
+  private updateVideoBuffer(video: HTMLVideoElement): void {
+    if (!video) return;
+    if (video.buffered && video.buffered.length > 0) {
+      let currentBufferEnd = 0;
+      for (let i = 0; i < video.buffered.length; i++) {
+        if (video.currentTime >= video.buffered.start(i) && video.currentTime <= video.buffered.end(i)) {
+          currentBufferEnd = video.buffered.end(i);
+          break;
+        }
+      }
+      if (currentBufferEnd === 0 && video.buffered.length > 0) {
+        currentBufferEnd = video.buffered.end(video.buffered.length - 1);
+      }
+      this.videoBufferedSeconds = Math.round(currentBufferEnd * 10) / 10;
+      this.videoBufferedPercent = this.videoDuration > 0 ? Math.min(100, (currentBufferEnd / this.videoDuration) * 100) : 0;
+      if (this.videoBufferedSeconds >= 2.5 || this.videoBufferedPercent >= 10 || currentBufferEnd >= this.videoDuration) {
+        this.videoBufferListo = true;
+      }
+    }
+  }
+
+  verEvidenciasPausas(extra: ServicioExtra) {
+    this.servicioPausasSeleccionado = extra;
+    const historial = Array.isArray(extra.historialPausas) ? extra.historialPausas : [];
+    if (historial.length > 0) {
+      this.pausasSeleccionadas = historial;
+      this.modalPausasDetalleOpen = true;
+    } else if (extra.videoUltimaPausaUrl || extra.videoPausa) {
+      this.pausasSeleccionadas = [{
+        id: '1',
+        motivo: extra.motivoUltimaPausa || 'Pausa operativa',
+        fechaInicio: extra.fechaUltimaPausa,
+        videoPausaUrl: extra.videoUltimaPausaUrl || extra.videoPausa,
+        videoReanudacionUrl: extra.videoUltimaReanudacionUrl || extra.videoReanudacion,
+        duracionSegundos: extra.tiempoPausaTotalSeg || 0
+      }];
+      this.modalPausasDetalleOpen = true;
+    } else {
+      this.toastService.warning('Sin pausas registradas', 'Este servicio no tiene pausas registradas con evidencia.');
+    }
   }
 
   estadoExtraClass(estado: string): string {
     const map: Record<string, string> = {
       'Pendiente': 'bg-amber-50 text-amber-700 border border-amber-300',
       'En Proceso': 'bg-blue-50 text-blue-700 border border-blue-300',
+      'Pausado': 'bg-orange-100 text-orange-800 border border-orange-300',
       'Completado': 'bg-emerald-50 text-emerald-700 border border-emerald-300',
       'FINALIZADO': 'bg-emerald-50 text-emerald-700 border border-emerald-300',
       'Cancelado': 'bg-slate-100 text-slate-500 border border-slate-200'

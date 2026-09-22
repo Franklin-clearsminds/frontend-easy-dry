@@ -24,14 +24,18 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
         <div>
           <div class="flex items-center gap-2.5">
             <span class="p-2 rounded-xl bg-easydry-blue/10 text-easydry-blue">
-              <i-lucide name="user-check" class="w-5 h-5"></i-lucide>
+              <i-lucide [name]="isCoordServiciosEspeciales ? 'sparkles' : 'user-check'" class="w-5 h-5"></i-lucide>
             </span>
-            <h1 class="text-2xl font-extrabold text-slate-900 font-outfit">Gestión de Lavadores</h1>
+            <h1 class="text-2xl font-extrabold text-slate-900 font-outfit">{{ isCoordServiciosEspeciales ? 'Gestión de Pulidores' : 'Gestión de Lavadores' }}</h1>
           </div>
-          <p class="text-slate-500 text-xs mt-1">Directorio de personal de lavado, asignación directa a agencia y bahía, productividad y trazabilidad histórica (100% Base de Datos).</p>
+          <p class="text-slate-500 text-xs mt-1">{{ isCoordServiciosEspeciales ? 'Directorio de personal de servicios especiales (pulidores fijos y móviles), asignación a bahía y trazabilidad.' : 'Directorio de personal de lavado, asignación directa a agencia y bahía, productividad y trazabilidad histórica (100% Base de Datos).' }}</p>
           <div class="mt-2 inline-flex items-center gap-2 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-900 border border-emerald-200 text-[11px] font-medium">
             <i-lucide name="shield" class="w-3.5 h-3.5 text-emerald-600 shrink-0"></i-lucide>
-            <span><strong>Rol Lavador:</strong> Registro y constancia técnica en bahía para trazabilidad. El acceso al sistema y registro de OTs lo efectúa el <strong>Líder</strong>.</span>
+            @if (isCoordServiciosEspeciales) {
+              <span><strong>Rol Pulidor:</strong> Especialistas en pulido técnico, corrección de pintura y acabados especiales (Fijos en Agencia o Móviles Multisede).</span>
+            } @else {
+              <span><strong>Rol Lavador:</strong> Registro y constancia técnica en bahía para trazabilidad. El acceso al sistema y registro de OTs lo efectúa el <strong>Líder</strong>.</span>
+            }
           </div>
         </div>
 
@@ -39,21 +43,21 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
           type="button"
           (click)="abrirModalCrear()"
           class="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-easydry-blue hover:bg-easydry-blue-dark text-white rounded-xl text-xs font-bold shadow-sm hover:shadow transition-all cursor-pointer">
-          <i-lucide name="user-plus" class="w-4 h-4"></i-lucide>
-          <span>Registrar Lavador</span>
+          <i-lucide [name]="isCoordServiciosEspeciales ? 'sparkles' : 'user-plus'" class="w-4 h-4"></i-lucide>
+          <span>{{ isCoordServiciosEspeciales ? 'Registrar Pulidor' : 'Registrar Lavador' }}</span>
         </button>
       </div>
 
       <!-- Global Filter Bar (Filtros y Búsqueda Unificados) -->
       <app-filter-bar 
-        [showSucursal]="isSuperAdmin" 
+        [showSucursal]="isSuperAdmin || isCoordServiciosEspeciales" 
         [showOperador]="false"
         [showBahia]="true"
         [showCliente]="true"
         [showEstado]="true"
         [showFechas]="false"
         [showBusqueda]="true"
-        placeholderBusqueda="Buscar por nombre, apellido o cédula..."
+        [placeholderBusqueda]="isCoordServiciosEspeciales ? 'Buscar pulidor por nombre, apellido o cédula...' : 'Buscar por nombre, apellido o cédula...'"
         [listaEstados]="['Todos', 'Activo', 'Inactivo']"
         (filterChange)="aplicarNuevosFiltros($event)">
       </app-filter-bar>
@@ -62,7 +66,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
       @if (cargando) {
         <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry p-10 flex flex-col items-center justify-center gap-3">
           <div class="w-10 h-10 border-4 border-easydry-blue border-t-transparent rounded-full animate-spin"></div>
-          <p class="text-xs font-bold text-slate-500">Cargando lavadores desde base de datos...</p>
+          <p class="text-xs font-bold text-slate-500">Cargando {{ isCoordServiciosEspeciales ? 'pulidores' : 'lavadores' }} desde base de datos...</p>
         </div>
       }
 
@@ -72,7 +76,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
           <table class="w-full text-left text-xs">
             <thead class="bg-slate-50 text-slate-500 text-[10px] font-extrabold uppercase tracking-wider border-b border-slate-200">
               <tr>
-                <th class="py-3.5 px-4">Lavador</th>
+                <th class="py-3.5 px-4">{{ isCoordServiciosEspeciales ? 'Pulidor' : 'Lavador' }}</th>
                 <th class="py-3.5 px-4">Rol Operativo</th>
                 <th class="py-3.5 px-4">Estado</th>
                 <th class="py-3.5 px-4">Agencia Asignada</th>
@@ -86,8 +90,8 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                 <tr>
                   <td colspan="7" class="py-12 text-center text-slate-400">
                     <i-lucide name="user-x" class="w-8 h-8 mx-auto text-slate-300 mb-2"></i-lucide>
-                    <p class="font-bold text-sm text-slate-600">No se encontraron lavadores registrados</p>
-                    <p class="text-xs text-slate-400 mt-1">Haga clic en "Registrar Lavador" para dar de alta el primer colaborador en su agencia.</p>
+                    <p class="font-bold text-sm text-slate-600">No se encontraron {{ isCoordServiciosEspeciales ? 'pulidores' : 'lavadores' }} registrados</p>
+                    <p class="text-xs text-slate-400 mt-1">Haga clic en "{{ isCoordServiciosEspeciales ? 'Registrar Pulidor' : 'Registrar Lavador' }}" para dar de alta el primer {{ isCoordServiciosEspeciales ? 'especialista' : 'colaborador' }} en el sistema.</p>
                   </td>
                 </tr>
               }
@@ -163,7 +167,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                       <button 
                         type="button"
                         (click)="abrirModalEditar(op)" 
-                        title="Editar lavador"
+                        [title]="isCoordServiciosEspeciales ? 'Editar pulidor' : 'Editar lavador'"
                         class="p-1.5 text-slate-400 hover:text-easydry-blue hover:bg-slate-100 rounded-lg transition-colors cursor-pointer flex items-center justify-center">
                         <i-lucide name="edit-3" class="w-4 h-4"></i-lucide>
                       </button>
@@ -216,8 +220,8 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
       <!-- Modal Crear / Registrar Nuevo Operador -->
       <app-modal
         [isOpen]="modalCrearOpen"
-        [title]="esEdicion ? 'Editar Datos de Lavador' : 'Registrar Nuevo Lavador'"
-        [icon]="esEdicion ? 'pencil' : 'user-plus'"
+        [title]="esEdicion ? (isCoordServiciosEspeciales ? 'Editar Datos de Pulidor' : 'Editar Datos de Lavador') : (isCoordServiciosEspeciales ? 'Registrar Nuevo Pulidor' : 'Registrar Nuevo Lavador')"
+        [icon]="esEdicion ? 'pencil' : (isCoordServiciosEspeciales ? 'sparkles' : 'user-plus')"
         (close)="cerrarModalCrear()">
         
         <div class="space-y-4">
@@ -225,9 +229,13 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
           <div class="p-3 bg-blue-50 rounded-xl border border-blue-200 text-blue-900 text-xs flex items-start gap-2.5">
             <i-lucide name="info" class="w-4 h-4 text-blue-600 shrink-0 mt-0.5"></i-lucide>
             <div>
-              <p class="font-bold">Constancia y Control de Personal Operativo</p>
+              <p class="font-bold">{{ isCoordServiciosEspeciales ? 'Control y Constancia de Pulidores Técnicos' : 'Constancia y Control de Personal Operativo' }}</p>
               <p class="text-[11px] text-blue-800 mt-0.5">
-                Este registro es para constancia y seguimiento técnico en bahías de lavado. A diferencia del <strong>Líder Operador</strong> o administradores de sistema, los lavadores no requieren usuario ni credenciales de acceso.
+                @if (isCoordServiciosEspeciales) {
+                  Registro de especialistas en servicios de pulido técnico y acabado. Se gestiona su asignación a sedes fijas o disponibilidad móvil.
+                } @else {
+                  Este registro es para constancia y seguimiento técnico en bahías de lavado. A diferencia del <strong>Líder Operador</strong> o administradores de sistema, los lavadores no requieren usuario ni credenciales de acceso.
+                }
               </p>
             </div>
           </div>
@@ -279,7 +287,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
               <select
                 [(ngModel)]="formOperador.rol"
                 class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-easydry-blue">
-                @for (r of rolesOperativos; track r) {
+                @for (r of rolesOperativosDisponibles; track r) {
                   <option [value]="r">{{ r }}</option>
                 }
               </select>
@@ -287,7 +295,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
 
             <div>
               <label class="block text-xs font-bold text-slate-700 uppercase mb-1">
-                Estado del Lavador
+                Estado del {{ isCoordServiciosEspeciales ? 'Pulidor' : 'Lavador' }}
               </label>
               <select
                 [(ngModel)]="formOperador.estado"
@@ -660,15 +668,30 @@ export class OperadoresComponent implements OnInit {
     contexto: 'asignar' | 'crear';
   } | null = null;
 
-  rolesOperativos: string[] = [
+  rolesOperativosLavador: string[] = [
     'LAVADOR',
     'Lavador de Bahía',
     'Lavador de Lavado Ecológico',
-    'Lavador de Detallado & Pulido',
     'Lavador de Secado & Acabado',
     'Lavador de Lavado Integral',
     'Lavador Auxiliar / Móvil'
   ];
+
+  rolesOperativosPulidor: string[] = [
+    'PULIDOR',
+    'PULIDOR_FIJO',
+    'PULIDOR_MOVIL',
+    'Pulidor de Detallado & Acabado',
+    'Pulidor Técnico Especialista'
+  ];
+
+  get rolesOperativosDisponibles(): string[] {
+    return this.isCoordServiciosEspeciales ? this.rolesOperativosPulidor : this.rolesOperativosLavador;
+  }
+
+  get rolesOperativos(): string[] {
+    return this.rolesOperativosDisponibles;
+  }
 
   formOperador = {
     nombre: '',
@@ -703,9 +726,22 @@ export class OperadoresComponent implements OnInit {
     this.cargarDatos();
   }
 
+  get isCoordServiciosEspeciales(): boolean {
+    return this.authService.isCoordServiciosEspeciales();
+  }
+
+  get isLiderOperador(): boolean {
+    return this.authService.isLiderOperador();
+  }
+
   cargarDatos(): void {
     this.cargando = true;
-    this.operadorService.getOperadores().subscribe({
+    const currentUser = this.authService.getCurrentUser();
+    const categoriaRol = this.isCoordServiciosEspeciales ? 'PULIDOR' : (this.isLiderOperador ? 'LAVADOR' : undefined);
+    const rawAgenciaId = currentUser?.agenciaId || currentUser?.sucursalId;
+    const agenciaId = this.isLiderOperador && rawAgenciaId ? String(rawAgenciaId) : undefined;
+
+    this.operadorService.getOperadores(agenciaId, categoriaRol).subscribe({
       next: (list) => {
         this.operadores = list;
         this.cargando = false;
@@ -739,12 +775,36 @@ export class OperadoresComponent implements OnInit {
 
   get operadoresFiltrados(): Operador[] {
     let resultados = this.operadores.filter(op => {
-      let matchScope = true;
       const currentUser = this.authService.getCurrentUser();
-      if (this.isGerente && this.userSucursal) {
+      const rolOp = (op.rol || '').toUpperCase();
+      const esPulidor = rolOp.includes('PULIDOR');
+      const esLavador = rolOp.includes('LAVADOR') || (!esPulidor && (rolOp.includes('OPERADOR') || rolOp.includes('TECNICO')));
+
+      // 1. Scoping por Rol de usuario:
+      if (this.isCoordServiciosEspeciales) {
+        // Al coordinador de servicios especiales SOLO le salen los pulidores (ya sean fijos o móviles)
+        if (!esPulidor) return false;
+      } else if (this.isLiderOperador) {
+        // Al líder operador SOLO le salen los lavadores
+        if (esPulidor || !esLavador) return false;
+      }
+
+      // 2. Scoping por Agencia / Sucursal:
+      let matchScope = true;
+      if (this.isLiderOperador) {
+        // Líder operador: estrictamente restringido a los lavadores de su propia agencia
+        const userAgenciaId = currentUser?.agenciaId || currentUser?.sucursalId;
+        const userSuc = (this.userSucursal || '').toLowerCase();
+        if (userAgenciaId) {
+          matchScope = String(op.sucursalId) === String(userAgenciaId) || String((op as any).agenciaId) === String(userAgenciaId);
+        } else if (userSuc) {
+          const opSuc = (op.sucursal || '').toLowerCase();
+          matchScope = opSuc.includes(userSuc) || userSuc.includes(opSuc);
+        }
+      } else if (this.isGerente && this.userSucursal) {
         matchScope = (op.sucursal || '').toLowerCase().includes(this.userSucursal.toLowerCase()) ||
                      this.userSucursal.toLowerCase().includes((op.sucursal || '').toLowerCase());
-      } else if (!this.isSuperAdmin && (this.userSucursal || currentUser?.agenciaId)) {
+      } else if (!this.isSuperAdmin && !this.isCoordServiciosEspeciales && (this.userSucursal || currentUser?.agenciaId)) {
         const suc = (this.userSucursal || '').toLowerCase();
         matchScope = Boolean(
           (currentUser?.agenciaId && String(op.sucursalId) === String(currentUser.agenciaId)) ||
@@ -816,11 +876,13 @@ export class OperadoresComponent implements OnInit {
       if (found) defaultSucursal = found;
     }
 
+    const defaultRol = this.isCoordServiciosEspeciales ? 'PULIDOR' : 'LAVADOR';
+
     this.formOperador = {
       nombre: '',
       cedula: '',
       telefono: '',
-      rol: 'OPERADOR',
+      rol: defaultRol,
       sucursalNombre: defaultSucursal?.nombre || '',
       sucursalId: defaultSucursal ? String(defaultSucursal.id) : '',
       bahiaNombre: 'Sin Bahía Asignada',
@@ -982,14 +1044,17 @@ export class OperadoresComponent implements OnInit {
       }).subscribe({
         next: (nuevo) => {
           this.toastService.success(
-            'Lavador Registrado en BD',
+            this.isCoordServiciosEspeciales ? 'Pulidor Registrado en BD' : 'Lavador Registrado en BD',
             `Se registró a ${nuevo.nombre} asignado a ${nuevo.sucursal} (${nuevo.bahia}).`
           );
           this.cerrarModalCrear();
-          this.operadorService.getOperadores().subscribe();
+          this.cargarDatos();
         },
         error: (err) => {
-          this.toastService.error('Error al Registrar', err?.error?.message || 'No se pudo guardar el lavador en la base de datos.');
+          this.toastService.error(
+            'Error al Registrar', 
+            err?.error?.message || (this.isCoordServiciosEspeciales ? 'No se pudo guardar el pulidor en la base de datos.' : 'No se pudo guardar el lavador en la base de datos.')
+          );
         }
       });
     }

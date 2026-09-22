@@ -16,8 +16,10 @@ export class OperadorService {
   private historialSubject = new BehaviorSubject<HistorialAsignacionOperador[]>([]);
   public historial$ = this.historialSubject.asObservable();
 
-  getOperadores(agenciaId?: string): Observable<Operador[]> {
-    const payload = agenciaId && agenciaId !== 'Todas' ? { agenciaId } : {};
+  getOperadores(agenciaId?: string | number, categoriaRol?: string): Observable<Operador[]> {
+    const payload: any = {};
+    if (agenciaId && agenciaId !== 'Todas') payload.agenciaId = String(agenciaId);
+    if (categoriaRol) payload.categoriaRol = categoriaRol;
     return this.http.post<Operador[]>(apiUrl('/agencias/operadores/list'), payload).pipe(
       tap(list => this.operadoresSubject.next(list || [])),
       catchError(err => {

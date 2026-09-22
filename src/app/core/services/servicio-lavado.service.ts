@@ -36,10 +36,40 @@ export class ServicioLavadoService {
     const bahiaNombre = s.bahiaNombre || (typeof s.bahia === 'string' ? s.bahia : s.bahia?.nombre) || s.bahiaRel?.nombre || '';
     const empleadoNombre = s.empleado || s.operadorNombre || (s.operador ? `${s.operador.name || ''} ${s.operador.lastname || ''}`.trim() : (s.operadorRel ? `${s.operadorRel.name || ''} ${s.operadorRel.lastname || ''}`.trim() : ''));
 
+    let duracionMinutos = s.duracionMinutos !== undefined && s.duracionMinutos !== null ? Number(s.duracionMinutos) : null;
+    let duracionFormateada = s.duracionFormateada || '';
+    if (!duracionFormateada && s.horaIngreso) {
+      const tIn = new Date(s.horaIngreso).getTime();
+      if (s.horaSalida) {
+        const tOut = new Date(s.horaSalida).getTime();
+        duracionMinutos = Math.max(0, Math.round((tOut - tIn) / 60000));
+        const h = Math.floor(duracionMinutos / 60);
+        const m = duracionMinutos % 60;
+        duracionFormateada = h > 0 ? `${h}h ${m}min` : `${m} min`;
+      } else if (s.estado === 'EN_PROCESO' || s.estado === 'EN PROCESO' || s.estado === 'INICIADO') {
+        duracionMinutos = Math.max(0, Math.round((Date.now() - tIn) / 60000));
+        const h = Math.floor(duracionMinutos / 60);
+        const m = duracionMinutos % 60;
+        duracionFormateada = h > 0 ? `${h}h ${m}min` : `${m} min`;
+      }
+    }
+
+    let ordenTrabajoOT = s.ordenTrabajoOT;
+    if (!ordenTrabajoOT && (s.fotoIngresoUrl || s.fotoSalidaUrl)) {
+      const match = (s.fotoIngresoUrl || s.fotoSalidaUrl).match(/\/servicios\/(?:generales|especiales)\/([^/]+)\//i);
+      if (match && match[1] && match[1] !== 'sin-orden') {
+        ordenTrabajoOT = match[1].toUpperCase();
+      }
+    }
+    if (!ordenTrabajoOT) {
+      ordenTrabajoOT = s.clientUuid ? `OT-${s.clientUuid.substring(0, 6).toUpperCase()}` : `OT-${String(s.id).substring(0, 6)}`;
+    }
+    const numeroOrden = s.numeroOrden || ordenTrabajoOT;
+
     return {
       id: s.id,
-      numeroOrden: s.clientUuid ? `OT-${s.clientUuid.substring(0, 6).toUpperCase()}` : `OT-${String(s.id).substring(0, 6)}`,
-      ordenTrabajoOT: s.ordenTrabajoOT || (s.clientUuid ? `OT-${s.clientUuid.substring(0, 6).toUpperCase()}` : `OT-${String(s.id).substring(0, 6)}`),
+      numeroOrden,
+      ordenTrabajoOT,
       placa: s.placa || '',
       marca: s.marca || s.modelo?.split(' ')[0] || '',
       modelo: s.modelo || '',
@@ -51,15 +81,22 @@ export class ServicioLavadoService {
       categoria: 'Sedán',
       agencia: agenciaNombre,
       bahia: bahiaNombre,
+      bahiaId: s.bahiaId || s.bahia?.id || s.bahiaRel?.id || undefined,
       empleado: empleadoNombre,
       fecha,
       horaIngreso,
       horaSalida,
+      duracionMinutos,
+      duracionFormateada,
       estado: estadoMap[s.estado] || s.estado || 'EN PROCESO',
       foto: s.fotoSalidaUrl || s.fotoIngresoUrl || s.foto || '',
       fotos: s.fotoIngresoUrl ? [s.fotoIngresoUrl] : (s.fotos || []),
-      video: s.video || s.videoUrl || '',
-      videoUrl: s.videoUrl || s.video || '',
+      fotoIngresoUrl: s.fotoIngresoUrl || (s.fotos && s.fotos[0]) || '',
+      fotoSalidaUrl: s.fotoSalidaUrl || '',
+      video: s.fotoSalidaUrl || s.videoFinalUrl || (s.video && s.video !== s.fotoIngresoUrl ? s.video : '') || '',
+      videoUrl: s.fotoSalidaUrl || s.videoFinalUrl || (s.videoUrl && s.videoUrl !== s.fotoIngresoUrl ? s.videoUrl : '') || '',
+      videoInicialUrl: s.videoInicialUrl || (s.fotoIngresoUrl && (s.fotoIngresoUrl.includes('.mp4') || s.fotoIngresoUrl.includes('video'))) ? s.fotoIngresoUrl : (s.videoInicial || s.fotoIngresoUrl || ''),
+      videoFinalUrl: s.videoFinalUrl || (s.fotoSalidaUrl && (s.fotoSalidaUrl.includes('.mp4') || s.fotoSalidaUrl.includes('video'))) ? s.fotoSalidaUrl : (s.videoFinal || s.fotoSalidaUrl || ''),
       tiempoEstimadoMin: s.catalogo?.tiempoEstimadoMin ?? s.catalogoRel?.tiempoEstimadoMin ?? 0,
       notas: s.observaciones || s.notas || '',
       observacionGerente: s.observacionGerente || '',
@@ -108,13 +145,17 @@ export class ServicioLavadoService {
   }
 
   crearRegistroHojaServicio(nuevo: Partial<VehiculoServicio> & { bahiaId?: string; servicioCatalogoId?: number }): Observable<VehiculoServicio> {
+    const videoOIngreso = nuevo.video || nuevo.videoUrl || (nuevo as any).fotoIngresoUrl || nuevo.foto || null;
+    const ordenTrabajoOT = nuevo.ordenTrabajoOT ? nuevo.ordenTrabajoOT.trim() : undefined;
     const payload = {
+      ordenTrabajoOT,
       placa: (nuevo.placa || '').toUpperCase().trim(),
       modelo: nuevo.modelo || `${nuevo.marca || ''} ${nuevo.modelo || ''}`.trim(),
       color: nuevo.color || '',
       cliente: (nuevo as any).cliente || '',
       bahiaId: nuevo.bahiaId || (nuevo as any).bahia,
       servicioCatalogoId: nuevo.servicioCatalogoId || Number(nuevo.servicioId),
+      fotoIngresoUrl: videoOIngreso,
       observaciones: nuevo.notas || '',
       estado: (nuevo.estado as any) || 'EN_PROCESO'
     };
@@ -132,11 +173,14 @@ export class ServicioLavadoService {
     );
   }
 
-  finalizarServicioOperador(id: string | number): Observable<VehiculoServicio | null> {
+  finalizarServicioOperador(id: string | number, extraData?: { fotoSalidaUrl?: string; videoUrl?: string; observaciones?: string }): Observable<VehiculoServicio | null> {
+    const fotoSalidaUrl = extraData?.videoUrl || extraData?.fotoSalidaUrl;
     return this.http.post<any>(apiUrl('/operaciones/servicios/update'), {
       id: String(id),
       estado: 'FINALIZADO',
-      horaSalida: new Date().toISOString()
+      horaSalida: new Date().toISOString(),
+      ...(fotoSalidaUrl ? { fotoSalidaUrl } : {}),
+      ...(extraData?.observaciones ? { observaciones: extraData.observaciones } : {})
     }).pipe(
       map(res => this.mapBackendServicio(res)),
       tap(updated => {

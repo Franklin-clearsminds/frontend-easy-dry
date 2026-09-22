@@ -68,6 +68,7 @@ export interface ProductoInsumo {
   stockMinimoBodega?: number;
   stockMinimoAgencia?: number;
   stockOptimoBodega?: number;
+  stockOptimoAgencia?: number;
   porcentajeAlerta?: number;
   umbralAlerta?: number;
   descripcion?: string;
@@ -83,6 +84,7 @@ export interface ProductoInsumo {
   estado?: number;
   fechaCreacion?: string;
   presentaciones?: PresentacionInsumoCatalog[];
+  stocks?: any[];
   serviciosAsociados?: Array<{
     id: number;
     codigo: string;

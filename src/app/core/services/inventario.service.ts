@@ -264,6 +264,20 @@ export class InventarioService {
     );
   }
 
+  public crearAlerta(dto: {
+    insumoId: string;
+    nivel: 'BAJO' | 'CRITICO' | 'AGOTADO';
+    sucursalId?: string;
+    agenciaId?: string;
+    mensaje?: string;
+    stockReportado?: number;
+  }): Observable<any> {
+    return this.http.post<any>(apiUrl('/inventario/alertas/crear'), {
+      ...dto,
+      sucursalId: dto.sucursalId || dto.agenciaId,
+    });
+  }
+
   public atenderAlertaStock(dto: { id: string; estado: string; observacion?: string }): Observable<any> {
     return this.http.post<any>(apiUrl('/inventario/alertas/atender'), dto).pipe(
       catchError(() => of({ success: false }))
@@ -278,21 +292,46 @@ export class InventarioService {
     return this.items$;
   }
 
-  public getStockDisponibleSucursal(productoId: number | string, sucursalId?: number | string): number {
-    const item = this.itemsSubject.value.find(i => i.producto.id === productoId || i.producto.codigoSKU === productoId);
+  public getStockDisponibleSucursal(
+    productoId: number | string,
+    sucursalId?: number | string,
+    sucursalNombre?: string,
+    productoSKU?: string
+  ): number {
+    const item = this.itemsSubject.value.find(
+      i =>
+        i.producto.id === productoId ||
+        String(i.producto.id) === String(productoId) ||
+        i.producto.codigoSKU === productoId ||
+        (productoSKU && i.producto.codigoSKU === productoSKU)
+    );
     if (!item) return 0;
-    if (sucursalId && item.stockPorSucursal) {
-      const key = sucursalId.toString();
-      // Buscar por ID exacto primero, luego por nombre
-      if (item.stockPorSucursal[key] != null) {
-        return item.stockPorSucursal[key];
+    if (sucursalId || sucursalNombre) {
+      if (!item.stockPorSucursal) return 0;
+
+      const keysToTry: string[] = [
+        sucursalId ? String(sucursalId).trim() : '',
+        sucursalNombre ? String(sucursalNombre).trim() : ''
+      ].filter(Boolean);
+
+      for (const key of keysToTry) {
+        if (item.stockPorSucursal[key] != null) {
+          return item.stockPorSucursal[key];
+        }
+        const keyLower = key.toLowerCase();
+        if (item.stockPorSucursal[keyLower] != null) {
+          return item.stockPorSucursal[keyLower];
+        }
+        const matchedKey = Object.keys(item.stockPorSucursal).find(k => {
+          const kLower = k.toLowerCase().trim();
+          return kLower === keyLower || kLower.includes(keyLower) || keyLower.includes(kLower);
+        });
+        if (matchedKey != null && item.stockPorSucursal[matchedKey] != null) {
+          return item.stockPorSucursal[matchedKey];
+        }
       }
-      // Búsqueda flexible por nombre (partial match, insensible a mayúsculas)
-      const keyLower = key.toLowerCase();
-      const matchedKey = Object.keys(item.stockPorSucursal).find(k => k.toLowerCase().includes(keyLower) || keyLower.includes(k.toLowerCase()));
-      if (matchedKey != null && item.stockPorSucursal[matchedKey] != null) {
-        return item.stockPorSucursal[matchedKey];
-      }
+      // Si se consulta una sucursal/agencia específica y no tiene existencias en dicha sede, su stock es 0 (no el de bodega central)
+      return 0;
     }
     return item.stockBodegaCentral || item.stockTotalRed || 0;
   }
@@ -338,7 +377,7 @@ export class InventarioService {
               found.stockPorSucursal[agenciaId] = Math.max(0, found.stockPorSucursal[agenciaId] - itemConsumo.cantidad);
             }
             if (found.stockBodegaCentral <= (found.producto.stockMinimoAgencia || 2)) {
-              alertas.push(`⚠️ Stock Bajo: ${found.producto.nombre} en ${agenciaId} (quedan ${found.stockBodegaCentral} ${found.producto.unidadMedida})`);
+              alertas.push(`Stock Bajo: ${found.producto.nombre} en ${agenciaId} (quedan ${found.stockBodegaCentral} ${found.producto.unidadMedida})`);
             }
           }
         });
@@ -414,11 +453,15 @@ export class InventarioService {
         const stockPorSucursal: Record<string, number> = {};
         const rawStocks: any[] = (p as any).stocks || [];
         for (const s of rawStocks) {
+          if (s.tipoUbicacion && s.tipoUbicacion !== 'AGENCIA') continue;
           const cant = Number(s.cantidadActual || 0);
           const agId = s.agenciaId || s.agencia?.id;
           const agNombre = s.agencia?.nombre;
           if (agId) stockPorSucursal[agId] = cant;
-          if (agNombre) stockPorSucursal[agNombre] = cant;
+          if (agNombre) {
+            stockPorSucursal[agNombre] = cant;
+            stockPorSucursal[agNombre.trim().toLowerCase()] = cant;
+          }
         }
 
         return {
@@ -434,6 +477,40 @@ export class InventarioService {
         };
       });
       this.itemsSubject.next(items);
+
+      // Sincronización continua y directa con el consolidado multi-sede
+      this.getStockAgenciasResumen().subscribe((res) => {
+        if (res?.agencias && Array.isArray(res.agencias)) {
+          const currentItems = [...this.itemsSubject.value];
+          let modified = false;
+
+          for (const agItem of res.agencias) {
+            const agId = agItem.agencia?.id;
+            const agNom = agItem.agencia?.nombre;
+            const agNomLower = agNom ? agNom.trim().toLowerCase() : '';
+
+            for (const ins of (agItem.insumos || [])) {
+              const matched = currentItems.find(
+                (ci) =>
+                  String(ci.producto.id) === String(ins.insumoId) ||
+                  ci.producto.codigoSKU === ins.codigoSKU
+              );
+              if (matched) {
+                if (!matched.stockPorSucursal) matched.stockPorSucursal = {};
+                const cant = Number(ins.stockActual ?? 0);
+                if (agId) matched.stockPorSucursal[agId] = cant;
+                if (agNom) matched.stockPorSucursal[agNom] = cant;
+                if (agNomLower) matched.stockPorSucursal[agNomLower] = cant;
+                modified = true;
+              }
+            }
+          }
+
+          if (modified) {
+            this.itemsSubject.next(currentItems);
+          }
+        }
+      });
     });
   }
 
@@ -457,6 +534,7 @@ export class InventarioService {
           stockMinimoBodega: Number(i.stockMinimoBodega || 0),
           stockMinimoAgencia: Number(i.stockMinimoAgencia || 0),
           stockOptimoBodega: Number(i.stockOptimoBodega || 0),
+          stockOptimoAgencia: Number(i.stockOptimoAgencia || 0),
           stockAlertaBodega: Number(i.stockMinimoBodega || 0),
           stockAlertaSucursal: Number(i.stockMinimoAgencia || 0),
           stockMinimoGlobal: Number(i.stockMinimoBodega || 0),
@@ -469,6 +547,7 @@ export class InventarioService {
           estado: i.estado,
           fechaCreacion: i.createdAt,
           presentaciones: i.presentaciones || [],
+          stocks: i.stocks || [],
           serviciosAsociados: (i.recetas || []).map((r: any) => ({
             id: r.catalogoServicio?.id,
             codigo: r.catalogoServicio?.codigo,

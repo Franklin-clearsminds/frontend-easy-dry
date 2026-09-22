@@ -219,9 +219,9 @@ import { Role } from '../../core/models/roles.model';
         @if (servicioVideo) {
           <div class="space-y-4">
             <div class="aspect-video bg-black rounded-2xl overflow-hidden shadow-inner flex items-center justify-center">
-              @if (servicioVideo.videoUrl || servicioVideo.video) {
+              @if (servicioVideo.videoUrl || servicioVideo.video || servicioVideo.fotoIngresoUrl || servicioVideo.fotoSalidaUrl) {
                 <video 
-                  [src]="servicioVideo.videoUrl || servicioVideo.video" 
+                  [src]="servicioVideo.videoUrl || servicioVideo.video || servicioVideo.fotoIngresoUrl || servicioVideo.fotoSalidaUrl" 
                   controls 
                   autoplay 
                   class="w-full h-full object-contain">

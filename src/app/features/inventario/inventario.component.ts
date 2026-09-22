@@ -1,4 +1,4 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, ViewChild, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
@@ -7,6 +7,8 @@ import { of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { ModalComponent } from '../../shared/components/modal/modal.component';
 import { ModalPortalDirective } from '../../shared/directives/modal-portal.directive';
+import { ImageUploaderComponent } from '../../shared/components/image-uploader/image-uploader.component';
+import { StorageUploadService } from '../../core/services/storage-upload.service';
 import { InventarioService } from '../../core/services/inventario.service';
 import { AuthService } from '../../core/services/auth.service';
 import { SucursalService } from '../../core/services/sucursal.service';
@@ -29,7 +31,7 @@ import { apiUrl } from '../../core/config/env';
 @Component({
   selector: 'app-inventario',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, ModalPortalDirective],
+  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, ModalPortalDirective, ImageUploaderComponent],
   template: `
     <div class="space-y-6 animate-fade-in pb-16">
 
@@ -236,7 +238,7 @@ import { apiUrl } from '../../core/config/env';
               <div>
                 <div class="flex items-center gap-2">
                   <h3 class="text-sm font-black text-rose-950 uppercase tracking-wide">
-                    🚨 Alerta Logística: {{ despachosRechazadosSuperAdmin.length }} Despacho(s) Rechazado(s) por Sedes
+                    Alerta Logística: {{ despachosRechazadosSuperAdmin.length }} Despacho(s) Rechazado(s) por Sedes
                   </h3>
                   <span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-200 text-rose-900 animate-pulse">
                     Stock Reintegrado a Bodega Central
@@ -285,7 +287,10 @@ import { apiUrl } from '../../core/config/env';
 
               <!-- Comentario reportado -->
               <div class="p-2.5 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-950">
-                <span class="font-black text-rose-800 uppercase text-[10px] block mb-0.5">💬 Razón de Rechazo Indicada por la Agencia:</span>
+                <span class="font-black text-rose-800 uppercase text-[10px] mb-0.5 inline-flex items-center gap-1">
+                  <i-lucide name="info" class="w-3 h-3 text-rose-600"></i-lucide>
+                  <span>Razón de Rechazo Indicada por la Agencia:</span>
+                </span>
                 <p class="font-medium italic">"{{ rech.motivoRechazo || rech.observaciones || 'Sin motivo reportado' }}"</p>
               </div>
             </div>
@@ -311,7 +316,7 @@ import { apiUrl } from '../../core/config/env';
                   </span>
                 </div>
                 <p class="text-xs text-indigo-800 mt-0.5">
-                  Bodega Central ha enviado suministros. Verifica la entrega física y presiona <b>✓ Aceptar y Recibir</b> para sumarlo al stock, o <b>✕ Rechazar</b> si el transporte no llegó o presenta anomalías.
+                  Bodega Central ha enviado suministros. Verifica la entrega física y presiona <b>Aceptar y Recibir</b> para sumarlo al stock, o <b>Rechazar</b> si el transporte no llegó o presenta anomalías.
                 </p>
               </div>
             </div>
@@ -372,7 +377,7 @@ import { apiUrl } from '../../core/config/env';
                   [disabled]="procesandoRecepcion"
                   class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black transition shadow-sm cursor-pointer flex items-center gap-1.5">
                   <i-lucide name="check-circle" class="w-4 h-4"></i-lucide>
-                  <span>✓ Aceptar y Recibir Suministros</span>
+                  <span>Aceptar y Recibir Suministros</span>
                 </button>
               </div>
             </div>
@@ -499,6 +504,7 @@ import { apiUrl } from '../../core/config/env';
                   <th class="p-3.5">Stock en Unidades</th>
                   <th class="p-3.5">Stock Contenido Total</th>
                   <th class="p-3.5">Stock Mín. Agencia</th>
+                  <th class="p-3.5">Stock Óptimo Agencia</th>
                   <th class="p-3.5">Alerta de Stock</th>
                   <th class="p-3.5">Estado</th>
                   <th class="p-3.5 text-right">Acciones</th>
@@ -506,14 +512,14 @@ import { apiUrl } from '../../core/config/env';
               </thead>
               <tbody class="divide-y divide-slate-100">
                 <tr *ngIf="cargandoInsumosServicios">
-                  <td colspan="10" class="p-8 text-center text-slate-400">
+                  <td colspan="11" class="p-8 text-center text-slate-400">
                     <i-lucide name="refresh-cw" class="w-5 h-5 mx-auto animate-spin text-teal-600 mb-2"></i-lucide>
                     <span>Cargando insumos de la sede...</span>
                   </td>
                 </tr>
 
                 <tr *ngIf="!cargandoInsumosServicios && insumosServiciosFiltrados.length === 0">
-                  <td colspan="10" class="p-8 text-center text-slate-400">
+                  <td colspan="11" class="p-8 text-center text-slate-400">
                     No se encontraron insumos de servicios asignados a esta sede.
                   </td>
                 </tr>
@@ -567,6 +573,10 @@ import { apiUrl } from '../../core/config/env';
                     <b>{{ getStockEnUnidades(item.stockMinimoAgencia || item.stockMinimo, item.contenidoNeto) | number:'1.0-2' }} und</b>
                     <span class="text-[10px] text-slate-400 block">({{ (item.stockMinimoAgencia || item.stockMinimo || 0) | number:'1.0-2' }} {{ item.unidadMedida }})</span>
                   </td>
+                  <td class="p-3.5 text-slate-500 font-mono whitespace-nowrap">
+                    <b>{{ getStockEnUnidades(item.stockOptimoAgencia, item.contenidoNeto) | number:'1.0-2' }} und</b>
+                    <span class="text-[10px] text-slate-400 block">({{ (item.stockOptimoAgencia || 0) | number:'1.0-2' }} {{ item.unidadMedida }})</span>
+                  </td>
                   <td class="p-3.5 whitespace-nowrap">
                     <span
                       class="px-2.5 py-1 rounded-full text-[11px] font-bold inline-flex items-center gap-1"
@@ -596,7 +606,7 @@ import { apiUrl } from '../../core/config/env';
                       (click)="abrirModalDespachoAgencia(undefined, item)"
                       title="Despachar a otra agencia o pulidor"
                       class="px-2.5 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-800 text-[11px] font-bold transition cursor-pointer inline-flex items-center gap-1 border border-purple-200">
-                      <i-lucide name="send" class="w-3 h-3"></i-lucide>
+                      <i-lucide name="truck" class="w-3 h-3"></i-lucide>
                       <span>Despachar</span>
                     </button>
                     <button
@@ -622,8 +632,6 @@ import { apiUrl } from '../../core/config/env';
         </div>
 
       </div>
-
-
 
       <!-- ============================================================== -->
       <!-- TAB 2: PRODUCTOS / INSUMOS MAESTROS                            -->
@@ -674,11 +682,11 @@ import { apiUrl } from '../../core/config/env';
               (change)="filtrarProductos()"
               class="px-3 py-1.5 text-xs rounded-lg border border-slate-200 bg-white focus:outline-none focus:border-easydry-blue text-slate-700">
               <option value="">Todos los Niveles de Stock</option>
-              <option value="alerta_total">🚨 En Alerta (Agotado o Bajo Mínimo)</option>
-              <option value="agotado">❌ Agotado (Sin Existencias)</option>
-              <option value="bajo_minimo">⚠️ Bajo Mínimo</option>
-              <option value="moderado">🟡 Stock Moderado</option>
-              <option value="optimo">✅ Stock Óptimo</option>
+              <option value="alerta_total">En Alerta (Agotado o Bajo Mínimo)</option>
+              <option value="agotado">Agotado (Sin Existencias)</option>
+              <option value="bajo_minimo">Bajo Mínimo</option>
+              <option value="moderado">Stock Moderado</option>
+              <option value="optimo">Stock Óptimo</option>
             </select>
 
             <!-- Filtro Activo / Inactivo (inactivos siguen visibles) -->
@@ -705,9 +713,6 @@ import { apiUrl } from '../../core/config/env';
               {{ isLiderOperador ? 'Insumos requeridos por los servicios autorizados de tu sede.' : 'Catálogo maestro de insumos y suministros registrados en el sistema.' }}
             </span>
           </div>
-          <span class="text-[11px] font-bold text-easydry-blue bg-blue-100/80 px-2.5 py-0.5 rounded-md font-mono">
-            {{ productosFiltrados.length }} insumos registrados
-          </span>
         </div>
 
         <!-- Tabla Completa de Productos con Todas las Columnas y Alertas -->
@@ -723,8 +728,9 @@ import { apiUrl } from '../../core/config/env';
                   <th class="p-3.5">Stock en Unidades</th>
                   <th class="p-3.5">Stock Contenido Total</th>
                   <th class="p-3.5">Stock Mín. Bodega</th>
-                  <th class="p-3.5">Stock Mín. Agencia</th>
                   <th class="p-3.5">Stock Óptimo Bodega</th>
+                  <th class="p-3.5">Stock Mín. Agencia</th>
+                  <th class="p-3.5">Stock Óptimo Agencia</th>
                   <th class="p-3.5">Alerta de Stock</th>
                   <th class="p-3.5">Estado</th>
                   <th class="p-3.5 text-right">Acciones</th>
@@ -732,7 +738,7 @@ import { apiUrl } from '../../core/config/env';
               </thead>
               <tbody class="divide-y divide-slate-100">
                 <tr *ngIf="productosFiltrados.length === 0">
-                  <td colspan="12" class="p-8 text-center text-slate-400">
+                  <td colspan="13" class="p-8 text-center text-slate-400">
                     No se encontraron productos registrados que coincidan con los filtros aplicados.
                   </td>
                 </tr>
@@ -741,25 +747,24 @@ import { apiUrl } from '../../core/config/env';
                   <td class="p-3.5 font-mono font-bold text-slate-800">{{ p.codigoSKU }}</td>
                   <td class="p-3.5">
                     <div class="flex items-center gap-3">
-                      <div *ngIf="p.imagenUrl || p.imagen; else defaultIcon" class="w-10 h-10 rounded-xl overflow-hidden border border-slate-200 shadow-xs flex-shrink-0 bg-slate-50">
-                        <img [src]="p.imagenUrl || p.imagen" alt="Foto Insumo" class="w-full h-full object-cover" />
+                      <!-- Miniatura Cuadrada (1:1) con Lightbox Zoom -->
+                      <div
+                        *ngIf="p.imagenUrl || p.imagen; else defaultIcon"
+                        (click)="abrirZoomImagen(p.imagenUrl || p.imagen || '')"
+                        class="w-12 h-12 rounded-xl overflow-hidden border border-slate-200 shadow-2xs flex-shrink-0 bg-slate-50 cursor-pointer group relative">
+                        <img [src]="resolverUrlImagen(p.imagenUrl || p.imagen)" alt="Foto Insumo" class="w-full h-full object-cover transition-transform group-hover:scale-110" />
+                        <div class="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                          <i-lucide name="zoom-in" class="w-4 h-4 text-white"></i-lucide>
+                        </div>
                       </div>
                       <ng-template #defaultIcon>
-                        <div class="w-10 h-10 rounded-xl bg-easydry-blue/10 text-easydry-blue flex items-center justify-center flex-shrink-0 border border-slate-200/60">
-                          <i-lucide name="package" class="w-5 h-5"></i-lucide>
+                        <div class="w-12 h-12 rounded-xl bg-easydry-blue/10 text-easydry-blue flex items-center justify-center flex-shrink-0 border border-slate-200/60">
+                          <i-lucide name="package" class="w-6 h-6"></i-lucide>
                         </div>
                       </ng-template>
                       <div>
                         <span class="font-bold text-slate-900 block">{{ p.nombre }}</span>
                         <span class="text-[10px] text-slate-400 line-clamp-1">{{ p.descripcion || 'Sin descripción' }}</span>
-                        <!-- Servicios que requieren este insumo -->
-                        <div *ngIf="p.serviciosAsociados && p.serviciosAsociados.length > 0" class="flex flex-wrap gap-1 mt-1.5">
-                          <span *ngFor="let s of p.serviciosAsociados" class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-50 text-easydry-blue border border-blue-200" [title]="'Servicio: ' + s.nombre">
-                            <i-lucide name="sparkles" class="w-2.5 h-2.5 text-easydry-blue"></i-lucide>
-                            <span>{{ s.nombre }}</span>
-                            <span *ngIf="s.cantidadUsada" class="text-blue-600/80 font-mono font-medium">({{ s.cantidadUsada }} {{ s.unidad }})</span>
-                          </span>
-                        </div>
                       </div>
                     </div>
                   </td>
@@ -791,13 +796,17 @@ import { apiUrl } from '../../core/config/env';
                     <b>{{ getStockEnUnidades(p.stockMinimoBodega, p.contenidoNeto) | number:'1.0-2' }} und</b>
                     <span class="text-[10px] text-slate-400 block">({{ (p.stockMinimoBodega || 0) | number:'1.0-2' }} {{ p.unidadMedida }})</span>
                   </td>
+                  <td class="p-3.5 text-slate-500 font-mono whitespace-nowrap">
+                    <b>{{ getStockEnUnidades(p.stockOptimoBodega, p.contenidoNeto) | number:'1.0-2' }} und</b>
+                    <span class="text-[10px] text-slate-400 block">({{ (p.stockOptimoBodega || 0) | number:'1.0-2' }} {{ p.unidadMedida }})</span>
+                  </td>
                   <td class="p-3.5 text-slate-600 font-mono whitespace-nowrap">
                     <b>{{ getStockEnUnidades(p.stockMinimoAgencia, p.contenidoNeto) | number:'1.0-2' }} und</b>
                     <span class="text-[10px] text-slate-400 block">({{ (p.stockMinimoAgencia || 0) | number:'1.0-2' }} {{ p.unidadMedida }})</span>
                   </td>
                   <td class="p-3.5 text-slate-500 font-mono whitespace-nowrap">
-                    <b>{{ getStockEnUnidades(p.stockOptimoBodega, p.contenidoNeto) | number:'1.0-2' }} und</b>
-                    <span class="text-[10px] text-slate-400 block">({{ (p.stockOptimoBodega || 0) | number:'1.0-2' }} {{ p.unidadMedida }})</span>
+                    <b>{{ getStockEnUnidades(p.stockOptimoAgencia, p.contenidoNeto) | number:'1.0-2' }} und</b>
+                    <span class="text-[10px] text-slate-400 block">({{ (p.stockOptimoAgencia || 0) | number:'1.0-2' }} {{ p.unidadMedida }})</span>
                   </td>
                   <td class="p-3.5 whitespace-nowrap">
                     <span
@@ -1838,14 +1847,17 @@ import { apiUrl } from '../../core/config/env';
                   <h3 class="text-base font-extrabold text-slate-900 font-outfit">
                     {{ isLiderOperador ? 'Alertas de Stock Bajo de mi Sede' : 'Alertas de Stock Bajo emitidas por Sucursales' }}
                   </h3>
-                  <span *ngIf="esAdminGlobal || esGestorBodega" class="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-blue-100 text-blue-800 border border-blue-200">
-                    🌍 Red Nacional Completa · Ver Todo de Todos
+                  <span *ngIf="esAdminGlobal || esGestorBodega" class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-blue-100 text-blue-800 border border-blue-200">
+                    <i-lucide name="globe" class="w-3 h-3 text-blue-700"></i-lucide>
+                    <span>Red Nacional Completa · Ver Todo de Todos</span>
                   </span>
-                  <span *ngIf="esAsistenteBodega" class="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-purple-100 text-purple-800 border border-purple-200">
-                    📍 Región {{ userRegionDisplay }} · Solo Sucursales de tu Región
+                  <span *ngIf="esAsistenteBodega" class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-purple-100 text-purple-800 border border-purple-200">
+                    <i-lucide name="map-pin" class="w-3 h-3 text-purple-700"></i-lucide>
+                    <span>Región {{ userRegionDisplay }} · Solo Sucursales de tu Región</span>
                   </span>
-                  <span *ngIf="isLiderOperador" class="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-teal-100 text-teal-800 border border-teal-200">
-                    🏢 Solo mi sede · {{ miAgenciaNombre || 'Agencia asignada' }}
+                  <span *ngIf="isLiderOperador" class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-teal-100 text-teal-800 border border-teal-200">
+                    <i-lucide name="building-2" class="w-3 h-3 text-teal-700"></i-lucide>
+                    <span>Solo mi sede · {{ miAgenciaNombre || 'Agencia asignada' }}</span>
                   </span>
                 </div>
                 <p class="text-xs text-slate-600 mt-1">
@@ -1889,8 +1901,8 @@ import { apiUrl } from '../../core/config/env';
                 (ngModelChange)="filtrarAlertasStock()"
                 class="px-3 py-1.5 text-xs rounded-lg border border-slate-200 bg-white focus:outline-none focus:border-rose-500 text-slate-700">
                 <option value="">Todos los Niveles</option>
-                <option value="CRITICO">🚨 Crítico / Agotado</option>
-                <option value="BAJO">⚠️ Bajo Mínimo</option>
+                <option value="CRITICO">Crítico / Agotado</option>
+                <option value="BAJO">Bajo Mínimo</option>
               </select>
             </div>
           </div>
@@ -2672,7 +2684,7 @@ import { apiUrl } from '../../core/config/env';
             </div>
 
             <!-- Stocks obligatorios (ingreso en unidades físicas; se guarda en cantidad base) -->
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               <div>
                 <label class="block font-bold text-slate-700 mb-1">Stock Mín. Bodega *</label>
                 <div class="relative">
@@ -2689,6 +2701,26 @@ import { apiUrl } from '../../core/config/env';
                 </div>
                 <p class="text-[10px] text-slate-400 mt-1">
                   ≈ {{ getCantidadDesdeUnidades(formProducto.stockMinimoBodega, formProducto.contenidoNeto) | number:'1.0-2' }}
+                  <span *ngIf="getSimboloUnidadSeleccionada()"> {{ getSimboloUnidadSeleccionada() }}</span>
+                  <span *ngIf="!getSimboloUnidadSeleccionada()"> (cantidad base)</span>
+                </p>
+              </div>
+              <div>
+                <label class="block font-bold text-slate-700 mb-1">Stock Óptimo Bodega *</label>
+                <div class="relative">
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    [(ngModel)]="formProducto.stockOptimoBodega"
+                    name="stockOptimoBodega"
+                    placeholder="ej. 20"
+                    required
+                    class="w-full p-2.5 pr-14 rounded-xl border border-slate-200" />
+                  <span class="absolute right-3 top-2.5 text-[11px] font-bold text-slate-400">und</span>
+                </div>
+                <p class="text-[10px] text-slate-400 mt-1">
+                  ≈ {{ getCantidadDesdeUnidades(formProducto.stockOptimoBodega, formProducto.contenidoNeto) | number:'1.0-2' }}
                   <span *ngIf="getSimboloUnidadSeleccionada()"> {{ getSimboloUnidadSeleccionada() }}</span>
                   <span *ngIf="!getSimboloUnidadSeleccionada()"> (cantidad base)</span>
                 </p>
@@ -2714,21 +2746,21 @@ import { apiUrl } from '../../core/config/env';
                 </p>
               </div>
               <div>
-                <label class="block font-bold text-slate-700 mb-1">Stock Óptimo Bodega *</label>
+                <label class="block font-bold text-slate-700 mb-1">Stock Óptimo Agencia *</label>
                 <div class="relative">
                   <input
                     type="number"
                     min="1"
                     step="1"
-                    [(ngModel)]="formProducto.stockOptimoBodega"
-                    name="stockOptimoBodega"
-                    placeholder="ej. 20"
+                    [(ngModel)]="formProducto.stockOptimoAgencia"
+                    name="stockOptimoAgencia"
+                    placeholder="ej. 5"
                     required
                     class="w-full p-2.5 pr-14 rounded-xl border border-slate-200" />
                   <span class="absolute right-3 top-2.5 text-[11px] font-bold text-slate-400">und</span>
                 </div>
                 <p class="text-[10px] text-slate-400 mt-1">
-                  ≈ {{ getCantidadDesdeUnidades(formProducto.stockOptimoBodega, formProducto.contenidoNeto) | number:'1.0-2' }}
+                  ≈ {{ getCantidadDesdeUnidades(formProducto.stockOptimoAgencia, formProducto.contenidoNeto) | number:'1.0-2' }}
                   <span *ngIf="getSimboloUnidadSeleccionada()"> {{ getSimboloUnidadSeleccionada() }}</span>
                   <span *ngIf="!getSimboloUnidadSeleccionada()"> (cantidad base)</span>
                 </p>
@@ -2769,64 +2801,17 @@ import { apiUrl } from '../../core/config/env';
                 class="w-full p-2.5 rounded-xl border border-slate-200"></textarea>
             </div>
 
-            <!-- Imagen del Insumo / Producto (Input URL + Dropzone) -->
-            <div class="space-y-2 pt-1">
-              <label class="block font-bold text-slate-700 uppercase tracking-wider text-[11px]">Imagen del Insumo / Producto</label>
-              
-              <!-- Campo Input para URL de la Imagen -->
-              <div>
-                <label class="block text-[11px] font-medium text-slate-600 mb-1">Enlace / URL de la Imagen</label>
-                <div class="relative flex items-center">
-                  <span class="absolute left-3 inset-y-0 flex items-center text-slate-400">
-                    <i-lucide name="link" class="w-4 h-4"></i-lucide>
-                  </span>
-                  <input
-                    type="url"
-                    [(ngModel)]="formProducto.imagenUrl"
-                    name="imagenUrl"
-                    (input)="alCambiarUrlImagenInsumo()"
-                    placeholder="https://ejemplo.com/imagen-insumo.jpg"
-                    class="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:border-easydry-blue" />
-                </div>
-              </div>
-
-              <!-- Separador -->
-              <div class="flex items-center gap-2 my-1">
-                <div class="h-px bg-slate-200 flex-1"></div>
-                <span class="text-[10px] font-bold text-slate-400 uppercase">o subir archivo de imagen</span>
-                <div class="h-px bg-slate-200 flex-1"></div>
-              </div>
-
-              <!-- Subir archivo local (Dropzone) -->
-              <div class="relative w-full border-2 border-dashed border-slate-300 rounded-xl p-4 flex flex-col items-center justify-center hover:bg-slate-50 transition-colors cursor-pointer"
-                   (click)="imageInput.click()">
-                <input 
-                  #imageInput
-                  type="file" 
-                  accept="image/*" 
-                  class="hidden"
-                  (change)="onImagenInsumoSeleccionada($event)">
-                
-                <div *ngIf="imagenInsumoPreview" class="relative w-full flex flex-col items-center justify-center">
-                  <img [src]="imagenInsumoPreview" alt="Vista previa del insumo" class="max-h-36 rounded-lg object-contain border border-slate-200 mb-2 shadow-xs" />
-                  <div class="flex items-center gap-2 text-easydry-green-dark">
-                    <i-lucide name="check-circle-2" class="w-4 h-4"></i-lucide>
-                    <span class="text-xs font-bold">{{ imagenInsumoNombre || 'Imagen cargada' }}</span>
-                  </div>
-                  <div class="flex items-center gap-3 mt-2">
-                    <span class="text-[10px] text-slate-500 hover:underline">Toca para cambiar la imagen</span>
-                    <button type="button" (click)="$event.stopPropagation(); eliminarImagenInsumo()" class="text-[10px] font-bold text-rose-600 hover:underline">Eliminar imagen</button>
-                  </div>
-                </div>
-
-                <div *ngIf="!imagenInsumoPreview" class="flex flex-col items-center justify-center">
-                  <div class="p-3 bg-easydry-blue/10 text-easydry-blue rounded-full mb-2">
-                    <i-lucide name="image" class="w-6 h-6"></i-lucide>
-                  </div>
-                  <p class="text-xs font-bold text-slate-700 text-center">Toca para seleccionar o subir imagen del insumo</p>
-                  <p class="text-[10px] text-slate-400 text-center mt-1">Archivos recomendados: JPG, PNG, WEBP</p>
-                </div>
-              </div>
+            <!-- Imagen del Insumo / Producto con Componente Reutilizable S3 + Cámara + Encuadre Cuadrado -->
+            <div class="pt-2">
+              <app-image-uploader
+                #imageUploader
+                [(imageUrl)]="formProducto.imagenUrl"
+                [insumoId]="formProducto.nombre || formProducto.codigoSKU || formProducto.id"
+                [insumoNombre]="formProducto.nombre || formProducto.codigoSKU"
+                label="Foto del Insumo / Producto"
+                category="CATALOGO_INSUMOS"
+                type="IMAGEN_PRODUCTO">
+              </app-image-uploader>
             </div>
           </div>
         </form>
@@ -2835,14 +2820,17 @@ import { apiUrl } from '../../core/config/env';
           <button
             type="button"
             (click)="cerrarModalProducto()"
-            class="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 text-xs font-bold transition cursor-pointer">
+            [disabled]="guardandoProducto"
+            class="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 text-xs font-bold transition cursor-pointer disabled:opacity-50">
             Cancelar
           </button>
           <button
             type="button"
             (click)="guardarProducto()"
-            class="px-5 py-2 rounded-xl bg-easydry-blue hover:bg-blue-700 text-white text-xs font-bold transition shadow-sm cursor-pointer">
-            {{ editandoProducto ? 'Actualizar Producto' : 'Guardar Producto' }}
+            [disabled]="guardandoProducto"
+            class="px-5 py-2 rounded-xl bg-easydry-blue hover:bg-blue-700 text-white text-xs font-bold transition shadow-sm cursor-pointer disabled:opacity-50 flex items-center gap-1.5">
+            <i-lucide *ngIf="guardandoProducto" name="loader" class="w-4 h-4 animate-spin"></i-lucide>
+            <span>{{ guardandoProducto ? 'Guardando en S3 y BD...' : (editandoProducto ? 'Actualizar Producto' : 'Guardar Producto') }}</span>
           </button>
         </div>
       </app-modal>
@@ -3546,6 +3534,34 @@ import { apiUrl } from '../../core/config/env';
         </form>
       </app-modal>
 
+      <!-- ============================================================== -->
+      <!-- MODAL LIGHTBOX ZOOM DE IMAGEN DEL INSUMO                       -->
+      <!-- ============================================================== -->
+      <div *ngIf="imagenModalZoom" appModalPortal class="fixed inset-0 z-[10060] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in" (click)="cerrarZoomImagen()">
+        <div class="relative max-w-lg w-full bg-white rounded-3xl p-4 shadow-2xl flex flex-col items-center gap-3 overflow-hidden" (click)="$event.stopPropagation()">
+          <div class="w-full flex items-center justify-between pb-2 border-b border-slate-100">
+            <span class="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+              <i-lucide name="image" class="w-4 h-4 text-easydry-blue"></i-lucide>
+              Vista Previa de Insumo (Formato Cuadrado)
+            </span>
+            <button (click)="cerrarZoomImagen()" class="p-1.5 text-slate-400 hover:text-slate-700 rounded-xl hover:bg-slate-100 transition cursor-pointer">
+              <i-lucide name="x" class="w-5 h-5"></i-lucide>
+            </button>
+          </div>
+          <div class="w-full aspect-square rounded-2xl overflow-hidden bg-slate-100 border border-slate-200 shadow-inner flex items-center justify-center">
+            <img [src]="resolverUrlImagen(imagenModalZoom)" alt="Foto Insumo Zoom" class="w-full h-full object-cover" />
+          </div>
+          <div class="w-full flex items-center justify-between pt-1">
+            <a [href]="resolverUrlImagen(imagenModalZoom)" target="_blank" class="text-xs font-bold text-easydry-blue hover:underline flex items-center gap-1">
+              <i-lucide name="external-link" class="w-3.5 h-3.5"></i-lucide> Abrir original
+            </a>
+            <button (click)="cerrarZoomImagen()" class="px-4 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs cursor-pointer">
+              Cerrar
+            </button>
+          </div>
+        </div>
+      </div>
+
     </div>
   `,
 })
@@ -3557,6 +3573,28 @@ export class InventarioComponent implements OnInit {
   private usuarioService = inject(UsuarioService);
   private regionService = inject(RegionService);
   private http = inject(HttpClient);
+  private storageUploadService = inject(StorageUploadService);
+
+  @ViewChild('imageUploader') imageUploader?: ImageUploaderComponent;
+  public guardandoProducto: boolean = false;
+
+  // Lightbox Zoom
+  public imagenModalZoom: string | null = null;
+
+  public abrirZoomImagen(url: string): void {
+    if (url && url.trim()) {
+      this.imagenModalZoom = url.trim();
+    }
+  }
+
+  public cerrarZoomImagen(): void {
+    this.imagenModalZoom = null;
+  }
+
+  public resolverUrlImagen(url: string | null | undefined): string {
+    if (!url) return '';
+    return this.storageUploadService.resolveBackendUrl(url);
+  }
 
   // Navegación
   activeTab: 'productos' | 'bodegas' | 'agencias' | 'pulidores' | 'stock_bajo' | 'alertas_reabastecimiento' | 'movimientos' | 'configuracion' | 'insumos_servicios' = 'productos';
@@ -3837,6 +3875,7 @@ export class InventarioComponent implements OnInit {
     stockMinimoBodega: null as number | null,
     stockMinimoAgencia: null as number | null,
     stockOptimoBodega: null as number | null,
+    stockOptimoAgencia: null as number | null,
     estado: 1,
     descripcion: '',
   };
@@ -4665,10 +4704,28 @@ export class InventarioComponent implements OnInit {
   }
 
   public solicitarReabastecimiento(item: any): void {
-    this.toast.success(
-      'Solicitud Enviada a Bodega',
-      `Se solicitó reabastecimiento para ${item.nombre}. Stock actual en sede: ${item.stockActual} ${item.unidadMedida}.`
-    );
+    const stockAct = Number(item.stockActual || 0);
+    const nivel = stockAct <= 0 ? 'AGOTADO' : 'BAJO';
+    const payload = {
+      insumoId: String(item.id || item.insumoId),
+      nivel: nivel as any,
+      sucursalId: this.miAgenciaId ? String(this.miAgenciaId) : undefined,
+      mensaje: `Solicitud de reabastecimiento manual desde ${this.miAgenciaNombre || 'sede'}. Stock actual: ${stockAct} ${item.unidadMedida || 'u'}.`,
+      stockReportado: stockAct,
+    };
+
+    this.inventarioService.crearAlerta(payload).subscribe({
+      next: () => {
+        this.toast.success(
+          'Solicitud Enviada a Bodega',
+          `Se generó la alerta de reabastecimiento en base de datos para ${item.nombre}.`
+        );
+        this.cargarAlertasStock();
+      },
+      error: (err) => {
+        this.toast.error('Error', err?.error?.message || 'No se pudo registrar la alerta en base de datos');
+      },
+    });
   }
 
   public cargarTodosLosCatalogos(): void {
@@ -5252,8 +5309,8 @@ export class InventarioComponent implements OnInit {
   }
 
   public getLabelEstadoBodega(item: { estado?: string; porcentajeAlerta?: number }): string {
-    if (item.estado === 'Crítico') return '🚨 Crítico (< Mín)';
-    if (item.estado === 'Bajo') return `⚠️ Stock Bajo (Umbral ${item.porcentajeAlerta || 20}%)`;
+    if (item.estado === 'Crítico') return 'Crítico (< Mín)';
+    if (item.estado === 'Bajo') return `Stock Bajo (Umbral ${item.porcentajeAlerta || 20}%)`;
     if (item.estado === 'No necesario') return 'No necesario';
     return item.estado || 'Óptimo';
   }
@@ -5800,8 +5857,10 @@ export class InventarioComponent implements OnInit {
 
   public abrirModalNuevoProducto(): void {
     this.editandoProducto = false;
+    this.guardandoProducto = false;
     this.imagenInsumoPreview = null;
     this.imagenInsumoNombre = '';
+    this.imageUploader?.reset();
     this.formProducto = {
       id: '',
       codigoSKU: `INS-${Date.now().toString().slice(-4)}`,
@@ -5812,6 +5871,7 @@ export class InventarioComponent implements OnInit {
       stockMinimoBodega: null,
       stockMinimoAgencia: null,
       stockOptimoBodega: null,
+      stockOptimoAgencia: null,
       estado: 1,
       descripcion: '',
       imagenUrl: '',
@@ -5822,8 +5882,10 @@ export class InventarioComponent implements OnInit {
 
   public abrirModalEditarProducto(p: ProductoInsumo): void {
     this.editandoProducto = true;
+    this.guardandoProducto = false;
     this.imagenInsumoPreview = p.imagenUrl || p.imagen || null;
     this.imagenInsumoNombre = (p.imagenUrl || p.imagen) ? 'Imagen actual del insumo' : '';
+    this.imageUploader?.reset();
     const cNeto = Number(p.contenidoNeto) || 1;
     this.formProducto = {
       id: p.id.toString(),
@@ -5836,6 +5898,7 @@ export class InventarioComponent implements OnInit {
       stockMinimoBodega: p.stockMinimoBodega != null ? this.getStockEnUnidades(p.stockMinimoBodega, cNeto) : null,
       stockMinimoAgencia: p.stockMinimoAgencia != null ? this.getStockEnUnidades(p.stockMinimoAgencia, cNeto) : null,
       stockOptimoBodega: p.stockOptimoBodega != null ? this.getStockEnUnidades(p.stockOptimoBodega, cNeto) : null,
+      stockOptimoAgencia: p.stockOptimoAgencia != null ? this.getStockEnUnidades(p.stockOptimoAgencia, cNeto) : null,
       estado: (p.activo || p.estado === 1) ? 1 : 0,
       descripcion: p.descripcion || '',
       imagenUrl: p.imagenUrl || p.imagen || '',
@@ -5846,13 +5909,15 @@ export class InventarioComponent implements OnInit {
 
   public cerrarModalProducto(): void {
     this.modalProductoAbierto = false;
+    this.guardandoProducto = false;
+    this.imageUploader?.reset();
   }
 
   public puedeCambiarEstadoProducto(): boolean {
     return !!(this.esAdminGlobal || this.esGestorBodega);
   }
 
-  public guardarProducto(): void {
+  public async guardarProducto(): Promise<void> {
     if (!this.formProducto.codigoSKU.trim() || !this.formProducto.nombre.trim()) {
       this.toast.warning('Advertencia', 'El código SKU y el nombre del producto son obligatorios');
       return;
@@ -5873,6 +5938,8 @@ export class InventarioComponent implements OnInit {
     const minBodUnd = Number(this.formProducto.stockMinimoBodega);
     const minAgeUnd = Number(this.formProducto.stockMinimoAgencia);
     const optBodUnd = Number(this.formProducto.stockOptimoBodega);
+    const optAgeUnd = Number(this.formProducto.stockOptimoAgencia);
+
     if (!minBodUnd || minBodUnd <= 0) {
       this.toast.warning('Advertencia', 'El stock mínimo de bodega es obligatorio (en unidades) y debe ser mayor a 0');
       return;
@@ -5889,11 +5956,37 @@ export class InventarioComponent implements OnInit {
       this.toast.warning('Advertencia', 'El stock óptimo de bodega debe ser mayor o igual al stock mínimo de bodega');
       return;
     }
+    if (!optAgeUnd || optAgeUnd <= 0) {
+      this.toast.warning('Advertencia', 'El stock óptimo de agencia es obligatorio (en unidades) y debe ser mayor a 0');
+      return;
+    }
+    if (optAgeUnd < minAgeUnd) {
+      this.toast.warning('Advertencia', 'El stock óptimo de agencia debe ser mayor o igual al stock mínimo de agencia');
+      return;
+    }
+
+    this.guardandoProducto = true;
+
+    // Si hay una foto recién ajustada, se sube ahora a S3
+    if (this.imageUploader?.hasPendingUpload) {
+      try {
+        this.imageUploader.insumoId = this.formProducto.nombre || this.formProducto.codigoSKU || this.formProducto.id;
+        this.imageUploader.insumoNombre = this.formProducto.nombre || this.formProducto.codigoSKU;
+        const s3Url = await this.imageUploader.uploadNow();
+        this.formProducto.imagenUrl = s3Url;
+        this.formProducto.imagen = s3Url;
+      } catch (err: any) {
+        this.guardandoProducto = false;
+        this.toast.error('Error al subir imagen a S3', err?.message || 'Fallo de transferencia');
+        return;
+      }
+    }
 
     const cNeto = Number(this.formProducto.contenidoNeto) || 1;
     const minBod = this.getCantidadDesdeUnidades(minBodUnd, cNeto);
     const minAge = this.getCantidadDesdeUnidades(minAgeUnd, cNeto);
     const optBod = this.getCantidadDesdeUnidades(optBodUnd, cNeto);
+    const optAge = this.getCantidadDesdeUnidades(optAgeUnd, cNeto);
 
     if (this.editandoProducto) {
       const payload: any = {
@@ -5906,6 +5999,7 @@ export class InventarioComponent implements OnInit {
         stockMinimoBodega: minBod,
         stockMinimoAgencia: minAge,
         stockOptimoBodega: optBod,
+        stockOptimoAgencia: optAge,
         estado: Number(this.formProducto.estado) === 1 ? 1 : 0,
         descripcion: this.formProducto.descripcion,
         imagenUrl: this.formProducto.imagenUrl || this.formProducto.imagen || undefined,
@@ -5913,13 +6007,15 @@ export class InventarioComponent implements OnInit {
       };
       this.inventarioService.actualizarProducto(payload).subscribe({
         next: () => {
-          this.toast.success('Éxito', 'Producto actualizado correctamente');
+          this.guardandoProducto = false;
+          this.toast.success('Éxito', 'Producto actualizado correctamente con su imagen');
           this.cerrarModalProducto();
           this.cargarProductos();
           this.cargarStockBodega();
           this.cargarStockAgencias();
         },
         error: (err) => {
+          this.guardandoProducto = false;
           this.toast.error('Error', err?.error?.message || 'Error al actualizar producto');
         },
       });
@@ -5933,6 +6029,7 @@ export class InventarioComponent implements OnInit {
         stockMinimoBodega: minBod,
         stockMinimoAgencia: minAge,
         stockOptimoBodega: optBod,
+        stockOptimoAgencia: optAge,
         descripcion: this.formProducto.descripcion,
         imagenUrl: this.formProducto.imagenUrl || this.formProducto.imagen || undefined,
         imagen: this.formProducto.imagen || this.formProducto.imagenUrl || undefined,
@@ -5940,7 +6037,8 @@ export class InventarioComponent implements OnInit {
       };
       this.inventarioService.crearProducto(payload).subscribe({
         next: () => {
-          this.toast.success('Éxito', 'Producto registrado exitosamente');
+          this.guardandoProducto = false;
+          this.toast.success('Éxito', 'Producto registrado exitosamente con su imagen');
           this.cerrarModalProducto();
           this.cargarProductos();
           this.cargarDashboardResumen();
@@ -5948,6 +6046,7 @@ export class InventarioComponent implements OnInit {
           this.cargarStockAgencias();
         },
         error: (err) => {
+          this.guardandoProducto = false;
           this.toast.error('Error', err?.error?.message || 'Error al registrar producto');
         },
       });

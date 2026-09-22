@@ -68,7 +68,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                 <span class="text-xs font-bold text-slate-700 uppercase">Filtrar Agencia:</span>
               </div>
               <select [(ngModel)]="filtroSucursalMapaId" class="bg-slate-50 border border-slate-200 text-xs font-bold rounded-xl px-3 py-2 min-w-56 focus:ring-2 focus:ring-easydry-blue">
-                <option [ngValue]="0">🌐 Toda la Red Nacional (Todas las agencias)</option>
+                <option [ngValue]="0">Toda la Red Nacional (Todas las agencias)</option>
                 @for (suc of sucursales; track suc.id) {
                   <option [ngValue]="suc.id">{{ suc.nombre }} ({{ suc.ciudad }})</option>
                 }

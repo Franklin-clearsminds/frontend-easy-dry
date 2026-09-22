@@ -217,8 +217,9 @@ import { apiUrl } from '../../core/config/env';
                         <span class="text-[11px] text-emerald-700 font-black font-mono">
                           {{ getHoraResolucion(env) || '09:45' }}
                         </span>
-                        <span class="px-2 py-0.5 mt-0.5 rounded text-[9px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
-                          ✓ Aprobado
+                        <span class="inline-flex items-center gap-1 px-2 py-0.5 mt-0.5 rounded text-[9px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
+                          <i-lucide name="check" class="w-2.5 h-2.5"></i-lucide>
+                          <span>Aprobado</span>
                         </span>
                       </div>
                     } @else if (env.estado === 'RECHAZADO') {
@@ -230,8 +231,9 @@ import { apiUrl } from '../../core/config/env';
                         <span class="text-[11px] text-rose-700 font-black font-mono">
                           {{ getHoraResolucion(env) || '10:15' }}
                         </span>
-                        <span class="px-2 py-0.5 mt-0.5 rounded text-[9px] font-black bg-rose-100 text-rose-800 border border-rose-300">
-                          ✕ Rechazado
+                        <span class="inline-flex items-center gap-1 px-2 py-0.5 mt-0.5 rounded text-[9px] font-black bg-rose-100 text-rose-800 border border-rose-300">
+                          <i-lucide name="x" class="w-2.5 h-2.5"></i-lucide>
+                          <span>Rechazado</span>
                         </span>
                       </div>
                     } @else {
@@ -276,8 +278,9 @@ import { apiUrl } from '../../core/config/env';
                           <span>Rechazado por Agencia</span>
                         </span>
                         @if (env.motivoRechazo || env.observaciones) {
-                          <span class="text-[11px] font-medium text-rose-900 bg-rose-50 px-2 py-1 rounded-md border border-rose-200/90 max-w-xs text-left">
-                            💬 <b>Razón:</b> {{ env.motivoRechazo || env.observaciones }}
+                          <span class="inline-flex items-start gap-1 text-[11px] font-medium text-rose-900 bg-rose-50 px-2 py-1 rounded-md border border-rose-200/90 max-w-xs text-left">
+                            <i-lucide name="info" class="w-3.5 h-3.5 text-rose-600 mt-0.5 shrink-0"></i-lucide>
+                            <span><b>Razón:</b> {{ env.motivoRechazo || env.observaciones }}</span>
                           </span>
                         }
                       </div>

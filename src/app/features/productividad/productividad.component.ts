@@ -356,8 +356,9 @@ import { Reto } from '../../core/models/reto.model';
                     <div class="text-[11px] text-slate-500 font-medium line-clamp-1">{{ reto.descripcion }}</div>
                   </td>
                   <td class="py-3.5 px-4">
-                    <span class="font-extrabold text-xs text-amber-600 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200 inline-block">
-                      🏆 {{ reto.premio }}
+                    <span class="inline-flex items-center gap-1.5 font-extrabold text-xs text-amber-600 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200">
+                      <i-lucide name="trophy" class="w-3.5 h-3.5 text-amber-500"></i-lucide>
+                      <span>{{ reto.premio }}</span>
                     </span>
                   </td>
                   <td class="py-3.5 px-4 text-xs font-mono text-slate-600">

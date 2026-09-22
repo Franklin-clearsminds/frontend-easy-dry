@@ -399,7 +399,7 @@ export class AsignacionesComponent implements OnInit {
 
     if (tieneOtroOperador) {
       const confirmado = window.confirm(
-        `⚠️ ADVERTENCIA DE ASIGNACIÓN:\n\n` +
+        `ADVERTENCIA DE ASIGNACIÓN:\n\n` +
         `La ${bahiaTarget.nombre} ya tiene asignado al operador "${bahiaTarget.operadorAsignado}".\n\n` +
         `Si continúas con la asignación, "${bahiaTarget.operadorAsignado}" quedará sin bahía asignada y "${op.nombre}" pasará a ocupar su lugar.\n\n` +
         `¿Deseas confirmar el cambio sabiendo que el otro operador se quedará sin bahía?`

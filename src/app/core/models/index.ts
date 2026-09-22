@@ -200,6 +200,7 @@ export interface VehiculoServicio {
   categoria: 'Sedán' | 'SUV' | 'Camioneta' | 'Hatchback' | string;
   agencia: string;
   bahia?: string;
+  bahiaId?: string;
   empleado: string;
   fecha: string;
   horaIngreso: string;
@@ -207,10 +208,18 @@ export interface VehiculoServicio {
   estado: 'EN PROCESO' | 'FINALIZADO' | 'APROBADO' | 'RECHAZADO' | 'En Cola' | 'Entregado' | string;
   foto: string;
   fotos?: string[];
+  fotoIngresoUrl?: string;
+  fotoSalidaUrl?: string;
   video: string;
   videoUrl?: string;
+  videoInicial?: string;
+  videoInicialUrl?: string;
+  videoFinal?: string;
+  videoFinalUrl?: string;
   tiempoEstimadoMin?: number;
   duracionMin?: number;
+  duracionMinutos?: number | null;
+  duracionFormateada?: string;
   fechaInicio?: string;
   horaInicio?: string;
   fechaFin?: string;
@@ -392,7 +401,19 @@ export interface ServicioExtra {
     nombre?: string;
     [key: string]: any;
   } | any;
+  ordenTrabajoOT?: string;
+  cliente?: string;
+  clienteNombre?: string;
+  bahiaId?: string;
+  bahia?: string;
+  horaIngreso?: string;
+  horaEstimada?: string;
+  horaSalida?: string;
+  marca?: string;
+  modelo?: string;
+  color?: string;
   placa?: string;
+  prioridad?: string;
   vehiculoInfo?: {
     placa?: string;
     marca?: string;
@@ -405,11 +426,26 @@ export interface ServicioExtra {
   calificacionCalidad?: number;
   sucursales: string[];                  // Lista de sucursales asignadas
   insumosReceta: RecetaInsumoServicio[]; // Insumos y cantidades
-  estado: 'Pendiente' | 'En Proceso' | 'Completado' | 'Cancelado';
+  estado: 'Pendiente' | 'En Proceso' | 'Pausado' | 'Completado' | 'Cancelado';
   fechaProgramada: string;
   fechaCompletado?: string;
   notas?: string;
   creadoPor: string;
   fechaCreacion: string;
+
+  // Evidencias de Pausa y Reanudación y Tiempos Efectivos
+  videoInicial?: string | null;
+  videoFinal?: string | null;
+  videoPausa?: string | null;
+  videoReanudacion?: string | null;
+  videoUltimaPausaUrl?: string | null;
+  videoUltimaReanudacionUrl?: string | null;
+  motivoUltimaPausa?: string | null;
+  fechaUltimaPausa?: string | null;
+  tiempoPausaTotalSeg?: number;
+  tiempoPausaFormateado?: string;
+  tiempoEfectivoSeg?: number | null;
+  tiempoEfectivoFormateado?: string;
+  historialPausas?: any[];
 }
 
