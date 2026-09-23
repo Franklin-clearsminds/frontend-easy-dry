@@ -365,6 +365,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
               <div>
                 <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Sucursal Destino</label>
                 <select [(ngModel)]="transferencia.sucursalNueva" (ngModelChange)="onCambioSucursalTransferencia($event)" name="sucursalNueva" class="w-full p-2.5 border rounded-xl text-sm font-semibold bg-white cursor-pointer">
+                  <option value="" disabled>Seleccione una sucursal</option>
                   @for (s of sucursales; track s.id) {
                     <option [value]="s.nombre">{{ s.nombre }}</option>
                   }
@@ -434,16 +435,12 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
           <div class="grid grid-cols-2 gap-4">
             <div>
               <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Sucursal Asignada</label>
-              <select [(ngModel)]="nuevaMaquina.agencia" (ngModelChange)="onCambioSucursalNuevaMaquina($event)" name="agencia" class="w-full p-2.5 border rounded-xl text-sm font-semibold bg-white cursor-pointer">
+                <select [(ngModel)]="nuevaMaquina.agencia" (ngModelChange)="onCambioSucursalNuevaMaquina($event)" name="agencia" class="w-full p-2.5 border rounded-xl text-sm font-semibold bg-white cursor-pointer">
+                  <option value="" disabled>Seleccione una sucursal</option>
                 @if (sucursales.length > 0) {
                   @for (s of sucursales; track s.id) {
                     <option [value]="s.nombre">{{ s.nombre }}</option>
                   }
-                } @else {
-                  <option value="EasyDry Quito Norte">EasyDry Quito Norte</option>
-                  <option value="EasyDry Quito Sur">EasyDry Quito Sur</option>
-                  <option value="EasyDry Cumbayá">EasyDry Cumbayá</option>
-                  <option value="EasyDry Guayaquil">EasyDry Guayaquil</option>
                 }
               </select>
             </div>
@@ -959,9 +956,9 @@ export class MaquinariaComponent implements OnInit {
   };
 
   transferencia = {
-    sucursalNueva: 'EasyDry Quito Sur',
-    bahiaNueva: 'Bahía 1',
-    motivo: 'Refuerzo de capacidad operativa'
+    sucursalNueva: '',
+    bahiaNueva: '',
+    motivo: ''
   };
 
   filtroTexto = '';
@@ -992,12 +989,12 @@ export class MaquinariaComponent implements OnInit {
   nuevaMaquina = {
     codigo: '',
     nombre: '',
-    marca: 'Kärcher Professional',
-    modelo: 'HD 2026',
-    agencia: 'EasyDry Quito Norte',
-    bahia: 'Bahía 1',
+    marca: '',
+    modelo: '',
+    agencia: '',
+    bahia: '',
     estado: 'Operativa' as Maquinaria['estado'],
-    fechaMantenimiento: '2026-08-30',
+    fechaMantenimiento: '',
     imagen: ''
   };
 
@@ -1150,22 +1147,29 @@ export class MaquinariaComponent implements OnInit {
 
   openModalTransferir(maq: Maquinaria) {
     this.maquinaSeleccionada = maq;
-    const bahias = this.getBahiasDisponibles(this.transferencia.sucursalNueva);
-    this.transferencia.bahiaNueva = bahias[0] || 'Bahía 1';
+    const sucursalInicial = this.sucursales[0]?.nombre || '';
+    const bahias = this.getBahiasDisponibles(sucursalInicial);
+    this.transferencia = {
+      sucursalNueva: sucursalInicial,
+      bahiaNueva: bahias[0] || '',
+      motivo: ''
+    };
     this.modalTransferirOpen = true;
   }
 
   ejecutarTransferencia() {
-    if (!this.maquinaSeleccionada || !this.transferencia.motivo) {
-      this.toastService.warning('Datos Requeridos', 'Ingrese la bahía y el motivo de transferencia.');
+    if (!this.maquinaSeleccionada || !this.transferencia.sucursalNueva || !this.transferencia.bahiaNueva || !this.transferencia.motivo.trim()) {
+      this.toastService.warning('Datos Requeridos', 'Seleccione la sucursal, la bahía e ingrese el motivo de transferencia.');
       return;
     }
+
+    const user = this.authService.getCurrentUser();
 
     const mov = {
       maquinaCodigo: this.maquinaSeleccionada.codigo,
       maquinaNombre: this.maquinaSeleccionada.nombre,
       fecha: new Date().toISOString().replace('T', ' ').substring(0, 16),
-      usuarioResponsable: 'Franklin (Admin)',
+      usuarioResponsable: user ? `${user.nombre} ${user.apellido}`.trim() : '',
       sucursalAnterior: this.maquinaSeleccionada.agencia,
       bahiaAnterior: this.maquinaSeleccionada.bahia,
       sucursalNueva: this.transferencia.sucursalNueva,
@@ -1182,41 +1186,35 @@ export class MaquinariaComponent implements OnInit {
   }
 
   getBahiasDisponibles(sucursalNombre: string): string[] {
-    if (!sucursalNombre) return ['Bahía 1'];
-    const deSede = this.todasLasBahias
+    if (!sucursalNombre) return [];
+    return this.todasLasBahias
       .filter(b => b.sucursalNombre === sucursalNombre)
       .map(b => b.nombre);
-    if (deSede.length > 0) {
-      return deSede;
-    }
-    const suc = this.sucursales.find(s => s.nombre === sucursalNombre);
-    const cant = suc?.cantidadBahias || 4;
-    return Array.from({ length: cant }, (_, i) => `Bahía ${i + 1}`);
   }
 
   onCambioSucursalNuevaMaquina(sucursalNombre: string): void {
     this.nuevaMaquina.agencia = sucursalNombre;
     const bahias = this.getBahiasDisponibles(sucursalNombre);
-    this.nuevaMaquina.bahia = bahias[0] || 'Bahía 1';
+    this.nuevaMaquina.bahia = bahias[0] || '';
     this.erroresMaquina.bahia = '';
   }
 
   onCambioSucursalTransferencia(sucursalNombre: string): void {
     this.transferencia.sucursalNueva = sucursalNombre;
     const bahias = this.getBahiasDisponibles(sucursalNombre);
-    this.transferencia.bahiaNueva = bahias[0] || 'Bahía 1';
+    this.transferencia.bahiaNueva = bahias[0] || '';
   }
 
   abrirModalCrear() {
-    const sucursalInicial = this.sucursales[0]?.nombre || 'EasyDry Quito Norte';
+    const sucursalInicial = this.sucursales[0]?.nombre || '';
     const bahiasIniciales = this.getBahiasDisponibles(sucursalInicial);
     this.nuevaMaquina = {
       codigo: '',
       nombre: '',
-      marca: 'Kärcher Professional',
-      modelo: 'HD 2026',
+      marca: '',
+      modelo: '',
       agencia: sucursalInicial,
-      bahia: bahiasIniciales[0] || 'Bahía 1',
+      bahia: bahiasIniciales[0] || '',
       estado: 'Operativa',
       fechaMantenimiento: new Date().toISOString().substring(0, 10),
       imagen: ''

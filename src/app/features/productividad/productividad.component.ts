@@ -26,10 +26,12 @@ import { Reto } from '../../core/models/reto.model';
           <p class="text-slate-500 text-xs mt-1">Monitoreo comparativo de agencias, ranking de personal y desempeño operativo.</p>
         </div>
         <div class="flex flex-col sm:flex-row sm:items-center gap-3 self-start sm:self-auto">
-          <span class="px-3.5 py-1.5 bg-amber-100 text-amber-900 border border-amber-300 font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-xs">
-            <i-lucide name="trophy" class="w-4 h-4 text-amber-600"></i-lucide>
-            <span>Reto EasyDry Activo: Edición Julio 2026</span>
-          </span>
+          @if (retosActivos.length > 0) {
+            <span class="px-3.5 py-1.5 bg-amber-100 text-amber-900 border border-amber-300 font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-xs">
+              <i-lucide name="trophy" class="w-4 h-4 text-amber-600"></i-lucide>
+              <span>Reto activo: {{ retosActivos[currentRetoIndex].titulo }}</span>
+            </span>
+          }
           @if (canCreateReto && retosActivos.length > 0) {
             <button (click)="showCrearRetoModal = true" class="px-5 py-1.5 bg-easydry-green hover:bg-easydry-green-dark text-slate-900 font-bold rounded-xl text-sm flex items-center gap-2 transition-colors shadow-sm">
               <i-lucide name="plus-circle" class="w-4 h-4"></i-lucide> Crear Nuevo Reto
@@ -230,7 +232,7 @@ import { Reto } from '../../core/models/reto.model';
               <i-lucide name="building-2" class="w-5 h-5 text-easydry-blue"></i-lucide>
               <span>Ranking de Agencias por Productividad</span>
             </h3>
-            <span class="text-xs text-slate-400 font-semibold">Julio 2026</span>
+            <span class="text-xs text-slate-400 font-semibold">{{ periodoActual }}</span>
           </div>
 
           <div class="space-y-4">
@@ -359,8 +361,8 @@ import { Reto } from '../../core/models/reto.model';
 
       <!-- Performance Comparison Chart -->
       <app-chart-card 
-        title="Comparativa de Crecimiento en Productividad" 
-        subtitle="Evolución trimestral por sucursal" 
+        title="Productividad por Sucursal"
+        subtitle="Indicadores actuales registrados en el sistema"
         type="bar" 
         [data]="comparativaChartData">
       </app-chart-card>
@@ -369,6 +371,7 @@ import { Reto } from '../../core/models/reto.model';
   `
 })
 export class ProductividadComponent implements OnInit, OnDestroy {
+  readonly periodoActual = new Intl.DateTimeFormat('es-EC', { month: 'long', year: 'numeric' }).format(new Date());
   agencias: Agencia[] = [];
   todasLasAgencias: Agencia[] = [];
   
@@ -382,13 +385,8 @@ export class ProductividadComponent implements OnInit, OnDestroy {
   carouselInterval: any;
 
   comparativaChartData = {
-    labels: ['Mayo 2026', 'Junio 2026', 'Julio 2026'],
-    datasets: [
-      { label: 'EasyDry Cumbayá', data: [94, 96, 98.2], backgroundColor: '#9BCB3B' },
-      { label: 'EasyDry Quito Norte', data: [92, 94, 96.4], backgroundColor: '#004282' },
-      { label: 'EasyDry Guayaquil', data: [90, 92, 94.0], backgroundColor: '#36699B' },
-      { label: 'EasyDry Quito Sur', data: [88, 90, 91.8], backgroundColor: '#B2E040' }
-    ]
+    labels: [] as string[],
+    datasets: [{ label: 'Productividad actual', data: [] as number[], backgroundColor: '#004282' }]
   };
 
   private agenciaService = inject(AgenciaService);
@@ -410,6 +408,7 @@ export class ProductividadComponent implements OnInit, OnDestroy {
       }
       this.todasLasAgencias = [...filtered];
       this.agencias = filtered.sort((a, b) => b.productividad - a.productividad);
+      this.actualizarGraficaProductividad();
     });
   }
 
@@ -466,7 +465,7 @@ export class ProductividadComponent implements OnInit, OnDestroy {
     const user = this.authService.getCurrentUser();
     if (!user) return false;
     if (user.role === 'SUPER_ADMIN' || user.role === 'ADMIN') return true;
-    return reto.creadoPorId === user.id;
+    return String(reto.creadoPorId) === String(user.id);
   }
 
   iniciarEliminarReto(reto: Reto) {
@@ -489,25 +488,9 @@ export class ProductividadComponent implements OnInit, OnDestroy {
   getRankingParaReto(): Agencia[] {
     if (!this.agencias.length) return [];
     
-    // Variar determinísticamente las posiciones y porcentajes según el índice del reto
-    const offset = this.currentRetoIndex % this.agencias.length;
-    let ranking = [...this.agencias];
-    
-    // Rotar posiciones
-    ranking = ranking.slice(offset).concat(ranking.slice(0, offset));
-    
-    // Variar la productividad un poco para cada reto
-    ranking = ranking.map((ag, index) => {
-      const modifier = (this.currentRetoIndex * 3.5) - (index * 1.5);
-      return {
-        ...ag,
-        productividad: Math.min(100, Math.max(50, ag.productividad + modifier))
-      };
-    });
-
-    // Reordenar
-    ranking.sort((a, b) => b.productividad - a.productividad);
-    return ranking.slice(0, 3);
+    return [...this.agencias]
+      .sort((a, b) => b.productividad - a.productividad)
+      .slice(0, 3);
   }
 
   onRetoCreado(reto: Reto) {
@@ -532,6 +515,18 @@ export class ProductividadComponent implements OnInit, OnDestroy {
       });
     }
     this.agencias = res.sort((a, b) => b.productividad - a.productividad);
+    this.actualizarGraficaProductividad();
+  }
+
+  private actualizarGraficaProductividad(): void {
+    this.comparativaChartData = {
+      labels: this.agencias.map(agencia => agencia.nombre),
+      datasets: [{
+        label: 'Productividad actual',
+        data: this.agencias.map(agencia => Number(agencia.productividad || 0)),
+        backgroundColor: '#004282'
+      }]
+    };
   }
 
   /** Deriva la región a partir de la ciudad de la agencia. */

@@ -1,137 +1,72 @@
+import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { Observable, of } from 'rxjs';
-import { delay } from 'rxjs/operators';
+import { Observable, catchError, map, of } from 'rxjs';
+import { apiUrl } from '../config/env';
 import { Reto } from '../models/reto.model';
-import { AuthService } from './auth.service';
-import { SucursalService } from './sucursal.service';
-
-const STORAGE_KEY = 'easydry_retos_v1';
-
-const RETOS_DEFAULT: Reto[] = [
-  {
-    id: '1',
-    titulo: 'Reto EasyDry - "Cero Reclamos & Máximo Rendimiento"',
-    descripcion: 'Competencia mensual entre agencias y técnicos especialistas',
-    premio: 'Bonificación Equipo + Día Libre',
-    fechaInicio: '2026-07-01',
-    fechaFin: '2026-07-31',
-    regiones: ['Todas'],
-    marcas: ['Todas'],
-    sucursalesIds: [],
-    creadoPorId: 1,
-    creadorNombre: 'Admin General',
-    creadorRol: 'SUPER_ADMIN',
-    estado: 'ACTIVO',
-    criterios: [
-      'Velocidad promedio < 40 min / auto',
-      'Fotos y videos aprobados 100%',
-      'Cero incidentes técnicos registrados'
-    ]
-  },
-  {
-    id: '2',
-    titulo: 'Sprint de Ventas Especiales - "Premium Shield"',
-    descripcion: 'Impulso comercial para tratamientos cerámicos y recubrimientos',
-    premio: 'Cena de Lujo para la Agencia Ganadora',
-    fechaInicio: '2026-08-01',
-    fechaFin: '2026-08-15',
-    regiones: ['Costa', 'Sierra'],
-    marcas: ['EasyDry Premium'],
-    sucursalesIds: [],
-    creadoPorId: 1,
-    creadorNombre: 'Admin General',
-    creadorRol: 'SUPER_ADMIN',
-    estado: 'ACTIVO',
-    criterios: [
-      '+20% Ventas en Premium Shield',
-      'Atención al cliente 5 estrellas',
-    ]
-  }
-];
 
 @Injectable({
   providedIn: 'root'
 })
 export class RetosService {
-  private auth = inject(AuthService);
-  private sucursalService = inject(SucursalService);
-
-  private getStoredRetos(): Reto[] {
-    const data = localStorage.getItem(STORAGE_KEY);
-    if (data) {
-      return JSON.parse(data);
-    }
-    this.saveRetos(RETOS_DEFAULT);
-    return [...RETOS_DEFAULT];
-  }
-
-  private saveRetos(retos: Reto[]): void {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(retos));
-  }
+  private http = inject(HttpClient);
 
   getAllRetos(): Observable<Reto[]> {
-    return of(this.getStoredRetos()).pipe(delay(200));
+    return this.list({ incluirTodos: true, soloActivos: false });
   }
 
   getRetosVisibles(): Observable<Reto[]> {
-    const todos = this.getStoredRetos().filter(r => (r.estado || 'ACTIVO').toUpperCase() === 'ACTIVO');
-    const user = this.auth.getCurrentUser();
-    
-    if (!user) return of([]);
-    
-    if (user.role === 'SUPER_ADMIN' || user.role === 'ADMIN') {
-      return of(todos);
-    }
-
-    if (user.role === 'COORD_COMERCIAL') {
-      const region = user.region || 'Todas';
-      const filtrados = todos.filter(reto => {
-        const esGlobal = !reto.regiones || reto.regiones.length === 0 || reto.regiones.includes('Todas');
-        const coincideRegion = reto.regiones?.includes(region);
-        return esGlobal || coincideRegion || region === 'Nacional';
-      });
-      return of(filtrados).pipe(delay(200));
-    }
-
-    const userSucursal = user.sucursal;
-    if (!userSucursal) return of([]);
-
-    const filtrados = todos.filter(reto => {
-      const esGlobalAgencias = !reto.sucursalesIds || reto.sucursalesIds.length === 0;
-      const incluyeAgencia = reto.sucursalesIds?.includes(Number(userSucursal));
-      return esGlobalAgencias || incluyeAgencia;
-    });
-
-    return of(filtrados).pipe(delay(200));
+    return this.list({ soloActivos: true });
   }
 
   crearReto(nuevoReto: Partial<Reto>): Observable<Reto> {
-    const user = this.auth.getCurrentUser();
-    if (!user) throw new Error('No autorizado');
+    const payload = {
+      titulo: String(nuevoReto.titulo || '').trim(),
+      descripcion: String(nuevoReto.descripcion || '').trim(),
+      premio: String(nuevoReto.premio || '').trim(),
+      fechaInicio: nuevoReto.fechaInicio,
+      fechaFin: nuevoReto.fechaFin,
+      regiones: nuevoReto.regiones || [],
+      marcas: nuevoReto.marcas || [],
+      sucursalesIds: (nuevoReto.sucursalesIds || []).map(String),
+      estado: nuevoReto.estado || 'ACTIVO',
+      criterios: nuevoReto.criterios || [],
+    };
 
-    const retos = this.getStoredRetos();
-    const reto: Reto = {
-      ...nuevoReto,
-      id: `RETO-${Date.now()}`,
-      creadoPorId: user.id || 0,
-      creadorNombre: user.nombre || 'Administrador',
-      creadorRol: user.role || 'DESCONOCIDO',
-      estado: 'ACTIVO',
-    } as Reto;
-
-    retos.push(reto);
-    this.saveRetos(retos);
-    return of(reto);
+    return this.http.post<any>(apiUrl('/retos/create'), payload).pipe(
+      map((item) => this.mapReto(item)),
+    );
   }
 
   eliminarReto(id: string): Observable<boolean> {
-    const retos = this.getStoredRetos();
-    const index = retos.findIndex(r => r.id === id);
-    if (index !== -1) {
-      retos.splice(index, 1);
-      this.saveRetos(retos);
-      return of(true).pipe(delay(300));
-    }
-    return of(false);
+    return this.http.post<any>(apiUrl('/retos/delete'), { id }).pipe(
+      map((response) => response?.success === true),
+      catchError(() => of(false)),
+    );
+  }
+
+  private list(body: { incluirTodos?: boolean; soloActivos?: boolean }): Observable<Reto[]> {
+    return this.http.post<any>(apiUrl('/retos/list'), body).pipe(
+      map((response) => (Array.isArray(response) ? response : response?.items || []).map((item: any) => this.mapReto(item))),
+      catchError(() => of([])),
+    );
+  }
+
+  private mapReto(item: any): Reto {
+    return {
+      id: String(item.id),
+      titulo: String(item.titulo || ''),
+      descripcion: String(item.descripcion || ''),
+      premio: String(item.premio || ''),
+      fechaInicio: String(item.fechaInicio || '').slice(0, 10),
+      fechaFin: String(item.fechaFin || '').slice(0, 10),
+      regiones: Array.isArray(item.regiones) ? item.regiones.map(String) : [],
+      marcas: Array.isArray(item.marcas) ? item.marcas.map(String) : [],
+      sucursalesIds: Array.isArray(item.sucursalesIds) ? item.sucursalesIds.map(String) : [],
+      creadoPorId: String(item.creadoPorId || ''),
+      creadorNombre: String(item.creadorNombre || ''),
+      creadorRol: String(item.creadorRol || ''),
+      estado: item.estado || 'ACTIVO',
+      criterios: Array.isArray(item.criterios) ? item.criterios.map(String) : [],
+    };
   }
 }

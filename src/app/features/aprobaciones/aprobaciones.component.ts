@@ -66,7 +66,7 @@ import { Role } from '../../core/models/roles.model';
           <p class="text-xs text-slate-200">
             Sucursal: <strong>{{ filtrosGlobales.sucursal === 'Todas' ? 'Todas las Sucursales (Red Nacional)' : filtrosGlobales.sucursal }}</strong>
             • Bahía: <strong>{{ filtrosGlobales.bahia === 'Todas' ? 'Todas las Bahías' : filtrosGlobales.bahia }}</strong>
-            • Fecha: <strong>22 de Julio 2026</strong>
+            • Fecha: <strong>{{ fechaActual }}</strong>
           </p>
         </div>
 
@@ -243,6 +243,7 @@ import { Role } from '../../core/models/roles.model';
   `
 })
 export class AprobacionesComponent implements OnInit {
+  readonly fechaActual = new Intl.DateTimeFormat('es-EC', { dateStyle: 'long' }).format(new Date());
   serviciosDelDia: VehiculoServicio[] = [];
   serviciosParaAprobar: VehiculoServicio[] = [];
   servicioSeleccionado?: VehiculoServicio;

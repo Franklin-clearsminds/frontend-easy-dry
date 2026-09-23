@@ -2621,9 +2621,9 @@ export class ServiciosComponent implements OnInit {
   insumosConsumoForm: InsumoConsumidoServicio[] = [];
   despachosPendientesLider: any[] = [];
 
-  private catalogoMock = inject(CatalogoServiciosService);
+  private catalogoService = inject(CatalogoServiciosService);
   private sucursalService = inject(SucursalService);
-  private extrasMock = inject(ServiciosExtrasService);
+  private extrasService = inject(ServiciosExtrasService);
   private operadorService = inject(OperadorService);
   private bahiaService = inject(BahiaService);
   private inventarioService = inject(InventarioService);
@@ -2961,7 +2961,7 @@ export class ServiciosComponent implements OnInit {
       this.recalcularServiciosFiltrados();
     });
 
-    this.catalogoMock.getServiciosActivos().subscribe(cat => {
+    this.catalogoService.getServiciosActivos().subscribe(cat => {
       this.catalogoCompleto = cat;
       const nombres = cat.map(c => c.nombre).filter(Boolean);
       if (nombres.length) this.listaServiciosFiltro = Array.from(new Set(nombres));
@@ -3063,7 +3063,7 @@ export class ServiciosComponent implements OnInit {
       filtro.operadorId = String(user.id);
     }
 
-    this.extrasMock.getServiciosExtras(filtro).subscribe(extras => {
+    this.extrasService.getServiciosExtras(filtro).subscribe(extras => {
       this.serviciosExtras = extras || [];
       if (this.serviciosExtras.length > 0 || this.isSuperAdmin || this.isAdmin || this.isSupervisor) {
         this.tieneServiciosEspeciales = true;
@@ -3074,7 +3074,7 @@ export class ServiciosComponent implements OnInit {
   cargarPulidoresRegion() {
     const user = this.authService.getCurrentUser();
     const regId = user?.regionId ? String(user.regionId) : undefined;
-    this.extrasMock.getPulidoresPorRegion(regId).subscribe(list => {
+    this.extrasService.getPulidoresPorRegion(regId).subscribe(list => {
       this.pulidoresDisponiblesRegion = list || [];
     });
   }
@@ -3082,7 +3082,7 @@ export class ServiciosComponent implements OnInit {
   cargarStockPulidor() {
     const user = this.authService.getCurrentUser();
     const pulId = user?.id ? String(user.id) : undefined;
-    this.extrasMock.getStockPulidor(pulId).subscribe(st => {
+    this.extrasService.getStockPulidor(pulId).subscribe(st => {
       this.stockPulidor = st || [];
       if (this.showModalExtras) {
         this.recalcularFaltantesInsumosOT();
@@ -4010,7 +4010,7 @@ export class ServiciosComponent implements OnInit {
       return;
     }
     this.validandoStockPulidorOT = true;
-    this.extrasMock.getStockPulidor(String(pulidorId)).subscribe({
+    this.extrasService.getStockPulidor(String(pulidorId)).subscribe({
       next: (st) => {
         this.stockPulidor = st || [];
         this.validandoStockPulidorOT = false;
@@ -4077,7 +4077,7 @@ export class ServiciosComponent implements OnInit {
     if (this.pulidoresDisponiblesRegion.length === 0) {
       const user = this.authService.getCurrentUser();
       const regId = (this.isSuperAdmin || this.isAdmin) ? undefined : (user?.regionId ? String(user.regionId) : undefined);
-      this.extrasMock.getPulidoresPorRegion(regId).subscribe(list => {
+      this.extrasService.getPulidoresPorRegion(regId).subscribe(list => {
         this.pulidoresDisponiblesRegion = list || [];
         this.abrirModalNuevoExtraConDatos();
       });
@@ -4088,7 +4088,7 @@ export class ServiciosComponent implements OnInit {
     if (this.isPulidor && !this.isCoordServiciosEspeciales) {
       const user = this.authService.getCurrentUser();
       const pulId = user?.id ? String(user.id) : undefined;
-      this.extrasMock.getStockPulidor(pulId).subscribe(st => {
+      this.extrasService.getStockPulidor(pulId).subscribe(st => {
         this.stockPulidor = st || [];
         const totalKit = this.stockPulidor.reduce((acc, s) => acc + Number(s.cantidadActual || 0), 0);
         if (totalKit <= 0) {
@@ -4312,7 +4312,7 @@ export class ServiciosComponent implements OnInit {
       creadoPor: `${user?.nombre || ''} ${user?.apellido || ''}`.trim()
     };
 
-    this.extrasMock.crearServicioExtra(payload).subscribe({
+    this.extrasService.crearServicioExtra(payload).subscribe({
       next: (creado) => {
         this.toastService.success('Servicio Asignado', `Servicio ${creado.codigoSE} asignado en ${regNombre}.`);
         this.cerrarModalExtras();
@@ -4368,7 +4368,7 @@ export class ServiciosComponent implements OnInit {
     }
 
     this.iniciandoEspecial = true;
-    this.extrasMock.cambiarEstado(this.servicioEspecialSeleccionado.id, 'En Proceso', this.videoInicialInput.trim()).subscribe({
+    this.extrasService.cambiarEstado(this.servicioEspecialSeleccionado.id, 'En Proceso', this.videoInicialInput.trim()).subscribe({
       next: () => {
         this.iniciandoEspecial = false;
         this.toastService.success('Servicio Iniciado', `OT ${this.servicioEspecialSeleccionado?.codigoSE} en proceso. Evidencia inicial grabada.`);
@@ -4426,7 +4426,7 @@ export class ServiciosComponent implements OnInit {
     }
 
     this.finalizandoEspecial = true;
-    this.extrasMock.actualizarServicioExtra(this.servicioEspecialSeleccionado.id, {
+    this.extrasService.actualizarServicioExtra(this.servicioEspecialSeleccionado.id, {
       estado: 'Completado',
       videoFinalUrl: this.videoFinalInput.trim(),
       notas: this.notasFinalizacionInput
@@ -4496,7 +4496,7 @@ export class ServiciosComponent implements OnInit {
       : this.motivoPausaInput;
 
     this.pausandoEspecial = true;
-    this.extrasMock.pausarServicioExtra(this.servicioEspecialSeleccionado.id, motivoFinal, this.videoPausaInput.trim()).subscribe({
+    this.extrasService.pausarServicioExtra(this.servicioEspecialSeleccionado.id, motivoFinal, this.videoPausaInput.trim()).subscribe({
       next: (res) => {
         this.pausandoEspecial = false;
         this.toastService.success('Servicio Pausado', `OT ${res.codigoSE || this.servicioEspecialSeleccionado?.codigoSE} ha sido pausada exitosamente.`);
@@ -4554,7 +4554,7 @@ export class ServiciosComponent implements OnInit {
     }
 
     this.reanudandoEspecial = true;
-    this.extrasMock.reanudarServicioExtra(this.servicioEspecialSeleccionado.id, this.videoReanudarInput.trim(), this.observacionesReanudarInput.trim()).subscribe({
+    this.extrasService.reanudarServicioExtra(this.servicioEspecialSeleccionado.id, this.videoReanudarInput.trim(), this.observacionesReanudarInput.trim()).subscribe({
       next: (res) => {
         this.reanudandoEspecial = false;
         this.toastService.success('Servicio Reanudado', `OT ${res.codigoSE || this.servicioEspecialSeleccionado?.codigoSE} retomada en proceso.`);
