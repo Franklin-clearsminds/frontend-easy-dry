@@ -222,9 +222,9 @@ import { SucursalService } from '../../core/services/sucursal.service';
           <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
               <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Equipo Afectado</label>
-              <select [(ngModel)]="nuevoIncidente.maquina" name="maquina" class="w-full p-2.5 border rounded-xl text-xs font-bold" required>
+              <select [(ngModel)]="nuevoIncidente.maquinaId" name="maquina" class="w-full p-2.5 border rounded-xl text-xs font-bold" required>
                 @for (m of maquinasDisponibles; track m.id) {
-                  <option [value]="m.nombre">{{ m.codigo }} - {{ m.nombre }} ({{ m.agencia }})</option>
+                  <option [value]="m.id">{{ m.codigo }} - {{ m.nombre }} ({{ m.agencia }})</option>
                 }
               </select>
             </div>
@@ -376,13 +376,6 @@ import { SucursalService } from '../../core/services/sucursal.service';
                   (change)="onSubirMultimediaReparacion($event)" 
                   class="hidden">
               </label>
-
-              <button 
-                type="button"
-                (click)="agregarMultimediaReparacionDemo()"
-                class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold">
-                + Cargar Fotos/Video Demo
-              </button>
             </div>
 
             @if (solucionForm.multimedia.length > 0) {
@@ -431,13 +424,6 @@ import { SucursalService } from '../../core/services/sucursal.service';
                   (change)="onSubirDocumentosReparacion($event)" 
                   class="hidden">
               </label>
-
-              <button 
-                type="button"
-                (click)="agregarDocumentosReparacionDemo()"
-                class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold">
-                + Adjuntar PDF y Factura Demo
-              </button>
             </div>
 
             @if (solucionForm.documentos.length > 0) {
@@ -741,8 +727,9 @@ export class IncidentesComponent implements OnInit {
   filtrosGlobales: FilterState = { sucursal: 'Todas', operador: 'Todos', bahia: 'Todas', estado: 'Todos', fecha: 'Hoy', marca: 'Todas' };
 
   nuevoIncidente = {
-    maquina: 'Aspiradora Industrial AS-002',
-    agencia: 'EasyDry Quito Norte',
+    maquinaId: '' as string,
+    maquina: '',
+    agencia: '',
     tipo: 'Falla eléctrica' as Incidente['tipo'],
     prioridad: 'Alta' as Incidente['prioridad'],
     descripcion: ''
@@ -793,8 +780,10 @@ export class IncidentesComponent implements OnInit {
 
     this.maquinariaService.getMaquinaria().subscribe(list => {
       this.maquinasDisponibles = list;
-      if (this.maquinasDisponibles.length > 0) {
+      if (this.maquinasDisponibles.length > 0 && !this.nuevoIncidente.maquinaId) {
+        this.nuevoIncidente.maquinaId = String(this.maquinasDisponibles[0].id);
         this.nuevoIncidente.maquina = this.maquinasDisponibles[0].nombre;
+        this.nuevoIncidente.agencia = this.maquinasDisponibles[0].agencia;
       }
     });
   }
@@ -950,25 +939,27 @@ export class IncidentesComponent implements OnInit {
       return;
     }
 
-    const usuario = this.authService.getCurrentUser()?.nombre || 'Franklin Administrador';
-    
+    const user = this.authService.getCurrentUser();
+    const usuario = user ? `${user.nombre || ''} ${user.apellido || ''}`.trim() || user.email : 'Usuario autenticado';
+    const equipo = this.maquinasDisponibles.find(m => String(m.id) === String(this.nuevoIncidente.maquinaId));
     const fotos = this.archivosFalloSubidos.filter(a => a.tipo === 'imagen').map(a => a.url);
     const videos = this.archivosFalloSubidos.filter(a => a.tipo === 'video').map(a => a.url);
 
     const registro: Omit<Incidente, 'id'> = {
-      codigoIncidente: `INC-2026-${String(this.incidentes.length + 1).padStart(3, '0')}`,
-      maquina: this.nuevoIncidente.maquina,
-      agencia: this.nuevoIncidente.agencia,
+      codigoIncidente: `INC-${Date.now().toString().slice(-6)}`,
+      maquina: equipo?.nombre || this.nuevoIncidente.maquina,
+      agencia: equipo?.agencia || this.nuevoIncidente.agencia,
       fecha: new Date().toISOString().replace('T', ' ').substring(0, 16),
       tipo: this.nuevoIncidente.tipo,
       prioridad: this.nuevoIncidente.prioridad,
       estado: 'Pendiente',
       descripcion: this.nuevoIncidente.descripcion,
       reportadoPor: usuario,
-      fotosFallo: fotos.length > 0 ? fotos : ['https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=800&auto=format&fit=crop&q=80'],
-      videosFallo: videos.length > 0 ? videos : [],
+      fotosFallo: [...fotos, ...videos],
+      videosFallo: videos,
       archivosFallo: [...this.archivosFalloSubidos]
     };
+    (registro as any).maquinariaId = this.nuevoIncidente.maquinaId || equipo?.id;
 
     this.incidenteService.crearIncidente(registro).subscribe((creado: Incidente) => {
       this.toastService.success('Reporte Creado', `Incidente ${creado.codigoIncidente} registrado con ${this.archivosFalloSubidos.length} evidencia(s).`);
@@ -1007,28 +998,6 @@ export class IncidentesComponent implements OnInit {
     }
   }
 
-  agregarMultimediaReparacionDemo() {
-    this.solucionForm.multimedia.push({
-      id: `rep-demo-1`,
-      nombre: 'equipo_reparado_ensamblado.jpg',
-      tipo: 'imagen',
-      extension: 'JPG',
-      url: 'https://images.unsplash.com/photo-1504917599217-d4dc5ebe6122?w=800&auto=format&fit=crop&q=80',
-      tamanio: '2.8 MB',
-      fechaSubida: 'Hoy'
-    });
-    this.solucionForm.multimedia.push({
-      id: `rep-demo-2`,
-      nombre: 'prueba_operativa_180bar.mp4',
-      tipo: 'video',
-      extension: 'MP4',
-      url: 'https://assets.mixkit.co/videos/preview/mixkit-water-spraying-from-a-hose-close-up-41508-large.mp4',
-      tamanio: '16.5 MB',
-      fechaSubida: 'Hoy'
-    });
-    this.toastService.info('Demo', 'Se añadieron fotos y video de la máquina funcionando.');
-  }
-
   eliminarMultimediaReparacion(index: number) {
     this.solucionForm.multimedia.splice(index, 1);
   }
@@ -1051,28 +1020,6 @@ export class IncidentesComponent implements OnInit {
     }
   }
 
-  agregarDocumentosReparacionDemo() {
-    this.solucionForm.documentos.push({
-      id: `doc-demo-1`,
-      nombre: 'Informe_Tecnico_Reparacion.pdf',
-      tipo: 'documento',
-      extension: 'PDF',
-      url: '#',
-      tamanio: '1.4 MB',
-      fechaSubida: 'Hoy'
-    });
-    this.solucionForm.documentos.push({
-      id: `doc-demo-2`,
-      nombre: 'Factura_Repuestos_Valvulas.pdf',
-      tipo: 'documento',
-      extension: 'PDF',
-      url: '#',
-      tamanio: '520 KB',
-      fechaSubida: 'Hoy'
-    });
-    this.toastService.info('Demo', 'Se adjuntaron Informe Técnico y Factura en PDF.');
-  }
-
   eliminarDocumentoReparacion(index: number) {
     this.solucionForm.documentos.splice(index, 1);
   }
@@ -1083,26 +1030,52 @@ export class IncidentesComponent implements OnInit {
       return;
     }
 
-    const usuario = 'Esteban Torres (Taller Central)';
+    const user = this.authService.getCurrentUser();
+    const usuario = user
+      ? `${user.nombre || ''} ${user.apellido || ''}`.trim() || user.email
+      : 'Usuario autenticado';
     const hoy = new Date().toISOString().replace('T', ' ').substring(0, 16);
 
     const fotos = this.solucionForm.multimedia.filter(m => m.tipo === 'imagen').map(m => m.url);
     const videos = this.solucionForm.multimedia.filter(m => m.tipo === 'video').map(m => m.url);
 
-    this.incidenteSolucionar.estado = 'Solucionado';
-    this.incidenteSolucionar.solucionadoPor = usuario;
-    this.incidenteSolucionar.fechaSolucion = hoy;
-    this.incidenteSolucionar.observacionSolucion = this.solucionForm.observacionSolucion;
-    this.incidenteSolucionar.repuestosUtilizados = this.solucionForm.repuestosUtilizados || 'Ajustes y calibración general';
-    this.incidenteSolucionar.fotosReparacion = fotos.length > 0 ? fotos : ['https://images.unsplash.com/photo-1504917599217-d4dc5ebe6122?w=800&auto=format&fit=crop&q=80'];
-    this.incidenteSolucionar.videosReparacion = videos;
-    this.incidenteSolucionar.documentosReparacion = [...this.solucionForm.documentos];
+    const evidencias = [
+      ...this.solucionForm.multimedia.map(m => ({
+        tipo: m.tipo === 'video' ? 'VIDEO_INCIDENTE' : 'FOTO_INCIDENTE',
+        url: m.url,
+      })),
+      ...this.solucionForm.documentos.map(d => ({
+        tipo: 'DOCUMENTO_INCIDENTE',
+        url: d.url,
+        descripcion: d.nombre,
+      })),
+    ].filter(e => e.url && e.url !== '#');
 
-    this.toastService.success(
-      'Desperfecto Solucionado', 
-      `Incidente ${this.incidenteSolucionar.codigoIncidente} resuelto con ${fotos.length} foto(s), ${videos.length} video(s) y ${this.solucionForm.documentos.length} documento(s) adjuntos.`
-    );
-    this.modalSolucionarOpen = false;
+    this.incidenteService.actualizarEstado(
+      this.incidenteSolucionar.id,
+      'Solucionado',
+      this.solucionForm.observacionSolucion,
+      {
+        evidencias,
+        repuestosUtilizados: this.solucionForm.repuestosUtilizados,
+      }
+    ).subscribe(actualizado => {
+      if (actualizado) {
+        this.incidenteSolucionar!.estado = 'Solucionado';
+        this.incidenteSolucionar!.solucionadoPor = usuario;
+        this.incidenteSolucionar!.fechaSolucion = hoy;
+        this.incidenteSolucionar!.observacionSolucion = this.solucionForm.observacionSolucion;
+        this.incidenteSolucionar!.repuestosUtilizados = this.solucionForm.repuestosUtilizados;
+        this.incidenteSolucionar!.fotosReparacion = fotos;
+        this.incidenteSolucionar!.videosReparacion = videos;
+        this.incidenteSolucionar!.documentosReparacion = [...this.solucionForm.documentos];
+      }
+      this.toastService.success(
+        'Desperfecto Solucionado',
+        `Incidente ${this.incidenteSolucionar?.codigoIncidente} resuelto con ${fotos.length} foto(s), ${videos.length} video(s) y ${this.solucionForm.documentos.length} documento(s) adjuntos.`
+      );
+      this.modalSolucionarOpen = false;
+    });
   }
 
   abrirDetalle(inc: Incidente) {

@@ -8,8 +8,10 @@ export type StorageCategory =
   | 'SERVICIOS_ESPECIALES'
   | 'MAQUINARIA_FICHA'
   | 'MAQUINARIA_INCIDENTE'
+  | 'MAQUINARIA_MANTENIMIENTO'
   | 'DOCUMENTO'
-  | 'CATALOGO_INSUMOS';
+  | 'CATALOGO_INSUMOS'
+  | 'PERFIL_USUARIO';
 
 export type MediaEvidenceType =
   | 'FOTO_INGRESO'
@@ -27,7 +29,8 @@ export type MediaEvidenceType =
   | 'VIDEO_INCIDENTE'
   | 'DOCUMENTO_INCIDENTE'
   | 'PDF_CIERRE'
-  | 'IMAGEN_PRODUCTO';
+  | 'IMAGEN_PRODUCTO'
+  | 'FOTO_PERFIL';
 
 export interface UploadTicket {
   ticketId: string;
@@ -49,6 +52,7 @@ export interface UploadMediaOptions {
   maquinariaId?: string;
   incidenteId?: string;
   insumoId?: string | number;
+  clientUuid?: string;
   fileName?: string;
   contentType?: string;
   onProgress?: (percentage: number) => void;
@@ -84,6 +88,7 @@ export class StorageUploadService {
         maquinariaId: options.maquinariaId,
         incidenteId: options.incidenteId,
         insumoId: options.insumoId ? String(options.insumoId) : undefined,
+        clientUuid: options.clientUuid,
         fileName,
         contentType,
       })
@@ -196,7 +201,7 @@ export class StorageUploadService {
       const key = trimmed.replace(/^uploads\//, '').split('?')[0];
       return apiUrl(`/storage/file?key=${encodeURIComponent(key)}`);
     }
-    if (trimmed.startsWith('agencias/') || trimmed.startsWith('catalogo/')) {
+    if (trimmed.startsWith('agencias/') || trimmed.startsWith('catalogo/') || trimmed.startsWith('usuarios/')) {
       const key = trimmed.split('?')[0];
       return apiUrl(`/storage/file?key=${encodeURIComponent(key)}`);
     }
@@ -227,7 +232,7 @@ export class StorageUploadService {
       key = trimmed.replace(/^\/uploads\//, '').split('?')[0];
     } else if (trimmed.startsWith('uploads/')) {
       key = trimmed.replace(/^uploads\//, '').split('?')[0];
-    } else if (trimmed.startsWith('agencias/') || trimmed.startsWith('catalogo/')) {
+    } else if (trimmed.startsWith('agencias/') || trimmed.startsWith('catalogo/') || trimmed.startsWith('usuarios/')) {
       key = trimmed.split('?')[0];
     }
 

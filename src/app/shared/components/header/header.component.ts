@@ -4,7 +4,8 @@ import { RouterModule } from '@angular/router';
 import { LucideAngularModule } from 'lucide-angular';
 import { AuthService } from '../../../core/services/auth.service';
 import { NotificacionService } from '../../../core/services/notificacion.service';
-import { environment } from '../../../core/config/env';
+import { StorageUploadService } from '../../../core/services/storage-upload.service';
+import { environment, isRealProfilePhoto } from '../../../core/config/env';
 
 @Component({
   selector: 'app-header',
@@ -52,10 +53,17 @@ import { environment } from '../../../core/config/env';
         @if (user; as u) {
           <!-- User Profile Quick Info -->
           <div class="flex items-center gap-3 pl-1">
-            <img
-              [src]="u.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'"
-              alt="User Avatar"
-              class="w-10 h-10 rounded-full object-cover ring-2 ring-purple-400/40">
+            @if (avatarUrl(u.avatar) && !avatarFailed) {
+              <img
+                [src]="avatarUrl(u.avatar)"
+                alt="User Avatar"
+                (error)="avatarFailed = true"
+                class="w-10 h-10 rounded-full object-cover ring-2 ring-purple-400/40">
+            } @else {
+              <div class="w-10 h-10 rounded-full bg-slate-100 ring-2 ring-purple-400/40 flex items-center justify-center text-xs font-extrabold text-slate-500">
+                {{ (u.nombre || '?').charAt(0) }}{{ (u.apellido || '').charAt(0) }}
+              </div>
+            }
             <div class="flex flex-col">
               <span class="text-xs font-bold text-slate-900 leading-tight">{{ u.nombre }} {{ u.apellido }}</span>
               <span class="text-[10px] font-extrabold text-purple-700 leading-tight uppercase tracking-wider">
@@ -73,6 +81,20 @@ export class HeaderComponent implements OnInit {
   readonly env = environment;
   public authService = inject(AuthService);
   private notificacionService = inject(NotificacionService);
+  private storageUpload = inject(StorageUploadService);
+
+  avatarFailed = false;
+  private lastAvatarSrc = '';
+
+  avatarUrl(value?: string): string {
+    if (!isRealProfilePhoto(value)) return '';
+    const resolved = this.storageUpload.resolveBackendUrl(value);
+    if (resolved !== this.lastAvatarSrc) {
+      this.lastAvatarSrc = resolved;
+      this.avatarFailed = false;
+    }
+    return resolved;
+  }
 
   unreadCount = 0;
 

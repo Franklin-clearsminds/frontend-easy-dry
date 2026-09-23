@@ -100,11 +100,17 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                   <!-- Operador -->
                   <td class="py-3.5 px-4">
                     <div class="flex items-center gap-3">
-                      <img 
-                        [src]="op.avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80'" 
-                        (error)="onAvatarError($event)"
-                        alt="Avatar" 
-                        class="w-9 h-9 rounded-full object-cover border-2 border-easydry-green shrink-0">
+                      @if (op.avatar) {
+                        <img 
+                          [src]="op.avatar" 
+                          (error)="onAvatarError($event)"
+                          alt="Avatar" 
+                          class="w-9 h-9 rounded-full object-cover border-2 border-easydry-green shrink-0">
+                      } @else {
+                        <div class="w-9 h-9 rounded-full bg-slate-100 border-2 border-easydry-green shrink-0 flex items-center justify-center text-[10px] font-extrabold text-slate-500">
+                          {{ (op.nombre || '?').charAt(0) }}
+                        </div>
+                      }
                       <div>
                         <p class="font-bold text-slate-900 text-xs">{{ op.nombre }}</p>
                         <p class="text-[10px] text-slate-400 font-mono">CI: {{ op.cedula }}</p>
@@ -845,7 +851,7 @@ export class OperadoresComponent implements OnInit {
   onAvatarError(event: Event): void {
     const img = event.target as HTMLImageElement;
     if (img) {
-      img.src = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80';
+      img.style.display = 'none';
     }
   }
 

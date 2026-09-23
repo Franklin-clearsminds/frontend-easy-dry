@@ -63,7 +63,7 @@ export class UsuarioService {
       rol: rolDisplay,
       rolNombre: rawRole,
       roleId: u.role?.id || u.roleId,
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+      avatar: u.avatarUrl || u.avatar || '',
       estado: u.estado === 1 ? 'Activo' : 'Inactivo',
       fechaAsignacion: fechaFormatted,
       agencia: agenciaDisplay,

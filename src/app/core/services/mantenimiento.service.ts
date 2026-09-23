@@ -33,8 +33,14 @@ export class MantenimientoService {
       tecnicoAsignadoNombre: tecnicoNombre,
       observacionCierre: m.observaciones,
       repuestosUtilizados: m.repuestosUsados,
-      fotos: m.fotos || [],
-      videos: m.videos || []
+      fotos: Array.isArray(m.evidencias) ? m.evidencias.filter((e: any) => String(e.tipo || '').includes('FOTO') || e.tipo === 'imagen').map((e: any) => e.url) : (m.fotos || []),
+      videos: Array.isArray(m.evidencias) ? m.evidencias.filter((e: any) => String(e.tipo || '').includes('VIDEO')).map((e: any) => e.url) : (m.videos || []),
+      documentos: Array.isArray(m.evidencias) ? m.evidencias.filter((e: any) => String(e.tipo || '').includes('DOC') || e.tipo === 'PDF').map((e: any) => ({
+        id: e.id,
+        nombre: e.descripcion || 'Documento',
+        tipo: 'documento' as const,
+        url: e.url,
+      })) : []
     };
   }
 
@@ -52,12 +58,18 @@ export class MantenimientoService {
 
   registrarMantenimiento(mant: Omit<Mantenimiento, 'id'>): Observable<Mantenimiento> {
     const tipo = mant.tipo === 'Correctivo' ? 'CORRECTIVO' : 'PREVENTIVO';
+    const evidencias = [
+      ...((mant.fotos || []).map((url) => ({ tipo: 'FOTO', url }))),
+      ...((mant.videos || []).map((url) => ({ tipo: 'VIDEO', url }))),
+      ...(((mant as any).documentos || []).map((d: any) => ({ tipo: 'DOCUMENTO', url: d.url, descripcion: d.nombre }))),
+    ].filter((e) => e.url);
     const payload = {
-      maquinariaId: String(mant.maquina || ''),
+      maquinariaId: String((mant as any).maquinariaId || mant.maquina || ''),
       tipo,
       observaciones: mant.descripcion || 'Mantenimiento registrado',
       repuestosUsados: (mant as any).repuestosUtilizados || undefined,
-      costoTotal: (mant as any).costoTotal ? Number((mant as any).costoTotal) : undefined
+      costoTotal: (mant as any).costoTotal ? Number((mant as any).costoTotal) : undefined,
+      evidencias,
     };
 
     return this.http.post<any>(apiUrl('/maquinaria/mantenimientos/registrar'), payload).pipe(
@@ -68,14 +80,7 @@ export class MantenimientoService {
       }),
       catchError(err => {
         console.error('Error al registrar mantenimiento:', err);
-        // Fallback optimista si no se pudo persistir en backend
-        const fallback: Mantenimiento = {
-          ...mant,
-          id: `MANT-${Date.now().toString().slice(-4)}`
-        };
-        const current = this.mantenimientosSubject.value;
-        this.mantenimientosSubject.next([fallback, ...current]);
-        return of(fallback);
+        throw err;
       })
     );
   }
@@ -91,20 +96,27 @@ export class MantenimientoService {
     const idx = current.findIndex(m => String(m.id) === String(id));
     if (idx === -1) return of(null);
 
-    const actualizado: Mantenimiento = {
-      ...current[idx],
-      tecnicoAsignadoId: tecnicoId,
-      tecnicoAsignadoNombre: tecnicoNombre,
-      tecnico: tecnicoNombre,
-      gestorAsignadorId: gestorId,
-      gestorAsignadorNombre: gestorNombre,
-      fechaAsignacion: new Date().toLocaleString(),
-      estado: current[idx].estado === 'Programado' ? 'En Proceso' : current[idx].estado,
-    };
-    const next = [...current];
-    next[idx] = actualizado;
-    this.mantenimientosSubject.next(next);
-    return of(actualizado);
+    return this.http.post<any>(apiUrl('/maquinaria/mantenimientos/asignar'), {
+      mantenimientoId: String(id),
+      tecnicoId: String(tecnicoId),
+    }).pipe(
+      map(res => this.mapBackendMantenimiento(res?.data || res)),
+      tap(actualizado => {
+        const list = this.mantenimientosSubject.value;
+        const i = list.findIndex(m => String(m.id) === String(id));
+        if (i !== -1) {
+          list[i] = {
+            ...actualizado,
+            tecnicoAsignadoId: tecnicoId,
+            tecnicoAsignadoNombre: tecnicoNombre,
+            gestorAsignadorId: gestorId,
+            gestorAsignadorNombre: gestorNombre,
+          };
+          this.mantenimientosSubject.next([...list]);
+        }
+      }),
+      catchError(() => of(null))
+    );
   }
 
   actualizarMantenimiento(id: string | number, patch: Partial<Mantenimiento>): Observable<Mantenimiento | null> {

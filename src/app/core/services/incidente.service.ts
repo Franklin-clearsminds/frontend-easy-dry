@@ -32,12 +32,19 @@ export class IncidenteService {
       estado: item.estado === 'ABIERTO' ? 'Pendiente' : item.estado === 'EN_PROCESO' ? 'En Solución' : item.estado === 'RESUELTO' ? 'Solucionado' : (item.estado || 'Pendiente'),
       descripcion: item.descripcion || '',
       reportadoPor: repNombre,
-      tecnicoAsignadoId: item.resueltoPorId || item.tecnicoAsignadoId,
-      tecnicoAsignadoNombre: resNombre || item.tecnicoAsignadoNombre,
+      tecnicoAsignadoId: item.tecnicoAsignadoId || item.tecnicoAsignado?.id,
+      tecnicoAsignadoNombre: item.tecnicoAsignado
+        ? `${item.tecnicoAsignado.name || ''} ${item.tecnicoAsignado.lastname || ''}`.trim()
+        : (resNombre || item.tecnicoAsignadoNombre),
       gestorAsignadorId: item.gestorAsignadorId,
       gestorAsignadorNombre: item.gestorAsignadorNombre,
       fechaAsignacion: item.fechaAsignacion,
-      fotosFallo: item.fotoEvidenciaUrl ? [item.fotoEvidenciaUrl] : (item.fotosFallo || []),
+      fotosFallo: Array.isArray(item.evidencias)
+        ? item.evidencias.filter((e: any) => String(e.tipo || '').includes('FOTO') || String(e.tipo || '').includes('VIDEO')).map((e: any) => e.url)
+        : (item.fotoEvidenciaUrl ? [item.fotoEvidenciaUrl] : (item.fotosFallo || [])),
+      fotosReparacion: Array.isArray(item.evidencias)
+        ? item.evidencias.filter((e: any) => String(e.tipo || '').includes('REPAR') || e.tipo === 'DOCUMENTO_INCIDENTE').map((e: any) => e.url)
+        : [],
       fechaSolucion: item.fechaSolucion ? new Date(item.fechaSolucion).toISOString().split('T')[0] : undefined,
       solucionadoPor: resNombre,
       observacionSolucion: item.solucion || item.observacionSolucion
@@ -59,11 +66,12 @@ export class IncidenteService {
   crearIncidente(inc: Omit<Incidente, 'id'>): Observable<Incidente> {
     const gravedad = inc.prioridad === 'Crítica' ? 'CRITICA' : inc.prioridad === 'Alta' ? 'ALTA' : inc.prioridad === 'Baja' ? 'BAJA' : 'MEDIA';
     const payload = {
-      maquinariaId: String(inc.maquina || (inc as any).maquinariaId || (inc as any).id || ''),
+      maquinariaId: String((inc as any).maquinariaId || inc.maquina || ''),
       titulo: inc.tipo || 'Falla técnica',
       descripcion: inc.descripcion || '',
       gravedad,
-      fotoEvidenciaUrl: inc.fotosFallo?.[0] || undefined
+      fotoEvidenciaUrl: inc.fotosFallo?.[0] || undefined,
+      evidencias: (inc.fotosFallo || []).map((url) => ({ tipo: 'FOTO_INCIDENTE', url })),
     };
 
     return this.http.post<any>(apiUrl('/maquinaria/incidentes/reportar'), payload).pipe(
@@ -83,12 +91,19 @@ export class IncidenteService {
     return this.crearIncidente(inc as any);
   }
 
-  actualizarEstado(id: number | string, nuevoEstado: Incidente['estado'], solucion?: string): Observable<Incidente | null> {
+  actualizarEstado(
+    id: number | string,
+    nuevoEstado: Incidente['estado'],
+    solucion?: string,
+    extras?: { evidencias?: Array<{ tipo: string; url: string }>; repuestosUtilizados?: string }
+  ): Observable<Incidente | null> {
     const estadoBackend = nuevoEstado === 'Solucionado' || nuevoEstado === 'Resuelto' ? 'RESUELTO' : 'EN_PROCESO';
     return this.http.post<any>(apiUrl('/maquinaria/incidentes/resolver'), {
       incidenteId: String(id),
       estado: estadoBackend,
-      solucion: solucion || 'Incidente atendido y resuelto en taller.'
+      solucion: solucion || 'Incidente atendido y resuelto en taller.',
+      evidencias: extras?.evidencias,
+      repuestosUtilizados: extras?.repuestosUtilizados,
     }).pipe(
       map(res => this.mapBackendIncidente(res?.data || res)),
       tap(actualizado => {
@@ -110,7 +125,21 @@ export class IncidenteService {
     gestorId: string | number,
     gestorNombre: string
   ): Observable<Incidente | null> {
-    return this.actualizarEstado(id, 'En Solución', `Asignado a técnico ${tecnicoNombre}`);
+    return this.http.post<any>(apiUrl('/maquinaria/incidentes/asignar'), {
+      incidenteId: String(id),
+      tecnicoId: String(tecnicoId),
+    }).pipe(
+      map(res => this.mapBackendIncidente(res?.data || res)),
+      tap(actualizado => {
+        const current = this.incidentesSubject.value;
+        const idx = current.findIndex(i => String(i.id) === String(id));
+        if (idx !== -1) {
+          current[idx] = { ...actualizado, tecnicoAsignadoId: tecnicoId, tecnicoAsignadoNombre: tecnicoNombre, gestorAsignadorId: gestorId, gestorAsignadorNombre: gestorNombre };
+          this.incidentesSubject.next([...current]);
+        }
+      }),
+      catchError(() => of(null))
+    );
   }
 
   cancelarAsignacion(id: string | number): Observable<Incidente | null> {

@@ -28,24 +28,28 @@ export class MaquinariaService {
       sucursalNombre: m.agencia?.nombre,
       bahiaId: m.bahiaId || m.bahia?.id,
       bahiaNombre: m.bahia?.nombre,
-      estado: m.estado || 'Operativa',
+      estado: m.estadoOperativo === 'EN_MANTENIMIENTO' ? 'Mantenimiento' : m.estadoOperativo === 'DE_BAJA' ? 'Fuera de Servicio' : (m.estado || 'Operativa'),
       fechaMantenimiento: m.mantenimientos?.[0]?.fechaRealizado || '',
-      imagen: 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=300&auto=format&fit=crop&q=80',
+      imagen: m.fotoUrl || '',
       horasUso: m.horasUso || 0
     };
   }
 
   getMaquinaria(): Observable<Maquinaria[]> {
-    return this.http.post<any[]>(apiUrl('/maquinaria/list'), {}).pipe(
-      map(items => (items || []).map(m => this.mapBackendMaquinaria(m))),
+    return this.http.post<any>(apiUrl('/maquinaria/list'), {}).pipe(
+      map(res => {
+        const items = Array.isArray(res) ? res : (res?.data || []);
+        return items.map((m: any) => this.mapBackendMaquinaria(m));
+      }),
       tap(mapped => this.maquinariaSubject.next(mapped)),
       catchError(() => of(this.maquinariaSubject.value))
     );
   }
 
   actualizarEstadoMaquina(id: number | string, estado: Maquinaria['estado']): Observable<Maquinaria | null> {
-    return this.http.post<any>(apiUrl('/maquinaria/update'), { id: String(id), estado }).pipe(
-      map(res => this.mapBackendMaquinaria(res)),
+    const estadoOperativo = estado === 'Mantenimiento' || estado === 'En Reparación' ? 'EN_MANTENIMIENTO' : estado === 'Fuera de Servicio' ? 'DE_BAJA' : 'OPERATIVA';
+    return this.http.post<any>(apiUrl('/maquinaria/update'), { id: String(id), estadoOperativo }).pipe(
+      map(res => this.mapBackendMaquinaria(res?.data || res)),
       tap(act => {
         const current = this.maquinariaSubject.value;
         const idx = current.findIndex(m => String(m.id) === String(id));
@@ -64,15 +68,16 @@ export class MaquinariaService {
     return this.http.post<any>(apiUrl('/maquinaria/create'), {
       codigo,
       nombre: maquina.nombre,
-      tipo: maquina.tipo || 'Lavadora',
-      marca: maquina.marca || 'Karcher',
-      modelo: maquina.modelo || 'Pro',
-      numeroSerie: maquina.numeroSerie || codigo,
+      tipo: maquina.tipo || 'HIDROLAVADORA',
+      marca: maquina.marca,
+      modelo: maquina.modelo,
+      serie: maquina.numeroSerie || codigo,
       agenciaId: maquina.sucursalId ? String(maquina.sucursalId) : undefined,
       bahiaId: maquina.bahiaId ? String(maquina.bahiaId) : undefined,
-      estado: maquina.estado || 'Operativa'
+      estadoOperativo: maquina.estado === 'Mantenimiento' ? 'EN_MANTENIMIENTO' : 'OPERATIVA',
+      fotoUrl: maquina.imagen || undefined
     }).pipe(
-      map(res => this.mapBackendMaquinaria(res)),
+      map(res => this.mapBackendMaquinaria(res?.data || res)),
       tap(nueva => {
         const current = this.maquinariaSubject.value;
         this.maquinariaSubject.next([...current, nueva]);
@@ -94,5 +99,14 @@ export class MaquinariaService {
       return of(item);
     }
     return of(null);
+  }
+
+  transferirMaquinaria(payload: {
+    maquinariaId: string;
+    destinoAgenciaId: string;
+    destinoBahiaId?: string;
+    motivo: string;
+  }): Observable<any> {
+    return this.http.post<any>(apiUrl('/maquinaria/transferir'), payload);
   }
 }

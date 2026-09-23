@@ -16,6 +16,7 @@ import { ModalComponent } from '../../shared/components/modal/modal.component';
 import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
 import { ToastService } from '../../shared/services/toast.service';
 import { FilterBarComponent, FilterState } from '../../shared/components/filter-bar/filter-bar.component';
+import { isRealProfilePhoto } from '../../core/config/env';
 
 interface ModuloGrupo {
   grupo: string;
@@ -310,7 +311,13 @@ interface ModuloGrupo {
                     <tr class="hover:bg-slate-50/80 transition-colors" [ngClass]="{'opacity-60 bg-slate-50/40': u.estado === 'Inactivo'}">
                       <td class="py-3.5 px-4">
                         <div class="flex items-center gap-3">
-                          <img [src]="u.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'" alt="Avatar" class="w-9 h-9 rounded-full object-cover border-2" [ngClass]="u.estado === 'Activo' ? 'border-easydry-blue/20' : 'border-slate-300 grayscale'">
+                          @if (isRealProfilePhoto(u.avatar)) {
+                            <img [src]="u.avatar" alt="Avatar" class="w-9 h-9 rounded-full object-cover border-2" [ngClass]="u.estado === 'Activo' ? 'border-easydry-blue/20' : 'border-slate-300 grayscale'">
+                          } @else {
+                            <div class="w-9 h-9 rounded-full bg-slate-100 border-2 flex items-center justify-center text-[10px] font-extrabold text-slate-500" [ngClass]="u.estado === 'Activo' ? 'border-easydry-blue/20' : 'border-slate-300 grayscale'">
+                              {{ (u.nombre || '?').charAt(0) }}{{ (u.apellido || '').charAt(0) }}
+                            </div>
+                          }
                           <div>
                             <div class="flex items-center gap-1.5">
                               <p class="font-bold text-slate-900 text-xs">{{ u.nombre }} {{ u.apellido }}</p>
@@ -917,7 +924,7 @@ interface ModuloGrupo {
             }
           </div>
 
-          <!-- Credenciales Directas de Acceso (Sin Cognito) -->
+          <!-- Credenciales de acceso JWT -->
           @if (!editandoUsuario) {
             <div class="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
               <div class="flex items-center gap-2.5">
@@ -1385,6 +1392,7 @@ interface ModuloGrupo {
   `
 })
 export class UsuariosComponent implements OnInit {
+  readonly isRealProfilePhoto = isRealProfilePhoto;
   activeTab: 'usuarios' | 'roles' = 'usuarios';
 
   usuarios: Usuario[] = [];
@@ -2520,7 +2528,7 @@ export class UsuariosComponent implements OnInit {
         estado: this.usuarioForm.estado,
         email: this.usuarioForm.email.trim(),
         fechaAsignacion: new Date().toISOString().split('T')[0],
-        avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+        avatar: '',
         modalidadPulidor: modalidad.modalidadPulidor,
         servicioIds: isPulidor ? this.serviciosEspecialesCatalogo.map(s => Number(s.id)) : [],
         password: this.usuarioForm.password?.trim(),
