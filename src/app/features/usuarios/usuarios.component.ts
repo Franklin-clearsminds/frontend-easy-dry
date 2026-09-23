@@ -917,7 +917,7 @@ interface ModuloGrupo {
             }
           </div>
 
-          <!-- Credenciales Directas de Acceso (Sin Cognito) -->
+          <!-- Credenciales directas de acceso -->
           @if (!editandoUsuario) {
             <div class="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
               <div class="flex items-center gap-2.5">

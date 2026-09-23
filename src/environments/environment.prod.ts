@@ -6,10 +6,5 @@ export const environment: AppEnvironment = {
   useMocks: false,
   apiBaseUrl: "https://www.api.easydry.com",
   appName: "EasyDry®",
-  environmentName: "production",
-  cognito: {
-    region: "us-east-2",
-    userPoolId: "",
-    clientId: ""
-  }
+  environmentName: "production"
 };

@@ -4,9 +4,4 @@ export interface AppEnvironment {
   apiBaseUrl: string;
   appName: string;
   environmentName: string;
-  cognito: {
-    region: string;
-    userPoolId: string;
-    clientId: string;
-  };
 }

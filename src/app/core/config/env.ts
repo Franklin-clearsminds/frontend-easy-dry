@@ -14,8 +14,3 @@ export function apiUrl(path: string): string {
 export function isMockMode(): boolean {
   return false;
 }
-
-export function isCognitoConfigured(): boolean {
-  const { region, userPoolId, clientId } = environment.cognito;
-  return Boolean(region && userPoolId && clientId);
-}

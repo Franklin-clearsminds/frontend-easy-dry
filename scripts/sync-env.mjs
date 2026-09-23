@@ -62,13 +62,6 @@ const apiDefault = production ? 'https://www.api.easydry.com' : 'https://www.tes
 const apiBaseUrl = str(env.NG_APP_API_BASE_URL, apiDefault);
 const appName = str(env.NG_APP_NAME, 'EasyDry®');
 const environmentName = str(env.NG_APP_ENV, production ? 'production' : 'test');
-const cognitoRegion = str(env.NG_APP_COGNITO_REGION, 'us-east-2');
-const cognitoUserPoolId = str(env.NG_APP_COGNITO_USER_POOL_ID, '');
-const cognitoClientId = str(
-  env.NG_APP_COGNITO_USER_POOL_CLIENT_ID || env.NG_APP_COGNITO_CLIENT_ID,
-  ''
-);
-
 const targetRel = isProd
   ? 'src/environments/environment.prod.ts'
   : 'src/environments/environment.ts';
@@ -81,12 +74,7 @@ export const environment: AppEnvironment = {
   useMocks: ${useMocks},
   apiBaseUrl: ${JSON.stringify(apiBaseUrl)},
   appName: ${JSON.stringify(appName)},
-  environmentName: ${JSON.stringify(environmentName)},
-  cognito: {
-    region: ${JSON.stringify(cognitoRegion)},
-    userPoolId: ${JSON.stringify(cognitoUserPoolId)},
-    clientId: ${JSON.stringify(cognitoClientId)}
-  }
+  environmentName: ${JSON.stringify(environmentName)}
 };
 `;
 
