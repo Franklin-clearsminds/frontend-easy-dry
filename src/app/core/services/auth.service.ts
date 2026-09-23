@@ -12,7 +12,7 @@ import {
   ACCIONES_VACIAS
 } from '../models/roles.model';
 import { RolService } from './rol.service';
-import { apiUrl } from '../config/env';
+import { apiUrl, isRealProfilePhoto } from '../config/env';
 
 const STORAGE_KEY = 'easydry_auth_user_v5';
 /** Renovar el access token ~5 min antes de que expire. */
@@ -203,6 +203,10 @@ export class AuthService {
     return { ...ACCIONES_VACIAS };
   }
 
+  private sanitizeAvatar(value?: string | null): string {
+    return isRealProfilePhoto(value) ? String(value).trim() : '';
+  }
+
   private getStoredUser(): UsuarioAuth | null {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
@@ -216,6 +220,13 @@ export class AuthService {
             parsed.modulosPermitidos.push('envios');
           }
           parsed.permisos = this.normalizeAcciones(parsed.permisos);
+          const cleanedAvatar = this.sanitizeAvatar(parsed.avatar);
+          if (cleanedAvatar !== (parsed.avatar || '')) {
+            parsed.avatar = cleanedAvatar;
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+          } else {
+            parsed.avatar = cleanedAvatar;
+          }
           return parsed;
         }
       }
@@ -279,6 +290,8 @@ export class AuthService {
         regionNombre: string;
         bodegaId?: string | number;
         estado: number;
+        avatar?: string;
+        avatarUrl?: string;
       };
     }>(apiUrl('/auth/login'), { email: normalizedEmail, password: normalizedPass }).pipe(
       map(res => {
@@ -321,6 +334,7 @@ export class AuthService {
           token: res.accessToken,
           refreshToken: res.refreshToken,
           permisos,
+          avatar: this.sanitizeAvatar(res.user.avatar || res.user.avatarUrl || ''),
         };
 
         localStorage.setItem('easydry_access_token', res.accessToken);
@@ -351,12 +365,28 @@ export class AuthService {
     if (!current) {
       return of({ success: false, user: {} as UsuarioAuth });
     }
-    const updated: UsuarioAuth = {
-      ...current,
-      ...data
-    };
-    this.setUser(updated);
-    return of({ success: true, user: updated }).pipe(delay(200));
+
+    return this.http.post<{ success: boolean; user: any }>(apiUrl('/auth/profile'), {
+      avatarUrl: data.avatar,
+      name: data.nombre,
+      lastname: data.apellido,
+      email: data.email,
+    }).pipe(
+      map((res) => {
+        const remote = res?.user || {};
+        const updated: UsuarioAuth = {
+          ...current,
+          ...data,
+          nombre: remote.name || remote.nombre || data.nombre || current.nombre,
+          apellido: remote.lastname || data.apellido || current.apellido,
+          email: remote.email || data.email || current.email,
+          avatar: this.sanitizeAvatar(remote.avatar || remote.avatarUrl || data.avatar || ''),
+        };
+        this.setUser(updated);
+        return { success: true, user: updated };
+      }),
+      catchError(() => of({ success: false, user: current }))
+    );
   }
 
   changePassword(actual: string, nueva: string): Observable<{ success: boolean; message?: string }> {

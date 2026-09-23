@@ -3,14 +3,17 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LucideAngularModule } from 'lucide-angular';
 import { AuthService } from '../../core/services/auth.service';
+import { StorageUploadService } from '../../core/services/storage-upload.service';
+import { isRealProfilePhoto } from '../../core/config/env';
 import { ToastService } from '../../shared/services/toast.service';
 import { Role, ROLE_LABELS, UsuarioAuth } from '../../core/models/roles.model';
 import { ModalPortalDirective } from '../../shared/directives/modal-portal.directive';
+import { ImageCropModalComponent } from '../../shared/components/image-crop-modal/image-crop-modal.component';
 
 @Component({
   selector: 'app-perfil',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule, ModalPortalDirective],
+  imports: [CommonModule, FormsModule, LucideAngularModule, ModalPortalDirective, ImageCropModalComponent],
   template: `
     <div class="space-y-6 animate-fade-in pb-12">
       
@@ -97,10 +100,17 @@ import { ModalPortalDirective } from '../../shared/directives/modal-portal.direc
             
             <!-- Avatar with Change Photo Overlay -->
             <div class="relative inline-block mb-4 group">
-              <img
-                [src]="perfilForm.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80'"
-                alt="Avatar"
-                class="w-32 h-32 rounded-full object-cover border-4 border-easydry-blue/20 mx-auto shadow-lg transition-transform group-hover:scale-105">
+              @if (avatarPreviewUrl && !avatarFailed) {
+                <img
+                  [src]="avatarPreviewUrl"
+                  alt="Avatar"
+                  (error)="avatarFailed = true"
+                  class="w-32 h-32 rounded-full object-cover border-4 border-easydry-blue/20 mx-auto shadow-lg transition-transform group-hover:scale-105">
+              } @else {
+                <div class="w-32 h-32 rounded-full bg-slate-100 border-4 border-easydry-blue/20 mx-auto shadow-lg flex items-center justify-center text-3xl font-extrabold text-slate-400">
+                  {{ (perfilForm.nombre || currentUser?.nombre || '?').charAt(0) }}{{ (perfilForm.apellido || currentUser?.apellido || '').charAt(0) }}
+                </div>
+              }
               
               @if (modoEdicion) {
                 <button 
@@ -129,13 +139,15 @@ import { ModalPortalDirective } from '../../shared/directives/modal-portal.direc
                   <i-lucide name="upload" class="w-3.5 h-3.5"></i-lucide>
                   <span>Subir Foto</span>
                 </button>
-                <button 
-                  type="button"
-                  (click)="showAvatarModal = true"
-                  class="px-3 py-1.5 bg-easydry-blue/10 hover:bg-easydry-blue/20 text-easydry-blue font-bold rounded-xl text-[11px] transition-colors flex items-center gap-1.5 cursor-pointer">
-                  <i-lucide name="image" class="w-3.5 h-3.5"></i-lucide>
-                  <span>Galería</span>
-                </button>
+                @if (cropSourceUrl || pendingAvatarFile) {
+                  <button
+                    type="button"
+                    (click)="reabrirAjuste()"
+                    class="px-3 py-1.5 bg-easydry-blue/10 hover:bg-easydry-blue/20 text-easydry-blue font-bold rounded-xl text-[11px] transition-colors flex items-center gap-1.5 cursor-pointer">
+                    <i-lucide name="crop" class="w-3.5 h-3.5"></i-lucide>
+                    <span>Ajustar</span>
+                  </button>
+                }
               </div>
             }
 
@@ -434,50 +446,19 @@ import { ModalPortalDirective } from '../../shared/directives/modal-portal.direc
         </div>
       }
 
-      <!-- ───────────────────────────────────────────────────────────── -->
-      <!-- MODAL 4: SELECCIONADOR DE AVATAR PREDEFINIDO                  -->
-      <!-- ───────────────────────────────────────────────────────────── -->
-      @if (showAvatarModal) {
-        <div appModalPortal class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[9999] p-4 animate-fade-in">
-          <div class="bg-white rounded-3xl p-6 max-w-lg w-full shadow-2xl border border-slate-100 space-y-5">
-            <div class="flex items-center justify-between border-b pb-3">
-              <h3 class="font-bold text-slate-900 text-base">Seleccionar Avatar Corporativo</h3>
-              <button (click)="showAvatarModal = false" class="text-slate-400 hover:text-slate-600 p-1 cursor-pointer">
-                <i-lucide name="x" class="w-5 h-5"></i-lucide>
-              </button>
-            </div>
-
-            <p class="text-xs text-slate-500">Elige uno de los avatares predeterminados para tu perfil institucional:</p>
-
-            <div class="grid grid-cols-3 gap-4 py-2">
-              @for (av of presetAvatars; track av) {
-                <button 
-                  type="button"
-                  (click)="selectPresetAvatar(av)"
-                  class="p-1 rounded-2xl border-2 transition-all hover:scale-105 cursor-pointer"
-                  [ngClass]="perfilForm.avatar === av ? 'border-easydry-blue bg-blue-50/50' : 'border-transparent hover:border-slate-200'">
-                  <img [src]="av" alt="Avatar Preset" class="w-full h-20 object-cover rounded-xl shadow-xs">
-                </button>
-              }
-            </div>
-
-            <div class="flex justify-end pt-2">
-              <button 
-                type="button" 
-                (click)="showAvatarModal = false"
-                class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs cursor-pointer">
-                Cerrar
-              </button>
-            </div>
-          </div>
-        </div>
-      }
+      <app-image-crop-modal
+        [open]="showCropModal"
+        [imageSrc]="cropSourceUrl"
+        (apply)="onCropApplied($event)"
+        (cancel)="cerrarAjuste()">
+      </app-image-crop-modal>
 
     </div>
   `
 })
 export class PerfilComponent implements OnInit {
   private authService = inject(AuthService);
+  private storageUpload = inject(StorageUploadService);
   private toastService = inject(ToastService);
 
   currentUser: UsuarioAuth | null = this.authService.getCurrentUser();
@@ -491,16 +472,10 @@ export class PerfilComponent implements OnInit {
   showConfirmGuardarModal = false;
   showExitoModal = false;
   showDescartarModal = false;
-  showAvatarModal = false;
 
-  presetAvatars: string[] = [
-    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=200&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=200&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1560250097-0b93528c311a?w=200&auto=format&fit=crop&q=80',
-  ];
+  pendingAvatarFile: File | null = null;
+  showCropModal = false;
+  cropSourceUrl = '';
 
   perfilForm = {
     nombre: '',
@@ -508,6 +483,15 @@ export class PerfilComponent implements OnInit {
     email: '',
     avatar: ''
   };
+
+  avatarFailed = false;
+
+  get avatarPreviewUrl(): string {
+    const raw = this.perfilForm.avatar || '';
+    if (raw.startsWith('data:image/') || raw.startsWith('blob:')) return raw;
+    if (!isRealProfilePhoto(raw)) return '';
+    return this.storageUpload.resolveBackendUrl(raw);
+  }
 
   backupForm = {
     nombre: '',
@@ -537,8 +521,12 @@ export class PerfilComponent implements OnInit {
       nombre: this.currentUser.nombre || '',
       apellido: this.currentUser.apellido || '',
       email: this.currentUser.email || '',
-      avatar: this.currentUser.avatar || ''
+      avatar: isRealProfilePhoto(this.currentUser.avatar) ? this.currentUser.avatar || '' : ''
     };
+    this.pendingAvatarFile = null;
+    this.cropSourceUrl = '';
+    this.showCropModal = false;
+    this.avatarFailed = false;
 
     this.backupForm = { ...this.perfilForm };
   }
@@ -573,6 +561,9 @@ export class PerfilComponent implements OnInit {
 
   confirmarDescarte(): void {
     this.perfilForm = { ...this.backupForm };
+    this.pendingAvatarFile = null;
+    this.cropSourceUrl = '';
+    this.showCropModal = false;
     this.showDescartarModal = false;
     this.modoEdicion = false;
     this.toastService.info('Edición Cancelada', 'Se han restaurado los valores originales.');
@@ -582,6 +573,10 @@ export class PerfilComponent implements OnInit {
     const input = event.target as HTMLInputElement;
     if (input.files && input.files[0]) {
       const file = input.files[0];
+      if (!file.type.startsWith('image/')) {
+        this.toastService.warning('Archivo inválido', 'Selecciona una imagen (JPG, PNG o WEBP).');
+        return;
+      }
       if (file.size > 5 * 1024 * 1024) {
         this.toastService.warning('Tamaño Excedido', 'La imagen no debe superar los 5 MB.');
         return;
@@ -589,20 +584,32 @@ export class PerfilComponent implements OnInit {
 
       const reader = new FileReader();
       reader.onload = (e) => {
-        const base64 = e.target?.result as string;
-        if (base64) {
-          this.perfilForm.avatar = base64;
-          this.toastService.success('Foto Cargada', 'Se ha previsualizado la nueva foto.');
+        const preview = e.target?.result as string;
+        if (preview) {
+          this.cropSourceUrl = preview;
+          this.showCropModal = true;
         }
       };
       reader.readAsDataURL(file);
+      input.value = '';
     }
   }
 
-  selectPresetAvatar(avatarUrl: string): void {
-    this.perfilForm.avatar = avatarUrl;
-    this.showAvatarModal = false;
-    this.toastService.success('Avatar Seleccionado', 'Se ha previsualizado el avatar corporativo.');
+  reabrirAjuste(): void {
+    if (!this.cropSourceUrl) return;
+    this.showCropModal = true;
+  }
+
+  cerrarAjuste(): void {
+    this.showCropModal = false;
+  }
+
+  onCropApplied(result: { file: File; preview: string }): void {
+    this.pendingAvatarFile = result.file;
+    this.perfilForm.avatar = result.preview;
+    this.avatarFailed = false;
+    this.showCropModal = false;
+    this.toastService.success('Imagen ajustada', 'El recorte está listo. Guarda el perfil para subirlo a S3.');
   }
 
   solicitarGuardar(): void {
@@ -616,33 +623,57 @@ export class PerfilComponent implements OnInit {
     this.showConfirmGuardarModal = true;
   }
 
-  ejecutarGuardado(): void {
+  async ejecutarGuardado(): Promise<void> {
     this.isSaving = true;
-    const payload: Partial<typeof this.currentUser> = {
-      avatar: this.perfilForm.avatar
-    };
-
-    if (this.isAdmin) {
-      payload.nombre = this.perfilForm.nombre.trim();
-      payload.apellido = this.perfilForm.apellido.trim();
-      payload.email = this.perfilForm.email.trim();
-    }
-
-    this.authService.updateProfile(payload).subscribe({
-      next: (res) => {
-        this.isSaving = false;
-        this.currentUser = res.user;
-        this.backupForm = { ...this.perfilForm };
-        this.showConfirmGuardarModal = false;
-        this.modoEdicion = false;
-        this.showExitoModal = true;
-      },
-      error: () => {
-        this.isSaving = false;
-        this.showConfirmGuardarModal = false;
-        this.toastService.error('Error', 'No se pudieron guardar los cambios.');
+    try {
+      let avatarUrl = this.backupForm.avatar || '';
+      if (this.pendingAvatarFile && this.currentUser?.id) {
+        avatarUrl = await this.storageUpload.uploadMedia(this.pendingAvatarFile, {
+          category: 'PERFIL_USUARIO',
+          type: 'FOTO_PERFIL',
+          clientUuid: String(this.currentUser.id),
+          fileName: this.pendingAvatarFile.name || `avatar_${Date.now()}.jpg`,
+          contentType: this.pendingAvatarFile.type || 'image/jpeg',
+        });
       }
-    });
+
+      const payload: Partial<UsuarioAuth> = {
+        avatar: avatarUrl,
+      };
+
+      if (this.isAdmin) {
+        payload.nombre = this.perfilForm.nombre.trim();
+        payload.apellido = this.perfilForm.apellido.trim();
+        payload.email = this.perfilForm.email.trim();
+      }
+
+      this.authService.updateProfile(payload).subscribe({
+        next: (res) => {
+          this.isSaving = false;
+          if (!res.success) {
+            this.showConfirmGuardarModal = false;
+            this.toastService.error('Error', 'No se pudieron guardar los cambios.');
+            return;
+          }
+          this.currentUser = res.user;
+          this.perfilForm.avatar = res.user.avatar || avatarUrl;
+          this.pendingAvatarFile = null;
+          this.backupForm = { ...this.perfilForm };
+          this.showConfirmGuardarModal = false;
+          this.modoEdicion = false;
+          this.showExitoModal = true;
+        },
+        error: () => {
+          this.isSaving = false;
+          this.showConfirmGuardarModal = false;
+          this.toastService.error('Error', 'No se pudieron guardar los cambios.');
+        }
+      });
+    } catch (error) {
+      this.isSaving = false;
+      this.showConfirmGuardarModal = false;
+      this.toastService.error('Error', 'No se pudo subir la foto de perfil a S3.');
+    }
   }
 
   cerrarModalExito(): void {

@@ -847,10 +847,6 @@ import { SucursalService } from '../../core/services/sucursal.service';
                   <span>Adjuntar Documento</span>
                   <input type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.txt" (change)="onSubirDocumentosCompletar($event)" class="hidden">
                 </label>
-                <button type="button" (click)="agregarDocumentosCompletarDemo()"
-                  class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold">
-                  + Adjuntar PDF Demo
-                </button>
               </div>
               @if (documentosCompletar.length > 0) {
                 <div class="space-y-2 pt-2">
@@ -1197,7 +1193,7 @@ export class MantenimientoComponent implements OnInit {
     if (doc.url && doc.url !== '#') {
       window.open(doc.url, '_blank');
     } else {
-      this.toastService.info('Demo', `Descarga simulada: ${doc.nombre}`);
+      this.toastService.warning('Documento no disponible', `No hay URL de descarga para "${doc.nombre}".`);
     }
   }
 
@@ -1265,18 +1261,6 @@ export class MantenimientoComponent implements OnInit {
     });
     this.toastService.success('Documentos cargados', `${input.files.length} documento(s) listo(s).`);
     input.value = '';
-  }
-
-  agregarDocumentosCompletarDemo(): void {
-    this.documentosCompletar.push({
-      id: `demo-dc-${Date.now()}`,
-      nombre: 'informe_mantenimiento.pdf',
-      tipo: 'documento',
-      extension: 'PDF',
-      url: '#',
-      tamanio: '1.4 MB',
-      fechaSubida: 'Hoy'
-    });
   }
 
   eliminarDocumentoCompletar(index: number): void {

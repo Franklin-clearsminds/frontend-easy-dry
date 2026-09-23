@@ -506,10 +506,16 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                 <div>
                   <div class="flex items-start justify-between gap-3 mb-3">
                     <div class="flex items-center gap-3">
-                      <img
-                        [src]="ger.avatar || 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80'"
-                        alt="Avatar"
-                        class="w-11 h-11 rounded-full object-cover ring-2 ring-purple-300">
+                      @if (ger.avatar) {
+                        <img
+                          [src]="ger.avatar"
+                          alt="Avatar"
+                          class="w-11 h-11 rounded-full object-cover ring-2 ring-purple-300">
+                      } @else {
+                        <div class="w-11 h-11 rounded-full bg-slate-100 ring-2 ring-purple-300 flex items-center justify-center text-xs font-extrabold text-slate-500">
+                          {{ (ger.nombre || '?').charAt(0) }}{{ (ger.apellido || '').charAt(0) }}
+                        </div>
+                      }
                       <div>
                         <h4 class="font-bold text-sm text-slate-900 leading-tight">{{ ger.nombre }} {{ ger.apellido }}</h4>
                         <p class="text-[11px] text-slate-500 truncate">{{ ger.email }}</p>

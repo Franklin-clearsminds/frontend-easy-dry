@@ -272,50 +272,8 @@ import { Reto } from '../../core/models/reto.model';
             <span class="text-xs text-slate-400 font-semibold">Destacados</span>
           </div>
 
-          <div class="space-y-4">
-            
-            <div class="p-4 border border-slate-100 rounded-xl flex items-center justify-between bg-gradient-to-r from-easydry-blue/5 to-white">
-              <div class="flex items-center gap-3">
-                <img src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80" alt="Avatar" class="w-10 h-10 rounded-full object-cover border-2 border-easydry-blue">
-                <div>
-                  <h4 class="font-bold text-slate-900 text-sm">Esteban Torres</h4>
-                  <p class="text-xs text-slate-500">Técnico • EasyDry Quito Norte</p>
-                </div>
-              </div>
-              <div class="text-right">
-                <span class="text-sm font-extrabold text-easydry-blue">68 Lavados</span>
-                <p class="text-[10px] text-easydry-blue font-bold">100% Calificación</p>
-              </div>
-            </div>
-
-            <div class="p-4 border border-slate-100 rounded-xl flex items-center justify-between">
-              <div class="flex items-center gap-3">
-                <img src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80" alt="Avatar" class="w-10 h-10 rounded-full object-cover border-2 border-slate-300">
-                <div>
-                  <h4 class="font-bold text-slate-900 text-sm">Valeria Paredes</h4>
-                  <p class="text-xs text-slate-500">Técnico Detallado • Guayaquil</p>
-                </div>
-              </div>
-              <div class="text-right">
-                <span class="text-sm font-extrabold text-easydry-blue">62 Lavados</span>
-                <p class="text-[10px] text-easydry-blue font-bold">99.2% Calificación</p>
-              </div>
-            </div>
-
-            <div class="p-4 border border-slate-100 rounded-xl flex items-center justify-between">
-              <div class="flex items-center gap-3">
-                <img src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80" alt="Avatar" class="w-10 h-10 rounded-full object-cover border-2 border-slate-300">
-                <div>
-                  <h4 class="font-bold text-slate-900 text-sm">Mateo Guerrero</h4>
-                  <p class="text-xs text-slate-500">Supervisor • Cumbayá</p>
-                </div>
-              </div>
-              <div class="text-right">
-                <span class="text-sm font-extrabold text-easydry-blue">54 Lavados</span>
-                <p class="text-[10px] text-easydry-blue font-bold">98.5% Calificación</p>
-              </div>
-            </div>
-
+          <div class="px-6 py-8 text-center text-sm text-slate-500">
+            El ranking de personal se calculará con los servicios registrados en base de datos.
           </div>
         </div>
 

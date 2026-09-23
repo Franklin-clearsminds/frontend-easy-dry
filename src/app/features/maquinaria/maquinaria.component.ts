@@ -687,7 +687,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Técnico / Especialista</label>
-                <input type="text" [(ngModel)]="nuevoMantenimiento.tecnico" name="tecnicoMant" placeholder="Ing. Esteban Torres" 
+                <input type="text" [(ngModel)]="nuevoMantenimiento.tecnico" name="tecnicoMant" placeholder="Nombre del técnico"
                   [ngClass]="erroresMant.tecnico ? 'border-rose-400 ring-2 ring-rose-100' : 'border-slate-200'"
                   class="w-full p-2.5 border rounded-xl text-sm" 
                   (input)="erroresMant.tecnico = ''" required>
@@ -746,10 +746,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                   <span>Subir Fotos / Videos</span>
                   <input type="file" multiple accept="image/*,video/*" (change)="onSubirMultimediaMant($event)" class="hidden">
                 </label>
-                <button type="button" (click)="agregarMultimediaMantDemo()"
-                  class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold">
-                  + Cargar Fotos/Video Demo
-                </button>
+
               </div>
               @if (multimediaMantSubida.length > 0) {
                 <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2">
@@ -788,10 +785,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                   <span>Adjuntar Documento</span>
                   <input type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.txt" (change)="onSubirDocumentosMant($event)" class="hidden">
                 </label>
-                <button type="button" (click)="agregarDocumentosMantDemo()"
-                  class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold">
-                  + Adjuntar PDF Demo
-                </button>
+
               </div>
               @if (documentosMantSubidos.length > 0) {
                 <div class="space-y-2 pt-2">
@@ -855,10 +849,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                   <span>Subir Fotos / Videos</span>
                   <input type="file" multiple accept="image/*,video/*" (change)="onSubirMultimediaMant($event)" class="hidden">
                 </label>
-                <button type="button" (click)="agregarMultimediaMantDemo()"
-                  class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold">
-                  + Cargar Fotos/Video Demo
-                </button>
+
               </div>
               @if (multimediaMantSubida.length > 0) {
                 <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2">
@@ -897,10 +888,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                   <span>Adjuntar Documento</span>
                   <input type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.txt" (change)="onSubirDocumentosMant($event)" class="hidden">
                 </label>
-                <button type="button" (click)="agregarDocumentosMantDemo()"
-                  class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold">
-                  + Adjuntar PDF Demo
-                </button>
+
               </div>
               @if (documentosMantSubidos.length > 0) {
                 <div class="space-y-2 pt-2">
@@ -1195,11 +1183,11 @@ export class MaquinariaComponent implements OnInit {
 
   getBahiasDisponibles(sucursalNombre: string): string[] {
     if (!sucursalNombre) return ['Bahía 1'];
-    const deMock = this.todasLasBahias
+    const deSede = this.todasLasBahias
       .filter(b => b.sucursalNombre === sucursalNombre)
       .map(b => b.nombre);
-    if (deMock.length > 0) {
-      return deMock;
+    if (deSede.length > 0) {
+      return deSede;
     }
     const suc = this.sucursales.find(s => s.nombre === sucursalNombre);
     const cant = suc?.cantidadBahias || 4;
@@ -1313,7 +1301,7 @@ export class MaquinariaComponent implements OnInit {
     this.nuevoMantenimiento = {
       tipo: 'Preventivo',
       fecha: new Date().toISOString().substring(0, 10),
-      tecnico: user ? `${user.nombre} ${user.apellido}` : 'Esteban Torres',
+      tecnico: user ? `${user.nombre} ${user.apellido}`.trim() : '',
       duracionHoras: 2,
       descripcion: ''
     };
@@ -1366,28 +1354,6 @@ export class MaquinariaComponent implements OnInit {
     input.value = '';
   }
 
-  agregarMultimediaMantDemo(): void {
-    this.multimediaMantSubida.push({
-      id: `demo-m-${Date.now()}-1`,
-      nombre: 'mantenimiento_equipo.jpg',
-      tipo: 'imagen',
-      extension: 'JPG',
-      url: 'https://images.unsplash.com/photo-1581092918056-0c4c3acd3789?w=800&auto=format&fit=crop&q=80',
-      tamanio: '1.8 MB',
-      fechaSubida: 'Hoy'
-    });
-    this.multimediaMantSubida.push({
-      id: `demo-m-${Date.now()}-2`,
-      nombre: 'video_prueba_operacion.mp4',
-      tipo: 'video',
-      extension: 'MP4',
-      url: 'https://assets.mixkit.co/videos/preview/mixkit-circuit-board-details-close-up-42289-large.mp4',
-      tamanio: '8.2 MB',
-      fechaSubida: 'Hoy'
-    });
-    this.toastService.info('Demo', 'Se agregaron 1 foto y 1 video de prueba.');
-  }
-
   eliminarMultimediaMant(index: number): void {
     this.multimediaMantSubida.splice(index, 1);
   }
@@ -1400,19 +1366,6 @@ export class MaquinariaComponent implements OnInit {
     });
     this.toastService.success('Documentos cargados', `${input.files.length} documento(s) listo(s).`);
     input.value = '';
-  }
-
-  agregarDocumentosMantDemo(): void {
-    this.documentosMantSubidos.push({
-      id: `demo-d-${Date.now()}`,
-      nombre: 'informe_mantenimiento.pdf',
-      tipo: 'documento',
-      extension: 'PDF',
-      url: '#',
-      tamanio: '1.4 MB',
-      fechaSubida: 'Hoy'
-    });
-    this.toastService.info('Demo', 'Se adjuntó un PDF de prueba.');
   }
 
   eliminarDocumentoMant(index: number): void {
@@ -1549,11 +1502,6 @@ export class MaquinariaComponent implements OnInit {
   }
 
   getResponsableEquipo(sucursal: string): string {
-    const s = sucursal.toLowerCase();
-    if (s.includes('norte')) return 'Carlos Mendoza (Gerente) · Op. Roberto Gómez';
-    if (s.includes('sur')) return 'Esteban Paredes (Gerente) · Op. David Morales';
-    if (s.includes('cumbayá') || s.includes('cumbaya')) return 'Mateo Villacís (Gerente) · Op. Javier Ortiz';
-    if (s.includes('guayaquil')) return 'Diana Salazar (Gerente) · Op. Manuel Viteri';
-    return 'Gerencia General EasyDry';
+    return sucursal?.trim() || 'Sin asignar';
   }
 }
