@@ -117,7 +117,8 @@ import {
   PauseCircle,
   ExternalLink,
   Crop,
-  ImagePlus
+  ImagePlus,
+  Move
 } from 'lucide-angular';
 
 export const EASYDRY_ICONS = {
@@ -241,11 +242,13 @@ export const EASYDRY_ICONS = {
   ExternalLink,
   Crop,
   ImagePlus,
+  Move,
 
   // Kebab-case mappings
   'external-link': ExternalLink,
   'crop': Crop,
   'image-plus': ImagePlus,
+  'move': Move,
   'layout-dashboard': LayoutDashboard,
   'building-2': Building2,
   'car': Car,

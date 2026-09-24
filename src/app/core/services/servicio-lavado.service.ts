@@ -95,8 +95,8 @@ export class ServicioLavadoService {
       fotoSalidaUrl: s.fotoSalidaUrl || '',
       video: s.fotoSalidaUrl || s.videoFinalUrl || (s.video && s.video !== s.fotoIngresoUrl ? s.video : '') || '',
       videoUrl: s.fotoSalidaUrl || s.videoFinalUrl || (s.videoUrl && s.videoUrl !== s.fotoIngresoUrl ? s.videoUrl : '') || '',
-      videoInicialUrl: s.videoInicialUrl || (s.fotoIngresoUrl && (s.fotoIngresoUrl.includes('.mp4') || s.fotoIngresoUrl.includes('video'))) ? s.fotoIngresoUrl : (s.videoInicial || s.fotoIngresoUrl || ''),
-      videoFinalUrl: s.videoFinalUrl || (s.fotoSalidaUrl && (s.fotoSalidaUrl.includes('.mp4') || s.fotoSalidaUrl.includes('video'))) ? s.fotoSalidaUrl : (s.videoFinal || s.fotoSalidaUrl || ''),
+      videoInicialUrl: s.videoInicialUrl || s.videoInicial || s.fotoIngresoUrl || '',
+      videoFinalUrl: s.videoFinalUrl || s.videoFinal || s.fotoSalidaUrl || '',
       tiempoEstimadoMin: s.catalogo?.tiempoEstimadoMin ?? s.catalogoRel?.tiempoEstimadoMin ?? 0,
       notas: s.observaciones || s.notas || '',
       observacionGerente: s.observacionGerente || '',
@@ -144,27 +144,36 @@ export class ServicioLavadoService {
     );
   }
 
-  crearRegistroHojaServicio(nuevo: Partial<VehiculoServicio> & { bahiaId?: string; servicioCatalogoId?: number }): Observable<VehiculoServicio> {
+  /**
+   * Registra la OT general. Con varios servicios (`servicioCatalogoIds`) el backend crea una fila por servicio
+   * con la misma OT y vehículo; siempre devuelve la lista de filas creadas.
+   */
+  crearRegistroHojaServicio(
+    nuevo: Partial<VehiculoServicio> & { bahiaId?: string; servicioCatalogoId?: number; servicioCatalogoIds?: number[] },
+  ): Observable<VehiculoServicio[]> {
     const videoOIngreso = nuevo.video || nuevo.videoUrl || (nuevo as any).fotoIngresoUrl || nuevo.foto || null;
     const ordenTrabajoOT = nuevo.ordenTrabajoOT ? nuevo.ordenTrabajoOT.trim() : undefined;
+    const servicioCatalogoIds = (nuevo.servicioCatalogoIds || []).map(Number).filter((id) => id > 0);
     const payload = {
       ordenTrabajoOT,
       placa: (nuevo.placa || '').toUpperCase().trim(),
+      marca: nuevo.marca || undefined,
       modelo: nuevo.modelo || `${nuevo.marca || ''} ${nuevo.modelo || ''}`.trim(),
       color: nuevo.color || '',
       cliente: (nuevo as any).cliente || '',
       bahiaId: nuevo.bahiaId || (nuevo as any).bahia,
-      servicioCatalogoId: nuevo.servicioCatalogoId || Number(nuevo.servicioId),
+      servicioCatalogoId: servicioCatalogoIds[0] || nuevo.servicioCatalogoId || Number(nuevo.servicioId),
+      ...(servicioCatalogoIds.length > 1 ? { servicioCatalogoIds } : {}),
       fotoIngresoUrl: videoOIngreso,
       observaciones: nuevo.notas || '',
       estado: (nuevo.estado as any) || 'EN_PROCESO'
     };
 
     return this.http.post<any>(apiUrl('/operaciones/servicios/create'), payload).pipe(
-      map(res => this.mapBackendServicio(res)),
+      map(res => (Array.isArray(res) ? res : [res]).map((item: any) => this.mapBackendServicio(item))),
       tap(created => {
         const current = this.serviciosSubject.value;
-        this.serviciosSubject.next([created, ...current]);
+        this.serviciosSubject.next([...created, ...current]);
       }),
       catchError(err => {
         console.error('Error al registrar servicio en backend:', err);

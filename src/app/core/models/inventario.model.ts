@@ -181,6 +181,7 @@ export interface MovimientoInventarioGlobalItem {
   motivo?: { id: string; nombre: string; codigo: string };
   referencia?: string;
   observaciones?: string;
+  evidenciasUrls?: string[];
   fechaMovimiento: string;
   createdAt?: string;
 }
@@ -207,6 +208,7 @@ export interface RegistrarMovimientoPayload {
   bodegaId?: string;
   referencia?: string;
   observaciones?: string;
+  evidenciasUrls?: string[];
 }
 
 /** Estado de existencias de un insumo en una sucursal específica */

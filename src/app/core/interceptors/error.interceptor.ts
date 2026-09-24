@@ -3,6 +3,9 @@ import { inject } from '@angular/core';
 import { catchError, throwError } from 'rxjs';
 import { ToastService } from '../../shared/services/toast.service';
 
+let lastToastAt = 0;
+let lastToastKey = '';
+
 /**
  * EasyDry® Web — Interceptor Unificado de Errores HTTP
  * Alineado con Arquitectura Enterprise v2.0
@@ -16,7 +19,9 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
     catchError((error: HttpErrorResponse) => {
       let userMessage = 'Ha ocurrido un inconveniente al procesar la solicitud.';
 
-      if (error.status === 401) {
+      if (error.status === 0) {
+        userMessage = 'No se pudo conectar con el servidor. Verifica que el backend esté encendido.';
+      } else if (error.status === 401) {
         // El jwtInterceptor ya intentó refresh; solo informar si no es silencioso.
         userMessage = 'Sesión expirada o no autorizada. Inicie sesión nuevamente.';
       } else if (error.status === 403) {
@@ -34,7 +39,13 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
       }
 
       if (!isSilent) {
-        toastService.error('Error de Comunicación', userMessage);
+        const key = `${error.status}:${userMessage}`;
+        const now = Date.now();
+        if (key !== lastToastKey || now - lastToastAt > 2500) {
+          lastToastKey = key;
+          lastToastAt = now;
+          toastService.error('Error de Comunicación', userMessage);
+        }
       }
       return throwError(() => error);
     })

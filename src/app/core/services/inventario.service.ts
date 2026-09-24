@@ -227,6 +227,21 @@ export class InventarioService {
     );
   }
 
+  public reajustarStock(payload: {
+    insumoId: string;
+    bodegaId?: string;
+    agenciaId?: string;
+    pulidorId?: string;
+    stockUbicacionId?: string;
+    cantidadContada: number;
+    motivoTexto: string;
+    evidenciaUrl: string;
+  }): Observable<any> {
+    return this.http.post<any>(apiUrl('/inventario/stock/reajuste'), payload).pipe(
+      tap(() => this.cargarItems())
+    );
+  }
+
   public getHistorialMovimientos(dto: any = {}): Observable<{ items: MovimientoInventarioGlobalItem[]; total: number; page: number; pageSize: number; totalPages: number }> {
     return this.http.post<any>(apiUrl('/inventario/movimientos/historial'), dto).pipe(
       catchError(() => of({ items: [], total: 0, page: 1, pageSize: 20, totalPages: 0 }))

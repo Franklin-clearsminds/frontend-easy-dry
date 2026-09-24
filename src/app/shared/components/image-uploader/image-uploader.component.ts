@@ -56,7 +56,7 @@ export type UploaderState = 'idle' | 'adjusting' | 'uploading' | 'uploaded' | 'e
           </span>
         } @else {
           <span class="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
-            Formato Cuadrado (1:1)
+            {{ skipCrop ? 'Imagen completa' : 'Formato Cuadrado (1:1)' }}
           </span>
         }
       </div>
@@ -127,7 +127,7 @@ export type UploaderState = 'idle' | 'adjusting' | 'uploading' | 'uploaded' | 'e
             <div class="w-14 h-14 rounded-2xl bg-blue-50 border border-blue-100 text-easydry-blue flex items-center justify-center mb-3 shadow-xs">
               <i-lucide name="image-plus" class="w-7 h-7"></i-lucide>
             </div>
-            <p class="text-xs font-bold text-slate-800">Haz clic o arrastra la foto del insumo aquí</p>
+            <p class="text-xs font-bold text-slate-800">Haz clic o arrastra la imagen aquí</p>
             <p class="text-[11px] text-slate-400 mt-1">Formatos admitidos: JPG, PNG, WEBP (se subirá a AWS S3 al guardar)</p>
           </div>
         }
@@ -255,22 +255,36 @@ export type UploaderState = 'idle' | 'adjusting' | 'uploading' | 'uploaded' | 'e
         <!-- VISTA PREVIA CON ENCUADRE 1:1, ZOOM Y ARRASTRE               -->
         <!-- ============================================================ -->
         @if (tieneImagenActiva() && state !== 'uploading' && !changingImage) {
-          <div class="p-5 bg-white flex flex-col sm:flex-row items-center gap-6">
+          <div class="p-5 bg-white flex flex-col" [class.sm:flex-row]="!skipCrop" [class.items-center]="!skipCrop" [class.gap-6]="true">
             
-            <!-- Visor Cuadrado (1:1) con Zoom y Arrastre en tiempo real -->
             <div
               (mousedown)="onMouseDown($event)"
               (touchstart)="onTouchStart($event)"
-              class="relative w-36 h-36 sm:w-44 sm:h-44 rounded-2xl overflow-hidden shadow-sm flex-shrink-0 bg-slate-900 border-2 flex items-center justify-center select-none"
-              [class.cursor-grab]="hasPendingUpload && !isPanning"
-              [class.cursor-grabbing]="hasPendingUpload && isPanning"
+              class="relative rounded-2xl overflow-hidden shadow-sm bg-slate-100 border-2 flex items-center justify-center select-none"
+              [class.w-full]="skipCrop"
+              [class.min-h-56]="skipCrop"
+              [class.max-h-80]="skipCrop"
+              [class.w-36]="!skipCrop"
+              [class.h-36]="!skipCrop"
+              [class.sm:w-44]="!skipCrop"
+              [class.sm:h-44]="!skipCrop"
+              [class.flex-shrink-0]="!skipCrop"
+              [class.bg-slate-900]="!skipCrop"
+              [class.cursor-grab]="hasPendingUpload && !isPanning && !skipCrop"
+              [class.cursor-grabbing]="hasPendingUpload && isPanning && !skipCrop"
               [ngClass]="hasPendingUpload ? 'border-amber-400 ring-2 ring-amber-400/20' : 'border-emerald-500/40'">
               
               <img
                 [src]="previewUrl || getDisplayUrl(currentImageUrl)"
-                alt="Foto Insumo"
-                [style.transform]="hasPendingUpload ? 'translate(' + panX + 'px, ' + panY + 'px) scale(' + zoomLevel + ')' : 'scale(1)'"
-                class="max-w-full max-h-full object-contain pointer-events-none transition-transform"
+                [alt]="label"
+                [style.transform]="hasPendingUpload && !skipCrop ? 'translate(' + panX + 'px, ' + panY + 'px) scale(' + zoomLevel + ')' : 'scale(1)'"
+                class="pointer-events-none transition-transform"
+                [class.w-full]="skipCrop"
+                [class.h-full]="skipCrop"
+                [class.max-h-80]="skipCrop"
+                [class.object-contain]="true"
+                [class.max-w-full]="!skipCrop"
+                [class.max-h-full]="!skipCrop"
                 [class.duration-75]="!isPanning"
                 [class.duration-0]="isPanning" />
               
@@ -370,7 +384,7 @@ export type UploaderState = 'idle' | 'adjusting' | 'uploading' | 'uploaded' | 'e
               }
 
               <p class="text-[11px] text-slate-500 leading-snug">
-                Esta imagen se mostrará en formato cuadrado en la tabla de insumos y fichas técnicas.
+                {{ skipCrop ? 'La imagen se muestra completa para consultarla y descargarla.' : 'Esta imagen se mostrará en formato cuadrado en la tabla de insumos.' }}
               </p>
 
               <div class="flex items-center gap-3 pt-0.5 justify-center sm:justify-start">
@@ -420,6 +434,10 @@ export class ImageUploaderComponent implements OnInit, OnDestroy {
   @Input() insumoNombre?: string;
   @Input() category: StorageCategory = 'CATALOGO_INSUMOS';
   @Input() type: MediaEvidenceType = 'IMAGEN_PRODUCTO';
+  @Input() agenciaId?: string;
+  @Input() maquinariaId?: string;
+  @Input() maquinariaNombre?: string;
+  @Input() skipCrop = false;
 
   @Input() set imageUrl(val: string | null | undefined) {
     this.currentImageUrl = val ? val.trim() : null;
@@ -712,6 +730,37 @@ export class ImageUploaderComponent implements OnInit, OnDestroy {
   // RENDER RECORTE CUADRADO 1:1 CON ZOOM Y ARRASTRE AL SUBIR
   // =========================================================================
 
+  private renderOriginalImage(imageSrc: string): Promise<Blob> {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const maxSide = 2000;
+        const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(img.width * scale));
+        canvas.height = Math.max(1, Math.round(img.height * scale));
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('No se pudo inicializar canvas context 2D'));
+          return;
+        }
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob(
+          (blob) => {
+            if (blob) resolve(blob);
+            else reject(new Error('Error al generar la imagen de ficha técnica.'));
+          },
+          'image/jpeg',
+          0.92,
+        );
+      };
+      img.onerror = () => reject(new Error('No se pudo cargar la imagen para procesar.'));
+      img.src = imageSrc;
+    });
+  }
+
   private renderSquareCrop(imageSrc: string, zoom: number, panX: number, panY: number): Promise<Blob> {
     return new Promise((resolve, reject) => {
       const img = new Image();
@@ -777,20 +826,28 @@ export class ImageUploaderComponent implements OnInit, OnDestroy {
 
     try {
       // 1. Recortar cuadrado 1:1 aplicando zoom y desplazamiento exacto
-      const blob = await this.renderSquareCrop(this.rawCapturedImage, this.zoomLevel, this.panX, this.panY);
+      const blob = this.skipCrop || this.type === 'FICHA_TECNICA'
+        ? await this.renderOriginalImage(this.rawCapturedImage)
+        : await this.renderSquareCrop(this.rawCapturedImage, this.zoomLevel, this.panX, this.panY);
 
       this.uploadProgress = 35;
       this.cdr.detectChanges();
 
-      const rawName = this.insumoNombre || this.insumoId ? String(this.insumoNombre || this.insumoId) : 'insumo';
+      const rawName = this.maquinariaNombre || this.insumoNombre || this.insumoId || this.maquinariaId
+        ? String(this.maquinariaNombre || this.insumoNombre || this.insumoId || this.maquinariaId)
+        : (this.type === 'FICHA_TECNICA' ? 'ficha-tecnica' : 'insumo');
       const cleanSlug = rawName.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '') || 'insumo';
-      const fileName = `${cleanSlug}.jpg`;
+      const fileName = this.type === 'FICHA_TECNICA' ? 'ficha-tecnica.jpg' : `${cleanSlug}.jpg`;
 
       // 2. Subir directamente a AWS S3
       const s3Url = await this.storageUploadService.uploadMedia(blob, {
         category: this.category,
         type: this.type,
-        insumoId: cleanSlug,
+        insumoId: this.insumoId ? String(this.insumoId) : cleanSlug,
+        insumoNombre: this.insumoNombre,
+        agenciaId: this.agenciaId,
+        maquinariaId: this.maquinariaId,
+        maquinariaNombre: this.maquinariaNombre || this.insumoNombre,
         fileName: fileName,
         contentType: 'image/jpeg',
         onProgress: (pct) => {

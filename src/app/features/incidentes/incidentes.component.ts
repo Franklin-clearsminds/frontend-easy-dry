@@ -6,7 +6,8 @@ import { IncidenteService } from '../../core/services/incidente.service';
 import { MaquinariaService } from '../../core/services/maquinaria.service';
 import { AuthService } from '../../core/services/auth.service';
 import { Incidente, Maquinaria, ArchivoAdjunto } from '../../core/models';
-import { Role } from '../../core/models/roles.model';
+import { Role, ROLE_LABELS, esRolTallerMantenimiento } from '../../core/models/roles.model';
+import { TecnicoSearchSelectComponent, TecnicoOpcion } from '../../shared/components/tecnico-search-select/tecnico-search-select.component';
 import { UsuarioService } from '../../core/services/usuario.service';
 import { ModalComponent } from '../../shared/components/modal/modal.component';
 import { ToastService } from '../../shared/services/toast.service';
@@ -15,11 +16,12 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
 import { resolverRangoFechas, soloFecha } from '../../core/utils/fecha-rango';
 import { ModalPortalDirective } from '../../shared/directives/modal-portal.directive';
 import { SucursalService } from '../../core/services/sucursal.service';
+import { StorageUploadService } from '../../core/services/storage-upload.service';
 
 @Component({
   selector: 'app-incidentes',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, PaginationComponent, FilterBarComponent, ModalPortalDirective],
+  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, PaginationComponent, FilterBarComponent, ModalPortalDirective, TecnicoSearchSelectComponent],
   template: `
     <div class="space-y-6 animate-fade-in">
       
@@ -657,7 +659,7 @@ import { SucursalService } from '../../core/services/sucursal.service';
               · {{ incidenteAsignar.maquina }}
             </p>
             <p class="text-xs text-slate-500">
-              Ejecuta la reparación tú mismo o delega a un técnico de campo.
+              Ejecuta la reparación tú mismo o asígnala a un coordinador de mantenimiento o técnico de maquinaria.
             </p>
             @if (incidenteAsignar.tecnicoAsignadoNombre) {
               <div class="p-3 bg-violet-50 border border-violet-200 rounded-xl text-xs text-violet-800">
@@ -673,16 +675,12 @@ import { SucursalService } from '../../core/services/sucursal.service';
               {{ etiquetaEjecutarYo }}
             </button>
 
-            <p class="text-[10px] font-bold text-slate-400 uppercase">Delegar a técnico</p>
-            @for (tec of tecnicosDisponibles; track tec.email) {
-              <button
-                type="button"
-                (click)="asignarAEjecutor(tec.id, tec.nombre)"
-                class="w-full py-3 px-4 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl text-xs flex items-center justify-between">
-                <span>{{ tec.nombre }}</span>
-                <i-lucide name="chevron-right" class="w-4 h-4"></i-lucide>
-              </button>
-            }
+            <p class="text-[10px] font-bold text-slate-400 uppercase">Delegar a coordinador o técnico</p>
+            <app-tecnico-search-select
+              [tecnicos]="tecnicosParaDelegar"
+              placeholder="Buscar por nombre, rol o correo..."
+              (selected)="onSeleccionarTecnicoAsignacion($event)">
+            </app-tecnico-search-select>
 
             @if (incidenteAsignar.tecnicoAsignadoId) {
               <button
@@ -717,7 +715,7 @@ export class IncidentesComponent implements OnInit {
 
   incidenteAsignar?: Incidente;
 
-  tecnicosDisponibles: { id: string | number; nombre: string; email: string }[] = [];
+  tecnicosDisponibles: TecnicoOpcion[] = [];
 
   gestorActual: { id: string | number; nombreCompleto: string } = { id: 0, nombreCompleto: '' };
 
@@ -750,6 +748,7 @@ export class IncidentesComponent implements OnInit {
   private toastService = inject(ToastService);
   private sucursalService = inject(SucursalService);
   private usuarioService = inject(UsuarioService);
+  private storageUpload = inject(StorageUploadService);
 
   ngOnInit(): void {
     const user = this.authService.getCurrentUser();
@@ -762,14 +761,12 @@ export class IncidentesComponent implements OnInit {
 
     this.usuarioService.getUsuarios(true, true).subscribe(list => {
       this.tecnicosDisponibles = (list || [])
-        .filter(u => {
-          const rol = (u.rolNombre || u.rol || '').toUpperCase();
-          return rol === Role.TECNICO || rol.includes('TECNICO') || rol.includes('TÉCNICO');
-        })
+        .filter(u => esRolTallerMantenimiento(u.rolNombre) || esRolTallerMantenimiento(u.rol))
         .map(u => ({
           id: u.id,
           nombre: `${u.nombre} ${u.apellido}`.trim(),
           email: u.email,
+          rolLabel: ROLE_LABELS[u.rolNombre || ''] || u.rol,
         }));
     });
 
@@ -820,6 +817,16 @@ export class IncidentesComponent implements OnInit {
       return inc.tecnicoAsignadoId === user.id;
     }
     return true;
+  }
+
+  get tecnicosParaDelegar(): TecnicoOpcion[] {
+    const yo = String(this.gestorActual.id || '');
+    return this.tecnicosDisponibles.filter(t => String(t.id) !== yo);
+  }
+
+  onSeleccionarTecnicoAsignacion(tec: TecnicoOpcion | null) {
+    if (!tec) return;
+    this.asignarAEjecutor(tec.id, tec.nombre);
   }
 
   openModalAsignar(inc: Incidente) {
@@ -922,7 +929,8 @@ export class IncidentesComponent implements OnInit {
           extension: file.name.split('.').pop()?.toUpperCase() || (isVideo ? 'MP4' : 'JPG'),
           url: url,
           tamanio: `${(file.size / (1024 * 1024)).toFixed(1)} MB`,
-          fechaSubida: new Date().toLocaleTimeString()
+          fechaSubida: new Date().toLocaleTimeString(),
+          file,
         });
       });
       this.toastService.success('Archivos Cargados', `${input.files.length} archivo(s) de evidencia listos.`);
@@ -933,7 +941,7 @@ export class IncidentesComponent implements OnInit {
     this.archivosFalloSubidos.splice(index, 1);
   }
 
-  guardarReporte() {
+  async guardarReporte() {
     if (!this.nuevoIncidente.descripcion.trim()) {
       this.toastService.warning('Descripción Requerida', 'Escriba el fallo presentado por la máquina.');
       return;
@@ -942,29 +950,42 @@ export class IncidentesComponent implements OnInit {
     const user = this.authService.getCurrentUser();
     const usuario = user ? `${user.nombre || ''} ${user.apellido || ''}`.trim() || user.email : 'Usuario autenticado';
     const equipo = this.maquinasDisponibles.find(m => String(m.id) === String(this.nuevoIncidente.maquinaId));
-    const fotos = this.archivosFalloSubidos.filter(a => a.tipo === 'imagen').map(a => a.url);
-    const videos = this.archivosFalloSubidos.filter(a => a.tipo === 'video').map(a => a.url);
 
-    const registro: Omit<Incidente, 'id'> = {
-      codigoIncidente: `INC-${Date.now().toString().slice(-6)}`,
-      maquina: equipo?.nombre || this.nuevoIncidente.maquina,
-      agencia: equipo?.agencia || this.nuevoIncidente.agencia,
-      fecha: new Date().toISOString().replace('T', ' ').substring(0, 16),
-      tipo: this.nuevoIncidente.tipo,
-      prioridad: this.nuevoIncidente.prioridad,
-      estado: 'Pendiente',
-      descripcion: this.nuevoIncidente.descripcion,
-      reportadoPor: usuario,
-      fotosFallo: [...fotos, ...videos],
-      videosFallo: videos,
-      archivosFallo: [...this.archivosFalloSubidos]
-    };
-    (registro as any).maquinariaId = this.nuevoIncidente.maquinaId || equipo?.id;
+    try {
+      const urls = await this.subirEvidenciasIncidente(this.archivosFalloSubidos, {
+        maquinariaId: String(this.nuevoIncidente.maquinaId || equipo?.id || ''),
+        maquinariaNombre: equipo?.nombre || this.nuevoIncidente.maquina,
+        maquinariaCodigo: equipo?.codigo,
+        agenciaId: equipo?.sucursalId ? String(equipo.sucursalId) : equipo?.agencia,
+        incidenteFase: 'fallas',
+      });
+      const videos = this.archivosFalloSubidos
+        .map((a, i) => a.tipo === 'video' ? urls[i] : '')
+        .filter(Boolean);
 
-    this.incidenteService.crearIncidente(registro).subscribe((creado: Incidente) => {
-      this.toastService.success('Reporte Creado', `Incidente ${creado.codigoIncidente} registrado con ${this.archivosFalloSubidos.length} evidencia(s).`);
-      this.modalReportarOpen = false;
-    });
+      const registro: Omit<Incidente, 'id'> = {
+        codigoIncidente: `INC-${Date.now().toString().slice(-6)}`,
+        maquina: equipo?.nombre || this.nuevoIncidente.maquina,
+        agencia: equipo?.agencia || this.nuevoIncidente.agencia,
+        fecha: new Date().toISOString().replace('T', ' ').substring(0, 16),
+        tipo: this.nuevoIncidente.tipo,
+        prioridad: this.nuevoIncidente.prioridad,
+        estado: 'Pendiente',
+        descripcion: this.nuevoIncidente.descripcion,
+        reportadoPor: usuario,
+        fotosFallo: urls,
+        videosFallo: videos,
+        archivosFallo: [...this.archivosFalloSubidos]
+      };
+      (registro as any).maquinariaId = this.nuevoIncidente.maquinaId || equipo?.id;
+
+      this.incidenteService.crearIncidente(registro).subscribe((creado: Incidente) => {
+        this.toastService.success('Reporte Creado', `Incidente ${creado.codigoIncidente} registrado con ${this.archivosFalloSubidos.length} evidencia(s).`);
+        this.modalReportarOpen = false;
+      });
+    } catch {
+      this.toastService.error('Error de subida', 'No se pudieron guardar las evidencias de la falla en S3.');
+    }
   }
 
   openModalSolucionar(inc: Incidente) {
@@ -991,7 +1012,8 @@ export class IncidentesComponent implements OnInit {
           extension: file.name.split('.').pop()?.toUpperCase() || (isVideo ? 'MP4' : 'JPG'),
           url: url,
           tamanio: `${(file.size / (1024 * 1024)).toFixed(1)} MB`,
-          fechaSubida: 'Hoy'
+          fechaSubida: 'Hoy',
+          file,
         });
       });
       this.toastService.success('Evidencias Agregadas', 'Fotos y videos de reparación listos.');
@@ -1013,7 +1035,8 @@ export class IncidentesComponent implements OnInit {
           extension: file.name.split('.').pop()?.toUpperCase() || 'PDF',
           url: '#',
           tamanio: `${(file.size / (1024 * 1024)).toFixed(1)} MB`,
-          fechaSubida: new Date().toLocaleDateString()
+          fechaSubida: new Date().toLocaleDateString(),
+          file,
         });
       });
       this.toastService.success('Documentos Adjuntos', 'Documentos técnicos listos.');
@@ -1024,7 +1047,7 @@ export class IncidentesComponent implements OnInit {
     this.solucionForm.documentos.splice(index, 1);
   }
 
-  confirmarSolucion() {
+  async confirmarSolucion() {
     if (!this.incidenteSolucionar || !this.solucionForm.observacionSolucion.trim()) {
       this.toastService.warning('Informe Requerido', 'Escriba el detalle de la solución técnica aplicada.');
       return;
@@ -1035,47 +1058,105 @@ export class IncidentesComponent implements OnInit {
       ? `${user.nombre || ''} ${user.apellido || ''}`.trim() || user.email
       : 'Usuario autenticado';
     const hoy = new Date().toISOString().replace('T', ' ').substring(0, 16);
+    const equipo = this.maquinasDisponibles.find(m =>
+      String(m.id) === String((this.incidenteSolucionar as any).maquinariaId)
+      || m.nombre === this.incidenteSolucionar?.maquina
+    );
 
-    const fotos = this.solucionForm.multimedia.filter(m => m.tipo === 'imagen').map(m => m.url);
-    const videos = this.solucionForm.multimedia.filter(m => m.tipo === 'video').map(m => m.url);
+    try {
+      const adjuntos = [...this.solucionForm.multimedia, ...this.solucionForm.documentos];
+      const urls = await this.subirEvidenciasIncidente(adjuntos, {
+        maquinariaId: String((this.incidenteSolucionar as any).maquinariaId || equipo?.id || ''),
+        maquinariaNombre: this.incidenteSolucionar.maquina,
+        maquinariaCodigo: equipo?.codigo,
+        agenciaId: equipo?.sucursalId ? String(equipo.sucursalId) : this.incidenteSolucionar.agencia,
+        incidenteId: String(this.incidenteSolucionar.id),
+        incidenteFase: 'resoluciones',
+      });
 
-    const evidencias = [
-      ...this.solucionForm.multimedia.map(m => ({
-        tipo: m.tipo === 'video' ? 'VIDEO_INCIDENTE' : 'FOTO_INCIDENTE',
-        url: m.url,
-      })),
-      ...this.solucionForm.documentos.map(d => ({
-        tipo: 'DOCUMENTO_INCIDENTE',
-        url: d.url,
-        descripcion: d.nombre,
-      })),
-    ].filter(e => e.url && e.url !== '#');
+      const fotos = this.solucionForm.multimedia
+        .map((m, i) => m.tipo === 'imagen' ? urls[i] : '')
+        .filter(Boolean);
+      const videos = this.solucionForm.multimedia
+        .map((m, i) => m.tipo === 'video' ? urls[i] : '')
+        .filter(Boolean);
 
-    this.incidenteService.actualizarEstado(
-      this.incidenteSolucionar.id,
-      'Solucionado',
-      this.solucionForm.observacionSolucion,
-      {
-        evidencias,
-        repuestosUtilizados: this.solucionForm.repuestosUtilizados,
+      const evidencias = adjuntos
+        .map((item, i) => ({
+          tipo: item.tipo === 'documento'
+            ? 'DOCUMENTO_INCIDENTE'
+            : item.tipo === 'video' ? 'VIDEO_INCIDENTE' : 'FOTO_INCIDENTE',
+          url: urls[i],
+          descripcion: item.nombre,
+        }))
+        .filter(e => e.url);
+
+      this.incidenteService.actualizarEstado(
+        this.incidenteSolucionar.id,
+        'Solucionado',
+        this.solucionForm.observacionSolucion,
+        {
+          evidencias,
+          repuestosUtilizados: this.solucionForm.repuestosUtilizados,
+        }
+      ).subscribe(actualizado => {
+        if (actualizado) {
+          this.incidenteSolucionar!.estado = 'Solucionado';
+          this.incidenteSolucionar!.solucionadoPor = usuario;
+          this.incidenteSolucionar!.fechaSolucion = hoy;
+          this.incidenteSolucionar!.observacionSolucion = this.solucionForm.observacionSolucion;
+          this.incidenteSolucionar!.repuestosUtilizados = this.solucionForm.repuestosUtilizados;
+          this.incidenteSolucionar!.fotosReparacion = fotos;
+          this.incidenteSolucionar!.videosReparacion = videos;
+          this.incidenteSolucionar!.documentosReparacion = [...this.solucionForm.documentos];
+        }
+        this.toastService.success(
+          'Desperfecto Solucionado',
+          `Incidente ${this.incidenteSolucionar?.codigoIncidente} resuelto con ${fotos.length} foto(s), ${videos.length} video(s) y ${this.solucionForm.documentos.length} documento(s) adjuntos.`
+        );
+        this.modalSolucionarOpen = false;
+      });
+    } catch {
+      this.toastService.error('Error de subida', 'No se pudieron guardar las evidencias de la resolución en S3.');
+    }
+  }
+
+  private async subirEvidenciasIncidente(
+    archivos: ArchivoAdjunto[],
+    opts: {
+      maquinariaId?: string;
+      maquinariaNombre?: string;
+      maquinariaCodigo?: string;
+      agenciaId?: string;
+      incidenteId?: string;
+      incidenteFase: 'fallas' | 'resoluciones';
+    },
+  ): Promise<string[]> {
+    const urls: string[] = [];
+    for (const archivo of archivos) {
+      if (archivo.file) {
+        const type = archivo.tipo === 'video'
+          ? 'VIDEO_INCIDENTE'
+          : archivo.tipo === 'documento'
+            ? 'DOCUMENTO_INCIDENTE'
+            : 'FOTO_INCIDENTE';
+        urls.push(await this.storageUpload.uploadMedia(archivo.file, {
+          category: 'MAQUINARIA_INCIDENTE',
+          type,
+          maquinariaId: opts.maquinariaId,
+          maquinariaNombre: opts.maquinariaNombre,
+          maquinariaCodigo: opts.maquinariaCodigo,
+          agenciaId: opts.agenciaId,
+          incidenteId: opts.incidenteId,
+          incidenteFase: opts.incidenteFase,
+          fileName: archivo.nombre,
+          contentType: archivo.file.type,
+        }));
+      } else if (archivo.url && archivo.url !== '#' && !archivo.url.startsWith('blob:')) {
+        urls.push(archivo.url);
       }
-    ).subscribe(actualizado => {
-      if (actualizado) {
-        this.incidenteSolucionar!.estado = 'Solucionado';
-        this.incidenteSolucionar!.solucionadoPor = usuario;
-        this.incidenteSolucionar!.fechaSolucion = hoy;
-        this.incidenteSolucionar!.observacionSolucion = this.solucionForm.observacionSolucion;
-        this.incidenteSolucionar!.repuestosUtilizados = this.solucionForm.repuestosUtilizados;
-        this.incidenteSolucionar!.fotosReparacion = fotos;
-        this.incidenteSolucionar!.videosReparacion = videos;
-        this.incidenteSolucionar!.documentosReparacion = [...this.solucionForm.documentos];
-      }
-      this.toastService.success(
-        'Desperfecto Solucionado',
-        `Incidente ${this.incidenteSolucionar?.codigoIncidente} resuelto con ${fotos.length} foto(s), ${videos.length} video(s) y ${this.solucionForm.documentos.length} documento(s) adjuntos.`
-      );
-      this.modalSolucionarOpen = false;
-    });
+    }
+    return urls;
   }
 
   abrirDetalle(inc: Incidente) {

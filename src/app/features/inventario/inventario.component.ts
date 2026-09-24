@@ -750,7 +750,7 @@ import { apiUrl } from '../../core/config/env';
                       <!-- Miniatura Cuadrada (1:1) con Lightbox Zoom -->
                       <div
                         *ngIf="p.imagenUrl || p.imagen; else defaultIcon"
-                        (click)="abrirZoomImagen(p.imagenUrl || p.imagen || '')"
+                        (click)="abrirZoomImagen(p.imagenUrl || p.imagen || '', 'Foto del insumo')"
                         class="w-12 h-12 rounded-xl overflow-hidden border border-slate-200 shadow-2xs flex-shrink-0 bg-slate-50 cursor-pointer group relative">
                         <img [src]="resolverUrlImagen(p.imagenUrl || p.imagen)" alt="Foto Insumo" class="w-full h-full object-cover transition-transform group-hover:scale-110" />
                         <div class="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
@@ -1262,6 +1262,14 @@ import { apiUrl } from '../../core/config/env';
                       class="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] transition cursor-pointer">
                       Ingresar Stock
                     </button>
+                    <button
+                      *ngIf="puedeReajustarStock"
+                      (click)="abrirModalReajuste(item)"
+                      title="Reajustar stock por conteo físico"
+                      class="px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-[11px] transition cursor-pointer inline-flex items-center gap-1">
+                      <i-lucide name="sliders" class="w-3 h-3"></i-lucide>
+                      <span>Reajustar</span>
+                    </button>
                     <span
                       *ngIf="!esBodegaCentralActual && esAdminGlobal && !esSuperAdmin"
                       class="text-[10px] text-slate-400 font-medium">
@@ -1436,8 +1444,10 @@ import { apiUrl } from '../../core/config/env';
                     <th class="p-3">Código SKU</th>
                     <th class="p-3">Insumo</th>
                     <th class="p-3">Tipo</th>
-                    <th class="p-3">Stock Actual en Agencia</th>
-                    <th class="p-3">Stock Mínimo Requerido</th>
+                    <th class="p-3">Contenido x Envase</th>
+                    <th class="p-3">Stock en Unidades</th>
+                    <th class="p-3">Stock Contenido Total</th>
+                    <th class="p-3">Stock Mínimo</th>
                     <th class="p-3">Déficit</th>
                     <th class="p-3">Estado de Salud</th>
                     <th class="p-3 text-right">Acción</th>
@@ -1445,7 +1455,7 @@ import { apiUrl } from '../../core/config/env';
                 </thead>
                 <tbody class="divide-y divide-slate-100">
                   <tr *ngIf="itemAg.insumos.length === 0">
-                    <td colspan="8" class="p-6 text-center text-slate-400">
+                    <td colspan="10" class="p-6 text-center text-slate-400">
                       No hay insumos registrados para esta agencia.
                     </td>
                   </tr>
@@ -1456,6 +1466,14 @@ import { apiUrl } from '../../core/config/env';
                     <td class="p-3">
                       <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-easydry-blue">
                         {{ ins.tipoProducto }}
+                      </span>
+                    </td>
+                    <td class="p-3 font-mono font-bold text-slate-700 whitespace-nowrap">
+                      {{ (ins.contenidoNeto || 1) | number:'1.0-2' }} {{ ins.unidad }}
+                    </td>
+                    <td class="p-3 whitespace-nowrap">
+                      <span class="px-2.5 py-1 rounded-md font-mono font-bold text-xs bg-indigo-50 text-indigo-700 border border-indigo-200 inline-block">
+                        {{ getStockEnUnidades(ins.stockActual, ins.contenidoNeto) | number:'1.0-2' }} und
                       </span>
                     </td>
                     <td class="p-3">
@@ -1469,9 +1487,12 @@ import { apiUrl } from '../../core/config/env';
                         {{ ins.stockActual | number:'1.0-2' }} {{ ins.unidad }}
                       </span>
                     </td>
-                    <td class="p-3 font-mono text-slate-600">{{ ins.stockMinimo | number:'1.0-2' }} {{ ins.unidad }}</td>
+                    <td class="p-3 font-mono text-slate-600 whitespace-nowrap">
+                      <b>{{ getStockEnUnidades(ins.stockMinimo, ins.contenidoNeto) | number:'1.0-2' }} und</b>
+                      <span class="text-[10px] text-slate-400 block">({{ ins.stockMinimo | number:'1.0-2' }} {{ ins.unidad }})</span>
+                    </td>
                     <td class="p-3 font-mono font-bold" [ngClass]="ins.deficit > 0 ? 'text-rose-600' : 'text-slate-400'">
-                      {{ ins.deficit > 0 ? ('-' + (ins.deficit | number:'1.0-2') + ' ' + ins.unidad) : 'Cubierto' }}
+                      {{ ins.deficit > 0 ? ('-' + (getStockEnUnidades(ins.deficit, ins.contenidoNeto) | number:'1.0-2') + ' und') : 'Cubierto' }}
                     </td>
                     <td class="p-3">
                       <span
@@ -1484,12 +1505,20 @@ import { apiUrl } from '../../core/config/env';
                         {{ ins.estado }}
                       </span>
                     </td>
-                    <td class="p-3 text-right">
+                    <td class="p-3 text-right space-x-1.5 whitespace-nowrap">
                       <button
                         *ngIf="puedeGenerarDespacho"
                         (click)="seleccionarParaDespachoAgencia(itemAg.agencia, ins)"
                         class="px-2.5 py-1 rounded-lg bg-easydry-blue hover:bg-blue-700 text-white font-bold text-[11px] transition cursor-pointer">
                         Despachar
+                      </button>
+                      <button
+                        *ngIf="puedeReajustarStock"
+                        (click)="abrirModalReajusteAgencia(itemAg.agencia, ins)"
+                        title="Reajustar stock por conteo físico"
+                        class="px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-[11px] transition cursor-pointer inline-flex items-center gap-1">
+                        <i-lucide name="sliders" class="w-3 h-3"></i-lucide>
+                        <span>Reajustar</span>
                       </button>
                     </td>
                   </tr>
@@ -1674,8 +1703,10 @@ import { apiUrl } from '../../core/config/env';
                     <th class="p-3">Código SKU</th>
                     <th class="p-3">Insumo</th>
                     <th class="p-3">Tipo</th>
-                    <th class="p-3">Stock Actual en Kit</th>
-                    <th class="p-3">Stock Mínimo Requerido</th>
+                    <th class="p-3">Contenido x Envase</th>
+                    <th class="p-3">Stock en Unidades</th>
+                    <th class="p-3">Stock Contenido Total</th>
+                    <th class="p-3">Stock Mínimo</th>
                     <th class="p-3">Déficit</th>
                     <th class="p-3">Estado de Salud</th>
                     <th class="p-3 text-right">Acción</th>
@@ -1683,7 +1714,7 @@ import { apiUrl } from '../../core/config/env';
                 </thead>
                 <tbody class="divide-y divide-slate-100">
                   <tr *ngIf="!p.insumos || p.insumos.length === 0">
-                    <td colspan="8" class="p-6 text-center text-slate-400">
+                    <td colspan="10" class="p-6 text-center text-slate-400">
                       No hay insumos registrados para el kit de este pulidor.
                     </td>
                   </tr>
@@ -1694,6 +1725,14 @@ import { apiUrl } from '../../core/config/env';
                     <td class="p-3">
                       <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-easydry-blue">
                         {{ ins.tipoProducto || ins.categoria || 'Líquido' }}
+                      </span>
+                    </td>
+                    <td class="p-3 font-mono font-bold text-slate-700 whitespace-nowrap">
+                      {{ (ins.contenidoNeto || 1) | number:'1.0-2' }} {{ ins.unidad }}
+                    </td>
+                    <td class="p-3 whitespace-nowrap">
+                      <span class="px-2.5 py-1 rounded-md font-mono font-bold text-xs bg-indigo-50 text-indigo-700 border border-indigo-200 inline-block">
+                        {{ getStockEnUnidades(ins.stockActual, ins.contenidoNeto) | number:'1.0-2' }} und
                       </span>
                     </td>
                     <td class="p-3">
@@ -1707,9 +1746,12 @@ import { apiUrl } from '../../core/config/env';
                         {{ ins.stockActual | number:'1.0-2' }} {{ ins.unidad }}
                       </span>
                     </td>
-                    <td class="p-3 font-mono text-slate-600">{{ ins.stockMinimo | number:'1.0-2' }} {{ ins.unidad }}</td>
+                    <td class="p-3 font-mono text-slate-600 whitespace-nowrap">
+                      <b>{{ getStockEnUnidades(ins.stockMinimo, ins.contenidoNeto) | number:'1.0-2' }} und</b>
+                      <span class="text-[10px] text-slate-400 block">({{ ins.stockMinimo | number:'1.0-2' }} {{ ins.unidad }})</span>
+                    </td>
                     <td class="p-3 font-mono font-bold" [ngClass]="ins.deficit > 0 ? 'text-rose-600' : 'text-slate-400'">
-                      {{ ins.deficit > 0 ? ('-' + (ins.deficit | number:'1.0-2') + ' ' + ins.unidad) : 'Cubierto' }}
+                      {{ ins.deficit > 0 ? ('-' + (getStockEnUnidades(ins.deficit, ins.contenidoNeto) | number:'1.0-2') + ' und') : 'Cubierto' }}
                     </td>
                     <td class="p-3">
                       <span
@@ -1722,12 +1764,20 @@ import { apiUrl } from '../../core/config/env';
                         {{ ins.estado }}
                       </span>
                     </td>
-                    <td class="p-3 text-right">
+                    <td class="p-3 text-right space-x-1.5 whitespace-nowrap">
                       <button
                         *ngIf="puedeGenerarDespacho"
                         (click)="seleccionarParaDespachoPulidor(p, ins)"
                         class="px-2.5 py-1 rounded-lg bg-easydry-blue hover:bg-blue-700 text-white font-bold text-[11px] transition cursor-pointer">
                         Despachar
+                      </button>
+                      <button
+                        *ngIf="puedeReajustarStock"
+                        (click)="abrirModalReajustePulidor(p, ins)"
+                        title="Reajustar stock por conteo físico"
+                        class="px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-[11px] transition cursor-pointer inline-flex items-center gap-1">
+                        <i-lucide name="sliders" class="w-3 h-3"></i-lucide>
+                        <span>Reajustar</span>
                       </button>
                     </td>
                   </tr>
@@ -1782,11 +1832,12 @@ import { apiUrl } from '../../core/config/env';
                   <th class="p-3">Stock Nuevo</th>
                   <th class="p-3">Responsable</th>
                   <th class="p-3">Observación</th>
+                  <th class="p-3">Evidencia</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-slate-100">
                 <tr *ngIf="historialMovimientos.length === 0">
-                  <td colspan="11" class="p-8 text-center text-slate-400">
+                  <td colspan="12" class="p-8 text-center text-slate-400">
                     No hay movimientos registrados en el Kardex.
                   </td>
                 </tr>
@@ -1821,6 +1872,16 @@ import { apiUrl } from '../../core/config/env';
                   <td class="p-3 font-mono font-bold text-slate-800">{{ m.stockNuevo | number:'1.0-2' }}</td>
                   <td class="p-3 text-slate-500 whitespace-nowrap">{{ m.responsable ? (m.responsable.name + ' ' + m.responsable.lastname) : 'Sistema' }}</td>
                   <td class="p-3 text-slate-400 text-[11px] max-w-xs truncate">{{ m.observaciones || m.referencia || '-' }}</td>
+                  <td class="p-3">
+                    <button
+                      *ngIf="getEvidenciaReajusteUrl(m) as evidenciaUrl"
+                      type="button"
+                      (click)="abrirZoomImagen(evidenciaUrl, tituloEvidenciaKardex(m))"
+                      class="text-[11px] font-bold text-easydry-blue hover:underline cursor-pointer bg-transparent border-0 p-0">
+                      Ver foto
+                    </button>
+                    <span *ngIf="!getEvidenciaReajusteUrl(m)">—</span>
+                  </td>
                 </tr>
               </tbody>
             </table>
@@ -2503,6 +2564,125 @@ import { apiUrl } from '../../core/config/env';
               class="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer disabled:opacity-50">
               <i-lucide *ngIf="!guardandoMovimiento" name="check" class="w-4 h-4"></i-lucide>
               <span>{{ guardandoMovimiento ? 'Procesando...' : 'Confirmar Ingreso' }}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================================================== -->
+      <!-- MODAL: REAJUSTE DE STOCK (auditoría + foto S3)                 -->
+      <!-- ============================================================== -->
+      <div *ngIf="modalReajusteAbierto" appModalPortal class="fixed inset-0 z-[10050] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+        <div class="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-100 max-h-[90vh] flex flex-col overflow-hidden" (click)="$event.stopPropagation()">
+          <div class="shrink-0 px-6 py-4 flex items-center justify-between border-b border-slate-100 bg-white">
+            <div class="flex items-center gap-2 min-w-0">
+              <div class="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center font-bold shrink-0">
+                <i-lucide name="sliders" class="w-5 h-5"></i-lucide>
+              </div>
+              <div class="min-w-0">
+                <h3 class="text-base font-bold text-slate-900 truncate">Reajuste de stock</h3>
+                <p class="text-xs text-slate-500 truncate">{{ itemReajuste?.nombre }} · {{ itemReajuste?.ubicacionLabel }}</p>
+              </div>
+            </div>
+            <button (click)="cerrarModalReajuste()" [disabled]="guardandoReajuste" class="text-slate-400 hover:text-slate-600 cursor-pointer shrink-0">
+              <i-lucide name="x" class="w-5 h-5"></i-lucide>
+            </button>
+          </div>
+
+          <div class="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+            <div class="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs">
+              <div class="flex justify-between gap-3">
+                <span class="text-slate-500 font-bold">SKU</span>
+                <span class="font-mono font-black text-slate-800">{{ itemReajuste?.codigoSKU }}</span>
+              </div>
+              <div class="flex justify-between gap-3 mt-1.5">
+                <span class="text-slate-500 font-bold">Stock actual</span>
+                <span class="font-mono font-black text-slate-800 text-right">
+                  {{ getStockEnUnidades(itemReajuste?.stockActual, reajusteContenidoNeto) | number:'1.0-2' }} und
+                  <span class="block text-[10px] font-bold text-slate-500">
+                    {{ itemReajuste?.stockActual | number:'1.0-2' }} {{ itemReajuste?.unidad }}
+                  </span>
+                </span>
+              </div>
+              <div *ngIf="puedeElegirModoReajuste" class="flex justify-between gap-3 mt-1.5">
+                <span class="text-slate-500 font-bold">Contenido x envase</span>
+                <span class="font-mono font-black text-slate-800">{{ reajusteContenidoNeto | number:'1.0-2' }} {{ itemReajuste?.unidad }}</span>
+              </div>
+            </div>
+
+            <div *ngIf="puedeElegirModoReajuste" class="flex rounded-xl border border-slate-200 overflow-hidden">
+              <button
+                type="button"
+                (click)="cambiarModoReajuste('unidades')"
+                class="flex-1 px-3 py-2 text-[11px] font-bold transition"
+                [ngClass]="formReajuste.modo === 'unidades' ? 'bg-amber-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'">
+                Por unidades
+              </button>
+              <button
+                type="button"
+                (click)="cambiarModoReajuste('cantidad')"
+                class="flex-1 px-3 py-2 text-[11px] font-bold transition border-l border-slate-200"
+                [ngClass]="formReajuste.modo === 'cantidad' ? 'bg-amber-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'">
+                Por cantidad ({{ itemReajuste?.unidad }})
+              </button>
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">
+                {{ formReajuste.modo === 'unidades' ? 'Unidades contadas *' : 'Cantidad contada *' }}
+              </label>
+              <input
+                type="number"
+                min="0"
+                [step]="formReajuste.modo === 'unidades' ? '1' : '0.01'"
+                [(ngModel)]="formReajuste.cantidadContada"
+                name="cantidadContadaReajuste"
+                class="w-full p-2.5 rounded-xl border border-slate-200 font-mono font-bold"
+                [placeholder]="formReajuste.modo === 'unidades' ? '0' : '0.00'" />
+              <p class="mt-1 text-[11px] font-bold" [ngClass]="deltaReajuste === 0 ? 'text-slate-400' : (deltaReajuste > 0 ? 'text-emerald-700' : 'text-rose-700')">
+                {{ deltaReajuste > 0 ? 'Aumento' : (deltaReajuste < 0 ? 'Disminución' : 'Sin cambio') }}:
+                {{ deltaReajuste > 0 ? '+' : '' }}{{ getStockEnUnidades(deltaReajuste, reajusteContenidoNeto) | number:'1.0-2' }} und
+                <span class="font-semibold">
+                  ({{ deltaReajuste > 0 ? '+' : '' }}{{ deltaReajuste | number:'1.0-2' }} {{ itemReajuste?.unidad }})
+                </span>
+              </p>
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">Motivo *</label>
+              <textarea
+                [(ngModel)]="formReajuste.motivoTexto"
+                name="motivoTextoReajuste"
+                rows="3"
+                placeholder="Escribe por qué aumentas o disminuyes este stock..."
+                class="w-full p-2.5 rounded-xl border border-slate-200 text-sm"></textarea>
+            </div>
+
+            <app-image-uploader
+              #reajusteUploader
+              [(imageUrl)]="formReajuste.evidenciaUrl"
+              [insumoId]="itemReajuste?.insumoId"
+              [insumoNombre]="itemReajuste?.nombre"
+              [agenciaId]="itemReajuste?.agenciaId || itemReajuste?.pulidorId || itemReajuste?.bodegaId || bodegaSeleccionadaId"
+              label="Foto de evidencia del conteo"
+              category="CATALOGO_INSUMOS"
+              type="FOTO_AJUSTE_INVENTARIO"
+              [required]="true">
+            </app-image-uploader>
+          </div>
+
+          <div class="shrink-0 flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50">
+            <button
+              (click)="cerrarModalReajuste()"
+              [disabled]="guardandoReajuste"
+              class="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 text-xs font-bold transition cursor-pointer disabled:opacity-50">
+              Cancelar
+            </button>
+            <button
+              (click)="guardarReajuste()"
+              [disabled]="guardandoReajuste"
+              class="px-5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer disabled:opacity-50">
+              <span>{{ guardandoReajuste ? 'Guardando...' : 'Confirmar reajuste' }}</span>
             </button>
           </div>
         </div>
@@ -3538,24 +3718,21 @@ import { apiUrl } from '../../core/config/env';
       <!-- MODAL LIGHTBOX ZOOM DE IMAGEN DEL INSUMO                       -->
       <!-- ============================================================== -->
       <div *ngIf="imagenModalZoom" appModalPortal class="fixed inset-0 z-[10060] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in" (click)="cerrarZoomImagen()">
-        <div class="relative max-w-lg w-full bg-white rounded-3xl p-4 shadow-2xl flex flex-col items-center gap-3 overflow-hidden" (click)="$event.stopPropagation()">
+        <div class="relative max-w-3xl w-full bg-white rounded-3xl p-4 shadow-2xl flex flex-col items-center gap-3 overflow-hidden" (click)="$event.stopPropagation()">
           <div class="w-full flex items-center justify-between pb-2 border-b border-slate-100">
             <span class="text-xs font-bold text-slate-800 flex items-center gap-1.5">
               <i-lucide name="image" class="w-4 h-4 text-easydry-blue"></i-lucide>
-              Vista Previa de Insumo (Formato Cuadrado)
+              {{ imagenModalTitulo }}
             </span>
-            <button (click)="cerrarZoomImagen()" class="p-1.5 text-slate-400 hover:text-slate-700 rounded-xl hover:bg-slate-100 transition cursor-pointer">
+            <button type="button" (click)="cerrarZoomImagen()" class="p-1.5 text-slate-400 hover:text-slate-700 rounded-xl hover:bg-slate-100 transition cursor-pointer">
               <i-lucide name="x" class="w-5 h-5"></i-lucide>
             </button>
           </div>
-          <div class="w-full aspect-square rounded-2xl overflow-hidden bg-slate-100 border border-slate-200 shadow-inner flex items-center justify-center">
-            <img [src]="resolverUrlImagen(imagenModalZoom)" alt="Foto Insumo Zoom" class="w-full h-full object-cover" />
+          <div class="w-full min-h-64 max-h-[80vh] rounded-2xl overflow-auto bg-slate-950 border border-slate-200 shadow-inner flex items-center justify-center p-3">
+            <img [src]="resolverUrlImagen(imagenModalZoom)" [alt]="imagenModalTitulo" class="max-w-full max-h-[76vh] object-contain" />
           </div>
-          <div class="w-full flex items-center justify-between pt-1">
-            <a [href]="resolverUrlImagen(imagenModalZoom)" target="_blank" class="text-xs font-bold text-easydry-blue hover:underline flex items-center gap-1">
-              <i-lucide name="external-link" class="w-3.5 h-3.5"></i-lucide> Abrir original
-            </a>
-            <button (click)="cerrarZoomImagen()" class="px-4 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs cursor-pointer">
+          <div class="w-full flex items-center justify-end pt-1">
+            <button type="button" (click)="cerrarZoomImagen()" class="px-4 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs cursor-pointer">
               Cerrar
             </button>
           </div>
@@ -3576,14 +3753,17 @@ export class InventarioComponent implements OnInit {
   private storageUploadService = inject(StorageUploadService);
 
   @ViewChild('imageUploader') imageUploader?: ImageUploaderComponent;
+  @ViewChild('reajusteUploader') reajusteUploader?: ImageUploaderComponent;
   public guardandoProducto: boolean = false;
 
   // Lightbox Zoom
   public imagenModalZoom: string | null = null;
+  public imagenModalTitulo = 'Foto adjunta';
 
-  public abrirZoomImagen(url: string): void {
+  public abrirZoomImagen(url: string, titulo = 'Foto adjunta'): void {
     if (url && url.trim()) {
       this.imagenModalZoom = url.trim();
+      this.imagenModalTitulo = titulo;
     }
   }
 
@@ -3650,6 +3830,10 @@ export class InventarioComponent implements OnInit {
   /** Quién puede registrar compra/ingreso (siempre a Central). Asistente regional no. */
   get puedeRegistrarIngreso(): boolean {
     return !!(this.esAdminGlobal || this.esGestorBodega);
+  }
+
+  get puedeReajustarStock(): boolean {
+    return !!(this.esAdminGlobal || this.esGestorBodega || this.esAsistenteBodega);
   }
 
   get esSuperAdmin(): boolean {
@@ -3844,6 +4028,15 @@ export class InventarioComponent implements OnInit {
 
   // Estados de Modales
   modalEntradaAbierto = false;
+  modalReajusteAbierto = false;
+  guardandoReajuste = false;
+  itemReajuste: any = null;
+  formReajuste = {
+    modo: 'cantidad' as 'unidades' | 'cantidad',
+    cantidadContada: 0,
+    motivoTexto: '',
+    evidenciaUrl: '',
+  };
   modalProductoAbierto = false;
   modalPresentacionesAbierto = false;
   modalTipoAbierto = false;
@@ -5539,6 +5732,184 @@ export class InventarioComponent implements OnInit {
     return Math.round(u * c * 100) / 100;
   }
 
+  public getEvidenciaReajusteUrl(m: { evidenciasUrls?: string[] | null }): string | null {
+    const url = m?.evidenciasUrls?.[0];
+    return url && String(url).trim() ? String(url).trim() : null;
+  }
+
+  public tituloEvidenciaKardex(m: { tipoMovimiento?: { codigo?: string; nombre?: string } | null; observaciones?: string | null }): string {
+    const codigo = String(m?.tipoMovimiento?.codigo || '').toUpperCase();
+    const texto = `${m?.tipoMovimiento?.nombre || ''} ${m?.observaciones || ''}`.toUpperCase();
+    if (codigo.includes('ADJUST') || texto.includes('REAJUSTE')) return 'Evidencia de reajuste';
+    if (codigo === 'ENTRY' || texto.includes('INGRESO')) return 'Evidencia de ingreso';
+    return 'Evidencia del movimiento';
+  }
+
+  get reajusteContenidoNeto(): number {
+    const c = Number(this.itemReajuste?.contenidoNeto || 1);
+    return c > 0 ? c : 1;
+  }
+
+  get puedeElegirModoReajuste(): boolean {
+    return this.reajusteContenidoNeto > 1;
+  }
+
+  get cantidadContadaBase(): number {
+    const valor = Number(this.formReajuste.cantidadContada);
+    if (!Number.isFinite(valor) || valor < 0) return 0;
+    if (this.formReajuste.modo === 'unidades') {
+      return this.getCantidadDesdeUnidades(valor, this.reajusteContenidoNeto);
+    }
+    return Math.round(valor * 100) / 100;
+  }
+
+  get deltaReajuste(): number {
+    const actual = Number(this.itemReajuste?.stockActual || 0);
+    return Math.round((this.cantidadContadaBase - actual) * 100) / 100;
+  }
+
+  public cambiarModoReajuste(modo: 'unidades' | 'cantidad'): void {
+    if (this.formReajuste.modo === modo) return;
+    const base = this.cantidadContadaBase;
+    this.formReajuste.modo = modo;
+    this.formReajuste.cantidadContada = modo === 'unidades'
+      ? this.getStockEnUnidades(base, this.reajusteContenidoNeto)
+      : base;
+  }
+
+  public abrirModalReajuste(item: any): void {
+    if (!this.puedeReajustarStock) {
+      this.toast.warning('Sin permiso', 'Tu rol no puede reajustar stock.');
+      return;
+    }
+    this.itemReajuste = {
+      ...item,
+      insumoId: item?.insumoId || item?.id,
+      contenidoNeto: Number(item?.contenidoNeto || 1),
+      ubicacionLabel: item?.ubicacionLabel
+        || item?.bodegaNombre
+        || this.bodegaSeleccionada?.nombre
+        || 'Bodega',
+    };
+    const contenido = Number(this.itemReajuste.contenidoNeto || 1);
+    const modo: 'unidades' | 'cantidad' = contenido > 1 ? 'unidades' : 'cantidad';
+    const actual = Number(item?.stockActual || 0);
+    this.formReajuste = {
+      modo,
+      cantidadContada: modo === 'unidades' ? this.getStockEnUnidades(actual, contenido) : actual,
+      motivoTexto: '',
+      evidenciaUrl: '',
+    };
+    this.modalReajusteAbierto = true;
+  }
+
+  public abrirModalReajusteAgencia(agencia: any, ins: any): void {
+    this.abrirModalReajuste({
+      ...ins,
+      insumoId: ins?.insumoId || ins?.id,
+      agenciaId: agencia?.id,
+      ubicacionLabel: agencia?.nombre || 'Agencia',
+    });
+  }
+
+  public abrirModalReajustePulidor(pulidor: any, ins: any): void {
+    this.abrirModalReajuste({
+      ...ins,
+      insumoId: ins?.insumoId || ins?.id,
+      pulidorId: pulidor?.id,
+      ubicacionLabel: pulidor?.nombre || 'Pulidor',
+    });
+  }
+
+  public cerrarModalReajuste(): void {
+    if (this.guardandoReajuste) return;
+    this.modalReajusteAbierto = false;
+    this.itemReajuste = null;
+    this.formReajuste = { modo: 'cantidad', cantidadContada: 0, motivoTexto: '', evidenciaUrl: '' };
+  }
+
+  public async guardarReajuste(): Promise<void> {
+    if (!this.itemReajuste?.insumoId) {
+      this.toast.warning('Datos incompletos', 'No se identificó el insumo.');
+      return;
+    }
+    const bodegaId = String(this.itemReajuste.bodegaId || (!this.itemReajuste.agenciaId && !this.itemReajuste.pulidorId ? this.bodegaSeleccionadaId : '') || '').trim();
+    const agenciaId = String(this.itemReajuste.agenciaId || '').trim();
+    const pulidorId = String(this.itemReajuste.pulidorId || '').trim();
+    if (!bodegaId && !agenciaId && !pulidorId) {
+      this.toast.warning('Ubicación requerida', 'Indica la bodega, agencia o pulidor a reajustar.');
+      return;
+    }
+    const cantidadContada = this.cantidadContadaBase;
+    if (!Number.isFinite(cantidadContada) || cantidadContada < 0) {
+      this.toast.warning('Cantidad inválida', 'La cantidad contada debe ser 0 o mayor.');
+      return;
+    }
+    if (this.deltaReajuste === 0) {
+      this.toast.warning('Sin cambios', 'La cantidad contada es igual al stock actual.');
+      return;
+    }
+    if (this.formReajuste.motivoTexto.trim().length < 10) {
+      this.toast.warning('Detalle requerido', 'Explica por qué se reajusta (mínimo 10 caracteres).');
+      return;
+    }
+    if (!this.formReajuste.evidenciaUrl.trim() && !this.reajusteUploader?.hasPendingUpload) {
+      this.toast.warning('Foto requerida', 'Sube la foto de evidencia del conteo.');
+      return;
+    }
+
+    this.guardandoReajuste = true;
+    let evidenciaUrl = this.formReajuste.evidenciaUrl.trim();
+    try {
+      if (this.reajusteUploader?.hasPendingUpload) {
+        evidenciaUrl = String(await this.reajusteUploader.uploadNow() || '').trim();
+        this.formReajuste.evidenciaUrl = evidenciaUrl;
+      }
+    } catch (err: any) {
+      this.guardandoReajuste = false;
+      this.toast.error('Error al subir la foto', err?.message || 'No se pudo guardar la evidencia en S3.');
+      return;
+    }
+    if (!evidenciaUrl) {
+      this.guardandoReajuste = false;
+      this.toast.warning('Foto requerida', 'Sube la foto de evidencia del conteo.');
+      return;
+    }
+
+    this.inventarioService.reajustarStock({
+      insumoId: String(this.itemReajuste.insumoId),
+      ...(bodegaId ? { bodegaId } : {}),
+      ...(agenciaId ? { agenciaId } : {}),
+      ...(pulidorId ? { pulidorId } : {}),
+      cantidadContada,
+      motivoTexto: this.formReajuste.motivoTexto.trim(),
+      evidenciaUrl,
+    }).subscribe({
+      next: (res) => {
+        this.guardandoReajuste = false;
+        this.toast.success(
+          'Reajuste registrado',
+          `${res?.numeroComprobante || 'OK'}: ${this.itemReajuste.nombre} ahora tiene ${cantidadContada} ${this.itemReajuste.unidad}.`,
+        );
+        this.cerrarModalReajuste();
+        if (bodegaId) this.cargarStockBodega(bodegaId);
+        if (agenciaId) this.cargarStockAgencias();
+        if (pulidorId) this.cargarStockPulidoresResumen();
+        this.cargarProductos();
+        this.cargarDashboardResumen();
+        this.cargarHistorialMovimientos();
+        this.cargarStockBajo();
+      },
+      error: (err) => {
+        this.guardandoReajuste = false;
+        const msg = Array.isArray(err?.error?.message)
+          ? err.error.message.join('. ')
+          : (err?.error?.message || 'No se pudo registrar el reajuste.');
+        this.toast.error('Error al reajustar', msg);
+      },
+    });
+  }
+
   // ==============================================================
   // REGISTRAR ENTRADA
   // ==============================================================
@@ -5641,25 +6012,29 @@ export class InventarioComponent implements OnInit {
 
   public imagenEntradaPreview: string | null = null;
   public imagenEntradaNombre: string = '';
+  public imagenEntradaFile: File | null = null;
 
   public onImagenEntradaSeleccionada(event: Event): void {
     const input = event.target as HTMLInputElement;
-    if (input.files && input.files[0]) {
-      const file = input.files[0];
-      this.imagenEntradaNombre = file.name;
-      const reader = new FileReader();
-      reader.onload = () => {
-        const result = reader.result as string;
-        this.imagenEntradaPreview = result;
-        this.toast.success('Evidencia de entrada cargada', `${file.name} lista para guardar.`);
-      };
-      reader.readAsDataURL(file);
+    const file = input.files?.[0];
+    if (!file) return;
+    if (this.imagenEntradaPreview?.startsWith('blob:')) {
+      URL.revokeObjectURL(this.imagenEntradaPreview);
     }
+    this.imagenEntradaFile = file;
+    this.imagenEntradaNombre = file.name;
+    this.imagenEntradaPreview = URL.createObjectURL(file);
+    input.value = '';
+    this.toast.success('Evidencia de entrada cargada', `${file.name} lista para guardar.`);
   }
 
   public eliminarImagenEntrada(): void {
+    if (this.imagenEntradaPreview?.startsWith('blob:')) {
+      URL.revokeObjectURL(this.imagenEntradaPreview);
+    }
     this.imagenEntradaPreview = null;
     this.imagenEntradaNombre = '';
+    this.imagenEntradaFile = null;
   }
 
   public cerrarModalEntrada(): void {
@@ -5686,7 +6061,7 @@ export class InventarioComponent implements OnInit {
     return match?.id?.toString() || '';
   }
 
-  public guardarEntrada(): void {
+  public async guardarEntrada(): Promise<void> {
     if (!this.formEntrada.insumoId) {
       this.toast.warning('Advertencia', 'Seleccione el producto a ingresar');
       return;
@@ -5713,7 +6088,6 @@ export class InventarioComponent implements OnInit {
     const totalContenidoBase = Math.round(cantUnidades * cNeto * 100) / 100;
     const uMedida = this.productoEntradaSeleccionado?.unidadMedida || 'und';
 
-    this.guardandoMovimiento = true;
     const detalleIngreso = `[Ingreso: ${cantUnidades} und × ${cNeto} ${uMedida}]`;
     const obsFinal = this.formEntrada.observaciones
       ? `${this.formEntrada.observaciones} ${detalleIngreso}`
@@ -5726,6 +6100,26 @@ export class InventarioComponent implements OnInit {
       return;
     }
 
+    this.guardandoMovimiento = true;
+    let evidenciaUrl = '';
+    try {
+      if (this.imagenEntradaFile) {
+        evidenciaUrl = await this.storageUploadService.uploadMedia(this.imagenEntradaFile, {
+          category: 'CATALOGO_INSUMOS',
+          type: 'FOTO_INGRESO_INVENTARIO',
+          insumoId: String(this.formEntrada.insumoId),
+          insumoNombre: this.productoEntradaSeleccionado?.nombre,
+          agenciaId: bodegaDestino,
+          fileName: this.imagenEntradaFile.name || 'evidencia-ingreso.jpg',
+          contentType: this.imagenEntradaFile.type || 'image/jpeg',
+        });
+      }
+    } catch (err: any) {
+      this.guardandoMovimiento = false;
+      this.toast.error('Error al subir la foto', err?.message || 'No se pudo guardar la evidencia del ingreso en S3.');
+      return;
+    }
+
     const payload: any = {
       insumoId: String(this.formEntrada.insumoId),
       tipoMovimientoId: String(tipoEntry.id),
@@ -5734,6 +6128,7 @@ export class InventarioComponent implements OnInit {
       observaciones: obsFinal,
       ubicacionId: bodegaDestino,
       bodegaId: bodegaDestino,
+      evidenciasUrls: evidenciaUrl ? [evidenciaUrl] : [],
     };
 
     this.inventarioService.registrarMovimiento(payload).subscribe({

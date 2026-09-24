@@ -6,6 +6,7 @@ import { apiUrl, environment } from '../config/env';
 export type StorageCategory =
   | 'SERVICIOS_GENERALES'
   | 'SERVICIOS_ESPECIALES'
+  | 'MAQUINARIA_IMAGEN'
   | 'MAQUINARIA_FICHA'
   | 'MAQUINARIA_INCIDENTE'
   | 'MAQUINARIA_MANTENIMIENTO'
@@ -23,6 +24,7 @@ export type MediaEvidenceType =
   | 'VIDEO_FINAL'
   | 'VIDEO_PAUSA'
   | 'VIDEO_REANUDAR'
+  | 'FOTO_MAQUINA'
   | 'FICHA_TECNICA'
   | 'DOCUMENTO'
   | 'FOTO_INCIDENTE'
@@ -30,6 +32,8 @@ export type MediaEvidenceType =
   | 'DOCUMENTO_INCIDENTE'
   | 'PDF_CIERRE'
   | 'IMAGEN_PRODUCTO'
+  | 'FOTO_AJUSTE_INVENTARIO'
+  | 'FOTO_INGRESO_INVENTARIO'
   | 'FOTO_PERFIL';
 
 export interface UploadTicket {
@@ -50,8 +54,13 @@ export interface UploadMediaOptions {
   agenciaId?: string;
   servicioId?: string;
   maquinariaId?: string;
+  maquinariaNombre?: string;
+  maquinariaCodigo?: string;
   incidenteId?: string;
+  incidenteFase?: 'fallas' | 'resoluciones';
+  mantenimientoId?: string;
   insumoId?: string | number;
+  insumoNombre?: string;
   clientUuid?: string;
   fileName?: string;
   contentType?: string;
@@ -79,34 +88,59 @@ export class StorageUploadService {
 
     const fileName = options.fileName || (fileOrBlob instanceof File ? fileOrBlob.name : `evidencia_${Date.now()}.${options.type.startsWith('VIDEO_') ? 'mp4' : 'jpg'}`);
 
+    const ticketPayload = {
+      category: options.category,
+      type: options.type,
+      agenciaId: options.agenciaId,
+      servicioId: options.servicioId,
+      maquinariaId: options.maquinariaId,
+      maquinariaNombre: options.maquinariaNombre,
+      maquinariaCodigo: options.maquinariaCodigo,
+      incidenteId: options.incidenteId,
+      incidenteFase: options.incidenteFase,
+      mantenimientoId: options.mantenimientoId,
+      insumoId: options.insumoId ? String(options.insumoId) : undefined,
+      insumoNombre: options.insumoNombre,
+      clientUuid: options.clientUuid,
+      fileName,
+      contentType,
+    };
+
+    const useBackendProxy = !options.type.startsWith('VIDEO_');
+    if (useBackendProxy) {
+      return this.uploadViaBackend(fileOrBlob, ticketPayload, fileName, contentType, options.onProgress);
+    }
+
     const ticket = await firstValueFrom(
-      this.http.post<UploadTicket>(apiUrl('/storage/ticket'), {
-        category: options.category,
-        type: options.type,
-        agenciaId: options.agenciaId,
-        servicioId: options.servicioId,
-        maquinariaId: options.maquinariaId,
-        incidenteId: options.incidenteId,
-        insumoId: options.insumoId ? String(options.insumoId) : undefined,
-        clientUuid: options.clientUuid,
-        fileName,
-        contentType,
-      })
+      this.http.post<UploadTicket>(apiUrl('/storage/ticket'), ticketPayload)
     );
 
     const uploadUrl = ticket.driver === 's3'
       ? ticket.uploadUrl
       : this.resolveBackendUrl(ticket.uploadUrl);
 
-    // Subida con XMLHttpRequest para dar feedback de progreso en tiempo real
-    await new Promise<void>((resolve, reject) => {
+    try {
+      await this.putToUrl(uploadUrl, fileOrBlob, contentType, ticket.headers, options.onProgress);
+      return ticket.publicUrl;
+    } catch {
+      return this.uploadViaBackend(fileOrBlob, ticketPayload, fileName, contentType, options.onProgress);
+    }
+  }
+
+  private putToUrl(
+    uploadUrl: string,
+    fileOrBlob: Blob | File,
+    contentType: string,
+    headers: Record<string, string> | undefined,
+    onProgress?: (percentage: number) => void,
+  ): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       xhr.open('PUT', uploadUrl, true);
 
-      // Cabeceras requeridas por el ticket evitando duplicar Content-Type
       let contentTypeSet = false;
-      if (ticket.headers) {
-        Object.entries(ticket.headers).forEach(([k, v]) => {
+      if (headers) {
+        Object.entries(headers).forEach(([k, v]) => {
           if (k.toLowerCase() === 'content-type') contentTypeSet = true;
           try { xhr.setRequestHeader(k, v); } catch { /* ignore restricted headers */ }
         });
@@ -115,28 +149,46 @@ export class StorageUploadService {
         xhr.setRequestHeader('Content-Type', contentType);
       }
 
-      if (options.onProgress) {
+      if (onProgress) {
         xhr.upload.onprogress = (event) => {
           if (event.lengthComputable) {
-            const percent = Math.round((event.loaded / event.total) * 100);
-            options.onProgress?.(percent);
+            onProgress(Math.round((event.loaded / event.total) * 100));
           }
         };
       }
 
       xhr.onload = () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          resolve();
-        } else {
-          reject(new Error(`Error al transferir al storage (${xhr.status}: ${xhr.statusText})`));
-        }
+        if (xhr.status >= 200 && xhr.status < 300) resolve();
+        else reject(new Error(`Error al transferir al storage (${xhr.status}: ${xhr.statusText})`));
       };
-
       xhr.onerror = () => reject(new Error('Fallo de red al subir archivo a AWS S3.'));
       xhr.send(fileOrBlob);
     });
+  }
 
-    return ticket.publicUrl;
+  private async uploadViaBackend(
+    fileOrBlob: Blob | File,
+    ticketPayload: Record<string, string | undefined>,
+    fileName: string,
+    contentType: string,
+    onProgress?: (percentage: number) => void,
+  ): Promise<string> {
+    const form = new FormData();
+    form.append('file', fileOrBlob, fileName);
+    Object.entries(ticketPayload).forEach(([key, value]) => {
+      if (value) form.append(key, value);
+    });
+
+    onProgress?.(40);
+    const result = await firstValueFrom(
+      this.http.post<{ publicUrl?: string }>(apiUrl('/storage/upload'), form),
+    );
+    onProgress?.(100);
+
+    if (!result?.publicUrl) {
+      throw new Error('El servidor no devolvió la URL de la evidencia.');
+    }
+    return result.publicUrl;
   }
 
   /**

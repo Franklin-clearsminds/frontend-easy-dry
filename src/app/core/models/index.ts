@@ -255,6 +255,7 @@ export interface Maquinaria {
   fechaMantenimiento: string;
   fechaAsignacion?: string;
   imagen: string;
+  fichaTecnicaUrl?: string;
   horasUso?: number;
   nivelPresionWaterBar?: number;
 }
@@ -288,6 +289,26 @@ export interface Mantenimiento {
   cerradoPor?: string;
   repuestosUtilizados?: string[];
   costoTotal?: number;
+  maquinariaId?: string | number;
+  tecnicoId?: string | number;
+  frecuenciaDias?: number;
+  proximoMantenimiento?: string;
+}
+
+export const FRECUENCIAS_MANTENIMIENTO: { dias: number; label: string }[] = [
+  { dias: 0, label: 'Única vez' },
+  { dias: 7, label: 'Cada 7 días' },
+  { dias: 15, label: 'Cada 15 días' },
+  { dias: 30, label: 'Cada mes' },
+  { dias: 60, label: 'Cada 2 meses' },
+  { dias: 90, label: 'Cada 3 meses' },
+  { dias: 180, label: 'Cada 6 meses' },
+  { dias: 365, label: 'Cada año' },
+];
+
+export function etiquetaFrecuenciaMantenimiento(dias?: number | null): string {
+  if (!dias) return 'Única vez';
+  return FRECUENCIAS_MANTENIMIENTO.find(f => f.dias === dias)?.label || `Cada ${dias} días`;
 }
 
 export interface ArchivoAdjunto {
@@ -300,6 +321,7 @@ export interface ArchivoAdjunto {
   tamanoBytes?: number;
   fechaSubida?: string;
   s3Key?: string;
+  file?: File;
 }
 
 export type EstadoEnvio = 'PENDIENTE' | 'ENVIADO' | 'RECIBIDO' | 'RECHAZADO';

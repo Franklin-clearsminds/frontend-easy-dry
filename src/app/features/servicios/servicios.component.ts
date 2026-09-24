@@ -210,6 +210,13 @@ import { VideoRecorderComponent } from '../../shared/components/video-recorder/v
                       <span class="font-mono font-extrabold text-xs text-easydry-blue bg-easydry-blue/10 px-2.5 py-1 rounded-lg block w-fit">
                         {{ item.ordenTrabajoOT || 'OT-9800' }}
                       </span>
+                      @if (serviciosEnMismaOT(item) > 1) {
+                        <span class="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-extrabold bg-violet-50 text-violet-700 border border-violet-200"
+                          title="Esta OT tiene varios servicios registrados (una fila por servicio)">
+                          <i-lucide name="layers" class="w-3 h-3"></i-lucide>
+                          {{ serviciosEnMismaOT(item) }} servicios
+                        </span>
+                      }
                     </td>
 
                     <td class="py-3.5 px-4">
@@ -305,13 +312,13 @@ import { VideoRecorderComponent } from '../../shared/components/video-recorder/v
                           </button>
                         }
 
-                        @if (item.estado === 'FINALIZADO' && canCrearOT) {
+                        @if (puedeAgregarServicio(item)) {
                           <button
                             (click)="abrirModalAgregarServicioAOT(item); $event.stopPropagation()"
-                            title="Agregar otro servicio a esta misma OT"
+                            title="Agregar otro servicio a esta misma OT (mismo vehículo)"
                             class="px-2.5 py-1 bg-violet-50 hover:bg-violet-600 text-violet-700 hover:text-white border border-violet-200 rounded-lg transition-colors cursor-pointer inline-flex items-center gap-1.5 text-xs font-bold shadow-2xs">
                             <i-lucide name="plus-circle" class="w-3.5 h-3.5"></i-lucide>
-                            <span>+ Servicio</span>
+                            <span>Agregar servicio</span>
                           </button>
                         }
 
@@ -352,6 +359,12 @@ import { VideoRecorderComponent } from '../../shared/components/video-recorder/v
                     <span class="font-mono font-extrabold text-xs text-easydry-blue bg-easydry-blue/10 px-2 py-0.5 rounded-md">
                       {{ item.ordenTrabajoOT || 'OT-9800' }}
                     </span>
+                    @if (serviciosEnMismaOT(item) > 1) {
+                      <span class="ml-1 px-1.5 py-0.5 rounded-md text-[10px] font-extrabold bg-violet-50 text-violet-700 border border-violet-200">
+                        {{ serviciosEnMismaOT(item) }} servicios
+                      </span>
+                    }
+                    <div class="text-xs font-bold text-slate-700 mt-1">{{ item.servicio }}</div>
                     <div class="font-bold text-slate-900 text-sm mt-1.5">{{ item.marca }} {{ item.modelo }}</div>
                     <div class="text-[11px] font-mono font-extrabold text-slate-500">{{ item.placa }}</div>
                   </div>
@@ -366,16 +379,16 @@ import { VideoRecorderComponent } from '../../shared/components/video-recorder/v
                   </span>
                 </div>
                 
+                @if (puedeAgregarServicio(item)) {
+                  <button
+                    (click)="abrirModalAgregarServicioAOT(item); $event.stopPropagation()"
+                    title="Agregar otro servicio a esta misma OT (mismo vehículo)"
+                    class="mt-2 w-full px-2.5 py-1.5 bg-violet-50 hover:bg-violet-600 text-violet-700 hover:text-white border border-violet-200 rounded-lg transition-colors cursor-pointer inline-flex items-center justify-center gap-1.5 text-xs font-bold">
+                    <i-lucide name="plus-circle" class="w-3.5 h-3.5"></i-lucide>
+                    <span>Agregar servicio a esta OT</span>
+                  </button>
+                }
                 <div class="flex items-center justify-between mt-3 text-xs">
-                  @if (item.estado === 'FINALIZADO' && canCrearOT) {
-                    <button
-                      (click)="abrirModalAgregarServicioAOT(item); $event.stopPropagation()"
-                      title="Agregar otro servicio a esta misma OT"
-                      class="mb-2 w-full px-2.5 py-1.5 bg-violet-50 hover:bg-violet-600 text-violet-700 hover:text-white border border-violet-200 rounded-lg transition-colors cursor-pointer inline-flex items-center justify-center gap-1.5 text-xs font-bold">
-                      <i-lucide name="plus-circle" class="w-3.5 h-3.5"></i-lucide>
-                      <span>+ Agregar servicio a esta OT</span>
-                    </button>
-                  }
                   <div class="flex items-center gap-1.5 text-slate-500">
                     <i-lucide name="clock" class="w-3.5 h-3.5"></i-lucide>
                     <span>{{ item.horaIngreso || '08:30' }}</span>
@@ -947,11 +960,21 @@ import { VideoRecorderComponent } from '../../shared/components/video-recorder/v
                   &nbsp;&bull;&nbsp; {{ agregarServicioOTFuente.marca }} {{ agregarServicioOTFuente.modelo }}
                   &nbsp;&bull;&nbsp; Color: {{ agregarServicioOTFuente.color }}
                 </p>
-                <p class="text-[10px] text-violet-500 mt-1">Los datos del vehículo están bloqueados. Solo selecciona la bahía, el lavador y el nuevo servicio.</p>
+                <p class="text-[11px] text-violet-700 mt-0.5">
+                  Bahía: <strong>{{ agregarServicioOTFuente.bahia || 'Sin bahía' }}</strong>
+                  &nbsp;&bull;&nbsp; Lavador: <strong>{{ agregarServicioOTFuente.empleado || '—' }}</strong>
+                </p>
+                @if (serviciosYaEnOT.length > 0) {
+                  <p class="text-[11px] text-violet-700 mt-0.5">
+                    Servicios ya registrados: <strong>{{ serviciosYaEnOTNombres }}</strong>
+                  </p>
+                }
+                <p class="text-[10px] text-violet-500 mt-1">Cada servicio agregado aparecerá como una nueva fila con la misma OT y el mismo vehículo. Solo selecciona los servicios a agregar.</p>
               </div>
             </div>
           }
-          
+
+          @if (!agregarServicioOTFuente) {
           <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs font-bold text-easydry-blue flex items-center justify-between">
             <span>REGISTRO DE ORDEN DE TRABAJO (OT)</span>
             <span class="font-mono">Fecha: {{ nuevoRegistro.fecha }}</span>
@@ -1113,9 +1136,11 @@ import { VideoRecorderComponent } from '../../shared/components/video-recorder/v
               </div>
             </div>
           </div>
+          }
 
           <!-- Category and Specific Service -->
           <div class="p-4 bg-slate-50/80 rounded-2xl border border-slate-200 space-y-3">
+            @if (!agregarServicioOTFuente) {
             <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider">Categoría de Servicio *</label>
             
             <div class="grid gap-2.5" [ngClass]="(!isPulidor && agenciaFormTieneEspeciales) ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'">
@@ -1137,15 +1162,53 @@ import { VideoRecorderComponent } from '../../shared/components/video-recorder/v
                 </label>
               }
             </div>
+            }
 
-            <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Servicio Específico *</label>
-              <select [(ngModel)]="nuevoRegistro.servicio" name="servicio" (change)="onServicioSelect()" class="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:border-easydry-blue focus:ring-easydry-blue">
-                @for (s of opcionesServicios; track s.id) {
-                  <option [value]="s.nombre">{{ s.nombre }}</option>
+            @if (esSeleccionMultipleServicios) {
+              <div>
+                <div class="flex items-center justify-between mb-1">
+                  <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                    {{ agregarServicioOTFuente ? 'Servicios a agregar *' : 'Servicios *' }}
+                  </label>
+                  <span class="text-[10px] font-bold text-easydry-blue">
+                    {{ serviciosSeleccionadosIds.length }} seleccionado(s)
+                  </span>
+                </div>
+                <p class="text-[10px] text-slate-500 mb-2">Puedes marcar uno o más servicios: cada uno se registrará como una fila con la misma OT.</p>
+                @if (opcionesServicios.length === 0) {
+                  <p class="text-xs text-slate-400 italic">
+                    {{ agregarServicioOTFuente ? 'Esta OT ya tiene todos los servicios generales disponibles en la agencia.' : 'No hay servicios generales asignados a esta agencia.' }}
+                  </p>
+                } @else {
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    @for (s of opcionesServicios; track s.id) {
+                      <label
+                        class="p-2.5 rounded-xl border cursor-pointer flex items-center gap-2 text-xs font-bold transition-all"
+                        [ngClass]="isServicioSeleccionado(s.id) ? 'bg-easydry-blue/10 border-easydry-blue text-easydry-blue' : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'">
+                        <input
+                          type="checkbox"
+                          [checked]="isServicioSeleccionado(s.id)"
+                          (change)="toggleServicioSeleccionado(s)"
+                          class="w-4 h-4 accent-easydry-blue shrink-0">
+                        <span class="flex-1">{{ s.nombre }}</span>
+                        @if (s.tiempoEstimadoMin) {
+                          <span class="text-[10px] font-mono text-slate-400">{{ s.tiempoEstimadoMin }} min</span>
+                        }
+                      </label>
+                    }
+                  </div>
                 }
-              </select>
-            </div>
+              </div>
+            } @else {
+              <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Servicio Específico *</label>
+                <select [(ngModel)]="nuevoRegistro.servicio" name="servicio" (change)="onServicioSelect()" class="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:border-easydry-blue focus:ring-easydry-blue">
+                  @for (s of opcionesServicios; track s.id) {
+                    <option [value]="s.nombre">{{ s.nombre }}</option>
+                  }
+                </select>
+              </div>
+            }
           </div>
 
           <!-- Insumos y Recursos Utilizados (Descuento Automático de Stock) -->
@@ -1220,6 +1283,7 @@ import { VideoRecorderComponent } from '../../shared/components/video-recorder/v
           </div>
 
           <!-- Video Proof Upload with Live Device Camera -->
+          @if (!agregarServicioOTFuente) {
           <app-video-recorder
             #videoIngresoRecorder
             label="Vídeo de Evidencia de Ingreso (Recepción)"
@@ -1231,6 +1295,7 @@ import { VideoRecorderComponent } from '../../shared/components/video-recorder/v
             [(videoUrl)]="nuevoRegistro.videoUrl"
             [required]="true">
           </app-video-recorder>
+          }
 
         </form>
 
@@ -1238,9 +1303,9 @@ import { VideoRecorderComponent } from '../../shared/components/video-recorder/v
           <button (click)="agregarServicioOTFuente = null; modalNuevoRegistroOpen = false" [disabled]="guardandoServicio" class="w-full sm:w-auto px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs flex justify-center disabled:opacity-50">Cancelar</button>
           <button 
             (click)="guardarHojaServicio()" 
-            [disabled]="tieneInsumosSinStock || !!bahiaOcupadaActual || guardandoServicio"
-            [class.opacity-50]="tieneInsumosSinStock || !!bahiaOcupadaActual || guardandoServicio"
-            [class.cursor-not-allowed]="tieneInsumosSinStock || !!bahiaOcupadaActual || guardandoServicio"
+            [disabled]="tieneInsumosSinStock || !!bahiaOcupadaActual || guardandoServicio || (esSeleccionMultipleServicios && serviciosSeleccionadosIds.length === 0)"
+            [class.opacity-50]="tieneInsumosSinStock || !!bahiaOcupadaActual || guardandoServicio || (esSeleccionMultipleServicios && serviciosSeleccionadosIds.length === 0)"
+            [class.cursor-not-allowed]="tieneInsumosSinStock || !!bahiaOcupadaActual || guardandoServicio || (esSeleccionMultipleServicios && serviciosSeleccionadosIds.length === 0)"
             class="w-full sm:w-auto px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs flex justify-center items-center gap-1.5 transition-all cursor-pointer">
             <i-lucide *ngIf="guardandoServicio" name="loader" class="w-4 h-4 animate-spin"></i-lucide>
             <span>{{ guardandoServicio ? 'Guardando...' : agregarServicioOTFuente ? '+ Agregar Servicio a OT' : 'Guardar e Iniciar Servicio' }}</span>
@@ -2377,11 +2442,11 @@ export class ServiciosComponent implements OnInit {
 
   /**
    * Abre el modal de nueva OT en modo "agregar servicio a OT existente".
-   * Pre-rellena los datos del vehículo y bloquea los campos de identidad del
-   * vehículo, permitiendo solo elegir bahía, lavador y servicio nuevo.
+   * Vehículo, OT, bahía y evidencia de ingreso se heredan de la fila original:
+   * solo se eligen los servicios nuevos.
    */
   abrirModalAgregarServicioAOT(item: VehiculoServicio): void {
-    if (item.estado !== 'FINALIZADO') return;
+    if (!this.puedeAgregarServicio(item)) return;
     if (this.isAprobador) {
       this.toastService.warning('Acceso Restringido', 'El rol Aprobador no puede agregar servicios.');
       return;
@@ -2391,9 +2456,10 @@ export class ServiciosComponent implements OnInit {
 
     // Misma inicialización base que abrirModalNuevaOT pero manteniendo los datos del vehículo
     const user = this.authService.getCurrentUser();
-    if (user) {
-      const nombreCompleto = `${user.nombre} ${user.apellido}`.trim();
-      this.nuevoRegistro.empleado = nombreCompleto;
+    if (item.empleado) {
+      this.nuevoRegistro.empleado = item.empleado;
+    } else if (user) {
+      this.nuevoRegistro.empleado = `${user.nombre} ${user.apellido}`.trim();
     }
 
     // Preservar datos del vehículo original
@@ -2404,8 +2470,9 @@ export class ServiciosComponent implements OnInit {
     this.nuevoRegistro.color = item.color || '';
     this.nuevoRegistro.agencia = item.agencia || '';
     this.nuevoRegistro.foto = '';
-    this.nuevoRegistro.videoUrl = '';
+    this.nuevoRegistro.videoUrl = this.getVideoInicial(item) || '';
     this.nuevoRegistro.bahiaId = item.bahiaId ? String(item.bahiaId) : '';
+    this.nuevoRegistro.bahia = item.bahia || '';
     this.nuevoRegistro.fecha = new Date().toISOString().substring(0, 10);
     this.nuevoRegistro.categoriaServicio = 'GENERAL';
 
@@ -2554,6 +2621,86 @@ export class ServiciosComponent implements OnInit {
 
   placaTocada = false;
 
+  /** Servicios generales marcados en el modal (se crea una fila por servicio con la misma OT). */
+  serviciosSeleccionadosIds: number[] = [];
+
+  get esSeleccionMultipleServicios(): boolean {
+    return this.nuevoRegistro.categoriaServicio === 'GENERAL';
+  }
+
+  isServicioSeleccionado(id: number | string): boolean {
+    return this.serviciosSeleccionadosIds.includes(Number(id));
+  }
+
+  toggleServicioSeleccionado(serv: CatalogoServicio): void {
+    const id = Number(serv.id);
+    this.serviciosSeleccionadosIds = this.isServicioSeleccionado(id)
+      ? this.serviciosSeleccionadosIds.filter((x) => x !== id)
+      : [...this.serviciosSeleccionadosIds, id];
+    this.recalcularServiciosSeleccionados();
+  }
+
+  get serviciosSeleccionados(): CatalogoServicio[] {
+    return this.opcionesServicios.filter((s) => this.isServicioSeleccionado(s.id));
+  }
+
+  /** Receta combinada de todos los servicios marcados: el stock se valida contra la suma. */
+  private recalcularServiciosSeleccionados(): void {
+    const seleccion = this.serviciosSeleccionados;
+    this.nuevoRegistro.servicioId = seleccion[0]?.id ?? 0;
+    this.nuevoRegistro.servicio = seleccion.map((s) => s.nombre).join(' + ');
+    const duracion = seleccion.reduce((acc, s) => acc + (Number(s.tiempoEstimadoMin) || 30), 0);
+    this.asignarHorasAutomaticasOT(duracion || 30);
+
+    const insumos = new Map<string, InsumoConsumidoServicio>();
+    for (const serv of seleccion) {
+      for (const r of serv.insumosReceta || []) {
+        const key = String(r.productoId || r.productoSKU);
+        const prev = insumos.get(key);
+        if (prev) {
+          prev.cantidad = Number(prev.cantidad) + Number(r.cantidadSugerida || 0);
+        } else {
+          insumos.set(key, {
+            productoId: r.productoId,
+            productoSKU: r.productoSKU,
+            productoNombre: r.productoNombre,
+            unidadMedida: r.unidadMedida,
+            cantidad: Number(r.cantidadSugerida || 0),
+          } as InsumoConsumidoServicio);
+        }
+      }
+    }
+    this.insumosConsumoForm = Array.from(insumos.values());
+  }
+
+  /** Filas (servicios) ya registradas en la OT que se está ampliando. */
+  get serviciosYaEnOT(): VehiculoServicio[] {
+    const ot = String(this.agregarServicioOTFuente?.ordenTrabajoOT || '').trim().toUpperCase();
+    if (!ot) return [];
+    return this.servicios.filter(
+      (s) => String(s.ordenTrabajoOT || '').trim().toUpperCase() === ot && s.estado !== 'CANCELADO',
+    );
+  }
+
+  get serviciosYaEnOTNombres(): string {
+    return this.serviciosYaEnOT.map((s) => s.servicio).join(', ');
+  }
+
+  /** Cantidad de servicios generales que comparten la OT de la fila (para el distintivo de la tabla). */
+  serviciosEnMismaOT(item: VehiculoServicio): number {
+    const ot = String(item.ordenTrabajoOT || '').trim().toUpperCase();
+    if (!ot) return 1;
+    return this.servicios.filter(
+      (s) => String(s.ordenTrabajoOT || '').trim().toUpperCase() === ot && s.estado !== 'CANCELADO',
+    ).length;
+  }
+
+  puedeAgregarServicio(item: VehiculoServicio): boolean {
+    if (!this.canCrearOT || this.isPulidor) return false;
+    const estado = String(item.estado || '').toUpperCase();
+    return estado === 'EN PROCESO' || estado === 'EN_PROCESO' || estado === 'FINALIZADO';
+  }
+
   get resultadoPlaca() {
     return validarPlaca(this.nuevoRegistro.placa);
   }
@@ -2613,6 +2760,8 @@ export class ServiciosComponent implements OnInit {
   }
 
   get bahiaOcupadaActual(): VehiculoServicio | undefined {
+    // Al agregar un servicio, el vehículo ocupa su propia bahía: no es un conflicto.
+    if (this.agregarServicioOTFuente) return undefined;
     if (!this.nuevoRegistro.bahiaId && !this.nuevoRegistro.bahia) return undefined;
     return this.getVehiculoOcupanteBahia(this.nuevoRegistro.bahiaId, this.nuevoRegistro.bahia);
   }
@@ -3242,11 +3391,23 @@ export class ServiciosComponent implements OnInit {
     } else {
       this.opcionesServicios = this.opcionesServicios.filter(s => idsAgencia.includes(s.id));
     }
-    if (this.opcionesServicios.length > 0) {
+    if (this.agregarServicioOTFuente) {
+      const yaIds = new Set(this.serviciosYaEnOT.map((s) => Number(s.servicioId)).filter(Boolean));
+      const yaNombres = new Set(this.serviciosYaEnOT.map((s) => String(s.servicio || '').trim().toLowerCase()));
+      this.opcionesServicios = this.opcionesServicios.filter(
+        (s) => !yaIds.has(Number(s.id)) && !yaNombres.has(String(s.nombre || '').trim().toLowerCase()),
+      );
+    }
+    if (this.opcionesServicios.length > 0 && this.esSeleccionMultipleServicios) {
+      this.serviciosSeleccionadosIds = [Number(this.opcionesServicios[0].id)];
+      this.recalcularServiciosSeleccionados();
+    } else if (this.opcionesServicios.length > 0) {
+      this.serviciosSeleccionadosIds = [];
       this.nuevoRegistro.servicio = this.opcionesServicios[0].nombre;
       this.nuevoRegistro.servicioId = this.opcionesServicios[0].id;
       this.onServicioSelect();
     } else {
+      this.serviciosSeleccionadosIds = [];
       this.nuevoRegistro.servicio = '';
       this.nuevoRegistro.servicioId = 0;
       this.insumosConsumoForm = [];
@@ -3353,6 +3514,13 @@ export class ServiciosComponent implements OnInit {
     if (sucId) {
       this.bahiaService.getBahiasPorSucursal(sucId).subscribe(bahias => {
         this.bahiasSucursalForm = bahias || [];
+        const fuente = this.agregarServicioOTFuente;
+        if (fuente) {
+          this.nuevoRegistro.bahiaId = fuente.bahiaId ? String(fuente.bahiaId) : '';
+          this.nuevoRegistro.bahia = fuente.bahia || 'Sin Bahía Específica';
+          this.nuevoRegistro.empleado = fuente.empleado || this.nuevoRegistro.empleado;
+          return;
+        }
         if (this.bahiasSucursalForm.length > 0) {
           const matchBahia = this.bahiasSucursalForm.find(b => String(b.id) === String(this.nuevoRegistro.bahiaId));
           if (matchBahia && !this.isBahiaOcupada(matchBahia)) {
@@ -3615,16 +3783,31 @@ export class ServiciosComponent implements OnInit {
     }
     const otGenUpper = this.nuevoRegistro.ordenTrabajoOT.trim().toUpperCase();
     this.nuevoRegistro.ordenTrabajoOT = otGenUpper;
+    const modoAgregar = !!this.agregarServicioOTFuente;
 
-    const existeEnGenerales = this.servicios.some(s =>
-      s.ordenTrabajoOT?.toUpperCase() === otGenUpper && s.estado !== 'CANCELADO'
-    );
-    const existeEnEspeciales = this.serviciosExtras.some(e =>
-      (e.codigoSE || (e as any).ordenTrabajoOT)?.toUpperCase() === otGenUpper && e.estado !== 'Cancelado'
-    );
-    if (existeEnGenerales || existeEnEspeciales) {
-      this.toastService.warning('Orden de Trabajo Duplicada', `La OT "${otGenUpper}" ya se encuentra registrada en el sistema. Ingrese un número de OT único.`);
-      return;
+    if (modoAgregar) {
+      const yaEnOT = this.serviciosYaEnOT;
+      const repetido = this.serviciosSeleccionados.find(sel =>
+        yaEnOT.some(s =>
+          Number(s.servicioId) === Number(sel.id) ||
+          String(s.servicio || '').trim().toLowerCase() === String(sel.nombre || '').trim().toLowerCase()
+        )
+      );
+      if (repetido) {
+        this.toastService.warning('Servicio ya registrado', `"${repetido.nombre}" ya forma parte de la OT ${otGenUpper}.`);
+        return;
+      }
+    } else {
+      const existeEnGenerales = this.servicios.some(s =>
+        s.ordenTrabajoOT?.toUpperCase() === otGenUpper && s.estado !== 'CANCELADO'
+      );
+      const existeEnEspeciales = this.serviciosExtras.some(e =>
+        (e.codigoSE || (e as any).ordenTrabajoOT)?.toUpperCase() === otGenUpper && e.estado !== 'Cancelado'
+      );
+      if (existeEnGenerales || existeEnEspeciales) {
+        this.toastService.warning('Orden de Trabajo Duplicada', `La OT "${otGenUpper}" ya se encuentra registrada en el sistema. Use "Agregar servicio" desde la fila para sumar servicios a esa OT.`);
+        return;
+      }
     }
 
     if (!this.nuevoRegistro.marca?.trim()) {
@@ -3635,8 +3818,11 @@ export class ServiciosComponent implements OnInit {
       this.toastService.warning('Campos Incompletos', 'Ingrese el modelo del vehículo.');
       return;
     }
-    if (!this.nuevoRegistro.servicioId) {
-      this.toastService.warning('Servicio Requerido', 'Seleccione un servicio del catálogo.');
+    const serviciosIds = this.esSeleccionMultipleServicios
+      ? this.serviciosSeleccionados.map(s => Number(s.id))
+      : (this.nuevoRegistro.servicioId ? [Number(this.nuevoRegistro.servicioId)] : []);
+    if (serviciosIds.length === 0) {
+      this.toastService.warning('Servicio Requerido', 'Seleccione al menos un servicio del catálogo.');
       return;
     }
 
@@ -3658,7 +3844,7 @@ export class ServiciosComponent implements OnInit {
       return;
     }
 
-    const ocupada = this.servicios.find(s =>
+    const ocupada = modoAgregar ? undefined : this.servicios.find(s =>
       placasEquivalentes(s.placa, resultado.placa) &&
       (s.estado === 'EN PROCESO' || s.estado === 'EN_PROCESO' || s.estado === 'EN_ESPERA')
     );
@@ -3688,7 +3874,8 @@ export class ServiciosComponent implements OnInit {
       }
     }
 
-    if (!this.nuevoRegistro.videoUrl?.trim()) {
+    // Al agregar servicios, la evidencia de ingreso ya se registró con la OT original.
+    if (!modoAgregar && !this.nuevoRegistro.videoUrl?.trim()) {
       this.toastService.warning(
         'Vídeo de Ingreso Requerido',
         'El vídeo de evidencia de ingreso (recepción) es un campo obligatorio para registrar la orden de trabajo.'
@@ -3699,7 +3886,7 @@ export class ServiciosComponent implements OnInit {
 
     const bMatch = this.bahiasSucursalForm.find(b => String(b.id) === String(this.nuevoRegistro.bahiaId))
       || this.bahiasSucursalForm.find(b => b.nombre === this.nuevoRegistro.bahia)
-      || this.bahiasSucursalForm[0];
+      || (modoAgregar ? undefined : this.bahiasSucursalForm[0]);
     const bahiaId = bMatch ? String(bMatch.id) : this.nuevoRegistro.bahiaId;
     const bahiaNombre = bMatch ? bMatch.nombre : this.nuevoRegistro.bahia;
 
@@ -3713,18 +3900,31 @@ export class ServiciosComponent implements OnInit {
       estado: 'EN_PROCESO',
       bahiaId,
       bahia: bahiaNombre,
-      servicioCatalogoId: this.nuevoRegistro.servicioId,
+      servicioCatalogoId: serviciosIds[0],
+      servicioCatalogoIds: serviciosIds,
       insumosUtilizados: [...this.insumosConsumoForm]
     };
 
     this.guardandoServicio = true;
     this.servicioService.crearRegistroHojaServicio(payload as any).subscribe({
-      next: (creado) => {
+      next: (creados) => {
         this.guardandoServicio = false;
-        this.toastService.success(
-          'Hoja de Control Creada',
-          `Servicio ${creado?.ordenTrabajoOT || this.nuevoRegistro.ordenTrabajoOT} (${creado?.placa || this.nuevoRegistro.placa}) registrado e iniciado con éxito.`
-        );
+        const creado = creados[0];
+        const ot = creado?.ordenTrabajoOT || this.nuevoRegistro.ordenTrabajoOT;
+        const placa = creado?.placa || this.nuevoRegistro.placa;
+        if (modoAgregar) {
+          this.toastService.success(
+            'Servicio agregado',
+            `${creados.length === 1 ? 'Se agregó 1 servicio' : `Se agregaron ${creados.length} servicios`} a la OT ${ot} (${placa}).`
+          );
+        } else {
+          this.toastService.success(
+            'Hoja de Control Creada',
+            creados.length > 1
+              ? `OT ${ot} (${placa}) registrada con ${creados.length} servicios e iniciada con éxito.`
+              : `Servicio ${ot} (${placa}) registrado e iniciado con éxito.`
+          );
+        }
         this.modalNuevoRegistroOpen = false;
         this.videoIngresoRecorder?.eliminarVideo();
 

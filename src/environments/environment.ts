@@ -5,5 +5,5 @@ export const environment: AppEnvironment = {
   production: false,
   apiBaseUrl: "http://localhost:3000/api/v1",
   appName: "EasyDry®",
-  environmentName: "development"
+  environmentName: "test"
 };

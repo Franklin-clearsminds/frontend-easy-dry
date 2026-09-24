@@ -208,6 +208,21 @@ export const ACCIONES_VACIAS: PermisosRol = {
  */
 export const PERMISOS_POR_ROL: Record<string, PermisosRol> = {};
 
+/** Coordinador de mantenimiento y técnico de maquinaria (asignación de taller). */
+export function esRolTallerMantenimiento(rol?: string | null): boolean {
+  const raw = String(rol || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+    .trim();
+  if (!raw) return false;
+  if (raw === Role.COORD_MANTENIMIENTO || raw === Role.TECNICO) return true;
+  if (raw.includes('COORD_MANTENIMIENTO')) return true;
+  const esCoordMant = raw.includes('COORDINADOR') && raw.includes('MANTENIMIENTO');
+  const esTecMaq = raw.includes('TECNICO') && (raw.includes('MAQUIN') || raw.includes('TALLER') || raw === 'TECNICO');
+  return esCoordMant || esTecMaq;
+}
+
 export const ROLE_LABELS: Record<string, string> = {
   [Role.SUPER_ADMIN]: 'Super Administrador',
   [Role.ADMIN]: 'Administrador',

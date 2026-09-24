@@ -31,6 +31,7 @@ export class MaquinariaService {
       estado: m.estadoOperativo === 'EN_MANTENIMIENTO' ? 'Mantenimiento' : m.estadoOperativo === 'DE_BAJA' ? 'Fuera de Servicio' : (m.estado || 'Operativa'),
       fechaMantenimiento: m.mantenimientos?.[0]?.fechaRealizado || '',
       imagen: m.fotoUrl || '',
+      fichaTecnicaUrl: m.fichaTecnicaUrl || '',
       horasUso: m.horasUso || 0
     };
   }
@@ -64,7 +65,7 @@ export class MaquinariaService {
 
   crearMaquinaria(maquina: Omit<Maquinaria, 'id'>): Observable<Maquinaria> {
     const slug = (maquina.nombre || 'MQ').substring(0, 3).toUpperCase();
-    const codigo = `MQ-${slug}-${Date.now().toString().slice(-4)}`;
+    const codigo = maquina.codigo?.trim() || `MQ-${slug}-${Date.now().toString().slice(-4)}`;
     return this.http.post<any>(apiUrl('/maquinaria/create'), {
       codigo,
       nombre: maquina.nombre,
@@ -75,7 +76,8 @@ export class MaquinariaService {
       agenciaId: maquina.sucursalId ? String(maquina.sucursalId) : undefined,
       bahiaId: maquina.bahiaId ? String(maquina.bahiaId) : undefined,
       estadoOperativo: maquina.estado === 'Mantenimiento' ? 'EN_MANTENIMIENTO' : 'OPERATIVA',
-      fotoUrl: maquina.imagen || undefined
+      fotoUrl: maquina.imagen || undefined,
+      fichaTecnicaUrl: maquina.fichaTecnicaUrl || undefined,
     }).pipe(
       map(res => this.mapBackendMaquinaria(res?.data || res)),
       tap(nueva => {
@@ -99,6 +101,24 @@ export class MaquinariaService {
       return of(item);
     }
     return of(null);
+  }
+
+  actualizarFichaTecnica(id: string | number, fichaTecnicaUrl: string): Observable<Maquinaria | null> {
+    return this.http.post<any>(apiUrl('/maquinaria/update'), {
+      id: String(id),
+      fichaTecnicaUrl,
+    }).pipe(
+      map(res => this.mapBackendMaquinaria(res?.data || res)),
+      tap(act => {
+        const current = this.maquinariaSubject.value;
+        const idx = current.findIndex(m => String(m.id) === String(id));
+        if (idx !== -1) {
+          current[idx] = { ...current[idx], ...act };
+          this.maquinariaSubject.next([...current]);
+        }
+      }),
+      catchError(() => of(null)),
+    );
   }
 
   transferirMaquinaria(payload: {

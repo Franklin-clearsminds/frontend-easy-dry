@@ -9,17 +9,20 @@ import { IncidenteService } from '../../core/services/incidente.service';
 import { MantenimientoService } from '../../core/services/mantenimiento.service';
 import { BahiaService } from '../../core/services/bahia.service';
 import { AuthService } from '../../core/services/auth.service';
-import { Maquinaria, MovimientoMaquinaria, Sucursal, Incidente, Mantenimiento, ArchivoAdjunto, Bahia } from '../../core/models';
-import { Role } from '../../core/models/roles.model';
+import { Maquinaria, MovimientoMaquinaria, Sucursal, Incidente, Mantenimiento, ArchivoAdjunto, Bahia, FRECUENCIAS_MANTENIMIENTO, etiquetaFrecuenciaMantenimiento } from '../../core/models';
+import { Role, ROLE_LABELS, esRolTallerMantenimiento } from '../../core/models/roles.model';
+import { UsuarioService } from '../../core/services/usuario.service';
+import { TecnicoSearchSelectComponent, TecnicoOpcion } from '../../shared/components/tecnico-search-select/tecnico-search-select.component';
 import { ModalComponent } from '../../shared/components/modal/modal.component';
 import { ToastService } from '../../shared/services/toast.service';
 import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
 import { FilterBarComponent, FilterState } from '../../shared/components/filter-bar/filter-bar.component';
+import { StorageUploadService } from '../../core/services/storage-upload.service';
 
 @Component({
   selector: 'app-maquinaria',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, PaginationComponent, FilterBarComponent],
+  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, PaginationComponent, FilterBarComponent, TecnicoSearchSelectComponent],
   template: `
     <div class="space-y-6 animate-fade-in">
       
@@ -94,7 +97,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
             
             <div>
               <div class="h-44 bg-slate-900 relative overflow-hidden">
-                <img [src]="maq.imagen" [alt]="maq.nombre" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-90">
+                <img [src]="urlMedia(maq.imagen)" [alt]="maq.nombre" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-90">
                 <div class="absolute top-3 left-3 px-3 py-1 rounded-lg bg-easydry-blue/90 text-white text-xs font-mono font-bold backdrop-blur-xs">
                   {{ maq.codigo }}
                 </div>
@@ -193,20 +196,63 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
               </div>
             </div>
 
-            <!-- Technical Metrics -->
-            <div class="grid grid-cols-3 gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100 text-center">
-              <div>
-                <p class="text-[11px] text-slate-400 font-bold uppercase">Horas de Uso</p>
-                <p class="font-extrabold text-slate-900 text-sm mt-0.5">{{ maquinaSeleccionada.horasUso || 1200 }} hrs</p>
+            <div class="border border-slate-200 rounded-2xl p-4 space-y-3">
+              <div class="flex items-center justify-between gap-2 flex-wrap">
+                <h4 class="font-bold text-slate-900 text-xs uppercase tracking-wider flex items-center gap-2">
+                  <i-lucide name="file-text" class="w-4 h-4 text-easydry-blue"></i-lucide>
+                  Imagen de ficha técnica
+                </h4>
+                @if (maquinaSeleccionada.fichaTecnicaUrl || fichaPendientePreview) {
+                  <button type="button" (click)="abrirFichaTecnicaCompleta()"
+                    class="text-[11px] font-bold text-easydry-blue hover:underline cursor-pointer">
+                    Ver en tamaño completo
+                  </button>
+                }
               </div>
-              <div>
-                <p class="text-[11px] text-slate-400 font-bold uppercase">Presión de Agua</p>
-                <p class="font-extrabold text-easydry-blue text-sm mt-0.5">{{ maquinaSeleccionada.nivelPresionWaterBar || 0 }} BAR</p>
-              </div>
-              <div>
-                <p class="text-[11px] text-slate-400 font-bold uppercase">Próximo Mantenimiento</p>
-                <p class="font-extrabold text-easydry-green-dark text-sm mt-0.5">{{ maquinaSeleccionada.fechaMantenimiento }}</p>
-              </div>
+
+              @if ((maquinaSeleccionada.fichaTecnicaUrl || fichaPendientePreview) && !cambiandoFichaTecnica) {
+                <button type="button" (click)="abrirFichaTecnicaCompleta()"
+                  class="w-full rounded-xl border border-slate-200 bg-slate-50 p-2 min-h-48 flex items-center justify-center cursor-pointer">
+                  @if (fichaPendientePreview || fichaTecnicaDisplayUrl) {
+                    <img
+                      [src]="fichaPendientePreview || fichaTecnicaDisplayUrl"
+                      alt="Ficha técnica"
+                      class="w-full max-h-80 object-contain rounded-lg bg-white">
+                  } @else {
+                    <p class="text-xs text-slate-400 font-semibold">Cargando ficha técnica...</p>
+                  }
+                </button>
+                <div class="flex justify-end">
+                  <button type="button" (click)="cambiandoFichaTecnica = true"
+                    class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold rounded-xl text-xs cursor-pointer">
+                    Reemplazar ficha
+                  </button>
+                </div>
+              } @else {
+                <label class="block border-2 border-dashed border-slate-200 hover:border-easydry-blue rounded-2xl p-5 text-center cursor-pointer bg-slate-50/70">
+                  <i-lucide name="image-plus" class="w-8 h-8 text-easydry-blue mx-auto mb-2"></i-lucide>
+                  <p class="text-xs font-bold text-slate-800">Haz clic para subir la imagen de la ficha técnica</p>
+                  <p class="text-[11px] text-slate-400 mt-1">Se guarda tal cual, sin recortar ni ajustar</p>
+                  <input type="file" accept="image/*" (change)="onSeleccionarFichaTecnica($event)" class="hidden">
+                </label>
+                @if (fichaPendientePreview) {
+                  <img [src]="fichaPendientePreview" alt="Vista previa ficha" class="w-full max-h-64 object-contain rounded-xl border border-slate-200 bg-white">
+                }
+                <div class="flex justify-end gap-2">
+                  @if (maquinaSeleccionada.fichaTecnicaUrl && cambiandoFichaTecnica) {
+                    <button type="button" (click)="cancelarCambioFicha()"
+                      class="px-3 py-1.5 bg-slate-100 text-slate-700 font-bold rounded-xl text-xs cursor-pointer">
+                      Cancelar
+                    </button>
+                  }
+                  @if (fichaPendienteFile) {
+                    <button type="button" (click)="guardarFichaTecnicaExistente()" [disabled]="guardandoFicha"
+                      class="px-4 py-2 bg-easydry-blue hover:bg-easydry-blue-dark text-white font-bold rounded-xl text-xs cursor-pointer disabled:opacity-50">
+                      {{ guardandoFicha ? 'Guardando...' : 'Guardar ficha técnica' }}
+                    </button>
+                  }
+                </div>
+              }
             </div>
 
             <!-- Movements History Log -->
@@ -296,6 +342,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                         <span class="font-mono text-slate-500 text-[10px]">{{ man.fecha }}</span>
                       </div>
                       <p class="text-[11px] text-slate-600 line-clamp-2">{{ man.descripcion }}</p>
+                      <p class="text-[11px] font-semibold text-slate-500">{{ etiquetaFrecuencia(man.frecuenciaDias) }}</p>
                       <div class="flex justify-between items-center mt-1 gap-2 flex-wrap">
                         <span class="px-2 py-0.5 rounded text-[10px] font-bold"
                           [ngClass]="man.estado === 'Completado' ? 'bg-easydry-green/20 text-easydry-green-dark' : man.estado === 'En Proceso' ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'">
@@ -325,7 +372,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                           type="button"
                           (click)="abrirEvidenciasMantenimiento(man)"
                           class="text-[10px] font-extrabold text-easydry-blue hover:underline">
-                          Adjuntar evidencias
+                          {{ man.estado === 'Completado' ? 'Ver evidencias' : 'Ejecutar (foto obligatoria)' }}
                         </button>
                       </div>
                     </div>
@@ -344,6 +391,24 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
           <button (click)="modalFichaOpen = false" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold rounded-xl text-xs">
             Cerrar Ficha
           </button>
+        </div>
+      </app-modal>
+
+      <app-modal
+        [isOpen]="modalFichaZoomOpen"
+        title="Ficha técnica"
+        icon="file-text"
+        zClass="z-[12000]"
+        (close)="modalFichaZoomOpen = false">
+        <div class="bg-slate-950 rounded-2xl p-3 min-h-64 flex items-center justify-center">
+          @if (fichaPendientePreview || fichaTecnicaDisplayUrl) {
+            <img
+              [src]="fichaPendientePreview || fichaTecnicaDisplayUrl"
+              alt="Ficha técnica completa"
+              class="w-full max-h-[80vh] object-contain">
+          } @else {
+            <p class="text-sm text-white/70">No hay imagen de ficha técnica.</p>
+          }
         </div>
       </app-modal>
 
@@ -535,11 +600,24 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
               accept="image/*" 
               class="hidden">
           </div>
+
+          <div class="space-y-2 pt-2 border-t border-slate-100">
+            <label class="block text-xs font-bold text-slate-700 uppercase">Imagen de ficha técnica</label>
+            <label class="block border-2 border-dashed border-slate-200 hover:border-easydry-blue rounded-2xl p-5 text-center cursor-pointer bg-slate-50/70">
+              <i-lucide name="image-plus" class="w-8 h-8 text-easydry-blue mx-auto mb-2"></i-lucide>
+              <p class="text-xs font-bold text-slate-800">Sube la ficha técnica (opcional)</p>
+              <p class="text-[11px] text-slate-400 mt-1">Se guarda tal cual, sin recortar ni ajustar</p>
+              <input type="file" accept="image/*" (change)="onSeleccionarFichaTecnica($event)" class="hidden">
+            </label>
+            @if (fichaPendientePreview) {
+              <img [src]="fichaPendientePreview" alt="Vista previa ficha" class="w-full max-h-56 object-contain rounded-xl border border-slate-200 bg-white">
+            }
+          </div>
         </form>
 
         <div modal-footer>
           <button (click)="modalCrearOpen = false" class="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs cursor-pointer">Cancelar</button>
-          <button (click)="guardarNuevaMaquinaria()" class="px-4 py-2 bg-easydry-blue hover:bg-easydry-blue-dark text-white font-bold rounded-xl text-xs cursor-pointer">Guardar Activo</button>
+          <button (click)="guardarNuevaMaquinaria()" [disabled]="guardandoActivo" class="px-4 py-2 bg-easydry-blue hover:bg-easydry-blue-dark text-white font-bold rounded-xl text-xs cursor-pointer disabled:opacity-50">{{ guardandoActivo ? 'Guardando...' : 'Guardar Activo' }}</button>
         </div>
       </app-modal>
 
@@ -681,13 +759,26 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
               </div>
             </div>
 
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Cada cuánto se debe hacer</label>
+              <select [(ngModel)]="nuevoMantenimiento.frecuenciaDias" name="frecuenciaMant" class="w-full p-2.5 border rounded-xl text-sm font-semibold">
+                @for (f of frecuenciasMantenimiento; track f.dias) {
+                  <option [ngValue]="f.dias">{{ f.label }}</option>
+                }
+              </select>
+              <p class="mt-1 text-[11px] text-slate-500">Al ejecutarlo se agenda sola la siguiente visita si no es única vez.</p>
+            </div>
+
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Técnico / Especialista</label>
-                <input type="text" [(ngModel)]="nuevoMantenimiento.tecnico" name="tecnicoMant" placeholder="Nombre del técnico"
-                  [ngClass]="erroresMant.tecnico ? 'border-rose-400 ring-2 ring-rose-100' : 'border-slate-200'"
-                  class="w-full p-2.5 border rounded-xl text-sm" 
-                  (input)="erroresMant.tecnico = ''" required>
+                <app-tecnico-search-select
+                  [tecnicos]="tecnicosDisponibles"
+                  [selectedId]="nuevoMantenimiento.tecnicoId"
+                  [invalid]="!!erroresMant.tecnico"
+                  placeholder="Buscar coordinador o técnico..."
+                  (selected)="onSeleccionarTecnicoAgenda($event)">
+                </app-tecnico-search-select>
                 @if (erroresMant.tecnico) {
                   <p class="mt-1 text-[11px] font-bold text-rose-600 flex items-center gap-1">
                     <i-lucide name="alert-circle" class="w-3.5 h-3.5"></i-lucide>
@@ -733,9 +824,9 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
               <div class="flex items-center justify-between gap-2 flex-wrap">
                 <label class="text-xs font-bold text-emerald-900 uppercase flex items-center gap-1.5">
                   <i-lucide name="camera" class="w-4 h-4 text-emerald-600"></i-lucide>
-                  Evidencias del Mantenimiento (Fotos / Vídeos)
+                  Evidencias (opcional al agendar)
                 </label>
-                <span class="text-[11px] text-slate-500">Fotos del trabajo y video de prueba</span>
+                <span class="text-[11px] text-slate-500">La foto se exige al ejecutar, no al programar</span>
               </div>
               <div class="flex items-center gap-3 flex-wrap">
                 <label class="cursor-pointer px-4 py-2.5 bg-white border border-emerald-300 hover:bg-emerald-50 text-emerald-700 font-bold rounded-xl text-xs flex items-center gap-2">
@@ -836,9 +927,9 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
               <div class="flex items-center justify-between gap-2 flex-wrap">
                 <label class="text-xs font-bold text-emerald-900 uppercase flex items-center gap-1.5">
                   <i-lucide name="camera" class="w-4 h-4 text-emerald-600"></i-lucide>
-                  Fotos / Vídeos del trabajo
+                  Fotos / Vídeos del trabajo <span class="text-rose-500">*</span>
                 </label>
-                <span class="text-[11px] text-slate-500">Evidencia del mantenimiento</span>
+                <span class="text-[11px] text-slate-500">Obligatorio: al menos una foto para ejecutar</span>
               </div>
               <div class="flex items-center gap-3 flex-wrap">
                 <label class="cursor-pointer px-4 py-2.5 bg-white border border-emerald-300 hover:bg-emerald-50 text-emerald-700 font-bold rounded-xl text-xs flex items-center gap-2">
@@ -914,7 +1005,9 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
 
         <div modal-footer>
           <button (click)="modalEvidenciasMantOpen = false" class="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs">Cancelar</button>
-          <button (click)="guardarEvidenciasMantenimiento()" class="px-4 py-2 bg-easydry-blue hover:bg-easydry-blue-dark text-white font-bold rounded-xl text-xs">Guardar Evidencias</button>
+          <button (click)="guardarEvidenciasMantenimiento()" class="px-4 py-2 bg-easydry-blue hover:bg-easydry-blue-dark text-white font-bold rounded-xl text-xs">
+            {{ mantenimientoEvidencias?.estado === 'Completado' ? 'Guardar Evidencias' : 'Ejecutar mantenimiento' }}
+          </button>
         </div>
       </app-modal>
 
@@ -947,13 +1040,19 @@ export class MaquinariaComponent implements OnInit {
     descripcion: ''
   };
 
+  frecuenciasMantenimiento = FRECUENCIAS_MANTENIMIENTO;
+
   nuevoMantenimiento = {
     tipo: 'Preventivo' as Mantenimiento['tipo'],
     fecha: new Date().toISOString().substring(0, 10),
     tecnico: '',
+    tecnicoId: '' as string | number,
     duracionHoras: 2,
-    descripcion: ''
+    descripcion: '',
+    frecuenciaDias: 30
   };
+
+  tecnicosDisponibles: TecnicoOpcion[] = [];
 
   transferencia = {
     sucursalNueva: '',
@@ -986,6 +1085,15 @@ export class MaquinariaComponent implements OnInit {
   currentPage = 1;
   pageSize = 6;
 
+  guardandoActivo = false;
+  guardandoFicha = false;
+  cambiandoFichaTecnica = false;
+  modalFichaZoomOpen = false;
+  fichaTecnicaDisplayUrl = '';
+  fichaPendienteFile: File | null = null;
+  fichaPendientePreview = '';
+  fotoMaquinaFile: File | null = null;
+
   nuevaMaquina = {
     codigo: '',
     nombre: '',
@@ -995,7 +1103,8 @@ export class MaquinariaComponent implements OnInit {
     bahia: '',
     estado: 'Operativa' as Maquinaria['estado'],
     fechaMantenimiento: '',
-    imagen: ''
+    imagen: '',
+    fichaTecnicaUrl: ''
   };
 
   erroresMaquina = {
@@ -1025,8 +1134,20 @@ export class MaquinariaComponent implements OnInit {
   private bahiaService = inject(BahiaService);
   private toastService = inject(ToastService);
   public authService = inject(AuthService);
+  private storageUpload = inject(StorageUploadService);
+  private usuarioService = inject(UsuarioService);
 
   ngOnInit(): void {
+    this.usuarioService.getUsuarios(true, true).subscribe(list => {
+      this.tecnicosDisponibles = (list || [])
+        .filter(u => esRolTallerMantenimiento(u.rolNombre) || esRolTallerMantenimiento(u.rol))
+        .map(u => ({
+          id: u.id,
+          nombre: `${u.nombre} ${u.apellido}`.trim(),
+          email: u.email,
+          rolLabel: ROLE_LABELS[u.rolNombre || ''] || u.rol,
+        }));
+    });
 
     this.maquinariaService.getMaquinaria().subscribe(list => {
       this.maquinas = list;
@@ -1133,16 +1254,97 @@ export class MaquinariaComponent implements OnInit {
     });
 
     // Obtener mantenimientos de la máquina
-    this.mantenimientoService.getMantenimientos().subscribe(list => {
+    this.mantenimientoService.getMantenimientos({ maquinariaId: String(maq.id) }).subscribe(list => {
       this.mantenimientosMaquina = list
-        .filter(m => m.maquina === maq.codigo || m.maquina === maq.nombre)
+        .filter(m => String(m.maquinariaId || '') === String(maq.id) || m.maquina === maq.codigo || m.maquina === maq.nombre)
         .sort((a, b) => {
           const orden: Record<string, number> = { Programado: 0, 'En Proceso': 1, Completado: 2, Cancelado: 3 };
           return (orden[a.estado] ?? 9) - (orden[b.estado] ?? 9);
         });
     });
 
+    this.cambiandoFichaTecnica = !maq.fichaTecnicaUrl;
+    this.fichaTecnicaDisplayUrl = '';
+    this.limpiarFichaPendiente();
     this.modalFichaOpen = true;
+    void this.cargarVistaFichaTecnica(maq.fichaTecnicaUrl);
+  }
+
+  urlMedia(url?: string | null): string {
+    return this.storageUpload.resolveBackendUrl(url);
+  }
+
+  async cargarVistaFichaTecnica(url?: string | null): Promise<void> {
+    if (!url) {
+      this.fichaTecnicaDisplayUrl = '';
+      return;
+    }
+    try {
+      this.fichaTecnicaDisplayUrl = await this.storageUpload.getDirectStreamingUrl(url);
+    } catch {
+      this.fichaTecnicaDisplayUrl = this.urlMedia(url);
+    }
+  }
+
+  onSeleccionarFichaTecnica(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      this.toastService.warning('Archivo inválido', 'La ficha técnica debe ser una imagen.');
+      input.value = '';
+      return;
+    }
+    if (this.fichaPendientePreview) URL.revokeObjectURL(this.fichaPendientePreview);
+    this.fichaPendienteFile = file;
+    this.fichaPendientePreview = URL.createObjectURL(file);
+    input.value = '';
+  }
+
+  cancelarCambioFicha(): void {
+    this.limpiarFichaPendiente();
+    this.cambiandoFichaTecnica = false;
+  }
+
+  abrirFichaTecnicaCompleta(): void {
+    if (!this.fichaPendientePreview && !this.fichaTecnicaDisplayUrl && this.maquinaSeleccionada?.fichaTecnicaUrl) {
+      void this.cargarVistaFichaTecnica(this.maquinaSeleccionada.fichaTecnicaUrl);
+    }
+    this.modalFichaZoomOpen = true;
+  }
+
+  private limpiarFichaPendiente(): void {
+    if (this.fichaPendientePreview) URL.revokeObjectURL(this.fichaPendientePreview);
+    this.fichaPendienteFile = null;
+    this.fichaPendientePreview = '';
+  }
+
+  private async subirFichaPendiente(nombre: string, agenciaId?: string, maquinariaId?: string, codigo?: string): Promise<string> {
+    if (!this.fichaPendienteFile) return '';
+    return this.storageUpload.uploadMedia(this.fichaPendienteFile, {
+      category: 'MAQUINARIA_FICHA',
+      type: 'FICHA_TECNICA',
+      agenciaId,
+      maquinariaId,
+      maquinariaNombre: nombre,
+      maquinariaCodigo: codigo,
+      fileName: this.fichaPendienteFile.name || 'ficha-tecnica.jpg',
+      contentType: this.fichaPendienteFile.type || 'image/jpeg',
+    });
+  }
+
+  private async subirFotoPendiente(nombre: string, agenciaId?: string, maquinariaId?: string, codigo?: string): Promise<string> {
+    if (!this.fotoMaquinaFile) return this.nuevaMaquina.imagen || '';
+    return this.storageUpload.uploadMedia(this.fotoMaquinaFile, {
+      category: 'MAQUINARIA_IMAGEN',
+      type: 'FOTO_MAQUINA',
+      agenciaId,
+      maquinariaId,
+      maquinariaNombre: nombre,
+      maquinariaCodigo: codigo,
+      fileName: this.fotoMaquinaFile.name || 'foto-maquina.jpg',
+      contentType: this.fotoMaquinaFile.type || 'image/jpeg',
+    });
   }
 
   openModalTransferir(maq: Maquinaria) {
@@ -1217,39 +1419,61 @@ export class MaquinariaComponent implements OnInit {
       bahia: bahiasIniciales[0] || '',
       estado: 'Operativa',
       fechaMantenimiento: new Date().toISOString().substring(0, 10),
-      imagen: ''
+      imagen: '',
+      fichaTecnicaUrl: ''
     };
     this.erroresMaquina = { codigo: '', nombre: '', bahia: '', imagen: '' };
+    this.limpiarFichaPendiente();
+    this.limpiarFotoPendiente();
     this.modalCrearOpen = true;
   }
 
   onSubirFotoMaquina(event: Event): void {
     const input = event.target as HTMLInputElement;
-    if (input.files && input.files[0]) {
-      const file = input.files[0];
-      if (file.size > 5 * 1024 * 1024) {
-        this.toastService.warning('Tamaño Excedido', 'La imagen no debe superar los 5 MB.');
-        return;
-      }
-
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const base64 = e.target?.result as string;
-        if (base64) {
-          this.nuevaMaquina.imagen = base64;
-          this.erroresMaquina.imagen = '';
-          this.toastService.success('Foto Cargada', 'Se ha cargado la foto de la máquina.');
-        }
-      };
-      reader.readAsDataURL(file);
+    const file = input.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      this.toastService.warning('Tamaño Excedido', 'La imagen no debe superar los 5 MB.');
+      input.value = '';
+      return;
     }
+    if (this.nuevaMaquina.imagen?.startsWith('blob:')) {
+      URL.revokeObjectURL(this.nuevaMaquina.imagen);
+    }
+    this.fotoMaquinaFile = file;
+    this.nuevaMaquina.imagen = URL.createObjectURL(file);
+    this.erroresMaquina.imagen = '';
+    input.value = '';
+    this.toastService.success('Foto Cargada', 'Se ha cargado la foto de la máquina.');
   }
 
   eliminarFotoMaquina(): void {
+    this.limpiarFotoPendiente();
+  }
+
+  private limpiarFotoPendiente(): void {
+    if (this.nuevaMaquina.imagen?.startsWith('blob:')) {
+      URL.revokeObjectURL(this.nuevaMaquina.imagen);
+    }
+    this.fotoMaquinaFile = null;
     this.nuevaMaquina.imagen = '';
   }
 
-  guardarNuevaMaquinaria() {
+  sucursalIdDeNombre(nombre?: string): string | undefined {
+    if (!nombre) return undefined;
+    const sucursal = this.sucursales.find(s => s.nombre === nombre);
+    return sucursal?.id != null ? String(sucursal.id) : undefined;
+  }
+
+  bahiaIdDeNombre(sucursalNombre?: string, bahiaNombre?: string): string | undefined {
+    if (!sucursalNombre || !bahiaNombre) return undefined;
+    const bahia = this.todasLasBahias.find(b =>
+      (b.sucursalNombre === sucursalNombre || b.agenciaNombre === sucursalNombre) && b.nombre === bahiaNombre
+    );
+    return bahia?.id != null ? String(bahia.id) : undefined;
+  }
+
+  async guardarNuevaMaquinaria() {
     this.erroresMaquina = { codigo: '', nombre: '', bahia: '', imagen: '' };
     let valido = true;
 
@@ -1275,10 +1499,87 @@ export class MaquinariaComponent implements OnInit {
       return;
     }
 
-    this.maquinariaService.crearMaquinaria(this.nuevaMaquina).subscribe(creada => {
-      this.toastService.success('Activo Guardado', `Equipo ${creada.codigo} registrado exitosamente.`);
-      this.modalCrearOpen = false;
-    });
+    this.guardandoActivo = true;
+    try {
+      const sucursalId = this.sucursalIdDeNombre(this.nuevaMaquina.agencia);
+      const bahiaId = this.bahiaIdDeNombre(this.nuevaMaquina.agencia, this.nuevaMaquina.bahia);
+      const codigo = this.nuevaMaquina.codigo.trim();
+
+      this.nuevaMaquina.imagen = await this.subirFotoPendiente(
+        this.nuevaMaquina.nombre,
+        sucursalId,
+        undefined,
+        codigo,
+      );
+
+      if (this.fichaPendienteFile) {
+        this.nuevaMaquina.fichaTecnicaUrl = await this.subirFichaPendiente(
+          this.nuevaMaquina.nombre,
+          sucursalId,
+          undefined,
+          codigo,
+        );
+      }
+
+      this.maquinariaService.crearMaquinaria({
+        ...this.nuevaMaquina,
+        sucursalId,
+        bahiaId,
+      } as Omit<Maquinaria, 'id'>).subscribe({
+        next: creada => {
+          this.guardandoActivo = false;
+          this.limpiarFichaPendiente();
+          this.limpiarFotoPendiente();
+          this.toastService.success('Activo Guardado', `Equipo ${creada.codigo} registrado exitosamente.`);
+          this.modalCrearOpen = false;
+        },
+        error: () => {
+          this.guardandoActivo = false;
+          this.toastService.error('No se pudo guardar', 'Revisa los datos del equipo e inténtalo de nuevo.');
+        },
+      });
+    } catch {
+      this.guardandoActivo = false;
+      this.toastService.error('Error de subida', 'No se pudo guardar la foto o la ficha técnica en S3.');
+    }
+  }
+
+  async guardarFichaTecnicaExistente() {
+    if (!this.maquinaSeleccionada) return;
+    if (!this.fichaPendienteFile) {
+      this.toastService.warning('Ficha requerida', 'Sube la imagen de la ficha técnica.');
+      return;
+    }
+    this.guardandoFicha = true;
+    try {
+      const url = await this.subirFichaPendiente(
+        this.maquinaSeleccionada.nombre,
+        this.sucursalIdDeNombre(this.maquinaSeleccionada.agencia),
+        String(this.maquinaSeleccionada.id),
+        this.maquinaSeleccionada.codigo,
+      );
+      this.maquinariaService.actualizarFichaTecnica(this.maquinaSeleccionada.id, url).subscribe({
+        next: actualizada => {
+          this.guardandoFicha = false;
+          if (actualizada) {
+            this.maquinaSeleccionada = { ...this.maquinaSeleccionada!, ...actualizada };
+            const idx = this.maquinas.findIndex(m => String(m.id) === String(actualizada.id));
+            if (idx !== -1) this.maquinas[idx] = { ...this.maquinas[idx], ...actualizada };
+          }
+          this.cambiandoFichaTecnica = false;
+          this.limpiarFichaPendiente();
+          void this.cargarVistaFichaTecnica(actualizada?.fichaTecnicaUrl || url);
+          this.toastService.success('Ficha guardada', 'La imagen de ficha técnica quedó en S3 y se puede consultar.');
+        },
+        error: () => {
+          this.guardandoFicha = false;
+          this.toastService.error('No se pudo guardar', 'La ficha técnica no se actualizó en base.');
+        },
+      });
+    } catch {
+      this.guardandoFicha = false;
+      this.toastService.error('Error de subida', 'No se pudo guardar la imagen de ficha técnica en S3.');
+    }
   }
 
   reportarFallo() {
@@ -1293,15 +1594,22 @@ export class MaquinariaComponent implements OnInit {
     this.modalReportarOpen = true;
   }
 
+  onSeleccionarTecnicoAgenda(tec: TecnicoOpcion | null) {
+    this.nuevoMantenimiento.tecnicoId = tec?.id || '';
+    this.nuevoMantenimiento.tecnico = tec?.nombre || '';
+    this.erroresMant.tecnico = '';
+  }
+
   programarMantenimiento() {
     if (!this.maquinaSeleccionada) return;
-    const user = this.authService.getCurrentUser();
     this.nuevoMantenimiento = {
       tipo: 'Preventivo',
       fecha: new Date().toISOString().substring(0, 10),
-      tecnico: user ? `${user.nombre} ${user.apellido}`.trim() : '',
+      tecnico: '',
+      tecnicoId: '',
       duracionHoras: 2,
-      descripcion: ''
+      descripcion: '',
+      frecuenciaDias: 30
     };
     this.multimediaMantSubida = [];
     this.documentosMantSubidos = [];
@@ -1324,7 +1632,8 @@ export class MaquinariaComponent implements OnInit {
       extension: file.name.split('.').pop()?.toUpperCase() || (isVideo ? 'MP4' : isDoc ? 'PDF' : 'JPG'),
       url: URL.createObjectURL(file),
       tamanio: `${(file.size / (1024 * 1024)).toFixed(1)} MB`,
-      fechaSubida: new Date().toLocaleTimeString()
+      fechaSubida: new Date().toLocaleTimeString(),
+      file,
     };
   }
 
@@ -1393,23 +1702,76 @@ export class MaquinariaComponent implements OnInit {
     this.modalEvidenciasMantOpen = true;
   }
 
-  guardarEvidenciasMantenimiento(): void {
+  etiquetaFrecuencia(dias?: number | null): string {
+    return etiquetaFrecuenciaMantenimiento(dias);
+  }
+
+  async guardarEvidenciasMantenimiento(): Promise<void> {
     if (!this.mantenimientoEvidencias) return;
-    const fotos = this.multimediaMantSubida.filter(a => a.tipo === 'imagen').map(a => a.url);
-    const videos = this.multimediaMantSubida.filter(a => a.tipo === 'video').map(a => a.url);
-    this.mantenimientoService.actualizarMantenimiento(this.mantenimientoEvidencias.id, {
-      fotos,
-      videos,
-      archivos: [...this.multimediaMantSubida],
-      documentos: [...this.documentosMantSubidos]
-    }).subscribe(actualizado => {
-      if (!actualizado) return;
-      this.mantenimientosMaquina = this.mantenimientosMaquina.map(m =>
-        m.id === actualizado.id ? actualizado : m
+    const fotosLocales = this.multimediaMantSubida.filter(a => a.tipo === 'imagen');
+    if (this.mantenimientoEvidencias.estado !== 'Completado' && !fotosLocales.length) {
+      this.toastService.warning('Imagen requerida', 'Para ejecutar el mantenimiento debes adjuntar al menos una foto.');
+      return;
+    }
+
+    try {
+      const evidencias = await this.mantenimientoService.subirEvidenciasMantenimiento(
+        [...this.multimediaMantSubida, ...this.documentosMantSubidos],
+        {
+          maquinariaId: this.maquinaSeleccionada ? String(this.maquinaSeleccionada.id) : undefined,
+          maquinariaNombre: this.maquinaSeleccionada?.nombre || this.mantenimientoEvidencias.maquina,
+          maquinariaCodigo: this.maquinaSeleccionada?.codigo,
+          agenciaId: this.maquinaSeleccionada?.sucursalId ? String(this.maquinaSeleccionada.sucursalId) : this.maquinaSeleccionada?.agencia,
+          mantenimientoId: String(this.mantenimientoEvidencias.id),
+        },
       );
-      this.toastService.success('Evidencias guardadas', 'Fotos, videos y documentos adjuntos al mantenimiento.');
-      this.modalEvidenciasMantOpen = false;
-    });
+
+      if (this.mantenimientoEvidencias.estado !== 'Completado') {
+        if (!evidencias.some(e => e.tipo === 'FOTO')) {
+          this.toastService.warning('Imagen requerida', 'La foto de evidencia no se pudo guardar. Inténtalo de nuevo.');
+          return;
+        }
+        this.mantenimientoService.ejecutarMantenimiento(this.mantenimientoEvidencias.id, {
+          observaciones: this.mantenimientoEvidencias.descripcion,
+          fechaFin: new Date().toISOString().substring(0, 10),
+          evidencias,
+        }).subscribe(actualizado => {
+          if (!actualizado) {
+            this.toastService.error('No se pudo ejecutar', 'El mantenimiento no se actualizó en el servidor.');
+            return;
+          }
+          this.mantenimientosMaquina = this.mantenimientosMaquina.map(m =>
+            String(m.id) === String(actualizado.id) ? { ...m, ...actualizado } : m
+          );
+          this.toastService.success('Mantenimiento ejecutado', `${actualizado.maquina} quedó realizado.`);
+          this.modalEvidenciasMantOpen = false;
+          if (this.maquinaSeleccionada) {
+            this.mantenimientoService.getMantenimientos({ maquinariaId: String(this.maquinaSeleccionada.id) }).subscribe(list => {
+              this.mantenimientosMaquina = list;
+            });
+          }
+        });
+        return;
+      }
+
+      const fotos = evidencias.filter(e => e.tipo === 'FOTO').map(e => e.url);
+      const videos = evidencias.filter(e => e.tipo === 'VIDEO').map(e => e.url);
+      this.mantenimientoService.actualizarMantenimiento(this.mantenimientoEvidencias.id, {
+        fotos,
+        videos,
+        archivos: [...this.multimediaMantSubida],
+        documentos: [...this.documentosMantSubidos]
+      }).subscribe(actualizado => {
+        if (!actualizado) return;
+        this.mantenimientosMaquina = this.mantenimientosMaquina.map(m =>
+          m.id === actualizado.id ? actualizado : m
+        );
+        this.toastService.success('Evidencias guardadas', 'Fotos, videos y documentos adjuntos al mantenimiento.');
+        this.modalEvidenciasMantOpen = false;
+      });
+    } catch {
+      this.toastService.error('Error de subida', 'No se pudieron guardar las evidencias en S3.');
+    }
   }
 
   guardarReporteFallo() {
@@ -1456,8 +1818,8 @@ export class MaquinariaComponent implements OnInit {
     this.erroresMant = { tecnico: '', duracionHoras: '', descripcion: '' };
     let valido = true;
 
-    if (!this.nuevoMantenimiento.tecnico?.trim()) {
-      this.erroresMant.tecnico = 'Indique el técnico responsable.';
+    if (!this.nuevoMantenimiento.tecnicoId || !this.nuevoMantenimiento.tecnico?.trim()) {
+      this.erroresMant.tecnico = 'Selecciona un coordinador de mantenimiento o técnico de maquinaria.';
       valido = false;
     }
     if (!this.nuevoMantenimiento.duracionHoras || this.nuevoMantenimiento.duracionHoras < 1) {
@@ -1478,14 +1840,17 @@ export class MaquinariaComponent implements OnInit {
     const videos = this.multimediaMantSubida.filter(a => a.tipo === 'video').map(a => a.url);
 
     const registro: Omit<Mantenimiento, 'id'> = {
+      maquinariaId: this.maquinaSeleccionada.id,
       maquina: this.maquinaSeleccionada.nombre,
       tipo: this.nuevoMantenimiento.tipo,
       fecha: this.nuevoMantenimiento.fecha,
       tecnico: this.nuevoMantenimiento.tecnico.trim(),
+      tecnicoId: this.nuevoMantenimiento.tecnicoId,
       estado: 'Programado',
       duracionMin: (this.nuevoMantenimiento.duracionHoras || 2) * 60,
       descripcion: this.nuevoMantenimiento.descripcion.trim(),
       agencia: this.maquinaSeleccionada.agencia,
+      frecuenciaDias: Number(this.nuevoMantenimiento.frecuenciaDias || 0),
       fotos: fotos.length ? fotos : undefined,
       videos: videos.length ? videos : undefined,
       archivos: this.multimediaMantSubida.length ? [...this.multimediaMantSubida] : undefined,
@@ -1494,7 +1859,10 @@ export class MaquinariaComponent implements OnInit {
 
     this.mantenimientoService.registrarMantenimiento(registro).subscribe(creado => {
       this.mantenimientosMaquina = [creado, ...this.mantenimientosMaquina];
-      this.toastService.success('Mantenimiento Agendado', `Visita programada para ${creado.maquina} el ${creado.fecha}.`);
+      this.toastService.success(
+        'Mantenimiento Agendado',
+        `Visita de ${creado.maquina} el ${creado.fecha} · ${this.etiquetaFrecuencia(creado.frecuenciaDias)}.`
+      );
       this.modalProgramarOpen = false;
     });
   }

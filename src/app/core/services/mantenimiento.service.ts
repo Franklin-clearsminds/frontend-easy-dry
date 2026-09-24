@@ -2,14 +2,16 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { BehaviorSubject, Observable, of } from 'rxjs';
 import { map, tap, catchError } from 'rxjs/operators';
-import { Mantenimiento } from '../models';
+import { Mantenimiento, ArchivoAdjunto } from '../models';
 import { apiUrl } from '../config/env';
+import { StorageUploadService } from './storage-upload.service';
 
 @Injectable({
   providedIn: 'root'
 })
 export class MantenimientoService {
   private http = inject(HttpClient);
+  private storageUpload = inject(StorageUploadService);
   private mantenimientosSubject = new BehaviorSubject<Mantenimiento[]>([]);
   public mantenimientos$ = this.mantenimientosSubject.asObservable();
 
@@ -19,11 +21,17 @@ export class MantenimientoService {
     const fechaStr = m.fechaMantenimiento
       ? new Date(m.fechaMantenimiento).toISOString().split('T')[0]
       : (m.createdAt ? new Date(m.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]);
+    const proximo = m.proximoMantenimiento
+      ? new Date(m.proximoMantenimiento).toISOString().split('T')[0]
+      : undefined;
 
     return {
       id: m.id,
+      maquinariaId: m.maquinariaId || m.maquinaria?.id,
+      frecuenciaDias: Number(m.frecuenciaDias || 0),
+      proximoMantenimiento: proximo,
       maquina: maquinaNombre,
-      tipo: m.tipo === 'CORRECTIVO' ? 'Correctivo' : 'Preventivo',
+      tipo: m.tipo === 'CALIBRACION' || m.tipo === 'Calibración' ? 'Calibración' : (m.tipo === 'CORRECTIVO' ? 'Correctivo' : 'Preventivo'),
       fecha: fechaStr,
       tecnico: tecnicoNombre,
       estado: m.estado === 'FINALIZADO' ? 'Completado' : (m.estado === 'EN_PROCESO' ? 'En Proceso' : 'Programado'),
@@ -64,12 +72,16 @@ export class MantenimientoService {
       ...(((mant as any).documentos || []).map((d: any) => ({ tipo: 'DOCUMENTO', url: d.url, descripcion: d.nombre }))),
     ].filter((e) => e.url);
     const payload = {
-      maquinariaId: String((mant as any).maquinariaId || mant.maquina || ''),
+      maquinariaId: String(mant.maquinariaId || (mant as any).maquinariaId || ''),
       tipo,
       observaciones: mant.descripcion || 'Mantenimiento registrado',
+      fechaProgramada: mant.fecha,
+      frecuenciaDias: Number(mant.frecuenciaDias || 0),
+      proximoMantenimiento: mant.proximoMantenimiento,
       repuestosUsados: (mant as any).repuestosUtilizados || undefined,
       costoTotal: (mant as any).costoTotal ? Number((mant as any).costoTotal) : undefined,
       evidencias,
+      tecnicoId: (mant as any).tecnicoId ? String((mant as any).tecnicoId) : undefined,
     };
 
     return this.http.post<any>(apiUrl('/maquinaria/mantenimientos/registrar'), payload).pipe(
@@ -116,6 +128,71 @@ export class MantenimientoService {
         }
       }),
       catchError(() => of(null))
+    );
+  }
+
+  async subirEvidenciasMantenimiento(
+    archivos: ArchivoAdjunto[],
+    opts: { maquinariaId?: string; maquinariaNombre?: string; maquinariaCodigo?: string; agenciaId?: string; mantenimientoId?: string },
+  ): Promise<Array<{ tipo: string; url: string; descripcion?: string }>> {
+    const subidas: Array<{ tipo: string; url: string; descripcion?: string }> = [];
+    for (const archivo of archivos) {
+      const blob = archivo.file;
+      let url = archivo.url;
+      if (blob instanceof File || (blob && typeof (blob as Blob).size === 'number' && !String(url).startsWith('http'))) {
+        const type = archivo.tipo === 'video'
+          ? 'VIDEO_INCIDENTE'
+          : archivo.tipo === 'documento'
+            ? 'DOCUMENTO'
+            : 'FOTO_INCIDENTE';
+        url = await this.storageUpload.uploadMedia(blob || archivo.file as File, {
+          category: 'MAQUINARIA_MANTENIMIENTO',
+          type,
+          maquinariaId: opts.maquinariaId,
+          maquinariaNombre: opts.maquinariaNombre,
+          maquinariaCodigo: opts.maquinariaCodigo,
+          agenciaId: opts.agenciaId,
+          mantenimientoId: opts.mantenimientoId,
+          fileName: archivo.nombre,
+          contentType: (archivo.file as File)?.type,
+        });
+      }
+      if (!url || url.startsWith('blob:')) continue;
+      subidas.push({
+        tipo: archivo.tipo === 'video' ? 'VIDEO' : archivo.tipo === 'documento' ? 'DOCUMENTO' : 'FOTO',
+        url,
+        descripcion: archivo.nombre,
+      });
+    }
+    return subidas;
+  }
+
+  ejecutarMantenimiento(
+    id: string | number,
+    payload: {
+      observaciones: string;
+      fechaFin?: string;
+      evidencias: Array<{ tipo: string; url: string; descripcion?: string }>;
+    },
+  ): Observable<Mantenimiento | null> {
+    return this.http.post<any>(apiUrl('/maquinaria/mantenimientos/ejecutar'), {
+      mantenimientoId: String(id),
+      observaciones: payload.observaciones,
+      fechaFin: payload.fechaFin,
+      evidencias: payload.evidencias,
+    }).pipe(
+      map(res => this.mapBackendMantenimiento(res?.data || res)),
+      tap(actualizado => {
+        const list = this.mantenimientosSubject.value;
+        const i = list.findIndex(m => String(m.id) === String(id));
+        if (i !== -1) {
+          list[i] = { ...list[i], ...actualizado };
+          this.mantenimientosSubject.next([...list]);
+        } else {
+          this.mantenimientosSubject.next([actualizado, ...list]);
+        }
+      }),
+      catchError(() => of(null)),
     );
   }
 

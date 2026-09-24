@@ -5,8 +5,9 @@ import { LucideAngularModule } from 'lucide-angular';
 import { MantenimientoService } from '../../core/services/mantenimiento.service';
 import { MaquinariaService } from '../../core/services/maquinaria.service';
 import { AuthService } from '../../core/services/auth.service';
-import { Mantenimiento, Maquinaria, ArchivoAdjunto } from '../../core/models';
-import { Role } from '../../core/models/roles.model';
+import { Mantenimiento, Maquinaria, ArchivoAdjunto, FRECUENCIAS_MANTENIMIENTO, etiquetaFrecuenciaMantenimiento } from '../../core/models';
+import { Role, ROLE_LABELS, esRolTallerMantenimiento } from '../../core/models/roles.model';
+import { TecnicoSearchSelectComponent, TecnicoOpcion } from '../../shared/components/tecnico-search-select/tecnico-search-select.component';
 import { UsuarioService } from '../../core/services/usuario.service';
 import { ModalComponent } from '../../shared/components/modal/modal.component';
 import { ToastService } from '../../shared/services/toast.service';
@@ -20,7 +21,7 @@ import { SucursalService } from '../../core/services/sucursal.service';
 @Component({
   selector: 'app-mantenimiento',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, PaginationComponent, FilterBarComponent, FileUploaderComponent, ModalPortalDirective],
+  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, PaginationComponent, FilterBarComponent, FileUploaderComponent, ModalPortalDirective, TecnicoSearchSelectComponent],
   template: `
     <div class="space-y-6 animate-fade-in">
       
@@ -142,6 +143,7 @@ import { SucursalService } from '../../core/services/sucursal.service';
             <thead class="bg-slate-50 text-slate-500 text-xs font-bold uppercase tracking-wider border-b border-slate-200">
               <tr>
                 <th class="py-3.5 px-4">Fecha Programada</th>
+                <th class="py-3.5 px-4">Frecuencia</th>
                 <th class="py-3.5 px-4">Maquinaria</th>
                 <th class="py-3.5 px-4">Tipo</th>
                 <th class="py-3.5 px-4">Técnico Certificado</th>
@@ -155,6 +157,9 @@ import { SucursalService } from '../../core/services/sucursal.service';
                 <tr class="hover:bg-slate-50/80 transition-colors cursor-pointer" (click)="abrirDetalle(m)">
                   <td class="py-3.5 px-4 text-xs font-mono font-bold text-easydry-blue">
                     {{ m.fecha }}
+                  </td>
+                  <td class="py-3.5 px-4 text-xs font-semibold text-slate-700">
+                    {{ etiquetaFrecuencia(m.frecuenciaDias) }}
                   </td>
                   <td class="py-3.5 px-4 font-bold text-slate-900 text-xs">
                     {{ m.maquina }}
@@ -246,6 +251,7 @@ import { SucursalService } from '../../core/services/sucursal.service';
                     {{ m.fecha }}
                   </span>
                   <div class="font-bold text-slate-900 text-sm mt-1.5">{{ m.maquina }}</div>
+                  <p class="text-[11px] text-slate-500 mt-0.5">{{ etiquetaFrecuencia(m.frecuenciaDias) }}</p>
                 </div>
                 <span class="px-2.5 py-1 rounded-full text-[10px] font-extrabold text-center max-w-[80px]"
                   [ngClass]="{
@@ -397,6 +403,10 @@ import { SucursalService } from '../../core/services/sucursal.service';
                     <div>
                       <span class="block text-[10px] text-slate-400 font-bold uppercase mb-0.5">Tipo</span>
                       <span class="font-bold text-slate-800">{{ m.tipo }}</span>
+                    </div>
+                    <div>
+                      <span class="block text-[10px] text-slate-400 font-bold uppercase mb-0.5">Frecuencia</span>
+                      <span class="font-bold text-slate-800">{{ etiquetaFrecuencia(m.frecuenciaDias) }}</span>
                     </div>
                     <div>
                       <span class="block text-[10px] text-slate-400 font-bold uppercase mb-0.5">Estado</span>
@@ -661,9 +671,9 @@ import { SucursalService } from '../../core/services/sucursal.service';
         <form (ngSubmit)="guardarMantenimiento()" class="space-y-4">
           <div>
             <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Maquinaria a Servir</label>
-            <select [(ngModel)]="nuevoMantenimiento.maquina" name="maquina" class="w-full p-2.5 border rounded-xl text-sm" required>
+            <select [(ngModel)]="nuevoMantenimiento.maquinariaId" name="maquina" class="w-full p-2.5 border rounded-xl text-sm" required>
               @for (mq of listaMaquinas; track mq.id) {
-                <option [value]="mq.nombre">{{ mq.codigo }} - {{ mq.nombre }}</option>
+                <option [ngValue]="mq.id">{{ mq.codigo }} - {{ mq.nombre }}</option>
               }
             </select>
           </div>
@@ -683,10 +693,25 @@ import { SucursalService } from '../../core/services/sucursal.service';
             </div>
           </div>
 
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Cada cuánto se debe hacer</label>
+            <select [(ngModel)]="nuevoMantenimiento.frecuenciaDias" name="frecuencia" class="w-full p-2.5 border rounded-xl text-sm font-semibold">
+              @for (f of frecuenciasMantenimiento; track f.dias) {
+                <option [ngValue]="f.dias">{{ f.label }}</option>
+              }
+            </select>
+            <p class="mt-1 text-[11px] text-slate-500">Al ejecutarlo se agenda automáticamente la siguiente visita si no es única vez.</p>
+          </div>
+
           <div class="grid grid-cols-2 gap-4">
             <div>
               <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Técnico / Especialista</label>
-              <input type="text" [(ngModel)]="nuevoMantenimiento.tecnico" name="tecnico" placeholder="Ing. Marco Andrade" class="w-full p-2.5 border rounded-xl text-sm" required>
+              <app-tecnico-search-select
+                [tecnicos]="tecnicosDisponibles"
+                [selectedId]="nuevoMantenimiento.tecnicoId"
+                placeholder="Buscar coordinador o técnico..."
+                (selected)="onSeleccionarTecnicoAgenda($event)">
+              </app-tecnico-search-select>
             </div>
             <div>
               <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Duración Estimada (Horas)</label>
@@ -699,12 +724,12 @@ import { SucursalService } from '../../core/services/sucursal.service';
             <textarea [(ngModel)]="nuevoMantenimiento.descripcion" name="descripcion" rows="3" placeholder="Detalle de repuestos y tareas..." class="w-full p-2.5 border rounded-xl text-sm" required></textarea>
           </div>
 
-          <!-- Subida de Evidencias S3 (Punto 8) -->
           <div class="pt-2">
             <app-file-uploader
-              label="Evidencias / Fotos y Videos (Almacenamiento S3)"
+              label="Evidencias (opcional al agendar)"
               (archivosChange)="evidenciasSubidas = $event">
             </app-file-uploader>
+            <p class="mt-1 text-[11px] text-slate-500">La foto no es obligatoria para agendar. Sí se pedirá al ejecutar el mantenimiento.</p>
           </div>
         </form>
 
@@ -726,7 +751,7 @@ import { SucursalService } from '../../core/services/sucursal.service';
               · {{ mantenimientoAsignar.fecha }}
             </p>
             <p class="text-xs text-slate-500">
-              Ejecuta la tarea tú mismo o delega a un técnico de campo.
+              Ejecuta la tarea tú mismo o asígnala a un coordinador de mantenimiento o técnico de maquinaria.
             </p>
             @if (mantenimientoAsignar.tecnicoAsignadoNombre) {
               <div class="p-3 bg-violet-50 border border-violet-200 rounded-xl text-xs text-violet-800">
@@ -739,15 +764,12 @@ import { SucursalService } from '../../core/services/sucursal.service';
               class="w-full py-3 px-4 bg-violet-600 hover:bg-violet-700 text-white font-extrabold rounded-xl text-xs">
               {{ etiquetaEjecutarYo }}
             </button>
-            <p class="text-[10px] font-bold text-slate-400 uppercase">Delegar a técnico</p>
-            @for (tec of tecnicosDisponibles; track tec.email) {
-              <button
-                type="button"
-                (click)="asignarMantenimientoAEjecutor(tec.id, tec.nombre)"
-                class="w-full py-3 px-4 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl text-xs">
-                {{ tec.nombre }}
-              </button>
-            }
+            <p class="text-[10px] font-bold text-slate-400 uppercase">Delegar a coordinador o técnico</p>
+            <app-tecnico-search-select
+              [tecnicos]="tecnicosParaDelegar"
+              placeholder="Buscar por nombre, rol o correo..."
+              (selected)="onSeleccionarTecnicoAsignacion($event)">
+            </app-tecnico-search-select>
             @if (mantenimientoAsignar.tecnicoAsignadoId) {
               <button
                 type="button"
@@ -799,9 +821,9 @@ import { SucursalService } from '../../core/services/sucursal.service';
               <div class="flex items-center justify-between gap-2 flex-wrap">
                 <label class="text-xs font-bold text-emerald-900 uppercase flex items-center gap-1.5">
                   <i-lucide name="camera" class="w-4 h-4 text-emerald-600"></i-lucide>
-                  Evidencias del Mantenimiento (Fotos / Vídeos)
+                  Evidencias del trabajo <span class="text-rose-500">*</span>
                 </label>
-                <span class="text-[11px] text-slate-500">Fotos del trabajo y video de prueba</span>
+                <span class="text-[11px] text-slate-500">Obligatorio: al menos una foto para ejecutar</span>
               </div>
               <div class="flex items-center gap-3 flex-wrap">
                 <label class="cursor-pointer px-4 py-2.5 bg-white border border-emerald-300 hover:bg-emerald-50 text-emerald-700 font-bold rounded-xl text-xs flex items-center gap-2">
@@ -904,7 +926,7 @@ export class MantenimientoComponent implements OnInit {
 
   gestorActual: { id: string | number; nombreCompleto: string } = { id: 0, nombreCompleto: '' };
 
-  tecnicosDisponibles: { id: string | number; nombre: string; email: string }[] = [];
+  tecnicosDisponibles: TecnicoOpcion[] = [];
   
   filtrosGlobales: FilterState = { sucursal: 'Todas', operador: 'Todos', bahia: 'Todas', estado: 'Todos', fecha: 'Hoy', marca: 'Todas' };
   filtroTexto = '';
@@ -985,6 +1007,21 @@ export class MantenimientoComponent implements OnInit {
     return this.authService.hasRole(Role.TECNICO);
   }
 
+  get tecnicosParaDelegar(): TecnicoOpcion[] {
+    const yo = String(this.gestorActual.id || '');
+    return this.tecnicosDisponibles.filter(t => String(t.id) !== yo);
+  }
+
+  onSeleccionarTecnicoAgenda(tec: TecnicoOpcion | null) {
+    this.nuevoMantenimiento.tecnicoId = tec?.id || '';
+    this.nuevoMantenimiento.tecnico = tec?.nombre || '';
+  }
+
+  onSeleccionarTecnicoAsignacion(tec: TecnicoOpcion | null) {
+    if (!tec) return;
+    this.asignarMantenimientoAEjecutor(tec.id, tec.nombre);
+  }
+
   openModalAsignar(m: Mantenimiento) {
     this.mantenimientoAsignar = m;
     this.modalAsignarOpen = true;
@@ -1037,15 +1074,24 @@ export class MantenimientoComponent implements OnInit {
   diaSeleccionado: any = null;
   evidenciasSubidas: ArchivoAdjunto[] = [];
 
+  frecuenciasMantenimiento = FRECUENCIAS_MANTENIMIENTO;
+
   nuevoMantenimiento = {
-    maquina: 'Hidrolavadora Ecológica HD-001',
+    maquinariaId: '' as string | number,
+    maquina: '',
     tipo: 'Preventivo' as Mantenimiento['tipo'],
-    fecha: '2026-08-05',
-    tecnico: 'Sin asignar',
+    fecha: new Date().toISOString().substring(0, 10),
+    tecnico: '',
+    tecnicoId: '' as string | number,
     estado: 'Programado' as Mantenimiento['estado'],
     duracionHoras: 2,
-    descripcion: ''
+    descripcion: '',
+    frecuenciaDias: 30
   };
+
+  etiquetaFrecuencia(dias?: number | null): string {
+    return etiquetaFrecuenciaMantenimiento(dias);
+  }
 
   private mantenimientoService = inject(MantenimientoService);
   private maquinariaService = inject(MaquinariaService);
@@ -1077,14 +1123,12 @@ export class MantenimientoComponent implements OnInit {
 
     this.usuarioService.getUsuarios(true, true).subscribe(list => {
       this.tecnicosDisponibles = (list || [])
-        .filter(u => {
-          const rol = (u.rolNombre || u.rol || '').toUpperCase();
-          return rol === Role.TECNICO || rol.includes('TECNICO') || rol.includes('TÉCNICO');
-        })
+        .filter(u => esRolTallerMantenimiento(u.rolNombre) || esRolTallerMantenimiento(u.rol))
         .map(u => ({
           id: u.id,
           nombre: `${u.nombre} ${u.apellido}`.trim(),
           email: u.email,
+          rolLabel: ROLE_LABELS[u.rolNombre || ''] || u.rol,
         }));
     });
 
@@ -1106,6 +1150,9 @@ export class MantenimientoComponent implements OnInit {
         );
       } else {
         this.listaMaquinas = list;
+      }
+      if (!this.nuevoMantenimiento.maquinariaId && this.listaMaquinas[0]) {
+        this.nuevoMantenimiento.maquinariaId = this.listaMaquinas[0].id;
       }
     });
   }
@@ -1137,15 +1184,28 @@ export class MantenimientoComponent implements OnInit {
       this.toastService.warning('Campos Requeridos', 'Por favor ingrese la descripción del trabajo.');
       return;
     }
+    const maquina = this.listaMaquinas.find(m => String(m.id) === String(this.nuevoMantenimiento.maquinariaId));
+    if (!maquina) {
+      this.toastService.warning('Máquina requerida', 'Selecciona el equipo a intervenir.');
+      return;
+    }
 
     const payload: any = {
       ...this.nuevoMantenimiento,
+      maquinariaId: maquina.id,
+      maquina: maquina.nombre,
+      tecnico: this.nuevoMantenimiento.tecnico || 'Sin asignar',
+      tecnicoId: this.nuevoMantenimiento.tecnicoId || undefined,
+      frecuenciaDias: Number(this.nuevoMantenimiento.frecuenciaDias || 0),
       duracionMin: (this.nuevoMantenimiento.duracionHoras || 2) * 60,
       archivos: this.evidenciasSubidas.length > 0 ? [...this.evidenciasSubidas] : undefined
     };
 
     this.mantenimientoService.registrarMantenimiento(payload).subscribe(creado => {
-      this.toastService.success('Mantenimiento Agendado', `Visita agendada para ${creado.maquina} el ${creado.fecha}`);
+      this.toastService.success(
+        'Mantenimiento Agendado',
+        `Visita de ${creado.maquina} el ${creado.fecha} · ${this.etiquetaFrecuencia(creado.frecuenciaDias)}.`
+      );
       this.modalCrearOpen = false;
       this.evidenciasSubidas = [];
     });
@@ -1235,7 +1295,8 @@ export class MantenimientoComponent implements OnInit {
       extension: file.name.split('.').pop()?.toUpperCase() || (isVideo ? 'MP4' : isDoc ? 'PDF' : 'JPG'),
       url: URL.createObjectURL(file),
       tamanio: `${(file.size / (1024 * 1024)).toFixed(1)} MB`,
-      fechaSubida: new Date().toLocaleTimeString()
+      fechaSubida: new Date().toLocaleTimeString(),
+      file,
     };
   }
 
@@ -1267,40 +1328,54 @@ export class MantenimientoComponent implements OnInit {
     this.documentosCompletar.splice(index, 1);
   }
 
-  guardarCompletarMantenimiento() {
+  async guardarCompletarMantenimiento() {
     if (!this.mantenimientoCompletar) return;
     if (!this.completarForm.observacionCierre.trim()) {
       this.toastService.warning('Informe requerido', 'Describa el trabajo realizado en el mantenimiento.');
       return;
     }
+    const fotosLocales = this.multimediaCompletar.filter(a => a.tipo === 'imagen');
+    if (!fotosLocales.length) {
+      this.toastService.warning('Imagen requerida', 'Para ejecutar el mantenimiento debes adjuntar al menos una foto.');
+      return;
+    }
 
-    const user = this.authService.getCurrentUser();
-    const fotos = this.multimediaCompletar.filter(a => a.tipo === 'imagen').map(a => a.url);
-    const videos = this.multimediaCompletar.filter(a => a.tipo === 'video').map(a => a.url);
-    const ahora = new Date();
-    const horaFin = `${String(ahora.getHours()).padStart(2, '0')}:${String(ahora.getMinutes()).padStart(2, '0')}`;
-
-    this.mantenimientoService.actualizarMantenimiento(this.mantenimientoCompletar.id, {
-      estado: 'Completado',
-      observacionCierre: this.completarForm.observacionCierre.trim(),
-      fechaCierre: this.completarForm.fechaFin,
-      cerradoPor: user ? `${user.nombre} ${user.apellido}`.trim() : 'Usuario',
-      fechaFin: this.completarForm.fechaFin,
-      horaFin,
-      fotos: fotos.length ? fotos : undefined,
-      videos: videos.length ? videos : undefined,
-      archivos: this.multimediaCompletar.length ? [...this.multimediaCompletar] : undefined,
-      documentos: this.documentosCompletar.length ? [...this.documentosCompletar] : undefined
-    }).subscribe(actualizado => {
-      if (!actualizado) return;
-      if (this.mantenimientoDetalleSeleccionado?.id === actualizado.id) {
-        this.mantenimientoDetalleSeleccionado = actualizado;
-      }
-      this.toastService.success(
-        'Mantenimiento completado',
-        `${actualizado.maquina} registrado como realizado con ${this.multimediaCompletar.length + this.documentosCompletar.length} evidencia(s).`
+    try {
+      const evidencias = await this.mantenimientoService.subirEvidenciasMantenimiento(
+        [...this.multimediaCompletar, ...this.documentosCompletar],
+        {
+          maquinariaId: this.mantenimientoCompletar.maquinariaId ? String(this.mantenimientoCompletar.maquinariaId) : undefined,
+          maquinariaNombre: this.mantenimientoCompletar.maquina,
+          agenciaId: this.mantenimientoCompletar.agencia,
+          mantenimientoId: String(this.mantenimientoCompletar.id),
+        },
       );
-      this.modalCompletarOpen = false;
-    });
+      if (!evidencias.some(e => e.tipo === 'FOTO')) {
+        this.toastService.warning('Imagen requerida', 'La foto de evidencia no se pudo guardar. Inténtalo de nuevo.');
+        return;
+      }
+
+      this.mantenimientoService.ejecutarMantenimiento(this.mantenimientoCompletar.id, {
+        observaciones: this.completarForm.observacionCierre.trim(),
+        fechaFin: this.completarForm.fechaFin,
+        evidencias,
+      }).subscribe(actualizado => {
+        if (!actualizado) {
+          this.toastService.error('No se pudo ejecutar', 'El mantenimiento no se actualizó en el servidor.');
+          return;
+        }
+        if (this.mantenimientoDetalleSeleccionado?.id === actualizado.id) {
+          this.mantenimientoDetalleSeleccionado = actualizado;
+        }
+        this.toastService.success(
+          'Mantenimiento ejecutado',
+          `${actualizado.maquina} quedó realizado. ${this.etiquetaFrecuencia(actualizado.frecuenciaDias)}.`
+        );
+        this.modalCompletarOpen = false;
+        this.mantenimientoService.getMantenimientos().subscribe();
+      });
+    } catch {
+      this.toastService.error('Error de subida', 'No se pudieron guardar las evidencias en S3.');
+    }
   }
 }
