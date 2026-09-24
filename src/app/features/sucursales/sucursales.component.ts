@@ -507,7 +507,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                   <div class="flex items-start justify-between gap-3 mb-3">
                     <div class="flex items-center gap-3">
                       @if (ger.avatar) {
-                        <img
+                        <img loading="lazy" decoding="async"
                           [src]="ger.avatar"
                           alt="Avatar"
                           class="w-11 h-11 rounded-full object-cover ring-2 ring-purple-300">

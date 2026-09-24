@@ -2,7 +2,7 @@ import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LucideAngularModule } from 'lucide-angular';
-import { CatalogoServiciosService } from '../../../core/services/catalogo-servicios.service';
+import { CatalogoServiciosService, RecetaHistorialCambio } from '../../../core/services/catalogo-servicios.service';
 import { InventarioService } from '../../../core/services/inventario.service';
 import { AuthService } from '../../../core/services/auth.service';
 import { SucursalService } from '../../../core/services/sucursal.service';
@@ -69,6 +69,42 @@ export class CatalogoServiciosComponent implements OnInit {
   insumoSeleccionadoId = '';
   cantidadADescontar = 0.25;
   busquedaInsumoReceta = '';
+
+  // ── Historial de cambios de receta (solo admin / bodega) ─────────────────
+  mostrarHistorialReceta = false;
+  historialRecetaCargado = false;
+  cargandoHistorialReceta = false;
+  historialReceta: RecetaHistorialCambio[] = [];
+
+  get canVerHistorialReceta(): boolean {
+    return this.authService.isSuperAdmin()
+      || this.authService.isAdmin()
+      || this.authService.hasRole(Role.COORD_BODEGA)
+      || this.authService.hasRole(Role.ASISTENTE_BODEGA);
+  }
+
+  toggleHistorialReceta(): void {
+    this.mostrarHistorialReceta = !this.mostrarHistorialReceta;
+    if (this.mostrarHistorialReceta && !this.historialRecetaCargado && this.servicioActual.id) {
+      this.cargandoHistorialReceta = true;
+      this.catalogoService.getHistorialReceta(Number(this.servicioActual.id)).subscribe(list => {
+        this.historialReceta = list;
+        this.historialRecetaCargado = true;
+        this.cargandoHistorialReceta = false;
+      });
+    }
+  }
+
+  /** Agrupa el historial por lote: un mismo guardado (p. ej. "quité A, agregué B") queda junto. */
+  get historialRecetaPorLote(): RecetaHistorialCambio[][] {
+    const grupos = new Map<string, RecetaHistorialCambio[]>();
+    for (const h of this.historialReceta) {
+      const lista = grupos.get(h.loteId) || [];
+      lista.push(h);
+      grupos.set(h.loteId, lista);
+    }
+    return Array.from(grupos.values());
+  }
 
   get insumosDisponiblesFiltrados(): InventarioItem[] {
     if (!this.busquedaInsumoReceta || !this.busquedaInsumoReceta.trim()) {
@@ -302,6 +338,9 @@ export class CatalogoServiciosComponent implements OnInit {
     this.insumoSeleccionadoId = '';
     this.cantidadADescontar = 0.25;
     this.busquedaInsumoReceta = '';
+    this.mostrarHistorialReceta = false;
+    this.historialRecetaCargado = false;
+    this.historialReceta = [];
     this.showModal = true;
   }
 
@@ -315,6 +354,9 @@ export class CatalogoServiciosComponent implements OnInit {
     this.insumoSeleccionadoId = '';
     this.cantidadADescontar = 0.25;
     this.busquedaInsumoReceta = '';
+    this.mostrarHistorialReceta = false;
+    this.historialRecetaCargado = false;
+    this.historialReceta = [];
     this.showModal = true;
   }
 

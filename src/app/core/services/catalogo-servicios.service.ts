@@ -254,4 +254,42 @@ export class CatalogoServiciosService {
       })
     );
   }
+
+  /**
+   * Historial de cambios de la receta de un servicio: qué insumo entró, cuál salió,
+   * qué cantidad cambió, cuándo y quién lo hizo. Solo para roles de administración/bodega.
+   */
+  getHistorialReceta(catalogoServicioId: number): Observable<RecetaHistorialCambio[]> {
+    return this.http.post<any[]>(apiUrl('/operaciones/catalogos/recetas/historial'), { catalogoServicioId }).pipe(
+      map(res => (Array.isArray(res) ? res : []).map(h => ({
+        id: h.id,
+        loteId: h.loteId,
+        tipoCambio: h.tipoCambio,
+        insumoNombre: h.insumoNombre,
+        insumoSKU: h.insumoSKU,
+        unidadSimbolo: h.unidadSimbolo,
+        cantidadAnterior: h.cantidadAnterior != null ? Number(h.cantidadAnterior) : null,
+        cantidadNueva: h.cantidadNueva != null ? Number(h.cantidadNueva) : null,
+        usuarioNombre: h.usuario ? `${h.usuario.name || ''} ${h.usuario.lastname || ''}`.trim() : '',
+        fecha: h.createdAt,
+      }))),
+      catchError(err => {
+        console.error('Error al obtener historial de receta:', err);
+        return of([]);
+      })
+    );
+  }
+}
+
+export interface RecetaHistorialCambio {
+  id: string;
+  loteId: string;
+  tipoCambio: 'AGREGADO' | 'MODIFICADO' | 'ELIMINADO';
+  insumoNombre: string;
+  insumoSKU: string;
+  unidadSimbolo: string;
+  cantidadAnterior: number | null;
+  cantidadNueva: number | null;
+  usuarioNombre: string;
+  fecha: string;
 }

@@ -716,6 +716,61 @@
             </div>
           }
 
+          <!-- Historial de cambios de receta (solo SUPER_ADMIN / ADMIN / COORD_BODEGA / ASISTENTE_BODEGA) -->
+          @if (isEditing && servicioActual.id && canVerHistorialReceta) {
+            <div class="rounded-xl border border-slate-200 overflow-hidden">
+              <button
+                type="button"
+                (click)="toggleHistorialReceta()"
+                class="w-full flex items-center justify-between px-3.5 py-2.5 bg-slate-50 hover:bg-slate-100 transition-colors cursor-pointer">
+                <span class="text-[11px] font-bold text-slate-700 flex items-center gap-1.5">
+                  <i-lucide name="history" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide>
+                  Historial de cambios de receta
+                </span>
+                <i-lucide [name]="mostrarHistorialReceta ? 'chevron-up' : 'chevron-down'" class="w-3.5 h-3.5 text-slate-400"></i-lucide>
+              </button>
+
+              @if (mostrarHistorialReceta) {
+                <div class="p-3.5 bg-white space-y-3 max-h-64 overflow-y-auto">
+                  @if (cargandoHistorialReceta) {
+                    <p class="text-[11px] text-slate-400 text-center py-3">Cargando historial...</p>
+                  } @else if (historialReceta.length === 0) {
+                    <p class="text-[11px] text-slate-400 italic text-center py-3">
+                      Sin cambios registrados todavía. Cada vez que se agregue, modifique o quite un insumo de esta receta, quedará aquí.
+                    </p>
+                  } @else {
+                    @for (lote of historialRecetaPorLote; track $index) {
+                      <div class="border border-slate-100 rounded-lg p-2.5 bg-slate-50/60">
+                        <p class="text-[10px] font-bold text-slate-500 mb-1.5">
+                          {{ lote[0].fecha | date:'dd/MM/yyyy HH:mm' }}
+                          @if (lote[0].usuarioNombre) { · {{ lote[0].usuarioNombre }} }
+                        </p>
+                        <div class="space-y-1">
+                          @for (h of lote; track h.id) {
+                            <div class="flex items-center gap-2 text-[11px]">
+                              @if (h.tipoCambio === 'AGREGADO') {
+                                <span class="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold text-[9px] shrink-0">+ AGREGADO</span>
+                                <span class="text-slate-700">{{ h.insumoNombre }} — {{ h.cantidadNueva }} {{ h.unidadSimbolo }}</span>
+                              } @else if (h.tipoCambio === 'ELIMINADO') {
+                                <span class="px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 font-bold text-[9px] shrink-0">− QUITADO</span>
+                                <span class="text-slate-700">{{ h.insumoNombre }} — {{ h.cantidadAnterior }} {{ h.unidadSimbolo }}</span>
+                              } @else {
+                                <span class="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-bold text-[9px] shrink-0">~ CAMBIÓ</span>
+                                <span class="text-slate-700">
+                                  {{ h.insumoNombre }} — {{ h.cantidadAnterior }} {{ h.unidadSimbolo }} → {{ h.cantidadNueva }} {{ h.unidadSimbolo }}
+                                </span>
+                              }
+                            </div>
+                          }
+                        </div>
+                      </div>
+                    }
+                  }
+                </div>
+              }
+            </div>
+          }
+
         </div>
       </div>
 

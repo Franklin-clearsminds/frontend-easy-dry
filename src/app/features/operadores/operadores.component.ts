@@ -39,13 +39,15 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
           </div>
         </div>
 
-        <button 
-          type="button"
-          (click)="abrirModalCrear()"
-          class="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-easydry-blue hover:bg-easydry-blue-dark text-white rounded-xl text-xs font-bold shadow-sm hover:shadow transition-all cursor-pointer">
-          <i-lucide [name]="isCoordServiciosEspeciales ? 'sparkles' : 'user-plus'" class="w-4 h-4"></i-lucide>
-          <span>{{ isCoordServiciosEspeciales ? 'Registrar Pulidor' : 'Registrar Lavador' }}</span>
-        </button>
+        @if (canGestionarOperadores) {
+          <button
+            type="button"
+            (click)="abrirModalCrear()"
+            class="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-easydry-blue hover:bg-easydry-blue-dark text-white rounded-xl text-xs font-bold shadow-sm hover:shadow transition-all cursor-pointer">
+            <i-lucide [name]="isCoordServiciosEspeciales ? 'sparkles' : 'user-plus'" class="w-4 h-4"></i-lucide>
+            <span>{{ isCoordServiciosEspeciales ? 'Registrar Pulidor' : 'Registrar Lavador' }}</span>
+          </button>
+        }
       </div>
 
       <!-- Global Filter Bar (Filtros y Búsqueda Unificados) -->
@@ -101,7 +103,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                   <td class="py-3.5 px-4">
                     <div class="flex items-center gap-3">
                       @if (op.avatar) {
-                        <img
+                        <img loading="lazy" decoding="async"
                           [src]="op.avatar"
                           (error)="onAvatarError($event)"
                           alt="Avatar"
@@ -169,33 +171,35 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                   <!-- Acciones -->
                   <td class="py-3.5 px-4 text-right">
                     <div class="flex items-center justify-end gap-1">
-                      <!-- Editar Operador -->
-                      <button 
-                        type="button"
-                        (click)="abrirModalEditar(op)" 
-                        [title]="isCoordServiciosEspeciales ? 'Editar pulidor' : 'Editar lavador'"
-                        class="p-1.5 text-slate-400 hover:text-easydry-blue hover:bg-slate-100 rounded-lg transition-colors cursor-pointer flex items-center justify-center">
-                        <i-lucide name="edit-3" class="w-4 h-4"></i-lucide>
-                      </button>
-
-                      <!-- Asignar o Cambiar Bahía -->
-                      <button 
-                        type="button"
-                        (click)="abrirModalAsignar(op)" 
-                        [title]="op.bahia && !op.bahia.includes('Sin') && op.bahia !== 'undefined' ? 'Cambiar bahía' : 'Asignar a bahía'"
-                        class="p-1.5 text-slate-400 hover:text-easydry-blue hover:bg-slate-100 rounded-lg transition-colors cursor-pointer flex items-center justify-center">
-                        <i-lucide name="refresh-cw" class="w-4 h-4"></i-lucide>
-                      </button>
-
-                      <!-- Desactivar Asignación -->
-                      @if (op.bahia && !op.bahia.includes('Sin') && op.bahia !== 'undefined') {
-                        <button 
+                      @if (canGestionarOperadores) {
+                        <!-- Editar Operador -->
+                        <button
                           type="button"
-                          (click)="desactivarAsignacion(op)" 
-                          title="Desactivar asignación de bahía"
-                          class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer flex items-center justify-center">
-                          <i-lucide name="user-x" class="w-4 h-4"></i-lucide>
+                          (click)="abrirModalEditar(op)"
+                          [title]="isCoordServiciosEspeciales ? 'Editar pulidor' : 'Editar lavador'"
+                          class="p-1.5 text-slate-400 hover:text-easydry-blue hover:bg-slate-100 rounded-lg transition-colors cursor-pointer flex items-center justify-center">
+                          <i-lucide name="edit-3" class="w-4 h-4"></i-lucide>
                         </button>
+
+                        <!-- Asignar o Cambiar Bahía -->
+                        <button
+                          type="button"
+                          (click)="abrirModalAsignar(op)"
+                          [title]="op.bahia && !op.bahia.includes('Sin') && op.bahia !== 'undefined' ? 'Cambiar bahía' : 'Asignar a bahía'"
+                          class="p-1.5 text-slate-400 hover:text-easydry-blue hover:bg-slate-100 rounded-lg transition-colors cursor-pointer flex items-center justify-center">
+                          <i-lucide name="refresh-cw" class="w-4 h-4"></i-lucide>
+                        </button>
+
+                        <!-- Desactivar Asignación -->
+                        @if (op.bahia && !op.bahia.includes('Sin') && op.bahia !== 'undefined') {
+                          <button
+                            type="button"
+                            (click)="desactivarAsignacion(op)"
+                            title="Desactivar asignación de bahía"
+                            class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer flex items-center justify-center">
+                            <i-lucide name="user-x" class="w-4 h-4"></i-lucide>
+                          </button>
+                        }
                       }
 
                       <!-- Ver Productividad & Ficha -->
@@ -478,7 +482,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
             <!-- Operator Profile Banner -->
             <div class="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-3">
               <div class="flex items-center gap-4">
-                <img [src]="operadorSeleccionado.avatar" alt="Avatar" class="w-14 h-14 rounded-full object-cover border-2 border-easydry-green shrink-0">
+                <img loading="lazy" decoding="async" [src]="operadorSeleccionado.avatar" alt="Avatar" class="w-14 h-14 rounded-full object-cover border-2 border-easydry-green shrink-0">
                 <div class="flex-1">
                   <div class="flex items-center justify-between">
                     <h3 class="font-extrabold text-slate-900 text-lg font-outfit">{{ operadorSeleccionado.nombre }}</h3>
@@ -771,6 +775,12 @@ export class OperadoresComponent implements OnInit {
     return this.authService.isSuperAdmin() || this.authService.hasRole('ADMIN');
   }
 
+  /** Crear, editar y (des)asignar bahía quedan reservados a SUPER_ADMIN/ADMIN.
+   *  Líder, Supervisor y Coord. Servicios Especiales solo pueden consultar. */
+  get canGestionarOperadores(): boolean {
+    return this.isSuperAdmin;
+  }
+
   get isGerente(): boolean {
     return this.authService.isGerente();
   }
@@ -871,6 +881,10 @@ export class OperadoresComponent implements OnInit {
   }
 
   abrirModalCrear(): void {
+    if (!this.canGestionarOperadores) {
+      this.toastService.warning('Sin Permiso', 'Solo un administrador puede registrar personal operativo.');
+      return;
+    }
     this.esEdicion = false;
     this.operadorEnEdicionId = undefined;
     this.conflictoAsignacion = null;
@@ -903,6 +917,10 @@ export class OperadoresComponent implements OnInit {
   }
 
   abrirModalEditar(op: Operador): void {
+    if (!this.canGestionarOperadores) {
+      this.toastService.warning('Sin Permiso', 'Solo un administrador puede editar personal operativo.');
+      return;
+    }
     this.esEdicion = true;
     this.operadorEnEdicionId = op.id;
     this.conflictoAsignacion = null;
@@ -1067,6 +1085,10 @@ export class OperadoresComponent implements OnInit {
   }
 
   abrirModalAsignar(op: Operador): void {
+    if (!this.canGestionarOperadores) {
+      this.toastService.warning('Sin Permiso', 'Solo un administrador puede asignar bahías.');
+      return;
+    }
     if (op.estado === 'Inactivo') {
       this.toastService.warning('Lavador Inactivo', 'No se puede asignar bahías a un colaborador inactivo. Debe activarlo primero.');
       return;
@@ -1186,6 +1208,10 @@ export class OperadoresComponent implements OnInit {
   }
 
   desactivarAsignacion(op: Operador): void {
+    if (!this.canGestionarOperadores) {
+      this.toastService.warning('Sin Permiso', 'Solo un administrador puede desasignar bahías.');
+      return;
+    }
     const anteriorBahia = op.bahia;
     const usuarioAccion = this.authService.getCurrentUser()?.nombre || 'Supervisor';
     this.operadorService.reasignarOperador(

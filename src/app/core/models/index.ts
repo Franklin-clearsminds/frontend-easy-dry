@@ -468,6 +468,14 @@ export interface ServicioExtra {
   tiempoPausaFormateado?: string;
   tiempoEfectivoSeg?: number | null;
   tiempoEfectivoFormateado?: string;
+  /** Tiempo total = pausa + efectivo (fin - inicio). */
+  tiempoTotalSeg?: number | null;
+  tiempoTotalFormateado?: string;
+  /** Fecha y hora exactas (ISO) de creación, inicio y fin del servicio. */
+  createdAt?: string;
+  fechaInicio?: string;
+  fechaFin?: string;
+  creadoPorNombre?: string;
   historialPausas?: any[];
 }
 

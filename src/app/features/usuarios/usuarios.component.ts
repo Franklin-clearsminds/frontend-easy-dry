@@ -312,7 +312,7 @@ interface ModuloGrupo {
                       <td class="py-3.5 px-4">
                         <div class="flex items-center gap-3">
                           @if (isRealProfilePhoto(u.avatar)) {
-                            <img [src]="u.avatar" alt="Avatar" class="w-9 h-9 rounded-full object-cover border-2" [ngClass]="u.estado === 'Activo' ? 'border-easydry-blue/20' : 'border-slate-300 grayscale'">
+                            <img loading="lazy" decoding="async" [src]="u.avatar" alt="Avatar" class="w-9 h-9 rounded-full object-cover border-2" [ngClass]="u.estado === 'Activo' ? 'border-easydry-blue/20' : 'border-slate-300 grayscale'">
                           } @else {
                             <div class="w-9 h-9 rounded-full bg-slate-100 border-2 flex items-center justify-center text-[10px] font-extrabold text-slate-500" [ngClass]="u.estado === 'Activo' ? 'border-easydry-blue/20' : 'border-slate-300 grayscale'">
                               {{ (u.nombre || '?').charAt(0) }}{{ (u.apellido || '').charAt(0) }}
@@ -1027,6 +1027,7 @@ interface ModuloGrupo {
             </div>
           } @else {
             <!-- Edición de usuario existente: opción de cambiar contraseña -->
+            @if (puedeReiniciarPasswordEditando) {
             <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
               <label class="flex items-center gap-2.5 cursor-pointer select-none">
                 <input
@@ -1098,6 +1099,12 @@ interface ModuloGrupo {
                 </div>
               }
             </div>
+            } @else {
+            <div class="p-3 bg-amber-50 border border-amber-200 rounded-2xl text-[11px] font-semibold text-amber-800 flex items-center gap-2">
+              <i-lucide name="shield" class="w-3.5 h-3.5 shrink-0"></i-lucide>
+              {{ motivoSinReinicioPassword }}
+            </div>
+            }
           }
         </form>
 
@@ -1614,6 +1621,24 @@ export class UsuariosComponent implements OnInit {
 
   get isSuperAdmin(): boolean {
     return this.authService.isSuperAdmin();
+  }
+
+  /** Reinicio de contraseña: no a uno mismo (usa su perfil) y a un ADMIN solo lo reinicia el SUPER_ADMIN. */
+  get puedeReiniciarPasswordEditando(): boolean {
+    return this.motivoSinReinicioPassword === '';
+  }
+
+  get motivoSinReinicioPassword(): string {
+    const u = this.editandoUsuario;
+    if (!u) return '';
+    const actual = this.authService.getCurrentUser();
+    if (actual && String(actual.id) === String(u.id)) {
+      return 'Para cambiar tu propia contraseña usa tu perfil.';
+    }
+    if (String(u.rolNombre || '').toUpperCase() === 'ADMIN' && !this.authService.isSuperAdmin()) {
+      return 'Solo el Super Administrador puede reiniciar la contraseña de un Administrador.';
+    }
+    return '';
   }
 
   get usuariosVisibles(): Usuario[] {

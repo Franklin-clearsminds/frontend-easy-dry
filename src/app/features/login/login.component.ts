@@ -737,9 +737,6 @@ import { ToastService } from '../../shared/services/toast.service';
                   <input id="remember-email" type="checkbox" [(ngModel)]="rememberMe" name="rememberMe" />
                   Recordar mi correo
                 </label>
-                <button class="text-action" type="button" (click)="onForgotPassword()">
-                  ¿Olvidaste tu contraseña?
-                </button>
               </div>
 
               <button class="submit-button" type="submit" [disabled]="loading">
@@ -872,13 +869,6 @@ export class LoginComponent implements OnInit {
         this.toastService.error('Error de conexión', this.errorMessage);
       }
     });
-  }
-
-  onForgotPassword(): void {
-    this.toastService.info(
-      'Recuperación de contraseña',
-      'Solicita el restablecimiento de tu clave a Soporte TI (soporte@easydry.com) o a tu administrador.'
-    );
   }
 
   onPrivacyPolicy(): void {

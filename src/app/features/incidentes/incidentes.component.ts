@@ -17,11 +17,12 @@ import { resolverRangoFechas, soloFecha } from '../../core/utils/fecha-rango';
 import { ModalPortalDirective } from '../../shared/directives/modal-portal.directive';
 import { SucursalService } from '../../core/services/sucursal.service';
 import { StorageUploadService } from '../../core/services/storage-upload.service';
+import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
 
 @Component({
   selector: 'app-incidentes',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, PaginationComponent, FilterBarComponent, ModalPortalDirective, TecnicoSearchSelectComponent],
+  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, PaginationComponent, FilterBarComponent, ModalPortalDirective, TecnicoSearchSelectComponent, ThumbSrcDirective],
   template: `
     <div class="space-y-6 animate-fade-in">
       
@@ -287,7 +288,7 @@ import { StorageUploadService } from '../../core/services/storage-upload.service
                 @for (arch of archivosFalloSubidos; track arch.id; let idx = $index) {
                   <div class="relative group bg-white border rounded-xl p-2 shadow-xs">
                     @if (arch.tipo === 'imagen') {
-                      <img [src]="arch.url" alt="Fallo" class="w-full h-24 object-cover rounded-lg">
+                      <img loading="lazy" decoding="async" [appThumb]="arch.url" alt="Fallo" class="w-full h-24 object-cover rounded-lg">
                     } @else if (arch.tipo === 'video') {
                       <div class="w-full h-24 bg-slate-900 rounded-lg flex flex-col items-center justify-center text-white relative overflow-hidden">
                         <i-lucide name="film" class="w-8 h-8 text-purple-400"></i-lucide>
@@ -385,7 +386,7 @@ import { StorageUploadService } from '../../core/services/storage-upload.service
                 @for (m of solucionForm.multimedia; track m.id; let idx = $index) {
                   <div class="relative group bg-white border rounded-xl p-2 shadow-xs">
                     @if (m.tipo === 'imagen') {
-                      <img [src]="m.url" alt="Reparado" class="w-full h-24 object-cover rounded-lg">
+                      <img loading="lazy" decoding="async" [appThumb]="m.url" alt="Reparado" class="w-full h-24 object-cover rounded-lg">
                     } @else if (m.tipo === 'video') {
                       <div class="w-full h-24 bg-slate-900 rounded-lg flex flex-col items-center justify-center text-white relative overflow-hidden">
                         <i-lucide name="film" class="w-8 h-8 text-emerald-400"></i-lucide>
@@ -513,7 +514,7 @@ import { StorageUploadService } from '../../core/services/storage-upload.service
                   <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     @for (foto of incidenteDetalle.fotosFallo; track foto) {
                       <div class="relative group rounded-xl overflow-hidden border border-rose-200 shadow-xs cursor-pointer" (click)="verMediaZoom(foto, 'imagen')">
-                        <img [src]="foto" alt="Fallo" class="w-full h-24 object-cover group-hover:scale-105 transition-transform duration-200">
+                        <img loading="lazy" decoding="async" [appThumb]="foto" alt="Fallo" class="w-full h-24 object-cover group-hover:scale-105 transition-transform duration-200">
                         <div class="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white">
                           <i-lucide name="zoom-in" class="w-5 h-5"></i-lucide>
                         </div>
@@ -530,7 +531,7 @@ import { StorageUploadService } from '../../core/services/storage-upload.service
                   <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     @for (video of incidenteDetalle.videosFallo; track video) {
                       <div class="rounded-xl overflow-hidden border bg-black shadow-xs">
-                        <video [src]="video" controls class="w-full h-40 object-cover"></video>
+                        <video [src]="video" controls preload="metadata" class="w-full h-40 object-cover"></video>
                       </div>
                     }
                   </div>
@@ -563,7 +564,7 @@ import { StorageUploadService } from '../../core/services/storage-upload.service
                     <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
                       @for (foto of incidenteDetalle.fotosReparacion; track foto) {
                         <div class="relative group rounded-xl overflow-hidden border border-emerald-200 shadow-xs cursor-pointer" (click)="verMediaZoom(foto, 'imagen')">
-                          <img [src]="foto" alt="Reparado" class="w-full h-24 object-cover group-hover:scale-105 transition-transform duration-200">
+                          <img loading="lazy" decoding="async" [appThumb]="foto" alt="Reparado" class="w-full h-24 object-cover group-hover:scale-105 transition-transform duration-200">
                           <div class="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white">
                             <i-lucide name="zoom-in" class="w-5 h-5"></i-lucide>
                           </div>
@@ -580,7 +581,7 @@ import { StorageUploadService } from '../../core/services/storage-upload.service
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       @for (video of incidenteDetalle.videosReparacion; track video) {
                         <div class="rounded-xl overflow-hidden border bg-black shadow-xs">
-                          <video [src]="video" controls class="w-full h-40 object-cover"></video>
+                          <video [src]="video" controls preload="metadata" class="w-full h-40 object-cover"></video>
                         </div>
                       }
                     </div>
@@ -641,7 +642,7 @@ import { StorageUploadService } from '../../core/services/storage-upload.service
               class="absolute -top-12 right-0 p-2 bg-white/20 hover:bg-white/40 text-white rounded-full transition-colors">
               <i-lucide name="x" class="w-6 h-6"></i-lucide>
             </button>
-            <img [src]="mediaZoomUrl" alt="Zoom Media" class="max-w-full max-h-[80vh] rounded-2xl object-contain shadow-2xl border border-white/20">
+            <img loading="lazy" decoding="async" [src]="mediaZoomUrl" alt="Zoom Media" class="max-w-full max-h-[80vh] rounded-2xl object-contain shadow-2xl border border-white/20">
           </div>
         </div>
       }

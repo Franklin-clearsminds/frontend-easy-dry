@@ -279,7 +279,8 @@ import { ImageCropModalComponent } from '../../shared/components/image-crop-moda
             </form>
           </div>
 
-          <!-- Security / Password Form -->
+          <!-- Security / Password Form (solo SUPER_ADMIN y ADMIN: el resto lo reinicia un administrador) -->
+          @if (puedeCambiarPassword) {
           <div class="bg-white rounded-3xl border border-slate-100 shadow-easydry overflow-hidden">
             <div class="p-5 border-b border-slate-100">
               <h3 class="font-bold text-slate-900 flex items-center gap-2 text-sm">
@@ -346,6 +347,7 @@ import { ImageCropModalComponent } from '../../shared/components/image-crop-moda
               </div>
             </form>
           </div>
+          }
 
         </div>
       </div>
@@ -467,6 +469,11 @@ export class PerfilComponent implements OnInit {
   modoEdicion = false;
   isSaving = false;
   isChangingPass = false;
+
+  /** Solo SUPER_ADMIN y ADMIN cambian su contraseña; los demás roles la reinicia un administrador. */
+  get puedeCambiarPassword(): boolean {
+    return this.authService.isAdmin();
+  }
 
   // Modals state
   showConfirmGuardarModal = false;

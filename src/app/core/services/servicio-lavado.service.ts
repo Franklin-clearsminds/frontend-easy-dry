@@ -102,11 +102,14 @@ export class ServicioLavadoService {
       observacionGerente: s.observacionGerente || '',
       aprobadoPor: s.aprobadoPor || '',
       fechaAprobacion: s.fechaAprobacion ? new Date(s.fechaAprobacion).toISOString().substring(0, 16) : undefined,
+      // Nombre/SKU/unidad: se usa el snapshot congelado al momento del consumo
+      // (sobrevive a que el producto cambie de nombre/SKU después). Los registros
+      // creados antes de este cambio no tienen snapshot, así que caen al dato actual.
       insumosUtilizados: (s.consumos || []).map((c: any) => ({
         productoId: c.insumoId,
-        productoSKU: c.insumo?.codigoSKU || '',
-        productoNombre: c.insumo?.nombre || 'Insumo',
-        unidadMedida: 'und',
+        productoSKU: c.insumoSKU || c.insumo?.codigoSKU || '',
+        productoNombre: c.insumoNombre || c.insumo?.nombre || 'Insumo',
+        unidadMedida: c.unidadSimbolo || 'und',
         cantidad: Number(c.cantidadUsada || 0)
       }))
     };

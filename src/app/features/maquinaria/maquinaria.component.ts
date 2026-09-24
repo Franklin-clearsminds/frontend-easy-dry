@@ -18,11 +18,12 @@ import { ToastService } from '../../shared/services/toast.service';
 import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
 import { FilterBarComponent, FilterState } from '../../shared/components/filter-bar/filter-bar.component';
 import { StorageUploadService } from '../../core/services/storage-upload.service';
+import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
 
 @Component({
   selector: 'app-maquinaria',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, PaginationComponent, FilterBarComponent, TecnicoSearchSelectComponent],
+  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, PaginationComponent, FilterBarComponent, TecnicoSearchSelectComponent, ThumbSrcDirective],
   template: `
     <div class="space-y-6 animate-fade-in">
       
@@ -97,7 +98,7 @@ import { StorageUploadService } from '../../core/services/storage-upload.service
             
             <div>
               <div class="h-44 bg-slate-900 relative overflow-hidden">
-                <img [src]="urlMedia(maq.imagen)" [alt]="maq.nombre" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-90">
+                <img loading="lazy" decoding="async" [appThumb]="urlMedia(maq.imagen)" [alt]="maq.nombre" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-90">
                 <div class="absolute top-3 left-3 px-3 py-1 rounded-lg bg-easydry-blue/90 text-white text-xs font-mono font-bold backdrop-blur-xs">
                   {{ maq.codigo }}
                 </div>
@@ -184,7 +185,7 @@ import { StorageUploadService } from '../../core/services/storage-upload.service
           <div class="space-y-6">
             
             <div class="flex flex-col sm:flex-row gap-5 items-start">
-              <img [src]="maquinaSeleccionada.imagen" alt="Foto Equipo" class="w-full sm:w-48 h-36 object-cover rounded-2xl border border-slate-200">
+              <img loading="lazy" decoding="async" [src]="maquinaSeleccionada.imagen" alt="Foto Equipo" class="w-full sm:w-48 h-36 object-cover rounded-2xl border border-slate-200">
               <div class="space-y-2 flex-1">
                 <div class="flex items-center gap-2">
                   <span class="px-2.5 py-1 bg-easydry-blue text-white font-mono font-bold text-xs rounded-lg">{{ maquinaSeleccionada.codigo }}</span>
@@ -214,7 +215,7 @@ import { StorageUploadService } from '../../core/services/storage-upload.service
                 <button type="button" (click)="abrirFichaTecnicaCompleta()"
                   class="w-full rounded-xl border border-slate-200 bg-slate-50 p-2 min-h-48 flex items-center justify-center cursor-pointer">
                   @if (fichaPendientePreview || fichaTecnicaDisplayUrl) {
-                    <img
+                    <img loading="lazy" decoding="async"
                       [src]="fichaPendientePreview || fichaTecnicaDisplayUrl"
                       alt="Ficha técnica"
                       class="w-full max-h-80 object-contain rounded-lg bg-white">
@@ -236,7 +237,7 @@ import { StorageUploadService } from '../../core/services/storage-upload.service
                   <input type="file" accept="image/*" (change)="onSeleccionarFichaTecnica($event)" class="hidden">
                 </label>
                 @if (fichaPendientePreview) {
-                  <img [src]="fichaPendientePreview" alt="Vista previa ficha" class="w-full max-h-64 object-contain rounded-xl border border-slate-200 bg-white">
+                  <img loading="lazy" decoding="async" [src]="fichaPendientePreview" alt="Vista previa ficha" class="w-full max-h-64 object-contain rounded-xl border border-slate-200 bg-white">
                 }
                 <div class="flex justify-end gap-2">
                   @if (maquinaSeleccionada.fichaTecnicaUrl && cambiandoFichaTecnica) {
@@ -402,7 +403,7 @@ import { StorageUploadService } from '../../core/services/storage-upload.service
         (close)="modalFichaZoomOpen = false">
         <div class="bg-slate-950 rounded-2xl p-3 min-h-64 flex items-center justify-center">
           @if (fichaPendientePreview || fichaTecnicaDisplayUrl) {
-            <img
+            <img loading="lazy" decoding="async"
               [src]="fichaPendientePreview || fichaTecnicaDisplayUrl"
               alt="Ficha técnica completa"
               class="w-full max-h-[80vh] object-contain">
@@ -542,7 +543,7 @@ import { StorageUploadService } from '../../core/services/storage-upload.service
               <!-- Preview de Foto Cargada -->
               <div class="p-3 bg-slate-50 rounded-2xl border border-slate-200 flex flex-col sm:flex-row items-center gap-4 animate-fade-in">
                 <div class="relative w-full sm:w-36 h-28 rounded-xl overflow-hidden border border-slate-200 shadow-2xs flex-shrink-0 bg-slate-900">
-                  <img [src]="nuevaMaquina.imagen" alt="Foto de la Máquina" class="w-full h-full object-cover">
+                  <img loading="lazy" decoding="async" [src]="nuevaMaquina.imagen" alt="Foto de la Máquina" class="w-full h-full object-cover">
                   <div class="absolute bottom-1 right-1 px-1.5 py-0.5 rounded bg-black/70 text-[9px] text-white font-bold backdrop-blur-xs">
                     Foto lista
                   </div>
@@ -610,7 +611,7 @@ import { StorageUploadService } from '../../core/services/storage-upload.service
               <input type="file" accept="image/*" (change)="onSeleccionarFichaTecnica($event)" class="hidden">
             </label>
             @if (fichaPendientePreview) {
-              <img [src]="fichaPendientePreview" alt="Vista previa ficha" class="w-full max-h-56 object-contain rounded-xl border border-slate-200 bg-white">
+              <img loading="lazy" decoding="async" [src]="fichaPendientePreview" alt="Vista previa ficha" class="w-full max-h-56 object-contain rounded-xl border border-slate-200 bg-white">
             }
           </div>
         </form>
@@ -700,7 +701,7 @@ import { StorageUploadService } from '../../core/services/storage-upload.service
                   @for (arch of archivosFalloSubidos; track arch.id; let idx = $index) {
                     <div class="relative bg-white border rounded-xl p-2 shadow-xs">
                       @if (arch.tipo === 'imagen') {
-                        <img [src]="arch.url" alt="Fallo" class="w-full h-24 object-cover rounded-lg">
+                        <img loading="lazy" decoding="async" [appThumb]="arch.url" alt="Fallo" class="w-full h-24 object-cover rounded-lg">
                       } @else {
                         <div class="w-full h-24 bg-slate-900 rounded-lg flex flex-col items-center justify-center text-white">
                           <i-lucide name="film" class="w-8 h-8 text-purple-400"></i-lucide>
@@ -841,7 +842,7 @@ import { StorageUploadService } from '../../core/services/storage-upload.service
                   @for (m of multimediaMantSubida; track m.id; let idx = $index) {
                     <div class="relative bg-white border rounded-xl p-2 shadow-xs">
                       @if (m.tipo === 'imagen') {
-                        <img [src]="m.url" alt="Mantenimiento" class="w-full h-24 object-cover rounded-lg">
+                        <img loading="lazy" decoding="async" [appThumb]="m.url" alt="Mantenimiento" class="w-full h-24 object-cover rounded-lg">
                       } @else {
                         <div class="w-full h-24 bg-slate-900 rounded-lg flex flex-col items-center justify-center text-white">
                           <i-lucide name="film" class="w-8 h-8 text-emerald-400"></i-lucide>
@@ -944,7 +945,7 @@ import { StorageUploadService } from '../../core/services/storage-upload.service
                   @for (m of multimediaMantSubida; track m.id; let idx = $index) {
                     <div class="relative bg-white border rounded-xl p-2 shadow-xs">
                       @if (m.tipo === 'imagen') {
-                        <img [src]="m.url" alt="Evidencia" class="w-full h-24 object-cover rounded-lg">
+                        <img loading="lazy" decoding="async" [appThumb]="m.url" alt="Evidencia" class="w-full h-24 object-cover rounded-lg">
                       } @else {
                         <div class="w-full h-24 bg-slate-900 rounded-lg flex flex-col items-center justify-center text-white">
                           <i-lucide name="film" class="w-8 h-8 text-emerald-400"></i-lucide>

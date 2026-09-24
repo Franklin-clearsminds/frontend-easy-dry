@@ -396,7 +396,19 @@ export class AuthService {
     if (nueva.length < 6) {
       return of({ success: false, message: 'La nueva contraseña debe tener al menos 6 caracteres.' });
     }
-    return of({ success: true, message: 'Contraseña actualizada correctamente.' }).pipe(delay(250));
+    return this.http
+      .post<{ ok: boolean; message?: string }>(apiUrl('/auth/change-password'), {
+        currentPassword: actual,
+        newPassword: nueva,
+      })
+      .pipe(
+        map(res => ({ success: true, message: res?.message || 'Contraseña actualizada correctamente.' })),
+        catchError(err => {
+          const raw = err?.error?.message;
+          const message = Array.isArray(raw) ? raw.join(' ') : raw;
+          return of({ success: false, message: message || 'No se pudo actualizar la contraseña.' });
+        })
+      );
   }
 
   logout(): void {

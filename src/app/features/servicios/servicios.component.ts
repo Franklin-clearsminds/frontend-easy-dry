@@ -461,6 +461,7 @@ import { VideoRecorderComponent } from '../../shared/components/video-recorder/v
                   <th class="py-3.5 px-4">Pulidor Responsable</th>
                   <th class="py-3.5 px-4 text-center">T. Pausa</th>
                   <th class="py-3.5 px-4 text-center">T. Efectivo</th>
+                  <th class="py-3.5 px-4 text-center">T. Total</th>
                   <th class="py-3.5 px-4 text-center">Evidencia Inicio</th>
                   <th class="py-3.5 px-4 text-center">Evidencias Pausas</th>
                   <th class="py-3.5 px-4 text-center">Evidencia Fin</th>
@@ -475,7 +476,9 @@ import { VideoRecorderComponent } from '../../shared/components/video-recorder/v
                       <span class="font-mono font-black text-xs text-amber-900 bg-amber-100 px-2.5 py-1 rounded-lg block w-fit border border-amber-300">
                         {{ extra.ordenTrabajoOT || extra.codigoSE }}
                       </span>
-                      <span class="text-[10px] text-slate-400 font-mono mt-0.5 block">{{ extra.fechaProgramada }}</span>
+                      <span class="text-[10px] text-slate-400 font-mono mt-0.5 block" title="Fecha y hora de creación">
+                        Creada {{ (extra.createdAt || extra.fechaProgramada) | date:'dd/MM/yyyy HH:mm' }}
+                      </span>
                     </td>
 
                     <td class="py-3.5 px-4">
@@ -531,6 +534,18 @@ import { VideoRecorderComponent } from '../../shared/components/video-recorder/v
                         <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-mono text-[11px] font-extrabold bg-blue-50 text-blue-900 border border-blue-200" title="Tiempo neto de trabajo desarrollado">
                           <i-lucide name="timer" class="w-3 h-3"></i-lucide>
                           <span>{{ extra.tiempoEfectivoFormateado || '0 min' }}</span>
+                        </span>
+                      } @else {
+                        <span class="text-xs text-slate-400 font-mono">-</span>
+                      }
+                    </td>
+
+                    <!-- Tiempo Total (pausa + efectivo) -->
+                    <td class="py-3.5 px-4 text-center">
+                      @if (extra.fechaInicio) {
+                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-mono text-[11px] font-extrabold bg-slate-100 text-slate-800 border border-slate-300" title="Tiempo total = tiempo de pausa + tiempo efectivo">
+                          <i-lucide name="clock" class="w-3 h-3"></i-lucide>
+                          <span>{{ extra.tiempoTotalFormateado || '0 min' }}</span>
                         </span>
                       } @else {
                         <span class="text-xs text-slate-400 font-mono">-</span>
@@ -1467,7 +1482,7 @@ import { VideoRecorderComponent } from '../../shared/components/video-recorder/v
                   @for (arch of archivosFalloSubidos; track arch.id; let idx = $index) {
                     <div class="relative bg-white border rounded-xl p-2 shadow-xs">
                       @if (arch.tipo === 'imagen') {
-                        <img [src]="arch.url" alt="Fallo" class="w-full h-24 object-cover rounded-lg">
+                        <img loading="lazy" decoding="async" [src]="arch.url" alt="Fallo" class="w-full h-24 object-cover rounded-lg">
                       } @else {
                         <div class="w-full h-24 bg-slate-900 rounded-lg flex items-center justify-center">
                           <i-lucide name="film" class="w-8 h-8 text-purple-400"></i-lucide>
@@ -1790,8 +1805,27 @@ import { VideoRecorderComponent } from '../../shared/components/video-recorder/v
               </div>
             </div>
 
-            <!-- Tiempos de Pausa y Efectivo -->
-            <div class="grid grid-cols-2 gap-3">
+            <!-- Fechas y horas: creación, inicio y fin -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                <span class="block text-[10px] text-slate-400 font-bold uppercase mb-0.5">Creada</span>
+                <span class="font-mono font-bold text-slate-800 text-xs">{{ servicioEspecialSeleccionado.createdAt ? (servicioEspecialSeleccionado.createdAt | date:'dd/MM/yyyy HH:mm') : '-' }}</span>
+                @if (servicioEspecialSeleccionado.creadoPorNombre) {
+                  <p class="text-[10px] text-slate-500 mt-0.5">Por: {{ servicioEspecialSeleccionado.creadoPorNombre }}</p>
+                }
+              </div>
+              <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                <span class="block text-[10px] text-slate-400 font-bold uppercase mb-0.5">Inicio del servicio</span>
+                <span class="font-mono font-bold text-slate-800 text-xs">{{ servicioEspecialSeleccionado.fechaInicio ? (servicioEspecialSeleccionado.fechaInicio | date:'dd/MM/yyyy HH:mm') : 'Aún no inicia' }}</span>
+              </div>
+              <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                <span class="block text-[10px] text-slate-400 font-bold uppercase mb-0.5">Fin del servicio</span>
+                <span class="font-mono font-bold text-slate-800 text-xs">{{ servicioEspecialSeleccionado.fechaFin ? (servicioEspecialSeleccionado.fechaFin | date:'dd/MM/yyyy HH:mm') : 'En curso / pendiente' }}</span>
+              </div>
+            </div>
+
+            <!-- Tiempos de Pausa, Efectivo y Total -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div class="p-3 bg-amber-50/60 rounded-xl border border-amber-200">
                 <span class="block text-[10px] text-amber-800 font-bold uppercase mb-0.5">Tiempo Pausado</span>
                 <span class="inline-flex items-center gap-1 font-mono font-black text-amber-900 text-xs">
@@ -1810,6 +1844,14 @@ import { VideoRecorderComponent } from '../../shared/components/video-recorder/v
                   <i-lucide name="timer" class="w-3.5 h-3.5"></i-lucide>
                   <span>{{ servicioEspecialSeleccionado.tiempoEfectivoFormateado || '0 min' }}</span>
                 </span>
+              </div>
+              <div class="p-3 bg-slate-100 rounded-xl border border-slate-300">
+                <span class="block text-[10px] text-slate-700 font-bold uppercase mb-0.5">Tiempo Total</span>
+                <span class="inline-flex items-center gap-1 font-mono font-black text-slate-900 text-xs">
+                  <i-lucide name="clock" class="w-3.5 h-3.5"></i-lucide>
+                  <span>{{ servicioEspecialSeleccionado.fechaInicio ? (servicioEspecialSeleccionado.tiempoTotalFormateado || '0 min') : '-' }}</span>
+                </span>
+                <p class="text-[10px] text-slate-500 mt-1">Pausa + efectivo</p>
               </div>
             </div>
 
@@ -1989,6 +2031,8 @@ import { VideoRecorderComponent } from '../../shared/components/video-recorder/v
                         <i-lucide name="play" class="w-3.5 h-3.5"></i-lucide>
                         <span>Vídeo de Reanudación</span>
                       </button>
+                    } @else if (p.fechaFin) {
+                      <span class="text-[10px] text-slate-400 italic">Sin vídeo de reanudación</span>
                     }
                   </div>
                 </div>
@@ -4874,7 +4918,21 @@ export class ServiciosComponent implements OnInit {
     this.servicioPausasSeleccionado = extra;
     const historial = Array.isArray(extra.historialPausas) ? extra.historialPausas : [];
     if (historial.length > 0) {
-      this.pausasSeleccionadas = historial;
+      // Solo enlaces reales (http/https): una ruta local (file://) guardada por la app no se puede
+      // reproducir en el navegador. Para el último ciclo se usa como respaldo el enlace vigente.
+      const esRemota = (u?: string | null): boolean => !!u && /^https?:\/\//i.test(u);
+      const pausaVigente = extra.videoUltimaPausaUrl || extra.videoPausa;
+      const reanudacionVigente = extra.videoUltimaReanudacionUrl || extra.videoReanudacion;
+      const ultimo = historial.length - 1;
+      this.pausasSeleccionadas = historial.map((p: any, i: number) => ({
+        ...p,
+        videoPausaUrl: esRemota(p.videoPausaUrl)
+          ? p.videoPausaUrl
+          : (i === ultimo && esRemota(pausaVigente) ? pausaVigente : undefined),
+        videoReanudacionUrl: esRemota(p.videoReanudacionUrl)
+          ? p.videoReanudacionUrl
+          : (i === ultimo && p.fechaFin && esRemota(reanudacionVigente) ? reanudacionVigente : undefined),
+      }));
       this.modalPausasDetalleOpen = true;
     } else if (extra.videoUltimaPausaUrl || extra.videoPausa) {
       this.pausasSeleccionadas = [{

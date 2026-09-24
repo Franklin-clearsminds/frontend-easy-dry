@@ -27,11 +27,13 @@ import {
   BodegaInventario,
 } from '../../core/models/inventario.model';
 import { apiUrl } from '../../core/config/env';
+import { ConsumoServiciosComponent } from './consumo-servicios/consumo-servicios.component';
+import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
 
 @Component({
   selector: 'app-inventario',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, ModalPortalDirective, ImageUploaderComponent],
+  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, ModalPortalDirective, ImageUploaderComponent, ConsumoServiciosComponent, ThumbSrcDirective],
   template: `
     <div class="space-y-6 animate-fade-in pb-16">
 
@@ -158,6 +160,16 @@ import { apiUrl } from '../../core/config/env';
             [ngClass]="activeTab === 'movimientos' ? 'bg-blue-50 text-easydry-blue font-extrabold shadow-2xs' : 'text-slate-600 hover:bg-slate-50'">
             <i-lucide name="refresh-cw" class="w-4 h-4"></i-lucide>
             <span>Movimientos (Kardex)</span>
+          </button>
+
+          <!-- 7b. Consumo por Servicio (trazabilidad: qué descontó cada servicio) -->
+          <button
+            *ngIf="puedeVerConsumoServicios"
+            (click)="activeTab = 'consumo_servicios'"
+            class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+            [ngClass]="activeTab === 'consumo_servicios' ? 'bg-blue-50 text-easydry-blue font-extrabold shadow-2xs' : 'text-slate-600 hover:bg-slate-50'">
+            <i-lucide name="history" class="w-4 h-4"></i-lucide>
+            <span>Consumo por Servicio</span>
           </button>
 
           <!-- 8. Configuración -->
@@ -752,7 +764,7 @@ import { apiUrl } from '../../core/config/env';
                         *ngIf="p.imagenUrl || p.imagen; else defaultIcon"
                         (click)="abrirZoomImagen(p.imagenUrl || p.imagen || '', 'Foto del insumo')"
                         class="w-12 h-12 rounded-xl overflow-hidden border border-slate-200 shadow-2xs flex-shrink-0 bg-slate-50 cursor-pointer group relative">
-                        <img [src]="resolverUrlImagen(p.imagenUrl || p.imagen)" alt="Foto Insumo" class="w-full h-full object-cover transition-transform group-hover:scale-110" />
+                        <img loading="lazy" decoding="async" [appThumb]="resolverUrlImagen(p.imagenUrl || p.imagen)" alt="Foto Insumo" class="w-full h-full object-cover transition-transform group-hover:scale-110" />
                         <div class="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                           <i-lucide name="zoom-in" class="w-4 h-4 text-white"></i-lucide>
                         </div>
@@ -1026,7 +1038,7 @@ import { apiUrl } from '../../core/config/env';
               *ngFor="let asis of getAsistentesDeBodega(bodegaSeleccionada)"
               class="p-4 bg-gradient-to-br from-slate-50 to-white rounded-xl border border-slate-200 shadow-2xs hover:shadow-xs transition flex items-start gap-3">
               <div class="relative shrink-0">
-                <img
+                <img loading="lazy" decoding="async"
                   *ngIf="asis.avatar"
                   [src]="asis.avatar"
                   [alt]="asis.nombre"
@@ -1791,6 +1803,10 @@ import { apiUrl } from '../../core/config/env';
       <!-- ============================================================== -->
       <!-- TAB 7: MOVIMIENTOS / KARDEX HISTORIAL                          -->
       <!-- ============================================================== -->
+      <div *ngIf="activeTab === 'consumo_servicios' && puedeVerConsumoServicios" class="animate-fade-in">
+        <app-consumo-servicios></app-consumo-servicios>
+      </div>
+
       <div *ngIf="activeTab === 'movimientos'" class="space-y-4 animate-fade-in">
         <div class="bg-white p-4 rounded-xl border border-slate-100 shadow-xs flex flex-col md:flex-row items-center gap-3 justify-between">
           <div class="flex items-center gap-3 w-full md:w-auto flex-1 flex-wrap">
@@ -2505,7 +2521,7 @@ import { apiUrl } from '../../core/config/env';
                   (change)="onImagenEntradaSeleccionada($event)">
                 
                 <div *ngIf="imagenEntradaPreview" class="relative w-full flex flex-col items-center justify-center">
-                  <img [src]="imagenEntradaPreview" alt="Evidencia de Entrada" class="max-h-36 rounded-lg object-contain border border-emerald-200 mb-2 shadow-xs" />
+                  <img loading="lazy" decoding="async" [src]="imagenEntradaPreview" alt="Evidencia de Entrada" class="max-h-36 rounded-lg object-contain border border-emerald-200 mb-2 shadow-xs" />
                   <div class="flex items-center gap-2 text-emerald-800">
                     <i-lucide name="check-circle-2" class="w-4 h-4"></i-lucide>
                     <span class="text-xs font-bold">{{ imagenEntradaNombre || 'Evidencia cargada' }}</span>
@@ -3729,7 +3745,7 @@ import { apiUrl } from '../../core/config/env';
             </button>
           </div>
           <div class="w-full min-h-64 max-h-[80vh] rounded-2xl overflow-auto bg-slate-950 border border-slate-200 shadow-inner flex items-center justify-center p-3">
-            <img [src]="resolverUrlImagen(imagenModalZoom)" [alt]="imagenModalTitulo" class="max-w-full max-h-[76vh] object-contain" />
+            <img loading="lazy" decoding="async" [src]="resolverUrlImagen(imagenModalZoom)" [alt]="imagenModalTitulo" class="max-w-full max-h-[76vh] object-contain" />
           </div>
           <div class="w-full flex items-center justify-end pt-1">
             <button type="button" (click)="cerrarZoomImagen()" class="px-4 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs cursor-pointer">
@@ -3777,7 +3793,15 @@ export class InventarioComponent implements OnInit {
   }
 
   // Navegación
-  activeTab: 'productos' | 'bodegas' | 'agencias' | 'pulidores' | 'stock_bajo' | 'alertas_reabastecimiento' | 'movimientos' | 'configuracion' | 'insumos_servicios' = 'productos';
+  activeTab: 'productos' | 'bodegas' | 'agencias' | 'pulidores' | 'stock_bajo' | 'alertas_reabastecimiento' | 'movimientos' | 'consumo_servicios' | 'configuracion' | 'insumos_servicios' = 'productos';
+
+  /** Trazabilidad de consumo por servicio: solo administración y bodega. */
+  get puedeVerConsumoServicios(): boolean {
+    return this.auth.isSuperAdmin()
+      || this.auth.hasRole('ADMIN')
+      || this.auth.hasRole('COORD_BODEGA')
+      || this.auth.hasRole('ASISTENTE_BODEGA');
+  }
   subTabConfig: 'tipos' | 'unidades' = 'tipos';
 
   // Bodegas & Asistentes

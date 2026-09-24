@@ -712,7 +712,7 @@ export class ImageUploaderComponent implements OnInit, OnDestroy {
     const ctx = canvas.getContext('2d');
     if (ctx) {
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
       this.stopCamera();
       this.rawCapturedImage = dataUrl;
       this.previewUrl = dataUrl;
@@ -734,7 +734,7 @@ export class ImageUploaderComponent implements OnInit, OnDestroy {
     return new Promise((resolve, reject) => {
       const img = new Image();
       img.onload = () => {
-        const maxSide = 2000;
+        const maxSide = 1600;
         const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
         const canvas = document.createElement('canvas');
         canvas.width = Math.max(1, Math.round(img.width * scale));
@@ -753,7 +753,7 @@ export class ImageUploaderComponent implements OnInit, OnDestroy {
             else reject(new Error('Error al generar la imagen de ficha técnica.'));
           },
           'image/jpeg',
-          0.92,
+          0.85,
         );
       };
       img.onerror = () => reject(new Error('No se pudo cargar la imagen para procesar.'));
@@ -803,7 +803,7 @@ export class ImageUploaderComponent implements OnInit, OnDestroy {
             else reject(new Error('Error al generar Blob cuadrado.'));
           },
           'image/jpeg',
-          0.92
+          0.85
         );
       };
       img.onerror = () => reject(new Error('No se pudo cargar la imagen para procesar.'));

@@ -230,6 +230,36 @@ export class StorageUploadService {
     });
   }
 
+  /** Clave S3 de un archivo a partir de cualquiera de los formatos de URL que guarda el sistema. */
+  private extractKey(trimmed: string): string {
+    if (trimmed.startsWith('data:') || trimmed.startsWith('blob:')) return '';
+    if (trimmed.includes('/storage/file?key=')) {
+      return decodeURIComponent(trimmed.split('/storage/file?key=')[1]?.split('&')[0] || '');
+    }
+    if (trimmed.includes('/catalogo/insumos/')) {
+      return 'catalogo/insumos/' + (trimmed.split('/catalogo/insumos/')[1]?.split('?')[0] || '');
+    }
+    if (trimmed.includes('amazonaws.com/')) return trimmed.split('amazonaws.com/')[1]?.split('?')[0] || '';
+    if (trimmed.startsWith('/uploads/')) return trimmed.replace(/^\/uploads\//, '').split('?')[0];
+    if (trimmed.startsWith('uploads/')) return trimmed.replace(/^uploads\//, '').split('?')[0];
+    if (trimmed.startsWith('agencias/') || trimmed.startsWith('catalogo/') || trimmed.startsWith('usuarios/')) {
+      return trimmed.split('?')[0];
+    }
+    return '';
+  }
+
+  /**
+   * URL de la miniatura liviana (480 px) que el backend genera al subir cada foto en
+   * `thumbs/<clave-original>.jpg`. Devuelve '' si el archivo no es una imagen gestionada.
+   */
+  public getThumbnailUrl(value?: string | null): string {
+    if (!value) return '';
+    const key = this.extractKey(String(value).trim());
+    if (!key || key.startsWith('thumbs/') || !/\.(jpe?g|png|webp|heic|heif)$/i.test(key)) return '';
+    const thumbKey = 'thumbs/' + key.replace(/^[/\\]+/, '').replace(/\.[^./]+$/, '') + '.jpg';
+    return apiUrl(`/storage/file?key=${encodeURIComponent(thumbKey)}`);
+  }
+
   public resolveBackendUrl(value?: string | null): string {
     if (!value) return '';
     const trimmed = String(value).trim();

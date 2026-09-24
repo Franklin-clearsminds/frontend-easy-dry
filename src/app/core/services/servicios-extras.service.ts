@@ -81,6 +81,12 @@ export class ServiciosExtrasService {
       tiempoPausaFormateado: item.tiempoPausaFormateado || '0 min',
       tiempoEfectivoSeg: item.tiempoEfectivoSeg !== null && item.tiempoEfectivoSeg !== undefined ? Number(item.tiempoEfectivoSeg) : null,
       tiempoEfectivoFormateado: item.tiempoEfectivoFormateado || '0 min',
+      tiempoTotalSeg: item.tiempoTotalSeg !== null && item.tiempoTotalSeg !== undefined ? Number(item.tiempoTotalSeg) : null,
+      tiempoTotalFormateado: item.tiempoTotalFormateado || '0 min',
+      createdAt: item.createdAt || undefined,
+      fechaInicio: item.fechaInicio || undefined,
+      fechaFin: item.fechaFin || undefined,
+      creadoPorNombre: item.creadoPorNombre || undefined,
       historialPausas: Array.isArray(item.historialPausas) ? item.historialPausas : []
     };
   }

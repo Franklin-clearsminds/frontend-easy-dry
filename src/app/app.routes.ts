@@ -304,7 +304,9 @@ export const routes: Routes = [
             Role.JEFE_COMERCIAL,
             Role.COORD_COMERCIAL,
             Role.COORD_SERVICIOS_ESPECIALES,
-            Role.LIDER_OPERADOR
+            Role.LIDER_OPERADOR,
+            Role.COORD_BODEGA,
+            Role.ASISTENTE_BODEGA
           ], 'configuracion/servicios')
         ]
       },
