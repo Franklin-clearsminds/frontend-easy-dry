@@ -1,7 +1,6 @@
 import { ApplicationConfig, importProvidersFrom, LOCALE_ID, provideZoneChangeDetection } from '@angular/core';
-import { provideRouter, withComponentInputBinding } from '@angular/router';
+import { PreloadAllModules, provideRouter, withComponentInputBinding, withPreloading } from '@angular/router';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
-import { provideAnimations } from '@angular/platform-browser/animations';
 import { registerLocaleData } from '@angular/common';
 import localeEs from '@angular/common/locales/es';
 import { LucideAngularModule } from 'lucide-angular';
@@ -15,10 +14,10 @@ registerLocaleData(localeEs);
 export const appConfig: ApplicationConfig = {
   providers: [
     { provide: LOCALE_ID, useValue: 'es' },
-    provideZoneChangeDetection({ eventCoalescing: true }),
-    provideRouter(routes, withComponentInputBinding()),
+    provideZoneChangeDetection({ eventCoalescing: true, runCoalescing: true }),
+    // Las pantallas se descargan en segundo plano cuando el navegador está libre: al navegar ya están listas.
+    provideRouter(routes, withComponentInputBinding(), withPreloading(PreloadAllModules)),
     provideHttpClient(withInterceptors([jwtInterceptor, errorInterceptor])),
-    provideAnimations(),
     importProvidersFrom(LucideAngularModule.pick(EASYDRY_ICONS))
   ]
 };

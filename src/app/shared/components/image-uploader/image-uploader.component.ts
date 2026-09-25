@@ -9,11 +9,13 @@ import {
   OnInit,
   inject,
   ChangeDetectorRef,
-  HostListener
+  HostListener,
+  NgZone
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LucideAngularModule } from 'lucide-angular';
+import { VisorArchivoComponent } from '../visor-archivo/visor-archivo.component';
 import {
   StorageUploadService,
   StorageCategory,
@@ -26,7 +28,7 @@ export type UploaderState = 'idle' | 'adjusting' | 'uploading' | 'uploaded' | 'e
 @Component({
   selector: 'app-image-uploader',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule],
+  imports: [CommonModule, FormsModule, LucideAngularModule, VisorArchivoComponent],
   template: `
     <div class="space-y-3 w-full font-sans">
       <!-- Header / Etiqueta y Estado -->
@@ -312,13 +314,13 @@ export type UploaderState = 'idle' | 'adjusting' | 'uploading' | 'uploaded' | 'e
 
               @if (!hasPendingUpload) {
                 <div class="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                  <a
-                    [href]="previewUrl || getDisplayUrl(currentImageUrl)"
-                    target="_blank"
+                  <button
+                    type="button"
+                    (click)="visorAbierto = true"
                     title="Ver en tamaño completo"
-                    class="p-2 rounded-full bg-white text-slate-900 shadow-md hover:bg-slate-100">
+                    class="p-2 rounded-full bg-white text-slate-900 shadow-md hover:bg-slate-100 cursor-pointer">
                     <i-lucide name="external-link" class="w-4 h-4"></i-lucide>
-                  </a>
+                  </button>
                 </div>
               }
             </div>
@@ -425,6 +427,15 @@ export type UploaderState = 'idle' | 'adjusting' | 'uploading' | 'uploaded' | 'e
 
       </div>
     </div>
+
+    <!-- Vista a tamaño completo en un modal sobre la misma página -->
+    <app-visor-archivo
+      [isOpen]="visorAbierto"
+      titulo="Vista completa"
+      tipo="imagen"
+      [url]="previewUrl || getDisplayUrl(currentImageUrl)"
+      (cerrar)="visorAbierto = false">
+    </app-visor-archivo>
   `
 })
 export class ImageUploaderComponent implements OnInit, OnDestroy {
@@ -455,6 +466,7 @@ export class ImageUploaderComponent implements OnInit, OnDestroy {
 
   private readonly storageUploadService = inject(StorageUploadService);
   private readonly cdr = inject(ChangeDetectorRef);
+  private readonly zone = inject(NgZone);
 
   public activeMode: ImageUploaderMode = 'upload';
   public state: UploaderState = 'idle';
@@ -549,9 +561,38 @@ export class ImageUploaderComponent implements OnInit, OnDestroy {
     this.startY = event.clientY;
     this.startPanX = this.panX;
     this.startPanY = this.panY;
+    this.seguirGesto();
   }
 
-  @HostListener('document:mousemove', ['$event'])
+  // Antes estos eventos estaban registrados en todo el documento todo el tiempo: cada movimiento del ratón
+  // en cualquier parte de la página provocaba una revisión completa de la pantalla. Ahora solo existen
+  // mientras se arrastra y corren fuera de Angular (el componente se actualiza con detectChanges).
+  private readonly gestoMouseMove = (e: Event) => this.onMouseMoveDoc(e as MouseEvent);
+  private readonly gestoMouseUp = () => this.onMouseUpDoc();
+  private readonly gestoTouchMove = (e: Event) => this.onTouchMoveDoc(e as TouchEvent);
+  private readonly gestoTouchEnd = () => this.onTouchEndDoc();
+  private siguiendoGesto = false;
+
+  private seguirGesto(): void {
+    if (this.siguiendoGesto) return;
+    this.siguiendoGesto = true;
+    this.zone.runOutsideAngular(() => {
+      document.addEventListener('mousemove', this.gestoMouseMove);
+      document.addEventListener('mouseup', this.gestoMouseUp);
+      document.addEventListener('touchmove', this.gestoTouchMove, { passive: true });
+      document.addEventListener('touchend', this.gestoTouchEnd);
+    });
+  }
+
+  private dejarDeSeguirGesto(): void {
+    if (!this.siguiendoGesto) return;
+    this.siguiendoGesto = false;
+    document.removeEventListener('mousemove', this.gestoMouseMove);
+    document.removeEventListener('mouseup', this.gestoMouseUp);
+    document.removeEventListener('touchmove', this.gestoTouchMove);
+    document.removeEventListener('touchend', this.gestoTouchEnd);
+  }
+
   public onMouseMoveDoc(event: MouseEvent): void {
     if (!this.isPanning) return;
     event.preventDefault();
@@ -563,8 +604,8 @@ export class ImageUploaderComponent implements OnInit, OnDestroy {
     this.cdr.detectChanges();
   }
 
-  @HostListener('document:mouseup')
   public onMouseUpDoc(): void {
+    this.dejarDeSeguirGesto();
     if (this.isPanning) {
       this.isPanning = false;
       this.cdr.detectChanges();
@@ -578,9 +619,9 @@ export class ImageUploaderComponent implements OnInit, OnDestroy {
     this.startY = event.touches[0].clientY;
     this.startPanX = this.panX;
     this.startPanY = this.panY;
+    this.seguirGesto();
   }
 
-  @HostListener('document:touchmove', ['$event'])
   public onTouchMoveDoc(event: TouchEvent): void {
     if (!this.isPanning || event.touches.length === 0) return;
     const dx = event.touches[0].clientX - this.startX;
@@ -591,8 +632,8 @@ export class ImageUploaderComponent implements OnInit, OnDestroy {
     this.cdr.detectChanges();
   }
 
-  @HostListener('document:touchend')
   public onTouchEndDoc(): void {
+    this.dejarDeSeguirGesto();
     if (this.isPanning) {
       this.isPanning = false;
       this.cdr.detectChanges();
@@ -916,6 +957,8 @@ export class ImageUploaderComponent implements OnInit, OnDestroy {
     const name = url.split('/').pop()?.split('?')[0] || 'imagen.jpg';
     return name;
   }
+
+  visorAbierto = false;
 
   public getDisplayUrl(url: string | null): string {
     if (!url) return '';

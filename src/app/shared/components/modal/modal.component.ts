@@ -13,11 +13,13 @@ import { LucideAngularModule } from 'lucide-angular';
   template: `
     @if (isOpen) {
       <div
-        class="fixed inset-0 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in"
+        class="fixed inset-0 flex items-center justify-center p-4 bg-slate-900/60 animate-fade-in"
+        [class.backdrop-blur-sm]="blur"
         [ngClass]="zClass"
         (click)="onBackdropClick($event)">
         <div
-          class="bg-white rounded-3xl shadow-2xl border border-slate-100 w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh] animate-fade-in"
+          class="bg-white rounded-3xl shadow-2xl border border-slate-100 w-full overflow-hidden flex flex-col max-h-[90vh] animate-fade-in"
+          [ngClass]="sizeClass"
           (click)="$event.stopPropagation()">
 
           <!-- Header fijo -->
@@ -64,13 +66,20 @@ import { LucideAngularModule } from 'lucide-angular';
   `,
 })
 export class ModalComponent implements OnInit, OnChanges, OnDestroy {
+  /** Modales abiertos, en orden de apertura: el último es el que está encima. */
+  private static readonly abiertos: ModalComponent[] = [];
+
   @Input() isOpen = false;
   @Input() title = '';
   @Input() icon = '';
   @Input() showBackButton = false;
   @Input() closeOnBackdrop = false;
+  /** Desenfoca el fondo. Se desactiva en visores de imágenes para que el zoom y el arrastre sean fluidos. */
+  @Input() blur = true;
   /** Por encima de sidebar (z-[999]) y header (z-30) */
   @Input() zClass = 'z-[10050]';
+  /** Ancho máximo del cuadro (por defecto max-w-3xl). */
+  @Input() sizeClass = 'max-w-3xl';
 
   @Output() close = new EventEmitter<void>();
   @Output() back = new EventEmitter<void>();
@@ -91,13 +100,27 @@ export class ModalComponent implements OnInit, OnChanges, OnDestroy {
     if (changes['isOpen'] && this.isOpen) {
       this.bringToFront();
       this.doc.body.style.overflow = 'hidden';
+      this.registrarAbierto();
     } else if (changes['isOpen'] && !this.isOpen) {
-      this.doc.body.style.overflow = '';
+      this.quitarAbierto();
+      // Si queda otro modal abierto debajo, el fondo sigue sin scroll.
+      this.doc.body.style.overflow = ModalComponent.abiertos.length ? 'hidden' : '';
     }
   }
 
+  private registrarAbierto(): void {
+    this.quitarAbierto();
+    ModalComponent.abiertos.push(this);
+  }
+
+  private quitarAbierto(): void {
+    const i = ModalComponent.abiertos.indexOf(this);
+    if (i >= 0) ModalComponent.abiertos.splice(i, 1);
+  }
+
   ngOnDestroy(): void {
-    this.doc.body.style.overflow = '';
+    this.quitarAbierto();
+    this.doc.body.style.overflow = ModalComponent.abiertos.length ? 'hidden' : '';
     if (this.host.nativeElement.parentNode) {
       this.host.nativeElement.parentNode.removeChild(this.host.nativeElement);
     }
@@ -109,7 +132,9 @@ export class ModalComponent implements OnInit, OnChanges, OnDestroy {
 
   @HostListener('window:keydown.escape', ['$event'])
   onKeydownHandler(_event: KeyboardEvent): void {
-    if (this.isOpen) {
+    // Solo se cierra el modal que está encima (por ejemplo, el visor de una ficha sobre el detalle).
+    const arriba = ModalComponent.abiertos[ModalComponent.abiertos.length - 1];
+    if (this.isOpen && (!arriba || arriba === this)) {
       this.closeModal();
     }
   }

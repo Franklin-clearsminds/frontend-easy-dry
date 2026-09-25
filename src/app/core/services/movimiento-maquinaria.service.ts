@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { BehaviorSubject, Observable, of } from 'rxjs';
 import { map, tap, catchError } from 'rxjs/operators';
-import { MovimientoMaquinaria } from '../models';
+import { MovimientoMaquinaria, PaginaResultado } from '../models';
 import { apiUrl } from '../config/env';
 
 @Injectable({
@@ -21,21 +21,34 @@ export class MovimientoMaquinariaService {
       fecha: m.fecha ? new Date(m.fecha).toISOString().replace('T', ' ').substring(0, 16) : '',
       usuarioResponsable: m.usuario ? `${m.usuario.name || ''} ${m.usuario.lastname || ''}`.trim() : (m.usuarioResponsable || ''),
       sucursalAnterior: m.origenAgencia?.nombre || m.sucursalAnterior || '',
-      bahiaAnterior: m.origenBahiaId || m.bahiaAnterior || '',
+      bahiaAnterior: m.origenBahia?.nombre || m.bahiaAnterior || '',
       sucursalNueva: m.destinoAgencia?.nombre || m.sucursalNueva || '',
-      bahiaNueva: m.destinoBahiaId || m.bahiaNueva || '',
+      bahiaNueva: m.destinoBahia?.nombre || m.bahiaNueva || '',
       motivo: m.motivo || '',
     };
   }
 
-  getMovimientos(): Observable<MovimientoMaquinaria[]> {
-    return this.http.post<any>(apiUrl('/maquinaria/movimientos/list'), {}).pipe(
+  /** Movimientos (ADMIN, SUPER_ADMIN, COORD_MANTENIMIENTO). Acepta paginación { page, pageSize (máx 200) }. */
+  getMovimientos(filtro: { maquinariaId?: string; page?: number; pageSize?: number } = {}): Observable<MovimientoMaquinaria[]> {
+    return this.http.post<any>(apiUrl('/maquinaria/movimientos/list'), filtro).pipe(
       map(res => {
         const items = Array.isArray(res) ? res : (res?.data || []);
         return items.map((m: any) => this.mapItem(m));
       }),
       tap(list => this.movimientosSubject.next(list)),
       catchError(() => of(this.movimientosSubject.value))
+    );
+  }
+
+  /** Movimientos de una máquina con el total paginado (para el modal de detalle). */
+  getMovimientosPagina(maquinariaId: string | number, page = 1, pageSize = 200): Observable<PaginaResultado<MovimientoMaquinaria>> {
+    return this.http.post<any>(apiUrl('/maquinaria/movimientos/list'), { maquinariaId: String(maquinariaId), page, pageSize }).pipe(
+      map(res => ({
+        data: (Array.isArray(res) ? res : (res?.data || [])).map((m: any) => this.mapItem(m)),
+        total: Number(res?.total ?? 0),
+        page: Number(res?.page ?? page),
+        pageSize: Number(res?.pageSize ?? pageSize),
+      }))
     );
   }
 

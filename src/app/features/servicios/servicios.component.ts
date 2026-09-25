@@ -1,4 +1,5 @@
 import { Component, OnInit, ViewChild, inject } from '@angular/core';
+import { firstValueFrom } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LucideAngularModule } from 'lucide-angular';
@@ -38,11 +39,12 @@ import { resolverRangoFechas, soloFecha } from '../../core/utils/fecha-rango';
 
 import { RouterModule } from '@angular/router';
 import { VideoRecorderComponent } from '../../shared/components/video-recorder/video-recorder.component';
+import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-selector/evidencia-selector.component';
 
 @Component({
   selector: 'app-servicios',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, LucideAngularModule, ModalComponent, PaginationComponent, FilterBarComponent, VideoRecorderComponent],
+  imports: [CommonModule, RouterModule, FormsModule, LucideAngularModule, ModalComponent, PaginationComponent, FilterBarComponent, VideoRecorderComponent, EvidenciaSelectorComponent],
   template: `
     <div class="space-y-6 animate-fade-in">
       
@@ -1465,39 +1467,15 @@ import { VideoRecorderComponent } from '../../shared/components/video-recorder/v
                 required>
               </textarea>
             </div>
-            <div class="border-2 border-dashed border-rose-200 bg-rose-50/40 rounded-2xl p-4 space-y-3">
-              <label class="text-xs font-bold text-rose-900 uppercase flex items-center gap-1.5">
-                <i-lucide name="camera" class="w-4 h-4 text-rose-600"></i-lucide>
-                Evidencias del Fallo (opcional)
-              </label>
-              <div class="flex items-center gap-3 flex-wrap">
-                <label class="cursor-pointer px-4 py-2.5 bg-white border border-rose-300 hover:bg-rose-50 text-rose-700 font-bold rounded-xl text-xs flex items-center gap-2">
-                  <i-lucide name="upload-cloud" class="w-4 h-4"></i-lucide>
-                  <span>Seleccionar Archivos</span>
-                  <input type="file" multiple accept="image/*,video/*" (change)="onSubirArchivosFallo($event)" class="hidden">
-                </label>
-              </div>
-              @if (archivosFalloSubidos.length > 0) {
-                <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2">
-                  @for (arch of archivosFalloSubidos; track arch.id; let idx = $index) {
-                    <div class="relative bg-white border rounded-xl p-2 shadow-xs">
-                      @if (arch.tipo === 'imagen') {
-                        <img loading="lazy" decoding="async" [src]="arch.url" alt="Fallo" class="w-full h-24 object-cover rounded-lg">
-                      } @else {
-                        <div class="w-full h-24 bg-slate-900 rounded-lg flex items-center justify-center">
-                          <i-lucide name="film" class="w-8 h-8 text-purple-400"></i-lucide>
-                        </div>
-                      }
-                      <p class="text-[10px] font-semibold text-slate-700 truncate mt-1">{{ arch.nombre }}</p>
-                      <button type="button" (click)="eliminarArchivoFallo(idx)"
-                        class="absolute top-1 right-1 p-1 bg-rose-600 text-white rounded-full">
-                        <i-lucide name="x" class="w-3 h-3"></i-lucide>
-                      </button>
-                    </div>
-                  }
-                </div>
-              }
-            </div>
+            <!-- Evidencia obligatoria: 1+ foto/video y exactamente 1 PDF (se sube por ticket firmado) -->
+            <app-evidencia-selector #selFalla
+              contexto="INCIDENTE" fase="reporte"
+              [maquinariaCodigo]="codigoMaquinaSeleccionada" [clientUuid]="clientUuidFalla"
+              [exigirCompleta]="true">
+            </app-evidencia-selector>
+            @if (errorFalla) {
+              <div class="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs font-semibold text-rose-700">{{ errorFalla }}</div>
+            }
           }
         </form>
 
@@ -2614,6 +2592,10 @@ export class ServiciosComponent implements OnInit {
   maquinasReporte: Maquinaria[] = [];
   maquinaSeleccionadaId: number | string = 0;
   archivosFalloSubidos: ArchivoAdjunto[] = [];
+  /** UUID del reporte: se usa en el ticket de subida y en /incidentes/reportar para que la carpeta S3 coincida. */
+  clientUuidFalla = '';
+  errorFalla = '';
+  @ViewChild('selFalla') selFalla?: EvidenciaSelectorComponent;
   tieneServiciosEspeciales: boolean = false;
   tiposFallaDisponibles: string[] = [
     'Falla eléctrica',
@@ -3351,7 +3333,13 @@ export class ServiciosComponent implements OnInit {
     return bahia.includes('móvil') || bahia.includes('especial') || sucursal.includes('servicios especiales');
   }
 
+  get codigoMaquinaSeleccionada(): string {
+    return this.maquinasReporte.find(m => m.id === this.maquinaSeleccionadaId)?.codigo || '';
+  }
+
   abrirModalReportarFalla(): void {
+    this.clientUuidFalla = crypto.randomUUID();
+    this.errorFalla = '';
     this.archivosFalloSubidos = [];
     this.nuevoIncidente.descripcion = '';
     this.modalReportarFallaOpen = true;
@@ -3379,7 +3367,8 @@ export class ServiciosComponent implements OnInit {
     this.archivosFalloSubidos.splice(index, 1);
   }
 
-  guardarReporteFalla(): void {
+  async guardarReporteFalla(): Promise<void> {
+    this.errorFalla = '';
     const maquina = this.maquinasReporte.find(m => m.id === this.maquinaSeleccionadaId);
     if (!maquina) {
       this.toastService.warning('Equipo requerido', 'Seleccione el equipo afectado.');
@@ -3389,32 +3378,32 @@ export class ServiciosComponent implements OnInit {
       this.toastService.warning('Descripción requerida', 'Describa el fallo observado.');
       return;
     }
+    const pendiente = this.selFalla?.validar();
+    if (pendiente) {
+      this.errorFalla = pendiente;
+      return;
+    }
 
-    const user = this.authService.getCurrentUser()!;
-    const fotos = this.archivosFalloSubidos.filter(a => a.tipo === 'imagen').map(a => a.url);
-    const videos = this.archivosFalloSubidos.filter(a => a.tipo === 'video').map(a => a.url);
-    const reportadoPor = `${user.nombre} ${user.apellido}`.trim()
-      + (this.isOperadorEspeciales ? ' (Servicios Especiales)' : ' (Operador)');
-
-    const registro: Omit<Incidente, 'id'> = {
-      codigoIncidente: '',
-      maquina: maquina.nombre,
-      agencia: maquina.agencia || maquina.sucursalNombre || user.sucursalNombre || '',
-      fecha: new Date().toISOString().replace('T', ' ').substring(0, 16),
-      tipo: this.nuevoIncidente.tipo,
-      prioridad: this.nuevoIncidente.prioridad,
-      estado: 'Pendiente',
-      descripcion: this.nuevoIncidente.descripcion.trim(),
-      reportadoPor,
-      fotosFallo: fotos.length > 0 ? fotos : undefined,
-      videosFallo: videos.length > 0 ? videos : undefined,
-      archivosFallo: this.archivosFalloSubidos.length > 0 ? [...this.archivosFalloSubidos] : undefined
-    };
-
-    this.incidenteService.crearIncidente(registro).subscribe(creado => {
+    const gravedad = this.nuevoIncidente.prioridad === 'Crítica' ? 'CRITICA'
+      : this.nuevoIncidente.prioridad === 'Alta' ? 'ALTA'
+        : this.nuevoIncidente.prioridad === 'Baja' ? 'BAJA' : 'MEDIA';
+    try {
+      const evidencias = await this.selFalla!.subir();
+      const creado = await firstValueFrom(this.incidenteService.reportarIncidente({
+        clientUuid: this.clientUuidFalla,
+        maquinariaId: String(maquina.id),
+        titulo: this.nuevoIncidente.tipo,
+        descripcion: this.nuevoIncidente.descripcion.trim(),
+        gravedad,
+        evidencias,
+      }));
       this.toastService.success('Reporte enviado', `Incidente ${creado.codigoIncidente} registrado. El taller lo procesará.`);
       this.modalReportarFallaOpen = false;
-    });
+    } catch (err: any) {
+      // Se muestra el mensaje del backend tal cual (p. ej. máquina no asignada a ti o evidencia incompleta).
+      const m = err?.error?.message;
+      this.errorFalla = m ? (Array.isArray(m) ? m.join(', ') : String(m)) : (err?.message || 'No se pudo enviar el reporte.');
+    }
   }
 
   onCategoriaChange() {

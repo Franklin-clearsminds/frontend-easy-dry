@@ -4,6 +4,7 @@ import { LoginComponent } from './features/login/login.component';
 import { AdminLayoutComponent } from './shared/layouts/admin-layout.component';
 import { authGuard, roleGuard } from './core/guards/auth.guard';
 import { Role } from './core/models/roles.model';
+import { ROLES_VER_MAQUINARIA } from './core/utils/maquinaria-permisos';
 
 export const routes: Routes = [
   {
@@ -184,15 +185,8 @@ export const routes: Routes = [
           import('./features/maquinaria/maquinaria.component').then(m => m.MaquinariaComponent),
         canActivate: [
           authGuard,
-          roleGuard([
-            Role.SUPER_ADMIN,
-            Role.ADMIN,
-            Role.SUPERVISOR,
-            Role.COORD_MANTENIMIENTO,
-            Role.TECNICO,
-            Role.LIDER_OPERADOR,
-            Role.COORD_SERVICIOS_ESPECIALES
-          ], 'maquinaria')
+          // Matriz de maquinaria: ADMIN, SUPER_ADMIN, COORD_BODEGA, COORD_MANTENIMIENTO, TECNICO, PULIDOR* y LIDER*
+          roleGuard(ROLES_VER_MAQUINARIA, 'maquinaria')
         ]
       },
 
@@ -205,7 +199,6 @@ export const routes: Routes = [
           roleGuard([
             Role.SUPER_ADMIN,
             Role.ADMIN,
-            Role.SUPERVISOR,
             Role.COORD_MANTENIMIENTO,
             Role.TECNICO
           ], 'taller-tecnico')

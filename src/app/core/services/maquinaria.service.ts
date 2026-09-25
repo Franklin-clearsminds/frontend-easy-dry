@@ -2,8 +2,40 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { BehaviorSubject, Observable, of } from 'rxjs';
 import { map, tap, catchError } from 'rxjs/operators';
-import { Maquinaria } from '../models';
+import {
+  Maquinaria,
+  MaquinaFicha,
+  MaquinariaEvento,
+  HistorialFiltro,
+  PaginaResultado,
+  TallerUbicacion,
+  nombrePersona,
+} from '../models';
 import { apiUrl } from '../config/env';
+
+/** Filtros de POST /maquinaria/list (cada rol ve solo lo suyo: lo filtra el backend). */
+export interface MaquinariaFiltro {
+  agenciaId?: string;
+  bahiaId?: string;
+  tipo?: string;
+  estadoOperativo?: string;
+  search?: string;
+  activa?: boolean;
+  operadorAsignadoId?: string;
+}
+
+/** Campos editables en POST /maquinaria/update (ya NO cambia agencia/bahía: eso es /transferir). */
+export interface MaquinariaEdicion {
+  nombre?: string;
+  tipo?: string;
+  marca?: string;
+  modelo?: string;
+  serie?: string;
+  fotoUrl?: string;
+  fichaTecnicaUrl?: string;
+  horasUso?: number;
+  ventanaAdelantoDias?: number;
+}
 
 @Injectable({
   providedIn: 'root'
@@ -14,6 +46,13 @@ export class MaquinariaService {
   public maquinaria$ = this.maquinariaSubject.asObservable();
 
   private mapBackendMaquinaria(m: any): Maquinaria {
+    const activa = m.activa !== false;
+    const estadoOperativo: string = m.estadoOperativo || 'OPERATIVA';
+    const estadoUi = !activa || estadoOperativo === 'DE_BAJA'
+      ? 'Fuera de Servicio'
+      : estadoOperativo === 'EN_MANTENIMIENTO'
+        ? 'Mantenimiento'
+        : (m.estado || 'Operativa');
     return {
       id: m.id,
       codigo: m.codigo || '',
@@ -21,23 +60,80 @@ export class MaquinariaService {
       tipo: m.tipo || 'General',
       marca: m.marca || '',
       modelo: m.modelo || '',
-      numeroSerie: m.numeroSerie || '',
+      numeroSerie: m.numeroSerie || m.serie || '',
       agencia: m.agencia?.nombre || 'Sin Agencia',
       bahia: m.bahia?.nombre || 'Sin Bahía',
       sucursalId: m.agenciaId || m.agencia?.id,
       sucursalNombre: m.agencia?.nombre,
       bahiaId: m.bahiaId || m.bahia?.id,
       bahiaNombre: m.bahia?.nombre,
-      estado: m.estadoOperativo === 'EN_MANTENIMIENTO' ? 'Mantenimiento' : m.estadoOperativo === 'DE_BAJA' ? 'Fuera de Servicio' : (m.estado || 'Operativa'),
+      estado: estadoUi,
       fechaMantenimiento: m.mantenimientos?.[0]?.fechaRealizado || '',
       imagen: m.fotoUrl || '',
       fichaTecnicaUrl: m.fichaTecnicaUrl || '',
-      horasUso: m.horasUso || 0
+      horasUso: m.horasUso || 0,
+      activa,
+      estadoOperativo,
+      regionId: m.agencia?.regionId || undefined,
+      agenciaTipo: m.agencia?.tipoUbicacion || undefined,
+      operadorAsignadoId: m.operadorAsignado?.id || m.operadorAsignadoId || undefined,
+      operadorAsignadoNombre: m.operadorAsignado ? nombrePersona(m.operadorAsignado) : undefined,
+      operadorResponsable: m.operadorAsignado ? nombrePersona(m.operadorAsignado) : undefined,
+      ventanaAdelantoDias: Number(m.ventanaAdelantoDias ?? 0),
+      incidentesNoAtendidos: Number(m.incidentesNoAtendidos ?? 0),
+      mantenimientosVencidos: Number(m.mantenimientosVencidos ?? 0),
     };
   }
 
-  getMaquinaria(): Observable<Maquinaria[]> {
-    return this.http.post<any>(apiUrl('/maquinaria/list'), {}).pipe(
+  private mapFicha(m: any): MaquinaFicha {
+    const persona = (u: any) => (u ? { id: u.id, nombre: nombrePersona(u) } : null);
+    return {
+      id: m.id,
+      codigo: m.codigo || '',
+      nombre: m.nombre || '',
+      tipo: m.tipo,
+      marca: m.marca,
+      modelo: m.modelo,
+      serie: m.serie,
+      estadoOperativo: m.estadoOperativo || 'OPERATIVA',
+      activa: m.activa !== false,
+      fotoUrl: m.fotoUrl,
+      fichaTecnicaUrl: m.fichaTecnicaUrl,
+      horasUso: m.horasUso,
+      ventanaAdelantoDias: Number(m.ventanaAdelantoDias ?? 0),
+      agenciaId: m.agenciaId || m.agencia?.id,
+      agenciaNombre: m.agencia?.nombre,
+      agenciaTipo: m.agencia?.tipoUbicacion,
+      regionId: m.agencia?.regionId,
+      bahiaId: m.bahiaId || m.bahia?.id,
+      bahiaNombre: m.bahia?.nombre,
+      operadorAsignado: persona(m.operadorAsignado),
+      creadoPor: persona(m.creadoPor),
+      creadaEn: m.createdAt,
+      desactivadoPor: persona(m.desactivadoPor),
+      fechaDesactivacion: m.fechaDesactivacion || null,
+      motivoDesactivacion: m.motivoDesactivacion || null,
+      proximoMantenimiento: m.proximoMantenimiento
+        ? {
+            id: m.proximoMantenimiento.id,
+            fechaProgramada: m.proximoMantenimiento.fechaProgramada || null,
+            tipo: m.proximoMantenimiento.tipo,
+            estado: m.proximoMantenimiento.estado,
+          }
+        : null,
+      incidentesNoAtendidos: Number(m.incidentesNoAtendidos ?? 0),
+      mantenimientosVencidos: Number(m.mantenimientosVencidos ?? 0),
+      totales: {
+        incidentes: Number(m.totales?.incidentes ?? 0),
+        mantenimientos: Number(m.totales?.mantenimientos ?? 0),
+        movimientos: Number(m.totales?.movimientos ?? 0),
+      },
+    };
+  }
+
+  /** Lista de máquinas visibles para el rol actual (el backend aplica el alcance). */
+  getMaquinaria(filtro: MaquinariaFiltro = {}): Observable<Maquinaria[]> {
+    return this.http.post<any>(apiUrl('/maquinaria/list'), filtro).pipe(
       map(res => {
         const items = Array.isArray(res) ? res : (res?.data || []);
         return items.map((m: any) => this.mapBackendMaquinaria(m));
@@ -47,20 +143,21 @@ export class MaquinariaService {
     );
   }
 
-  actualizarEstadoMaquina(id: number | string, estado: Maquinaria['estado']): Observable<Maquinaria | null> {
-    const estadoOperativo = estado === 'Mantenimiento' || estado === 'En Reparación' ? 'EN_MANTENIMIENTO' : estado === 'Fuera de Servicio' ? 'DE_BAJA' : 'OPERATIVA';
-    return this.http.post<any>(apiUrl('/maquinaria/update'), { id: String(id), estadoOperativo }).pipe(
-      map(res => this.mapBackendMaquinaria(res?.data || res)),
-      tap(act => {
-        const current = this.maquinariaSubject.value;
-        const idx = current.findIndex(m => String(m.id) === String(id));
-        if (idx !== -1) {
-          current[idx] = { ...act };
-          this.maquinariaSubject.next([...current]);
-        }
-      }),
-      catchError(() => of(null))
+  /** Ficha completa: máquina + creada por, desactivación, operador, próximo mantenimiento y totales. */
+  getDetalle(id: string | number): Observable<MaquinaFicha> {
+    return this.http.post<any>(apiUrl('/maquinaria/detalle'), { id: String(id) }).pipe(
+      map(res => this.mapFicha(res?.data || res))
     );
+  }
+
+  /** Reemplaza una máquina en la caché local tras una acción (evita recargar toda la lista). */
+  private refrescarLocal(m: Maquinaria): void {
+    const current = this.maquinariaSubject.value;
+    const idx = current.findIndex(x => String(x.id) === String(m.id));
+    if (idx !== -1) {
+      current[idx] = { ...current[idx], ...m };
+      this.maquinariaSubject.next([...current]);
+    }
   }
 
   crearMaquinaria(maquina: Omit<Maquinaria, 'id'>): Observable<Maquinaria> {
@@ -91,6 +188,71 @@ export class MaquinariaService {
     );
   }
 
+  /** Edita datos de la máquina (ADMIN / SUPER_ADMIN). No cambia agencia/bahía ni pone DE_BAJA. */
+  actualizarMaquina(id: string | number, cambios: MaquinariaEdicion): Observable<Maquinaria> {
+    return this.http.post<any>(apiUrl('/maquinaria/update'), { id: String(id), ...cambios }).pipe(
+      map(res => this.mapBackendMaquinaria(res?.data || res)),
+      tap(act => this.refrescarLocal(act))
+    );
+  }
+
+  /** Activar o desactivar (dar de baja, reversible). El motivo es obligatorio al desactivar. */
+  setActiva(maquinariaId: string | number, activa: boolean, motivo?: string): Observable<Maquinaria> {
+    return this.http.post<any>(apiUrl('/maquinaria/activar'), {
+      maquinariaId: String(maquinariaId),
+      activa,
+      motivo: motivo?.trim() || undefined,
+    }).pipe(
+      map(res => this.mapBackendMaquinaria(res?.data || res)),
+      tap(act => this.refrescarLocal(act))
+    );
+  }
+
+  /** Asigna (o quita con null) el operador responsable: usuario con rol PULIDOR* o LIDER*. */
+  asignarOperador(maquinariaId: string | number, operadorId: string | null): Observable<Maquinaria> {
+    return this.http.post<any>(apiUrl('/maquinaria/asignar-operador'), {
+      maquinariaId: String(maquinariaId),
+      operadorId,
+    }).pipe(
+      map(res => this.mapBackendMaquinaria(res?.data || res)),
+      tap(act => this.refrescarLocal(act))
+    );
+  }
+
+  /** Cuánto se puede adelantar un mantenimiento (días + semanas). */
+  configurarVentanaAdelanto(maquinariaId: string | number, dias?: number, semanas?: number): Observable<any> {
+    return this.http.post<any>(apiUrl('/maquinaria/ventana-adelanto'), {
+      maquinariaId: String(maquinariaId),
+      dias,
+      semanas,
+    });
+  }
+
+  /** Línea de tiempo de la máquina (ADMIN, SUPER_ADMIN, COORD_MANTENIMIENTO). */
+  getHistorial(filtro: HistorialFiltro): Observable<PaginaResultado<MaquinariaEvento>> {
+    return this.http.post<any>(apiUrl('/maquinaria/historial'), {
+      ...filtro,
+      tipos: filtro.tipos?.length ? filtro.tipos : undefined,
+      desde: filtro.desde || undefined,
+      hasta: filtro.hasta || undefined,
+    }).pipe(
+      map(res => ({
+        data: (res?.data || []) as MaquinariaEvento[],
+        total: Number(res?.total ?? 0),
+        page: Number(res?.page ?? 1),
+        pageSize: Number(res?.pageSize ?? 50),
+      }))
+    );
+  }
+
+  /** Talleres (agencias con tipoUbicacion TALLER_*), destino válido de una transferencia. */
+  getTalleres(): Observable<TallerUbicacion[]> {
+    return this.http.post<any>(apiUrl('/maquinaria/talleres/list'), {}).pipe(
+      map(res => (res?.data || []) as TallerUbicacion[]),
+      catchError(() => of([]))
+    );
+  }
+
   asignarMaquinaria(maquinaId: number | string, sucursalNombre: string, bahiaNombre: string): Observable<Maquinaria | null> {
     const current = this.maquinariaSubject.value;
     const item = current.find(m => String(m.id) === String(maquinaId));
@@ -109,18 +271,12 @@ export class MaquinariaService {
       fichaTecnicaUrl,
     }).pipe(
       map(res => this.mapBackendMaquinaria(res?.data || res)),
-      tap(act => {
-        const current = this.maquinariaSubject.value;
-        const idx = current.findIndex(m => String(m.id) === String(id));
-        if (idx !== -1) {
-          current[idx] = { ...current[idx], ...act };
-          this.maquinariaSubject.next([...current]);
-        }
-      }),
+      tap(act => this.refrescarLocal(act)),
       catchError(() => of(null)),
     );
   }
 
+  /** Mueve la máquina a otra agencia, bahía (misma agencia) o taller. Solo coordinación / administración. */
   transferirMaquinaria(payload: {
     maquinariaId: string;
     destinoAgenciaId: string;

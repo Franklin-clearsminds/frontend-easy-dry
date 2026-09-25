@@ -15,6 +15,23 @@ export class ThumbSrcDirective implements OnChanges {
 
   ngOnChanges(): void {
     this.usandoOriginal = false;
+    // Archivos privados de maquinaria: URL temporal (con JWT). Primero la miniatura de 480 px (unos KB) y,
+    // si aún no existe, el original. Antes se descargaba siempre la foto completa en cada tarjeta.
+    if (this.storage.esClaveMaquinaria(this.source)) {
+      const origen = this.source;
+      this.usandoOriginal = false;
+      void this.storage.resolveVariantUrl(origen, 'thumbs').then(async thumb => {
+        if (origen !== this.source) return;
+        if (thumb) {
+          this.el.nativeElement.src = thumb;
+          return;
+        }
+        this.usandoOriginal = true;
+        const url = await this.storage.resolveMediaUrl(origen);
+        if (origen === this.source) this.el.nativeElement.src = url;
+      });
+      return;
+    }
     const original = this.storage.resolveBackendUrl(this.source);
     const thumb = this.storage.getThumbnailUrl(this.source);
     this.el.nativeElement.src = thumb || original;
@@ -25,6 +42,13 @@ export class ThumbSrcDirective implements OnChanges {
   onError(): void {
     if (this.usandoOriginal) return;
     this.usandoOriginal = true;
+    if (this.storage.esClaveMaquinaria(this.source)) {
+      const origen = this.source;
+      void this.storage.resolveMediaUrl(origen).then(url => {
+        if (origen === this.source) this.el.nativeElement.src = url;
+      });
+      return;
+    }
     this.el.nativeElement.src = this.storage.resolveBackendUrl(this.source);
   }
 }

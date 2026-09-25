@@ -5,6 +5,8 @@ export * from './inventario.model';
 export * from './reto.model';
 export * from './notificacion.model';
 export * from './dashboard.model';
+export * from './maquinaria-trazabilidad.model';
+import type { EvidenciaMaquinaria } from './maquinaria-trazabilidad.model';
 export type ModalidadPulidor = 'FIJO' | 'MOVIL';
 
 export interface Usuario {
@@ -258,6 +260,17 @@ export interface Maquinaria {
   fichaTecnicaUrl?: string;
   horasUso?: number;
   nivelPresionWaterBar?: number;
+  // --- Trazabilidad ---
+  /** false = dada de baja (reversible). */
+  activa?: boolean;
+  estadoOperativo?: 'OPERATIVA' | 'EN_MANTENIMIENTO' | 'DE_BAJA' | string;
+  regionId?: string;
+  agenciaTipo?: string;
+  operadorAsignadoId?: string;
+  operadorAsignadoNombre?: string;
+  ventanaAdelantoDias?: number;
+  incidentesNoAtendidos?: number;
+  mantenimientosVencidos?: number;
 }
 
 export interface Mantenimiento {
@@ -293,6 +306,20 @@ export interface Mantenimiento {
   tecnicoId?: string | number;
   frecuenciaDias?: number;
   proximoMantenimiento?: string;
+  // --- Trazabilidad ---
+  /** Fecha programada vencida y no finalizado: se muestra en rojo y primero. */
+  noAtendido?: boolean;
+  maquinariaCodigo?: string;
+  regionId?: string;
+  estadoRaw?: string;
+  tipoRaw?: string;
+  fechaProgramada?: string;
+  /** Fecha y hora reales de ejecución (independiente de la programada). */
+  fechaEjecucion?: string;
+  creadoPorNombre?: string;
+  ejecutadoPorNombre?: string;
+  repuestosUsadosRaw?: any;
+  evidencias?: EvidenciaMaquinaria[];
 }
 
 export const FRECUENCIAS_MANTENIMIENTO: { dias: number; label: string }[] = [
@@ -388,6 +415,19 @@ export interface Incidente {
   fotosReparacion?: string[];
   videosReparacion?: string[];
   documentosReparacion?: ArchivoAdjunto[];
+
+  // --- Trazabilidad ---
+  /** Incidencia ABIERTA sin técnico asignado: se muestra en rojo y primero. */
+  noAtendida?: boolean;
+  maquinariaId?: string;
+  maquinariaCodigo?: string;
+  regionId?: string;
+  titulo?: string;
+  gravedadRaw?: string;
+  estadoRaw?: string;
+  destinoTallerNombre?: string;
+  fechaReporteIso?: string;
+  evidencias?: EvidenciaMaquinaria[];
 }
 
 export interface Reporte {

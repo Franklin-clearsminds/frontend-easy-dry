@@ -57,7 +57,8 @@ export interface UploadMediaOptions {
   maquinariaNombre?: string;
   maquinariaCodigo?: string;
   incidenteId?: string;
-  incidenteFase?: 'fallas' | 'resoluciones';
+  /** 'reporte' | 'reparacion' (los alias antiguos 'fallas' | 'resoluciones' siguen aceptados). */
+  incidenteFase?: 'reporte' | 'reparacion' | 'fallas' | 'resoluciones';
   mantenimientoId?: string;
   insumoId?: string | number;
   insumoNombre?: string;
@@ -106,7 +107,9 @@ export class StorageUploadService {
       contentType,
     };
 
-    const useBackendProxy = !options.type.startsWith('VIDEO_');
+    // La evidencia de maquinaria siempre sube por ticket firmado (PUT directo); el proxy solo es respaldo.
+    const esMaquinaria = options.category === 'MAQUINARIA_INCIDENTE' || options.category === 'MAQUINARIA_MANTENIMIENTO';
+    const useBackendProxy = !options.type.startsWith('VIDEO_') && !esMaquinaria;
     if (useBackendProxy) {
       return this.uploadViaBackend(fileOrBlob, ticketPayload, fileName, contentType, options.onProgress);
     }
@@ -242,8 +245,72 @@ export class StorageUploadService {
     if (trimmed.includes('amazonaws.com/')) return trimmed.split('amazonaws.com/')[1]?.split('?')[0] || '';
     if (trimmed.startsWith('/uploads/')) return trimmed.replace(/^\/uploads\//, '').split('?')[0];
     if (trimmed.startsWith('uploads/')) return trimmed.replace(/^uploads\//, '').split('?')[0];
-    if (trimmed.startsWith('agencias/') || trimmed.startsWith('catalogo/') || trimmed.startsWith('usuarios/')) {
+    if (trimmed.startsWith('agencias/') || trimmed.startsWith('catalogo/') || trimmed.startsWith('usuarios/') || trimmed.startsWith('maquinaria/')) {
       return trimmed.split('?')[0];
+    }
+    return '';
+  }
+
+  /** true si el archivo vive bajo `maquinaria/` (privado: solo se ve con URL prefirmada + JWT). */
+  public esClaveMaquinaria(value?: string | null): boolean {
+    if (!value) return false;
+    return this.extractKey(String(value).trim()).startsWith('maquinaria/');
+  }
+
+  private readonly cachePresignadas = new Map<string, { url: string; expira: number }>();
+  private readonly TTL_CACHE_MS = 10 * 60 * 1000;
+
+  /**
+   * Devuelve una URL lista para usar en <img>, <video> o enlaces. Para claves `maquinaria/` pide la URL temporal
+   * (GET /storage/presigned-url, con JWT) y la guarda en memoria unos minutos; el resto de categorías
+   * sigue resolviéndose igual que antes.
+   */
+  async resolveMediaUrl(value?: string | null): Promise<string> {
+    if (!value) return '';
+    const trimmed = String(value).trim();
+    if (trimmed.startsWith('data:') || trimmed.startsWith('blob:')) return trimmed;
+    const key = this.extractKey(trimmed);
+    if (!key.startsWith('maquinaria/')) return this.resolveBackendUrl(trimmed);
+
+    const hit = this.cachePresignadas.get(key);
+    if (hit && hit.expira > Date.now()) return hit.url;
+    try {
+      const res = await firstValueFrom(
+        this.http.get<{ url: string }>(apiUrl(`/storage/presigned-url?key=${encodeURIComponent(key)}`))
+      );
+      if (res?.url) {
+        this.cachePresignadas.set(key, { url: res.url, expira: Date.now() + this.TTL_CACHE_MS });
+        return res.url;
+      }
+    } catch {
+      // Sin URL temporal: se devuelve la ruta clásica (puede no cargar si el archivo es privado).
+    }
+    return this.resolveBackendUrl(trimmed);
+  }
+
+  /**
+   * URL temporal de una variante liviana de una foto de maquinaria: `thumbs` (480 px, para cuadrículas) o
+   * `view` (1600 px, para el visor). El backend las genera al guardar la evidencia; si todavía no existen,
+   * el <img> falla y el llamador usa el original. Devuelve '' si no aplica.
+   */
+  async resolveVariantUrl(value: string | null | undefined, variante: 'thumbs' | 'view'): Promise<string> {
+    if (!value) return '';
+    const key = this.extractKey(String(value).trim());
+    if (!key.startsWith('maquinaria/') || !/\.(jpe?g|png|webp)$/i.test(key)) return '';
+    const varianteKey = `${variante}/${key.replace(/^[/\\]+/, '').replace(/\.[^./]+$/, '')}.jpg`;
+
+    const hit = this.cachePresignadas.get(varianteKey);
+    if (hit && hit.expira > Date.now()) return hit.url;
+    try {
+      const res = await firstValueFrom(
+        this.http.get<{ url: string }>(apiUrl(`/storage/presigned-url?key=${encodeURIComponent(varianteKey)}`))
+      );
+      if (res?.url) {
+        this.cachePresignadas.set(varianteKey, { url: res.url, expira: Date.now() + this.TTL_CACHE_MS });
+        return res.url;
+      }
+    } catch {
+      // Sin variante: el llamador usa el original.
     }
     return '';
   }
@@ -283,7 +350,7 @@ export class StorageUploadService {
       const key = trimmed.replace(/^uploads\//, '').split('?')[0];
       return apiUrl(`/storage/file?key=${encodeURIComponent(key)}`);
     }
-    if (trimmed.startsWith('agencias/') || trimmed.startsWith('catalogo/') || trimmed.startsWith('usuarios/')) {
+    if (trimmed.startsWith('agencias/') || trimmed.startsWith('catalogo/') || trimmed.startsWith('usuarios/') || trimmed.startsWith('maquinaria/')) {
       const key = trimmed.split('?')[0];
       return apiUrl(`/storage/file?key=${encodeURIComponent(key)}`);
     }
@@ -314,9 +381,12 @@ export class StorageUploadService {
       key = trimmed.replace(/^\/uploads\//, '').split('?')[0];
     } else if (trimmed.startsWith('uploads/')) {
       key = trimmed.replace(/^uploads\//, '').split('?')[0];
-    } else if (trimmed.startsWith('agencias/') || trimmed.startsWith('catalogo/') || trimmed.startsWith('usuarios/')) {
+    } else if (trimmed.startsWith('agencias/') || trimmed.startsWith('catalogo/') || trimmed.startsWith('usuarios/') || trimmed.startsWith('maquinaria/')) {
       key = trimmed.split('?')[0];
     }
+
+    // Las evidencias de maquinaria comparten la caché de URLs temporales.
+    if (key.startsWith('maquinaria/')) return this.resolveMediaUrl(trimmed);
 
     if (!key) {
       return this.resolveBackendUrl(trimmed);
