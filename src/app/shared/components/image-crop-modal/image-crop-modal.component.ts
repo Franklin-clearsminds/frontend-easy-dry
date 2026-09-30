@@ -13,18 +13,18 @@ const OUTPUT = 512;
   imports: [CommonModule, FormsModule, LucideAngularModule, ModalPortalDirective],
   template: `
     @if (open && imageSrc) {
-      <div appModalPortal class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center z-[10000] p-4 animate-fade-in">
-        <div class="bg-white rounded-3xl p-5 sm:p-6 max-w-lg w-full shadow-2xl border border-slate-100 space-y-4">
+      <div appModalPortal class="fixed inset-0 bg-slate-900/70 flex items-center justify-center z-[10000] p-4 animate-fade-in">
+        <div role="dialog" aria-modal="true" aria-labelledby="crop-modal-title" class="bg-white rounded-2xl p-5 sm:p-6 max-w-lg w-full max-h-[90dvh] overflow-y-auto shadow-2xl border border-slate-100 space-y-4">
           <div class="flex items-center justify-between">
             <div>
-              <h3 class="font-extrabold text-slate-900 text-base flex items-center gap-2">
-                <i-lucide name="crop" class="w-5 h-5 text-easydry-blue"></i-lucide>
+              <h3 id="crop-modal-title" class="font-extrabold text-slate-900 text-base flex items-center gap-2">
+                <i-lucide name="crop" class="w-5 h-5 text-easydry-blue" aria-hidden="true"></i-lucide>
                 Ajustar imagen de perfil
               </h3>
-              <p class="text-[11px] text-slate-500 mt-1">Arrastra para encuadrar y usa el zoom para recortar el círculo.</p>
+              <p class="text-xs text-slate-500 mt-1">Arrastra (o usa las flechas del teclado) para encuadrar y usa el zoom para recortar el círculo.</p>
             </div>
-            <button type="button" (click)="cancel.emit()" class="text-slate-400 hover:text-slate-700 p-1 cursor-pointer">
-              <i-lucide name="x" class="w-5 h-5"></i-lucide>
+            <button type="button" (click)="cancel.emit()" aria-label="Cerrar" title="Cerrar" class="btn-icon shrink-0">
+              <i-lucide name="x" class="w-5 h-5" aria-hidden="true"></i-lucide>
             </button>
           </div>
 
@@ -32,13 +32,17 @@ const OUTPUT = 512;
             class="relative mx-auto bg-slate-900 overflow-hidden rounded-full shadow-inner select-none touch-none cursor-grab active:cursor-grabbing"
             [style.width.px]="viewport"
             [style.height.px]="viewport"
+            tabindex="0"
+            role="group"
+            aria-label="Área de recorte. Use las flechas para mover la imagen."
+            (keydown)="onKeyMove($event)"
             (pointerdown)="onPointerDown($event)"
             (pointermove)="onPointerMove($event)"
             (pointerup)="onPointerUp($event)"
             (pointerleave)="onPointerUp($event)">
             <img
               [src]="imageSrc"
-              alt="Ajustar recorte"
+              alt="Imagen a recortar para el perfil"
               class="absolute pointer-events-none max-w-none"
               [style.left.px]="imageLeft"
               [style.top.px]="imageTop"
@@ -50,14 +54,15 @@ const OUTPUT = 512;
           </div>
 
           <div class="space-y-2">
-            <div class="flex items-center justify-between text-[11px] font-bold text-slate-600">
-              <span class="flex items-center gap-1.5">
-                <i-lucide name="sliders" class="w-3.5 h-3.5"></i-lucide>
+            <div class="flex items-center justify-between text-xs font-bold text-slate-600">
+              <label for="crop-zoom" class="flex items-center gap-1.5">
+                <i-lucide name="sliders" class="w-3.5 h-3.5" aria-hidden="true"></i-lucide>
                 Zoom
-              </span>
+              </label>
               <span>{{ zoomLabel }}</span>
             </div>
             <input
+              id="crop-zoom"
               type="range"
               min="1"
               max="3"
@@ -71,14 +76,14 @@ const OUTPUT = 512;
             <button
               type="button"
               (click)="cancel.emit()"
-              class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs cursor-pointer">
+              class="btn-secondary flex-1">
               Cancelar
             </button>
             <button
               type="button"
               (click)="applyCrop()"
               [disabled]="!naturalWidth || applying"
-              class="flex-1 py-2.5 bg-easydry-blue hover:bg-easydry-blue-dark text-white font-extrabold rounded-xl text-xs cursor-pointer disabled:opacity-50">
+              class="btn-primary flex-1">
               {{ applying ? 'Recortando…' : 'Aplicar recorte' }}
             </button>
           </div>
@@ -150,6 +155,24 @@ export class ImageCropModalComponent implements OnChanges {
 
   onZoomChange(value: number | string): void {
     this.zoom = Number(value);
+    this.clampOffset();
+  }
+
+  @HostListener('window:keydown.escape')
+  onEscape(): void {
+    if (this.open && this.imageSrc) this.cancel.emit();
+  }
+
+  onKeyMove(event: KeyboardEvent): void {
+    const paso = event.shiftKey ? 30 : 10;
+    const mov: Record<string, [number, number]> = {
+      ArrowLeft: [paso, 0], ArrowRight: [-paso, 0], ArrowUp: [0, paso], ArrowDown: [0, -paso],
+    };
+    const d = mov[event.key];
+    if (!d) return;
+    event.preventDefault();
+    this.offsetX += d[0];
+    this.offsetY += d[1];
     this.clampOffset();
   }
 

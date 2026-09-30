@@ -1,19 +1,24 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnDestroy, OnInit, inject } from '@angular/core';
+import { HttpErrorResponse } from '@angular/common/http';
+import { Subject, Subscription, debounceTime, distinctUntilChanged, finalize, firstValueFrom } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LucideAngularModule } from 'lucide-angular';
-import { UsuarioService } from '../../core/services/usuario.service';
-import { RolService } from '../../core/services/rol.service';
+import { ConsultaUsuarios, ResumenUsuarios, UsuarioService } from '../../core/services/usuario.service';
+import { AMBITOS_ROL, CapacidadCatalogo, RolService, codigoRolDesdeNombre, codigoRolValido } from '../../core/services/rol.service';
 import { AuthService } from '../../core/services/auth.service';
 import { Usuario, ModuloSistema, RolPersonalizado, Sucursal, ModalidadPulidor, BodegaInventario, RegionOperativa, CatalogoServicio } from '../../core/models';
-import { isRolPermisosInmutable, PermisoModuloAcciones } from '../../core/models/roles.model';
+import { ROLE_LABELS } from '../../core/models/roles.model';
 import { SucursalService } from '../../core/services/sucursal.service';
 import { InventarioService } from '../../core/services/inventario.service';
 import { RegionService } from '../../core/services/region.service';
 import { CatalogoServiciosService } from '../../core/services/catalogo-servicios.service';
 import { esRolOperadorEspeciales } from '../../core/utils/modalidad-especiales.util';
 import { ModalComponent } from '../../shared/components/modal/modal.component';
-import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
+import { DataTableComponent, DataTableCellDirective, TableColumn } from '../../shared/components/data-table/data-table.component';
+import { TablaServidor } from '../../core/utils/tabla-servidor';
+import { ConsultaTabla } from '../../core/models/paginacion.model';
+import { BUSQUEDA_DEBOUNCE_MS, BUSQUEDA_MIN_CARACTERES, PAGE_SIZE_TABLA } from '../../core/config/paginacion';
 import { ToastService } from '../../shared/services/toast.service';
 import { FilterBarComponent, FilterState } from '../../shared/components/filter-bar/filter-bar.component';
 import { isRealProfilePhoto } from '../../core/config/env';
@@ -23,10 +28,50 @@ interface ModuloGrupo {
   modulos: ModuloSistema[];
 }
 
+interface GrupoCapacidad {
+  grupo: string;
+  items: CapacidadCatalogo[];
+}
+
+interface AmbitoInfo {
+  codigo: string;
+  corto: string;
+  detalle: string;
+}
+
+/** Qué significa cada ámbito, en palabras de quien administra (de más amplio a más estrecho). */
+const AMBITOS_INFO: AmbitoInfo[] = [
+  { codigo: 'GLOBAL', corto: 'Todo el país', detalle: 'Ve y actúa sobre los datos de toda la red: todas las regiones y agencias.' },
+  { codigo: 'REGION', corto: 'Su región', detalle: 'Solo los datos de la región asignada al usuario (todas las agencias de esa región).' },
+  { codigo: 'AGENCIA', corto: 'Su agencia', detalle: 'Solo los datos de la agencia asignada al usuario.' },
+  { codigo: 'PROPIO', corto: 'Solo lo asignado a él', detalle: 'Solo lo que se le asignó personalmente (sus propias órdenes, tareas o registros).' },
+];
+
+const COLUMNAS_USUARIOS: TableColumn[] = [
+  { key: 'nombre', label: 'Usuario', sortable: true, type: 'custom' },
+  { key: 'rol', label: 'Rol Asignado', sortable: true, type: 'custom' },
+  { key: 'agencia', label: 'Agencia o Región', sortable: true, type: 'custom' },
+  { key: 'email', label: 'Correo Electrónico', sortable: true, type: 'custom' },
+  { key: 'creado', label: 'Fecha Ingreso', sortable: true, defaultSort: 'desc', type: 'custom' },
+  { key: 'estado', label: 'Estado', sortable: true, type: 'custom' },
+  { key: 'acciones', label: 'Acción', align: 'right', type: 'custom' },
+];
+
+const COLUMNAS_ROLES: TableColumn[] = [
+  { key: 'namerol', label: 'Rol / Perfil', sortable: true, defaultSort: 'asc' },
+  { key: 'descripcion', label: 'Descripción' },
+  { key: 'ambito', label: 'Ámbito' },
+  { key: 'permisos', label: 'Permisos' },
+  { key: 'usuarios', label: 'Usuarios', sortable: true },
+  { key: 'estado', label: 'Estado', sortable: true, defaultSort: 'asc' },
+  { key: 'fecha', label: 'Fecha Creación', sortable: true, defaultSort: 'desc' },
+  { key: 'acciones', label: 'Acciones', align: 'right' },
+];
+
 @Component({
   selector: 'app-usuarios',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, PaginationComponent, FilterBarComponent],
+  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, DataTableComponent, DataTableCellDirective, FilterBarComponent],
   template: `
     <div class="space-y-6 animate-fade-in">
       
@@ -34,7 +79,7 @@ interface ModuloGrupo {
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-100 shadow-easydry">
         <div>
           <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-100 text-purple-800 text-xs font-bold mb-2 border border-purple-200">
-            <i-lucide name="shield" class="w-3.5 h-3.5"></i-lucide>
+            <i-lucide aria-hidden="true" name="shield" class="w-3.5 h-3.5"></i-lucide>
             <span>Control de Acceso y Estructura Organizacional</span>
           </div>
           <h1 class="text-2xl font-extrabold text-slate-900 font-outfit">Gestión de Usuarios, Roles y Permisos</h1>
@@ -50,17 +95,20 @@ interface ModuloGrupo {
           (click)="seleccionarTab('usuarios')"
           class="flex-1 py-2.5 px-4 rounded-xl text-xs font-extrabold transition-all flex items-center justify-center gap-2"
           [ngClass]="activeTab === 'usuarios' ? 'bg-easydry-blue text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'">
-          <i-lucide name="users" class="w-4 h-4"></i-lucide>
-          <span>Directorio de Usuarios ({{ usuariosVisibles.length }})</span>
+          <i-lucide aria-hidden="true" name="users" class="w-4 h-4"></i-lucide>
+          <span>Directorio de Usuarios ({{ totalDirectorio }})</span>
         </button>
 
-        <button
-          (click)="seleccionarTab('roles')"
-          class="flex-1 py-2.5 px-4 rounded-xl text-xs font-extrabold transition-all flex items-center justify-center gap-2"
-          [ngClass]="activeTab === 'roles' ? 'bg-purple-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'">
-          <i-lucide name="shield" class="w-4 h-4"></i-lucide>
-          <span>Roles y Permisos ({{ rolesVisibles.length }})</span>
-        </button>
+        @if (puedeVerRoles) {
+          <button
+            type="button"
+            (click)="seleccionarTab('roles')"
+            class="flex-1 py-2.5 px-4 rounded-xl text-xs font-extrabold transition-all flex items-center justify-center gap-2"
+            [ngClass]="activeTab === 'roles' ? 'bg-purple-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'">
+            <i-lucide aria-hidden="true" name="shield" class="w-4 h-4"></i-lucide>
+            <span>Roles y Permisos ({{ rolesVisibles.length }})</span>
+          </button>
+        }
       </div>
 
       <!-- ======================================================== -->
@@ -82,10 +130,13 @@ interface ModuloGrupo {
             [showEstado]="true"
             [showFechas]="false"
             [showBusqueda]="true"
-            placeholderBusqueda="Buscar por nombre, correo, rol, agencia o ID (USR-...)..."
+            placeholderBusqueda="Buscar por nombre, correo, rol, agencia o región..."
             [listaEstados]="['Todos', 'Activo', 'Inactivo']"
             (filterChange)="aplicarNuevosFiltros($event)">
           </app-filter-bar>
+          @if (busquedaCorta) {
+            <p class="-mt-3 px-2 text-[11px] font-semibold text-slate-500" role="status">Escribe al menos {{ minBusqueda }} letras para buscar.</p>
+          }
 
           <!-- Píldoras Rápidas de Segmentación en 1 Clic -->
           <div class="flex items-center gap-2 overflow-x-auto pb-1 select-none scrollbar-none">
@@ -95,8 +146,8 @@ interface ModuloGrupo {
               class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 cursor-pointer"
               [ngClass]="filtroPillRapida === 'todos' ? 'bg-easydry-blue text-white shadow-xs' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'">
               <span>Todos</span>
-              <span class="px-1.5 py-0.2 rounded-full text-[10px]" [ngClass]="filtroPillRapida === 'todos' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'">
-                {{ usuariosVisibles.length }}
+              <span class="px-1.5 py-0.5 rounded-full text-xs" [ngClass]="filtroPillRapida === 'todos' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'">
+                {{ resumenU?.total ?? 0 }}
               </span>
             </button>
             <button
@@ -104,10 +155,10 @@ interface ModuloGrupo {
               (click)="setQuickPill('lavadores')"
               class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 cursor-pointer"
               [ngClass]="filtroPillRapida === 'lavadores' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'">
-              <i-lucide name="sparkles" class="w-3.5 h-3.5"></i-lucide>
+              <i-lucide aria-hidden="true" name="sparkles" class="w-3.5 h-3.5"></i-lucide>
               <span>Lavadores</span>
-              <span class="px-1.5 py-0.2 rounded-full text-[10px]" [ngClass]="filtroPillRapida === 'lavadores' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'">
-                {{ countLavadores }}
+              <span class="px-1.5 py-0.5 rounded-full text-xs" [ngClass]="filtroPillRapida === 'lavadores' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'">
+                {{ resumenU?.lavadores ?? 0 }}
               </span>
             </button>
             <button
@@ -115,10 +166,10 @@ interface ModuloGrupo {
               (click)="setQuickPill('supervisores')"
               class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 cursor-pointer"
               [ngClass]="filtroPillRapida === 'supervisores' ? 'bg-amber-600 text-white shadow-xs' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'">
-              <i-lucide name="user-check" class="w-3.5 h-3.5"></i-lucide>
+              <i-lucide aria-hidden="true" name="user-check" class="w-3.5 h-3.5"></i-lucide>
               <span>Supervisores</span>
-              <span class="px-1.5 py-0.2 rounded-full text-[10px]" [ngClass]="filtroPillRapida === 'supervisores' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'">
-                {{ countSupervisores }}
+              <span class="px-1.5 py-0.5 rounded-full text-xs" [ngClass]="filtroPillRapida === 'supervisores' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'">
+                {{ resumenU?.supervisores ?? 0 }}
               </span>
             </button>
             <button
@@ -126,10 +177,10 @@ interface ModuloGrupo {
               (click)="setQuickPill('bodega')"
               class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 cursor-pointer"
               [ngClass]="filtroPillRapida === 'bodega' ? 'bg-purple-600 text-white shadow-xs' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'">
-              <i-lucide name="warehouse" class="w-3.5 h-3.5"></i-lucide>
+              <i-lucide aria-hidden="true" name="warehouse" class="w-3.5 h-3.5"></i-lucide>
               <span>Bodega e Inventario</span>
-              <span class="px-1.5 py-0.2 rounded-full text-[10px]" [ngClass]="filtroPillRapida === 'bodega' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'">
-                {{ countBodega }}
+              <span class="px-1.5 py-0.5 rounded-full text-xs" [ngClass]="filtroPillRapida === 'bodega' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'">
+                {{ resumenU?.bodega ?? 0 }}
               </span>
             </button>
             <button
@@ -137,10 +188,10 @@ interface ModuloGrupo {
               (click)="setQuickPill('admins')"
               class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 cursor-pointer"
               [ngClass]="filtroPillRapida === 'admins' ? 'bg-slate-800 text-white shadow-xs' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'">
-              <i-lucide name="shield" class="w-3.5 h-3.5"></i-lucide>
+              <i-lucide aria-hidden="true" name="shield" class="w-3.5 h-3.5"></i-lucide>
               <span>Administrativos</span>
-              <span class="px-1.5 py-0.2 rounded-full text-[10px]" [ngClass]="filtroPillRapida === 'admins' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'">
-                {{ countAdmins }}
+              <span class="px-1.5 py-0.5 rounded-full text-xs" [ngClass]="filtroPillRapida === 'admins' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'">
+                {{ resumenU?.admins ?? 0 }}
               </span>
             </button>
             <button
@@ -148,10 +199,10 @@ interface ModuloGrupo {
               (click)="setQuickPill('inactivos')"
               class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 cursor-pointer"
               [ngClass]="filtroPillRapida === 'inactivos' ? 'bg-rose-600 text-white shadow-xs' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'">
-              <i-lucide name="user-x" class="w-3.5 h-3.5"></i-lucide>
+              <i-lucide aria-hidden="true" name="user-x" class="w-3.5 h-3.5"></i-lucide>
               <span>Inactivos</span>
-              <span class="px-1.5 py-0.2 rounded-full text-[10px]" [ngClass]="filtroPillRapida === 'inactivos' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'">
-                {{ countInactivos }}
+              <span class="px-1.5 py-0.5 rounded-full text-xs" [ngClass]="filtroPillRapida === 'inactivos' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'">
+                {{ resumenU?.inactivos ?? 0 }}
               </span>
             </button>
           </div>
@@ -160,57 +211,57 @@ interface ModuloGrupo {
           @if (hayFiltrosActivos) {
             <div class="flex items-center gap-2 flex-wrap text-xs bg-slate-50 p-3 rounded-xl border border-slate-200 animate-fade-in">
               <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wide flex items-center gap-1">
-                <i-lucide name="filter" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide> Filtros Activos:
+                <i-lucide aria-hidden="true" name="filter" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide> Filtros Activos:
               </span>
 
               @if (filtroPillRapida !== 'todos') {
                 <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-easydry-blue/10 text-easydry-blue font-bold border border-easydry-blue/20">
                   Segmento: {{ filtroPillRapida | titlecase }}
-                  <button type="button" (click)="removerFiltro('pill')" class="hover:text-easydry-blue-dark cursor-pointer"><i-lucide name="x" class="w-3 h-3"></i-lucide></button>
+                  <button type="button" aria-label="Quitar filtro" (click)="removerFiltro('pill')" class="hover:text-easydry-blue-dark cursor-pointer"><i-lucide aria-hidden="true" name="x" class="w-3 h-3"></i-lucide></button>
                 </span>
               }
               @if (filtrosGlobales.rol && filtrosGlobales.rol !== 'Todos') {
                 <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-purple-100 text-purple-800 font-bold border border-purple-200">
                   Rol: {{ filtrosGlobales.rol }}
-                  <button type="button" (click)="removerFiltro('rol')" class="hover:text-purple-950 cursor-pointer"><i-lucide name="x" class="w-3 h-3"></i-lucide></button>
+                  <button type="button" aria-label="Quitar filtro" (click)="removerFiltro('rol')" class="hover:text-purple-950 cursor-pointer"><i-lucide aria-hidden="true" name="x" class="w-3 h-3"></i-lucide></button>
                 </span>
               }
               @if (filtrosGlobales.region && filtrosGlobales.region !== 'Todas') {
                 <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-100 text-blue-800 font-bold border border-blue-200">
                   Región: {{ filtrosGlobales.region }}
-                  <button type="button" (click)="removerFiltro('region')" class="hover:text-blue-950 cursor-pointer"><i-lucide name="x" class="w-3 h-3"></i-lucide></button>
+                  <button type="button" aria-label="Quitar filtro" (click)="removerFiltro('region')" class="hover:text-blue-950 cursor-pointer"><i-lucide aria-hidden="true" name="x" class="w-3 h-3"></i-lucide></button>
                 </span>
               }
               @if (filtrosGlobales.sucursal && filtrosGlobales.sucursal !== 'Todas') {
                 <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-cyan-100 text-cyan-800 font-bold border border-cyan-200">
                   Agencia: {{ filtrosGlobales.sucursal }}
-                  <button type="button" (click)="removerFiltro('sucursal')" class="hover:text-cyan-950 cursor-pointer"><i-lucide name="x" class="w-3 h-3"></i-lucide></button>
+                  <button type="button" aria-label="Quitar filtro" (click)="removerFiltro('sucursal')" class="hover:text-cyan-950 cursor-pointer"><i-lucide aria-hidden="true" name="x" class="w-3 h-3"></i-lucide></button>
                 </span>
               }
               @if (filtrosGlobales.cliente && filtrosGlobales.cliente !== 'Todas') {
                 <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-100 text-amber-800 font-bold border border-amber-200">
                   Cliente: {{ filtrosGlobales.cliente }}
-                  <button type="button" (click)="removerFiltro('cliente')" class="hover:text-amber-950 cursor-pointer"><i-lucide name="x" class="w-3 h-3"></i-lucide></button>
+                  <button type="button" aria-label="Quitar filtro" (click)="removerFiltro('cliente')" class="hover:text-amber-950 cursor-pointer"><i-lucide aria-hidden="true" name="x" class="w-3 h-3"></i-lucide></button>
                 </span>
               }
               @if (filtrosGlobales.estado && filtrosGlobales.estado !== 'Todos') {
                 <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-200 text-slate-800 font-bold border border-slate-300">
                   Estado: {{ filtrosGlobales.estado }}
-                  <button type="button" (click)="removerFiltro('estado')" class="hover:text-black cursor-pointer"><i-lucide name="x" class="w-3 h-3"></i-lucide></button>
+                  <button type="button" aria-label="Quitar filtro" (click)="removerFiltro('estado')" class="hover:text-black cursor-pointer"><i-lucide aria-hidden="true" name="x" class="w-3 h-3"></i-lucide></button>
                 </span>
               }
               @if (filtroTexto.trim()) {
                 <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-800 font-bold border border-emerald-200">
                   "{{ filtroTexto }}"
-                  <button type="button" (click)="removerFiltro('busqueda')" class="hover:text-emerald-950 cursor-pointer"><i-lucide name="x" class="w-3 h-3"></i-lucide></button>
+                  <button type="button" aria-label="Quitar filtro" (click)="removerFiltro('busqueda')" class="hover:text-emerald-950 cursor-pointer"><i-lucide aria-hidden="true" name="x" class="w-3 h-3"></i-lucide></button>
                 </span>
               }
 
               <button
                 type="button"
                 (click)="limpiarTodosFiltros()"
-                class="ml-auto text-[11px] font-extrabold text-rose-600 hover:text-rose-700 hover:underline cursor-pointer flex items-center gap-1">
-                <i-lucide name="trash-2" class="w-3 h-3"></i-lucide>
+                class="ml-auto text-xs font-extrabold text-rose-600 hover:text-rose-700 hover:underline cursor-pointer flex items-center gap-1">
+                <i-lucide aria-hidden="true" name="trash-2" class="w-3 h-3"></i-lucide>
                 Limpiar filtros
               </button>
             </div>
@@ -225,225 +276,173 @@ interface ModuloGrupo {
               </div>
               <div class="flex items-center gap-3">
                 <span class="text-xs text-slate-500 font-bold bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200">
-                  {{ usuariosFiltrados.length }} Usuarios Encontrados
+                  {{ totalU }} Usuarios Encontrados
                 </span>
                 <button
                   type="button"
                   (click)="exportarUsuariosCSV()"
                   title="Exportar listado a CSV / Excel"
                   class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors flex items-center gap-1.5 cursor-pointer border border-slate-200">
-                  <i-lucide name="download" class="w-4 h-4 text-slate-600"></i-lucide>
+                  <i-lucide aria-hidden="true" name="download" class="w-4 h-4 text-slate-600"></i-lucide>
                   <span>Exportar</span>
                 </button>
-                <button
-                  (click)="abrirModalCrearUsuario()"
-                  class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
-                  <i-lucide name="user-plus" class="w-4 h-4"></i-lucide>
-                  <span>Registrar Usuario</span>
-                </button>
+                @if (puedeGestionarUsuarios) {
+                  <button
+                    type="button"
+                    (click)="abrirModalCrearUsuario()"
+                    class="btn btn-cta">
+                    <i-lucide aria-hidden="true" name="user-plus" class="w-4 h-4"></i-lucide>
+                    <span>Registrar Usuario</span>
+                  </button>
+                }
               </div>
             </div>
 
-            <div class="overflow-x-auto">
-              <table class="w-full text-left text-sm">
-                <thead class="bg-slate-50 text-slate-500 text-xs font-bold uppercase tracking-wider border-b border-slate-200 select-none">
-                  <tr>
-                    <th (click)="toggleSort('nombre')" class="py-3.5 px-4 cursor-pointer hover:bg-slate-100 transition-colors">
-                      <div class="flex items-center gap-1.5">
-                        <span>Usuario</span>
-                        <i-lucide [name]="sortColumn === 'nombre' ? (sortDirection === 'asc' ? 'arrow-up' : 'arrow-down') : 'arrow-up-down'" class="w-3.5 h-3.5" [ngClass]="sortColumn === 'nombre' ? 'text-easydry-blue' : 'text-slate-300'"></i-lucide>
-                      </div>
-                    </th>
-                    <th (click)="toggleSort('rol')" class="py-3.5 px-4 cursor-pointer hover:bg-slate-100 transition-colors">
-                      <div class="flex items-center gap-1.5">
-                        <span>Rol Asignado</span>
-                        <i-lucide [name]="sortColumn === 'rol' ? (sortDirection === 'asc' ? 'arrow-up' : 'arrow-down') : 'arrow-up-down'" class="w-3.5 h-3.5" [ngClass]="sortColumn === 'rol' ? 'text-easydry-blue' : 'text-slate-300'"></i-lucide>
-                      </div>
-                    </th>
-                    <th (click)="toggleSort('agencia')" class="py-3.5 px-4 cursor-pointer hover:bg-slate-100 transition-colors">
-                      <div class="flex items-center gap-1.5">
-                        <span>Agencia o Región</span>
-                        <i-lucide [name]="sortColumn === 'agencia' ? (sortDirection === 'asc' ? 'arrow-up' : 'arrow-down') : 'arrow-up-down'" class="w-3.5 h-3.5" [ngClass]="sortColumn === 'agencia' ? 'text-easydry-blue' : 'text-slate-300'"></i-lucide>
-                      </div>
-                    </th>
-                    <th (click)="toggleSort('email')" class="py-3.5 px-4 cursor-pointer hover:bg-slate-100 transition-colors">
-                      <div class="flex items-center gap-1.5">
-                        <span>Correo Electrónico</span>
-                        <i-lucide [name]="sortColumn === 'email' ? (sortDirection === 'asc' ? 'arrow-up' : 'arrow-down') : 'arrow-up-down'" class="w-3.5 h-3.5" [ngClass]="sortColumn === 'email' ? 'text-easydry-blue' : 'text-slate-300'"></i-lucide>
-                      </div>
-                    </th>
-                    <th (click)="toggleSort('fechaAsignacion')" class="py-3.5 px-4 cursor-pointer hover:bg-slate-100 transition-colors">
-                      <div class="flex items-center gap-1.5">
-                        <span>Fecha Ingreso</span>
-                        <i-lucide [name]="sortColumn === 'fechaAsignacion' ? (sortDirection === 'asc' ? 'arrow-up' : 'arrow-down') : 'arrow-up-down'" class="w-3.5 h-3.5" [ngClass]="sortColumn === 'fechaAsignacion' ? 'text-easydry-blue' : 'text-slate-300'"></i-lucide>
-                      </div>
-                    </th>
-                    <th (click)="toggleSort('estado')" class="py-3.5 px-4 cursor-pointer hover:bg-slate-100 transition-colors">
-                      <div class="flex items-center gap-1.5">
-                        <span>Estado</span>
-                        <i-lucide [name]="sortColumn === 'estado' ? (sortDirection === 'asc' ? 'arrow-up' : 'arrow-down') : 'arrow-up-down'" class="w-3.5 h-3.5" [ngClass]="sortColumn === 'estado' ? 'text-easydry-blue' : 'text-slate-300'"></i-lucide>
-                      </div>
-                    </th>
-                    <th class="py-3.5 px-4 text-right">Acción</th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100">
-                  @if (usuariosFiltrados.length === 0) {
-                    <tr>
-                      <td colspan="7" class="py-12 px-4 text-center">
-                        <div class="flex flex-col items-center justify-center max-w-sm mx-auto text-slate-400">
-                          <div class="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mb-3">
-                            <i-lucide name="search-x" class="w-6 h-6"></i-lucide>
-                          </div>
-                          <p class="font-bold text-slate-700 text-sm">No se encontraron colaboradores</p>
-                          <p class="text-xs text-slate-400 mt-1">No hay usuarios que coincidan con los criterios y filtros seleccionados.</p>
-                          <button
-                            type="button"
-                            (click)="limpiarTodosFiltros()"
-                            class="mt-3 px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors cursor-pointer">
-                            Limpiar filtros
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  } @else {
-                    @for (u of paginatedUsuarios; track u.id) {
-                    <tr class="hover:bg-slate-50/80 transition-colors" [ngClass]="{'opacity-60 bg-slate-50/40': u.estado === 'Inactivo'}">
-                      <td class="py-3.5 px-4">
-                        <div class="flex items-center gap-3">
-                          @if (isRealProfilePhoto(u.avatar)) {
-                            <img loading="lazy" decoding="async" [src]="u.avatar" alt="Avatar" class="w-9 h-9 rounded-full object-cover border-2" [ngClass]="u.estado === 'Activo' ? 'border-easydry-blue/20' : 'border-slate-300 grayscale'">
-                          } @else {
-                            <div class="w-9 h-9 rounded-full bg-slate-100 border-2 flex items-center justify-center text-[10px] font-extrabold text-slate-500" [ngClass]="u.estado === 'Activo' ? 'border-easydry-blue/20' : 'border-slate-300 grayscale'">
-                              {{ (u.nombre || '?').charAt(0) }}{{ (u.apellido || '').charAt(0) }}
-                            </div>
-                          }
-                          <div>
-                            <div class="flex items-center gap-1.5">
-                              <p class="font-bold text-slate-900 text-xs">{{ u.nombre }} {{ u.apellido }}</p>
-                              @if (u.estado === 'Inactivo') {
-                                <span class="text-[9px] font-bold px-1.5 py-0.2 bg-rose-100 text-rose-700 rounded border border-rose-200">Inactivo</span>
-                              }
-                            </div>
-                            <p class="text-[10px] text-slate-400 font-mono">ID: USR-00{{ u.id }}</p>
-                          </div>
-                        </div>
-                      </td>
-                      <td class="py-3.5 px-4">
-                        <span 
-                          class="px-2.5 py-1 rounded-lg text-xs font-bold border"
-                          [ngClass]="getRolBadgeClass(u.rol)">
-                          {{ u.rol }}
-                        </span>
-                      </td>
-                      <td class="py-3.5 px-4 text-xs font-semibold text-slate-700">
-                        <div class="flex flex-col gap-1">
-                          @if (esAdminOGlobal(u.rol)) {
-                            <span class="inline-flex items-center gap-1.5 text-slate-700 font-bold bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200 w-fit">
-                              <i-lucide name="globe" class="w-3.5 h-3.5 text-slate-500"></i-lucide>
-                              <span>Acceso Global (Sin Agencia)</span>
-                            </span>
-                          } @else if (esGestorBodegaRol(u.rol)) {
-                            <span class="inline-flex items-center gap-1.5 text-purple-700 font-bold bg-purple-50 px-2.5 py-1 rounded-lg border border-purple-200 w-fit">
-                              <i-lucide name="globe" class="w-3.5 h-3.5 text-purple-600"></i-lucide>
-                              <span>Acceso Global (Todo de Todos)</span>
-                            </span>
-                          } @else if (esSupervisorRol(u.rol)) {
-                            <span class="inline-flex items-center gap-1.5 text-blue-800 font-bold bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200 w-fit">
-                              <i-lucide name="map-pin" class="w-3.5 h-3.5 text-blue-600"></i-lucide>
-                              <span>Región {{ u.region || 'Regional' }}</span>
-                            </span>
-                          } @else if (esAsistenteBodegaRol(u.rol)) {
-                            <span class="inline-flex items-center gap-1.5 text-amber-800 font-bold bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200 w-fit">
-                              <i-lucide name="map-pin" class="w-3.5 h-3.5 text-amber-600"></i-lucide>
-                              <span>{{ u.agencia || ('Bodega Región ' + (u.region || 'Regional')) }}</span>
-                            </span>
-                          } @else if (u.agencia && u.agencia !== 'Sin asignar' && !u.agencia.includes('Sin') && !u.agencia.startsWith('Región') && !u.agencia.startsWith('Móvil')) {
-                            <div class="flex flex-col">
-                              <span class="font-bold text-slate-900">{{ u.agencia }}</span>
-                              @if (u.region && u.region !== 'Sin asignar' && u.region !== 'Nacional') {
-                                <span class="text-[10px] text-slate-500 font-normal">Región {{ u.region }}</span>
-                              }
-                            </div>
-                          } @else if (u.region && u.region !== 'Sin asignar' && u.region !== 'Nacional') {
-                            <span class="inline-flex items-center gap-1.5 text-blue-800 font-bold bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200 w-fit">
-                              <i-lucide name="map-pin" class="w-3.5 h-3.5 text-blue-600"></i-lucide>
-                              <span>Región {{ u.region }}</span>
-                            </span>
-                          } @else {
-                            <span class="text-slate-500">{{ u.agencia || 'Sin asignar' }}</span>
-                          }
-                          @if (esOperadorEspecialesRol(u.rol)) {
-                            <span
-                              class="w-fit px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide"
-                              [ngClass]="u.modalidadPulidor === 'FIJO'
-                                ? 'bg-easydry-blue/10 text-easydry-blue border border-easydry-blue/20'
-                                : 'bg-cyan-50 text-cyan-800 border border-cyan-200'">
-                              {{ u.modalidadPulidor === 'FIJO' ? 'Pulidor fijo' : 'Pulidor móvil' }}
-                            </span>
-                          }
-                        </div>
-                      </td>
-                      <td class="py-3.5 px-4 text-xs text-slate-600 font-mono">
-                        {{ u.email }}
-                      </td>
-                      <td class="py-3.5 px-4 text-xs font-mono text-slate-500">
-                        {{ u.fechaAsignacion }}
-                      </td>
-                      <td class="py-3.5 px-4">
-                        <button
-                          type="button"
-                          (click)="toggleEstadoUsuario(u)"
-                          [title]="u.estado === 'Activo' ? 'Click para marcar como Inactivo (Bloqueará login y asignación)' : 'Click para activar usuario'"
-                          class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border transition-all cursor-pointer select-none"
-                          [ngClass]="u.estado === 'Activo' 
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300' 
-                            : 'bg-slate-100 text-slate-600 border-slate-300 hover:bg-slate-200'">
-                          <span class="w-2 h-2 rounded-full" [ngClass]="u.estado === 'Activo' ? 'bg-emerald-500' : 'bg-slate-400'"></span>
-                          <span>{{ u.estado }}</span>
-                        </button>
-                      </td>
-                      <td class="py-3.5 px-4 text-right">
-                        <div class="flex items-center justify-end gap-1">
-                          <button
-                            type="button"
-                            (click)="toggleEstadoUsuario(u)"
-                            [title]="u.estado === 'Activo' ? 'Desactivar usuario' : 'Activar usuario'"
-                            class="p-1.5 rounded-lg transition-colors cursor-pointer"
-                            [ngClass]="u.estado === 'Activo' ? 'text-slate-400 hover:text-amber-600 hover:bg-amber-50' : 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-50'">
-                            <i-lucide [name]="u.estado === 'Activo' ? 'user-x' : 'user-check'" class="w-4 h-4"></i-lucide>
-                          </button>
-                          <button 
-                            type="button"
-                            (click)="editarUsuario(u)" 
-                            title="Editar Usuario"
-                            class="p-1.5 text-slate-400 hover:text-easydry-blue rounded-lg hover:bg-slate-100 transition-colors cursor-pointer">
-                            <i-lucide name="edit-3" class="w-4 h-4"></i-lucide>
-                          </button>
-                          <button
-                            type="button"
-                            (click)="abrirModalEliminarUsuario(u)"
-                            title="Eliminar Usuario"
-                            class="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer">
-                            <i-lucide name="trash-2" class="w-4 h-4"></i-lucide>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  }
-                }
-                </tbody>
-              </table>
+            <app-data-table
+              [serverSide]="true"
+              [embebida]="true"
+              [showToolbar]="false"
+              [columns]="columnasUsuarios"
+              [data]="filasU"
+              [total]="totalU"
+              [page]="paginaU"
+              [pageSize]="pageSizeU"
+              [sortField]="sortFieldU"
+              [sortOrder]="sortOrderU"
+              [loading]="cargandoU"
+              [error]="errorU"
+              [rowClass]="claseFilaUsuario"
+              maxHeight="none"
+              caption="Directorio de colaboradores"
+              [emptyTitle]="tituloVacioU"
+              emptyHint="No hay usuarios que coincidan con los criterios y filtros seleccionados."
+              (queryChange)="onTablaUsuariosCambio($event)"
+              (reintentar)="cargarPaginaU()">
 
-            </div>
-            
-            <app-pagination 
-              [totalItems]="usuariosFiltrados.length" 
-              [currentPage]="currentPage" 
-              [pageSize]="pageSize"
-              (pageChange)="onPageChange($event)"
-              (pageSizeChange)="onPageSizeChange($event)">
-            </app-pagination>
+              <ng-template appCell="nombre" let-u>
+                <div class="flex items-center gap-3">
+                  @if (isRealProfilePhoto(u.avatar)) {
+                    <img loading="lazy" decoding="async" [src]="u.avatar" alt="Foto de {{ u.nombre }} {{ u.apellido }}" class="w-9 h-9 rounded-full object-cover border-2" [ngClass]="u.estado === 'Activo' ? 'border-easydry-blue/20' : 'border-slate-300 grayscale'">
+                  } @else {
+                    <div class="w-9 h-9 rounded-full bg-slate-100 border-2 flex items-center justify-center text-xs font-extrabold text-slate-500" [ngClass]="u.estado === 'Activo' ? 'border-easydry-blue/20' : 'border-slate-300 grayscale'">
+                      {{ (u.nombre || '?').charAt(0) }}{{ (u.apellido || '').charAt(0) }}
+                    </div>
+                  }
+                  <div>
+                    <div class="flex items-center gap-1.5">
+                      <p class="font-bold text-slate-900 text-xs">{{ u.nombre }} {{ u.apellido }}</p>
+                      @if (u.estado === 'Inactivo') {
+                        <span class="badge badge-danger">Inactivo</span>
+                      }
+                    </div>
+                    <p class="text-xs text-slate-500 font-mono">ID: USR-00{{ u.id }}</p>
+                  </div>
+                </div>
+              </ng-template>
+
+              <ng-template appCell="rol" let-u>
+                <span
+                  class="px-2.5 py-1 rounded-lg text-xs font-bold border"
+                  [ngClass]="getRolBadgeClass(u.rol)">
+                  {{ u.rol }}
+                </span>
+              </ng-template>
+
+              <ng-template appCell="agencia" let-u>
+                <div class="flex flex-col gap-1 text-xs font-semibold text-slate-700">
+                  @if (ambitoDeUsuario(u) === 'GLOBAL') {
+                    <span class="inline-flex items-center gap-1.5 text-slate-700 font-bold bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200 w-fit">
+                      <i-lucide aria-hidden="true" name="globe" class="w-3.5 h-3.5 text-slate-500"></i-lucide>
+                      <span>Todo el país (sin agencia)</span>
+                    </span>
+                  } @else if (ambitoDeUsuario(u) === 'REGION' && !esAsistenteBodegaRol(u.rol)) {
+                    <span class="inline-flex items-center gap-1.5 text-blue-800 font-bold bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200 w-fit">
+                      <i-lucide aria-hidden="true" name="map-pin" class="w-3.5 h-3.5 text-blue-600"></i-lucide>
+                      <span>{{ u.region && u.region !== 'Sin asignar' ? 'Región ' + u.region : 'Sin región asignada' }}</span>
+                    </span>
+                  } @else if (esAsistenteBodegaRol(u.rol)) {
+                    <span class="inline-flex items-center gap-1.5 text-amber-800 font-bold bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200 w-fit">
+                      <i-lucide aria-hidden="true" name="map-pin" class="w-3.5 h-3.5 text-amber-600"></i-lucide>
+                      <span>{{ u.agencia || ('Bodega Región ' + (u.region || 'Regional')) }}</span>
+                    </span>
+                  } @else if (u.agencia && u.agencia !== 'Sin asignar' && !u.agencia.includes('Sin') && !u.agencia.startsWith('Región') && !u.agencia.startsWith('Móvil')) {
+                    <div class="flex flex-col">
+                      <span class="font-bold text-slate-900">{{ u.agencia }}</span>
+                      @if (u.region && u.region !== 'Sin asignar' && u.region !== 'Nacional') {
+                        <span class="text-xs text-slate-500 font-normal">Región {{ u.region }}</span>
+                      }
+                    </div>
+                  } @else if (u.region && u.region !== 'Sin asignar' && u.region !== 'Nacional') {
+                    <span class="inline-flex items-center gap-1.5 text-blue-800 font-bold bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200 w-fit">
+                      <i-lucide aria-hidden="true" name="map-pin" class="w-3.5 h-3.5 text-blue-600"></i-lucide>
+                      <span>Región {{ u.region }}</span>
+                    </span>
+                  } @else {
+                    <span class="text-slate-500">{{ u.agencia || 'Sin asignar' }}</span>
+                  }
+                  @if (esOperadorEspecialesRol(u.rol)) {
+                    <span
+                      class="w-fit px-2 py-0.5 rounded-full text-[11px] font-extrabold uppercase tracking-wide"
+                      [ngClass]="u.modalidadPulidor === 'FIJO'
+                        ? 'bg-easydry-blue/10 text-easydry-blue border border-easydry-blue/20'
+                        : 'bg-cyan-50 text-cyan-800 border border-cyan-200'">
+                      {{ u.modalidadPulidor === 'FIJO' ? 'Pulidor fijo' : 'Pulidor móvil' }}
+                    </span>
+                  }
+                </div>
+              </ng-template>
+
+              <ng-template appCell="email" let-u>
+                <span class="text-xs text-slate-600 font-mono break-all">{{ u.email }}</span>
+              </ng-template>
+
+              <ng-template appCell="creado" let-u>
+                <span class="text-xs font-mono text-slate-500">{{ u.fechaAsignacion }}</span>
+              </ng-template>
+
+              <ng-template appCell="estado" let-u>
+                <button
+                  type="button"
+                  (click)="toggleEstadoUsuario(u)"
+                  [disabled]="!puedeGestionarUsuarios"
+                  [title]="!puedeGestionarUsuarios ? 'Tu rol no puede cambiar el estado de usuarios' : (u.estado === 'Activo' ? 'Click para marcar como Inactivo (Bloqueará login y asignación)' : 'Click para activar usuario')"
+                  [attr.aria-label]="u.estado === 'Activo' ? 'Usuario activo. Marcar como inactivo' : 'Usuario inactivo. Activar usuario'"
+                  class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border transition-all cursor-pointer select-none disabled:cursor-default"
+                  [ngClass]="u.estado === 'Activo'
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300'
+                    : 'bg-slate-100 text-slate-600 border-slate-300 hover:bg-slate-200'">
+                  <span class="w-2 h-2 rounded-full" [ngClass]="u.estado === 'Activo' ? 'bg-emerald-500' : 'bg-slate-500'"></span>
+                  <span>{{ u.estado }}</span>
+                </button>
+              </ng-template>
+
+              <ng-template appCell="acciones" let-u>
+                <div class="flex items-center justify-end gap-1">
+                  <button
+                    type="button"
+                    (click)="toggleEstadoUsuario(u)"
+                    [title]="u.estado === 'Activo' ? 'Desactivar usuario' : 'Activar usuario'"
+                    class="p-1.5 min-w-9 min-h-9 inline-flex items-center justify-center rounded-lg transition-colors cursor-pointer"
+                    [ngClass]="u.estado === 'Activo' ? 'text-slate-500 hover:text-amber-600 hover:bg-amber-50' : 'text-slate-500 hover:text-emerald-600 hover:bg-emerald-50'" [attr.aria-label]="u.estado === 'Activo' ? 'Desactivar usuario' : 'Activar usuario'">
+                    <i-lucide aria-hidden="true" [name]="u.estado === 'Activo' ? 'user-x' : 'user-check'" class="w-4 h-4"></i-lucide>
+                  </button>
+                  <button
+                    type="button"
+                    (click)="editarUsuario(u)"
+                    title="Editar Usuario"
+                    class="p-1.5 min-w-9 min-h-9 inline-flex items-center justify-center text-slate-500 hover:text-easydry-blue rounded-lg hover:bg-slate-100 transition-colors cursor-pointer" aria-label="Editar Usuario">
+                    <i-lucide aria-hidden="true" name="edit-3" class="w-4 h-4"></i-lucide>
+                  </button>
+                  <button
+                    type="button"
+                    (click)="abrirModalEliminarUsuario(u)"
+                    title="Eliminar Usuario"
+                    class="p-1.5 min-w-9 min-h-9 inline-flex items-center justify-center text-slate-500 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer" aria-label="Eliminar Usuario">
+                    <i-lucide aria-hidden="true" name="trash-2" class="w-4 h-4"></i-lucide>
+                  </button>
+                </div>
+              </ng-template>
+            </app-data-table>
           </div>
         </div>
       }
@@ -461,7 +460,7 @@ interface ModuloGrupo {
           <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-easydry flex items-center gap-4">
               <div class="w-12 h-12 rounded-2xl bg-purple-100 text-purple-700 flex items-center justify-center flex-shrink-0">
-                <i-lucide name="shield-check" class="w-6 h-6"></i-lucide>
+                <i-lucide aria-hidden="true" name="shield-check" class="w-6 h-6"></i-lucide>
               </div>
               <div>
                 <p class="text-2xl font-extrabold text-slate-900 font-outfit">{{ roles.length }}</p>
@@ -471,7 +470,7 @@ interface ModuloGrupo {
 
             <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-easydry flex items-center gap-4">
               <div class="w-12 h-12 rounded-2xl bg-easydry-blue/10 text-easydry-blue flex items-center justify-center flex-shrink-0">
-                <i-lucide name="layout-grid" class="w-6 h-6"></i-lucide>
+                <i-lucide aria-hidden="true" name="layout-grid" class="w-6 h-6"></i-lucide>
               </div>
               <div>
                 <p class="text-2xl font-extrabold text-slate-900 font-outfit">{{ modulosDisponibles.length }}</p>
@@ -480,8 +479,8 @@ interface ModuloGrupo {
             </div>
 
             <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-easydry flex items-center gap-4">
-              <div class="w-12 h-12 rounded-2xl bg-easydry-green/15 text-easydry-green-dark flex items-center justify-center flex-shrink-0">
-                <i-lucide name="check-circle" class="w-6 h-6"></i-lucide>
+              <div class="w-12 h-12 rounded-2xl bg-easydry-green/15 text-easydry-green-text flex items-center justify-center flex-shrink-0">
+                <i-lucide aria-hidden="true" name="check-circle" class="w-6 h-6"></i-lucide>
               </div>
               <div>
                 <p class="text-2xl font-extrabold text-slate-900">{{ rolesActivosCount }}</p>
@@ -490,119 +489,152 @@ interface ModuloGrupo {
             </div>
           </div>
 
+          @if (!puedeGestionarRoles) {
+            <div class="flex items-start gap-3 p-4 rounded-2xl border border-blue-200 bg-blue-50 text-xs text-blue-900" role="note">
+              <i-lucide aria-hidden="true" name="eye" class="w-4 h-4 mt-0.5 shrink-0 text-blue-600"></i-lucide>
+              <p>Puedes consultar los roles y sus permisos, pero no modificarlos. Solo el Super Administrador crea, edita o elimina roles.</p>
+            </div>
+          }
+
           <!-- Tabla de roles activos en la plataforma -->
           <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry overflow-hidden">
             <div class="p-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <h3 class="font-bold text-slate-900 text-base font-outfit">Roles Registrados en la Base de Datos</h3>
-                <p class="text-xs text-slate-500">Estructura RBAC sincronizada directamente con la tabla roles de PostgreSQL</p>
+                <p class="text-xs text-slate-500">Cada rol define qué acciones puede hacer y sobre qué datos (ámbito). El servidor exige estos permisos en cada operación.</p>
               </div>
               <div class="flex items-center gap-3">
                 <span class="text-xs font-bold text-purple-700 bg-purple-50 px-3 py-1.5 rounded-xl border border-purple-200">
                   {{ roles.length }} roles en BD
                 </span>
-                <button 
-                  (click)="abrirModalCrearRol()"
-                  class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
-                  <i-lucide name="shield-plus" class="w-4 h-4"></i-lucide>
-                  <span>Crear Nuevo Rol</span>
-                </button>
+                @if (puedeGestionarRoles) {
+                  <button
+                    type="button"
+                    (click)="abrirModalCrearRol()"
+                    class="btn btn-cta">
+                    <i-lucide aria-hidden="true" name="shield-plus" class="w-4 h-4"></i-lucide>
+                    <span>Crear Nuevo Rol</span>
+                  </button>
+                }
               </div>
             </div>
 
-            <div class="overflow-x-auto">
-              <table class="w-full text-left text-sm">
-                <thead class="bg-slate-50 text-slate-500 text-xs font-bold uppercase tracking-wider border-b border-slate-200">
-                  <tr>
-                    <th class="py-3.5 px-5">Rol / Perfil</th>
-                    <th class="py-3.5 px-4">Descripción</th>
-                    <th class="py-3.5 px-4">Permisos Asignados</th>
-                    <th class="py-3.5 px-4">Estado</th>
-                    <th class="py-3.5 px-4">Fecha Creación</th>
-                    <th class="py-3.5 px-5 text-right">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100">
-                  @for (rol of rolesVisibles; track rol.id) {
-                    <tr class="hover:bg-slate-50/80 transition-colors" [ngClass]="{'opacity-60 bg-slate-50/40': rol.estado === 'Inactivo'}">
-                      <td class="py-4 px-5">
-                        <div class="flex items-center gap-3">
-                          <div
-                            class="w-9 h-9 rounded-xl flex items-center justify-center text-white flex-shrink-0 shadow-xs"
-                            [style.background-color]="rol.color || '#7C3AED'">
-                            <i-lucide name="shield" class="w-4 h-4"></i-lucide>
-                          </div>
-                          <span class="font-extrabold text-slate-900 text-xs">{{ rol.nombre }}</span>
-                        </div>
-                      </td>
-                      <td class="py-4 px-4 text-xs text-slate-600 max-w-xs">
-                        <p class="line-clamp-2" [title]="rol.descripcion">
-                          {{ rol.descripcion || 'Sin descripción registrada' }}
-                        </p>
-                      </td>
-                      <td class="py-4 px-4">
-                        <div class="flex items-center gap-2">
-                          <div class="w-16 bg-slate-100 h-2 rounded-full overflow-hidden hidden sm:block">
-                            <div class="bg-purple-600 h-full rounded-full" [style.width.%]="getModulosProgress(rol)"></div>
-                          </div>
-                          <span class="text-xs font-bold text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-lg">
-                            {{ getModulosCount(rol) }} permisos
-                          </span>
-                        </div>
-                      </td>
-                      <td class="py-4 px-4">
-                        <button
-                          type="button"
-                          (click)="toggleEstadoRol(rol)"
-                          [disabled]="isRolPermisosInmutable(rol.codigo)"
-                          [title]="isRolPermisosInmutable(rol.codigo) ? 'Rol del sistema inmutable' : (rol.estado === 'Activo' ? 'Click para desactivar rol' : 'Click para activar rol')"
-                          class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border transition-all select-none"
-                          [ngClass]="rol.estado === 'Activo' 
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 cursor-pointer' 
-                            : 'bg-slate-100 text-slate-600 border-slate-300 hover:bg-slate-200 cursor-pointer'">
-                          <span class="w-2 h-2 rounded-full" [ngClass]="rol.estado === 'Activo' ? 'bg-emerald-500' : 'bg-slate-400'"></span>
-                          <span>{{ rol.estado || 'Activo' }}</span>
-                        </button>
-                      </td>
-                      <td class="py-4 px-4 text-xs font-mono text-slate-500 whitespace-nowrap">
-                        {{ rol.fechaCreacion }}
-                      </td>
-                      <td class="py-4 px-5 text-right">
-                        <div class="flex items-center justify-end gap-1.5">
-                          <button
-                            (click)="abrirModalEditarRol(rol)"
-                            title="Editar Rol"
-                            class="p-2 text-slate-500 hover:text-easydry-blue hover:bg-slate-100 rounded-xl transition-colors cursor-pointer border border-transparent hover:border-slate-200">
-                            <i-lucide name="edit-3" class="w-4 h-4"></i-lucide>
-                          </button>
-                          <button
-                            (click)="abrirModalEditarRol(rol)"
-                            title="Modificar Permisos"
-                            class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-bold transition-colors cursor-pointer border border-purple-200">
-                            <i-lucide name="sliders" class="w-3.5 h-3.5"></i-lucide>
-                            <span>Permisos</span>
-                          </button>
-                          @if (rol.codigo !== 'SUPER_ADMIN') {
-                            <button
-                              (click)="abrirModalEliminarRol(rol)"
-                              title="Eliminar Rol"
-                              class="p-2 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer border border-transparent hover:border-rose-200">
-                              <i-lucide name="trash-2" class="w-4 h-4"></i-lucide>
-                            </button>
-                          }
-                        </div>
-                      </td>
-                    </tr>
-                  } @empty {
-                    <tr>
-                      <td colspan="6" class="py-10 px-4 text-center text-sm text-slate-500">
-                        No hay roles configurados en la base de datos. Use «Crear Nuevo Rol» para agregar uno.
-                      </td>
-                    </tr>
+            <app-data-table
+              [serverSide]="true"
+              [embebida]="true"
+              [columns]="columnasRoles"
+              [data]="rolesTabla.filas"
+              [total]="rolesTabla.total"
+              [page]="rolesTabla.pagina"
+              [pageSize]="rolesTabla.pageSize"
+              [sortField]="rolesTabla.sortField"
+              [sortOrder]="rolesTabla.sortOrder"
+              [loading]="rolesTabla.cargando"
+              [error]="rolesTabla.error"
+              maxHeight="60vh"
+              caption="Roles y permisos"
+              searchPlaceholder="Buscar rol por nombre o descripción..."
+              emptyTitle="No hay roles que coincidan."
+              emptyHint="Cambie la búsqueda o cree un rol nuevo."
+              (queryChange)="rolesTabla.alCambiar($event)"
+              (reintentar)="rolesTabla.cargar(true)">
+
+              <ng-template appCell="namerol" let-rol>
+                <div class="flex items-center gap-3">
+                  <div
+                    class="w-9 h-9 rounded-xl flex items-center justify-center text-white flex-shrink-0 shadow-xs"
+                    [style.background-color]="rol.color || '#7C3AED'">
+                    <i-lucide aria-hidden="true" name="shield" class="w-4 h-4"></i-lucide>
+                  </div>
+                  <div class="min-w-0">
+                    <div class="flex items-center gap-1.5 flex-wrap">
+                      <span class="font-extrabold text-slate-900 text-xs">{{ rol.nombre }}</span>
+                      @if (rol.esSistema) {
+                        <span class="badge" title="Rol oficial del sistema: no se elimina ni cambia de nombre">Oficial</span>
+                      }
+                    </div>
+                    <p class="text-[11px] font-mono text-slate-500">{{ rol.codigo }}</p>
+                  </div>
+                </div>
+              </ng-template>
+
+              <ng-template appCell="descripcion" let-rol>
+                <p class="line-clamp-2 text-xs text-slate-600 max-w-xs" [title]="rol.descripcion">
+                  {{ rol.descripcion || 'Sin descripción registrada' }}
+                </p>
+              </ng-template>
+
+              <ng-template appCell="ambito" let-rol>
+                <span class="text-xs font-bold text-slate-700 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-lg whitespace-nowrap" [title]="ambitoInfo(rol.ambito).detalle">
+                  {{ ambitoInfo(rol.ambito).corto }}
+                </span>
+              </ng-template>
+
+              <ng-template appCell="permisos" let-rol>
+                <div class="flex flex-col gap-1">
+                  @if (getCapacidadesCount(rol) === 0) {
+                    <span class="text-xs font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-lg w-fit" title="Un rol sin permisos no puede usar el sistema">
+                      Sin permisos
+                    </span>
+                  } @else {
+                    <div class="flex items-center gap-2">
+                      <div class="w-16 bg-slate-100 h-2 rounded-full overflow-hidden hidden sm:block">
+                        <div class="bg-purple-600 h-full rounded-full" [style.width.%]="getCapacidadesProgress(rol)"></div>
+                      </div>
+                      <span class="text-xs font-bold text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-lg">
+                        {{ getCapacidadesCount(rol) }} permisos
+                      </span>
+                    </div>
                   }
-                </tbody>
-              </table>
-            </div>
+                  <span class="text-[11px] text-slate-500">{{ getModulosCount(rol) }} módulos de navegación</span>
+                </div>
+              </ng-template>
+
+              <ng-template appCell="usuarios" let-rol>
+                <span class="text-xs font-bold text-slate-700">{{ rol.usuariosCount || 0 }}</span>
+              </ng-template>
+
+              <ng-template appCell="estado" let-rol>
+                <button
+                  type="button"
+                  (click)="toggleEstadoRol(rol)"
+                  [disabled]="!puedeGestionarRoles"
+                  [title]="!puedeGestionarRoles ? 'Solo el Super Administrador cambia el estado de un rol' : (rol.estado === 'Activo' ? 'Click para desactivar rol' : 'Click para activar rol')"
+                  class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border transition-all select-none disabled:cursor-default"
+                  [ngClass]="rol.estado === 'Activo'
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 cursor-pointer'
+                    : 'bg-slate-100 text-slate-600 border-slate-300 hover:bg-slate-200 cursor-pointer'">
+                  <span class="w-2 h-2 rounded-full" [ngClass]="rol.estado === 'Activo' ? 'bg-emerald-500' : 'bg-slate-400'"></span>
+                  <span>{{ rol.estado || 'Activo' }}</span>
+                </button>
+              </ng-template>
+
+              <ng-template appCell="fecha" let-rol>
+                <span class="text-xs font-mono text-slate-500 whitespace-nowrap">{{ rol.fechaCreacion }}</span>
+              </ng-template>
+
+              <ng-template appCell="acciones" let-rol>
+                <div class="flex items-center justify-end gap-1.5">
+                  <button
+                    type="button"
+                    (click)="abrirModalEditarRol(rol)"
+                    [title]="puedeGestionarRoles ? 'Editar rol y permisos' : 'Ver permisos del rol'"
+                    class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-bold transition-colors cursor-pointer border border-purple-200">
+                    <i-lucide aria-hidden="true" [name]="puedeGestionarRoles ? 'sliders' : 'eye'" class="w-3.5 h-3.5"></i-lucide>
+                    <span>{{ puedeGestionarRoles ? 'Editar' : 'Ver' }}</span>
+                  </button>
+                  @if (puedeGestionarRoles && !rol.esSistema) {
+                    <button
+                      type="button"
+                      (click)="abrirModalEliminarRol(rol)"
+                      title="Eliminar Rol"
+                      class="p-1.5 min-w-9 min-h-9 inline-flex items-center justify-center text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer border border-transparent hover:border-rose-200" aria-label="Eliminar Rol">
+                      <i-lucide aria-hidden="true" name="trash-2" class="w-4 h-4"></i-lucide>
+                    </button>
+                  }
+                </div>
+              </ng-template>
+            </app-data-table>
           </div>
 
           <!-- Roles Cards Grid -->
@@ -613,15 +645,18 @@ interface ModuloGrupo {
                   <!-- Card Header -->
                   <div class="flex items-start justify-between gap-3">
                     <div class="flex items-center gap-3">
-                      <div 
+                      <div
                         class="w-10 h-10 rounded-xl flex items-center justify-center text-white font-extrabold text-base shadow-xs"
                         [style.background-color]="rol.color || '#7C3AED'">
-                        <i-lucide name="shield" class="w-5 h-5"></i-lucide>
+                        <i-lucide aria-hidden="true" name="shield" class="w-5 h-5"></i-lucide>
                       </div>
-                      <h3 class="font-extrabold text-slate-900 text-base font-outfit">{{ rol.nombre }}</h3>
+                      <div>
+                        <h3 class="font-extrabold text-slate-900 text-base font-outfit">{{ rol.nombre }}</h3>
+                        <p class="text-[11px] text-slate-500">{{ ambitoInfo(rol.ambito).corto }} · {{ rol.usuariosCount || 0 }} usuarios</p>
+                      </div>
                     </div>
 
-                    <span 
+                    <span
                       class="text-xs font-bold px-2.5 py-1 rounded-lg border"
                       [ngClass]="rol.estado === 'Activo' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-600 border-slate-200'">
                       {{ rol.estado || 'Activo' }}
@@ -633,28 +668,29 @@ interface ModuloGrupo {
                     {{ rol.descripcion || 'Sin descripción registrada en base de datos.' }}
                   </p>
 
-                  <!-- Modulos count bar -->
+                  <!-- Permisos count bar -->
                   <div class="mt-4 pt-3 border-t border-slate-100">
                     <div class="flex items-center justify-between text-xs mb-1.5">
-                      <span class="font-bold text-slate-700">Permisos Asignados:</span>
-                      <span class="font-extrabold text-purple-700">
-                        {{ getModulosCount(rol) }} de {{ modulosDisponibles.length }} módulos
+                      <span class="font-bold text-slate-700">Permisos de acción:</span>
+                      <span class="font-extrabold" [ngClass]="getCapacidadesCount(rol) ? 'text-purple-700' : 'text-amber-700'">
+                        {{ getCapacidadesCount(rol) ? getCapacidadesCount(rol) + ' de ' + catalogoCapacidades.length : 'Ninguno (sin acceso)' }}
                       </span>
                     </div>
                     <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
-                      <div 
+                      <div
                         class="h-2 rounded-full transition-all duration-500"
                         [style.background-color]="rol.color || '#7C3AED'"
-                        [style.width.%]="getModulosProgress(rol)">
+                        [style.width.%]="getCapacidadesProgress(rol)">
                       </div>
                     </div>
+                    <p class="text-[11px] text-slate-500 mt-1.5">{{ getModulosCount(rol) }} de {{ modulosDisponibles.length }} módulos de navegación</p>
                   </div>
 
                   <!-- Mini Badges of Allowed Modules -->
                   <div class="mt-3 flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
                     @for (modCodigo of rol.modulos; track modCodigo) {
-                      <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-50 border border-slate-200 text-[10px] font-semibold text-slate-700">
-                        <i-lucide [name]="getModuloIcon(modCodigo)" class="w-3 h-3 text-easydry-blue"></i-lucide>
+                      <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-700">
+                        <i-lucide aria-hidden="true" [name]="getModuloIcon(modCodigo)" class="w-3 h-3 text-easydry-blue"></i-lucide>
                         <span>{{ getModuloNombre(modCodigo) }}</span>
                       </span>
                     }
@@ -663,30 +699,25 @@ interface ModuloGrupo {
 
                 <!-- Footer Actions -->
                 <div class="pt-3 border-t border-slate-100 flex items-center justify-between">
-                  <span class="text-[10px] text-slate-400 font-mono">Creado: {{ rol.fechaCreacion }}</span>
+                  <span class="text-xs text-slate-500 font-mono">Creado: {{ rol.fechaCreacion }}</span>
 
                   <div class="flex items-center gap-2">
                     <button
+                      type="button"
                       (click)="abrirModalEditarRol(rol)"
-                      title="Editar Rol"
-                      class="p-2 text-slate-500 hover:text-easydry-blue hover:bg-slate-100 rounded-xl transition-colors cursor-pointer border border-slate-200">
-                      <i-lucide name="edit-3" class="w-4 h-4"></i-lucide>
-                    </button>
-
-                    <button
-                      (click)="abrirModalEditarRol(rol)"
-                      title="Modificar Permisos"
+                      [title]="puedeGestionarRoles ? 'Editar rol y permisos' : 'Ver permisos del rol'"
                       class="px-3 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-bold transition-colors flex items-center gap-1.5 border border-purple-200 cursor-pointer">
-                      <i-lucide name="sliders" class="w-3.5 h-3.5"></i-lucide>
-                      <span>Permisos</span>
+                      <i-lucide aria-hidden="true" [name]="puedeGestionarRoles ? 'sliders' : 'eye'" class="w-3.5 h-3.5"></i-lucide>
+                      <span>{{ puedeGestionarRoles ? 'Editar' : 'Ver' }}</span>
                     </button>
 
-                    @if (rol.codigo !== 'SUPER_ADMIN') {
+                    @if (puedeGestionarRoles && !rol.esSistema) {
                       <button
+                        type="button"
                         (click)="abrirModalEliminarRol(rol)"
                         title="Eliminar Rol"
-                        class="p-2 rounded-xl text-rose-500 hover:bg-rose-50 hover:text-rose-700 transition-colors cursor-pointer border border-slate-200 hover:border-rose-200">
-                        <i-lucide name="trash-2" class="w-4 h-4"></i-lucide>
+                        class="p-1.5 min-w-9 min-h-9 inline-flex items-center justify-center rounded-xl text-rose-500 hover:bg-rose-50 hover:text-rose-700 transition-colors cursor-pointer border border-slate-200 hover:border-rose-200" aria-label="Eliminar Rol">
+                        <i-lucide aria-hidden="true" name="trash-2" class="w-4 h-4"></i-lucide>
                       </button>
                     }
                   </div>
@@ -703,7 +734,7 @@ interface ModuloGrupo {
       <!-- MODAL: CREAR / EDITAR USUARIO                           -->
       <!-- ======================================================== -->
       <app-modal 
-        [isOpen]="modalUsuarioOpen" 
+        [isOpen]="modalUsuarioOpen" size="lg" 
         [title]="editandoUsuario ? 'Modificar Usuario y Rol' : 'Registrar Nuevo Usuario'" 
         icon="users"
         (close)="modalUsuarioOpen = false">
@@ -711,10 +742,10 @@ interface ModuloGrupo {
         <form (ngSubmit)="guardarUsuario()" class="space-y-4">
           <div class="grid grid-cols-2 gap-4">
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">
+              <label for="usuarios-f1" class="block text-xs font-bold text-slate-700 uppercase mb-1">
                 Nombre <span class="text-rose-500">*</span>
               </label>
-              <input
+              <input id="usuarios-f1"
                 type="text"
                 [(ngModel)]="usuarioForm.nombre"
                 name="nombre"
@@ -723,15 +754,15 @@ interface ModuloGrupo {
                 [ngClass]="nombreInvalido ? 'border-rose-500 bg-rose-50/20 ring-2 ring-rose-200' : 'border-slate-200 focus:border-easydry-blue focus:ring-2 focus:ring-easydry-blue/20'"
                 required>
               @if (nombreInvalido) {
-                <p class="text-[11px] text-rose-600 font-semibold mt-1 flex items-center gap-1.5">
-                  <i-lucide name="alert-circle" class="w-3.5 h-3.5 shrink-0"></i-lucide>
+                <p class="text-xs text-rose-600 font-semibold mt-1 flex items-center gap-1.5">
+                  <i-lucide aria-hidden="true" name="alert-circle" class="w-3.5 h-3.5 shrink-0"></i-lucide>
                   El nombre del colaborador es obligatorio.
                 </p>
               }
             </div>
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Apellido</label>
-              <input
+              <label for="usuarios-f2" class="block text-xs font-bold text-slate-700 uppercase mb-1">Apellido</label>
+              <input id="usuarios-f2"
                 type="text"
                 [(ngModel)]="usuarioForm.apellido"
                 name="apellido"
@@ -742,16 +773,21 @@ interface ModuloGrupo {
 
           <div class="grid grid-cols-2 gap-4">
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Rol Asignado (Base de Datos)</label>
-              <select [(ngModel)]="usuarioForm.roleId" name="roleId" (ngModelChange)="onRoleIdChange($event)" class="w-full p-2.5 border rounded-xl text-sm font-semibold bg-white border-slate-200 focus:border-easydry-blue">
-                @for (r of rolesVisibles; track r.id) {
-                  <option [value]="r.id">{{ r.nombre }} ({{ r.codigo }})</option>
-                }
-              </select>
+              <label for="usuarios-f3" class="block text-xs font-bold text-slate-700 uppercase mb-1">Rol Asignado (Base de Datos)</label>
+              @if (rolesAsignables.length) {
+                <select id="usuarios-f3" [(ngModel)]="usuarioForm.roleId" name="roleId" (ngModelChange)="onRoleIdChange($event)" class="w-full p-2.5 border rounded-xl text-sm font-semibold bg-white border-slate-200 focus:border-easydry-blue">
+                  @for (r of rolesAsignables; track r.id) {
+                    <option [value]="r.id">{{ r.nombre }} ({{ ambitoInfo(r.ambito).corto }})</option>
+                  }
+                </select>
+              } @else {
+                <p id="usuarios-f3" class="p-2.5 border rounded-xl text-sm font-semibold bg-slate-50 border-slate-200 text-slate-600">{{ usuarioForm.rol || 'Sin rol' }}</p>
+                <p class="text-xs text-amber-700 mt-1">Para elegir o cambiar el rol necesitas el permiso «Ver roles».</p>
+              }
             </div>
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Estado</label>
-              <select [(ngModel)]="usuarioForm.estado" name="estado" class="w-full p-2.5 border rounded-xl text-sm font-semibold">
+              <label for="usuarios-f4" class="block text-xs font-bold text-slate-700 uppercase mb-1">Estado</label>
+              <select id="usuarios-f4" [(ngModel)]="usuarioForm.estado" name="estado" class="w-full p-2.5 border rounded-xl text-sm font-semibold">
                 <option value="Activo">Activo</option>
                 <option value="Inactivo">Inactivo</option>
               </select>
@@ -762,11 +798,11 @@ interface ModuloGrupo {
             <div class="p-4 rounded-2xl border border-cyan-200 bg-cyan-50/60 space-y-3">
               <div>
                 <p class="text-xs font-extrabold text-cyan-900 uppercase tracking-wide">Asignación del pulidor</p>
-                <p class="text-[11px] text-cyan-800 mt-0.5">Con agencia = fijo (solo su sede). Sin agencia = móvil (exige región).</p>
+                <p class="text-xs text-cyan-800 mt-0.5">Con agencia = fijo (solo su sede). Sin agencia = móvil (exige región).</p>
               </div>
               <div>
-                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Agencia (opcional)</label>
-                <select
+                <label for="usuarios-f5" class="block text-xs font-bold text-slate-700 uppercase mb-1">Agencia (opcional)</label>
+                <select id="usuarios-f5"
                   [(ngModel)]="usuarioForm.agencia"
                   name="agenciaPulidor"
                   (ngModelChange)="onPulidorAgenciaChange($event)"
@@ -779,24 +815,24 @@ interface ModuloGrupo {
               </div>
               @if (!(usuarioForm.agencia || '').trim()) {
                 <div>
-                  <label class="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  <label for="usuarios-f6" class="block text-xs font-bold text-slate-700 uppercase mb-1">
                     Región operativa <span class="text-cyan-600">*</span>
                   </label>
-                  <select [(ngModel)]="usuarioForm.region" name="regionPulidorMovil" class="w-full p-2.5 border rounded-xl text-sm font-semibold border-cyan-300 focus:border-cyan-500 bg-white" required>
+                  <select id="usuarios-f6" [(ngModel)]="usuarioForm.region" name="regionPulidorMovil" class="w-full p-2.5 border rounded-xl text-sm font-semibold border-cyan-300 focus:border-cyan-500 bg-white" required>
                     <option value="">Selecciona una región...</option>
                     @for (r of regionesDisponibles; track r.id) {
                       <option [value]="r.nombre">{{ r.nombre }}</option>
                     }
                   </select>
-                  <p class="text-[11px] text-cyan-800 mt-1">El pulidor móvil opera solo en agencias de su región.</p>
+                  <p class="text-xs text-cyan-800 mt-1">El pulidor móvil opera solo en agencias de su región.</p>
                 </div>
                 <div class="p-3 rounded-xl border border-cyan-300/80 bg-white/95 flex items-center gap-3">
                   <div class="w-8 h-8 rounded-lg bg-cyan-100 flex items-center justify-center text-cyan-700 flex-shrink-0">
-                    <i-lucide name="sparkles" class="w-4 h-4"></i-lucide>
+                    <i-lucide aria-hidden="true" name="sparkles" class="w-4 h-4"></i-lucide>
                   </div>
                   <div>
                     <p class="text-xs font-bold text-cyan-900">Catálogo Completo Asignado Automáticamente</p>
-                    <p class="text-[11px] text-cyan-800 leading-snug">
+                    <p class="text-xs text-cyan-800 leading-snug">
                       Este pulidor móvil realiza todos los <strong>{{ serviciosEspecialesCatalogo.length }} servicios especiales</strong> de la empresa. Su kit incluirá todos los insumos correspondientes.
                     </p>
                   </div>
@@ -804,55 +840,25 @@ interface ModuloGrupo {
               } @else {
                 <div class="p-3 rounded-xl border border-cyan-300/80 bg-white/95 flex items-center gap-3">
                   <div class="w-8 h-8 rounded-lg bg-cyan-100 flex items-center justify-center text-cyan-700 flex-shrink-0">
-                    <i-lucide name="sparkles" class="w-4 h-4"></i-lucide>
+                    <i-lucide aria-hidden="true" name="sparkles" class="w-4 h-4"></i-lucide>
                   </div>
                   <div>
                     <p class="text-xs font-bold text-cyan-900">Pulidor Fijo · Catálogo Completo Habilitado</p>
-                    <p class="text-[11px] text-cyan-800 leading-snug">
+                    <p class="text-xs text-cyan-800 leading-snug">
                       Asignado a <strong>{{ usuarioForm.agencia }}</strong> con los <strong>{{ serviciosEspecialesCatalogo.length }} servicios especiales</strong> y su kit de insumos.
                     </p>
                   </div>
                 </div>
               }
             </div>
-          } @else if (esAdminOGlobal(usuarioForm.rol)) {
+          } @else if (ambitoForm === 'GLOBAL') {
             <div class="p-4 rounded-2xl border border-blue-200 bg-blue-50/70 space-y-2">
               <div class="flex items-center gap-2 text-blue-900">
-                <i-lucide name="globe" class="w-4 h-4 text-blue-600 shrink-0"></i-lucide>
-                <span class="text-xs font-extrabold uppercase tracking-wide">Acceso Global Directivo · Red Nacional</span>
+                <i-lucide aria-hidden="true" name="globe" class="w-4 h-4 text-blue-600 shrink-0"></i-lucide>
+                <span class="text-xs font-extrabold uppercase tracking-wide">Alcance global · Red nacional</span>
               </div>
               <p class="text-xs text-blue-800 leading-relaxed">
-                El <b>Super Administrador</b> y <b>Administrador</b> cuentan con alcance directivo a nivel nacional y <b>no están vinculados a ninguna agencia en particular</b>.
-              </p>
-            </div>
-          } @else if (esSupervisorRol(usuarioForm.rol) || esRolRegional(usuarioForm.rol)) {
-            <div>
-              <div class="flex items-center justify-between mb-1">
-                <label class="block text-xs font-bold text-slate-700 uppercase">
-                  Asignar Región <span class="text-blue-500">*</span>
-                </label>
-                <span class="text-[10px] text-blue-700 font-bold bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">
-                  Control y Ámbito Regional
-                </span>
-              </div>
-              <select [(ngModel)]="usuarioForm.region" name="regionSupervisor" class="w-full p-2.5 border rounded-xl text-sm font-semibold border-blue-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 bg-white" required>
-                <option value="">Selecciona una región...</option>
-                @for (r of regionesDisponibles; track r.id) {
-                  <option [value]="r.nombre">{{ r.nombre }}</option>
-                }
-              </select>
-              <p class="text-[11px] text-slate-400 mt-1">
-                Este perfil opera en todas las agencias y bahías pertenecientes a su región asignada.
-              </p>
-            </div>
-          } @else if (esGestorBodegaRol(usuarioForm.rol)) {
-            <div class="p-4 rounded-2xl border border-purple-200 bg-purple-50/70 space-y-2">
-              <div class="flex items-center gap-2 text-purple-900">
-                <i-lucide name="globe" class="w-4 h-4 text-purple-600 shrink-0"></i-lucide>
-                <span class="text-xs font-extrabold uppercase tracking-wide">Alcance Global · Coordinador de Bodega</span>
-              </div>
-              <p class="text-xs text-purple-800 leading-relaxed">
-                El <b>Coordinador de Bodega</b> opera todo el stock nacional (compras a central y despachos a cualquier lugar). <b>No requiere</b> agencia, región ni bodega fija.
+                El ámbito de este rol es <b>todo el país</b>: el usuario <b>no se vincula a ninguna agencia ni región</b>.
               </p>
             </div>
           } @else if (esAsistenteBodegaRol(usuarioForm.rol)) {
@@ -862,7 +868,7 @@ interface ModuloGrupo {
                   <label class="block text-xs font-bold text-slate-700 uppercase">
                     Bodega regional <span class="text-amber-500">*</span>
                   </label>
-                  <span class="text-[10px] text-amber-700 font-bold bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                  <span class="text-xs text-amber-700 font-bold bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
                     Obligatoria
                   </span>
                 </div>
@@ -872,43 +878,63 @@ interface ModuloGrupo {
                     <option [value]="b.id">{{ b.nombre }}{{ b.region ? ' · ' + b.region : '' }}</option>
                   }
                 </select>
-                <p class="text-[11px] text-slate-500 mt-1">
+                <p class="text-xs text-slate-500 mt-1">
                   El Asistente despacha solo a agencias de la región de su bodega asignada.
                 </p>
               </div>
+            </div>
+          } @else if (ambitoForm === 'REGION') {
+            <div>
+              <div class="flex items-center justify-between mb-1">
+                <label class="block text-xs font-bold text-slate-700 uppercase">
+                  Asignar Región <span class="text-blue-500">*</span>
+                </label>
+                <span class="text-xs text-blue-700 font-bold bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">
+                  Ámbito regional
+                </span>
+              </div>
+              <select [(ngModel)]="usuarioForm.region" name="regionRol" class="w-full p-2.5 border rounded-xl text-sm font-semibold border-blue-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 bg-white" required>
+                <option value="">Selecciona una región...</option>
+                @for (r of regionesDisponibles; track r.id) {
+                  <option [value]="r.nombre">{{ r.nombre }}</option>
+                }
+              </select>
+              <p class="text-xs text-slate-500 mt-1">
+                Este perfil opera sobre todas las agencias y bahías de su región. Sin región no verá ningún dato.
+              </p>
             </div>
           } @else {
             <div>
               <div class="flex items-center justify-between mb-1">
                 <label class="block text-xs font-bold text-slate-700 uppercase">
-                  Agencia {{ esLiderOperadorRol(usuarioForm.rol) ? '' : '(Opcional)' }}
-                  @if (esLiderOperadorRol(usuarioForm.rol)) {
+                  Agencia {{ agenciaObligatoria ? '' : '(Opcional)' }}
+                  @if (agenciaObligatoria) {
                     <span class="text-rose-500">*</span>
                   }
                 </label>
-                <span class="text-[10px] text-slate-400 font-medium">
-                  {{ esLiderOperadorRol(usuarioForm.rol) ? 'Obligatoria · Líder Operador' : 'No obligatorio' }}
+                <span class="text-xs text-slate-500 font-medium">
+                  {{ agenciaObligatoria ? 'Obligatoria · ámbito de agencia' : 'No obligatorio' }}
                 </span>
               </div>
-              <select [(ngModel)]="usuarioForm.agencia" name="agencia" class="w-full p-2.5 border rounded-xl text-sm font-semibold" [required]="esLiderOperadorRol(usuarioForm.rol)">
-                <option value="">{{ esLiderOperadorRol(usuarioForm.rol) ? 'Selecciona una agencia...' : 'Sin sucursal asignada (Opcional)' }}</option>
+              <select [(ngModel)]="usuarioForm.agencia" name="agencia" class="w-full p-2.5 border rounded-xl text-sm font-semibold" [required]="agenciaObligatoria">
+                <option value="">{{ agenciaObligatoria ? 'Selecciona una agencia...' : 'Sin agencia asignada (Opcional)' }}</option>
                 @for (s of sucursales; track s.id) {
                   <option [value]="s.nombre">{{ s.nombre }}</option>
                 }
               </select>
-              <p class="text-[11px] text-slate-400 mt-1">
-                {{ esLiderOperadorRol(usuarioForm.rol)
-                  ? 'El Líder Operador gestiona inventario, OTs y despachos intra-región desde su agencia.'
-                  : 'No es obligatorio asignar sucursal ni región al crear el usuario.' }}
+              <p class="text-xs text-slate-500 mt-1">
+                {{ agenciaObligatoria
+                  ? 'Este rol trabaja sobre los datos de su agencia: sin agencia asignada no verá ningún dato.'
+                  : 'Este rol trabaja sobre lo que se le asigna personalmente; la agencia es opcional.' }}
               </p>
             </div>
           }
 
           <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">
+            <label for="usuarios-f7" class="block text-xs font-bold text-slate-700 uppercase mb-1">
               Correo Electrónico <span class="text-rose-500">*</span>
             </label>
-            <input
+            <input id="usuarios-f7"
               type="email"
               [(ngModel)]="usuarioForm.email"
               name="email"
@@ -917,8 +943,8 @@ interface ModuloGrupo {
               [ngClass]="emailInvalido ? 'border-rose-500 bg-rose-50/20 ring-2 ring-rose-200' : 'border-slate-200 focus:border-easydry-blue focus:ring-2 focus:ring-easydry-blue/20'"
               required>
             @if (emailInvalido) {
-              <p class="text-[11px] text-rose-600 font-semibold mt-1 flex items-center gap-1.5">
-                <i-lucide name="alert-circle" class="w-3.5 h-3.5 shrink-0"></i-lucide>
+              <p class="text-xs text-rose-600 font-semibold mt-1 flex items-center gap-1.5">
+                <i-lucide aria-hidden="true" name="alert-circle" class="w-3.5 h-3.5 shrink-0"></i-lucide>
                 {{ !usuarioForm.email.trim() ? 'El correo electrónico es obligatorio.' : 'Ingrese un correo electrónico válido (ej. usuario@easydry.com).' }}
               </p>
             }
@@ -929,22 +955,22 @@ interface ModuloGrupo {
             <div class="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
               <div class="flex items-center gap-2.5">
                 <div class="w-7 h-7 rounded-lg bg-easydry-blue/10 text-easydry-blue flex items-center justify-center">
-                  <i-lucide name="lock" class="w-4 h-4"></i-lucide>
+                  <i-lucide aria-hidden="true" name="lock" class="w-4 h-4"></i-lucide>
                 </div>
                 <div>
                   <h4 class="text-xs font-extrabold text-slate-900 uppercase tracking-wide">Credenciales de Acceso</h4>
-                  <p class="text-[11px] text-slate-500">Ingresa la contraseña para que el usuario inicie sesión directamente.</p>
+                  <p class="text-xs text-slate-500">Ingresa la contraseña para que el usuario inicie sesión directamente.</p>
                 </div>
               </div>
 
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                 <!-- Contraseña -->
                 <div>
-                  <label class="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  <label for="usuarios-f8" class="block text-xs font-bold text-slate-700 uppercase mb-1">
                     Contraseña <span class="text-rose-500">*</span>
                   </label>
                   <div class="relative">
-                    <input
+                    <input id="usuarios-f8"
                       [type]="showPassword ? 'text' : 'password'"
                       [(ngModel)]="usuarioForm.password"
                       name="password"
@@ -955,15 +981,14 @@ interface ModuloGrupo {
                       minlength="6">
                     <button
                       type="button"
-                      (click)="showPassword = !showPassword"
-                      class="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
-                      tabindex="-1">
-                      <i-lucide [name]="showPassword ? 'eye-off' : 'eye'" class="w-4 h-4"></i-lucide>
+                      [attr.aria-label]="showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'" (click)="showPassword = !showPassword"
+                      class="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 min-w-9 min-h-9 inline-flex items-center justify-center text-slate-500 hover:text-slate-600 transition-colors cursor-pointer">
+                      <i-lucide aria-hidden="true" [name]="showPassword ? 'eye-off' : 'eye'" class="w-4 h-4"></i-lucide>
                     </button>
                   </div>
                   @if (passwordInvalido) {
-                    <p class="text-[11px] text-rose-600 font-semibold mt-1 flex items-center gap-1.5">
-                      <i-lucide name="alert-circle" class="w-3.5 h-3.5 shrink-0"></i-lucide>
+                    <p class="text-xs text-rose-600 font-semibold mt-1 flex items-center gap-1.5">
+                      <i-lucide aria-hidden="true" name="alert-circle" class="w-3.5 h-3.5 shrink-0"></i-lucide>
                       La contraseña debe tener al menos 6 caracteres.
                     </p>
                   }
@@ -971,11 +996,11 @@ interface ModuloGrupo {
 
                 <!-- Verificación de Contraseña -->
                 <div>
-                  <label class="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  <label for="usuarios-f9" class="block text-xs font-bold text-slate-700 uppercase mb-1">
                     Verificación de Contraseña <span class="text-rose-500">*</span>
                   </label>
                   <div class="relative">
-                    <input
+                    <input id="usuarios-f9"
                       [type]="showConfirmPassword ? 'text' : 'password'"
                       [(ngModel)]="usuarioForm.confirmPassword"
                       name="confirmPassword"
@@ -985,15 +1010,14 @@ interface ModuloGrupo {
                       required>
                     <button
                       type="button"
-                      (click)="showConfirmPassword = !showConfirmPassword"
-                      class="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
-                      tabindex="-1">
-                      <i-lucide [name]="showConfirmPassword ? 'eye-off' : 'eye'" class="w-4 h-4"></i-lucide>
+                      [attr.aria-label]="showConfirmPassword ? 'Ocultar confirmación de contraseña' : 'Mostrar confirmación de contraseña'" (click)="showConfirmPassword = !showConfirmPassword"
+                      class="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 min-w-9 min-h-9 inline-flex items-center justify-center text-slate-500 hover:text-slate-600 transition-colors cursor-pointer">
+                      <i-lucide aria-hidden="true" [name]="showConfirmPassword ? 'eye-off' : 'eye'" class="w-4 h-4"></i-lucide>
                     </button>
                   </div>
                   @if (confirmPasswordInvalido) {
-                    <p class="text-[11px] text-rose-600 font-semibold mt-1 flex items-center gap-1.5">
-                      <i-lucide name="alert-circle" class="w-3.5 h-3.5 shrink-0"></i-lucide>
+                    <p class="text-xs text-rose-600 font-semibold mt-1 flex items-center gap-1.5">
+                      <i-lucide aria-hidden="true" name="alert-circle" class="w-3.5 h-3.5 shrink-0"></i-lucide>
                       La verificación no coincide con la contraseña.
                     </p>
                   }
@@ -1001,25 +1025,25 @@ interface ModuloGrupo {
               </div>
 
               <!-- Indicador de validación de contraseñas -->
-              <div class="pt-0.5 text-[11px]">
+              <div class="pt-0.5 text-xs">
                 @if (passwordsMismatch) {
                   <span class="text-rose-600 font-semibold flex items-center gap-1.5">
-                    <i-lucide name="alert-circle" class="w-3.5 h-3.5 shrink-0"></i-lucide>
+                    <i-lucide aria-hidden="true" name="alert-circle" class="w-3.5 h-3.5 shrink-0"></i-lucide>
                     Las contraseñas no coinciden. Verifique el texto ingresado.
                   </span>
                 } @else if (passwordsMatch) {
                   <span class="text-emerald-600 font-semibold flex items-center gap-1.5">
-                    <i-lucide name="check-circle-2" class="w-3.5 h-3.5 shrink-0"></i-lucide>
+                    <i-lucide aria-hidden="true" name="check-circle-2" class="w-3.5 h-3.5 shrink-0"></i-lucide>
                     Contraseña verificada correctamente.
                   </span>
                 } @else if (usuarioForm.password && usuarioForm.password.length < 6) {
                   <span class="text-amber-600 font-medium flex items-center gap-1.5">
-                    <i-lucide name="alert-triangle" class="w-3.5 h-3.5 shrink-0"></i-lucide>
+                    <i-lucide aria-hidden="true" name="alert-triangle" class="w-3.5 h-3.5 shrink-0"></i-lucide>
                     La contraseña debe tener al menos 6 caracteres.
                   </span>
                 } @else {
-                  <span class="text-slate-400 flex items-center gap-1.5">
-                    <i-lucide name="info" class="w-3.5 h-3.5 shrink-0"></i-lucide>
+                  <span class="text-slate-500 flex items-center gap-1.5">
+                    <i-lucide aria-hidden="true" name="info" class="w-3.5 h-3.5 shrink-0"></i-lucide>
                     Mínimo 6 caracteres. Se almacenará de forma cifrada en el sistema.
                   </span>
                 }
@@ -1041,11 +1065,11 @@ interface ModuloGrupo {
               @if (usuarioForm.cambiarPassword) {
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-200">
                   <div>
-                    <label class="block text-xs font-bold text-slate-700 uppercase mb-1">
+                    <label for="usuarios-f10" class="block text-xs font-bold text-slate-700 uppercase mb-1">
                       Nueva Contraseña <span class="text-rose-500">*</span>
                     </label>
                     <div class="relative">
-                      <input
+                      <input id="usuarios-f10"
                         [type]="showPassword ? 'text' : 'password'"
                         [(ngModel)]="usuarioForm.password"
                         name="password"
@@ -1055,26 +1079,25 @@ interface ModuloGrupo {
                         minlength="6">
                       <button
                         type="button"
-                        (click)="showPassword = !showPassword"
-                        class="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
-                        tabindex="-1">
-                        <i-lucide [name]="showPassword ? 'eye-off' : 'eye'" class="w-4 h-4"></i-lucide>
+                        [attr.aria-label]="showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'" (click)="showPassword = !showPassword"
+                        class="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 min-w-9 min-h-9 inline-flex items-center justify-center text-slate-500 hover:text-slate-600 transition-colors cursor-pointer">
+                        <i-lucide aria-hidden="true" [name]="showPassword ? 'eye-off' : 'eye'" class="w-4 h-4"></i-lucide>
                       </button>
                     </div>
                     @if (passwordInvalido) {
-                      <p class="text-[11px] text-rose-600 font-semibold mt-1 flex items-center gap-1.5">
-                        <i-lucide name="alert-circle" class="w-3.5 h-3.5 shrink-0"></i-lucide>
+                      <p class="text-xs text-rose-600 font-semibold mt-1 flex items-center gap-1.5">
+                        <i-lucide aria-hidden="true" name="alert-circle" class="w-3.5 h-3.5 shrink-0"></i-lucide>
                         La nueva contraseña debe tener al menos 6 caracteres.
                       </p>
                     }
                   </div>
 
                   <div>
-                    <label class="block text-xs font-bold text-slate-700 uppercase mb-1">
+                    <label for="usuarios-f11" class="block text-xs font-bold text-slate-700 uppercase mb-1">
                       Verificación <span class="text-rose-500">*</span>
                     </label>
                     <div class="relative">
-                      <input
+                      <input id="usuarios-f11"
                         [type]="showConfirmPassword ? 'text' : 'password'"
                         [(ngModel)]="usuarioForm.confirmPassword"
                         name="confirmPassword"
@@ -1083,15 +1106,14 @@ interface ModuloGrupo {
                         [ngClass]="confirmPasswordInvalido ? 'border-rose-500 bg-rose-50/20 ring-2 ring-rose-200' : (passwordsMatch ? 'border-emerald-500 bg-emerald-50/20' : 'border-slate-200 bg-white focus:border-easydry-blue focus:ring-2 focus:ring-easydry-blue/20')">
                       <button
                         type="button"
-                        (click)="showConfirmPassword = !showConfirmPassword"
-                        class="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
-                        tabindex="-1">
-                        <i-lucide [name]="showConfirmPassword ? 'eye-off' : 'eye'" class="w-4 h-4"></i-lucide>
+                        [attr.aria-label]="showConfirmPassword ? 'Ocultar confirmación de contraseña' : 'Mostrar confirmación de contraseña'" (click)="showConfirmPassword = !showConfirmPassword"
+                        class="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 min-w-9 min-h-9 inline-flex items-center justify-center text-slate-500 hover:text-slate-600 transition-colors cursor-pointer">
+                        <i-lucide aria-hidden="true" [name]="showConfirmPassword ? 'eye-off' : 'eye'" class="w-4 h-4"></i-lucide>
                       </button>
                     </div>
                     @if (confirmPasswordInvalido) {
-                      <p class="text-[11px] text-rose-600 font-semibold mt-1 flex items-center gap-1.5">
-                        <i-lucide name="alert-circle" class="w-3.5 h-3.5 shrink-0"></i-lucide>
+                      <p class="text-xs text-rose-600 font-semibold mt-1 flex items-center gap-1.5">
+                        <i-lucide aria-hidden="true" name="alert-circle" class="w-3.5 h-3.5 shrink-0"></i-lucide>
                         La confirmación no coincide con la nueva contraseña.
                       </p>
                     }
@@ -1100,8 +1122,8 @@ interface ModuloGrupo {
               }
             </div>
             } @else {
-            <div class="p-3 bg-amber-50 border border-amber-200 rounded-2xl text-[11px] font-semibold text-amber-800 flex items-center gap-2">
-              <i-lucide name="shield" class="w-3.5 h-3.5 shrink-0"></i-lucide>
+            <div class="p-3 bg-amber-50 border border-amber-200 rounded-2xl text-xs font-semibold text-amber-800 flex items-center gap-2">
+              <i-lucide aria-hidden="true" name="shield" class="w-3.5 h-3.5 shrink-0"></i-lucide>
               {{ motivoSinReinicioPassword }}
             </div>
             }
@@ -1109,10 +1131,12 @@ interface ModuloGrupo {
         </form>
 
         <div modal-footer>
-          <button (click)="modalUsuarioOpen = false" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl text-xs transition-colors">Cancelar</button>
-          <button (click)="guardarUsuario()" class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
-            <i-lucide [name]="editandoUsuario ? 'save' : 'user-plus'" class="w-4 h-4"></i-lucide>
-            {{ editandoUsuario ? 'Actualizar Usuario' : 'Registrar Usuario' }}
+          <button (click)="modalUsuarioOpen = false" class="btn btn-secondary w-full sm:w-auto">Cancelar</button>
+          <button type="button" (click)="guardarUsuario()" [disabled]="guardandoUsuario" [attr.aria-busy]="guardandoUsuario"
+                  class="btn w-full sm:w-auto" [class.btn-cta]="!editandoUsuario" [class.btn-primary]="editandoUsuario">
+            <i-lucide aria-hidden="true" [name]="guardandoUsuario ? 'loader' : (editandoUsuario ? 'save' : 'user-plus')" class="w-4 h-4"
+                      [class.animate-spin]="guardandoUsuario"></i-lucide>
+            {{ guardandoUsuario ? 'Guardando…' : (editandoUsuario ? 'Actualizar Usuario' : 'Registrar Usuario') }}
           </button>
         </div>
       </app-modal>
@@ -1120,164 +1144,241 @@ interface ModuloGrupo {
       <!-- ======================================================== -->
       <!-- MODAL: CONFIGURAR ROL Y MATRIZ DE PERMISOS MODULARES    -->
       <!-- ======================================================== -->
-      <app-modal 
-        [isOpen]="modalRolOpen" 
-        [title]="editandoRol ? 'Configurar Permisos de: ' + rolForm.nombre : 'Crear Nuevo Rol de Usuario'" 
+      <app-modal
+        [isOpen]="modalRolOpen" size="xl"
+        [title]="editandoRol ? (soloLecturaRol ? 'Permisos del rol: ' : 'Configurar rol: ') + rolForm.nombre : 'Crear Nuevo Rol de Usuario'"
         icon="shield"
         (close)="modalRolOpen = false">
-        
-        <div class="space-y-6 max-h-[70vh] overflow-y-auto pr-1">
-          
-          <!-- Role Main Data -->
-          <div class="space-y-4">
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div class="sm:col-span-2">
-                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Nombre del Rol</label>
-                <input 
-                  type="text" 
-                  [(ngModel)]="rolForm.nombre" 
-                  placeholder="Ej: Auditor Operativo, Jefe de Patio, Cajero" 
-                  [disabled]="isRolPermisosInmutable(rolForm.codigo) || rolForm.esSistema"
-                  class="w-full p-2.5 border rounded-xl text-sm font-bold text-slate-900">
-              </div>
 
-              <div>
-                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Color Identificador</label>
-                <div class="flex items-center gap-2">
-                  <input type="color" [(ngModel)]="rolForm.color" class="w-10 h-10 rounded-xl cursor-pointer border p-0.5">
-                  <span class="text-xs font-mono text-slate-600 font-bold">{{ rolForm.color }}</span>
-                </div>
-              </div>
+        <div class="space-y-6">
+
+          @if (soloLecturaRol) {
+            <div class="flex items-start gap-3 p-3.5 rounded-2xl border border-blue-200 bg-blue-50 text-xs text-blue-900" role="note">
+              <i-lucide aria-hidden="true" name="eye" class="w-4 h-4 mt-0.5 shrink-0 text-blue-600"></i-lucide>
+              <p>Vista de solo lectura: tu rol puede consultar los roles pero no modificarlos.</p>
+            </div>
+          }
+
+          <!-- Datos principales -->
+          <div class="space-y-4">
+            <div>
+              <label for="usuarios-rol-nombre" class="block text-xs font-bold text-slate-700 uppercase mb-1">Nombre del Rol</label>
+              <input id="usuarios-rol-nombre"
+                type="text"
+                [(ngModel)]="rolForm.nombre"
+                name="rolNombre"
+                maxlength="40"
+                placeholder="Ej: Auditor Operativo, Jefe de Patio"
+                [disabled]="!!editandoRol || soloLecturaRol"
+                class="w-full p-2.5 border rounded-xl text-sm font-bold text-slate-900 disabled:bg-slate-50 disabled:text-slate-500">
+              @if (editandoRol) {
+                <p class="text-xs text-slate-500 mt-1">
+                  @if (rolForm.esSistema) {
+                    Es un rol oficial: el sistema lo usa internamente por su nombre, por eso no se puede cambiar (sí puedes ajustar su descripción, ámbito y permisos).
+                  } @else {
+                    El nombre de un rol ya creado no se puede cambiar. Si necesitas otro nombre, crea un rol nuevo.
+                  }
+                  Código: <span class="font-mono font-bold">{{ rolForm.codigo }}</span>
+                </p>
+              } @else {
+                <p class="text-xs text-slate-500 mt-1">
+                  Se guardará con el código
+                  <span class="font-mono font-bold" [ngClass]="codigoRolPreview && !codigoRolPreviewValido ? 'text-rose-600' : 'text-slate-700'">{{ codigoRolPreview || '—' }}</span>.
+                  Debe tener de 3 a 40 caracteres: letras, números y espacios, empezando por letra.
+                </p>
+              }
             </div>
 
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Descripción del Rol</label>
-              <textarea 
-                [(ngModel)]="rolForm.descripcion" 
-                rows="2" 
-                placeholder="Describe las responsabilidades y alcance de este perfil..." 
-                class="w-full p-2.5 border rounded-xl text-xs"></textarea>
+              <label for="usuarios-rol-desc" class="block text-xs font-bold text-slate-700 uppercase mb-1">Descripción del Rol</label>
+              <textarea id="usuarios-rol-desc"
+                [(ngModel)]="rolForm.descripcion"
+                name="rolDescripcion"
+                rows="2"
+                [disabled]="soloLecturaRol"
+                placeholder="Describe las responsabilidades y alcance de este perfil..."
+                class="w-full p-2.5 border rounded-xl text-xs disabled:bg-slate-50 disabled:text-slate-500"></textarea>
+            </div>
+
+            <!-- Ámbito -->
+            <div>
+              <label for="usuarios-rol-ambito" class="block text-xs font-bold text-slate-700 uppercase mb-1">Ámbito (sobre qué datos actúa)</label>
+              <select id="usuarios-rol-ambito"
+                [(ngModel)]="rolForm.ambito"
+                name="rolAmbito"
+                [disabled]="soloLecturaRol"
+                class="w-full sm:w-96 p-2.5 border rounded-xl text-sm font-semibold bg-white disabled:bg-slate-50">
+                @for (a of ambitosLista; track a.codigo) {
+                  <option [value]="a.codigo" [disabled]="!puedeOtorgarAmbito(a.codigo) && a.codigo !== rolForm.ambito">{{ a.corto }}</option>
+                }
+              </select>
+              <ul class="mt-2 space-y-1 text-xs text-slate-600">
+                @for (a of ambitosLista; track a.codigo) {
+                  <li class="flex gap-2 rounded-lg px-2 py-1" [ngClass]="a.codigo === rolForm.ambito ? 'bg-purple-50 border border-purple-200 text-purple-900' : ''">
+                    <span class="font-extrabold w-28 shrink-0">{{ a.corto }}</span>
+                    <span>{{ a.detalle }}</span>
+                  </li>
+                }
+              </ul>
+              <p class="text-xs text-slate-500 mt-1.5">Si a un usuario le falta el dato de su ámbito (su agencia o su región), no verá ningún dato.</p>
             </div>
           </div>
 
-          <!-- Modular Permissions Matrix Header (Punto 10) -->
+          <!-- Aviso: rol sin permisos -->
+          @if (rolForm.capacidades.length === 0) {
+            <div class="flex items-start gap-3 p-3.5 rounded-2xl border border-amber-300 bg-amber-50 text-xs text-amber-900" role="alert">
+              <i-lucide aria-hidden="true" name="alert-triangle" class="w-4 h-4 mt-0.5 shrink-0 text-amber-600"></i-lucide>
+              <p><b>Este rol no tiene ningún permiso de acción.</b> Un rol sin permisos no puede usar el sistema: quien lo tenga asignado verá la pantalla de «sin acceso».</p>
+            </div>
+          }
+
+          <!-- Módulos de navegación -->
           <div class="border-t border-slate-200 pt-4">
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
               <div>
-                <h4 class="font-extrabold text-slate-900 text-sm font-outfit">Matriz de Acceso y Acciones por Módulo</h4>
-                <p class="text-xs text-slate-500">Configuración granular de permisos: Ver, Crear, Editar y Configurar por cada módulo.</p>
+                <h4 class="font-extrabold text-slate-900 text-sm font-outfit">Módulos de navegación</h4>
+                <p class="text-xs text-slate-500">Qué opciones aparecen en el menú. Para hacer algo dentro de cada una se necesita además el permiso de acción correspondiente.</p>
               </div>
 
-              <div class="flex items-center gap-2">
-                <button
-                  type="button"
-                  (click)="seleccionarTodosModulos()"
-                  class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors">
-                  Seleccionar Todos
-                </button>
-                <button
-                  type="button"
-                  (click)="desmarcarTodosModulos()"
-                  [disabled]="isRolPermisosInmutable(rolForm.codigo) || rolForm.esSistema"
-                  class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors disabled:opacity-50">
-                  Desmarcar Todos
-                </button>
-              </div>
+              @if (!soloLecturaRol) {
+                <div class="flex items-center gap-2">
+                  <button
+                    type="button"
+                    (click)="seleccionarTodosModulos()"
+                    class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors">
+                    Seleccionar Todos
+                  </button>
+                  <button
+                    type="button"
+                    (click)="desmarcarTodosModulos()"
+                    class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors">
+                    Desmarcar Todos
+                  </button>
+                </div>
+              }
             </div>
 
-            <!-- Modules Matrix Grouped by Functional Area -->
-            <div class="space-y-5">
+            <div class="space-y-4">
               @for (grupo of modulosAgrupados; track grupo.grupo) {
                 <div class="bg-slate-50/80 rounded-2xl p-4 border border-slate-200 space-y-3">
                   <div class="flex items-center justify-between">
                     <span class="text-xs font-extrabold text-easydry-blue uppercase tracking-wider">
                       {{ grupo.grupo }}
                     </span>
-                    <span class="text-[11px] font-bold text-slate-400">
+                    <span class="text-xs font-bold text-slate-500">
                       {{ getSelectedInGroupCount(grupo) }} / {{ grupo.modulos.length }}
                     </span>
                   </div>
 
-                  <div class="space-y-2.5">
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                     @for (mod of grupo.modulos; track mod.id) {
-                      <div
-                        class="p-3.5 rounded-xl border bg-white transition-all space-y-2.5"
-                        [ngClass]="isModuloSelected(mod.codigo) ? 'border-purple-300 ring-1 ring-purple-200 bg-purple-50/15' : 'border-slate-200'">
-                        
-                        <div class="flex items-center justify-between">
-                          <label class="flex items-center gap-2.5 cursor-pointer">
-                            <input 
-                              type="checkbox"
-                              [checked]="isModuloSelected(mod.codigo)"
-                              [disabled]="isRolPermisosInmutable(rolForm.codigo) || rolForm.esSistema"
-                              (change)="toggleModulo(mod.codigo)"
-                              class="w-4 h-4 rounded text-purple-600 focus:ring-purple-500 cursor-pointer">
-                            <div class="flex items-center gap-1.5">
-                              <i-lucide [name]="mod.icono" class="w-4 h-4 text-purple-600 flex-shrink-0"></i-lucide>
-                              <span class="font-bold text-xs text-slate-900">{{ mod.nombre }}</span>
-                            </div>
-                          </label>
-                          <span class="text-[10px] font-mono text-slate-400">Ruta: {{ mod.rutaPrincipal }}</span>
-                        </div>
-
-                        <!-- Matriz de Acciones Granulares (Punto 10: Ver, Crear, Editar, Configurar) -->
-                        @if (isModuloSelected(mod.codigo)) {
-                          <div class="pt-2 border-t border-slate-100 flex items-center gap-5 flex-wrap text-xs">
-                            <span class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Acciones:</span>
-                            <label class="inline-flex items-center gap-1.5 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                [checked]="getPermisoAccion(mod.codigo, 'ver')"
-                                (change)="togglePermisoAccion(mod.codigo, 'ver')"
-                                class="rounded text-purple-600 focus:ring-purple-500 cursor-pointer">
-                              <span class="font-semibold text-slate-700 text-xs">Ver</span>
-                            </label>
-
-                            <label class="inline-flex items-center gap-1.5 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                [checked]="getPermisoAccion(mod.codigo, 'crear')"
-                                (change)="togglePermisoAccion(mod.codigo, 'crear')"
-                                class="rounded text-purple-600 focus:ring-purple-500 cursor-pointer">
-                              <span class="font-semibold text-slate-700 text-xs">Crear</span>
-                            </label>
-
-                            <label class="inline-flex items-center gap-1.5 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                [checked]="getPermisoAccion(mod.codigo, 'editar')"
-                                (change)="togglePermisoAccion(mod.codigo, 'editar')"
-                                class="rounded text-purple-600 focus:ring-purple-500 cursor-pointer">
-                              <span class="font-semibold text-slate-700 text-xs">Editar</span>
-                            </label>
-
-                            <label class="inline-flex items-center gap-1.5 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                [checked]="getPermisoAccion(mod.codigo, 'configurar')"
-                                (change)="togglePermisoAccion(mod.codigo, 'configurar')"
-                                class="rounded text-purple-600 focus:ring-purple-500 cursor-pointer">
-                              <span class="font-semibold text-slate-700 text-xs">Configurar</span>
-                            </label>
-                          </div>
-                        }
-                      </div>
+                      <label
+                        class="p-3 rounded-xl border bg-white transition-all flex items-center gap-2.5"
+                        [ngClass]="[isModuloSelected(mod.codigo) ? 'border-purple-300 ring-1 ring-purple-200 bg-purple-50/15' : 'border-slate-200', soloLecturaRol ? 'cursor-default' : 'cursor-pointer']">
+                        <input
+                          type="checkbox"
+                          [checked]="isModuloSelected(mod.codigo)"
+                          [disabled]="soloLecturaRol"
+                          (change)="toggleModulo(mod.codigo)"
+                          class="w-4 h-4 rounded text-purple-600 focus:ring-purple-500">
+                        <i-lucide aria-hidden="true" [name]="mod.icono" class="w-4 h-4 text-purple-600 flex-shrink-0"></i-lucide>
+                        <span class="font-bold text-xs text-slate-900">{{ mod.nombre }}</span>
+                        <span class="ml-auto text-[11px] font-mono text-slate-400 hidden sm:inline">{{ mod.rutaPrincipal }}</span>
+                      </label>
                     }
                   </div>
                 </div>
               }
             </div>
+          </div>
 
+          <!-- Permisos de acción -->
+          <div class="border-t border-slate-200 pt-4">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+              <div>
+                <h4 class="font-extrabold text-slate-900 text-sm font-outfit">Permisos de acción</h4>
+                <p class="text-xs text-slate-500">Lo que el servidor exige en cada operación.
+                  <b>{{ rolForm.capacidades.length }}</b> de {{ catalogoCapacidades.length }} seleccionados.</p>
+              </div>
+              <div class="w-full sm:w-72">
+                <label for="usuarios-rol-buscar" class="sr-only">Buscar permiso</label>
+                <input id="usuarios-rol-buscar"
+                  type="search"
+                  [(ngModel)]="busquedaCapacidad"
+                  name="busquedaCapacidad"
+                  (ngModelChange)="filtrarCapacidades()"
+                  placeholder="Buscar permiso (ej. servicios, crear)..."
+                  class="w-full p-2 border border-slate-200 rounded-xl text-xs">
+              </div>
+            </div>
+
+            @if (!soloLecturaRol && !todosOtorgables) {
+              <p class="text-xs text-slate-500 mb-3">Solo puedes otorgar los permisos que tu propio rol tiene; los demás aparecen deshabilitados.</p>
+            }
+
+            @if (cargandoCatalogo) {
+              <p class="text-xs text-slate-500 py-4" role="status">Cargando el catálogo de permisos…</p>
+            } @else if (errorCatalogo) {
+              <p class="text-xs text-rose-600 font-semibold py-4">{{ errorCatalogo }}</p>
+            } @else {
+              <div class="space-y-4">
+                @for (g of capacidadesGrupos; track g.grupo) {
+                  <div class="bg-slate-50/80 rounded-2xl p-4 border border-slate-200 space-y-3">
+                    <div class="flex items-center justify-between gap-3">
+                      <span class="text-xs font-extrabold text-easydry-blue uppercase tracking-wider">{{ g.grupo }}</span>
+                      <div class="flex items-center gap-3">
+                        <span class="text-xs font-bold text-slate-500">{{ seleccionadasEnGrupo(g) }} / {{ g.items.length }}</span>
+                        @if (!soloLecturaRol) {
+                          <button
+                            type="button"
+                            (click)="toggleGrupo(g)"
+                            class="px-2.5 py-1 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 rounded-lg text-xs font-bold transition-colors">
+                            {{ grupoCompleto(g) ? 'Desmarcar grupo' : 'Marcar grupo' }}
+                          </button>
+                        }
+                      </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                      @for (c of g.items; track c.codigo) {
+                        <label
+                          class="p-3 rounded-xl border bg-white transition-all flex items-start gap-2.5"
+                          [ngClass]="[capacidadSeleccionada(c.codigo) ? 'border-purple-300 ring-1 ring-purple-200 bg-purple-50/15' : 'border-slate-200', (soloLecturaRol || !puedeOtorgar(c.codigo)) ? 'cursor-default' : 'cursor-pointer']">
+                          <input
+                            type="checkbox"
+                            [checked]="capacidadSeleccionada(c.codigo)"
+                            [disabled]="soloLecturaRol || !puedeOtorgar(c.codigo)"
+                            (change)="toggleCapacidad(c.codigo)"
+                            class="mt-0.5 w-4 h-4 rounded text-purple-600 focus:ring-purple-500">
+                          <span class="min-w-0">
+                            <span class="block font-bold text-xs text-slate-900">{{ c.nombre }}</span>
+                            <span class="block text-[11px] text-slate-500 leading-snug">{{ c.descripcion }}</span>
+                            <span class="block text-[10px] font-mono text-slate-400 mt-0.5">{{ c.codigo }}</span>
+                            @if (!soloLecturaRol && !puedeOtorgar(c.codigo)) {
+                              <span class="block text-[11px] font-semibold text-amber-700 mt-0.5">Tu rol no tiene este permiso: no puedes otorgarlo.</span>
+                            }
+                          </span>
+                        </label>
+                      }
+                    </div>
+                  </div>
+                } @empty {
+                  <p class="text-xs text-slate-500 py-4">Ningún permiso coincide con «{{ busquedaCapacidad }}».</p>
+                }
+              </div>
+            }
           </div>
 
         </div>
 
         <div modal-footer>
-          <button (click)="modalRolOpen = false" class="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs">Cancelar</button>
-          <button (click)="guardarRol()" class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
-            <i-lucide name="check" class="w-4 h-4"></i-lucide>
-            <span>{{ editandoRol ? 'Guardar Cambios de Rol' : 'Crear Rol' }}</span>
-          </button>
+          <button type="button" (click)="modalRolOpen = false" class="btn btn-secondary w-full sm:w-auto">{{ soloLecturaRol ? 'Cerrar' : 'Cancelar' }}</button>
+          @if (!soloLecturaRol) {
+            <button type="button" (click)="guardarRol()" [disabled]="guardandoRol" [attr.aria-busy]="guardandoRol" class="btn w-full sm:w-auto" [class.btn-cta]="!editandoRol" [class.btn-primary]="editandoRol">
+              <i-lucide aria-hidden="true" [name]="guardandoRol ? 'loader' : 'check'" class="w-4 h-4" [class.animate-spin]="guardandoRol"></i-lucide>
+              <span>{{ guardandoRol ? 'Guardando…' : (editandoRol ? 'Guardar Cambios de Rol' : 'Crear Rol') }}</span>
+            </button>
+          }
         </div>
       </app-modal>
 
@@ -1285,7 +1386,7 @@ interface ModuloGrupo {
       <!-- MODAL: CONFIRMAR ELIMINACIÓN DE USUARIO                  -->
       <!-- ======================================================== -->
       <app-modal
-        [isOpen]="modalEliminarUsuarioOpen"
+        [isOpen]="modalEliminarUsuarioOpen" size="sm"
         title="Confirmar Eliminación de Usuario"
         icon="alert-triangle"
         (close)="modalEliminarUsuarioOpen = false">
@@ -1293,7 +1394,7 @@ interface ModuloGrupo {
         <div class="space-y-4 py-2">
           <div class="flex items-center gap-3.5 p-3.5 bg-rose-50 border border-rose-200 rounded-2xl">
             <div class="w-10 h-10 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
-              <i-lucide name="trash-2" class="w-5 h-5"></i-lucide>
+              <i-lucide aria-hidden="true" name="trash-2" class="w-5 h-5"></i-lucide>
             </div>
             <div>
               <h4 class="text-sm font-bold text-slate-900">¿Estás seguro de eliminar este usuario?</h4>
@@ -1323,18 +1424,18 @@ interface ModuloGrupo {
           }
         </div>
 
-        <div modal-footer class="flex items-center justify-end gap-2.5">
+        <div modal-footer class="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2.5">
           <button
             type="button"
             (click)="modalEliminarUsuarioOpen = false"
-            class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors cursor-pointer">
+            class="btn btn-secondary w-full sm:w-auto">
             Cancelar
           </button>
           <button
             type="button"
             (click)="confirmarEliminarUsuario()"
-            class="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-extrabold rounded-xl text-xs transition-all shadow-glow-red flex items-center gap-2 cursor-pointer">
-            <i-lucide name="trash-2" class="w-4 h-4"></i-lucide>
+            class="btn btn-danger w-full sm:w-auto">
+            <i-lucide aria-hidden="true" name="trash-2" class="w-4 h-4"></i-lucide>
             <span>Eliminar Usuario</span>
           </button>
         </div>
@@ -1344,7 +1445,7 @@ interface ModuloGrupo {
       <!-- MODAL: CONFIRMAR ELIMINACIÓN DE ROL                      -->
       <!-- ======================================================== -->
       <app-modal
-        [isOpen]="modalEliminarRolOpen"
+        [isOpen]="modalEliminarRolOpen" size="sm"
         title="Confirmar Eliminación de Rol"
         icon="alert-triangle"
         (close)="modalEliminarRolOpen = false">
@@ -1352,7 +1453,7 @@ interface ModuloGrupo {
         <div class="space-y-4 py-2">
           <div class="flex items-center gap-3.5 p-3.5 bg-rose-50 border border-rose-200 rounded-2xl">
             <div class="w-10 h-10 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
-              <i-lucide name="shield-alert" class="w-5 h-5"></i-lucide>
+              <i-lucide aria-hidden="true" name="shield-alert" class="w-5 h-5"></i-lucide>
             </div>
             <div>
               <h4 class="text-sm font-bold text-slate-900">¿Estás seguro de eliminar este rol?</h4>
@@ -1372,24 +1473,24 @@ interface ModuloGrupo {
               </div>
               <div class="flex items-center justify-between text-xs">
                 <span class="text-slate-500 font-bold uppercase">Permisos Asociados:</span>
-                <span class="font-bold text-purple-700">{{ rolAEliminar.modulos.length }} módulos</span>
+                <span class="font-bold text-purple-700">{{ rolAEliminar.capacidades?.length || 0 }} permisos · {{ rolAEliminar.modulos.length }} módulos</span>
               </div>
             </div>
           }
         </div>
 
-        <div modal-footer class="flex items-center justify-end gap-2.5">
+        <div modal-footer class="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2.5">
           <button
             type="button"
             (click)="modalEliminarRolOpen = false"
-            class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors cursor-pointer">
+            class="btn btn-secondary w-full sm:w-auto">
             Cancelar
           </button>
           <button
             type="button"
             (click)="confirmarEliminarRol()"
-            class="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-extrabold rounded-xl text-xs transition-all shadow-glow-red flex items-center gap-2 cursor-pointer">
-            <i-lucide name="trash-2" class="w-4 h-4"></i-lucide>
+            class="btn btn-danger w-full sm:w-auto">
+            <i-lucide aria-hidden="true" name="trash-2" class="w-4 h-4"></i-lucide>
             <span>Eliminar Rol</span>
           </button>
         </div>
@@ -1398,7 +1499,7 @@ interface ModuloGrupo {
     </div>
   `
 })
-export class UsuariosComponent implements OnInit {
+export class UsuariosComponent implements OnInit, OnDestroy {
   readonly isRealProfilePhoto = isRealProfilePhoto;
   activeTab: 'usuarios' | 'roles' = 'usuarios';
 
@@ -1412,11 +1513,30 @@ export class UsuariosComponent implements OnInit {
   filtroTexto = '';
   filtroPillRapida: 'todos' | 'lavadores' | 'supervisores' | 'bodega' | 'admins' | 'inactivos' = 'todos';
 
-  sortColumn: 'nombre' | 'rol' | 'agencia' | 'email' | 'fechaAsignacion' | 'estado' = 'nombre';
-  sortDirection: 'asc' | 'desc' = 'asc';
+  // ── Paginación, orden, búsqueda y filtros en el SERVIDOR (directorio de usuarios) ──
+  readonly minBusqueda = BUSQUEDA_MIN_CARACTERES;
+  /** Sin 'usuarios.gestionar' la tabla no lleva la columna de acciones (se ajusta al iniciar). */
+  columnasUsuarios: TableColumn[] = COLUMNAS_USUARIOS;
+  filasU: Usuario[] = [];
+  totalU = 0;
+  paginaU = 1;
+  pageSizeU = PAGE_SIZE_TABLA;
+  /** Por defecto lo más reciente primero (el servidor aplica el mismo orden si no llega ninguno). */
+  sortFieldU: string | null = 'creado';
+  sortOrderU: 'asc' | 'desc' = 'desc';
+  cargandoU = false;
+  errorU: string | null = null;
+  resumenU: ResumenUsuarios | null = null;
+  /** Total de usuarios del directorio sin filtros (para el título de la pestaña). */
+  totalDirectorio = 0;
+  /** true cuando el usuario escribió 1 letra (se pide un mínimo de 2 antes de consultar). */
+  busquedaCorta = false;
+  private busquedaAplicada = '';
+  private readonly busqueda$ = new Subject<string>();
+  private suscripcionBusqueda?: Subscription;
+  private subU?: Subscription;
 
-  currentPage = 1;
-  pageSize = 10;
+  readonly claseFilaUsuario = (u: Usuario): string => (u.estado === 'Inactivo' ? 'bg-slate-50/60 text-slate-500' : '');
 
   // Modales
   modalUsuarioOpen = false;
@@ -1457,6 +1577,8 @@ export class UsuariosComponent implements OnInit {
   showConfirmPassword = false;
 
   usuarioFormSubmitted = false;
+  /** true mientras se envía el formulario de usuario: bloquea el botón y evita dobles envíos. */
+  guardandoUsuario = false;
 
   get nombreInvalido(): boolean {
     return this.usuarioFormSubmitted && !this.usuarioForm.nombre?.trim();
@@ -1503,18 +1625,27 @@ export class UsuariosComponent implements OnInit {
     codigo?: string;
     nombre: string;
     descripcion: string;
-    color: string;
+    ambito: string;
     modulos: string[];
+    capacidades: string[];
     esSistema: boolean;
-    accionesPorModulo: Record<string, PermisoModuloAcciones>;
   } = {
     nombre: '',
     descripcion: '',
-    color: '#7C3AED',
+    ambito: 'AGENCIA',
     modulos: [],
+    capacidades: [],
     esSistema: false,
-    accionesPorModulo: {}
   };
+
+  // Catálogo de permisos de acción y ámbitos (editor de roles)
+  readonly ambitosLista = AMBITOS_INFO;
+  catalogoCapacidades: CapacidadCatalogo[] = [];
+  capacidadesGrupos: GrupoCapacidad[] = [];
+  busquedaCapacidad = '';
+  cargandoCatalogo = false;
+  errorCatalogo: string | null = null;
+  guardandoRol = false;
 
   modalEliminarUsuarioOpen = false;
   usuarioAEliminar: Usuario | null = null;
@@ -1541,36 +1672,9 @@ export class UsuariosComponent implements OnInit {
     );
   }
 
-  isRolPermisosInmutable = isRolPermisosInmutable;
   esOperadorEspecialesRol = esRolOperadorEspeciales;
 
-  esAdminOGlobal(rol?: string): boolean {
-    if (!rol) return false;
-    const r = rol.toUpperCase().trim();
-    return (r.includes('SUPER') && r.includes('ADMIN')) || r === 'ADMIN' || r === 'ADMINISTRADOR';
-  }
-
-  esSupervisorRol(rol?: string): boolean {
-    if (!rol) return false;
-    const r = rol.toUpperCase().trim();
-    return r.includes('SUPERVISOR');
-  }
-
-  esGestorBodegaRol(rol?: string): boolean {
-    if (!rol) return false;
-    const n = rol.toUpperCase().trim();
-    return (
-      n === 'COORD_BODEGA' ||
-      n === 'DISTRIBUIDOR' ||
-      n === 'GESTOR_BODEGA' ||
-      n.includes('GESTOR DE BODEGA') ||
-      n.includes('COORDINADOR DE BODEGA') ||
-      n.includes('COORD. BODEGA') ||
-      n.includes('GESTOR DE INVENTARIO') ||
-      (n.includes('BODEGA') && !n.includes('ASISTENTE'))
-    );
-  }
-
+  /** Regla de rol que el backend define por rol: el asistente de bodega se asigna a una bodega regional. */
   esAsistenteBodegaRol(rol?: string): boolean {
     if (!rol) return false;
     const n = rol.toUpperCase().trim();
@@ -1582,16 +1686,32 @@ export class UsuariosComponent implements OnInit {
     );
   }
 
-  esRolRegional(rol?: string): boolean {
-    if (!rol) return false;
-    const r = rol.toUpperCase().trim();
-    return (
-      r.includes('SUPERVISOR') ||
-      r.includes('COORD_SERVICIOS_ESPECIALES') ||
-      r.includes('COORD_COMERCIAL') ||
-      r.includes('SERVICIOS ESPECIALES') ||
-      (r.includes('COORD') && r.includes('COMERCIAL'))
+  /** Rol (de la lista cargada) al que corresponde el usuario: por id, por código o por nombre. */
+  private rolDeUsuario(u: { roleId?: string; rolNombre?: string; rol?: string }): RolPersonalizado | undefined {
+    const codigo = (u.rolNombre || '').toLowerCase();
+    const nombre = (u.rol || '').toLowerCase();
+    return this.roles.find(r =>
+      (u.roleId && r.id === u.roleId) ||
+      (codigo && r.codigo.toLowerCase() === codigo) ||
+      (nombre && (r.nombre.toLowerCase() === nombre || r.codigo.toLowerCase() === nombre))
     );
+  }
+
+  /** Ámbito (GLOBAL, REGION, AGENCIA o PROPIO) del rol elegido en el formulario. Sin dato: AGENCIA. */
+  get ambitoForm(): string {
+    const rol = this.rolDeUsuario({ roleId: this.usuarioForm.roleId, rol: this.usuarioForm.rol });
+    return rol?.ambito || 'AGENCIA';
+  }
+
+  /** Un rol de ámbito agencia sin agencia no vería ningún dato: la agencia es obligatoria. */
+  get agenciaObligatoria(): boolean {
+    return this.ambitoForm === 'AGENCIA';
+  }
+
+  /** Roles que se pueden asignar: los activos (más el que el usuario ya tiene al editar). */
+  get rolesAsignables(): RolPersonalizado[] {
+    const actual = this.usuarioForm.roleId;
+    return this.rolesVisibles.filter(r => r.estado === 'Activo' || r.estado === 1 || r.id === actual);
   }
 
   onRoleIdChange(roleId: string) {
@@ -1603,18 +1723,29 @@ export class UsuariosComponent implements OnInit {
     }
   }
 
+  /** Ámbito del rol de un usuario del directorio (para mostrar su alcance). */
+  ambitoDeUsuario(u: Usuario): string {
+    return this.rolDeUsuario(u)?.ambito || '';
+  }
+
   seleccionarTab(tab: 'usuarios' | 'roles') {
+    // Sin 'roles.ver' no existe la pestaña de roles: el servidor rechazaría todas sus llamadas.
+    if (tab === 'roles' && !this.puedeVerRoles) return;
     this.activeTab = tab;
     if (tab === 'roles') {
+      this.rolesTabla.reiniciar();
       this.rolService.getRoles().subscribe(list => {
-        if (list && list.length) {
-          this.roles = list.map(rol => ({
-            ...rol,
-            modulos: Array.isArray(rol.modulos) ? rol.modulos : [],
-          }));
-        }
+        this.roles = list.map(rol => ({
+          ...rol,
+          modulos: Array.isArray(rol.modulos) ? rol.modulos : [],
+        }));
       });
+      if (!this.catalogoCapacidades.length && !this.cargandoCatalogo) this.cargarCatalogoPermisos();
     } else {
+      this.refrescarUsuarios(true);
+    }
+    if (tab === 'roles') {
+      // Los conteos por rol de la pestaña Roles usan la lista completa (solo se pide al abrirla).
       this.usuarioService.getUsuarios(undefined, true).subscribe();
     }
   }
@@ -1645,6 +1776,10 @@ export class UsuariosComponent implements OnInit {
     return this.usuarios.filter(u => !this.esRolSuperAdmin(u.rolNombre || u.rol));
   }
 
+  /** Tabla de gestión de roles: páginas numeradas, búsqueda y orden en el servidor (la lista completa `roles` sigue para tarjetas y selectores). */
+  readonly columnasRoles: TableColumn[] = COLUMNAS_ROLES;
+  readonly rolesTabla = new TablaServidor<RolPersonalizado>((c) => this.rolService.getRolesPagina(c));
+
   get rolesVisibles(): RolPersonalizado[] {
     return this.roles.filter(r => !this.esRolSuperAdmin(r.codigo || r.nombre));
   }
@@ -1661,10 +1796,11 @@ export class UsuariosComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    this.rolService.getModulos().subscribe(list => {
-      this.modulosDisponibles = list || [];
-      this.agruparModulos();
-    });
+    if (!this.puedeGestionarUsuarios) {
+      this.columnasUsuarios = COLUMNAS_USUARIOS.filter(c => c.key !== 'acciones');
+    }
+    // Catálogo de módulos y permisos: solo con 'roles.ver' (lo exige el servidor).
+    this.cargarCatalogoPermisos();
 
     this.regionService.getRegiones().subscribe(list => {
       if (list && list.length) {
@@ -1698,11 +1834,13 @@ export class UsuariosComponent implements OnInit {
       }
     });
 
-    this.usuarioService.getUsuarios().subscribe(list => {
-      if (list && list.length) {
-        this.usuarios = list;
-      }
-    });
+    this.suscripcionBusqueda = this.busqueda$
+      .pipe(debounceTime(BUSQUEDA_DEBOUNCE_MS), distinctUntilChanged())
+      .subscribe((texto) => {
+        this.busquedaAplicada = texto;
+        this.aplicarFiltros();
+      });
+    this.refrescarUsuarios(true);
 
     this.rolService.roles$.subscribe(list => {
       this.roles = list.map(rol => ({
@@ -1711,19 +1849,25 @@ export class UsuariosComponent implements OnInit {
       }));
     });
 
-    // Cargar directamente los roles de la base de datos PostgreSQL
-    this.rolService.getRoles().subscribe(list => {
-      if (list && list.length) {
+    // Roles de la base de datos (solo con 'roles.ver'; alimentan tarjetas, selectores y el ámbito del formulario)
+    if (this.puedeVerRoles) {
+      this.rolService.getRoles().subscribe(list => {
         this.roles = list.map(rol => ({
           ...rol,
           modulos: Array.isArray(rol.modulos) ? rol.modulos : [],
         }));
-      }
-    });
+      });
+    }
 
     this.sucursalService.getSucursales().subscribe(list => {
       this.sucursales = list;
     });
+  }
+
+  ngOnDestroy(): void {
+    this.suscripcionBusqueda?.unsubscribe();
+    this.subU?.unsubscribe();
+    this.rolesTabla.destruir();
   }
 
   get rolesActivosCount(): number {
@@ -1787,41 +1931,9 @@ export class UsuariosComponent implements OnInit {
   // -------------------------------------------------------------
   // CONTEOS PARA PÍLDORAS RÁPIDAS
   // -------------------------------------------------------------
-  get countLavadores(): number {
-    return this.usuariosVisibles.filter(u => {
-      const r = (u.rol || '').toLowerCase();
-      return r.includes('lavador') || r.includes('pulidor') || r.includes('operador');
-    }).length;
-  }
-
-  get countSupervisores(): number {
-    return this.usuariosVisibles.filter(u => {
-      const r = (u.rol || '').toLowerCase();
-      return r.includes('supervisor') || r.includes('coordinador');
-    }).length;
-  }
-
-  get countBodega(): number {
-    return this.usuariosVisibles.filter(u => {
-      const r = (u.rol || '').toLowerCase();
-      return r.includes('bodega') || r.includes('distribuidor') || r.includes('inventario');
-    }).length;
-  }
-
-  get countAdmins(): number {
-    return this.usuariosVisibles.filter(u => {
-      const r = (u.rol || '').toLowerCase();
-      return r.includes('admin') || r.includes('gerente') || r.includes('auditor');
-    }).length;
-  }
-
-  get countInactivos(): number {
-    return this.usuariosVisibles.filter(u => u.estado === 'Inactivo').length;
-  }
-
   setQuickPill(pill: 'todos' | 'lavadores' | 'supervisores' | 'bodega' | 'admins' | 'inactivos'): void {
     this.filtroPillRapida = pill;
-    this.currentPage = 1;
+    this.aplicarFiltros();
   }
 
   // -------------------------------------------------------------
@@ -1858,7 +1970,9 @@ export class UsuariosComponent implements OnInit {
     };
     this.filtroTexto = '';
     this.filtroPillRapida = 'todos';
-    this.currentPage = 1;
+    this.busquedaAplicada = '';
+    this.busquedaCorta = false;
+    this.aplicarFiltros();
   }
 
   removerFiltro(tipo: 'rol' | 'region' | 'sucursal' | 'cliente' | 'estado' | 'busqueda' | 'pill'): void {
@@ -1870,28 +1984,37 @@ export class UsuariosComponent implements OnInit {
     if (tipo === 'busqueda') {
       this.filtroTexto = '';
       this.filtrosGlobales.busqueda = '';
+      this.busquedaAplicada = '';
+      this.busquedaCorta = false;
     }
     if (tipo === 'pill') this.filtroPillRapida = 'todos';
-    this.currentPage = 1;
-  }
-
-  // -------------------------------------------------------------
-  // ORDENAMIENTO DINÁMICO POR COLUMNAS
-  // -------------------------------------------------------------
-  toggleSort(columna: 'nombre' | 'rol' | 'agencia' | 'email' | 'fechaAsignacion' | 'estado'): void {
-    if (this.sortColumn === columna) {
-      this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
-    } else {
-      this.sortColumn = columna;
-      this.sortDirection = 'asc';
-    }
+    this.aplicarFiltros();
   }
 
   // -------------------------------------------------------------
   // EXPORTAR COLABORADORES FILTRADOS A CSV
   // -------------------------------------------------------------
+  /** Exporta lo que coincide con los filtros actuales: pide todas las páginas al servidor (de a 100). */
   exportarUsuariosCSV(): void {
-    const rows = this.usuariosFiltrados.map(u => ({
+    this.obtenerTodosFiltrados()
+      .then((lista) => this.generarCSV(lista))
+      .catch(() => this.toastService.error('Exportación', 'No se pudo obtener el listado para exportar.'));
+  }
+
+  private async obtenerTodosFiltrados(): Promise<Usuario[]> {
+    const todos: Usuario[] = [];
+    for (let pagina = 1; pagina <= 100; pagina++) {
+      const { pagina: p } = await firstValueFrom(
+        this.usuarioService.getUsuariosPagina({ ...this.consultaUsuarios(), page: pagina, pageSize: 100 }),
+      );
+      todos.push(...p.items);
+      if (!p.hasNextPage) break;
+    }
+    return todos;
+  }
+
+  private generarCSV(lista: Usuario[]): void {
+    const rows = lista.map(u => ({
       ID: `USR-00${u.id}`,
       Nombre: u.nombre,
       Apellido: u.apellido,
@@ -1923,154 +2046,158 @@ export class UsuariosComponent implements OnInit {
   }
 
   aplicarNuevosFiltros(filtros: FilterState) {
+    const previo = this.filtrosGlobales;
     this.filtrosGlobales = { ...this.filtrosGlobales, ...filtros };
-    if (filtros.busqueda !== undefined) {
-      this.filtroTexto = filtros.busqueda;
+    const busq = (this.filtrosGlobales.busqueda ?? '').trim();
+    this.filtroTexto = filtros.busqueda !== undefined ? filtros.busqueda : this.filtroTexto;
+    this.busquedaCorta = busq.length > 0 && busq.length < BUSQUEDA_MIN_CARACTERES;
+
+    if (this.huellaFiltros(previo) !== this.huellaFiltros(this.filtrosGlobales)) {
+      // Cambió un filtro (no el texto): se consulta ya. Si el texto es de una sola letra se conserva la búsqueda anterior.
+      if (!this.busquedaCorta) this.busquedaAplicada = busq;
+      this.aplicarFiltros();
+      return;
     }
-    this.currentPage = 1;
+    // Solo cambió el texto: espera 300 ms tras la última tecla y exige mínimo 2 letras (o vacío para quitar el filtro).
+    if (!this.busquedaCorta) this.busqueda$.next(busq);
   }
 
+  private huellaFiltros(f: FilterState | undefined): string {
+    if (!f) return '';
+    return JSON.stringify([f.rol, f.region, f.sucursal, f.cliente, f.marca, f.estado]);
+  }
+
+  /** Todo cambio de filtro, píldora o texto vuelve a la primera página. */
   aplicarFiltros() {
-    this.currentPage = 1;
+    this.paginaU = 1;
+    this.refrescarUsuarios();
   }
 
-  get usuariosFiltrados() {
-    let resultados = this.usuariosVisibles;
-
-    // 1. Filtro rápido por píldoras
-    if (this.filtroPillRapida === 'lavadores') {
-      resultados = resultados.filter(u => {
-        const r = (u.rol || '').toLowerCase();
-        return r.includes('lavador') || r.includes('pulidor') || r.includes('operador');
-      });
-    } else if (this.filtroPillRapida === 'supervisores') {
-      resultados = resultados.filter(u => {
-        const r = (u.rol || '').toLowerCase();
-        return r.includes('supervisor') || r.includes('coordinador');
-      });
-    } else if (this.filtroPillRapida === 'bodega') {
-      resultados = resultados.filter(u => {
-        const r = (u.rol || '').toLowerCase();
-        return r.includes('bodega') || r.includes('distribuidor') || r.includes('inventario');
-      });
-    } else if (this.filtroPillRapida === 'admins') {
-      resultados = resultados.filter(u => {
-        const r = (u.rol || '').toLowerCase();
-        return r.includes('admin') || r.includes('gerente') || r.includes('auditor');
-      });
-    } else if (this.filtroPillRapida === 'inactivos') {
-      resultados = resultados.filter(u => u.estado === 'Inactivo');
-    }
-
-    // 2. Filtro por Rol (dropdown)
-    if (this.filtrosGlobales.rol && this.filtrosGlobales.rol !== 'Todos') {
-      const targetRol = this.filtrosGlobales.rol.toLowerCase().trim();
-      resultados = resultados.filter(u => (u.rol || '').toLowerCase().trim() === targetRol);
-    }
-
-    // 3. Filtro por Estado
-    if (this.filtrosGlobales.estado && this.filtrosGlobales.estado !== 'Todos') {
-      resultados = resultados.filter(u => u.estado === this.filtrosGlobales.estado);
-    }
-
-    // 4. Filtro por Región (directo o por la agencia asignada)
-    if (this.filtrosGlobales.region && this.filtrosGlobales.region !== 'Todas') {
-      const reg = this.filtrosGlobales.region.toLowerCase().trim();
-      resultados = resultados.filter(u => {
-        const uReg = (u.region || '').toLowerCase().trim();
-        if (uReg === reg) return true;
-        const suc = this.sucursalService.getSucursalPorNombre(u.agencia);
-        const sucReg = (suc?.regionNombre || suc?.region?.nombre || '').toLowerCase().trim();
-        return sucReg === reg;
-      });
-    }
-
-    // 5. Filtro por Agencia / Sucursal
-    if (this.filtrosGlobales.sucursal && this.filtrosGlobales.sucursal !== 'Todas') {
-      resultados = resultados.filter(u => u.agencia === this.filtrosGlobales.sucursal);
-    }
-
-    // 6. Filtro por Cliente
-    const targetClienteFiltro = (this.filtrosGlobales.cliente && this.filtrosGlobales.cliente !== 'Todas')
-      ? this.filtrosGlobales.cliente
-      : (this.filtrosGlobales.marca && this.filtrosGlobales.marca !== 'Todas' ? this.filtrosGlobales.marca : null);
-    if (targetClienteFiltro) {
-      resultados = resultados.filter(u => {
-        const suc = this.sucursalService.getSucursalPorNombre(u.agencia);
-        return (suc?.clienteNombre || suc?.marcaNombre) === targetClienteFiltro;
-      });
-    }
-
-    // 7. Búsqueda por texto (Universal: nombre, apellido, correo, rol, agencia, ID)
-    if (this.filtroTexto.trim()) {
-      const b = this.filtroTexto.trim().toLowerCase();
-      resultados = resultados.filter(u => {
-        const nombreCompleto = `${u.nombre || ''} ${u.apellido || ''}`.toLowerCase();
-        const idStr = `usr-00${u.id || ''}`.toLowerCase();
-        const rawId = String(u.id || '').toLowerCase();
-        return (
-          nombreCompleto.includes(b) ||
-          (u.nombre || '').toLowerCase().includes(b) ||
-          (u.apellido || '').toLowerCase().includes(b) ||
-          (u.email || '').toLowerCase().includes(b) ||
-          (u.rol || '').toLowerCase().includes(b) ||
-          (u.agencia || '').toLowerCase().includes(b) ||
-          (u.region || '').toLowerCase().includes(b) ||
-          idStr.includes(b) ||
-          rawId.includes(b)
-        );
-      });
-    }
-
-    // 8. Ordenamiento dinámico
-    resultados = [...resultados].sort((a, b) => {
-      let valA: string = '';
-      let valB: string = '';
-      switch (this.sortColumn) {
-        case 'nombre':
-          valA = `${a.nombre} ${a.apellido}`.toLowerCase();
-          valB = `${b.nombre} ${b.apellido}`.toLowerCase();
-          break;
-        case 'rol':
-          valA = (a.rol || '').toLowerCase();
-          valB = (b.rol || '').toLowerCase();
-          break;
-        case 'agencia':
-          valA = (a.agencia || '').toLowerCase();
-          valB = (b.agencia || '').toLowerCase();
-          break;
-        case 'email':
-          valA = (a.email || '').toLowerCase();
-          valB = (b.email || '').toLowerCase();
-          break;
-        case 'fechaAsignacion':
-          valA = (a.fechaAsignacion || '').toLowerCase();
-          valB = (b.fechaAsignacion || '').toLowerCase();
-          break;
-        case 'estado':
-          valA = (a.estado || '').toLowerCase();
-          valB = (b.estado || '').toLowerCase();
-          break;
-      }
-      const cmp = valA.localeCompare(valB, 'es', { numeric: true });
-      return this.sortDirection === 'asc' ? cmp : -cmp;
-    });
-
-    return resultados;
+  get tituloVacioU(): string {
+    return this.hayFiltrosActivos
+      ? 'No se encontraron colaboradores con los filtros aplicados.'
+      : 'Aún no hay usuarios registrados.';
   }
 
-  get paginatedUsuarios() {
-    const start = (this.currentPage - 1) * this.pageSize;
-    return this.usuariosFiltrados.slice(start, start + this.pageSize);
+  // ---- Conversión nombre → id/código (el filter-bar entrega nombres; el servidor pide ids y códigos) ----
+
+  private neutro(v: string | undefined | null, ...neutros: string[]): string {
+    const t = (v ?? '').trim();
+    return !t || neutros.includes(t) ? '' : t;
   }
 
-  onPageChange(page: number) {
-    this.currentPage = page;
+  private agenciaIdFiltro(): string {
+    const nombre = this.neutro(this.filtrosGlobales.sucursal, 'Todas', 'TODAS');
+    if (!nombre) return '';
+    const n = nombre.replace(/EasyDry\s*/i, '').trim().toLowerCase();
+    const suc = this.sucursales.find((x) => (x.nombre || '').replace(/EasyDry\s*/i, '').trim().toLowerCase() === n);
+    return suc ? String(suc.id) : '__sin_coincidencia__';
   }
 
-  onPageSizeChange(size: number) {
-    this.pageSize = size;
-    this.currentPage = 1;
+  private regionIdFiltro(): string {
+    const nombre = this.neutro(this.filtrosGlobales.region, 'Todas', 'TODAS');
+    if (!nombre) return '';
+    const reg = this.regionesDisponibles.find((r) => r.nombre === nombre);
+    if (reg) return String(reg.id);
+    const suc = this.sucursales.find((x) => x.regionNombre === nombre && (x.regionId ?? x.region?.id) !== undefined);
+    const id = suc ? (suc.regionId ?? suc.region?.id) : undefined;
+    return id !== undefined && id !== null ? String(id) : '__sin_coincidencia__';
+  }
+
+  private clienteIdFiltro(): string {
+    const f = this.filtrosGlobales;
+    const nombre = this.neutro(f.cliente, 'Todas', 'TODAS') || this.neutro(f.marca, 'Todas', 'TODAS');
+    if (!nombre) return '';
+    const suc = this.sucursales.find((x) => (x.clienteNombre || x.marcaNombre) === nombre && (x.clienteId ?? x.marcaId) !== undefined);
+    const id = suc ? (suc.clienteId ?? suc.marcaId) : undefined;
+    return id !== undefined && id !== null ? String(id) : '__sin_coincidencia__';
+  }
+
+  /** El filtro de rol muestra el nombre del rol; el servidor filtra por su código (uno o varios separados por coma). */
+  private rolCodigosFiltro(): string {
+    const nombre = this.neutro(this.filtrosGlobales.rol, 'Todos', 'TODOS').toLowerCase();
+    if (!nombre) return '';
+    const codigos = new Set<string>();
+    for (const r of this.roles) {
+      if ((r.nombre || '').trim().toLowerCase() === nombre && r.codigo) codigos.add(r.codigo);
+    }
+    for (const [codigo, etiqueta] of Object.entries(ROLE_LABELS)) {
+      if (etiqueta.trim().toLowerCase() === nombre) codigos.add(codigo);
+    }
+    return codigos.size ? Array.from(codigos).join(',') : '__sin_coincidencia__';
+  }
+
+  private consultaUsuarios(): ConsultaUsuarios {
+    const estado = this.neutro(this.filtrosGlobales.estado, 'Todos');
+    return {
+      sortField: this.sortFieldU,
+      sortOrder: this.sortOrderU,
+      search: this.busquedaAplicada,
+      rolNombre: this.rolCodigosFiltro() || undefined,
+      agenciaId: this.agenciaIdFiltro() || undefined,
+      regionId: this.regionIdFiltro() || undefined,
+      clienteId: this.clienteIdFiltro() || undefined,
+      estado: estado === 'Activo' ? 1 : estado === 'Inactivo' ? 0 : undefined,
+      segmento: this.filtroPillRapida,
+    };
+  }
+
+  private mensajeError(err: unknown): string {
+    const e = err as { error?: { message?: string | string[] }; message?: string } | undefined;
+    const detalle = e?.error?.message;
+    if (Array.isArray(detalle)) return detalle.join('. ');
+    return detalle || e?.message || 'No se pudo cargar la información.';
+  }
+
+  onTablaUsuariosCambio(q: ConsultaTabla): void {
+    this.paginaU = q.page;
+    this.pageSizeU = q.pageSize;
+    this.sortFieldU = q.sortField || 'creado';
+    this.sortOrderU = q.sortOrder;
+    this.cargarPaginaU();
+  }
+
+  /**
+   * Vuelve a pedir la página actual (después de crear, editar, eliminar o activar) y, con `conTotal`,
+   * el total del directorio sin filtros para el título de la pestaña.
+   */
+  refrescarUsuarios(conTotal = false): void {
+    this.cargarPaginaU();
+    if (conTotal) {
+      this.usuarioService.getUsuariosPagina({ pageSize: 1 }).subscribe({
+        next: (r) => { this.totalDirectorio = r.pagina.total; },
+        error: () => { /* el contador es informativo */ },
+      });
+    }
+  }
+
+  cargarPaginaU(): void {
+    this.subU?.unsubscribe();
+    this.cargandoU = true;
+    this.errorU = null;
+    this.subU = this.usuarioService
+      .getUsuariosPagina({ ...this.consultaUsuarios(), page: this.paginaU, pageSize: this.pageSizeU, incluirResumen: true })
+      .subscribe({
+        next: ({ pagina, resumen }) => {
+          // Si la página quedó vacía (se borró o cambió lo último de la lista) se retrocede a la última que exista.
+          if (pagina.items.length === 0 && this.paginaU > 1 && pagina.total > 0) {
+            this.paginaU = Math.max(1, pagina.totalPages);
+            this.cargarPaginaU();
+            return;
+          }
+          this.filasU = pagina.items;
+          this.totalU = pagina.total;
+          this.paginaU = pagina.page;
+          if (resumen) this.resumenU = resumen;
+          this.cargandoU = false;
+        },
+        error: (err) => {
+          this.filasU = [];
+          this.totalU = 0;
+          this.errorU = this.mensajeError(err);
+          this.cargandoU = false;
+        },
+      });
   }
 
   getRolBadgeClass(rolNombre: string): string {
@@ -2079,7 +2206,7 @@ export class UsuariosComponent implements OnInit {
     if (rolNombre.includes('Admin') || rolNombre.includes('Super')) return 'bg-purple-100 text-purple-900 border-purple-300';
     if (rolNombre.includes('Gerente')) return 'bg-easydry-blue/15 text-easydry-blue border-easydry-blue/20';
     if (rolNombre.includes('Supervisor')) return 'bg-amber-100 text-amber-800 border-amber-200';
-    if (rolNombre.includes('Operador') || rolNombre.includes('Lavador')) return 'bg-easydry-green/20 text-easydry-green-dark border-easydry-green/30';
+    if (rolNombre.includes('Operador') || rolNombre.includes('Lavador')) return 'bg-easydry-green/20 text-easydry-green-text border-easydry-green/30';
     return 'bg-slate-100 text-slate-700 border-slate-200';
   }
 
@@ -2106,17 +2233,13 @@ export class UsuariosComponent implements OnInit {
     this.usuarioFormSubmitted = false;
     const defaultRol = this.rolesVisibles.find(r => r.codigo === 'APROBADOR') || this.rolesVisibles[0];
     const primerRol = defaultRol?.nombre || 'Aprobador';
-    let agenciaInicial = '';
-    if (this.esAdminOGlobal(primerRol) || this.esSupervisorRol(primerRol) || this.esGestorBodegaRol(primerRol) || this.esAsistenteBodegaRol(primerRol) || this.esRolRegional(primerRol)) {
-      agenciaInicial = '';
-    }
     this.usuarioForm = {
       nombre: '',
       apellido: '',
       rol: primerRol,
       roleId: defaultRol?.id,
-      agencia: agenciaInicial,
-      region: this.regionesDisponibles[0]?.nombre || '',
+      agencia: '',
+      region: '',
       bodegaId: '',
       estado: 'Activo',
       email: '',
@@ -2140,21 +2263,15 @@ export class UsuariosComponent implements OnInit {
         ? u.sucursal
         : '';
 
-    if (this.esAdminOGlobal(u.rol) || this.esSupervisorRol(u.rol) || this.esGestorBodegaRol(u.rol) || this.esAsistenteBodegaRol(u.rol) || this.esRolRegional(u.rol)) {
+    const rolMatch = this.rolDeUsuario(u);
+
+    // Roles de ámbito global o regional (y el asistente de bodega) no se vinculan a una agencia.
+    const ambitoUsr = rolMatch?.ambito || '';
+    if (ambitoUsr === 'GLOBAL' || ambitoUsr === 'REGION' || this.esAsistenteBodegaRol(u.rol)) {
       agenciaActual = '';
     }
 
-    const regionActual = (u.region && u.region !== 'Sin asignar' && u.region !== 'Nacional')
-      ? u.region
-      : (this.regionesDisponibles[0]?.nombre || '');
-
-    const rolMatch = this.roles.find(r =>
-      (u.roleId && r.id === u.roleId) ||
-      r.codigo === u.rolNombre ||
-      r.codigo === u.rol ||
-      r.nombre.toLowerCase() === u.rol?.toLowerCase() ||
-      r.nombre.toLowerCase() === u.rolNombre?.toLowerCase()
-    );
+    const regionActual = (u.region && u.region !== 'Sin asignar' && u.region !== 'Nacional') ? u.region : '';
 
     const isPul = this.esOperadorEspecialesRol(u.rol) || (rolMatch && this.esOperadorEspecialesRol(rolMatch.nombre));
     const finalServiciosPulidor = isPul
@@ -2182,21 +2299,14 @@ export class UsuariosComponent implements OnInit {
     this.modalUsuarioOpen = true;
   }
 
-  esLiderOperadorRol(rol: string): boolean {
-    const r = (rol || '').toUpperCase().trim();
-    return r === 'LIDER' || r === 'LIDER_OPERADOR' || r === 'LIDER_AGENCIA'
-      || r.includes('LÍDER OPERADOR') || r.includes('LIDER OPERADOR')
-      || ((r.includes('LIDER') || r.includes('LÍDER')) && !r.includes('BODEGA'));
-  }
-
   onPulidorAgenciaChange(agencia: string) {
     this.usuarioForm.servicioIds = this.serviciosEspecialesCatalogo.map(s => Number(s.id));
     if (agencia?.trim()) {
       this.usuarioForm.modalidadPulidor = 'FIJO';
     } else {
       this.usuarioForm.modalidadPulidor = 'MOVIL';
-      if (!this.usuarioForm.region || this.usuarioForm.region === 'Nacional') {
-        this.usuarioForm.region = this.regionesDisponibles[0]?.nombre || '';
+      if (this.usuarioForm.region === 'Nacional') {
+        this.usuarioForm.region = '';
       }
     }
   }
@@ -2229,6 +2339,7 @@ export class UsuariosComponent implements OnInit {
     this.usuarioService.toggleEstado(u.id, nuevoEstado).subscribe({
       next: () => {
         u.estado = nuevoEstado;
+        this.refrescarUsuarios();
         if (nuevoEstado === 'Inactivo') {
           this.toastService.warning(
             'Usuario Desactivado',
@@ -2258,6 +2369,7 @@ export class UsuariosComponent implements OnInit {
     this.usuarioService.eliminarUsuario(u.id).subscribe({
       next: () => {
         this.usuarios = this.usuarios.filter(user => String(user.id) !== String(u.id));
+        this.refrescarUsuarios(true);
         this.toastService.success(
           'Usuario Eliminado',
           `El usuario ${u.nombre} ${u.apellido} ha sido eliminado del sistema.`
@@ -2275,14 +2387,19 @@ export class UsuariosComponent implements OnInit {
   onRolUsuarioChange() {
     if (this.esOperadorEspecialesRol(this.usuarioForm.rol)) {
       this.onPulidorAgenciaChange(this.usuarioForm.agencia || '');
-    } else if (this.esGestorBodegaRol(this.usuarioForm.rol)) {
-      this.usuarioForm.agencia = '';
-      this.usuarioForm.region = 'Nacional';
-      this.usuarioForm.bodegaId = '';
     } else if (this.esAsistenteBodegaRol(this.usuarioForm.rol)) {
       this.usuarioForm.agencia = '';
       this.usuarioForm.bodegaId = this.usuarioForm.bodegaId || this.bodegasRegionales[0]?.id || '';
       this.onBodegaAsistenteChange(this.usuarioForm.bodegaId);
+    } else if (this.ambitoForm === 'GLOBAL') {
+      // Todo el país: sin agencia, región ni bodega.
+      this.usuarioForm.agencia = '';
+      this.usuarioForm.region = '';
+      this.usuarioForm.bodegaId = '';
+    } else if (this.ambitoForm === 'REGION') {
+      // Su región: la agencia no aplica; la región se elige en el formulario.
+      this.usuarioForm.agencia = '';
+      this.usuarioForm.bodegaId = '';
     }
   }
 
@@ -2290,16 +2407,13 @@ export class UsuariosComponent implements OnInit {
     this.usuarioForm.modalidadPulidor = modalidad;
     if (modalidad === 'MOVIL') {
       this.usuarioForm.agencia = '';
-      if (!this.usuarioForm.region || this.usuarioForm.region === 'Nacional') {
-        this.usuarioForm.region = this.regionesDisponibles[0]?.nombre || '';
+      if (this.usuarioForm.region === 'Nacional') {
+        this.usuarioForm.region = '';
       }
     }
   }
 
   private payloadModalidad(): { agencia: string; modalidadPulidor?: ModalidadPulidor } {
-    if (this.esGestorBodegaRol(this.usuarioForm.rol)) {
-      return { agencia: 'Nacional (Acceso Global)', modalidadPulidor: undefined };
-    }
     if (this.esAsistenteBodegaRol(this.usuarioForm.rol)) {
       const bod = this.bodegasRegionales.find(b => String(b.id) === String(this.usuarioForm.bodegaId));
       return { agencia: bod?.nombre || `Bodega Regional ${this.usuarioForm.region || 'Regional'}`, modalidadPulidor: undefined };
@@ -2314,6 +2428,7 @@ export class UsuariosComponent implements OnInit {
   }
 
   guardarUsuario() {
+    if (this.guardandoUsuario) return;
     this.usuarioFormSubmitted = true;
     if (this.nombreInvalido || this.emailInvalido || this.passwordInvalido || this.confirmPasswordInvalido) {
       this.toastService.warning('Campos Requeridos', 'Por favor complete los campos obligatorios señalados en rojo.');
@@ -2367,8 +2482,13 @@ export class UsuariosComponent implements OnInit {
       this.usuarioForm.servicioIds = this.serviciosEspecialesCatalogo.map(s => Number(s.id));
     }
 
-    if (this.esLiderOperadorRol(this.usuarioForm.rol) && !this.usuarioForm.agencia?.trim()) {
-      this.toastService.warning('Agencia requerida', 'El Líder Operador debe estar asignado a una agencia.');
+    if (!this.usuarioForm.roleId) {
+      this.toastService.warning('Rol requerido', 'Elige el rol que tendrá el usuario.');
+      return;
+    }
+
+    if (this.agenciaObligatoria && !esRolOperadorEspeciales(this.usuarioForm.rol) && !this.esAsistenteBodegaRol(this.usuarioForm.rol) && !this.usuarioForm.agencia?.trim()) {
+      this.toastService.warning('Agencia requerida', 'Este rol trabaja sobre los datos de su agencia: asigna una agencia al usuario.');
       return;
     }
 
@@ -2379,7 +2499,6 @@ export class UsuariosComponent implements OnInit {
 
     const modalidad = this.payloadModalidad();
     const isAsistente = this.esAsistenteBodegaRol(this.usuarioForm.rol);
-    const isGestor = this.esGestorBodegaRol(this.usuarioForm.rol);
     const isPulidor = esRolOperadorEspeciales(this.usuarioForm.rol);
     const isPulidorMovil = isPulidor && modalidad.modalidadPulidor === 'MOVIL';
 
@@ -2388,23 +2507,17 @@ export class UsuariosComponent implements OnInit {
       bodegaMatch = this.bodegasRegionales.find(b => String(b.id) === String(this.usuarioForm.bodegaId));
     }
 
-    const rolEncontrado = this.roles.find(r =>
-      (this.usuarioForm.roleId && r.id === this.usuarioForm.roleId) ||
-      r.id === this.usuarioForm.rol ||
-      r.codigo.toLowerCase() === this.usuarioForm.rol.toLowerCase() ||
-      r.nombre.toLowerCase() === this.usuarioForm.rol.toLowerCase() ||
-      (isGestor && (r.codigo === 'COORD_BODEGA' || r.codigo === 'DISTRIBUIDOR')) ||
-      (isAsistente && r.codigo === 'ASISTENTE_BODEGA')
-    );
+    const rolEncontrado = this.rolDeUsuario({ roleId: this.usuarioForm.roleId, rol: this.usuarioForm.rol });
 
     const roleIdToSend = rolEncontrado?.id || this.usuarioForm.roleId;
 
-    const isGlobalAdmin = this.esAdminOGlobal(this.usuarioForm.rol);
-    const isSupervisor = this.esSupervisorRol(this.usuarioForm.rol);
-    const isRegional = this.esRolRegional(this.usuarioForm.rol);
+    // Alcance según el ámbito del rol (el pulidor y el asistente de bodega tienen su propia regla).
+    const ambitoRol = this.ambitoForm;
+    const isGlobal = ambitoRol === 'GLOBAL' && !isPulidor && !isAsistente;
+    const isRegional = ambitoRol === 'REGION' && !isPulidor && !isAsistente;
 
-    if ((isSupervisor || isRegional) && !this.usuarioForm.region) {
-      this.toastService.warning('Región requerida', 'Este perfil requiere tener una región operativa asignada.');
+    if (isRegional && !this.usuarioForm.region) {
+      this.toastService.warning('Región requerida', 'Este rol trabaja sobre su región: asigna una región al usuario.');
       return;
     }
 
@@ -2414,7 +2527,7 @@ export class UsuariosComponent implements OnInit {
     }
 
     let regionMatch: RegionOperativa | undefined = undefined;
-    if ((isSupervisor || isAsistente || isRegional || isPulidorMovil) && this.usuarioForm.region) {
+    if ((isAsistente || isRegional || isPulidorMovil) && this.usuarioForm.region) {
       regionMatch = this.regionesDisponibles.find(r =>
         r.nombre.toLowerCase() === this.usuarioForm.region?.toLowerCase() ||
         String(r.id) === this.usuarioForm.region
@@ -2434,15 +2547,15 @@ export class UsuariosComponent implements OnInit {
       let finalRegionId: string | undefined = undefined;
       let finalRegion: string | undefined = undefined;
 
-      if (isGlobalAdmin || isGestor) {
-        finalAgencia = 'Nacional (Acceso Global)';
+      if (isGlobal) {
+        finalAgencia = '';
         finalAgenciaId = undefined;
-        finalRegion = 'Nacional';
+        finalRegion = undefined;
         finalRegionId = undefined;
-      } else if (isSupervisor || isRegional) {
+      } else if (isRegional) {
         finalRegion = regionMatch?.nombre || this.usuarioForm.region || '';
         finalRegionId = regionMatch?.id ? String(regionMatch.id) : this.editandoUsuario.regionId;
-        finalAgencia = `Región ${finalRegion}`;
+        finalAgencia = '';
         finalAgenciaId = undefined;
       } else if (isAsistente) {
         finalRegion = bodegaMatch?.region || regionMatch?.nombre || this.usuarioForm.region || '';
@@ -2454,7 +2567,7 @@ export class UsuariosComponent implements OnInit {
       } else if (isPulidorMovil) {
         finalRegion = regionMatch?.nombre || this.usuarioForm.region || '';
         finalRegionId = regionMatch?.id ? String(regionMatch.id) : this.editandoUsuario.regionId;
-        finalAgencia = `Móvil · Región ${finalRegion}`;
+        finalAgencia = '';
         finalAgenciaId = undefined;
       } else {
         finalRegionId = this.editandoUsuario.regionId;
@@ -2482,7 +2595,8 @@ export class UsuariosComponent implements OnInit {
         roleId: roleIdToSend || (this.editandoUsuario as any).roleId || undefined
       };
 
-      this.usuarioService.actualizarUsuario(actualizado).subscribe({
+      this.guardandoUsuario = true;
+      this.usuarioService.actualizarUsuario(actualizado).pipe(finalize(() => { this.guardandoUsuario = false; })).subscribe({
         next: (res) => {
           const uFinal = res || actualizado;
           const idx = this.usuarios.findIndex(u => String(u.id) === String(uFinal.id));
@@ -2490,11 +2604,7 @@ export class UsuariosComponent implements OnInit {
             this.usuarios[idx] = uFinal;
             this.usuarios = [...this.usuarios];
           }
-          this.usuarioService.getUsuarios(undefined, true).subscribe(refreshed => {
-            if (refreshed && refreshed.length) {
-              this.usuarios = [...refreshed];
-            }
-          });
+          this.refrescarUsuarios();
           if (nuevoEstado === 'Inactivo') {
             this.toastService.warning('Usuario Actualizado', `Perfil de ${actualizado.nombre} actualizado como Inactivo. Se bloqueará su login y no aparecerá en selectores de asignación.`);
           } else {
@@ -2504,7 +2614,7 @@ export class UsuariosComponent implements OnInit {
         },
         error: (err) => {
           console.error('Error al actualizar usuario', err);
-          this.toastService.error('Error', 'No se pudo actualizar el usuario. Verifique los datos e intente de nuevo.');
+          this.toastService.error('No se pudo actualizar el usuario', this.mensajeError(err));
         }
       });
     } else {
@@ -2516,15 +2626,15 @@ export class UsuariosComponent implements OnInit {
       let finalRegionId: string | undefined = undefined;
       let finalRegion: string | undefined = undefined;
 
-      if (isGlobalAdmin || isGestor) {
-        finalAgencia = 'Nacional (Acceso Global)';
+      if (isGlobal) {
+        finalAgencia = '';
         finalAgenciaId = undefined;
-        finalRegion = 'Nacional';
+        finalRegion = undefined;
         finalRegionId = undefined;
-      } else if (isSupervisor || isRegional) {
+      } else if (isRegional) {
         finalRegion = regionMatch?.nombre || this.usuarioForm.region || '';
         finalRegionId = regionMatch?.id ? String(regionMatch.id) : undefined;
-        finalAgencia = `Región ${finalRegion}`;
+        finalAgencia = '';
         finalAgenciaId = undefined;
       } else if (isAsistente) {
         finalRegion = bodegaMatch?.region || regionMatch?.nombre || this.usuarioForm.region || '';
@@ -2536,7 +2646,7 @@ export class UsuariosComponent implements OnInit {
       } else if (isPulidorMovil) {
         finalRegion = regionMatch?.nombre || this.usuarioForm.region || '';
         finalRegionId = regionMatch?.id ? String(regionMatch.id) : undefined;
-        finalAgencia = `Móvil · Región ${finalRegion}`;
+        finalAgencia = '';
         finalAgenciaId = undefined;
       }
 
@@ -2560,7 +2670,8 @@ export class UsuariosComponent implements OnInit {
         roleId: roleIdToSend
       };
 
-      this.usuarioService.crearUsuario(nuevo).subscribe({
+      this.guardandoUsuario = true;
+      this.usuarioService.crearUsuario(nuevo).pipe(finalize(() => { this.guardandoUsuario = false; })).subscribe({
         next: (creado) => {
           const existe = this.usuarios.some(u => String(u.id) === String(creado.id) || (u.email && u.email.toLowerCase() === creado.email.toLowerCase()));
           if (!existe) {
@@ -2568,75 +2679,194 @@ export class UsuariosComponent implements OnInit {
           } else {
             this.usuarios = this.usuarios.map(u => (String(u.id) === String(creado.id) || u.email.toLowerCase() === creado.email.toLowerCase()) ? creado : u);
           }
-          this.currentPage = 1;
-          this.usuarioService.getUsuarios(undefined, true).subscribe(refreshed => {
-            if (refreshed && refreshed.length) {
-              this.usuarios = [...refreshed];
-            }
-          });
+          this.mostrarNuevoUsuario();
           this.toastService.success(
             'Usuario Registrado',
             `Usuario ${creado.nombre} ${creado.apellido} registrado exitosamente con sus credenciales de acceso.`
           );
           this.modalUsuarioOpen = false;
         },
-        error: () => {
-          const fallback: Usuario = {
-            ...nuevo,
-            id: 'usr-' + Date.now().toString().slice(-4),
-            sucursal: nuevo.agencia,
-            region: isAsistente && bodegaMatch?.region ? bodegaMatch.region : 'Sin asignar'
-          };
-          this.usuarios = [fallback, ...this.usuarios];
-          this.currentPage = 1;
-          this.toastService.success(
-            'Usuario Registrado',
-            `Usuario ${nuevo.nombre} ${nuevo.apellido} registrado exitosamente.`
-          );
-          this.modalUsuarioOpen = false;
+        error: (err) => {
+          // Antes esta rama fingía el éxito: mostraba "Usuario Registrado", agregaba una fila falsa solo en el
+          // navegador y cerraba el modal, aunque el usuario nunca se hubiera creado en el servidor.
+          // Ahora el modal sigue abierto con los datos escritos y la lista no se toca.
+          console.error('Error al crear usuario', err);
+          // Los errores HTTP ya muestran su motivo (correo repetido, contraseña inválida…) por el interceptor global.
+          if (!(err instanceof HttpErrorResponse)) {
+            this.toastService.error('No se pudo registrar el usuario', err?.message || 'Intenta de nuevo.');
+          }
         }
       });
     }
   }
 
+  /** Un usuario nuevo es el más reciente: se vuelve a la primera página, ordenada por fecha de ingreso descendente. */
+  private mostrarNuevoUsuario(): void {
+    this.paginaU = 1;
+    this.sortFieldU = 'creado';
+    this.sortOrderU = 'desc';
+    this.refrescarUsuarios(true);
+  }
+
+  // ── Permisos de la pantalla (los mismos que exige el backend en cada endpoint) ──
+  get puedeVerRoles(): boolean {
+    return this.authService.puede('roles.ver');
+  }
+
+  get puedeGestionarRoles(): boolean {
+    return this.authService.puede('roles.gestionar');
+  }
+
+  get puedeGestionarUsuarios(): boolean {
+    return this.authService.puede('usuarios.gestionar');
+  }
+
+  /** Con solo 'roles.ver' el editor se abre en modo lectura. */
+  get soloLecturaRol(): boolean {
+    return !this.puedeGestionarRoles;
+  }
+
+  // ── Catálogo de permisos y ámbitos ──
+  ambitoInfo(codigo?: string): AmbitoInfo {
+    return AMBITOS_INFO.find(a => a.codigo === codigo) ?? { codigo: codigo || '', corto: codigo || 'Sin definir', detalle: '' };
+  }
+
+  /** Solo se ofrecen permisos que quien edita posee (el backend rechaza otorgar los que no tiene). */
+  puedeOtorgar(codigo: string): boolean {
+    return this.authService.puede(codigo);
+  }
+
+  /** Un ámbito no puede ser más amplio que el del propio rol de quien edita (el SUPER_ADMIN puede todos). */
+  puedeOtorgarAmbito(ambito: string): boolean {
+    if (this.authService.isSuperAdmin()) return true;
+    const propio = this.authService.getCurrentUser()?.ambito || 'PROPIO';
+    return this.amplitudAmbito(ambito) <= this.amplitudAmbito(propio);
+  }
+
+  private amplitudAmbito(a: string): number {
+    const i = AMBITOS_ROL.indexOf(a as (typeof AMBITOS_ROL)[number]);
+    return i < 0 ? 0 : AMBITOS_ROL.length - 1 - i;
+  }
+
+  get todosOtorgables(): boolean {
+    return this.catalogoCapacidades.every(c => this.puedeOtorgar(c.codigo));
+  }
+
+  get codigoRolPreview(): string {
+    return codigoRolDesdeNombre(this.rolForm.nombre);
+  }
+
+  get codigoRolPreviewValido(): boolean {
+    return codigoRolValido(this.codigoRolPreview);
+  }
+
+  private cargarCatalogoPermisos(): void {
+    if (!this.puedeVerRoles) return;
+    this.cargandoCatalogo = true;
+    this.errorCatalogo = null;
+    this.rolService.getCatalogoPermisos().pipe(finalize(() => { this.cargandoCatalogo = false; })).subscribe({
+      next: (cat) => {
+        this.modulosDisponibles = cat.modulos;
+        this.agruparModulos();
+        this.catalogoCapacidades = cat.capacidades;
+        this.filtrarCapacidades();
+      },
+      error: (err) => {
+        this.errorCatalogo = 'No se pudo cargar el catálogo de permisos. ' + this.mensajeError(err);
+      },
+    });
+  }
+
+  private normalizarTexto(t: string): string {
+    return (t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  }
+
+  /** Agrupa los permisos por su grupo, aplicando el buscador (nombre, descripción, código o grupo). */
+  filtrarCapacidades(): void {
+    const q = this.normalizarTexto(this.busquedaCapacidad).trim();
+    const grupos = new Map<string, CapacidadCatalogo[]>();
+    for (const c of this.catalogoCapacidades) {
+      if (q && !this.normalizarTexto(`${c.nombre} ${c.descripcion} ${c.codigo} ${c.grupo}`).includes(q)) continue;
+      if (!grupos.has(c.grupo)) grupos.set(c.grupo, []);
+      grupos.get(c.grupo)!.push(c);
+    }
+    this.capacidadesGrupos = Array.from(grupos.entries()).map(([grupo, items]) => ({ grupo, items }));
+  }
+
+  capacidadSeleccionada(codigo: string): boolean {
+    return this.rolForm.capacidades.includes(codigo);
+  }
+
+  toggleCapacidad(codigo: string): void {
+    if (this.soloLecturaRol || !this.puedeOtorgar(codigo)) return;
+    const i = this.rolForm.capacidades.indexOf(codigo);
+    if (i >= 0) this.rolForm.capacidades.splice(i, 1);
+    else this.rolForm.capacidades.push(codigo);
+  }
+
+  seleccionadasEnGrupo(g: GrupoCapacidad): number {
+    return g.items.filter(c => this.capacidadSeleccionada(c.codigo)).length;
+  }
+
+  /** ¿Están marcados todos los permisos del grupo que se pueden otorgar? */
+  grupoCompleto(g: GrupoCapacidad): boolean {
+    const otorgables = g.items.filter(c => this.puedeOtorgar(c.codigo));
+    return otorgables.length > 0 && otorgables.every(c => this.capacidadSeleccionada(c.codigo));
+  }
+
+  /** Marca o desmarca el grupo (solo los permisos visibles con el buscador y que quien edita puede otorgar). */
+  toggleGrupo(g: GrupoCapacidad): void {
+    if (this.soloLecturaRol) return;
+    const otorgables = g.items.filter(c => this.puedeOtorgar(c.codigo)).map(c => c.codigo);
+    if (this.grupoCompleto(g)) {
+      this.rolForm.capacidades = this.rolForm.capacidades.filter(c => !otorgables.includes(c));
+    } else {
+      this.rolForm.capacidades = Array.from(new Set([...this.rolForm.capacidades, ...otorgables]));
+    }
+  }
+
+  getCapacidadesCount(rol: RolPersonalizado): number {
+    return rol.capacidades?.length ?? 0;
+  }
+
+  getCapacidadesProgress(rol: RolPersonalizado): number {
+    if (!this.catalogoCapacidades.length) return 0;
+    return (this.getCapacidadesCount(rol) / this.catalogoCapacidades.length) * 100;
+  }
+
   // ── Acciones de Roles ──
   abrirModalCrearRol() {
+    if (!this.puedeGestionarRoles) return;
     this.editandoRol = null;
+    this.busquedaCapacidad = '';
     this.rolForm = {
       nombre: '',
       descripcion: '',
-      color: '#004282',
-      modulos: ['dashboard', 'servicios'],
+      ambito: 'AGENCIA',
+      modulos: [],
+      capacidades: [],
       esSistema: false,
-      accionesPorModulo: {
-        dashboard: { ver: true, crear: false, editar: false, configurar: false },
-        servicios: { ver: true, crear: true, editar: true, configurar: false }
-      }
     };
+    this.filtrarCapacidades();
+    if (!this.catalogoCapacidades.length && !this.cargandoCatalogo) this.cargarCatalogoPermisos();
     this.modalRolOpen = true;
   }
 
   abrirModalEditarRol(rol: RolPersonalizado) {
     this.editandoRol = rol;
-    const acciones: Record<string, PermisoModuloAcciones> = {};
-    for (const m of rol.modulos) {
-      acciones[m] = {
-        ver: true,
-        crear: true,
-        editar: true,
-        configurar: rol.codigo === 'SUPER_ADMIN' || rol.codigo === 'ADMIN'
-      };
-    }
+    this.busquedaCapacidad = '';
     this.rolForm = {
       id: rol.id,
       codigo: rol.codigo,
       nombre: rol.nombre,
       descripcion: rol.descripcion,
-      color: rol.color || '#004282',
-      modulos: [...rol.modulos],
+      ambito: rol.ambito || 'AGENCIA',
+      modulos: [...(rol.modulos || [])],
+      capacidades: [...(rol.capacidades || [])],
       esSistema: rol.esSistema,
-      accionesPorModulo: acciones
     };
+    this.filtrarCapacidades();
+    if (!this.catalogoCapacidades.length && !this.cargandoCatalogo) this.cargarCatalogoPermisos();
     this.modalRolOpen = true;
   }
 
@@ -2644,42 +2874,23 @@ export class UsuariosComponent implements OnInit {
     return this.rolForm.modulos.includes(codigo);
   }
 
-  getPermisoAccion(modCodigo: string, accion: 'ver' | 'crear' | 'editar' | 'configurar'): boolean {
-    if (!this.rolForm.accionesPorModulo[modCodigo]) {
-      this.rolForm.accionesPorModulo[modCodigo] = { ver: true, crear: true, editar: true, configurar: false };
-    }
-    return !!this.rolForm.accionesPorModulo[modCodigo][accion];
-  }
-
-  togglePermisoAccion(modCodigo: string, accion: 'ver' | 'crear' | 'editar' | 'configurar'): void {
-    if (isRolPermisosInmutable(this.rolForm.codigo) || this.rolForm.esSistema) return;
-    if (!this.rolForm.accionesPorModulo[modCodigo]) {
-      this.rolForm.accionesPorModulo[modCodigo] = { ver: true, crear: true, editar: true, configurar: false };
-    }
-    this.rolForm.accionesPorModulo[modCodigo][accion] = !this.rolForm.accionesPorModulo[modCodigo][accion];
-  }
-
   toggleModulo(codigo: string) {
-    if (isRolPermisosInmutable(this.rolForm.codigo)) return;
-    if (this.rolForm.esSistema) return;
+    if (this.soloLecturaRol) return;
     const idx = this.rolForm.modulos.indexOf(codigo);
     if (idx !== -1) {
       this.rolForm.modulos.splice(idx, 1);
     } else {
       this.rolForm.modulos.push(codigo);
-      if (!this.rolForm.accionesPorModulo[codigo]) {
-        this.rolForm.accionesPorModulo[codigo] = { ver: true, crear: true, editar: true, configurar: false };
-      }
     }
   }
 
   seleccionarTodosModulos() {
+    if (this.soloLecturaRol) return;
     this.rolForm.modulos = this.modulosDisponibles.map(m => m.codigo);
   }
 
   desmarcarTodosModulos() {
-    if (isRolPermisosInmutable(this.rolForm.codigo)) return;
-    if (this.rolForm.esSistema) return;
+    if (this.soloLecturaRol) return;
     this.rolForm.modulos = [];
   }
 
@@ -2687,87 +2898,80 @@ export class UsuariosComponent implements OnInit {
     return grupo.modulos.filter(m => this.isModuloSelected(m.codigo)).length;
   }
 
+  /** Vuelve a pedir la tabla de roles y la lista completa que usan las tarjetas y los selectores. */
+  private refrescarRoles(): void {
+    this.rolesTabla.refrescar();
+    this.rolService.getRoles().subscribe(rolesList => {
+      this.roles = [...rolesList];
+    });
+  }
+
   guardarRol() {
-    if (isRolPermisosInmutable(this.rolForm.codigo)) {
-      this.toastService.warning('Rol inmutable', 'Los permisos del Super Administrador no pueden modificarse.');
-      return;
+    if (!this.puedeGestionarRoles || this.guardandoRol) return;
+
+    if (!this.editandoRol) {
+      if (!this.rolForm.nombre.trim()) {
+        this.toastService.warning('Nombre Requerido', 'Ingrese un nombre descriptivo para el rol.');
+        return;
+      }
+      if (!this.codigoRolPreviewValido) {
+        this.toastService.warning('Nombre no válido', 'El nombre debe tener de 3 a 40 caracteres: letras, números y espacios, empezando por letra.');
+        return;
+      }
     }
 
-    if (!this.rolForm.nombre.trim()) {
-      this.toastService.warning('Nombre Requerido', 'Ingrese un nombre descriptivo para el rol.');
-      return;
-    }
-
-    if (this.rolForm.modulos.length === 0) {
-      this.toastService.warning('Permisos Requeridos', 'Debe seleccionar al menos 1 módulo accesible para este rol.');
-      return;
-    }
-
+    this.guardandoRol = true;
     if (this.editandoRol) {
       const rolId = this.editandoRol.id;
       this.rolService.actualizarRol(rolId, {
-        nombre: this.rolForm.nombre,
         descripcion: this.rolForm.descripcion,
-        color: this.rolForm.color,
-        modulos: this.rolForm.modulos
-      }).subscribe(res => {
-        if (res) {
-          this.roles = this.roles.map(r => r.id === rolId ? { ...r, ...res } : r);
+        ambito: this.rolForm.ambito,
+        modulos: this.rolForm.modulos,
+        capacidades: this.rolForm.capacidades,
+      }).pipe(finalize(() => { this.guardandoRol = false; })).subscribe({
+        next: (res) => {
           this.toastService.success('Rol Actualizado', `Permisos para "${res.nombre}" actualizados correctamente.`);
-        }
-        this.rolService.getRoles().subscribe(rolesList => {
-          if (rolesList && rolesList.length) {
-            this.roles = [...rolesList];
-          }
-        });
-        this.modalRolOpen = false;
+          this.refrescarRoles();
+          this.modalRolOpen = false;
+        },
+        error: (err) => this.toastService.error('No se pudo guardar el rol', this.mensajeError(err)),
       });
     } else {
       this.rolService.crearRol({
         nombre: this.rolForm.nombre,
         descripcion: this.rolForm.descripcion,
-        color: this.rolForm.color,
-        modulos: this.rolForm.modulos
-      }).subscribe(creado => {
-        if (creado) {
-          this.roles = [...this.roles, creado];
-        }
-        this.toastService.success('Rol Creado', `Nuevo rol "${creado.nombre}" disponible en la plataforma.`);
-        this.rolService.getRoles().subscribe(rolesList => {
-          if (rolesList && rolesList.length) {
-            this.roles = [...rolesList];
-          }
-        });
-        this.modalRolOpen = false;
+        ambito: this.rolForm.ambito,
+        modulos: this.rolForm.modulos,
+        capacidades: this.rolForm.capacidades,
+      }).pipe(finalize(() => { this.guardandoRol = false; })).subscribe({
+        next: (creado) => {
+          this.toastService.success('Rol Creado', `Nuevo rol "${creado.nombre}" disponible para asignar a usuarios.`);
+          this.refrescarRoles();
+          this.modalRolOpen = false;
+        },
+        error: (err) => this.toastService.error('No se pudo crear el rol', this.mensajeError(err)),
       });
     }
   }
 
   toggleEstadoRol(rol: RolPersonalizado) {
-    if (isRolPermisosInmutable(rol.codigo)) {
-      this.toastService.warning('Rol inmutable', 'El estado del Super Administrador no puede modificarse.');
-      return;
-    }
+    if (!this.puedeGestionarRoles) return;
     const nuevoEstado = rol.estado === 'Activo' ? 'Inactivo' : 'Activo';
     this.rolService.actualizarRol(rol.id, { estado: nuevoEstado === 'Activo' ? 1 : 0 }).subscribe({
-      next: (res) => {
-        if (res) {
-          rol.estado = nuevoEstado;
-          this.roles = this.roles.map(r => r.id === rol.id ? { ...r, estado: nuevoEstado } : r);
-          if (nuevoEstado === 'Inactivo') {
-            this.toastService.warning('Rol Desactivado', `El rol "${rol.nombre}" ha sido marcado como Inactivo.`);
-          } else {
-            this.toastService.success('Rol Activado', `El rol "${rol.nombre}" ha sido activado correctamente.`);
-          }
+      next: () => {
+        if (nuevoEstado === 'Inactivo') {
+          this.toastService.warning('Rol Desactivado', `El rol "${rol.nombre}" ha sido marcado como Inactivo.`);
+        } else {
+          this.toastService.success('Rol Activado', `El rol "${rol.nombre}" ha sido activado correctamente.`);
         }
+        this.refrescarRoles();
       },
-      error: () => {
-        this.toastService.error('Error', 'No se pudo cambiar el estado del rol.');
-      }
+      error: (err) => this.toastService.error('No se pudo cambiar el estado del rol', this.mensajeError(err)),
     });
   }
 
   abrirModalEliminarRol(rol: RolPersonalizado) {
+    if (!this.puedeGestionarRoles || rol.esSistema) return;
     this.rolAEliminar = rol;
     this.modalEliminarRolOpen = true;
   }
@@ -2775,20 +2979,19 @@ export class UsuariosComponent implements OnInit {
   confirmarEliminarRol() {
     if (!this.rolAEliminar) return;
     const rol = this.rolAEliminar;
-    this.rolService.eliminarRol(rol.id).subscribe(res => {
-      if (res.success) {
-        this.roles = this.roles.filter(r => r.id !== rol.id);
+    this.rolService.eliminarRol(rol.id).subscribe({
+      next: () => {
         this.toastService.success('Rol Eliminado', `El rol "${rol.nombre}" ha sido eliminado.`);
-        this.rolService.getRoles().subscribe(rolesList => {
-          if (rolesList && rolesList.length) {
-            this.roles = [...rolesList];
-          }
-        });
-      } else {
-        this.toastService.error('Acción no permitida', res.message || 'No se pudo eliminar el rol.');
-      }
-      this.modalEliminarRolOpen = false;
-      this.rolAEliminar = null;
+        this.refrescarRoles();
+        this.modalEliminarRolOpen = false;
+        this.rolAEliminar = null;
+      },
+      error: (err) => {
+        // Ej.: el rol tiene usuarios asignados o es un rol oficial: el servidor explica el motivo.
+        this.toastService.error('No se pudo eliminar el rol', this.mensajeError(err));
+        this.modalEliminarRolOpen = false;
+        this.rolAEliminar = null;
+      },
     });
   }
 }

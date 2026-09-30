@@ -36,10 +36,17 @@ export class AuthService {
   constructor() {
     const user = this.getStoredUser();
     if (user?.token) {
-      this.rolService.getRoles().subscribe();
-      this.rolService.getModulos().subscribe();
+      this.cargarCatalogoDeRoles();
       this.scheduleProactiveRefresh();
+      this.refrescarPermisos();
     }
+  }
+
+  /** El catálogo de roles y módulos solo lo lee quien tiene el permiso 'roles.ver' (evita llamadas que el servidor rechazaría). */
+  private cargarCatalogoDeRoles(): void {
+    if (!this.puede('roles.ver')) return;
+    this.rolService.getRoles().subscribe();
+    this.rolService.getModulos().subscribe();
   }
 
   getAccessToken(): string | null {
@@ -216,9 +223,7 @@ export class AuthService {
           parsed.modulosPermitidos = Array.isArray(parsed.modulosPermitidos)
             ? parsed.modulosPermitidos
             : [];
-          if (parsed.role === Role.PULIDOR && !parsed.modulosPermitidos.includes('envios')) {
-            parsed.modulosPermitidos.push('envios');
-          }
+          parsed.capacidades = Array.isArray(parsed.capacidades) ? parsed.capacidades : [];
           parsed.permisos = this.normalizeAcciones(parsed.permisos);
           const cleanedAvatar = this.sanitizeAvatar(parsed.avatar);
           if (cleanedAvatar !== (parsed.avatar || '')) {
@@ -281,6 +286,9 @@ export class AuthService {
         permisos: string[];
         modulos?: string[];
         acciones?: PermisosRol | null;
+        capacidades?: string[];
+        ambito?: string;
+        debeCambiarPassword?: boolean;
         agenciaId: string | number;
         agencia: { id: string | number; codigo: string; nombre: string };
         sucursal: string;
@@ -305,9 +313,6 @@ export class AuthService {
         const isSupervisor = role === Role.SUPERVISOR;
         const isAsistente = role === Role.ASISTENTE_BODEGA;
         const isPulidor = role === Role.PULIDOR;
-        if (isPulidor && !modulosPermitidos.includes('envios')) {
-          modulosPermitidos.push('envios');
-        }
         const modalidadPulidor = isPulidor
           ? (res.user.agenciaId || res.user.agencia?.id ? 'FIJO' : 'MOVIL')
           : undefined;
@@ -320,6 +325,9 @@ export class AuthService {
           role,
           rolNombre: ROLE_LABELS[role] || res.user.rolNombre || res.user.role,
           modulosPermitidos,
+          capacidades: Array.isArray(res.user.capacidades) ? res.user.capacidades : [],
+          ambito: res.user.ambito,
+          debeCambiarPassword: !!res.user.debeCambiarPassword,
           sucursal: (isGlobalAdmin || isSupervisor || isAsistente || (isPulidor && modalidadPulidor === 'MOVIL')) ? undefined : (res.user.sucursal || res.user.agencia?.nombre),
           sucursalNombre: (isGlobalAdmin || isSupervisor || isAsistente || (isPulidor && modalidadPulidor === 'MOVIL')) ? undefined : (res.user.sucursalNombre || res.user.agencia?.nombre),
           region: res.user.regionNombre || res.user.region?.nombre || (isGlobalAdmin ? 'Nacional' : undefined),
@@ -354,8 +362,7 @@ export class AuthService {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
     this.currentUserSubject.next(user);
     if (user?.token) {
-      this.rolService.getRoles().subscribe();
-      this.rolService.getModulos().subscribe();
+      this.cargarCatalogoDeRoles();
       this.scheduleProactiveRefresh();
     }
   }
@@ -393,8 +400,11 @@ export class AuthService {
     if (!actual || !nueva) {
       return of({ success: false, message: 'Todos los campos son obligatorios.' });
     }
-    if (nueva.length < 6) {
-      return of({ success: false, message: 'La nueva contraseña debe tener al menos 6 caracteres.' });
+    if (nueva.length < 8) {
+      return of({ success: false, message: 'La nueva contraseña debe tener al menos 8 caracteres.' });
+    }
+    if (nueva === actual) {
+      return of({ success: false, message: 'La nueva contraseña debe ser distinta de la actual.' });
     }
     return this.http
       .post<{ ok: boolean; message?: string }>(apiUrl('/auth/change-password'), {
@@ -402,7 +412,15 @@ export class AuthService {
         newPassword: nueva,
       })
       .pipe(
-        map(res => ({ success: true, message: res?.message || 'Contraseña actualizada correctamente.' })),
+        map(res => {
+          const actual = this.currentUserSubject.value;
+          if (actual?.debeCambiarPassword) {
+            const actualizado: UsuarioAuth = { ...actual, debeCambiarPassword: false };
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(actualizado));
+            this.currentUserSubject.next(actualizado);
+          }
+          return { success: true, message: res?.message || 'Contraseña actualizada correctamente.' };
+        }),
         catchError(err => {
           const raw = err?.error?.message;
           const message = Array.isArray(raw) ? raw.join(' ') : raw;
@@ -469,10 +487,64 @@ export class AuthService {
     if (user.role === Role.SUPER_ADMIN) return true;
 
     const cleanCodigo = moduloCodigo.replace(/^\//, '');
-    if (user.role === Role.PULIDOR && (cleanCodigo === 'envios' || cleanCodigo === 'inventario')) {
-      return true;
-    }
-    return (user.modulosPermitidos || []).some(m => m === cleanCodigo || cleanCodigo.startsWith(m));
+    return (user.modulosPermitidos || []).some(m => !!m && (m === cleanCodigo || cleanCodigo.startsWith(m + '/')));
+  }
+
+  /**
+   * ¿Puede el usuario hacer esta acción? Es la MISMA regla que exige el backend en cada endpoint (los permisos del rol).
+   * El SUPER_ADMIN siempre puede. Usa códigos como 'servicios.crear' o 'inventario.ver'.
+   */
+  puede(codigo: string): boolean {
+    const user = this.currentUserSubject.value;
+    if (!user) return false;
+    if (user.role === Role.SUPER_ADMIN) return true;
+    return (user.capacidades || []).includes(codigo);
+  }
+
+  /** ¿Puede al menos una de estas acciones? */
+  puedeAlguno(...codigos: string[]): boolean {
+    return codigos.some((c) => this.puede(c));
+  }
+
+  /**
+   * Un usuario que puede iniciar sesión pero no tiene ningún permiso (por ejemplo, un lavador: hoy solo tiene trazabilidad)
+   * no usa la plataforma y ve la pantalla de «sin acceso».
+   */
+  sinAcceso(): boolean {
+    const user = this.currentUserSubject.value;
+    if (!user || user.role === Role.SUPER_ADMIN) return false;
+    return (user.capacidades || []).length === 0;
+  }
+
+  /**
+   * Vuelve a leer del servidor los permisos y módulos del rol: si un administrador los cambió, se reflejan sin cerrar sesión.
+   * Si el rol quedó sin permisos, el usuario pasa a la pantalla de «sin acceso».
+   */
+  refrescarPermisos(): void {
+    const actual = this.currentUserSubject.value;
+    if (!actual?.token) return;
+    this.http.post<any>(apiUrl('/auth/me'), {}, { headers: { 'X-Silent-Fallback': '1' } }).subscribe({
+      next: (me) => {
+        if (!me || !this.currentUserSubject.value) return;
+        const modulos = [...(me.modulos || me.permisos || [])];
+        const actualizado: UsuarioAuth = {
+          ...this.currentUserSubject.value,
+          modulosPermitidos: modulos,
+          capacidades: Array.isArray(me.capacidades) ? me.capacidades : [],
+          ambito: me.ambito || this.currentUserSubject.value.ambito,
+          permisos: this.normalizeAcciones(me.acciones),
+          debeCambiarPassword: !!me.debeCambiarPassword,
+        };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(actualizado));
+        this.currentUserSubject.next(actualizado);
+        if (actualizado.debeCambiarPassword && !this.router.url.startsWith('/cambiar-password')) {
+          void this.router.navigate(['/cambiar-password']);
+        } else if (this.sinAcceso() && !this.router.url.startsWith('/sin-acceso')) {
+          void this.router.navigate(['/sin-acceso']);
+        }
+      },
+      error: () => { /* sin conexión: se conservan los permisos guardados */ },
+    });
   }
 
   getPermisos(): PermisosRol {
@@ -488,9 +560,6 @@ export class AuthService {
     if (user.role === Role.SUPER_ADMIN) {
       return true;
     }
-    if (user.role === Role.PULIDOR && (permiso === 'accionesEnvios' || permiso === 'gestionarInventario')) {
-      return true;
-    }
     const permisos = this.normalizeAcciones(user.permisos);
     return !!permisos[permiso];
   }
@@ -498,6 +567,17 @@ export class AuthService {
   getDefaultRouteForRole(role?: Role | string): string {
     const r = role || this.currentUserSubject.value?.role || Role.SUPER_ADMIN;
     return DEFAULT_ROUTE_POR_ROL[r] || '/dashboard';
+  }
+
+  /** A dónde va el usuario al entrar: sin permisos, a «sin acceso»; si no, la ruta de su rol o el primer módulo permitido. */
+  rutaInicial(): string {
+    if (this.currentUserSubject.value?.debeCambiarPassword) return '/cambiar-password';
+    if (this.sinAcceso()) return '/sin-acceso';
+    const user = this.currentUserSubject.value;
+    const deRol = DEFAULT_ROUTE_POR_ROL[String(user?.role)];
+    if (deRol && this.hasModuleAccess(deRol)) return deRol;
+    const primero = (user?.modulosPermitidos || []).find((m) => m && m !== 'perfil');
+    return primero ? '/' + primero : '/perfil';
   }
 
   getRolLabel(role?: Role | string): string {

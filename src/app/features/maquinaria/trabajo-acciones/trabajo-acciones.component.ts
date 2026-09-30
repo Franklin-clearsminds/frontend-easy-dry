@@ -14,6 +14,7 @@ import { ModalComponent } from '../../../shared/components/modal/modal.component
 import { TecnicoSearchSelectComponent, TecnicoOpcion } from '../../../shared/components/tecnico-search-select/tecnico-search-select.component';
 import { EvidenciaSelectorComponent } from '../../../shared/components/evidencia-selector/evidencia-selector.component';
 import { ToastService } from '../../../shared/services/toast.service';
+import { ChecklistOrdenComponent, EstadoChecklist } from '../../mantenimiento/checklist-orden/checklist-orden.component';
 
 /** Mensaje de error del backend tal cual (400/403...) o el del propio cliente. */
 export function mensajeError(err: any): string {
@@ -37,25 +38,25 @@ const TIPOS_FALLA = [
 @Component({
   selector: 'app-trabajo-acciones',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, TecnicoSearchSelectComponent, EvidenciaSelectorComponent],
+  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, TecnicoSearchSelectComponent, EvidenciaSelectorComponent, ChecklistOrdenComponent],
   template: `
     <!-- ================= REPORTAR INCIDENCIA ================= -->
-    <app-modal [isOpen]="rep.open" title="Reportar incidencia" icon="alert-triangle" zClass="z-[10100]" (close)="rep.open = false">
+    <app-modal [isOpen]="rep.open" title="Reportar incidencia" icon="alert-triangle" size="lg" zClass="z-[10100]" (close)="rep.open = false">
       @if (rep.open) {
         <div class="space-y-4">
           <p class="text-xs text-slate-600">Equipo: <strong>{{ rep.maquinaCodigo }} — {{ rep.maquinaNombre }}</strong></p>
-          <p class="text-[11px] text-slate-500">Requiere conexión. Solo puedes reportar máquinas asignadas a ti. Se exige 1 o más fotos/videos y exactamente 1 PDF.</p>
+          <p class="text-xs text-slate-500">Requiere conexión. Solo puedes reportar máquinas asignadas a ti. Se exige 1 o más fotos/videos y exactamente 1 PDF.</p>
 
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div class="space-y-4">
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Tipo de falla</label>
-              <select [(ngModel)]="rep.titulo" name="rep-titulo" class="w-full p-2.5 border rounded-xl text-xs font-bold bg-white">
+              <label for="ta-rep-titulo" class="field-label">Tipo de falla</label>
+              <select id="ta-rep-titulo" [(ngModel)]="rep.titulo" name="rep-titulo" class="field select-chevron font-bold">
                 @for (t of tiposFalla; track t) { <option [value]="t">{{ t }}</option> }
               </select>
             </div>
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Gravedad</label>
-              <select [(ngModel)]="rep.gravedad" name="rep-gravedad" class="w-full p-2.5 border rounded-xl text-xs font-bold bg-white">
+              <label for="ta-rep-gravedad" class="field-label">Gravedad</label>
+              <select id="ta-rep-gravedad" [(ngModel)]="rep.gravedad" name="rep-gravedad" class="field select-chevron font-bold">
                 <option value="BAJA">Baja</option><option value="MEDIA">Media</option>
                 <option value="ALTA">Alta</option><option value="CRITICA">Crítica</option>
               </select>
@@ -63,14 +64,14 @@ const TIPOS_FALLA = [
           </div>
 
           <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Descripción del problema</label>
-            <textarea [(ngModel)]="rep.descripcion" name="rep-desc" rows="3" class="w-full p-3 border rounded-xl text-xs font-medium"
+            <label for="ta-rep-desc" class="field-label">Descripción del problema</label>
+            <textarea id="ta-rep-desc" [(ngModel)]="rep.descripcion" name="rep-desc" rows="3" class="field font-medium"
               placeholder="Describa síntomas, ruidos, fugas..."></textarea>
           </div>
 
           <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Enviar a taller (opcional)</label>
-            <select [(ngModel)]="rep.destinoTallerId" name="rep-taller" class="w-full p-2.5 border rounded-xl text-xs font-bold bg-white">
+            <label for="ta-rep-taller" class="field-label">Enviar a taller (opcional)</label>
+            <select id="ta-rep-taller" [(ngModel)]="rep.destinoTallerId" name="rep-taller" class="field select-chevron font-bold">
               <option value="">Sin taller (se atiende en sitio)</option>
               @for (t of talleres; track t.id) { <option [value]="t.id">{{ t.nombre }}</option> }
             </select>
@@ -79,300 +80,307 @@ const TIPOS_FALLA = [
           <app-evidencia-selector #selReportar
             contexto="INCIDENTE" fase="reporte"
             [maquinariaCodigo]="rep.maquinaCodigo" [maquinariaId]="rep.maquinaId"
-            [clientUuid]="rep.clientUuid" [exigirCompleta]="true" [deshabilitado]="enviando">
+            [clientUuid]="rep.clientUuid" [requiereMultimedia]="true" [requiereDocumento]="false" [deshabilitado]="enviando">
           </app-evidencia-selector>
 
-          @if (error) { <div class="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs font-semibold text-rose-700">{{ error }}</div> }
+          @if (error) { <div class="estado-error" role="alert">{{ error }}</div> }
         </div>
       }
       <div modal-footer>
-        <button (click)="rep.open = false" [disabled]="enviando" class="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs cursor-pointer">Cancelar</button>
-        <button (click)="confirmarReporte()" [disabled]="enviando" class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs cursor-pointer disabled:opacity-60">
+        <button type="button" (click)="rep.open = false" [disabled]="enviando" class="btn btn-secondary w-full sm:w-auto">Cancelar</button>
+        <button type="button" (click)="confirmarReporte()" [disabled]="enviando" class="btn btn-cta w-full sm:w-auto">
           {{ enviando ? 'Enviando...' : 'Reportar incidencia' }}
         </button>
       </div>
     </app-modal>
 
     <!-- ================= ASIGNAR (incidencia o mantenimiento) ================= -->
-    <app-modal [isOpen]="asg.open" [title]="asg.tipo === 'INCIDENTE' ? 'Asignar incidencia' : 'Asignar mantenimiento'" icon="user-cog" zClass="z-[10100]" (close)="asg.open = false">
+    <app-modal [isOpen]="asg.open" [title]="asg.tipo === 'INCIDENTE' ? 'Asignar incidencia' : 'Asignar mantenimiento'" icon="user-cog" size="md" zClass="z-[10100]" (close)="asg.open = false">
       @if (asg.open) {
         <div class="space-y-4">
-          <p class="text-xs text-slate-600"><strong class="text-slate-900">{{ asg.titulo }}</strong></p>
+          <p class="text-xs text-slate-600"><strong class="text-slate-900 break-words">{{ asg.titulo }}</strong></p>
           @if (asg.actualNombre) {
             <div class="p-3 bg-violet-50 border border-violet-200 rounded-xl text-xs text-violet-800">Asignado actualmente a: <strong>{{ asg.actualNombre }}</strong></div>
           }
-          <p class="text-[11px] text-slate-500">Solo aparecen técnicos y coordinadores de mantenimiento de la región de la máquina.</p>
+          <p class="text-xs text-slate-500">Solo aparecen técnicos y coordinadores de mantenimiento de la región de la máquina.</p>
 
           @if (esCoordinador) {
             <button type="button" (click)="confirmarAsignacion(undefined)" [disabled]="enviando"
-              class="w-full py-3 px-4 bg-violet-600 hover:bg-violet-700 text-white font-extrabold rounded-xl text-xs flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60">
-              <i-lucide name="wrench" class="w-4 h-4"></i-lucide>
+              class="btn btn-secondary w-full">
+              <i-lucide name="wrench" class="w-4 h-4" aria-hidden="true"></i-lucide>
               Asignármelo a mí (coordinador)
             </button>
           }
 
-          <p class="text-[10px] font-bold text-slate-400 uppercase">Asignar a técnico o coordinador de la región</p>
+          <p class="text-[11px] font-bold text-slate-500 uppercase">Asignar a técnico o coordinador de la región</p>
           <app-tecnico-search-select [tecnicos]="asg.opciones" placeholder="Buscar por nombre, rol o correo..." (selected)="onElegirTecnico($event)"></app-tecnico-search-select>
 
           @if (asg.tipo === 'INCIDENTE' && talleres.length > 0) {
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Taller destino (opcional)</label>
-              <select [(ngModel)]="asg.destinoTallerId" name="asg-taller" class="w-full p-2.5 border rounded-xl text-xs font-bold bg-white">
+              <label for="ta-asg-taller" class="field-label">Taller destino (opcional)</label>
+              <select id="ta-asg-taller" [(ngModel)]="asg.destinoTallerId" name="asg-taller" class="field select-chevron font-bold">
                 <option value="">Sin cambio</option>
                 @for (t of talleres; track t.id) { <option [value]="t.id">{{ t.nombre }}</option> }
               </select>
             </div>
           }
 
-          @if (error) { <div class="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs font-semibold text-rose-700">{{ error }}</div> }
+          @if (error) { <div class="estado-error" role="alert">{{ error }}</div> }
         </div>
       }
       <div modal-footer>
-        <button (click)="asg.open = false" class="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs cursor-pointer">Cerrar</button>
-        <button (click)="confirmarAsignacion(asg.tecnicoId)" [disabled]="enviando || !asg.tecnicoId"
-          class="px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-xl text-xs cursor-pointer disabled:opacity-50">Asignar al seleccionado</button>
+        <button type="button" (click)="asg.open = false" class="btn btn-secondary w-full sm:w-auto">Cerrar</button>
+        <button type="button" (click)="confirmarAsignacion(asg.tecnicoId)" [disabled]="enviando || !asg.tecnicoId"
+          class="btn btn-primary w-full sm:w-auto">Asignar al seleccionado</button>
       </div>
     </app-modal>
 
     <!-- ================= RESOLVER INCIDENCIA ================= -->
-    <app-modal [isOpen]="res.open" title="Resolver incidencia" icon="wrench" zClass="z-[10100]" (close)="res.open = false">
+    <app-modal [isOpen]="res.open" title="Resolver incidencia" icon="wrench" size="lg" zClass="z-[10100]" (close)="res.open = false">
       @if (res.open) {
         <div class="space-y-4">
           <div class="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 text-xs space-y-1">
-            <p class="font-bold text-slate-800">{{ res.titulo }}</p>
-            <p class="text-slate-600">{{ res.descripcion }}</p>
+            <p class="font-bold text-slate-800 break-words">{{ res.titulo }}</p>
+            <p class="text-slate-600 break-words">{{ res.descripcion }}</p>
           </div>
 
           <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Resultado</label>
-            <select [(ngModel)]="res.estado" name="res-estado" class="w-full p-2.5 border rounded-xl text-xs font-bold bg-white">
+            <label for="ta-res-estado" class="field-label">Resultado</label>
+            <select id="ta-res-estado" [(ngModel)]="res.estado" name="res-estado" class="field select-chevron font-bold">
               <option value="RESUELTO">Resuelto (requiere evidencia)</option>
               <option value="CANCELADO">Cancelado (falsa alarma o duplicada)</option>
             </select>
           </div>
 
           <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Informe técnico de la solución</label>
-            <textarea [(ngModel)]="res.solucion" name="res-sol" rows="3" class="w-full p-3 border rounded-xl text-xs font-semibold"
+            <label for="ta-res-sol" class="field-label">Informe técnico de la solución</label>
+            <textarea id="ta-res-sol" [(ngModel)]="res.solucion" name="res-sol" rows="3" class="field font-semibold"
               placeholder="Detalle la reparación realizada..."></textarea>
           </div>
 
           <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Repuestos utilizados</label>
-            <input type="text" [(ngModel)]="res.repuestos" name="res-rep" class="w-full p-2.5 border rounded-xl text-sm" placeholder="Ej: Empaques O-Ring, acoples M22">
+            <label for="ta-res-rep" class="field-label">Repuestos utilizados</label>
+            <input id="ta-res-rep" type="text" [(ngModel)]="res.repuestos" name="res-rep" class="field" placeholder="Ej: Empaques O-Ring, acoples M22">
           </div>
 
           <app-evidencia-selector #selResolver
             contexto="INCIDENTE" fase="reparacion"
             [maquinariaCodigo]="res.maquinaCodigo" [maquinariaId]="res.maquinaId" [entidadId]="res.id"
-            [exigirCompleta]="res.estado === 'RESUELTO'" [deshabilitado]="enviando">
+            [requiereMultimedia]="res.estado === 'RESUELTO'" [requiereDocumento]="res.estado === 'RESUELTO'" [deshabilitado]="enviando">
           </app-evidencia-selector>
 
-          @if (error) { <div class="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs font-semibold text-rose-700">{{ error }}</div> }
+          @if (error) { <div class="estado-error" role="alert">{{ error }}</div> }
         </div>
       }
       <div modal-footer>
-        <button (click)="res.open = false" [disabled]="enviando" class="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs cursor-pointer">Cancelar</button>
-        <button (click)="confirmarResolucion()" [disabled]="enviando" class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs cursor-pointer disabled:opacity-60">
+        <button type="button" (click)="res.open = false" [disabled]="enviando" class="btn btn-secondary w-full sm:w-auto">Cancelar</button>
+        <button type="button" (click)="confirmarResolucion()" [disabled]="enviando" class="btn btn-primary w-full sm:w-auto">
           {{ enviando ? 'Guardando...' : 'Guardar resolución' }}
         </button>
       </div>
     </app-modal>
 
     <!-- ================= EDITAR INCIDENCIA ================= -->
-    <app-modal [isOpen]="edi.open" title="Editar incidencia" icon="pencil" zClass="z-[10100]" (close)="edi.open = false">
+    <app-modal [isOpen]="edi.open" title="Editar incidencia" icon="pencil" size="md" zClass="z-[10100]" (close)="edi.open = false">
       @if (edi.open) {
         <div class="space-y-4">
-          <p class="text-[11px] text-slate-500">Los cambios quedan registrados en la línea de tiempo con el valor anterior y el nuevo.</p>
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <p class="text-xs text-slate-500">Los cambios quedan registrados en la línea de tiempo con el valor anterior y el nuevo.</p>
+          <div class="space-y-4">
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Título</label>
-              <input type="text" [(ngModel)]="edi.titulo" name="edi-tit" class="w-full p-2.5 border rounded-xl text-sm">
+              <label for="ta-edi-tit" class="field-label">Título</label>
+              <input id="ta-edi-tit" type="text" [(ngModel)]="edi.titulo" name="edi-tit" class="field">
             </div>
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Gravedad</label>
-              <select [(ngModel)]="edi.gravedad" name="edi-grav" class="w-full p-2.5 border rounded-xl text-xs font-bold bg-white">
+              <label for="ta-edi-grav" class="field-label">Gravedad</label>
+              <select id="ta-edi-grav" [(ngModel)]="edi.gravedad" name="edi-grav" class="field select-chevron font-bold">
                 <option value="BAJA">Baja</option><option value="MEDIA">Media</option>
                 <option value="ALTA">Alta</option><option value="CRITICA">Crítica</option>
               </select>
             </div>
           </div>
           <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Descripción</label>
-            <textarea [(ngModel)]="edi.descripcion" name="edi-desc" rows="3" class="w-full p-3 border rounded-xl text-xs font-medium"></textarea>
+            <label for="ta-edi-desc" class="field-label">Descripción</label>
+            <textarea id="ta-edi-desc" [(ngModel)]="edi.descripcion" name="edi-desc" rows="3" class="field font-medium"></textarea>
           </div>
           @if (edi.tieneSolucion) {
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Solución</label>
-              <textarea [(ngModel)]="edi.solucion" name="edi-sol" rows="3" class="w-full p-3 border rounded-xl text-xs font-medium"></textarea>
+              <label for="ta-edi-sol" class="field-label">Solución</label>
+              <textarea id="ta-edi-sol" [(ngModel)]="edi.solucion" name="edi-sol" rows="3" class="field font-medium"></textarea>
             </div>
           }
-          @if (error) { <div class="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs font-semibold text-rose-700">{{ error }}</div> }
+          @if (error) { <div class="estado-error" role="alert">{{ error }}</div> }
         </div>
       }
       <div modal-footer>
-        <button (click)="edi.open = false" class="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs cursor-pointer">Cancelar</button>
-        <button (click)="confirmarEdicionIncidente()" [disabled]="enviando" class="px-4 py-2 bg-easydry-blue hover:bg-easydry-blue-dark text-white font-bold rounded-xl text-xs cursor-pointer disabled:opacity-60">Guardar cambios</button>
+        <button type="button" (click)="edi.open = false" class="btn btn-secondary w-full sm:w-auto">Cancelar</button>
+        <button type="button" (click)="confirmarEdicionIncidente()" [disabled]="enviando" class="btn btn-primary w-full sm:w-auto">Guardar cambios</button>
       </div>
     </app-modal>
 
     <!-- ================= PROGRAMAR MANTENIMIENTO ================= -->
-    <app-modal [isOpen]="prog.open" title="Programar mantenimiento" icon="calendar-clock" zClass="z-[10100]" (close)="prog.open = false">
+    <app-modal [isOpen]="prog.open" title="Programar mantenimiento" icon="calendar-clock" size="md" zClass="z-[10100]" (close)="prog.open = false">
       @if (prog.open) {
         <div class="space-y-4">
           <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Máquina</label>
+            <label [attr.for]="prog.fija ? null : 'ta-prog-maq'" class="field-label">Máquina</label>
             @if (prog.fija) {
               <p class="text-sm font-bold text-slate-800">{{ prog.maquinas[0].codigo }} — {{ prog.maquinas[0].nombre }}</p>
             } @else {
-              <select [(ngModel)]="prog.maquinaId" (ngModelChange)="onCambioMaquinaProgramacion()" name="prog-maq" class="w-full p-2.5 border rounded-xl text-sm bg-white">
+              <select id="ta-prog-maq" [(ngModel)]="prog.maquinaId" (ngModelChange)="onCambioMaquinaProgramacion()" name="prog-maq" class="field select-chevron">
                 @for (m of prog.maquinas; track m.id) { <option [value]="m.id">{{ m.codigo }} — {{ m.nombre }}</option> }
               </select>
             }
           </div>
 
-          <div class="grid grid-cols-2 gap-4">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Tipo</label>
-              <select [(ngModel)]="prog.tipo" name="prog-tipo" class="w-full p-2.5 border rounded-xl text-sm bg-white">
+              <label for="ta-prog-tipo" class="field-label">Tipo</label>
+              <select id="ta-prog-tipo" [(ngModel)]="prog.tipo" name="prog-tipo" class="field select-chevron">
                 <option value="PREVENTIVO">Preventivo</option><option value="CORRECTIVO">Correctivo</option>
               </select>
             </div>
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Fecha programada</label>
-              <input type="date" [(ngModel)]="prog.fecha" name="prog-fecha" class="w-full p-2.5 border rounded-xl text-sm">
+              <label for="ta-prog-fecha" class="field-label">Fecha programada</label>
+              <input id="ta-prog-fecha" type="date" [(ngModel)]="prog.fecha" name="prog-fecha" class="field">
             </div>
           </div>
 
           <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Cada cuánto se repite</label>
-            <select [(ngModel)]="prog.frecuenciaDias" name="prog-frec" class="w-full p-2.5 border rounded-xl text-sm font-semibold bg-white">
+            <label for="ta-prog-frec" class="field-label">Cada cuánto se repite</label>
+            <select id="ta-prog-frec" [(ngModel)]="prog.frecuenciaDias" name="prog-frec" class="field select-chevron font-semibold">
               @for (f of frecuencias; track f.dias) { <option [ngValue]="f.dias">{{ f.label }}</option> }
             </select>
           </div>
 
           <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Técnico (opcional; de la región de la máquina)</label>
+            <span class="field-label">Técnico (opcional; de la región de la máquina)</span>
             <app-tecnico-search-select [tecnicos]="prog.opciones" [selectedId]="prog.tecnicoId" (selected)="prog.tecnicoId = $event?.id ? '' + $event!.id : ''"></app-tecnico-search-select>
             @if (esCoordinador) {
-              <button type="button" (click)="prog.tecnicoId = miId" class="mt-1 text-[11px] font-bold text-violet-700 hover:underline cursor-pointer">Asignármelo a mí</button>
+              <button type="button" (click)="prog.tecnicoId = miId" class="btn btn-ghost btn-sm mt-1 text-violet-700">Asignármelo a mí</button>
             }
           </div>
 
           <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Observaciones / alcance</label>
-            <textarea [(ngModel)]="prog.observaciones" name="prog-obs" rows="3" class="w-full p-3 border rounded-xl text-xs font-medium" placeholder="Tareas y repuestos previstos..."></textarea>
+            <label for="ta-prog-obs" class="field-label">Observaciones / alcance</label>
+            <textarea id="ta-prog-obs" [(ngModel)]="prog.observaciones" name="prog-obs" rows="3" class="field font-medium" placeholder="Tareas y repuestos previstos..."></textarea>
           </div>
 
-          @if (error) { <div class="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs font-semibold text-rose-700">{{ error }}</div> }
+          @if (error) { <div class="estado-error" role="alert">{{ error }}</div> }
         </div>
       }
       <div modal-footer>
-        <button (click)="prog.open = false" class="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs cursor-pointer">Cancelar</button>
-        <button (click)="confirmarProgramacion()" [disabled]="enviando" class="px-4 py-2 bg-easydry-blue hover:bg-easydry-blue-dark text-white font-bold rounded-xl text-xs cursor-pointer disabled:opacity-60">Programar</button>
+        <button type="button" (click)="prog.open = false" class="btn btn-secondary w-full sm:w-auto">Cancelar</button>
+        <button type="button" (click)="confirmarProgramacion()" [disabled]="enviando" class="btn btn-primary w-full sm:w-auto">Programar</button>
       </div>
     </app-modal>
 
     <!-- ================= EJECUTAR MANTENIMIENTO ================= -->
-    <app-modal [isOpen]="eje.open" title="Ejecutar mantenimiento" icon="check-circle-2" zClass="z-[10100]" (close)="eje.open = false">
+    <app-modal [isOpen]="eje.open" title="Ejecutar mantenimiento" icon="check-circle-2" size="lg" zClass="z-[10100]" (close)="eje.open = false">
       @if (eje.open) {
         <div class="space-y-4">
           <div class="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 text-xs space-y-1">
-            <p class="font-bold text-slate-800">{{ eje.titulo }}</p>
+            <p class="font-bold text-slate-800 break-words">{{ eje.titulo }}</p>
             <p class="text-slate-600">Programado para: <strong>{{ eje.fechaProgramada }}</strong></p>
-            <p class="text-[11px] text-slate-500">Si falta más que la ventana de adelanto de la máquina, el servidor lo rechazará indicando desde qué fecha se puede ejecutar.</p>
+            <p class="text-xs text-slate-500">Si falta más que la ventana de adelanto de la máquina, el servidor lo rechazará indicando desde qué fecha se puede ejecutar.</p>
           </div>
 
           <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Informe del trabajo realizado</label>
-            <textarea [(ngModel)]="eje.observaciones" name="eje-obs" rows="3" class="w-full p-3 border rounded-xl text-xs font-semibold"
+            <label for="ta-eje-obs" class="field-label">Informe del trabajo realizado</label>
+            <textarea id="ta-eje-obs" [(ngModel)]="eje.observaciones" name="eje-obs" rows="3" class="field font-semibold"
               placeholder="Tareas ejecutadas, repuestos cambiados, pruebas..."></textarea>
           </div>
+
+          <app-checklist-orden [mantenimientoId]="eje.id" [editable]="eje.puedeMarcar"
+            soloLecturaMotivo="solo el técnico asignado o un administrador puede marcar los pasos"
+            (estado)="estadoChecklist = $event"></app-checklist-orden>
 
           <app-evidencia-selector #selEjecutar
             contexto="MANTENIMIENTO"
             [maquinariaCodigo]="eje.maquinaCodigo" [maquinariaId]="eje.maquinaId" [entidadId]="eje.id"
-            [exigirCompleta]="true" [deshabilitado]="enviando">
+            [requiereMultimedia]="true" [requiereDocumento]="true" [deshabilitado]="enviando">
           </app-evidencia-selector>
 
-          @if (error) { <div class="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs font-semibold text-rose-700">{{ error }}</div> }
+          @if (error) { <div class="estado-error" role="alert">{{ error }}</div> }
         </div>
       }
       <div modal-footer>
-        <button (click)="eje.open = false" [disabled]="enviando" class="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs cursor-pointer">Cancelar</button>
-        <button (click)="confirmarEjecucion()" [disabled]="enviando" class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs cursor-pointer disabled:opacity-60">
+        <button type="button" (click)="eje.open = false" [disabled]="enviando" class="btn btn-secondary w-full sm:w-auto">Cancelar</button>
+        @if (estadoChecklist.requerido && estadoChecklist.obligatoriosPendientes > 0) {
+          <span class="text-xs font-semibold text-amber-700 sm:mr-auto" role="status">Faltan {{ estadoChecklist.obligatoriosPendientes }} pasos obligatorios del checklist.</span>
+        }
+        <button type="button" (click)="confirmarEjecucion()" [disabled]="enviando || (estadoChecklist.requerido && estadoChecklist.obligatoriosPendientes > 0)" class="btn btn-primary w-full sm:w-auto">
           {{ enviando ? 'Guardando...' : 'Confirmar ejecución' }}
         </button>
       </div>
     </app-modal>
 
     <!-- ================= EDITAR MANTENIMIENTO ================= -->
-    <app-modal [isOpen]="emt.open" title="Editar mantenimiento" icon="pencil" zClass="z-[10100]" (close)="emt.open = false">
+    <app-modal [isOpen]="emt.open" title="Editar mantenimiento" icon="pencil" size="md" zClass="z-[10100]" (close)="emt.open = false">
       @if (emt.open) {
         <div class="space-y-4">
-          <p class="text-[11px] text-slate-500">Los cambios quedan registrados en la línea de tiempo con el valor anterior y el nuevo.</p>
-          <div class="grid grid-cols-2 gap-4">
+          <p class="text-xs text-slate-500">Los cambios quedan registrados en la línea de tiempo con el valor anterior y el nuevo.</p>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Tipo</label>
-              <select [(ngModel)]="emt.tipo" name="emt-tipo" class="w-full p-2.5 border rounded-xl text-sm bg-white">
+              <label for="ta-emt-tipo" class="field-label">Tipo</label>
+              <select id="ta-emt-tipo" [(ngModel)]="emt.tipo" name="emt-tipo" class="field select-chevron">
                 <option value="PREVENTIVO">Preventivo</option><option value="CORRECTIVO">Correctivo</option>
               </select>
             </div>
             @if (!emt.finalizado) {
               <div>
-                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Fecha programada</label>
-                <input type="date" [(ngModel)]="emt.fecha" name="emt-fecha" class="w-full p-2.5 border rounded-xl text-sm">
+                <label for="ta-emt-fecha" class="field-label">Fecha programada</label>
+                <input id="ta-emt-fecha" type="date" [(ngModel)]="emt.fecha" name="emt-fecha" class="field">
               </div>
             }
           </div>
-          <div class="grid grid-cols-2 gap-4">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Frecuencia</label>
-              <select [(ngModel)]="emt.frecuenciaDias" name="emt-frec" class="w-full p-2.5 border rounded-xl text-sm bg-white">
+              <label for="ta-emt-frec" class="field-label">Frecuencia</label>
+              <select id="ta-emt-frec" [(ngModel)]="emt.frecuenciaDias" name="emt-frec" class="field select-chevron">
                 @for (f of frecuencias; track f.dias) { <option [ngValue]="f.dias">{{ f.label }}</option> }
               </select>
             </div>
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Costo total (USD)</label>
-              <input type="number" min="0" step="0.01" [(ngModel)]="emt.costoTotal" name="emt-costo" class="w-full p-2.5 border rounded-xl text-sm">
+              <label for="ta-emt-costo" class="field-label">Costo total (USD)</label>
+              <input id="ta-emt-costo" type="number" min="0" step="0.01" [(ngModel)]="emt.costoTotal" name="emt-costo" class="field">
             </div>
           </div>
           <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Repuestos usados (separados por coma)</label>
-            <input type="text" [(ngModel)]="emt.repuestos" name="emt-rep" class="w-full p-2.5 border rounded-xl text-sm">
+            <label for="ta-emt-rep" class="field-label">Repuestos usados (separados por coma)</label>
+            <input id="ta-emt-rep" type="text" [(ngModel)]="emt.repuestos" name="emt-rep" class="field">
           </div>
           <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Observaciones</label>
-            <textarea [(ngModel)]="emt.observaciones" name="emt-obs" rows="3" class="w-full p-3 border rounded-xl text-xs font-medium"></textarea>
+            <label for="ta-emt-obs" class="field-label">Observaciones</label>
+            <textarea id="ta-emt-obs" [(ngModel)]="emt.observaciones" name="emt-obs" rows="3" class="field font-medium"></textarea>
           </div>
-          @if (error) { <div class="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs font-semibold text-rose-700">{{ error }}</div> }
+          @if (error) { <div class="estado-error" role="alert">{{ error }}</div> }
         </div>
       }
       <div modal-footer>
-        <button (click)="emt.open = false" class="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs cursor-pointer">Cancelar</button>
-        <button (click)="confirmarEdicionMantenimiento()" [disabled]="enviando" class="px-4 py-2 bg-easydry-blue hover:bg-easydry-blue-dark text-white font-bold rounded-xl text-xs cursor-pointer disabled:opacity-60">Guardar cambios</button>
+        <button type="button" (click)="emt.open = false" class="btn btn-secondary w-full sm:w-auto">Cancelar</button>
+        <button type="button" (click)="confirmarEdicionMantenimiento()" [disabled]="enviando" class="btn btn-primary w-full sm:w-auto">Guardar cambios</button>
       </div>
     </app-modal>
 
     <!-- ================= AGREGAR EVIDENCIA ================= -->
-    <app-modal [isOpen]="evi.open" title="Agregar evidencia" icon="camera" zClass="z-[10100]" (close)="evi.open = false">
+    <app-modal [isOpen]="evi.open" title="Agregar evidencia" icon="camera" size="md" zClass="z-[10100]" (close)="evi.open = false">
       @if (evi.open) {
         <div class="space-y-4">
-          <p class="text-xs text-slate-600"><strong class="text-slate-900">{{ evi.titulo }}</strong></p>
-          <p class="text-[11px] text-slate-500">Las evidencias nunca se borran. Si reemplazas una, la anterior queda oculta pero conservada.</p>
+          <p class="text-xs text-slate-600"><strong class="text-slate-900 break-words">{{ evi.titulo }}</strong></p>
+          <p class="text-xs text-slate-500">Las evidencias nunca se borran. Si reemplazas una, la anterior queda oculta pero conservada.</p>
 
           @if (evi.entidad === 'INCIDENTE') {
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Etapa</label>
-              <select [(ngModel)]="evi.etapa" name="evi-etapa" class="w-full p-2.5 border rounded-xl text-xs font-bold bg-white">
+              <label for="ta-evi-etapa" class="field-label">Etapa</label>
+              <select id="ta-evi-etapa" [(ngModel)]="evi.etapa" name="evi-etapa" class="field select-chevron font-bold">
                 <option value="REPORTE">Reporte de la falla</option><option value="REPARACION">Reparación</option>
               </select>
             </div>
           }
           @if (evi.existentes.length > 0) {
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Reemplaza a (opcional)</label>
-              <select [(ngModel)]="evi.reemplazaId" name="evi-reemp" class="w-full p-2.5 border rounded-xl text-xs font-bold bg-white">
+              <label for="ta-evi-reemp" class="field-label">Reemplaza a (opcional)</label>
+              <select id="ta-evi-reemp" [(ngModel)]="evi.reemplazaId" name="evi-reemp" class="field select-chevron font-bold">
                 <option value="">No reemplaza ninguna</option>
                 @for (e of evi.existentes; track e.id) {
                   <option [value]="e.id">{{ e.kind }} — {{ e.descripcion || e.id.substring(0, 8) }}</option>
@@ -384,15 +392,15 @@ const TIPOS_FALLA = [
           <app-evidencia-selector #selAgregar
             [contexto]="evi.entidad" [fase]="evi.etapa === 'REPARACION' ? 'reparacion' : 'reporte'"
             [maquinariaCodigo]="evi.maquinaCodigo" [maquinariaId]="evi.maquinaId" [entidadId]="evi.id"
-            [exigirCompleta]="false" [deshabilitado]="enviando">
+            [requiereMultimedia]="false" [requiereDocumento]="false" [deshabilitado]="enviando">
           </app-evidencia-selector>
 
-          @if (error) { <div class="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs font-semibold text-rose-700">{{ error }}</div> }
+          @if (error) { <div class="estado-error" role="alert">{{ error }}</div> }
         </div>
       }
       <div modal-footer>
-        <button (click)="evi.open = false" [disabled]="enviando" class="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs cursor-pointer">Cancelar</button>
-        <button (click)="confirmarEvidencia()" [disabled]="enviando" class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs cursor-pointer disabled:opacity-60">
+        <button type="button" (click)="evi.open = false" [disabled]="enviando" class="btn btn-secondary w-full sm:w-auto">Cancelar</button>
+        <button type="button" (click)="confirmarEvidencia()" [disabled]="enviando" class="btn btn-cta w-full sm:w-auto">
           {{ enviando ? 'Subiendo...' : 'Agregar evidencia' }}
         </button>
       </div>
@@ -429,7 +437,9 @@ export class TrabajoAccionesComponent {
   res = { open: false, id: '', maquinaId: '', maquinaCodigo: '', titulo: '', descripcion: '', estado: 'RESUELTO' as 'RESUELTO' | 'CANCELADO', solucion: '', repuestos: '' };
   edi = { open: false, id: '', titulo: '', descripcion: '', gravedad: 'MEDIA', solucion: '', tieneSolucion: false };
   prog = { open: false, fija: false, maquinas: [] as Maquinaria[], maquinaId: '', tipo: 'PREVENTIVO' as 'PREVENTIVO' | 'CORRECTIVO', fecha: '', frecuenciaDias: 30, tecnicoId: '', observaciones: '', opciones: [] as TecnicoOpcion[] };
-  eje = { open: false, id: '', maquinaId: '', maquinaCodigo: '', titulo: '', fechaProgramada: '', observaciones: '' };
+  eje = { open: false, id: '', maquinaId: '', maquinaCodigo: '', titulo: '', fechaProgramada: '', observaciones: '', puedeMarcar: false };
+  /** Resumen del checklist de la orden que se está ejecutando (lo emite el componente del checklist). */
+  estadoChecklist: EstadoChecklist = { cargado: false, requerido: false, obligatoriosPendientes: 0 };
   emt = { open: false, id: '', tipo: 'PREVENTIVO' as 'PREVENTIVO' | 'CORRECTIVO', fecha: '', frecuenciaDias: 0, costoTotal: null as number | null, repuestos: '', observaciones: '', finalizado: false };
   evi = { open: false, entidad: 'INCIDENTE' as 'INCIDENTE' | 'MANTENIMIENTO', id: '', maquinaId: '', maquinaCodigo: '', titulo: '', etapa: 'REPORTE' as 'REPORTE' | 'REPARACION', reemplazaId: '', existentes: [] as EvidenciaMaquinaria[] };
 
@@ -694,9 +704,13 @@ export class TrabajoAccionesComponent {
 
   ejecutarMantenimiento(m: Mantenimiento): void {
     this.reset();
+    this.estadoChecklist = { cargado: false, requerido: false, obligatoriosPendientes: 0 };
+    // Marcan el técnico asignado o quien gestiona maquinaria (administradores); el servidor valida igual.
+    const puedeMarcar = this.authService.puede('mantenimientos.ejecutar')
+      && (this.authService.puede('maquinaria.gestionar') || String(m.tecnicoAsignadoId || '') === this.miId);
     this.eje = {
       open: true, id: String(m.id), maquinaId: String(m.maquinariaId || ''), maquinaCodigo: m.maquinariaCodigo || '',
-      titulo: `${m.maquina} · ${m.tipo}`, fechaProgramada: m.fecha, observaciones: '',
+      titulo: `${m.maquina} · ${m.tipo}`, fechaProgramada: m.fecha, observaciones: '', puedeMarcar,
     };
   }
 

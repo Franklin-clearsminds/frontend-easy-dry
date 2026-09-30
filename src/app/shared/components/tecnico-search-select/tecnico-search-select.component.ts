@@ -15,9 +15,11 @@ export interface TecnicoOpcion {
   standalone: true,
   imports: [CommonModule, FormsModule, LucideAngularModule],
   template: `
-    <div class="relative">
-      <div class="relative">
-        <i-lucide name="search" class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"></i-lucide>
+    <div>
+      <div
+        class="flex items-center gap-2 pl-3 pr-1 border rounded-xl bg-white focus-within:border-easydry-blue focus-within:ring-2 focus-within:ring-easydry-blue/20"
+        [ngClass]="invalid ? 'border-rose-400 ring-2 ring-rose-100' : 'border-slate-300'">
+        <i-lucide name="search" class="w-4 h-4 shrink-0 text-slate-500" aria-hidden="true"></i-lucide>
         <input
           type="text"
           [ngModel]="query"
@@ -25,30 +27,35 @@ export interface TecnicoOpcion {
           (focus)="abrir()"
           [placeholder]="placeholder"
           autocomplete="off"
-          [ngClass]="invalid ? 'border-rose-400 ring-2 ring-rose-100' : 'border-slate-200'"
-          class="w-full pl-9 pr-9 p-2.5 border rounded-xl text-sm font-semibold bg-white" />
+          role="combobox"
+          aria-autocomplete="list"
+          [attr.aria-expanded]="abierto"
+          [attr.aria-label]="placeholder"
+          (keydown.escape)="cerrarConEsc($event)"
+          class="flex-1 min-w-0 py-2.5 border-0 bg-transparent text-sm font-semibold text-slate-800 placeholder:text-slate-500 focus:outline-none focus:ring-0" />
         @if (seleccionado) {
-          <button type="button" (click)="limpiar(); $event.stopPropagation()" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 cursor-pointer bg-transparent border-0 p-0">
-            <i-lucide name="x" class="w-4 h-4"></i-lucide>
+          <button type="button" (click)="limpiar(); $event.stopPropagation()" aria-label="Quitar selección" title="Quitar selección" class="shrink-0 w-9 h-9 flex items-center justify-center rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 cursor-pointer bg-transparent border-0 p-0">
+            <i-lucide name="x" class="w-4 h-4" aria-hidden="true"></i-lucide>
           </button>
         }
       </div>
       @if (abierto) {
-        <div class="absolute z-[80] mt-1 w-full max-h-56 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-lg">
+        <div role="listbox" class="mt-2 w-full max-h-60 overflow-y-auto overscroll-contain bg-white border border-slate-200 rounded-xl divide-y divide-slate-100">
           @for (tec of filtrados; track tec.id) {
             <button
               type="button"
               (click)="elegir(tec)"
-              class="w-full text-left px-3 py-2.5 hover:bg-slate-50 border-0 bg-transparent cursor-pointer">
+              role="option"
+              class="w-full text-left px-3 py-2.5 hover:bg-slate-50 focus-visible:bg-slate-100 border-0 bg-transparent cursor-pointer">
               <span class="block text-xs font-bold text-slate-800">{{ tec.nombre }}</span>
-              <span class="block text-[10px] text-slate-400 font-semibold uppercase tracking-wide">
+              <span class="block text-[11px] text-slate-500 font-semibold uppercase tracking-wide">
                 {{ tec.rolLabel || 'Técnico' }}
                 @if (tec.email) { · {{ tec.email }} }
               </span>
             </button>
           }
           @if (filtrados.length === 0) {
-            <p class="px-3 py-3 text-xs text-slate-400 font-semibold">No hay técnicos o coordinadores que coincidan.</p>
+            <p class="px-3 py-3 text-xs text-slate-500 font-semibold" role="status">No hay técnicos o coordinadores que coincidan.</p>
           }
         </div>
       }
@@ -94,6 +101,22 @@ export class TecnicoSearchSelectComponent {
     if (!this.host.nativeElement.contains(event.target as Node)) {
       this.abierto = false;
       this.syncQueryFromSelection();
+    }
+  }
+
+  @HostListener('focusout', ['$event'])
+  onFocusOut(event: FocusEvent) {
+    const next = event.relatedTarget as Node | null;
+    if (next && !this.host.nativeElement.contains(next)) {
+      this.abierto = false;
+      this.syncQueryFromSelection();
+    }
+  }
+
+  cerrarConEsc(event: Event) {
+    if (this.abierto) {
+      event.stopPropagation();
+      this.abierto = false;
     }
   }
 

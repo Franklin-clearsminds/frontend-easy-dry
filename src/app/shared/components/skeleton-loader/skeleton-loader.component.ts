@@ -6,7 +6,8 @@ import { CommonModule } from '@angular/common';
   standalone: true,
   imports: [CommonModule],
   template: `
-    <div class="animate-pulse space-y-4">
+    <div class="animate-pulse motion-reduce:animate-none space-y-4" role="status" aria-live="polite" aria-busy="true">
+      <span class="sr-only">Cargando…</span>
       @if (type === 'cards') {
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
           @for (i of [1,2,3,4]; track i) {

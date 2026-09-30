@@ -4,6 +4,8 @@ import { BehaviorSubject, Observable, of } from 'rxjs';
 import { map, tap, catchError } from 'rxjs/operators';
 import { ClienteSucursal } from '../models';
 import { apiUrl } from '../config/env';
+import { ConsultaTabla } from '../models/paginacion.model';
+import { PaginaConResumen, cuerpoConsulta, postPagina } from '../utils/tabla-servidor';
 
 @Injectable({
   providedIn: 'root'
@@ -31,6 +33,11 @@ export class ClienteService {
       tap(mapped => this.clientesSubject.next(mapped)),
       catchError(() => of(this.clientesSubject.value))
     );
+  }
+
+  /** Una página de clientes para la tabla (búsqueda y orden en el servidor: nombre, estado, agencias, fecha). */
+  getClientesPagina(c: Partial<ConsultaTabla>): Observable<PaginaConResumen<ClienteSucursal>> {
+    return postPagina<ClienteSucursal>(this.http, apiUrl('/agencias/clientes/list'), cuerpoConsulta(c), (m) => this.mapBackendCliente(m));
   }
 
   getMarcas(): Observable<ClienteSucursal[]> {
@@ -80,8 +87,7 @@ export class ClienteService {
           current[index] = { ...act };
           this.clientesSubject.next([...current]);
         }
-      }),
-      catchError(() => of(cliente))
+      })
     );
   }
 

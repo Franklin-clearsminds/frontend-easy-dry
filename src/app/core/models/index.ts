@@ -51,6 +51,8 @@ export interface Sucursal {
   operadoresActivos?: number;
   maquinasAsignadasCount?: number;
   serviciosRealizadosMes?: number;
+  /** % de servicios del mes finalizados o aprobados (lo calcula el servidor). */
+  productividad?: number;
   regionId?: number | string;
   regionNombre?: string;
   region?: { id?: string | number; nombre?: string; [key: string]: any } | any;
@@ -121,6 +123,11 @@ export interface Bahia {
   operadorAsignado?: string;
   operadorId?: number | string;
   maquinariaAsignada?: string[];
+  /**
+   * Estado real de ocupación reportado por el backend (fuente de verdad).
+   * null = bahía disponible. No calcular esto en el cliente a partir de otras listas.
+   */
+  ocupada?: { placa: string; ordenTrabajoOT: string | null } | null;
 }
 
 
@@ -189,7 +196,6 @@ export interface Agencia {
 
 export interface VehiculoServicio {
   id: number | string;
-  numeroOrden: string;
   ordenTrabajoOT: string;
   placa: string;
   marca: string;
@@ -231,7 +237,19 @@ export interface VehiculoServicio {
   insumosUtilizados?: InsumoConsumidoServicio[];
   observacionGerente?: string;
   aprobadoPor?: string;
+  /** ISO 8601 completo de la decisión (aprobar o rechazar). */
   fechaAprobacion?: string;
+  /** TITULAR = decidió el aprobador de la agencia; RESPALDO = decidió un administrador o supervisor por no haber aprobador. */
+  reglaDecision?: 'TITULAR' | 'RESPALDO' | string | null;
+  motivoRechazo?: string | null;
+  agenciaId?: string | null;
+  /** Solo en servicios FINALIZADOS: el servidor dice si quien consulta puede aprobar o rechazar este servicio ahora. */
+  puedeDecidir?: boolean;
+  /** Solo en servicios FINALIZADOS: la agencia no tiene aprobador designado. */
+  agenciaSinAprobador?: boolean;
+  anuladoPorId?: string | null;
+  anuladoEn?: string | null;
+  motivoAnulacion?: string | null;
   servicios?: string[];
   regionNombre?: string;
   sucursalNombre?: string;
@@ -271,6 +289,8 @@ export interface Maquinaria {
   ventanaAdelantoDias?: number;
   incidentesNoAtendidos?: number;
   mantenimientosVencidos?: number;
+  /** Fecha ISO del mantenimiento pendiente más próximo (el más cercano programado), o null si no hay ninguno programado. */
+  proximoMantenimiento?: string | null;
 }
 
 export interface Mantenimiento {
@@ -388,7 +408,9 @@ export interface Incidente {
   id: string | number;
   codigoIncidente: string;
   maquina: string;
+  /** Agencia del pulidor fijo dueño de la máquina, o "Pulidor Móvil" si el operador no tiene agencia fija. */
   agencia: string;
+  esPulidorMovil?: boolean;
   fecha: string;
   tipo: 'Manguera dañada' | 'Falla eléctrica' | 'Problema hidráulico' | 'Fuga de agua' | 'Baja presión' | 'Desgaste' | 'Rotura de pieza' | string;
   prioridad: 'Alta' | 'Media' | 'Baja' | 'Crítica' | string;
@@ -436,8 +458,9 @@ export interface Reporte {
   tipo: 'Diario' | 'Mensual' | 'Productividad' | 'Servicios Especiales' | string;
   agencia: string;
   fechaGeneracion: string;
-  totalServicios: number;
-  eficienciaGeneral: number;
+  totalServicios: number | null;
+  /** Null cuando el servidor no calcula la eficiencia. */
+  eficienciaGeneral: number | null;
 }
 
 // =========================================================================

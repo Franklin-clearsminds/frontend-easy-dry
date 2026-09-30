@@ -2,6 +2,11 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { apiUrl, environment } from '../config/env';
+import { AuthService } from './auth.service';
+import { MediaError, instalarResolutorDom } from './media-privada';
+
+/** Archivos públicos (igual que el backend): avatares y catálogo de insumos. Todo lo demás es privado. */
+const CLAVE_PUBLICA = /^(?:thumbs\/|view\/)?(?:catalogo\/insumos\/|usuarios\/[^/]+\/perfil\/)/i;
 
 export type StorageCategory =
   | 'SERVICIOS_GENERALES'
@@ -71,6 +76,12 @@ export interface UploadMediaOptions {
 @Injectable({ providedIn: 'root' })
 export class StorageUploadService {
   private readonly http = inject(HttpClient);
+  private readonly auth = inject(AuthService);
+
+  constructor() {
+    // Las pantallas que arman la URL de /storage/file a mano se resuelven por URL prefirmada sin cambiarlas.
+    instalarResolutorDom(this);
+  }
 
   /**
    * Sube un archivo o Blob binario (Vídeo, Imagen, Documento) al almacenamiento (S3 o Local)
@@ -245,84 +256,133 @@ export class StorageUploadService {
     if (trimmed.includes('amazonaws.com/')) return trimmed.split('amazonaws.com/')[1]?.split('?')[0] || '';
     if (trimmed.startsWith('/uploads/')) return trimmed.replace(/^\/uploads\//, '').split('?')[0];
     if (trimmed.startsWith('uploads/')) return trimmed.replace(/^uploads\//, '').split('?')[0];
-    if (trimmed.startsWith('agencias/') || trimmed.startsWith('catalogo/') || trimmed.startsWith('usuarios/') || trimmed.startsWith('maquinaria/')) {
+    if (/^(agencias|catalogo|usuarios|maquinaria|thumbs|view)\//.test(trimmed)) {
       return trimmed.split('?')[0];
     }
     return '';
   }
 
-  /** true si el archivo vive bajo `maquinaria/` (privado: solo se ve con URL prefirmada + JWT). */
+  /** true si el archivo vive bajo `maquinaria/` (privado). Se conserva por compatibilidad: usa esPrivada(). */
   public esClaveMaquinaria(value?: string | null): boolean {
     if (!value) return false;
-    return this.extractKey(String(value).trim()).startsWith('maquinaria/');
+    return /^(?:thumbs\/|view\/)?(?:agencias\/[^/]+\/)?maquinaria\//i.test(this.extractKey(String(value).trim()));
+  }
+
+  /**
+   * true si la llave/URL es un archivo privado (evidencias de servicios, inventario, maquinaria...): solo se ve con URL
+   * prefirmada + JWT. Son públicos únicamente los avatares (`usuarios/<id>/perfil/`) y el catálogo de insumos.
+   */
+  public esPrivada(value?: string | null): boolean {
+    if (!value) return false;
+    const key = this.extractKey(String(value).trim());
+    return !!key && !CLAVE_PUBLICA.test(key);
   }
 
   private readonly cachePresignadas = new Map<string, { url: string; expira: number }>();
-  private readonly TTL_CACHE_MS = 10 * 60 * 1000;
+  private readonly enVuelo = new Map<string, Promise<string>>();
+  /** La URL temporal dura 1 h en el servidor: se reutiliza hasta 5 min antes de que venza. */
+  private readonly TTL_CACHE_MS = 55 * 60 * 1000;
+  private usuarioCache: string | null | undefined;
+
+  /** Olvida las URL temporales al cambiar de usuario (otro alcance de agencias). */
+  private vigilarSesion(): void {
+    const actual = this.auth.currentUserValue?.id ?? null;
+    const id = actual == null ? null : String(actual);
+    if (this.usuarioCache !== undefined && this.usuarioCache !== id) {
+      this.cachePresignadas.clear();
+      this.enVuelo.clear();
+    }
+    this.usuarioCache = id;
+  }
+
+  /** Quita de la caché la URL temporal de un archivo (por ejemplo, si ya venció). */
+  public invalidarCache(value?: string | null): void {
+    if (!value) return;
+    const key = this.extractKey(String(value).trim());
+    this.cachePresignadas.delete(key || String(value));
+  }
 
   /**
-   * Devuelve una URL lista para usar en <img>, <video> o enlaces. Para claves `maquinaria/` pide la URL temporal
-   * (GET /storage/presigned-url, con JWT) y la guarda en memoria unos minutos; el resto de categorías
-   * sigue resolviéndose igual que antes.
+   * URL temporal de una llave privada (GET /storage/presigned-url con JWT). Caché en memoria, sin peticiones
+   * duplicadas simultáneas; el reintento tras 401 lo hace el jwtInterceptor con el refresco de sesión.
+   * Lanza MediaError (403 sin permiso, sin red, etc.).
    */
-  async resolveMediaUrl(value?: string | null): Promise<string> {
+  private presignar(key: string): Promise<string> {
+    this.vigilarSesion();
+    const hit = this.cachePresignadas.get(key);
+    if (hit && hit.expira > Date.now()) return Promise.resolve(hit.url);
+    const pendiente = this.enVuelo.get(key);
+    if (pendiente) return pendiente;
+
+    const p = firstValueFrom(
+      this.http.get<{ url: string }>(apiUrl(`/storage/presigned-url?key=${encodeURIComponent(key)}`), {
+        // El error se muestra en el propio archivo, no como aviso emergente por cada miniatura.
+        headers: { 'X-Silent-Fallback': '1' },
+      }),
+    )
+      .then(res => {
+        if (!res?.url) throw new MediaError('otro');
+        this.cachePresignadas.set(key, { url: res.url, expira: Date.now() + this.TTL_CACHE_MS });
+        return res.url;
+      })
+      .catch(err => { throw MediaError.desde(err); })
+      .finally(() => { this.enVuelo.delete(key); });
+    this.enVuelo.set(key, p);
+    return p;
+  }
+
+  /**
+   * Como resolveMediaUrl, pero lanza MediaError si un archivo privado no se puede obtener (para mostrar el motivo).
+   * Lo público (avatar/catálogo) sigue por /storage/file.
+   */
+  async resolveMediaUrlStrict(value?: string | null): Promise<string> {
     if (!value) return '';
     const trimmed = String(value).trim();
     if (trimmed.startsWith('data:') || trimmed.startsWith('blob:')) return trimmed;
-    const key = this.extractKey(trimmed);
-    if (!key.startsWith('maquinaria/')) return this.resolveBackendUrl(trimmed);
-
-    const hit = this.cachePresignadas.get(key);
-    if (hit && hit.expira > Date.now()) return hit.url;
-    try {
-      const res = await firstValueFrom(
-        this.http.get<{ url: string }>(apiUrl(`/storage/presigned-url?key=${encodeURIComponent(key)}`))
-      );
-      if (res?.url) {
-        this.cachePresignadas.set(key, { url: res.url, expira: Date.now() + this.TTL_CACHE_MS });
-        return res.url;
-      }
-    } catch {
-      // Sin URL temporal: se devuelve la ruta clásica (puede no cargar si el archivo es privado).
-    }
-    return this.resolveBackendUrl(trimmed);
+    if (!this.esPrivada(trimmed)) return this.resolveBackendUrl(trimmed);
+    return this.presignar(this.extractKey(trimmed));
   }
 
   /**
-   * URL temporal de una variante liviana de una foto de maquinaria: `thumbs` (480 px, para cuadrículas) o
-   * `view` (1600 px, para el visor). El backend las genera al guardar la evidencia; si todavía no existen,
-   * el <img> falla y el llamador usa el original. Devuelve '' si no aplica.
+   * Devuelve una URL lista para usar en <img>, <video> o enlaces. Si no se puede obtener un archivo privado
+   * devuelve '' (quien necesite el motivo usa resolveMediaUrlStrict).
+   */
+  async resolveMediaUrl(value?: string | null): Promise<string> {
+    try {
+      return await this.resolveMediaUrlStrict(value);
+    } catch {
+      return '';
+    }
+  }
+
+  /**
+   * URL temporal de una variante liviana de una foto privada: `thumbs` (480 px, para cuadrículas) o `view` (1600 px,
+   * para el visor). El backend las genera al guardar la evidencia; si todavía no existen, el <img> falla y el
+   * llamador usa el original. Devuelve '' si no aplica. Lanza MediaError solo si no hay permiso, sesión o red.
    */
   async resolveVariantUrl(value: string | null | undefined, variante: 'thumbs' | 'view'): Promise<string> {
-    if (!value) return '';
+    if (!value || !this.esPrivada(value)) return '';
     const key = this.extractKey(String(value).trim());
-    if (!key.startsWith('maquinaria/') || !/\.(jpe?g|png|webp)$/i.test(key)) return '';
+    if (!/\.(jpe?g|png|webp|heic|heif)$/i.test(key) || /^(thumbs|view)\//.test(key)) return '';
     const varianteKey = `${variante}/${key.replace(/^[/\\]+/, '').replace(/\.[^./]+$/, '')}.jpg`;
-
-    const hit = this.cachePresignadas.get(varianteKey);
-    if (hit && hit.expira > Date.now()) return hit.url;
     try {
-      const res = await firstValueFrom(
-        this.http.get<{ url: string }>(apiUrl(`/storage/presigned-url?key=${encodeURIComponent(varianteKey)}`))
-      );
-      if (res?.url) {
-        this.cachePresignadas.set(varianteKey, { url: res.url, expira: Date.now() + this.TTL_CACHE_MS });
-        return res.url;
-      }
-    } catch {
-      // Sin variante: el llamador usa el original.
+      return await this.presignar(varianteKey);
+    } catch (e) {
+      const estado = MediaError.desde(e).estado;
+      if (estado === 'permiso' || estado === 'red' || estado === 'sesion') throw e;
+      return '';
     }
-    return '';
   }
 
   /**
-   * URL de la miniatura liviana (480 px) que el backend genera al subir cada foto en
-   * `thumbs/<clave-original>.jpg`. Devuelve '' si el archivo no es una imagen gestionada.
+   * URL de la miniatura liviana (480 px) que el backend genera al subir cada foto en `thumbs/<clave-original>.jpg`,
+   * solo para archivos públicos (avatar/catálogo). Los privados usan resolveVariantUrl. Devuelve '' si no aplica.
    */
   public getThumbnailUrl(value?: string | null): string {
     if (!value) return '';
     const key = this.extractKey(String(value).trim());
-    if (!key || key.startsWith('thumbs/') || !/\.(jpe?g|png|webp|heic|heif)$/i.test(key)) return '';
+    if (!key || key.startsWith('thumbs/') || key.startsWith('view/') || !CLAVE_PUBLICA.test(key)) return '';
+    if (!/\.(jpe?g|png|webp|heic|heif)$/i.test(key)) return '';
     const thumbKey = 'thumbs/' + key.replace(/^[/\\]+/, '').replace(/\.[^./]+$/, '') + '.jpg';
     return apiUrl(`/storage/file?key=${encodeURIComponent(thumbKey)}`);
   }
@@ -350,7 +410,7 @@ export class StorageUploadService {
       const key = trimmed.replace(/^uploads\//, '').split('?')[0];
       return apiUrl(`/storage/file?key=${encodeURIComponent(key)}`);
     }
-    if (trimmed.startsWith('agencias/') || trimmed.startsWith('catalogo/') || trimmed.startsWith('usuarios/') || trimmed.startsWith('maquinaria/')) {
+    if (/^(agencias|catalogo|usuarios|maquinaria|thumbs|view)\//.test(trimmed)) {
       const key = trimmed.split('?')[0];
       return apiUrl(`/storage/file?key=${encodeURIComponent(key)}`);
     }
@@ -364,42 +424,10 @@ export class StorageUploadService {
   }
 
   /**
-   * Obtiene la URL prefirmada directa de AWS S3 para streaming de vídeo continuo (HTTP 206 Partial Content)
-   * evitando redirecciones 302 intermedias que bloquean la precarga progresiva del navegador.
+   * URL directa para streaming de vídeo (HTTP 206). Los archivos privados salen de la URL prefirmada con caché;
+   * los públicos siguen por /storage/file.
    */
   async getDirectStreamingUrl(value?: string | null): Promise<string> {
-    if (!value) return '';
-    const trimmed = String(value).trim();
-    if (trimmed.startsWith('data:') || trimmed.startsWith('blob:')) return trimmed;
-
-    let key = '';
-    if (trimmed.includes('/storage/file?key=')) {
-      key = decodeURIComponent(trimmed.split('/storage/file?key=')[1]?.split('&')[0] || '');
-    } else if (trimmed.includes('amazonaws.com/')) {
-      key = trimmed.split('amazonaws.com/')[1]?.split('?')[0] || '';
-    } else if (trimmed.startsWith('/uploads/')) {
-      key = trimmed.replace(/^\/uploads\//, '').split('?')[0];
-    } else if (trimmed.startsWith('uploads/')) {
-      key = trimmed.replace(/^uploads\//, '').split('?')[0];
-    } else if (trimmed.startsWith('agencias/') || trimmed.startsWith('catalogo/') || trimmed.startsWith('usuarios/') || trimmed.startsWith('maquinaria/')) {
-      key = trimmed.split('?')[0];
-    }
-
-    // Las evidencias de maquinaria comparten la caché de URLs temporales.
-    if (key.startsWith('maquinaria/')) return this.resolveMediaUrl(trimmed);
-
-    if (!key) {
-      return this.resolveBackendUrl(trimmed);
-    }
-
-    try {
-      const res = await firstValueFrom(
-        this.http.get<{ url: string }>(apiUrl(`/storage/presigned-url?key=${encodeURIComponent(key)}`))
-      );
-      return res?.url || this.resolveBackendUrl(trimmed);
-    } catch {
-      return this.resolveBackendUrl(trimmed);
-    }
+    return this.resolveMediaUrlStrict(value);
   }
 }
-

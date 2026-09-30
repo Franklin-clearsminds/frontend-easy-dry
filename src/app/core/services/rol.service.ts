@@ -7,15 +7,17 @@ import {
   ModuloSistema,
   ROLE_LABELS,
   ROLE_COLORS,
-  isRolPermisosInmutable
 } from '../models/roles.model';
 import { apiUrl } from '../config/env';
+import { ConsultaTabla } from '../models/paginacion.model';
+import { PaginaConResumen, cuerpoConsulta, postPagina } from '../utils/tabla-servidor';
+import { BRAND_COLORS } from '../../shared/theme/colors';
 
 export const DEFAULT_ROLE_HEX_COLORS: Record<string, string> = {
   SUPER_ADMIN: '#6D28D9',
-  ADMIN: '#7C3AED',
+  ADMIN: BRAND_COLORS.violet,
   APROBADOR: '#6366F1',
-  SUPERVISOR: '#004282',
+  SUPERVISOR: BRAND_COLORS.blue,
   COORD_MANTENIMIENTO: '#D97706',
   TECNICO: '#EA580C',
   LIDER: '#0D9488',
@@ -24,7 +26,7 @@ export const DEFAULT_ROLE_HEX_COLORS: Record<string, string> = {
   LAVADOR: '#059669',
   COORD_COMERCIAL: '#2563EB',
   JEFE_COMERCIAL: '#1D4ED8',
-  COORD_SERVICIOS_ESPECIALES: '#004282',
+  COORD_SERVICIOS_ESPECIALES: BRAND_COLORS.blue,
   PULIDOR: '#0891B2',
   PULIDOR_FIJO: '#0891B2',
   PULIDOR_MOVIL: '#0891B2',
@@ -32,6 +34,48 @@ export const DEFAULT_ROLE_HEX_COLORS: Record<string, string> = {
   DISTRIBUIDOR: '#475569',
   ASISTENTE_BODEGA: '#0F766E',
 };
+
+/** Un permiso de acción del catálogo del backend (lo que se exige en cada endpoint). */
+export interface CapacidadCatalogo {
+  codigo: string;
+  grupo: string;
+  nombre: string;
+  descripcion: string;
+}
+
+/** Catálogo completo para el editor de roles: módulos de navegación, permisos de acción y ámbitos. */
+export interface CatalogoPermisos {
+  modulos: ModuloSistema[];
+  capacidades: CapacidadCatalogo[];
+  ambitos: string[];
+}
+
+/** Ámbitos válidos, del más amplio al más estrecho. */
+export const AMBITOS_ROL = ['GLOBAL', 'REGION', 'AGENCIA', 'PROPIO'] as const;
+
+/**
+ * Convierte el nombre escrito en el código del rol (mayúsculas, sin tildes, guion bajo en vez de espacios),
+ * igual que lo normaliza el backend: de 3 a 40 caracteres, empezando por letra.
+ */
+export function codigoRolDesdeNombre(nombre: string): string {
+  return String(nombre ?? '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
+export function codigoRolValido(codigo: string): boolean {
+  return /^[A-Z][A-Z0-9_]{2,39}$/.test(codigo);
+}
+
+/**
+ * Las altas, cambios y bajas de roles se piden en silencio: el componente muestra el mensaje en español
+ * que trae el servidor (`error.message`) en vez del aviso genérico de 403.
+ */
+const SILENCIOSO = { headers: { 'x-silent': 'true' } };
 
 @Injectable({
   providedIn: 'root'
@@ -53,7 +97,7 @@ export class RolService {
     const nombre = ROLE_LABELS[codigo] || r.nombre || codigo;
     const badgeClass = ROLE_COLORS[codigo] || 'bg-slate-100 text-slate-800 border-slate-200';
     const estado = r.estado === 1 || r.estado === 'Activo' ? 'Activo' : 'Inactivo';
-    const color = r.color || DEFAULT_ROLE_HEX_COLORS[codigo] || '#7C3AED';
+    const color = r.color || DEFAULT_ROLE_HEX_COLORS[codigo] || BRAND_COLORS.violet;
 
     let fechaCreacion = new Date().toISOString().split('T')[0];
     if (r.fechaCreacion) {
@@ -68,8 +112,10 @@ export class RolService {
       color,
       badgeClass,
       modulos: Array.isArray(r.permisos) ? r.permisos : [],
+      capacidades: Array.isArray(r.capacidades) ? r.capacidades : [],
+      ambito: r.ambito || 'AGENCIA',
       estado,
-      esSistema: codigo === 'SUPER_ADMIN' || codigo === 'ADMIN',
+      esSistema: !!r.esSistema,
       fechaCreacion,
       fechaModificacion: r.fechaModificacion,
       usuariosCount: r.usuariosCount || 0
@@ -92,9 +138,17 @@ export class RolService {
     this.getRoles().subscribe();
   }
 
-  /** Retorna todos los roles desde el backend (POST /roles/list). SUPER_ADMIN nunca se expone en UI. */
+  /** Una página de roles para la tabla de gestión (búsqueda y orden en el servidor: namerol, estado, usuarios, fecha). No toca la lista completa. */
+  getRolesPagina(c: Partial<ConsultaTabla>): Observable<PaginaConResumen<RolPersonalizado>> {
+    return postPagina<RolPersonalizado>(this.http, apiUrl('/roles/list'), cuerpoConsulta(c), (r) => this.mapBackendRole(r));
+  }
+
+  /**
+   * Retorna todos los roles desde el backend (POST /roles/list, exige 'roles.ver').
+   * Se pide en silencio: quien no tiene ese permiso simplemente no ve roles. SUPER_ADMIN nunca se expone en UI.
+   */
   getRoles(): Observable<RolPersonalizado[]> {
-    return this.http.post<any[]>(apiUrl('/roles/list'), {}).pipe(
+    return this.http.post<any[]>(apiUrl('/roles/list'), {}, SILENCIOSO).pipe(
       map(list => {
         if (Array.isArray(list) && list.length > 0) {
           return list
@@ -104,27 +158,42 @@ export class RolService {
         return [];
       }),
       tap(roles => this.rolesSubject.next(roles)),
-      catchError(err => {
-        console.error('No se pudo obtener la lista de roles del backend', err);
+      catchError(() => {
         this.rolesSubject.next([]);
         return of([]);
       })
     );
   }
 
-  /** Catálogo de módulos desde API (POST /roles/modulos/list) */
+  /** Catálogo de módulos desde API (POST /roles/modulos/list, exige 'roles.ver'; en silencio). */
   getModulos(): Observable<ModuloSistema[]> {
-    return this.http.post<any[]>(apiUrl('/roles/modulos/list'), {}).pipe(
+    return this.http.post<any[]>(apiUrl('/roles/modulos/list'), {}, SILENCIOSO).pipe(
       map(list => {
         if (!Array.isArray(list)) return [];
         return list.map(m => this.mapBackendModulo(m));
       }),
       tap(modulos => this.modulosSubject.next(modulos)),
-      catchError(err => {
-        console.error('No se pudo obtener el catálogo de módulos del backend', err);
+      catchError(() => {
         this.modulosSubject.next([]);
         return of([]);
       })
+    );
+  }
+
+  /** Módulos de navegación + permisos de acción + ámbitos para el editor de roles (POST /roles/permisos/list). */
+  getCatalogoPermisos(): Observable<CatalogoPermisos> {
+    return this.http.post<any>(apiUrl('/roles/permisos/list'), {}, SILENCIOSO).pipe(
+      map(res => ({
+        modulos: (Array.isArray(res?.catalogo) ? res.catalogo : []).map((m: any) => this.mapBackendModulo(m)),
+        capacidades: (Array.isArray(res?.capacidades) ? res.capacidades : []).map((c: any): CapacidadCatalogo => ({
+          codigo: String(c.codigo),
+          grupo: c.grupo || 'Otros',
+          nombre: c.nombre || c.codigo,
+          descripcion: c.descripcion || '',
+        })),
+        ambitos: Array.isArray(res?.ambitos) ? res.ambitos.map(String) : [...AMBITOS_ROL],
+      })),
+      tap(cat => this.modulosSubject.next(cat.modulos))
     );
   }
 
@@ -134,27 +203,25 @@ export class RolService {
     return list.find(r => r.codigo.toLowerCase() === codigoOId.toLowerCase() || r.id === codigoOId);
   }
 
-  /** Crear un nuevo rol dinámico en la base de datos */
+  /** Crear un nuevo rol en la base de datos (solo con 'roles.gestionar'). Errores: los muestra quien llama. */
   crearRol(data: {
     nombre: string;
     descripcion: string;
-    color?: string;
     modulos: string[];
+    capacidades: string[];
+    ambito: string;
     estado?: number;
   }): Observable<RolPersonalizado> {
-    const codigoGenerado = data.nombre
-      .trim()
-      .toUpperCase()
-      .replace(/[\s\W-]+/g, '_');
-
     const payload = {
-      namerol: codigoGenerado,
+      namerol: codigoRolDesdeNombre(data.nombre),
       descripcion: data.descripcion?.trim() || '',
       estado: data.estado !== undefined ? data.estado : 1,
-      permisos: data.modulos || []
+      permisos: data.modulos || [],
+      capacidades: data.capacidades || [],
+      ambito: data.ambito,
     };
 
-    return this.http.post<any>(apiUrl('/roles/create'), payload).pipe(
+    return this.http.post<any>(apiUrl('/roles/create'), payload, SILENCIOSO).pipe(
       map(res => this.mapBackendRole(res)),
       tap(nuevoRol => {
         const current = this.rolesSubject.value;
@@ -162,67 +229,45 @@ export class RolService {
         if (!exists) {
           this.rolesSubject.next([...current, nuevoRol]);
         }
-      }),
-      catchError(err => {
-        console.error('Error al crear rol en backend', err);
-        return throwError(() => err);
       })
     );
   }
 
-  /** Actualizar un rol existente en la base de datos */
+  /**
+   * Actualizar un rol existente (solo con 'roles.gestionar'). El nombre no se envía: no se cambia en roles ya creados.
+   * Solo viajan los campos que se pasan.
+   */
   actualizarRol(id: string, cambios: {
-    nombre?: string;
     descripcion?: string;
-    color?: string;
     modulos?: string[];
+    capacidades?: string[];
+    ambito?: string;
     estado?: number | string;
-  }): Observable<RolPersonalizado | null> {
-    const current = this.rolesSubject.value;
-    const rolExistente = current.find(r => r.id === id);
-
-    if (rolExistente && isRolPermisosInmutable(rolExistente.codigo)) {
-      return of(rolExistente);
-    }
-
+  }): Observable<RolPersonalizado> {
     const payload: any = { id };
     if (cambios.descripcion !== undefined) payload.descripcion = cambios.descripcion.trim();
     if (cambios.modulos !== undefined) payload.permisos = cambios.modulos;
+    if (cambios.capacidades !== undefined) payload.capacidades = cambios.capacidades;
+    if (cambios.ambito !== undefined) payload.ambito = cambios.ambito;
     if (cambios.estado !== undefined) {
       payload.estado = cambios.estado === 'Activo' || cambios.estado === 1 ? 1 : 0;
     }
 
-    return this.http.post<any>(apiUrl('/roles/update'), payload).pipe(
+    return this.http.post<any>(apiUrl('/roles/update'), payload, SILENCIOSO).pipe(
       map(res => this.mapBackendRole(res)),
       tap(actualizado => {
         const list = this.rolesSubject.value.map(r => r.id === actualizado.id ? actualizado : r);
         this.rolesSubject.next(list);
-      }),
-      catchError(err => {
-        console.error('Error al actualizar rol en backend', err);
-        return throwError(() => err);
       })
     );
   }
 
-  /** Eliminar o desactivar un rol */
+  /** Eliminar un rol (el servidor rechaza los oficiales y los que tienen usuarios asignados). */
   eliminarRol(id: string): Observable<{ success: boolean; message?: string }> {
-    const current = this.rolesSubject.value;
-    const rol = current.find(r => r.id === id);
-
-    if (rol && isRolPermisosInmutable(rol.codigo)) {
-      return of({ success: false, message: 'El rol SUPER_ADMIN no puede ser eliminado.' });
-    }
-
-    return this.http.post<any>(apiUrl('/roles/delete'), { id }).pipe(
+    return this.http.post<any>(apiUrl('/roles/delete'), { id }, SILENCIOSO).pipe(
       map(res => {
-        const actualizados = this.rolesSubject.value.filter(r => r.id !== id);
-        this.rolesSubject.next(actualizados);
+        this.rolesSubject.next(this.rolesSubject.value.filter(r => r.id !== id));
         return { success: true, message: res?.message || 'Rol eliminado exitosamente.' };
-      }),
-      catchError(err => {
-        console.error('Error al eliminar rol en backend', err);
-        return throwError(() => err);
       })
     );
   }

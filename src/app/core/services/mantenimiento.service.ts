@@ -2,20 +2,46 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { BehaviorSubject, Observable, of } from 'rxjs';
 import { map, tap, catchError } from 'rxjs/operators';
-import { Mantenimiento, ArchivoAdjunto, PaginaResultado, nombrePersona } from '../models';
+import { Mantenimiento, ArchivoAdjunto, nombrePersona } from '../models';
+import { PaginaServidor, OrdenDir, normalizarPagina } from '../models/paginacion.model';
+import { PAGE_SIZE_MAX, PAGE_SIZE_TABLA, BUSQUEDA_MIN_CARACTERES } from '../config/paginacion';
 import { apiUrl } from '../config/env';
 import { EvidenciaInput } from './incidente.service';
 import { mapEvidenciasMaquinaria, fechaProgramadaISO, fechaISOLocal, fechaHoraLocal } from '../utils/evidencia-maquinaria';
 
-export interface MantenimientoFiltro {
+/** Consulta paginada de mantenimientos: todo (orden, búsqueda y filtros) se resuelve en el servidor. */
+export interface ConsultaMantenimientos {
+  page?: number;
+  pageSize?: number;
+  /** fecha (programada) | ejecucion | estado | tipo | maquina | agencia | tecnico. Sin él: vencidos, pendientes, ejecutados. */
+  sortField?: string | null;
+  sortOrder?: OrdenDir;
+  search?: string;
   maquinariaId?: string;
   tecnicoId?: string;
   tipo?: string;
+  /** PENDIENTE | EN_PROCESO | FINALIZADO */
   estado?: string;
   agenciaId?: string;
+  regionId?: string;
+  clienteId?: string;
   soloNoAtendidos?: boolean;
-  page?: number;
-  pageSize?: number;
+  /** AAAA-MM-DD o ISO (por fecha programada). */
+  fechaDesde?: string;
+  fechaHasta?: string;
+  incluirResumen?: boolean;
+}
+
+export interface ResumenMantenimientos {
+  vencidos: number;
+  pendientes: number;
+  ejecutados: number;
+  total: number;
+}
+
+export interface RespuestaMantenimientosPagina {
+  pagina: PaginaServidor<Mantenimiento>;
+  resumen?: ResumenMantenimientos;
 }
 
 /** Programación de un mantenimiento (POST /maquinaria/mantenimientos/registrar). */
@@ -95,25 +121,41 @@ export class MantenimientoService {
   }
 
   /**
-   * Lista de mantenimientos. El backend ya los devuelve ordenados (vencidos primero): NO se reordenan en el cliente.
+   * Una página de mantenimientos con orden, búsqueda y filtros en el servidor. Sin `sortField` el backend los
+   * agrupa (vencidos, pendientes, ejecutados): NO se reordenan en el cliente.
+   * NO toca `mantenimientosSubject` y propaga los errores (la pantalla muestra "Reintentar").
    */
-  getMantenimientosPagina(filtro: MantenimientoFiltro = {}): Observable<PaginaResultado<Mantenimiento>> {
-    return this.http.post<any>(apiUrl('/maquinaria/mantenimientos/list'), { pageSize: 200, ...filtro }).pipe(
+  getMantenimientosPagina(consulta: ConsultaMantenimientos = {}): Observable<RespuestaMantenimientosPagina> {
+    const body: Record<string, unknown> = {};
+    const c = consulta;
+    body['page'] = c.page || 1;
+    body['pageSize'] = Math.min(c.pageSize || PAGE_SIZE_TABLA, PAGE_SIZE_MAX);
+    if (c.sortField) { body['sortField'] = c.sortField; body['sortOrder'] = c.sortOrder || 'desc'; }
+    const texto = (c.search || '').trim();
+    if (texto.length >= BUSQUEDA_MIN_CARACTERES) body['search'] = texto;
+    const claves: (keyof ConsultaMantenimientos)[] = ['maquinariaId', 'tecnicoId', 'tipo', 'estado', 'agenciaId', 'regionId', 'clienteId', 'fechaDesde', 'fechaHasta'];
+    for (const k of claves) {
+      const v = c[k];
+      if (v !== undefined && v !== null && v !== '') body[k] = v;
+    }
+    if (c.soloNoAtendidos) body['soloNoAtendidos'] = true;
+    if (c.incluirResumen) body['incluirResumen'] = true;
+
+    return this.http.post<any>(apiUrl('/maquinaria/mantenimientos/list'), body).pipe(
       map(res => {
-        const rawItems = Array.isArray(res) ? res : (res?.data || []);
+        const pagina = normalizarPagina<any>(res, body['page'] as number, body['pageSize'] as number);
         return {
-          data: rawItems.map((item: any) => this.mapBackendMantenimiento(item)) as Mantenimiento[],
-          total: Number(res?.total ?? rawItems.length),
-          page: Number(res?.page ?? 1),
-          pageSize: Number(res?.pageSize ?? rawItems.length),
+          pagina: { ...pagina, items: pagina.items.map((item: any) => this.mapBackendMantenimiento(item)) as Mantenimiento[] },
+          resumen: res?.resumen as ResumenMantenimientos | undefined,
         };
-      })
+      }),
     );
   }
 
-  getMantenimientos(dto?: MantenimientoFiltro): Observable<Mantenimiento[]> {
-    return this.getMantenimientosPagina(dto || {}).pipe(
-      map(p => p.data),
+  /** Lista plana (hasta 100, el máximo por petición) para pantallas que aún no paginan. Ante un error conserva lo último. */
+  getMantenimientos(dto: ConsultaMantenimientos = {}): Observable<Mantenimiento[]> {
+    return this.getMantenimientosPagina({ ...dto, pageSize: PAGE_SIZE_MAX }).pipe(
+      map(r => r.pagina.items),
       tap(items => this.mantenimientosSubject.next(items)),
       catchError(() => of(this.mantenimientosSubject.value))
     );

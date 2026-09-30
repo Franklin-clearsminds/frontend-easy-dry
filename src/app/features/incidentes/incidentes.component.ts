@@ -1,32 +1,37 @@
-import { MemoLista } from '../../core/utils/memo-lista';
-import { Component, OnInit, ViewChild, inject, Input } from '@angular/core';
+import { Component, OnDestroy, OnInit, ViewChild, inject, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LucideAngularModule } from 'lucide-angular';
-import { IncidenteService } from '../../core/services/incidente.service';
+import { Subject, Subscription, debounceTime, distinctUntilChanged, map, tap } from 'rxjs';
+import { ConsultaIncidentes, IncidenteService, ResumenIncidentes } from '../../core/services/incidente.service';
 import { MaquinariaService } from '../../core/services/maquinaria.service';
 import { AuthService } from '../../core/services/auth.service';
 import { Incidente, Maquinaria } from '../../core/models';
 import { ModalComponent } from '../../shared/components/modal/modal.component';
 import { ToastService } from '../../shared/services/toast.service';
-import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
+import { InfiniteScrollComponent } from '../../shared/components/infinite-scroll/infinite-scroll.component';
+import { ListaInfinita } from '../../core/utils/lista-infinita';
+import { BUSQUEDA_DEBOUNCE_MS, BUSQUEDA_MIN_CARACTERES, PAGE_SIZE_INFINITO } from '../../core/config/paginacion';
 import { FilterBarComponent, FilterState } from '../../shared/components/filter-bar/filter-bar.component';
 import { EvidenciaGaleriaComponent } from '../../shared/components/evidencia-galeria/evidencia-galeria.component';
-import { resolverRangoFechas, soloFecha } from '../../core/utils/fecha-rango';
+import { resolverRangoFechas } from '../../core/utils/fecha-rango';
 import { SucursalService } from '../../core/services/sucursal.service';
+import { Sucursal } from '../../core/models';
 import { fechaHoraLocal } from '../../core/utils/evidencia-maquinaria';
 import {
-  esOperadorMaquina, puedeGestionarMaquina, puedeTrabajarOrden,
+  puedeGestionarMaquina, puedeReportarIncidente, puedeResolverIncidentes, puedeVerMaquinaria,
 } from '../../core/utils/maquinaria-permisos';
 import { TrabajoAccionesComponent } from '../maquinaria/trabajo-acciones/trabajo-acciones.component';
 import { MaquinariaDetalleModalComponent } from '../maquinaria/maquinaria-detalle-modal/maquinaria-detalle-modal.component';
+import { SkeletonLoaderComponent } from '../../shared/components/skeleton-loader/skeleton-loader.component';
+import { badgeClase, BADGE_NO_ATENDIDO } from '../../core/utils/badges';
 
 @Component({
   selector: 'app-incidentes',
   standalone: true,
   imports: [
-    CommonModule, FormsModule, LucideAngularModule, ModalComponent, PaginationComponent, FilterBarComponent,
-    EvidenciaGaleriaComponent, TrabajoAccionesComponent, MaquinariaDetalleModalComponent,
+    CommonModule, FormsModule, LucideAngularModule, ModalComponent, InfiniteScrollComponent, FilterBarComponent,
+    EvidenciaGaleriaComponent, TrabajoAccionesComponent, MaquinariaDetalleModalComponent, SkeletonLoaderComponent,
   ],
   template: `
     <div class="space-y-6 animate-fade-in">
@@ -36,7 +41,7 @@ import { MaquinariaDetalleModalComponent } from '../maquinaria/maquinaria-detall
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-100 shadow-easydry">
           <div>
             <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-rose-100 text-rose-800 text-xs font-bold mb-2">
-              <i-lucide name="alert-triangle" class="w-3.5 h-3.5"></i-lucide>
+              <i-lucide name="alert-triangle" class="w-3.5 h-3.5" aria-hidden="true"></i-lucide>
               <span>Gestión Integral de Desperfectos, Multimedia y Reparaciones</span>
             </div>
             <h1 class="text-2xl font-extrabold text-slate-900 font-outfit">Control de Fallas y Reparaciones Técnicas</h1>
@@ -54,41 +59,52 @@ import { MaquinariaDetalleModalComponent } from '../maquinaria/maquinaria-detall
         [showBahia]="false"
         [showEstado]="true"
         [showBusqueda]="true"
-        [placeholderBusqueda]="'Buscar por máquina, código o prioridad...'"
+        [placeholderBusqueda]="'Buscar por máquina, falla, reportante o técnico...'"
         [showCliente]="true"
         [showFechas]="true"
         [listaEstados]="['Todos', 'Pendiente', 'En Solución', 'Solucionado', 'Cancelado']"
         (filterChange)="aplicarNuevosFiltros($event)">
         <label filter-actions class="inline-flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
-          <input type="checkbox" [(ngModel)]="soloNoAtendidas" (ngModelChange)="cargar()" class="w-4 h-4 accent-rose-600">
+          <input type="checkbox" [(ngModel)]="soloNoAtendidas" (ngModelChange)="reiniciar()" class="w-4 h-4 accent-rose-600">
           Solo no atendidas
         </label>
         @if (puedeReportar) {
           <button filter-actions
             (click)="abrirReportar()"
-            class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
-            <i-lucide name="plus" class="w-4 h-4"></i-lucide>
+            class="btn btn-cta">
+            <i-lucide name="plus" class="w-4 h-4" aria-hidden="true"></i-lucide>
             <span class="hidden sm:inline">Reportar Nuevo Fallo</span>
             <span class="sm:hidden">Reportar Fallo</span>
           </button>
         }
       </app-filter-bar>
+      @if (busquedaCorta) {
+        <p class="-mt-3 px-2 text-[11px] font-semibold text-slate-500" role="status">Escribe al menos {{ minBusqueda }} letras para buscar.</p>
+      }
 
       @if (totalNoAtendidas > 0) {
         <div class="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs font-bold text-rose-800 flex items-center gap-2">
-          <i-lucide name="alert-circle" class="w-4 h-4"></i-lucide>
+          <i-lucide name="alert-circle" class="w-4 h-4" aria-hidden="true"></i-lucide>
           {{ totalNoAtendidas }} incidencia(s) no atendida(s): aún no tienen técnico asignado.
         </div>
       }
 
-      @if (error) {
-        <div class="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs font-semibold text-rose-700">{{ error }}</div>
+      @if (lista.error && lista.items.length === 0) {
+        <div role="alert" class="flex flex-col items-center gap-3 text-center py-6">
+          <div class="estado-error">{{ lista.error }}</div>
+          <button type="button" class="btn btn-secondary btn-sm" (click)="reiniciar()">Reintentar</button>
+        </div>
+      } @else if (!lista.inicializada) {
+        <div role="status" aria-live="polite">
+          <span class="sr-only">Cargando incidencias…</span>
+          <app-skeleton-loader type="cards"></app-skeleton-loader>
+        </div>
       }
 
       <!-- Tarjetas de incidencias (orden del backend: no atendidas, en proceso, cerradas) -->
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-stretch">
-        @for (inc of paginatedIncidentes; track inc.id) {
-          <div class="rounded-2xl border shadow-easydry p-5 flex flex-col h-full min-h-[280px] hover:shadow-easydry-hover transition-all"
+        @for (inc of lista.items; track inc.id) {
+          <div class="rounded-2xl border shadow-easydry p-5 flex flex-col h-full min-h-[280px] hover:shadow-easydry-hover transition-shadow"
             [ngClass]="inc.noAtendida ? 'bg-rose-50/70 border-rose-300' : 'bg-white border-slate-100'">
 
             <div class="flex-1 min-w-0">
@@ -98,51 +114,48 @@ import { MaquinariaDetalleModalComponent } from '../maquinaria/maquinaria-detall
                 </span>
                 <div class="flex items-center gap-1.5 shrink-0">
                   @if (inc.noAtendida) {
-                    <span class="px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-rose-600 text-white">No atendida</span>
+                    <span [class]="badgeNoAtendido">No atendida</span>
                   }
-                  <span class="px-2.5 py-1 rounded-full text-[11px] font-extrabold"
-                    [ngClass]="{
-                      'bg-rose-100 text-rose-800 border border-rose-300': inc.estado === 'Pendiente',
-                      'bg-amber-100 text-amber-800 border border-amber-300': inc.estado === 'En Solución',
-                      'bg-easydry-green/20 text-easydry-green-dark border border-easydry-green/40': inc.estado === 'Solucionado',
-                      'bg-slate-200 text-slate-600 border border-slate-300': inc.estado === 'Cancelado'
-                    }">
-                    {{ inc.estado }}
-                  </span>
+                  <span [class]="badgeClase('incidente', inc.estado)">{{ inc.estado }}</span>
                 </div>
               </div>
 
               <h3 class="font-bold text-base font-outfit leading-snug line-clamp-2" [ngClass]="inc.noAtendida ? 'text-rose-800' : 'text-slate-900'">{{ inc.maquina }}</h3>
-              <p class="text-xs text-slate-500 font-semibold mt-0.5 truncate">{{ inc.agencia }} • {{ inc.fecha }}</p>
+              <p class="text-xs font-semibold mt-0.5 truncate" [ngClass]="inc.esPulidorMovil ? 'text-indigo-600' : 'text-slate-500'">
+                @if (inc.esPulidorMovil) {
+                  <i-lucide name="truck" class="w-3 h-3 inline-block align-text-top mr-0.5" aria-hidden="true"></i-lucide>
+                }
+                {{ inc.agencia }} • {{ inc.fecha }}
+              </p>
 
               <div class="mt-3 p-3 bg-white/70 rounded-xl border border-slate-100 space-y-1.5 text-xs">
                 <div class="flex items-center justify-between gap-1.5">
-                  <div class="flex items-center gap-1.5 text-rose-700 font-bold text-[11px] min-w-0">
-                    <i-lucide name="alert-circle" class="w-3.5 h-3.5 shrink-0"></i-lucide>
+                  <div class="flex items-center gap-1.5 text-rose-700 font-bold text-xs min-w-0">
+                    <i-lucide name="alert-circle" class="w-3.5 h-3.5 shrink-0" aria-hidden="true"></i-lucide>
                     <span class="truncate">Falla: {{ inc.tipo }}</span>
                   </div>
-                  <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold shrink-0" [ngClass]="claseGravedad(inc.gravedadRaw)">{{ inc.prioridad }}</span>
+                  <span class="shrink-0" [class]="badgeClase('gravedad', inc.gravedadRaw)">{{ inc.prioridad }}</span>
                 </div>
                 <p class="text-slate-700 font-medium line-clamp-2">{{ inc.descripcion }}</p>
-                <p class="text-slate-400 text-[10px] truncate">Reportado por: <strong class="text-slate-600">{{ inc.reportadoPor }}</strong></p>
+                <p class="text-slate-500 text-xs truncate">Reportado por: <strong class="text-slate-600">{{ inc.reportadoPor }}</strong></p>
                 @if (inc.tecnicoAsignadoId) {
-                  <p class="text-violet-700 text-[10px] font-bold mt-1 truncate">Asignado a: {{ inc.tecnicoAsignadoNombre }}</p>
+                  <p class="text-violet-700 text-xs font-bold mt-1 truncate">Asignado a: {{ inc.tecnicoAsignadoNombre }}</p>
                 } @else if (inc.estadoRaw === 'ABIERTO') {
-                  <p class="text-rose-700 text-[10px] font-bold mt-1">Sin asignar — requiere coordinación de mantenimiento</p>
+                  <p class="text-rose-700 text-xs font-bold mt-1">Sin asignar — requiere coordinación de mantenimiento</p>
                 }
               </div>
 
               @if (inc.evidencias && inc.evidencias.length > 0) {
                 <div class="mt-2.5 flex items-center gap-2 flex-wrap">
-                  <span class="text-[10px] font-bold text-slate-400 uppercase">Evidencias:</span>
-                  <span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[10px] font-bold border border-slate-200">{{ inc.evidencias.length }} archivo(s)</span>
+                  <span class="text-[11px] font-bold text-slate-500 uppercase">Evidencias:</span>
+                  <span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[11px] font-bold border border-slate-200">{{ inc.evidencias.length }} archivo(s)</span>
                 </div>
               }
 
               @if (inc.estado === 'Solucionado') {
                 <div class="mt-3 p-3 bg-easydry-green/10 border border-easydry-green/30 rounded-xl text-xs space-y-1">
-                  <span class="font-bold text-easydry-green-dark uppercase text-[10px] flex items-center gap-1">
-                    <i-lucide name="check-circle-2" class="w-3.5 h-3.5"></i-lucide> Equipo reparado
+                  <span class="font-bold text-easydry-green-text uppercase text-[11px] flex items-center gap-1">
+                    <i-lucide name="check-circle-2" class="w-3.5 h-3.5" aria-hidden="true"></i-lucide> Equipo reparado
                   </span>
                   <p class="text-slate-800 font-medium line-clamp-2">{{ inc.observacionSolucion }}</p>
                 </div>
@@ -151,68 +164,67 @@ import { MaquinariaDetalleModalComponent } from '../maquinaria/maquinaria-detall
 
             <!-- Acciones (según rol; el backend valida de nuevo) -->
             <div class="pt-3 mt-auto border-t border-slate-100 flex flex-col gap-2">
-              <button (click)="abrirDetalle(inc)"
-                class="w-full py-2 px-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer">
-                <i-lucide name="eye" class="w-4 h-4 text-easydry-blue shrink-0"></i-lucide>
+              <button type="button" (click)="abrirDetalle(inc)"
+                class="btn btn-secondary w-full">
+                <i-lucide name="eye" class="w-4 h-4 text-easydry-blue shrink-0" aria-hidden="true"></i-lucide>
                 <span>Ver ficha & evidencias</span>
               </button>
 
               @if (inc.estadoRaw !== 'RESUELTO' && inc.estadoRaw !== 'CANCELADO') {
                 @if (puedeAsignar) {
-                  <button (click)="acciones.asignarIncidente(inc)"
-                    class="w-full py-2 px-2 bg-violet-600 hover:bg-violet-700 text-white font-extrabold rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5 shadow-xs cursor-pointer">
-                    <i-lucide name="user-cog" class="w-4 h-4 shrink-0"></i-lucide>
+                  <button type="button" (click)="acciones.asignarIncidente(inc)"
+                    class="btn btn-secondary w-full">
+                    <i-lucide name="user-cog" class="w-4 h-4 shrink-0" aria-hidden="true"></i-lucide>
                     <span>{{ inc.tecnicoAsignadoId ? 'Reasignar' : 'Asignar' }}</span>
                   </button>
                 }
                 @if (puedeResolver(inc)) {
-                  <button (click)="acciones.resolverIncidente(inc)"
-                    class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center justify-center gap-2 cursor-pointer">
-                    <i-lucide name="wrench" class="w-4 h-4 shrink-0"></i-lucide>
+                  <button type="button" (click)="acciones.resolverIncidente(inc)"
+                    class="btn btn-primary">
+                    <i-lucide name="wrench" class="w-4 h-4 shrink-0" aria-hidden="true"></i-lucide>
                     <span>Resolver incidencia</span>
                   </button>
                 }
               }
               <div class="flex gap-2">
                 @if (puedeEditar(inc)) {
-                  <button (click)="acciones.editarIncidente(inc)"
-                    class="flex-1 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold rounded-xl text-[11px] cursor-pointer">Editar</button>
+                  <button type="button" (click)="acciones.editarIncidente(inc)"
+                    class="btn btn-secondary btn-sm flex-1">Editar</button>
                 }
-                <button (click)="acciones.agregarEvidencia('INCIDENTE', inc)"
-                  class="flex-1 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold rounded-xl text-[11px] cursor-pointer">+ Evidencia</button>
+                <button type="button" (click)="acciones.agregarEvidencia('INCIDENTE', inc)"
+                  class="btn btn-secondary btn-sm flex-1">+ Evidencia</button>
               </div>
             </div>
           </div>
         }
       </div>
 
-      @if (!cargando && incidentesFiltrados.length === 0) {
-        <p class="text-center text-sm text-slate-400 font-semibold py-8">No hay incidencias para los filtros seleccionados.</p>
+      @if (lista.inicializada && !lista.error && lista.items.length === 0) {
+        <p class="estado-vacio">{{ tituloVacio }}</p>
+      } @else if (lista.items.length > 0) {
+        <app-infinite-scroll
+          [hasMore]="lista.hasMore"
+          [loading]="lista.cargando"
+          [error]="lista.error"
+          [total]="lista.total"
+          (cargarMas)="lista.siguiente()"
+          (reintentar)="lista.reintentar()">
+        </app-infinite-scroll>
       }
 
-      <div class="mt-6">
-        <app-pagination
-          [totalItems]="incidentesFiltrados.length"
-          [currentPage]="currentPage"
-          [pageSize]="pageSize"
-          (pageChange)="onPageChange($event)"
-          (pageSizeChange)="onPageSizeChange($event)">
-        </app-pagination>
-      </div>
-
       <!-- Elegir máquina para reportar (solo operadores, sobre máquinas asignadas a ellos) -->
-      <app-modal [isOpen]="modalElegirOpen" title="Reportar incidencia" icon="alert-triangle" (close)="modalElegirOpen = false">
+      <app-modal [isOpen]="modalElegirOpen" title="Reportar incidencia" icon="alert-triangle" size="sm" size="sm" (close)="modalElegirOpen = false">
         <div class="space-y-3">
-          <label class="block text-xs font-bold text-slate-700 uppercase">Equipo afectado (asignado a ti)</label>
-          <select [(ngModel)]="maquinaElegidaId" name="maq-elegida" class="w-full p-2.5 border rounded-xl text-sm font-bold bg-white">
+          <label for="inc-maq-elegida" class="field-label">Equipo afectado (asignado a ti)</label>
+          <select id="inc-maq-elegida" [(ngModel)]="maquinaElegidaId" name="maq-elegida" class="field select-chevron font-bold">
             @for (m of misMaquinas; track m.id) {
               <option [value]="m.id">{{ m.codigo }} — {{ m.nombre }} ({{ m.agencia }})</option>
             }
           </select>
         </div>
         <div modal-footer>
-          <button (click)="modalElegirOpen = false" class="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs cursor-pointer">Cancelar</button>
-          <button (click)="continuarReporte()" class="px-4 py-2 bg-easydry-green text-slate-950 font-extrabold rounded-xl text-xs cursor-pointer">Continuar</button>
+          <button type="button" (click)="modalElegirOpen = false" class="btn btn-secondary w-full sm:w-auto">Cancelar</button>
+          <button type="button" (click)="continuarReporte()" class="btn btn-primary w-full sm:w-auto">Continuar</button>
         </div>
       </app-modal>
 
@@ -221,27 +233,28 @@ import { MaquinariaDetalleModalComponent } from '../maquinaria/maquinaria-detall
         [isOpen]="modalDetalleOpen"
         [title]="'Ficha de auditoría técnica: ' + (incidenteDetalle?.codigoIncidente || '')"
         icon="clipboard-list"
+        size="xl"
         (close)="modalDetalleOpen = false">
         @if (incidenteDetalle; as d) {
           <div class="space-y-5">
             <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
-                <span class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 font-mono">{{ d.codigoIncidente }}</span>
+                <span class="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 font-mono">{{ d.codigoIncidente }}</span>
                 <h3 class="text-lg font-bold text-slate-900">{{ d.maquina }}</h3>
-                <p class="text-xs text-slate-500">{{ d.agencia }} • Reportado: {{ hora(d.fechaReporteIso) }}</p>
+                <p class="text-xs" [ngClass]="d.esPulidorMovil ? 'text-indigo-600 font-semibold' : 'text-slate-500'">{{ d.agencia }} • Reportado: {{ hora(d.fechaReporteIso) }}</p>
               </div>
               <div class="flex items-center gap-2 flex-wrap">
-                @if (d.noAtendida) { <span class="px-3 py-1.5 rounded-xl text-xs font-extrabold bg-rose-600 text-white">No atendida</span> }
-                <span class="px-3 py-1.5 rounded-xl text-xs font-extrabold" [ngClass]="claseGravedad(d.gravedadRaw)">{{ d.prioridad }}</span>
-                <span class="px-3 py-1.5 rounded-xl text-xs font-extrabold bg-slate-100 text-slate-700 border border-slate-200">{{ d.estado }}</span>
+                @if (d.noAtendida) { <span [class]="badgeNoAtendido">No atendida</span> }
+                <span [class]="badgeClase('gravedad', d.gravedadRaw)">{{ d.prioridad }}</span>
+                <span [class]="badgeClase('incidente', d.estado)">{{ d.estado }}</span>
               </div>
             </div>
 
             <div class="p-4 rounded-2xl border border-rose-200 bg-rose-50/30 space-y-2 text-xs">
               <h4 class="font-bold text-rose-900 uppercase flex items-center gap-1.5">
-                <i-lucide name="alert-triangle" class="w-4 h-4 text-rose-600"></i-lucide> {{ d.tipo }}
+                <i-lucide name="alert-triangle" class="w-4 h-4 text-rose-600" aria-hidden="true"></i-lucide> {{ d.tipo }}
               </h4>
-              <p class="text-slate-800 font-medium">{{ d.descripcion }}</p>
+              <p class="text-slate-800 font-medium break-words">{{ d.descripcion }}</p>
               <p class="text-slate-500">Reportado por <strong>{{ d.reportadoPor }}</strong> · Técnico: <strong>{{ d.tecnicoAsignadoId ? d.tecnicoAsignadoNombre : 'Sin asignar' }}</strong></p>
               @if (d.destinoTallerNombre) { <p class="text-slate-500">Taller destino: <strong>{{ d.destinoTallerNombre }}</strong></p> }
             </div>
@@ -249,9 +262,9 @@ import { MaquinariaDetalleModalComponent } from '../maquinaria/maquinaria-detall
             @if (d.observacionSolucion) {
               <div class="p-4 rounded-2xl border border-emerald-200 bg-emerald-50/30 space-y-1 text-xs">
                 <h4 class="font-bold text-emerald-900 uppercase flex items-center gap-1.5">
-                  <i-lucide name="check-circle-2" class="w-4 h-4 text-emerald-600"></i-lucide> Resolución
+                  <i-lucide name="check-circle-2" class="w-4 h-4 text-emerald-600" aria-hidden="true"></i-lucide> Resolución
                 </h4>
-                <p class="text-slate-800 font-medium">{{ d.observacionSolucion }}</p>
+                <p class="text-slate-800 font-medium break-words">{{ d.observacionSolucion }}</p>
                 @if (d.solucionadoPor) { <p class="text-slate-500">Por {{ d.solucionadoPor }} ({{ d.fechaSolucion }})</p> }
               </div>
             }
@@ -264,22 +277,21 @@ import { MaquinariaDetalleModalComponent } from '../maquinaria/maquinaria-detall
         }
         <div modal-footer>
           @if (incidenteDetalle?.maquinariaId) {
-            <button (click)="verMaquina(incidenteDetalle!)" class="px-4 py-2 bg-easydry-blue/10 text-easydry-blue font-bold rounded-xl text-xs cursor-pointer">Ver máquina y trazabilidad</button>
+            <button type="button" (click)="verMaquina(incidenteDetalle!)" class="btn btn-secondary w-full sm:w-auto">Ver máquina y trazabilidad</button>
           }
-          <button (click)="modalDetalleOpen = false" class="px-5 py-2.5 bg-slate-200 text-slate-800 font-bold rounded-xl text-xs cursor-pointer">Cerrar ficha</button>
+          <button type="button" (click)="modalDetalleOpen = false" class="btn btn-secondary w-full sm:w-auto">Cerrar ficha</button>
         </div>
       </app-modal>
 
       <!-- Detalle de máquina reutilizable + diálogos de trabajo -->
       <app-maquinaria-detalle-modal [maquinariaId]="maquinaDetalleId" pestanaInicial="incidencias"
-        (cerrar)="maquinaDetalleId = null" (cambio)="cargar()"></app-maquinaria-detalle-modal>
+        (cerrar)="maquinaDetalleId = null" (cambio)="refrescar()"></app-maquinaria-detalle-modal>
       <app-trabajo-acciones #acciones (hecho)="onAccion()"></app-trabajo-acciones>
     </div>
   `
 })
-export class IncidentesComponent implements OnInit {
+export class IncidentesComponent implements OnInit, OnDestroy {
   @Input() hideHeader = false;
-  incidentes: Incidente[] = [];
   misMaquinas: Maquinaria[] = [];
 
   incidenteDetalle?: Incidente;
@@ -288,11 +300,29 @@ export class IncidentesComponent implements OnInit {
   maquinaElegidaId = '';
   maquinaDetalleId: string | number | null = null;
 
-  currentPage = 1;
-  pageSize = 6;
-  cargando = false;
-  error = '';
   soloNoAtendidas = false;
+
+  // ── Filtros, búsqueda y scroll infinito: todo en el SERVIDOR ──
+  readonly minBusqueda = BUSQUEDA_MIN_CARACTERES;
+  /** true cuando el usuario escribió 1 letra (se pide un mínimo de 2 antes de consultar). */
+  busquedaCorta = false;
+  /** Texto que realmente se envía al servidor (con mínimo de letras y espera de 300 ms). */
+  private busquedaAplicada = '';
+  private readonly busqueda$ = new Subject<string>();
+  private suscripcionBusqueda?: Subscription;
+  /** Contadores de los filtros vigentes (menos el de estado); los da el servidor, no lo cargado. */
+  resumen: ResumenIncidentes | null = null;
+
+  readonly lista = new ListaInfinita<Incidente>(
+    (page, size) => this.incidenteService
+      .getIncidentesPagina({ ...this.consulta(), page, pageSize: size, incluirResumen: page === 1 })
+      .pipe(
+        tap((r) => { if (r.resumen) this.resumen = r.resumen; }),
+        map((r) => r.pagina),
+      ),
+    PAGE_SIZE_INFINITO,
+    (i) => i.id,
+  );
 
   filtrosGlobales: FilterState = { sucursal: 'Todas', operador: 'Todos', bahia: 'Todas', estado: 'Todos', fecha: 'Hoy', marca: 'Todas' };
 
@@ -301,15 +331,23 @@ export class IncidentesComponent implements OnInit {
   private authService = inject(AuthService);
   private toastService = inject(ToastService);
   private sucursalService = inject(SucursalService);
+  private sucursales: Sucursal[] = [];
 
   @ViewChild('acciones') acciones!: TrabajoAccionesComponent;
 
-  private get rol(): string { return String(this.authService.getCurrentUser()?.role || ''); }
   private get miId(): string { return String(this.authService.getCurrentUser()?.id || ''); }
 
   ngOnInit(): void {
-    this.cargar();
-    if (esOperadorMaquina(this.rol)) {
+    this.suscripcionBusqueda = this.busqueda$
+      .pipe(debounceTime(BUSQUEDA_DEBOUNCE_MS), distinctUntilChanged())
+      .subscribe((texto) => {
+        this.busquedaAplicada = texto;
+        this.reiniciar();
+      });
+    // El filter-bar entrega nombres de sucursal/marca y el servidor pide ids: se necesitan las sucursales cargadas.
+    this.sucursalService.getSucursales().subscribe((list) => { this.sucursales = list; });
+    this.reiniciar();
+    if (puedeReportarIncidente(this.authService) && puedeVerMaquinaria(this.authService)) {
       this.maquinariaService.getMaquinaria().subscribe(list => {
         this.misMaquinas = list.filter(m => m.activa !== false && String(m.operadorAsignadoId || '') === this.miId);
         this.maquinaElegidaId = this.misMaquinas[0] ? String(this.misMaquinas[0].id) : '';
@@ -317,105 +355,125 @@ export class IncidentesComponent implements OnInit {
     }
   }
 
-  /** Carga las incidencias tal cual las ordena el backend (no atendidas primero): no se reordenan. */
-  cargar(): void {
-    this.cargando = true;
-    this.error = '';
-    this.incidenteService.getIncidentesPagina({ soloNoAtendidas: this.soloNoAtendidas || undefined }).subscribe({
-      next: p => {
-        this.incidentes = p.data;
-        this.cargando = false;
-      },
-      error: err => {
-        this.cargando = false;
-        this.error = err?.error?.message ? String(err.error.message) : 'No se pudieron cargar las incidencias.';
-      },
-    });
+  ngOnDestroy(): void {
+    this.suscripcionBusqueda?.unsubscribe();
+    this.lista.destruir();
+  }
+
+  /** Vuelve al primer bloque con los filtros vigentes (y vuelve a pedir los contadores). */
+  reiniciar(): void {
+    this.lista.reiniciar();
+  }
+
+  /** Tras una acción (asignar, resolver, editar, reportar…): reinicia la lista y actualiza los contadores. */
+  refrescar(): void {
+    this.reiniciar();
   }
 
   onAccion(): void {
-    this.cargar();
+    this.refrescar();
   }
 
   aplicarNuevosFiltros(filtros: FilterState) {
+    const previo = this.filtrosGlobales;
     this.filtrosGlobales = filtros;
-    this.currentPage = 1;
+    const busq = (filtros.busqueda ?? '').trim();
+    this.busquedaCorta = busq.length > 0 && busq.length < BUSQUEDA_MIN_CARACTERES;
+
+    if (this.huellaFiltros(previo) !== this.huellaFiltros(filtros)) {
+      // Cambió un filtro (no el texto): se consulta ya. Si el texto es de una sola letra se conserva la búsqueda anterior.
+      if (!this.busquedaCorta) this.busquedaAplicada = busq;
+      this.reiniciar();
+      return;
+    }
+    // Solo cambió el texto: espera 300 ms tras la última tecla y exige mínimo 2 letras (o vacío para quitar el filtro).
+    if (!this.busquedaCorta) this.busqueda$.next(busq);
+  }
+
+  private huellaFiltros(f: FilterState | undefined): string {
+    if (!f) return '';
+    const { busqueda, ...resto } = f;
+    return JSON.stringify(resto);
+  }
+
+  private neutro(v: string | undefined | null, ...neutros: string[]): string {
+    const t = (v ?? '').trim();
+    return !t || neutros.includes(t) ? '' : t;
+  }
+
+  /** Estado elegido en el filter-bar → valor del servidor. */
+  private estadoServidor(): string | undefined {
+    switch (this.neutro(this.filtrosGlobales.estado, 'Todos')) {
+      case 'Pendiente': return 'ABIERTO';
+      case 'En Solución': return 'EN_PROCESO';
+      case 'Solucionado': return 'RESUELTO';
+      case 'Cancelado': return 'CANCELADO';
+      default: return undefined;
+    }
+  }
+
+  /** Id de la sucursal elegida ('' si no hay filtro; un id imposible si el nombre no existe, para no mostrar todo). */
+  private agenciaIdFiltro(): string {
+    const nombre = this.neutro(this.filtrosGlobales.sucursal, 'Todas', 'TODAS');
+    if (!nombre) return '';
+    const n = nombre.toLowerCase();
+    const suc = this.sucursales.find((s) => (s.nombre || '').toLowerCase() === n);
+    return suc ? String(suc.id) : '__sin_coincidencia__';
+  }
+
+  private clienteIdFiltro(): string {
+    const f = this.filtrosGlobales;
+    const nombre = this.neutro(f.cliente, 'Todas', 'TODAS') || this.neutro(f.marca, 'Todas', 'TODAS');
+    if (!nombre) return '';
+    const suc = this.sucursales.find((s) => (s.clienteNombre || s.marcaNombre) === nombre && (s.clienteId ?? s.marcaId) !== undefined);
+    const id = suc ? (suc.clienteId ?? suc.marcaId) : undefined;
+    return id !== undefined && id !== null ? String(id) : '__sin_coincidencia__';
+  }
+
+  /** Filtros vigentes para el servidor (sin página ni tamaño). El orden por grupos lo hace el servidor. */
+  private consulta(): ConsultaIncidentes {
+    const rango = resolverRangoFechas(this.filtrosGlobales);
+    return {
+      search: this.busquedaAplicada,
+      estado: this.estadoServidor(),
+      agenciaId: this.agenciaIdFiltro() || undefined,
+      clienteId: this.clienteIdFiltro() || undefined,
+      soloNoAtendidas: this.soloNoAtendidas || undefined,
+      fechaDesde: rango?.inicio,
+      fechaHasta: rango?.fin,
+    };
+  }
+
+  private get hayFiltrosActivos(): boolean {
+    const c = this.consulta();
+    return !!(c.search || c.estado || c.agenciaId || c.clienteId || c.soloNoAtendidas || c.fechaDesde);
+  }
+
+  get tituloVacio(): string {
+    return this.hayFiltrosActivos
+      ? 'No hay incidencias que coincidan con los filtros aplicados.'
+      : 'Aún no hay incidencias registradas.';
   }
 
   // ---- Permisos de UI (el backend valida siempre) ----
-  get puedeAsignar(): boolean { return puedeGestionarMaquina(this.rol); }
+  get puedeAsignar(): boolean { return puedeGestionarMaquina(this.authService); }
 
-  /** Reportar: solo pulidor/líder con máquinas asignadas. */
-  get puedeReportar(): boolean { return esOperadorMaquina(this.rol) && this.misMaquinas.length > 0; }
+  /** Reportar: con el permiso y con máquinas asignadas al usuario. */
+  get puedeReportar(): boolean { return puedeReportarIncidente(this.authService) && this.misMaquinas.length > 0; }
 
   puedeResolver(inc: Incidente): boolean {
-    if (!puedeTrabajarOrden(this.rol)) return false;
+    if (!puedeResolverIncidentes(this.authService)) return false;
     // El coordinador/admin puede resolver una no asignada (queda auto-asignado); el técnico solo la suya.
-    if (puedeGestionarMaquina(this.rol)) return !inc.tecnicoAsignadoId || String(inc.tecnicoAsignadoId) === this.miId;
+    if (puedeGestionarMaquina(this.authService)) return !inc.tecnicoAsignadoId || String(inc.tecnicoAsignadoId) === this.miId;
     return String(inc.tecnicoAsignadoId || '') === this.miId;
   }
 
   puedeEditar(inc: Incidente): boolean {
-    return puedeTrabajarOrden(this.rol) && (puedeGestionarMaquina(this.rol) || String(inc.tecnicoAsignadoId || '') === this.miId);
+    return puedeResolverIncidentes(this.authService) && (puedeGestionarMaquina(this.authService) || String(inc.tecnicoAsignadoId || '') === this.miId);
   }
 
-  get totalNoAtendidas(): number {
-    return this.incidentes.filter(i => i.noAtendida).length;
-  }
-
-  private readonly memoFiltrados = new MemoLista();
-
-  /** Se recalcula solo cuando cambian la lista o los filtros (antes se filtraba en cada revisión de pantalla). */
-  get incidentesFiltrados() {
-    // El filtro por marca depende de las sucursales, que cargan aparte: en ese caso no se memoriza.
-    const marcaActiva = !!this.filtrosGlobales.marca && this.filtrosGlobales.marca !== 'Todas';
-    if (marcaActiva) return this.calcularIncidentesFiltrados();
-    return this.memoFiltrados.obtener(
-      [this.incidentes, this.incidentes.length, JSON.stringify(this.filtrosGlobales)],
-      () => this.calcularIncidentesFiltrados(),
-    );
-  }
-
-  private calcularIncidentesFiltrados() {
-    let resultados = this.incidentes;
-
-    if (this.filtrosGlobales.estado !== 'Todos') {
-      resultados = resultados.filter(inc => inc.estado === this.filtrosGlobales.estado);
-    }
-    if (this.filtrosGlobales.sucursal !== 'Todas') {
-      resultados = resultados.filter(inc => inc.agencia === this.filtrosGlobales.sucursal);
-    }
-    if (this.filtrosGlobales.marca && this.filtrosGlobales.marca !== 'Todas') {
-      resultados = resultados.filter(item => {
-        const suc = this.sucursalService.getSucursalPorNombre(item.agencia);
-        return suc?.marcaNombre === this.filtrosGlobales.marca;
-      });
-    }
-
-    const rango = resolverRangoFechas(this.filtrosGlobales);
-    if (rango) {
-      resultados = resultados.filter(inc => {
-        const d = soloFecha(inc.fecha);
-        return d >= rango.inicio && d <= rango.fin;
-      });
-    }
-
-    return resultados;
-  }
-
-  get paginatedIncidentes() {
-    const start = (this.currentPage - 1) * this.pageSize;
-    return this.incidentesFiltrados.slice(start, start + this.pageSize);
-  }
-
-  onPageChange(page: number) {
-    this.currentPage = page;
-  }
-
-  onPageSizeChange(size: number) {
-    this.pageSize = size;
-    this.currentPage = 1;
-  }
+  /** Incidencias sin técnico asignado con los filtros vigentes (dato del servidor). */
+  get totalNoAtendidas(): number { return this.resumen?.noAtendidas ?? 0; }
 
   abrirReportar(): void {
     if (this.misMaquinas.length === 1) {
@@ -447,7 +505,6 @@ export class IncidentesComponent implements OnInit {
 
   hora(iso?: string | null): string { return fechaHoraLocal(iso); }
 
-  claseGravedad(g?: string): string {
-    return g === 'CRITICA' ? 'bg-rose-600 text-white' : g === 'ALTA' ? 'bg-orange-100 text-orange-800' : g === 'BAJA' ? 'bg-slate-100 text-slate-700' : 'bg-amber-100 text-amber-800';
-  }
+  readonly badgeClase = badgeClase;
+  readonly badgeNoAtendido = BADGE_NO_ATENDIDO;
 }

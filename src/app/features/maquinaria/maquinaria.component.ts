@@ -1,5 +1,4 @@
-import { MemoLista } from '../../core/utils/memo-lista';
-import { Component, OnInit, ViewChild, inject } from '@angular/core';
+import { Component, OnDestroy, OnInit, ViewChild, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LucideAngularModule } from 'lucide-angular';
@@ -11,21 +10,29 @@ import { Maquinaria, Sucursal, Bahia } from '../../core/models';
 import { puedeCrearMaquina, puedeGestionarMaquina } from '../../core/utils/maquinaria-permisos';
 import { ModalComponent } from '../../shared/components/modal/modal.component';
 import { ToastService } from '../../shared/services/toast.service';
-import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
+import { InfiniteScrollComponent } from '../../shared/components/infinite-scroll/infinite-scroll.component';
+import { Subject, Subscription } from 'rxjs';
+import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
+import { BUSQUEDA_DEBOUNCE_MS, BUSQUEDA_MIN_CARACTERES, PAGE_SIZE_INFINITO } from '../../core/config/paginacion';
+import { ListaInfinita } from '../../core/utils/lista-infinita';
+import { ConsultaMaquinaria } from '../../core/services/maquinaria.service';
 import { FilterBarComponent, FilterState } from '../../shared/components/filter-bar/filter-bar.component';
 import { StorageUploadService } from '../../core/services/storage-upload.service';
 import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
 import { MaquinariaDetalleModalComponent } from './maquinaria-detalle-modal/maquinaria-detalle-modal.component';
 import { MaquinaAccionesComponent } from './maquina-acciones/maquina-acciones.component';
 import { mensajeError } from './trabajo-acciones/trabajo-acciones.component';
+import { SkeletonLoaderComponent } from '../../shared/components/skeleton-loader/skeleton-loader.component';
+import { badgeClase, BADGE_NO_ATENDIDO } from '../../core/utils/badges';
+import { fechaProgramadaLocal, fechaProgramadaISO } from '../../core/utils/evidencia-maquinaria';
 
 @Component({
   selector: 'app-maquinaria',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, PaginationComponent, FilterBarComponent, ThumbSrcDirective, MaquinariaDetalleModalComponent, MaquinaAccionesComponent],
+  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, InfiniteScrollComponent, FilterBarComponent, ThumbSrcDirective, MaquinariaDetalleModalComponent, MaquinaAccionesComponent, SkeletonLoaderComponent],
   template: `
     <div class="space-y-6 animate-fade-in">
-      
+
       <!-- Header -->
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-100 shadow-easydry">
         <div>
@@ -35,8 +42,8 @@ import { mensajeError } from './trabajo-acciones/trabajo-acciones.component';
       </div>
 
       <!-- Global Filter Bar -->
-      <app-filter-bar 
-        [showSucursal]="canTransfer" 
+      <app-filter-bar
+        [showSucursal]="canTransfer"
         [showOperador]="false"
         [showBahia]="true"
         [showRegion]="true"
@@ -54,12 +61,12 @@ import { mensajeError } from './trabajo-acciones/trabajo-acciones.component';
         <div class="p-4 bg-gradient-to-r from-blue-50/70 via-indigo-50/50 to-white rounded-2xl border border-blue-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-fade-in shadow-2xs">
           <div class="flex items-center gap-3.5">
             <div class="w-10 h-10 rounded-xl bg-easydry-blue text-white flex items-center justify-center font-bold">
-              <i-lucide name="wrench" class="w-5 h-5"></i-lucide>
+              <i-lucide name="wrench" class="w-5 h-5" aria-hidden="true"></i-lucide>
             </div>
             <div>
               <div class="flex items-center gap-2">
                 <h4 class="font-extrabold text-slate-900 text-sm font-outfit">{{ filtrosGlobales.sucursal }} — {{ filtrosGlobales.bahia }}</h4>
-                <span class="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                <span class="badge-ok">
                   Estado: Activo & Operativo
                 </span>
               </div>
@@ -81,36 +88,40 @@ import { mensajeError } from './trabajo-acciones/trabajo-acciones.component';
         </div>
         @if (canCreate) {
           <button
+            type="button"
             (click)="abrirModalCrear()"
-            class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
-            <i-lucide name="plus" class="w-4 h-4"></i-lucide>
+            class="btn btn-cta">
+            <i-lucide name="plus" class="w-4 h-4" aria-hidden="true"></i-lucide>
             <span class="hidden sm:inline">Registrar Nuevo Activo</span>
             <span class="sm:hidden">Registrar Activo</span>
           </button>
         }
       </div>
 
+      @if (lista.cargando && lista.items.length === 0) {
+        <div role="status" aria-live="polite">
+          <span class="sr-only">Cargando maquinaria…</span>
+          <app-skeleton-loader type="cards"></app-skeleton-loader>
+        </div>
+      }
+
       <!-- Equipment Grid -->
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        @for (maq of paginatedMaquinaria; track maq.id) {
-          <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry overflow-hidden group hover:shadow-easydry-hover transition-all duration-300 flex flex-col justify-between">
-            
+        @for (maq of lista.items; track maq.id) {
+          <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry overflow-hidden group hover:shadow-easydry-hover transition-shadow duration-300 flex flex-col justify-between">
+
             <div>
               <div class="h-44 bg-slate-900 relative overflow-hidden">
-                <img loading="lazy" decoding="async" [appThumb]="urlMedia(maq.imagen)" [alt]="maq.nombre" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-90">
+                <img loading="lazy" decoding="async" [appThumb]="urlMedia(maq.imagen)" [alt]="'Foto de ' + maq.nombre" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-90">
                 <div class="absolute top-3 left-3 px-3 py-1 rounded-lg bg-easydry-blue/90 text-white text-xs font-mono font-bold backdrop-blur-xs">
                   {{ maq.codigo }}
                 </div>
 
                 <div class="absolute top-3 right-3">
-                  <span 
-                    class="px-3 py-1 rounded-full text-xs font-bold shadow-xs"
-                    [ngClass]="{
-                      'bg-easydry-green text-slate-950': maq.estado === 'Operativa',
-                      'bg-amber-400 text-slate-950': maq.estado === 'Mantenimiento',
-                      'bg-rose-500 text-white': maq.estado === 'Fuera de Servicio'
-                    }">
-                    {{ maq.activa === false ? 'De baja' : maq.estado }}
+                  <span class="inline-flex rounded-full bg-white shadow-xs">
+                    <span [class]="badgeClase('maquina', maq.estado, { activa: maq.activa })">
+                      {{ maq.activa === false ? 'De baja' : maq.estado }}
+                    </span>
                   </span>
                 </div>
               </div>
@@ -123,11 +134,11 @@ import { mensajeError } from './trabajo-acciones/trabajo-acciones.component';
 
                 <div class="pt-2 border-t border-slate-100 grid grid-cols-2 gap-2 text-xs">
                   <div>
-                    <span class="text-slate-400 text-[10px] block uppercase font-bold">Sucursal</span>
+                    <span class="text-slate-500 text-[11px] block uppercase font-bold">Sucursal</span>
                     <span class="font-bold text-slate-800">{{ maq.agencia }}</span>
                   </div>
                   <div>
-                    <span class="text-slate-400 text-[10px] block uppercase font-bold">Bahía</span>
+                    <span class="text-slate-500 text-[11px] block uppercase font-bold">Bahía</span>
                     <span class="font-bold text-easydry-blue">{{ maq.bahia }}</span>
                   </div>
                 </div>
@@ -137,13 +148,24 @@ import { mensajeError } from './trabajo-acciones/trabajo-acciones.component';
                   <span class="font-bold text-slate-900">{{ maq.operadorAsignadoNombre || 'Sin asignar' }}</span>
                 </div>
 
+                <div class="p-2 rounded-xl text-xs flex items-center justify-between" [ngClass]="maquinaVencida(maq) ? 'bg-rose-50 border border-rose-200' : 'bg-slate-50'">
+                  <span class="text-slate-500 font-medium">Próximo mantenimiento:</span>
+                  @if (maq.proximoMantenimiento) {
+                    <span class="font-bold" [ngClass]="maquinaVencida(maq) ? 'text-rose-700' : 'text-slate-900'">
+                      {{ fechaProg(maq.proximoMantenimiento) }}{{ maquinaVencida(maq) ? ' (vencido)' : '' }}
+                    </span>
+                  } @else {
+                    <span class="font-bold text-slate-500">Sin programar</span>
+                  }
+                </div>
+
                 @if ((maq.incidentesNoAtendidos || 0) > 0 || (maq.mantenimientosVencidos || 0) > 0) {
                   <div class="flex flex-wrap gap-1.5">
                     @if ((maq.incidentesNoAtendidos || 0) > 0) {
-                      <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-600 text-white">{{ maq.incidentesNoAtendidos }} incidencia(s) no atendida(s)</span>
+                      <span [class]="badgeNoAtendido">{{ maq.incidentesNoAtendidos }} incidencia(s) no atendida(s)</span>
                     }
                     @if ((maq.mantenimientosVencidos || 0) > 0) {
-                      <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-600 text-white">{{ maq.mantenimientosVencidos }} mantenimiento(s) vencido(s)</span>
+                      <span [class]="badgeNoAtendido">{{ maq.mantenimientosVencidos }} mantenimiento(s) vencido(s)</span>
                     }
                   </div>
                 }
@@ -153,18 +175,20 @@ import { mensajeError } from './trabajo-acciones/trabajo-acciones.component';
             <!-- Card Actions -->
             <div class="p-5 pt-0" [ngClass]="canTransfer ? 'grid grid-cols-2 gap-2' : 'flex'">
               @if (canTransfer) {
-                <button 
+                <button
+                  type="button"
                   (click)="abrirTransferir(maq)"
-                  class="py-2 bg-slate-100 hover:bg-easydry-blue hover:text-white text-slate-700 font-bold rounded-xl text-xs transition-colors flex items-center justify-center gap-1">
-                  <i-lucide name="refresh-cw" class="w-3.5 h-3.5"></i-lucide>
-                  <span>Transferir</span>
+                  class="btn btn-secondary">
+                  <i-lucide name="refresh-cw" class="w-3.5 h-3.5" aria-hidden="true"></i-lucide>
+                  <span>Transferir / Asignar</span>
                 </button>
               }
-              <button 
+              <button
+                type="button"
                 (click)="abrirDetalle(maq)"
-                class="py-2 bg-easydry-blue/10 hover:bg-easydry-blue hover:text-white text-easydry-blue font-bold rounded-xl text-xs transition-colors flex items-center justify-center gap-1"
+                class="btn btn-primary"
                 [ngClass]="canTransfer ? '' : 'w-full'">
-                <i-lucide name="hard-drive" class="w-3.5 h-3.5"></i-lucide>
+                <i-lucide name="hard-drive" class="w-3.5 h-3.5" aria-hidden="true"></i-lucide>
                 <span>Detalle & Trazabilidad</span>
               </button>
             </div>
@@ -174,15 +198,19 @@ import { mensajeError } from './trabajo-acciones/trabajo-acciones.component';
         }
       </div>
 
-      <div class="mt-6">
-        <app-pagination 
-          [totalItems]="maquinasFiltradas.length" 
-          [currentPage]="currentPage" 
-          [pageSize]="pageSize"
-          (pageChange)="onPageChange($event)"
-          (pageSizeChange)="onPageSizeChange($event)">
-        </app-pagination>
-      </div>
+      @if (lista.inicializada && lista.items.length === 0 && !lista.error) {
+        <p class="estado-vacio">No hay maquinaria para los filtros seleccionados.</p>
+      }
+
+      <!-- Scroll infinito: de 30 en 30 -->
+      <app-infinite-scroll
+        [hasMore]="lista.hasMore"
+        [loading]="lista.cargando"
+        [error]="lista.error"
+        [total]="lista.total"
+        (cargarMas)="lista.siguiente()"
+        (reintentar)="lista.reintentar()">
+      </app-infinite-scroll>
 
       <!-- Modal de detalle reutilizable: Resumen, Incidencias, Movimientos, Mantenimientos y Línea de tiempo -->
       <app-maquinaria-detalle-modal
@@ -195,46 +223,46 @@ import { mensajeError } from './trabajo-acciones/trabajo-acciones.component';
       <app-maquina-acciones #maqAcc (hecho)="recargar()"></app-maquina-acciones>
 
       <!-- Modal Crear Maquinaria -->
-      <app-modal 
-        [isOpen]="modalCrearOpen" 
-        title="Registrar Nuevo Activo de Maquinaria" 
-        icon="hard-drive"
+      <app-modal
+        [isOpen]="modalCrearOpen"
+        title="Registrar Nuevo Activo de Maquinaria"
+        icon="hard-drive" size="lg"
         (close)="modalCrearOpen = false">
-        
+
         <form (ngSubmit)="guardarNuevaMaquinaria()" class="space-y-4">
-          <div class="grid grid-cols-2 gap-4">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Código Activo</label>
-              <input type="text" [(ngModel)]="nuevaMaquina.codigo" name="codigo" placeholder="ej. HD-006" 
-                [ngClass]="erroresMaquina.codigo ? 'border-rose-400 ring-2 ring-rose-100' : 'border-slate-200'"
-                class="w-full p-2.5 border rounded-xl text-sm font-mono" required
+              <label for="maq-codigo" class="field-label">Código Activo</label>
+              <input id="maq-codigo" type="text" [(ngModel)]="nuevaMaquina.codigo" name="codigo" placeholder="ej. HD-006"
+                [ngClass]="{ 'field-error': erroresMaquina.codigo }"
+                class="field font-mono placeholder:text-slate-500" required
                 (input)="erroresMaquina.codigo = ''">
               @if (erroresMaquina.codigo) {
-                <p class="mt-1 text-[11px] font-bold text-rose-600 flex items-center gap-1">
-                  <i-lucide name="alert-circle" class="w-3.5 h-3.5"></i-lucide>
+                <p class="field-help" role="alert">
+                  <i-lucide name="alert-circle" class="w-3.5 h-3.5" aria-hidden="true"></i-lucide>
                   {{ erroresMaquina.codigo }}
                 </p>
               }
             </div>
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Nombre del Equipo</label>
-              <input type="text" [(ngModel)]="nuevaMaquina.nombre" name="nombre" placeholder="Hidrolavadora HD-006" 
-                [ngClass]="erroresMaquina.nombre ? 'border-rose-400 ring-2 ring-rose-100' : 'border-slate-200'"
-                class="w-full p-2.5 border rounded-xl text-sm" required
+              <label for="maq-nombre" class="field-label">Nombre del Equipo</label>
+              <input id="maq-nombre" type="text" [(ngModel)]="nuevaMaquina.nombre" name="nombre" placeholder="Hidrolavadora HD-006"
+                [ngClass]="{ 'field-error': erroresMaquina.nombre }"
+                class="field placeholder:text-slate-500" required
                 (input)="erroresMaquina.nombre = ''">
               @if (erroresMaquina.nombre) {
-                <p class="mt-1 text-[11px] font-bold text-rose-600 flex items-center gap-1">
-                  <i-lucide name="alert-circle" class="w-3.5 h-3.5"></i-lucide>
+                <p class="field-help" role="alert">
+                  <i-lucide name="alert-circle" class="w-3.5 h-3.5" aria-hidden="true"></i-lucide>
                   {{ erroresMaquina.nombre }}
                 </p>
               }
             </div>
           </div>
 
-          <div class="grid grid-cols-2 gap-4">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Sucursal Asignada</label>
-                <select [(ngModel)]="nuevaMaquina.agencia" (ngModelChange)="onCambioSucursalNuevaMaquina($event)" name="agencia" class="w-full p-2.5 border rounded-xl text-sm font-semibold bg-white cursor-pointer">
+              <label for="maq-agencia" class="field-label">Sucursal Asignada</label>
+                <select id="maq-agencia" [(ngModel)]="nuevaMaquina.agencia" (ngModelChange)="onCambioSucursalNuevaMaquina($event)" name="agencia" class="field select-chevron font-semibold cursor-pointer">
                   <option value="" disabled>Seleccione una sucursal</option>
                 @if (sucursales.length > 0) {
                   @for (s of sucursales; track s.id) {
@@ -244,18 +272,18 @@ import { mensajeError } from './trabajo-acciones/trabajo-acciones.component';
               </select>
             </div>
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Bahía</label>
-              <select [(ngModel)]="nuevaMaquina.bahia" name="bahia" 
-                [ngClass]="erroresMaquina.bahia ? 'border-rose-400 ring-2 ring-rose-100' : 'border-slate-200'"
-                class="w-full p-2.5 border rounded-xl text-sm font-semibold bg-white cursor-pointer" required
+              <label for="maq-bahia" class="field-label">Bahía</label>
+              <select id="maq-bahia" [(ngModel)]="nuevaMaquina.bahia" name="bahia"
+                [ngClass]="{ 'field-error': erroresMaquina.bahia }"
+                class="field select-chevron font-semibold cursor-pointer" required
                 (change)="erroresMaquina.bahia = ''">
                 @for (b of getBahiasDisponibles(nuevaMaquina.agencia); track b) {
                   <option [value]="b">{{ b }}</option>
                 }
               </select>
               @if (erroresMaquina.bahia) {
-                <p class="mt-1 text-[11px] font-bold text-rose-600 flex items-center gap-1">
-                  <i-lucide name="alert-circle" class="w-3.5 h-3.5"></i-lucide>
+                <p class="field-help" role="alert">
+                  <i-lucide name="alert-circle" class="w-3.5 h-3.5" aria-hidden="true"></i-lucide>
                   {{ erroresMaquina.bahia }}
                 </p>
               }
@@ -264,12 +292,12 @@ import { mensajeError } from './trabajo-acciones/trabajo-acciones.component';
 
           <!-- SECCIÓN: FOTO DE LA MÁQUINA (OBLIGATORIA) -->
           <div class="space-y-2 pt-2 border-t border-slate-100">
-            <label class="block text-xs font-bold text-slate-700 uppercase flex items-center justify-between">
+            <label for="maq-foto" class="field-label flex flex-wrap items-center justify-between gap-1">
               <span class="flex items-center gap-1.5">
-                <i-lucide name="camera" class="w-4 h-4 text-easydry-blue"></i-lucide>
-                Foto de la Máquina <span class="text-rose-500">*</span>
+                <i-lucide name="camera" class="w-4 h-4 text-easydry-blue" aria-hidden="true"></i-lucide>
+                Foto de la Máquina <span class="text-rose-500" aria-hidden="true">*</span>
               </span>
-              <span class="text-[10px] text-slate-400 font-normal">PNG, JPG o WebP (máx. 5 MB)</span>
+              <span class="text-[11px] text-slate-500 font-normal normal-case tracking-normal">PNG, JPG o WebP (máx. 5 MB)</span>
             </label>
 
             @if (nuevaMaquina.imagen) {
@@ -277,29 +305,29 @@ import { mensajeError } from './trabajo-acciones/trabajo-acciones.component';
               <div class="p-3 bg-slate-50 rounded-2xl border border-slate-200 flex flex-col sm:flex-row items-center gap-4 animate-fade-in">
                 <div class="relative w-full sm:w-36 h-28 rounded-xl overflow-hidden border border-slate-200 shadow-2xs flex-shrink-0 bg-slate-900">
                   <img loading="lazy" decoding="async" [src]="nuevaMaquina.imagen" alt="Foto de la Máquina" class="w-full h-full object-cover">
-                  <div class="absolute bottom-1 right-1 px-1.5 py-0.5 rounded bg-black/70 text-[9px] text-white font-bold backdrop-blur-xs">
+                  <div class="absolute bottom-1 right-1 px-1.5 py-0.5 rounded bg-black/70 text-[11px] text-white font-bold backdrop-blur-xs">
                     Foto lista
                   </div>
                 </div>
                 <div class="space-y-2 flex-1 w-full text-left">
                   <div class="flex items-center gap-2">
-                    <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                    <span class="w-2 h-2 rounded-full bg-emerald-500" aria-hidden="true"></span>
                     <p class="text-xs font-bold text-slate-800">Foto cargada exitosamente</p>
                   </div>
-                  <p class="text-[11px] text-slate-500">Puedes cambiar la foto subiendo un nuevo archivo desde tu dispositivo.</p>
+                  <p class="text-xs text-slate-500">Puedes cambiar la foto subiendo un nuevo archivo desde tu dispositivo.</p>
                   <div class="flex items-center gap-2 flex-wrap pt-1">
-                    <button 
-                      type="button" 
+                    <button
+                      type="button"
                       (click)="fotoMaquinaInput.click()"
-                      class="px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-bold rounded-xl text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs">
-                      <i-lucide name="upload" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide>
+                      class="btn btn-secondary btn-sm">
+                      <i-lucide name="upload" class="w-3.5 h-3.5 text-easydry-blue" aria-hidden="true"></i-lucide>
                       <span>Subir Otra Foto</span>
                     </button>
-                    <button 
-                      type="button" 
+                    <button
+                      type="button"
                       (click)="eliminarFotoMaquina()"
-                      class="px-3 py-1.5 bg-rose-50 border border-rose-200 hover:bg-rose-100 text-rose-700 font-bold rounded-xl text-xs flex items-center gap-1.5 transition-colors cursor-pointer">
-                      <i-lucide name="trash-2" class="w-3.5 h-3.5"></i-lucide>
+                      class="btn btn-danger btn-sm">
+                      <i-lucide name="trash-2" class="w-3.5 h-3.5" aria-hidden="true"></i-lucide>
                       <span>Quitar</span>
                     </button>
                   </div>
@@ -307,41 +335,46 @@ import { mensajeError } from './trabajo-acciones/trabajo-acciones.component';
               </div>
             } @else {
               <!-- Uploader sin foto -->
-              <div 
-                (click)="fotoMaquinaInput.click()" 
+              <div
+                role="button" tabindex="0" aria-label="Subir la foto de la máquina"
+                (click)="fotoMaquinaInput.click()"
+                (keydown.enter)="fotoMaquinaInput.click()"
+                (keydown.space)="$event.preventDefault(); fotoMaquinaInput.click()"
                 [ngClass]="erroresMaquina.imagen ? 'border-rose-400 bg-rose-50/40 ring-2 ring-rose-100' : 'border-slate-200 hover:border-easydry-blue bg-slate-50/70 hover:bg-blue-50/20'"
-                class="border-2 border-dashed rounded-2xl p-5 text-center cursor-pointer transition-all group">
+                class="border-2 border-dashed rounded-2xl p-5 text-center cursor-pointer transition-colors group focus-visible:ring-2 focus-visible:ring-easydry-blue">
                 <div class="w-12 h-12 mx-auto rounded-2xl bg-white border border-slate-200 group-hover:border-blue-300 flex items-center justify-center text-slate-400 group-hover:text-easydry-blue transition-colors shadow-2xs mb-2">
-                  <i-lucide name="camera" class="w-6 h-6"></i-lucide>
+                  <i-lucide name="camera" class="w-6 h-6" aria-hidden="true"></i-lucide>
                 </div>
                 <p class="text-xs font-bold text-slate-800 group-hover:text-easydry-blue transition-colors">
                   Haz clic aquí para subir la foto de la máquina
                 </p>
-                <p class="text-[11px] text-slate-400 mt-0.5">Sube la foto del equipo desde tu computadora o dispositivo móvil</p>
+                <p class="text-xs text-slate-500 mt-0.5">Sube la foto del equipo desde tu computadora o dispositivo móvil</p>
               </div>
               @if (erroresMaquina.imagen) {
-                <p class="mt-1 text-[11px] font-bold text-rose-600 flex items-center gap-1">
-                  <i-lucide name="alert-circle" class="w-3.5 h-3.5"></i-lucide>
+                <p class="field-help" role="alert">
+                  <i-lucide name="alert-circle" class="w-3.5 h-3.5" aria-hidden="true"></i-lucide>
                   {{ erroresMaquina.imagen }}
                 </p>
               }
             }
 
-            <input 
-              type="file" 
-              #fotoMaquinaInput 
-              (change)="onSubirFotoMaquina($event)" 
-              accept="image/*" 
-              class="hidden">
+            <input
+              id="maq-foto"
+              type="file"
+              #fotoMaquinaInput
+              tabindex="-1"
+              (change)="onSubirFotoMaquina($event)"
+              accept="image/*"
+              class="sr-only">
           </div>
 
           <div class="space-y-2 pt-2 border-t border-slate-100">
-            <label class="block text-xs font-bold text-slate-700 uppercase">Imagen de ficha técnica</label>
-            <label class="block border-2 border-dashed border-slate-200 hover:border-easydry-blue rounded-2xl p-5 text-center cursor-pointer bg-slate-50/70">
-              <i-lucide name="image-plus" class="w-8 h-8 text-easydry-blue mx-auto mb-2"></i-lucide>
+            <label for="maq-ficha" class="field-label">Imagen de ficha técnica</label>
+            <label class="block border-2 border-dashed border-slate-200 hover:border-easydry-blue focus-within:ring-2 focus-within:ring-easydry-blue rounded-2xl p-5 text-center cursor-pointer bg-slate-50/70">
+              <i-lucide name="image-plus" class="w-8 h-8 text-easydry-blue mx-auto mb-2" aria-hidden="true"></i-lucide>
               <p class="text-xs font-bold text-slate-800">Sube la ficha técnica (opcional)</p>
-              <p class="text-[11px] text-slate-400 mt-1">Se guarda tal cual, sin recortar ni ajustar</p>
-              <input type="file" accept="image/*" (change)="onSeleccionarFichaTecnica($event)" class="hidden">
+              <p class="text-xs text-slate-500 mt-1">Se guarda tal cual, sin recortar ni ajustar</p>
+              <input id="maq-ficha" type="file" accept="image/*" (change)="onSeleccionarFichaTecnica($event)" class="sr-only">
             </label>
             @if (fichaPendientePreview) {
               <img loading="lazy" decoding="async" [src]="fichaPendientePreview" alt="Vista previa ficha" class="w-full max-h-56 object-contain rounded-xl border border-slate-200 bg-white">
@@ -350,16 +383,21 @@ import { mensajeError } from './trabajo-acciones/trabajo-acciones.component';
         </form>
 
         <div modal-footer>
-          <button (click)="modalCrearOpen = false" class="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs cursor-pointer">Cancelar</button>
-          <button (click)="guardarNuevaMaquinaria()" [disabled]="guardandoActivo" class="px-4 py-2 bg-easydry-blue hover:bg-easydry-blue-dark text-white font-bold rounded-xl text-xs cursor-pointer disabled:opacity-50">{{ guardandoActivo ? 'Guardando...' : 'Guardar Activo' }}</button>
+          <button type="button" (click)="modalCrearOpen = false" class="btn btn-secondary w-full sm:w-auto">Cancelar</button>
+          <button type="button" (click)="guardarNuevaMaquinaria()" [disabled]="guardandoActivo" class="btn btn-primary w-full sm:w-auto">{{ guardandoActivo ? 'Guardando...' : 'Guardar Activo' }}</button>
         </div>
       </app-modal>
 
     </div>
   `
 })
-export class MaquinariaComponent implements OnInit {
-  maquinas: Maquinaria[] = [];
+export class MaquinariaComponent implements OnInit, OnDestroy {
+  /** Tarjetas con scroll infinito: de 30 en 30, con búsqueda y filtros resueltos en el servidor. */
+  readonly lista = new ListaInfinita<Maquinaria>(
+    (page, size) => this.maquinariaService.getMaquinariaPagina({ ...this.consulta(), page, pageSize: size }),
+    PAGE_SIZE_INFINITO,
+    (m) => m.id,
+  );
   sucursales: Sucursal[] = [];
   todasLasBahias: Bahia[] = [];
 
@@ -368,6 +406,9 @@ export class MaquinariaComponent implements OnInit {
 
   modalCrearOpen = false;
   guardandoActivo = false;
+  cargando = false;
+  readonly badgeClase = badgeClase;
+  readonly badgeNoAtendido = BADGE_NO_ATENDIDO;
   fichaPendienteFile: File | null = null;
   fichaPendientePreview = '';
   fotoMaquinaFile: File | null = null;
@@ -395,13 +436,9 @@ export class MaquinariaComponent implements OnInit {
   filtroTexto = '';
   filtrosGlobales: FilterState = { sucursal: 'Todas', region: 'Todas', cliente: 'Todas', marca: 'Todas', operador: 'Todos', bahia: 'Todas', estado: 'Todos', fecha: 'Hoy' };
 
-  // Mapa sucursal -> región (para el filtro de región)
-  mapaRegionSucursal: Record<string, string> = {};
-  // Mapa sucursal -> marca (para el filtro de marca)
-  mapaMarcaSucursal: Record<string, string> = {};
-
-  currentPage = 1;
-  pageSize = 6;
+  private busquedaAplicada = '';
+  private readonly busqueda$ = new Subject<string>();
+  private busquedaSub?: Subscription;
 
   private maquinariaService = inject(MaquinariaService);
   private sucursalService = inject(SucursalService);
@@ -413,25 +450,59 @@ export class MaquinariaComponent implements OnInit {
   @ViewChild('maqAcc') maqAcc!: MaquinaAccionesComponent;
 
   aplicarNuevosFiltros(filtros: FilterState) {
+    const previo = this.huellaFiltros(this.filtrosGlobales);
     this.filtrosGlobales = filtros;
-    if (filtros.busqueda !== undefined) {
-      this.filtroTexto = filtros.busqueda;
+    const texto = (filtros.busqueda ?? '').trim();
+    this.filtroTexto = texto;
+    if (previo !== this.huellaFiltros(filtros)) {
+      // Cambió un filtro (no el texto): se consulta ya.
+      if (texto.length === 0 || texto.length >= BUSQUEDA_MIN_CARACTERES) this.busquedaAplicada = texto;
+      this.lista.reiniciar();
+      return;
     }
-    this.currentPage = 1;
+    // Solo cambió el texto: espera 300 ms tras la última tecla y exige 2 letras (o vacío para quitar el filtro).
+    if (texto.length === 0 || texto.length >= BUSQUEDA_MIN_CARACTERES) this.busqueda$.next(texto);
+  }
+
+  private huellaFiltros(f: FilterState): string {
+    const { busqueda, ...resto } = f;
+    return JSON.stringify(resto);
+  }
+
+  private neutro(v: string | undefined | null, ...neutros: string[]): string {
+    const t = (v ?? '').trim();
+    return !t || neutros.includes(t) ? '' : t;
+  }
+
+  /** Filtros vigentes para el servidor: el filter-bar emite nombres y el servidor los entiende (exactos, sin distinguir mayúsculas). */
+  private consulta(): ConsultaMaquinaria {
+    const f = this.filtrosGlobales;
+    const c: ConsultaMaquinaria = {
+      search: this.busquedaAplicada,
+      agenciaNombre: this.neutro(f.sucursal, 'Todas') || undefined,
+      bahiaNombre: this.neutro(f.bahia, 'Todas') || undefined,
+      regionNombre: this.neutro(f.region, 'Todas') || undefined,
+      clienteNombre: this.neutro(f.cliente || f.marca, 'Todas', 'Todos') || undefined,
+    };
+    switch (this.neutro(f.estado, 'Todos')) {
+      case 'Operativa': c.estadoOperativo = 'OPERATIVA'; c.activa = true; break;
+      case 'Mantenimiento': c.estadoOperativo = 'EN_MANTENIMIENTO'; break;
+      case 'Fuera de Servicio': c.activa = false; break;
+    }
+    return c;
   }
 
   ngOnInit(): void {
+    this.busquedaSub = this.busqueda$
+      .pipe(debounceTime(BUSQUEDA_DEBOUNCE_MS), distinctUntilChanged())
+      .subscribe((texto) => {
+        this.busquedaAplicada = texto;
+        this.lista.reiniciar();
+      });
     this.recargar();
 
     this.sucursalService.getSucursales().subscribe(list => {
       this.sucursales = list;
-      this.mapaRegionSucursal = {};
-      this.mapaMarcaSucursal = {};
-      list.forEach(s => {
-        if (s.nombre && s.regionNombre) this.mapaRegionSucursal[s.nombre] = s.regionNombre;
-        const cNom = s.clienteNombre || s.marcaNombre;
-        if (s.nombre && cNom) this.mapaMarcaSucursal[s.nombre] = cNom;
-      });
     });
 
     this.bahiaService.getBahias().subscribe(list => {
@@ -439,87 +510,42 @@ export class MaquinariaComponent implements OnInit {
     });
   }
 
-  /** Recarga la lista; el backend ya filtra lo que cada rol puede ver. */
+  ngOnDestroy(): void {
+    this.busquedaSub?.unsubscribe();
+    this.lista.destruir();
+  }
+
+  /** Vuelve a la primera página; el backend ya filtra lo que cada rol puede ver. */
   recargar(): void {
-    this.maquinariaService.getMaquinaria().subscribe(list => {
-      this.maquinas = list;
-    });
+    this.lista.reiniciar();
   }
 
-  private get rol(): string {
-    return String(this.authService.getCurrentUser()?.role || '');
-  }
-
-  /** Transferir (agencia, bahía o taller): COORD_MANTENIMIENTO, ADMIN, SUPER_ADMIN. */
+  /** Transferir (agencia, bahía o taller): permiso maquinaria.gestionar. */
   get canTransfer() {
-    return puedeGestionarMaquina(this.rol);
+    return puedeGestionarMaquina(this.authService);
   }
 
-  /** Crear máquina: ADMIN, SUPER_ADMIN, COORD_BODEGA. */
+  /** Crear máquina: permiso maquinaria.crear. */
   get canCreate() {
-    return puedeCrearMaquina(this.rol);
-  }
-
-  private readonly memoFiltradas = new MemoLista();
-
-  /** Se recalcula solo cuando cambian la lista o los filtros (antes se filtraba en cada revisión de pantalla). */
-  get maquinasFiltradas() {
-    return this.memoFiltradas.obtener(
-      [
-        this.maquinas, this.maquinas.length, this.filtroTexto, JSON.stringify(this.filtrosGlobales),
-        this.mapaRegionSucursal, Object.keys(this.mapaRegionSucursal || {}).length,
-        this.mapaMarcaSucursal, Object.keys(this.mapaMarcaSucursal || {}).length,
-      ],
-      () => this.calcularMaquinasFiltradas(),
-    );
-  }
-
-  private calcularMaquinasFiltradas() {
-    let resultados = this.maquinas.filter(m => {
-      const q = this.filtroTexto.toLowerCase();
-      return !this.filtroTexto ||
-        m.nombre.toLowerCase().includes(q) ||
-        m.codigo.toLowerCase().includes(q) ||
-        (m.modelo || '').toLowerCase().includes(q) ||
-        (m.numeroSerie || '').toLowerCase().includes(q);
-    });
-
-    if (this.filtrosGlobales.estado !== 'Todos') {
-      resultados = resultados.filter(m => m.estado === this.filtrosGlobales.estado);
-    }
-    if (this.filtrosGlobales.sucursal !== 'Todas') {
-      resultados = resultados.filter(m => m.agencia === this.filtrosGlobales.sucursal);
-    }
-    if (this.filtrosGlobales.bahia !== 'Todas') {
-      resultados = resultados.filter(m => m.bahia === this.filtrosGlobales.bahia);
-    }
-    if (this.filtrosGlobales.region && this.filtrosGlobales.region !== 'Todas') {
-      resultados = resultados.filter(m => this.mapaRegionSucursal[m.agencia] === this.filtrosGlobales.region);
-    }
-    const fCliente = this.filtrosGlobales.cliente || this.filtrosGlobales.marca;
-    if (fCliente && fCliente !== 'Todas' && fCliente !== 'Todos') {
-      resultados = resultados.filter(m => this.mapaMarcaSucursal[m.agencia] === fCliente);
-    }
-
-    return resultados;
-  }
-
-  get paginatedMaquinaria() {
-    const start = (this.currentPage - 1) * this.pageSize;
-    return this.maquinasFiltradas.slice(start, start + this.pageSize);
-  }
-
-  onPageChange(page: number) {
-    this.currentPage = page;
-  }
-
-  onPageSizeChange(size: number) {
-    this.pageSize = size;
-    this.currentPage = 1;
+    return puedeCrearMaquina(this.authService);
   }
 
   getResponsableEquipo(sucursal: string): string {
     return sucursal?.trim() || 'Sin asignar';
+  }
+
+  /** Fecha del próximo mantenimiento (dd/mm/aaaa), lista para mostrar en la tarjeta. */
+  fechaProg(iso?: string | null): string {
+    return fechaProgramadaLocal(iso);
+  }
+
+  /** Vencido: hay un próximo mantenimiento programado con fecha ya pasada. */
+  maquinaVencida(maq: Maquinaria): boolean {
+    const iso = maq.proximoMantenimiento;
+    if (!iso) return false;
+    const fecha = fechaProgramadaISO(iso);
+    if (!fecha) return false;
+    return fecha < fechaProgramadaISO(new Date().toISOString());
   }
 
   abrirDetalle(maq: Maquinaria) {

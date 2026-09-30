@@ -4,6 +4,47 @@ import { BehaviorSubject, Observable, of } from 'rxjs';
 import { map, tap, catchError } from 'rxjs/operators';
 import { VehiculoServicio } from '../models';
 import { apiUrl } from '../config/env';
+import { OrdenDir, PaginaServidor, normalizarPagina } from '../models/paginacion.model';
+import { PAGE_SIZE_MAX } from '../config/paginacion';
+
+/** Consulta paginada de servicios de lavado (todo se resuelve en el servidor). */
+export interface ConsultaServicios {
+  page?: number;
+  pageSize?: number;
+  /** fecha | createdAt | ot | placa | modelo | cliente | estado | servicio | operador | agencia | bahia */
+  sortField?: string | null;
+  sortOrder?: OrdenDir;
+  search?: string;
+  /** EN_PROCESO | POR_APROBAR | APROBADO | FINALIZADO | RECHAZADO | CANCELADO | valor del enum */
+  estado?: string;
+  agenciaId?: string;
+  regionId?: string;
+  bahiaId?: string;
+  operadorId?: string;
+  servicioId?: number | string;
+  clienteId?: string;
+  /** Filtros por NOMBRE (los que emite el filter-bar): agencia, bahía y cliente exactos; operador por palabras. */
+  agenciaNombre?: string;
+  bahiaNombre?: string;
+  operadorNombre?: string;
+  clienteNombre?: string;
+  /** ISO 8601 (inicio del día local) */
+  fechaDesde?: string;
+  /** ISO 8601 (fin del día local) */
+  fechaHasta?: string;
+  incluirResumen?: boolean;
+}
+
+export interface ResumenServicios {
+  porEstado: Record<string, number>;
+  porAprobar: number;
+  total: number;
+}
+
+export interface RespuestaServiciosPagina {
+  pagina: PaginaServidor<VehiculoServicio>;
+  resumen?: ResumenServicios;
+}
 
 @Injectable({
   providedIn: 'root'
@@ -64,11 +105,8 @@ export class ServicioLavadoService {
     if (!ordenTrabajoOT) {
       ordenTrabajoOT = s.clientUuid ? `OT-${s.clientUuid.substring(0, 6).toUpperCase()}` : `OT-${String(s.id).substring(0, 6)}`;
     }
-    const numeroOrden = s.numeroOrden || ordenTrabajoOT;
-
     return {
       id: s.id,
-      numeroOrden,
       ordenTrabajoOT,
       placa: s.placa || '',
       marca: s.marca || s.modelo?.split(' ')[0] || '',
@@ -101,7 +139,15 @@ export class ServicioLavadoService {
       notas: s.observaciones || s.notas || '',
       observacionGerente: s.observacionGerente || '',
       aprobadoPor: s.aprobadoPor || '',
-      fechaAprobacion: s.fechaAprobacion ? new Date(s.fechaAprobacion).toISOString().substring(0, 16) : undefined,
+      fechaAprobacion: s.fechaAprobacion ? new Date(s.fechaAprobacion).toISOString() : undefined,
+      reglaDecision: s.reglaDecision || null,
+      motivoRechazo: s.motivoRechazo || null,
+      agenciaId: s.agenciaId || s.bahia?.agencia?.id || s.bahiaRel?.agencia?.id || null,
+      puedeDecidir: s.puedeDecidir === true,
+      agenciaSinAprobador: s.agenciaSinAprobador === true,
+      anuladoPorId: s.anuladoPorId || null,
+      anuladoEn: s.anuladoEn || null,
+      motivoAnulacion: s.motivoAnulacion || null,
       // Nombre/SKU/unidad: se usa el snapshot congelado al momento del consumo
       // (sobrevive a que el producto cambie de nombre/SKU después). Los registros
       // creados antes de este cambio no tienen snapshot, así que caen al dato actual.
@@ -116,7 +162,7 @@ export class ServicioLavadoService {
   }
 
   getServicios(filtros?: { sucursalId?: string; agenciaId?: string; regionId?: string; estado?: string }): Observable<VehiculoServicio[]> {
-    const body: any = {};
+    const body: any = { pageSize: PAGE_SIZE_MAX };
     if (filtros?.sucursalId) body.sucursalId = filtros.sucursalId;
     if (filtros?.agenciaId) body.agenciaId = filtros.agenciaId;
     if (filtros?.regionId) body.regionId = filtros.regionId;
@@ -128,6 +174,42 @@ export class ServicioLavadoService {
       }),
       tap(mapped => this.serviciosSubject.next(mapped)),
       catchError(() => of(this.serviciosSubject.value))
+    );
+  }
+
+  /**
+   * Una página de servicios con orden, búsqueda y filtros resueltos en el servidor.
+   * NO toca `serviciosSubject` (una página parcial no debe pisar la lista completa que usan otras pantallas).
+   */
+  getServiciosPagina(consulta: ConsultaServicios): Observable<RespuestaServiciosPagina> {
+    const body: Record<string, unknown> = {};
+    const c = consulta;
+    body['page'] = c.page || 1;
+    body['pageSize'] = Math.min(c.pageSize || 25, PAGE_SIZE_MAX);
+    if (c.sortField) { body['sortField'] = c.sortField; body['sortOrder'] = c.sortOrder || 'desc'; }
+    const texto = (c.search || '').trim();
+    if (texto.length >= 2) body['search'] = texto;
+    const claves: (keyof ConsultaServicios)[] = [
+      'estado', 'agenciaId', 'regionId', 'bahiaId', 'operadorId', 'clienteId',
+      'agenciaNombre', 'bahiaNombre', 'operadorNombre', 'clienteNombre', 'fechaDesde', 'fechaHasta',
+    ];
+    for (const k of claves) {
+      const v = c[k];
+      if (v !== undefined && v !== null && v !== '') body[k] = v;
+    }
+    if (c.servicioId !== undefined && c.servicioId !== null && c.servicioId !== '' && Number(c.servicioId) > 0) {
+      body['servicioId'] = Number(c.servicioId);
+    }
+    if (c.incluirResumen) body['incluirResumen'] = true;
+
+    return this.http.post<any>(apiUrl('/operaciones/servicios/list'), body).pipe(
+      map((res) => {
+        const pagina = normalizarPagina<any>(res, body['page'] as number, body['pageSize'] as number);
+        return {
+          pagina: { ...pagina, items: pagina.items.map((s: any) => this.mapBackendServicio(s)) },
+          resumen: (res?.resumen as ResumenServicios | undefined),
+        };
+      }),
     );
   }
 
@@ -200,9 +282,7 @@ export class ServicioLavadoService {
         const current = this.serviciosSubject.value;
         const idx = current.findIndex(s => s.id === id);
         if (idx !== -1) {
-          // Preservar el estado real devuelto por el backend:
-          // Si la agencia no tiene aprobador, el backend devuelve APROBADO directamente.
-          // Si tiene aprobador, devuelve FINALIZADO para esperar revisión gerencial.
+          // Se conserva el estado real que devuelve el servidor: un servicio finalizado queda pendiente de aprobación.
           current[idx] = { ...current[idx], ...updated };
           this.serviciosSubject.next([...current]);
         }
@@ -214,70 +294,69 @@ export class ServicioLavadoService {
     );
   }
 
-  aprobarServicioGerente(id: string | number, observacion?: string, gerenteNombre?: string): Observable<VehiculoServicio | null> {
+  /**
+   * Aprueba un servicio finalizado. Permiso 'servicios.decidir'. Quién aprueba, cuándo y con qué regla lo fija el servidor
+   * (no se envía ni se inventa nada del lado web). Los errores del servidor (403/400) se propagan para mostrarlos.
+   */
+  aprobarServicioGerente(id: string | number, observacion?: string): Observable<VehiculoServicio> {
     return this.http.post<any>(apiUrl('/operaciones/servicios/aprobar'), {
       id: String(id),
-      observacion: observacion || 'Aprobado sin observaciones.'
+      ...(observacion?.trim() ? { observacion: observacion.trim() } : {})
     }).pipe(
       map(res => this.mapBackendServicio(res)),
-      tap(updated => {
-        const current = this.serviciosSubject.value;
-        const idx = current.findIndex(s => s.id === id);
-        if (idx !== -1) {
-          current[idx] = {
-            ...current[idx],
-            ...updated,
-            estado: 'APROBADO',
-            observacionGerente: observacion,
-            aprobadoPor: gerenteNombre
-          };
-          this.serviciosSubject.next([...current]);
-        }
-      }),
-      catchError(() => of(null))
+      tap(updated => this.reemplazarLocal(id, updated)),
     );
   }
 
-  rechazarServicioGerente(id: string | number, motivo: string, gerenteNombre?: string): Observable<VehiculoServicio | null> {
+  /** Rechaza un servicio finalizado (motivo mínimo 5 caracteres, lo valida el servidor). */
+  rechazarServicioGerente(id: string | number, motivo: string): Observable<VehiculoServicio> {
     return this.http.post<any>(apiUrl('/operaciones/servicios/rechazar'), {
       id: String(id),
-      motivo
+      motivo: motivo.trim()
     }).pipe(
       map(res => this.mapBackendServicio(res)),
-      tap(updated => {
-        const current = this.serviciosSubject.value;
-        const idx = current.findIndex(s => s.id === id);
-        if (idx !== -1) {
-          current[idx] = {
-            ...current[idx],
-            ...updated,
-            estado: 'RECHAZADO',
-            observacionGerente: `RECHAZADO: ${motivo}`,
-            aprobadoPor: gerenteNombre
-          };
-          this.serviciosSubject.next([...current]);
-        }
-      }),
-      catchError(() => of(null))
+      tap(updated => this.reemplazarLocal(id, updated)),
     );
   }
 
-  aprobarTodosLosServiciosDelDia(sucursal: string, gerenteNombre?: string): Observable<boolean> {
+  /** Cierre del día de UNA agencia (la agencia es obligatoria). Solo aprueba lo que el usuario puede decidir. */
+  aprobarTodosLosServiciosDelDia(
+    agenciaId: string,
+    opciones?: { fecha?: string; requiereFotoSalida?: boolean },
+  ): Observable<{ aprobadosCount: number; omitidosSinFotoCount: number; mensaje: string }> {
     return this.http.post<any>(apiUrl('/operaciones/servicios/aprobar-todos'), {
-      sucursalId: sucursal
+      agenciaId,
+      ...(opciones?.fecha ? { fecha: opciones.fecha } : {}),
+      ...(opciones?.requiereFotoSalida === false ? { requiereFotoSalida: false } : {}),
     }).pipe(
-      map(res => Boolean(res)),
-      tap(() => {
-        const current = this.serviciosSubject.value;
-        current.forEach(s => {
-          if (s.estado === 'FINALIZADO') {
-            s.estado = 'APROBADO';
-            s.aprobadoPor = gerenteNombre;
-          }
-        });
-        this.serviciosSubject.next([...current]);
-      }),
-      catchError(() => of(false))
+      map(res => ({
+        aprobadosCount: Number(res?.aprobadosCount ?? 0),
+        omitidosSinFotoCount: Number(res?.omitidosSinFotoCount ?? 0),
+        mensaje: String(res?.mensaje || ''),
+      })),
     );
+  }
+
+  /** Anula un servicio con motivo obligatorio (mínimo 5 caracteres); no se borra, queda el registro. Permiso 'servicios.anular'. */
+  anularServicio(id: string | number, motivo: string, reponerInsumos = true): Observable<boolean> {
+    return this.http.post<any>(apiUrl('/operaciones/servicios/delete'), {
+      id: String(id),
+      motivo: motivo.trim(),
+      reponerInsumos,
+    }).pipe(
+      map(() => true),
+      tap(() => {
+        this.serviciosSubject.next(this.serviciosSubject.value.filter(s => String(s.id) !== String(id)));
+      }),
+    );
+  }
+
+  private reemplazarLocal(id: string | number, updated: VehiculoServicio): void {
+    const current = this.serviciosSubject.value;
+    const idx = current.findIndex(s => String(s.id) === String(id));
+    if (idx !== -1) {
+      current[idx] = { ...current[idx], ...updated };
+      this.serviciosSubject.next([...current]);
+    }
   }
 }

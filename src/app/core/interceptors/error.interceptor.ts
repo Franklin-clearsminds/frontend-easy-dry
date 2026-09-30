@@ -1,5 +1,6 @@
 import { HttpInterceptorFn, HttpErrorResponse } from '@angular/common/http';
 import { inject } from '@angular/core';
+import { Router } from '@angular/router';
 import { catchError, throwError } from 'rxjs';
 import { ToastService } from '../../shared/services/toast.service';
 
@@ -12,6 +13,7 @@ let lastToastKey = '';
  */
 export const errorInterceptor: HttpInterceptorFn = (req, next) => {
   const toastService = inject(ToastService);
+  const router = inject(Router);
 
   const isSilent = req.headers.has('X-Silent-Fallback') || req.headers.has('x-silent');
 
@@ -24,9 +26,14 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
       } else if (error.status === 401) {
         // El jwtInterceptor ya intentó refresh; solo informar si no es silencioso.
         userMessage = 'Sesión expirada o no autorizada. Inicie sesión nuevamente.';
-      } else if (error.status === 403) {
+      } else if (error.status === 403 && /contraseña temporal/i.test(String(error.error?.message ?? ''))) {
+        // El servidor bloquea todo hasta cambiar la contraseña temporal: se lleva al usuario a cambiarla.
+        userMessage = String(error.error.message);
+        if (!router.url.startsWith('/cambiar-password')) void router.navigate(['/cambiar-password']);
+      } else if (error.status === 403 && !error.error?.message) {
         userMessage = 'No tiene permisos suficientes para ejecutar esta acción.';
       } else if (error.error?.message) {
+        // Los mensajes del servidor (403 incluidos) son claros y en español: se muestran tal cual.
         userMessage = Array.isArray(error.error.message)
           ? error.error.message.join(', ')
           : String(error.error.message);

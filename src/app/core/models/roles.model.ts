@@ -73,7 +73,7 @@ export const DEFAULT_ROUTE_POR_ROL: Record<string, string> = {
   [Role.JEFE_COMERCIAL]: '/dashboard',
   [Role.COORD_COMERCIAL]: '/dashboard',
   [Role.LIDER_OPERADOR]: '/servicios',
-  [Role.LAVADOR]: '/perfil',
+  [Role.LAVADOR]: '/sin-acceso',
   [Role.COORD_SERVICIOS_ESPECIALES]: '/dashboard',
   [Role.PULIDOR]: '/servicios',
   [Role.COORD_MANTENIMIENTO]: '/taller-tecnico',
@@ -102,7 +102,12 @@ export interface RolPersonalizado {
   modulos: string[];
   accionesModulos?: Record<string, { ver: boolean; crear: boolean; editar: boolean; configurar: boolean }>;
   estado?: string | number;
+  /** Rol oficial sembrado por el sistema: no se elimina ni cambia de nombre. */
   esSistema: boolean;
+  /** Permisos de acción (códigos como 'servicios.crear') que el backend exige en cada endpoint. */
+  capacidades?: string[];
+  /** Sobre qué datos actúa: GLOBAL, REGION, AGENCIA o PROPIO. */
+  ambito?: string;
   fechaCreacion: string;
   fechaModificacion?: string;
   usuariosCount?: number;
@@ -125,6 +130,12 @@ export interface UsuarioAuth {
   rolNombre: string;
   rolPersonalizado?: RolPersonalizado;
   modulosPermitidos: string[];
+  /** Permisos que el backend exige (códigos como 'servicios.crear'); es la fuente de verdad para mostrar u ocultar acciones. */
+  capacidades?: string[];
+  /** Sobre qué datos actúa el rol: GLOBAL, REGION, AGENCIA o PROPIO. */
+  ambito?: string;
+  /** true = tiene una contraseña temporal: debe cambiarla antes de usar el sistema. */
+  debeCambiarPassword?: boolean;
   sucursalId?: number;
   sucursal?: string;
   sucursalNombre?: string;

@@ -1,12 +1,14 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { HostListener, Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LucideAngularModule } from 'lucide-angular';
-import { CatalogoServiciosService, RecetaHistorialCambio } from '../../../core/services/catalogo-servicios.service';
+import { Subject, Subscription } from 'rxjs';
+import { debounceTime } from 'rxjs/operators';
+import { TablaServidor } from '../../../core/utils/tabla-servidor';
+import { AgenciaCatalogoCtx, CatalogoServiciosService, RecetaHistorialCambio } from '../../../core/services/catalogo-servicios.service';
 import { InventarioService } from '../../../core/services/inventario.service';
 import { AuthService } from '../../../core/services/auth.service';
-import { SucursalService } from '../../../core/services/sucursal.service';
-import { CatalogoServicio, RecetaInsumoServicio, InventarioItem, Sucursal, Role } from '../../../core/models';
+import { CatalogoServicio, RecetaInsumoServicio, InventarioItem } from '../../../core/models';
 import { PaginationComponent } from '../../../shared/components/pagination/pagination.component';
 import { ModalPortalDirective } from '../../../shared/directives/modal-portal.directive';
 import { ToastService } from '../../../shared/services/toast.service';
@@ -19,41 +21,68 @@ import { RouterModule } from '@angular/router';
   imports: [CommonModule, RouterModule, FormsModule, LucideAngularModule, PaginationComponent, ModalPortalDirective],
   templateUrl: './catalogo-servicios.component.html'
 })
-export class CatalogoServiciosComponent implements OnInit {
+export class CatalogoServiciosComponent implements OnInit, OnDestroy {
+  @HostListener('document:keydown.escape')
+  cerrarModalConEsc(): void {
+    if (this.showModal) this.cerrarModal();
+  }
+
   private catalogoService = inject(CatalogoServiciosService);
   private inventarioService = inject(InventarioService);
   public authService = inject(AuthService);
-  private sucursalService = inject(SucursalService);
   private toast = inject(ToastService);
 
-  // ── Scoping por sucursal (Líder / Aprobador) ────────────────────────────
-  sucursalUsuario: Sucursal | null = null;
-  serviciosSucursalIds: number[] = [];
-  serviciosSucursalNombres: string[] = [];
-  esLiderOperador = false;
-  esUsuarioSucursal = false;
-  tieneServiciosEspeciales = false;
-  /** Verdadero cuando el Líder tiene agencia pero la agencia no tiene servicios configurados en BD */
-  sinServiciosConfigurados = false;
+  // ── Alcance por sede: lo decide el servidor (Admin y Súper Admin ven todo; quien tiene sede ve solo lo de su sede) ──
+  get agenciaCtx(): AgenciaCatalogoCtx | null {
+    return this.generalesTabla.resumen ?? this.especialesTabla.resumen;
+  }
+  /** Permisos del catálogo: son los mismos que exige el servidor en cada endpoint. */
+  get puedeGestionarCatalogo(): boolean { return this.authService.puede('catalogo.gestionar'); }
+  get puedeGestionarRecetas(): boolean { return this.authService.puede('recetas.gestionar'); }
+  get soloLectura(): boolean { return !this.puedeGestionarCatalogo; }
+  get puedeGuardar(): boolean { return this.puedeGestionarCatalogo || (this.isEditing && this.puedeGestionarRecetas); }
+  get tieneServiciosEspeciales(): boolean { return this.agenciaCtx?.tieneServiciosEspeciales ?? false; }
+  /** La sede tiene el catálogo vacío: nada asignado y nada que mostrar. */
+  get sinServiciosConfigurados(): boolean {
+    const c = this.agenciaCtx;
+    return !!c && c.servicioIds.length === 0 && this.generalesTabla.total + this.especialesTabla.total === 0
+      && !this.busquedaGenerales && !this.busquedaEspeciales;
+  }
+  get totalServiciosSucursal(): number { return this.generalesTabla.total + this.especialesTabla.total; }
 
   // ── Tabs ──────────────────────────────────────────────────────────────────
   tabActiva: 'generales' | 'especiales' = 'generales';
 
-  // ── Catálogo de servicios generales y especiales ─────────────────────────
-  servicios: CatalogoServicio[] = [];
+  // ── Generales y especiales: páginas numeradas, búsqueda y orden en el servidor ──
+  readonly generalesTabla = new TablaServidor<CatalogoServicio, AgenciaCatalogoCtx>(
+    (c) => this.catalogoService.getServiciosPagina({ ...c, categoria: 'GENERAL' }), { sortField: 'codigo', sortOrder: 'asc' });
+  /** Los servicios extra cuentan como especiales. */
+  readonly especialesTabla = new TablaServidor<CatalogoServicio, AgenciaCatalogoCtx>(
+    (c) => this.catalogoService.getServiciosPagina({ ...c, categoria: 'ESPECIAL,EXTRA' }), { sortField: 'codigo', sortOrder: 'asc' });
   productosInventario: InventarioItem[] = [];
-
-  // ── Filtros y paginación: SERVICIOS GENERALES ─────────────────────────────
   busquedaGenerales = '';
-  filtroEstadoGenerales = 'TODOS';
-  currentPageGenerales = 1;
-  pageSizeGenerales = 5;
-
-  // ── Filtros y paginación: SERVICIOS ESPECIALES ────────────────────────────
   busquedaEspeciales = '';
-  filtroEstadoEspeciales = 'TODOS';
-  currentPageEspeciales = 1;
-  pageSizeEspeciales = 5;
+  private readonly texto$ = new Subject<{ tabla: 'generales' | 'especiales'; texto: string }>();
+  private suscripcionTexto?: Subscription;
+
+  buscarGenerales(texto: string): void { this.busquedaGenerales = texto; this.texto$.next({ tabla: 'generales', texto }); }
+  buscarEspeciales(texto: string): void { this.busquedaEspeciales = texto; this.texto$.next({ tabla: 'especiales', texto }); }
+
+  private recargar(tabla: TablaServidor<CatalogoServicio, AgenciaCatalogoCtx>, texto: string, page = 1, pageSize = tabla.pageSize): void {
+    tabla.alCambiar({ page, pageSize, sortField: tabla.sortField, sortOrder: tabla.sortOrder, search: texto });
+  }
+  cambiarPagina(tab: 'generales' | 'especiales', page: number): void {
+    if (tab === 'generales') this.recargar(this.generalesTabla, this.busquedaGenerales, page);
+    else this.recargar(this.especialesTabla, this.busquedaEspeciales, page);
+  }
+  cambiarTamano(tab: 'generales' | 'especiales', size: number): void {
+    if (tab === 'generales') this.recargar(this.generalesTabla, this.busquedaGenerales, 1, size);
+    else this.recargar(this.especialesTabla, this.busquedaEspeciales, 1, size);
+  }
+  private refrescarTablas(): void {
+    this.generalesTabla.refrescar();
+    this.especialesTabla.refrescar();
+  }
 
   // ── Modal de creación / edición (Generales & Especiales) ─────────────────
   showModal = false;
@@ -77,10 +106,7 @@ export class CatalogoServiciosComponent implements OnInit {
   historialReceta: RecetaHistorialCambio[] = [];
 
   get canVerHistorialReceta(): boolean {
-    return this.authService.isSuperAdmin()
-      || this.authService.isAdmin()
-      || this.authService.hasRole(Role.COORD_BODEGA)
-      || this.authService.hasRole(Role.ASISTENTE_BODEGA);
+    return this.authService.puede('recetas.historial');
   }
 
   toggleHistorialReceta(): void {
@@ -144,190 +170,44 @@ export class CatalogoServiciosComponent implements OnInit {
   }
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
+  ngOnDestroy(): void {
+    this.suscripcionTexto?.unsubscribe();
+    this.generalesTabla.destruir();
+    this.especialesTabla.destruir();
+  }
+
   ngOnInit() {
-    this.detectarAmbitoUsuario();
-    this.cargarServicios();
-    this.inventarioService.cargarItems();
-    this.inventarioService.getItems().subscribe(items => {
-      this.productosInventario = items;
+    this.suscripcionTexto = this.texto$.pipe(debounceTime(300)).subscribe(({ tabla, texto }) => {
+      if (tabla === 'generales') this.recargar(this.generalesTabla, texto);
+      else this.recargar(this.especialesTabla, texto);
+    });
+    this.generalesTabla.reiniciar();
+    this.especialesTabla.reiniciar();
+    // Los insumos solo hacen falta para armar recetas y requieren poder ver el inventario.
+    if (this.puedeGestionarRecetas && this.authService.puede('inventario.ver')) {
+      this.inventarioService.cargarItems();
+      this.inventarioService.getItems().subscribe(items => {
+        this.productosInventario = items;
+      });
+    }
+  }
+
+  /** Servicio nuevo: el servidor calcula el siguiente código (SER-### o ESP-###). */
+  private pedirSiguienteCodigo(categoria: 'GENERAL' | 'ESPECIAL'): void {
+    this.catalogoService.getSiguienteCodigo(categoria).subscribe({
+      next: (codigo) => {
+        if (!this.isEditing && this.servicioActual.categoria === categoria && !this.servicioActual.codigo) this.servicioActual.codigo = codigo;
+      },
+      error: () => this.toast.warning('Código', 'No se pudo calcular el siguiente código; escríbelo a mano.'),
     });
   }
-
-  detectarAmbitoUsuario(): void {
-    const user = this.authService.getCurrentUser();
-    if (!user) return;
-
-    const esSuperAdmin = this.authService.isSuperAdmin();
-    const esAdmin = this.authService.isAdmin();
-
-    this.esLiderOperador = !esSuperAdmin && !esAdmin && (this.authService.isLiderOperador() || user.role === Role.LIDER_OPERADOR);
-    this.esUsuarioSucursal = !esSuperAdmin && !esAdmin && (this.esLiderOperador || !!(user.sucursalNombre || user.sucursal || user.agenciaId));
-
-    const aplicarSucursal = (sucursales: Sucursal[]) => {
-      if (!sucursales || sucursales.length === 0) return;
-      const sucNombre = (user.sucursalNombre || user.sucursal || (user as any).agencia || '').toLowerCase().trim();
-      const suc = sucursales.find(s =>
-        (user.agenciaId && String(s.id) === String(user.agenciaId)) ||
-        (s.liderOperadorId && (user as any).id && String(s.liderOperadorId) === String((user as any).id)) ||
-        (s.nombre && s.nombre.toLowerCase() === sucNombre) ||
-        (s.nombre && sucNombre && (s.nombre.toLowerCase().includes(sucNombre) || sucNombre.includes(s.nombre.toLowerCase())))
-      );
-
-      if (suc) {
-        this.sucursalUsuario = suc;
-        this.serviciosSucursalIds = Array.isArray(suc.servicioIds) ? suc.servicioIds.map(Number) : [];
-        this.serviciosSucursalNombres = Array.isArray(suc.serviciosNombres) ? suc.serviciosNombres.map(n => n.toLowerCase().trim()) : [];
-        if (!esSuperAdmin && !esAdmin) {
-          this.esUsuarioSucursal = true;
-        }
-        this.recalcularTieneServiciosEspeciales();
-      }
-    };
-
-    const activas = this.sucursalService.getActivas();
-    if (activas && activas.length > 0) {
-      aplicarSucursal(activas);
-    }
-
-    this.sucursalService.getSucursales().subscribe(sucursales => {
-      aplicarSucursal(sucursales);
-    });
-  }
-
-  servicioCorrespondeASucursal(s: CatalogoServicio): boolean {
-    if (!this.esUsuarioSucursal) {
-      return true;
-    }
-    if (!this.sucursalUsuario) {
-      return false;
-    }
-    if (this.serviciosSucursalIds.length > 0 && this.serviciosSucursalIds.includes(Number(s.id))) {
-      return true;
-    }
-    if (this.serviciosSucursalNombres.length > 0 && this.serviciosSucursalNombres.includes(s.nombre.toLowerCase().trim())) {
-      return true;
-    }
-    return false;
-  }
-
-  get totalServiciosSucursal(): number {
-    return this.serviciosGenerales.length + this.serviciosEspeciales.length;
-  }
-
-  // ── Getters de servicios por categoría ───────────────────────────────────
-  get serviciosGenerales(): CatalogoServicio[] {
-    let list = this.servicios.filter(s => s.categoria === 'GENERAL');
-    if (this.esUsuarioSucursal && this.sucursalUsuario) {
-      list = list.filter(s => this.servicioCorrespondeASucursal(s));
-    }
-    return list;
-  }
-
-  get serviciosEspeciales(): CatalogoServicio[] {
-    let list = this.servicios.filter(s => s.categoria === 'ESPECIAL' || s.categoria === 'EXTRA');
-    if (this.esUsuarioSucursal && this.sucursalUsuario) {
-      list = list.filter(s => this.servicioCorrespondeASucursal(s));
-    }
-    return list;
-  }
-
-  // ── Cargar servicios ─────────────────────────────────────────────────────
-  cargarServicios() {
-    this.catalogoService.getServicios().subscribe();
-    this.catalogoService.servicios$.subscribe(data => {
-      this.servicios = data;
-      this.recalcularTieneServiciosEspeciales();
-    });
-    // Usar el contexto de agencia devuelto por el backend (para LIDER/APROBADOR)
-    this.catalogoService.agenciaCtx$.subscribe(ctx => {
-      if (ctx !== null) {
-        // Backend scoped response: usar directamente el flag de la agencia en BD
-        this.tieneServiciosEspeciales = ctx.tieneServiciosEspeciales;
-        this.sinServiciosConfigurados = this.esLiderOperador && ctx.servicioIds.length === 0;
-        if (!this.tieneServiciosEspeciales && this.tabActiva === 'especiales') {
-          this.tabActiva = 'generales';
-        }
-      }
-    });
-  }
-
-  recalcularTieneServiciosEspeciales(): void {
-    if (!this.sucursalUsuario) {
-      const user = this.authService.getCurrentUser();
-      const sucNombre = user && (user.sucursalNombre || user.sucursal || (user as any).agencia || '');
-      this.tieneServiciosEspeciales =
-        Boolean(user && user.agenciaId !== undefined && user.agenciaId !== null && user.agenciaId !== ''
-          ? this.sucursalService.hasServiciosEspecialesActivos(user.agenciaId, sucNombre)
-          : false);
-      return;
-    }
-    const espIds = new Set(
-      (this.servicios || [])
-        .filter(s => s.categoria === 'ESPECIAL' || s.categoria === 'EXTRA')
-        .map(s => Number(s.id))
-    );
-    const espNombres = new Set(
-      (this.servicios || [])
-        .filter(s => s.categoria === 'ESPECIAL' || s.categoria === 'EXTRA')
-        .map(s => (s.nombre || '').toLowerCase().trim())
-    );
-    this.tieneServiciosEspeciales =
-      Boolean((this.sucursalUsuario as any).tieneServiciosEspeciales) ||
-      this.serviciosSucursalIds.some(id => espIds.has(Number(id))) ||
-      this.serviciosSucursalNombres.some(n => espNombres.has(String(n).toLowerCase().trim()));
-
-    if (!this.tieneServiciosEspeciales && this.esUsuarioSucursal && this.tabActiva === 'especiales') {
-      this.tabActiva = 'generales';
-    }
-  }
-
-  // ── SERVICIOS GENERALES: Filtrado & Paginación ───────────────────────────
-  get generalesFiltrados(): CatalogoServicio[] {
-    return this.serviciosGenerales.filter(s => {
-      const matchEst = this.filtroEstadoGenerales === 'TODOS' || s.estado === this.filtroEstadoGenerales;
-      const matchTxt = this.busquedaGenerales === '' ||
-                       s.nombre.toLowerCase().includes(this.busquedaGenerales.toLowerCase()) ||
-                       s.codigo.toLowerCase().includes(this.busquedaGenerales.toLowerCase());
-      return matchEst && matchTxt;
-    });
-  }
-
-  get paginatedGenerales(): CatalogoServicio[] {
-    const start = (this.currentPageGenerales - 1) * this.pageSizeGenerales;
-    return this.generalesFiltrados.slice(start, start + this.pageSizeGenerales);
-  }
-
-  onPageChangeGenerales(page: number) { this.currentPageGenerales = page; }
-  onPageSizeChangeGenerales(size: number) { this.pageSizeGenerales = size; this.currentPageGenerales = 1; }
-
-  // ── SERVICIOS ESPECIALES: Filtrado & Paginación ──────────────────────────
-  get especialesFiltrados(): CatalogoServicio[] {
-    return this.serviciosEspeciales.filter(s => {
-      const matchEst = this.filtroEstadoEspeciales === 'TODOS' || s.estado === this.filtroEstadoEspeciales;
-      const matchTxt = this.busquedaEspeciales === '' ||
-                       s.nombre.toLowerCase().includes(this.busquedaEspeciales.toLowerCase()) ||
-                       s.codigo.toLowerCase().includes(this.busquedaEspeciales.toLowerCase());
-      return matchEst && matchTxt;
-    });
-  }
-
-  get paginatedEspeciales(): CatalogoServicio[] {
-    const start = (this.currentPageEspeciales - 1) * this.pageSizeEspeciales;
-    return this.especialesFiltrados.slice(start, start + this.pageSizeEspeciales);
-  }
-
-  onPageChangeEspeciales(page: number) { this.currentPageEspeciales = page; }
-  onPageSizeChangeEspeciales(size: number) { this.pageSizeEspeciales = size; this.currentPageEspeciales = 1; }
 
   // ── Modal de creación / edición (Generales y Especiales) ─────────────────
   abrirModalNuevo(categoria: 'GENERAL' | 'ESPECIAL' = 'GENERAL') {
+    if (!this.puedeGestionarCatalogo) return;
     this.isEditing = false;
-    const count = categoria === 'GENERAL' ? this.serviciosGenerales.length + 1 : this.serviciosEspeciales.length + 1;
-    const prefix = categoria === 'GENERAL' ? 'SER' : 'ESP';
-    const nextCode = `${prefix}-00${count}`;
-    
     this.servicioActual = {
-      codigo: nextCode,
+      codigo: '',
       nombre: '',
       descripcion: '',
       categoria: categoria,
@@ -342,6 +222,7 @@ export class CatalogoServiciosComponent implements OnInit {
     this.historialRecetaCargado = false;
     this.historialReceta = [];
     this.showModal = true;
+    this.pedirSiguienteCodigo(categoria);
   }
 
   abrirModalEditar(servicio: CatalogoServicio) {
@@ -426,6 +307,19 @@ export class CatalogoServiciosComponent implements OnInit {
   }
 
   guardarServicio() {
+    if (!this.puedeGuardar) return;
+    // Solo recetas (p. ej. coordinador de bodega): no toca los datos del servicio.
+    if (this.isEditing && this.servicioActual.id && !this.puedeGestionarCatalogo) {
+      this.catalogoService.guardarRecetasServicio(this.servicioActual.id, this.servicioActual.insumosReceta || []).subscribe({
+        next: () => {
+          this.toast.success('Receta Actualizada', 'La receta de insumos fue guardada.');
+          this.cerrarModal();
+          this.refrescarTablas();
+        },
+        error: (err) => this.toast.error('Error al guardar', err?.error?.message || 'No se pudo guardar la receta.'),
+      });
+      return;
+    }
     if (!this.servicioActual.codigo?.trim() || !this.servicioActual.nombre?.trim()) {
       this.toast.warning('Datos incompletos', 'Código y nombre del servicio son obligatorios.');
       return;
@@ -438,10 +332,12 @@ export class CatalogoServiciosComponent implements OnInit {
     this.servicioActual.tiempoEstimadoMin = Math.round(mins);
 
     if (this.isEditing && this.servicioActual.id) {
-      this.catalogoService.actualizarServicio(this.servicioActual.id, this.servicioActual).subscribe({
+      const cambios = this.puedeGestionarRecetas ? this.servicioActual : { ...this.servicioActual, insumosReceta: undefined };
+      this.catalogoService.actualizarServicio(this.servicioActual.id, cambios).subscribe({
         next: () => {
           this.toast.success('Servicio Actualizado', 'El servicio y su receta fueron guardados en base de datos.');
           this.cerrarModal();
+          this.refrescarTablas();
         },
         error: (err) => {
           this.toast.error('Error al guardar', err?.error?.message || 'No se pudo actualizar el servicio.');
@@ -452,6 +348,7 @@ export class CatalogoServiciosComponent implements OnInit {
         next: () => {
           this.toast.success('Servicio Creado', 'El servicio y su receta fueron guardados en base de datos.');
           this.cerrarModal();
+          this.refrescarTablas();
         },
         error: (err) => {
           this.toast.error('Error al crear', err?.error?.message || 'No se pudo crear el servicio.');
@@ -460,8 +357,4 @@ export class CatalogoServiciosComponent implements OnInit {
     }
   }
 
-  toggleEstado(servicio: CatalogoServicio) {
-    const nuevoEstado = servicio.estado === 'Activo' ? 'Inactivo' : 'Activo';
-    this.catalogoService.cambiarEstado(servicio.id, nuevoEstado).subscribe();
-  }
 }

@@ -2,14 +2,24 @@ import { Routes, Router } from '@angular/router';
 import { inject } from '@angular/core';
 import { LoginComponent } from './features/login/login.component';
 import { AdminLayoutComponent } from './shared/layouts/admin-layout.component';
-import { authGuard, roleGuard } from './core/guards/auth.guard';
-import { Role } from './core/models/roles.model';
-import { ROLES_VER_MAQUINARIA } from './core/utils/maquinaria-permisos';
+import { authGuard, moduloGuard } from './core/guards/auth.guard';
 
 export const routes: Routes = [
   {
     path: 'login',
     component: LoginComponent
+  },
+  {
+    path: 'cambiar-password',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/cambiar-password/cambiar-password.component').then(m => m.CambiarPasswordComponent)
+  },
+  {
+    path: 'sin-acceso',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/sin-acceso/sin-acceso.component').then(m => m.SinAccesoComponent)
   },
   {
     path: '',
@@ -44,20 +54,7 @@ export const routes: Routes = [
           import('./features/dashboard/dashboard.component').then(m => m.DashboardComponent),
         canActivate: [
           authGuard,
-          roleGuard([
-            Role.SUPER_ADMIN,
-            Role.ADMIN,
-            Role.GERENTE,
-            Role.SUPERVISOR,
-            Role.COORD_MANTENIMIENTO,
-            Role.TECNICO,
-            Role.LIDER_OPERADOR,
-            Role.COORD_COMERCIAL,
-            Role.COORD_SERVICIOS_ESPECIALES,
-            Role.OPERADOR_SERVICIOS_ESPECIALES,
-            Role.DISTRIBUIDOR,
-            Role.ASISTENTE_BODEGA
-          ], 'dashboard')
+          moduloGuard('dashboard')
         ]
       },
 
@@ -67,16 +64,7 @@ export const routes: Routes = [
           import('./features/servicios/servicios.component').then(m => m.ServiciosComponent),
         canActivate: [
           authGuard,
-          roleGuard([
-            Role.SUPER_ADMIN,
-            Role.ADMIN,
-            Role.GERENTE,
-            Role.SUPERVISOR,
-            Role.LIDER_OPERADOR,
-            Role.COORD_COMERCIAL,
-            Role.COORD_SERVICIOS_ESPECIALES,
-            Role.OPERADOR_SERVICIOS_ESPECIALES
-          ], 'servicios')
+          moduloGuard('servicios')
         ]
       },
 
@@ -86,12 +74,7 @@ export const routes: Routes = [
           import('./features/aprobaciones/aprobaciones.component').then(m => m.AprobacionesComponent),
         canActivate: [
           authGuard,
-          roleGuard([
-            Role.SUPER_ADMIN,
-            Role.ADMIN,
-            Role.GERENTE,
-            Role.COORD_SERVICIOS_ESPECIALES
-          ], 'aprobaciones')
+          moduloGuard('aprobaciones')
         ]
       },
 
@@ -101,13 +84,7 @@ export const routes: Routes = [
           import('./features/productividad/productividad.component').then(m => m.ProductividadComponent),
         canActivate: [
           authGuard,
-          roleGuard([
-            Role.SUPER_ADMIN,
-            Role.ADMIN,
-            Role.SUPERVISOR,
-            Role.COORD_COMERCIAL,
-            Role.COORD_SERVICIOS_ESPECIALES
-          ], 'productividad')
+          moduloGuard('productividad')
         ]
       },
 
@@ -125,11 +102,7 @@ export const routes: Routes = [
           import('./features/sucursales/sucursales.component').then(m => m.SucursalesComponent),
         canActivate: [
           authGuard,
-          roleGuard([
-            Role.SUPER_ADMIN,
-            Role.ADMIN,
-            Role.SUPERVISOR
-          ], 'agencias')
+          moduloGuard('agencias')
         ]
       },
       {
@@ -138,11 +111,7 @@ export const routes: Routes = [
           import('./features/sucursales/sucursal-detail.component').then(m => m.SucursalDetailComponent),
         canActivate: [
           authGuard,
-          roleGuard([
-            Role.SUPER_ADMIN,
-            Role.ADMIN,
-            Role.SUPERVISOR
-          ], 'agencias')
+          moduloGuard('agencias')
         ]
       },
       {
@@ -161,13 +130,7 @@ export const routes: Routes = [
           import('./features/operadores/operadores.component').then(m => m.OperadoresComponent),
         canActivate: [
           authGuard,
-          roleGuard([
-            Role.SUPER_ADMIN,
-            Role.ADMIN,
-            Role.SUPERVISOR,
-            Role.LIDER_OPERADOR,
-            Role.COORD_SERVICIOS_ESPECIALES
-          ], 'operadores')
+          moduloGuard('operadores')
         ]
       },
       {
@@ -186,7 +149,7 @@ export const routes: Routes = [
         canActivate: [
           authGuard,
           // Matriz de maquinaria: ADMIN, SUPER_ADMIN, COORD_BODEGA, COORD_MANTENIMIENTO, TECNICO, PULIDOR* y LIDER*
-          roleGuard(ROLES_VER_MAQUINARIA, 'maquinaria')
+          moduloGuard('maquinaria')
         ]
       },
 
@@ -196,12 +159,7 @@ export const routes: Routes = [
           import('./features/taller-tecnico/taller-tecnico.component').then(m => m.TallerTecnicoComponent),
         canActivate: [
           authGuard,
-          roleGuard([
-            Role.SUPER_ADMIN,
-            Role.ADMIN,
-            Role.COORD_MANTENIMIENTO,
-            Role.TECNICO
-          ], 'taller-tecnico')
+          moduloGuard('taller-tecnico')
         ]
       },
 
@@ -211,18 +169,7 @@ export const routes: Routes = [
           import('./features/inventario/inventario.component').then(m => m.InventarioComponent),
         canActivate: [
           authGuard,
-          roleGuard([
-            Role.SUPER_ADMIN,
-            Role.ADMIN,
-            Role.SUPERVISOR,
-            Role.COORD_MANTENIMIENTO,
-            Role.TECNICO,
-            Role.LIDER_OPERADOR,
-            Role.OPERADOR,
-            Role.DISTRIBUIDOR,
-            Role.ASISTENTE_BODEGA,
-            Role.PULIDOR
-          ], 'inventario')
+          moduloGuard('inventario')
         ]
       },
 
@@ -232,19 +179,7 @@ export const routes: Routes = [
           import('./features/envios/envios.component').then(m => m.EnviosComponent),
         canActivate: [
           authGuard,
-          roleGuard([
-            Role.SUPER_ADMIN,
-            Role.ADMIN,
-            Role.SUPERVISOR,
-            Role.COORD_MANTENIMIENTO,
-            Role.LIDER_OPERADOR,
-            Role.OPERADOR,
-            Role.COORD_SERVICIOS_ESPECIALES,
-            Role.OPERADOR_SERVICIOS_ESPECIALES,
-            Role.DISTRIBUIDOR,
-            Role.ASISTENTE_BODEGA,
-            Role.PULIDOR
-          ], 'envios')
+          moduloGuard('envios')
         ]
       },
 
@@ -254,24 +189,7 @@ export const routes: Routes = [
           import('./features/reportes/reportes.component').then(m => m.ReportesComponent),
         canActivate: [
           authGuard,
-          roleGuard([
-            Role.SUPER_ADMIN,
-            Role.ADMIN,
-            Role.SUPERVISOR,
-            Role.COORD_COMERCIAL,
-            Role.COORD_BODEGA,
-            Role.DISTRIBUIDOR
-          ], 'reportes')
-        ]
-      },
-
-      {
-        path: 'agencias',
-        loadComponent: () =>
-          import('./features/agencias/agencias.component').then(m => m.AgenciasComponent),
-        canActivate: [
-          authGuard,
-          roleGuard([Role.SUPER_ADMIN, Role.ADMIN], 'agencias')
+          moduloGuard('reportes')
         ]
       },
 
@@ -281,7 +199,7 @@ export const routes: Routes = [
           import('./features/usuarios/usuarios.component').then(m => m.UsuariosComponent),
         canActivate: [
           authGuard,
-          roleGuard([Role.SUPER_ADMIN, Role.ADMIN], 'usuarios')
+          moduloGuard('usuarios')
         ]
       },
       {
@@ -290,17 +208,7 @@ export const routes: Routes = [
           import('./features/configuracion/catalogo-servicios/catalogo-servicios.component').then(m => m.CatalogoServiciosComponent),
         canActivate: [
           authGuard,
-          roleGuard([
-            Role.SUPER_ADMIN,
-            Role.ADMIN,
-            Role.SUPERVISOR,
-            Role.JEFE_COMERCIAL,
-            Role.COORD_COMERCIAL,
-            Role.COORD_SERVICIOS_ESPECIALES,
-            Role.LIDER_OPERADOR,
-            Role.COORD_BODEGA,
-            Role.ASISTENTE_BODEGA
-          ], 'configuracion/servicios')
+          moduloGuard('configuracion/servicios')
         ]
       },
       {

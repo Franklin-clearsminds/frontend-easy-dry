@@ -1,8 +1,8 @@
-import { Component, EventEmitter, Input, OnChanges, Output, SimpleChanges, ViewChild, inject } from '@angular/core';
+import { Component, EventEmitter, Input, OnChanges, OnDestroy, Output, SimpleChanges, ViewChild, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LucideAngularModule } from 'lucide-angular';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, map } from 'rxjs';
 import {
   Incidente, Mantenimiento, MaquinaFicha, MaquinariaEvento, MovimientoMaquinaria,
   TIPOS_EVENTO_MAQUINARIA, etiquetaEventoMaquinaria, colorEventoMaquinaria,
@@ -15,14 +15,20 @@ import { StorageUploadService } from '../../../core/services/storage-upload.serv
 import { AuthService } from '../../../core/services/auth.service';
 import { VisorArchivoComponent } from '../../../shared/components/visor-archivo/visor-archivo.component';
 import { ModalComponent } from '../../../shared/components/modal/modal.component';
+import { InfiniteScrollComponent } from '../../../shared/components/infinite-scroll/infinite-scroll.component';
+import { ListaInfinita } from '../../../core/utils/lista-infinita';
+import { PAGE_SIZE_INFINITO } from '../../../core/config/paginacion';
 import { EvidenciaGaleriaComponent } from '../../../shared/components/evidencia-galeria/evidencia-galeria.component';
 import { ThumbSrcDirective } from '../../../shared/directives/thumb-src.directive';
 import { TrabajoAccionesComponent, mensajeError } from '../trabajo-acciones/trabajo-acciones.component';
+import { ChecklistOrdenComponent } from '../../mantenimiento/checklist-orden/checklist-orden.component';
 import { MaquinaAccionesComponent } from '../maquina-acciones/maquina-acciones.component';
 import { fechaHoraLocal, fechaProgramadaLocal } from '../../../core/utils/evidencia-maquinaria';
+import { badgeClase, BADGE_NO_ATENDIDO } from '../../../core/utils/badges';
 import {
-  esOperadorMaquina, puedeEditarMaquina, puedeActivarMaquina, puedeGestionarMaquina,
-  puedeVerTrazabilidad, puedeVerMantenimientos, puedeTrabajarOrden, ROLES_VER_MAQUINARIA,
+  puedeEditarMaquina, puedeActivarMaquina, puedeGestionarMaquina, puedeReportarIncidente,
+  puedeVerTrazabilidad, puedeVerMantenimientos, puedeVerIncidentes, puedeResolverIncidentes,
+  puedeEjecutarMantenimientos, puedeAgregarEvidenciaMaquinaria,
 } from '../../../core/utils/maquinaria-permisos';
 
 export type PestanaMaquina = 'resumen' | 'incidencias' | 'movimientos' | 'mantenimientos' | 'timeline';
@@ -46,21 +52,22 @@ interface EventoVista {
   standalone: true,
   imports: [
     CommonModule, FormsModule, LucideAngularModule, ModalComponent, EvidenciaGaleriaComponent, VisorArchivoComponent,
-    ThumbSrcDirective, TrabajoAccionesComponent, MaquinaAccionesComponent,
+    ThumbSrcDirective, TrabajoAccionesComponent, MaquinaAccionesComponent, InfiniteScrollComponent, ChecklistOrdenComponent,
   ],
   template: `
     <app-modal
       [isOpen]="maquinariaId !== null && maquinariaId !== undefined"
       [title]="ficha ? ('Máquina ' + ficha.codigo + ' — ' + ficha.nombre) : 'Detalle de máquina'"
       icon="hard-drive"
-      sizeClass="max-w-5xl"
+      size="xl"
+      [altoFijo]="true"
       (close)="fichaModalOpen ? null : cerrar.emit()">
 
       @if (cargando && !ficha) {
-        <p class="text-sm text-slate-500 font-semibold py-8 text-center">Cargando ficha...</p>
+        <p class="text-sm text-slate-500 font-semibold py-8 text-center" role="status" aria-live="polite">Cargando ficha...</p>
       }
       @if (errorFicha) {
-        <div class="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs font-semibold text-rose-700">{{ errorFicha }}</div>
+        <div class="estado-error" role="alert">{{ errorFicha }}</div>
       }
 
       @if (ficha) {
@@ -68,20 +75,17 @@ interface EventoVista {
           <!-- Cabecera -->
           <div class="flex flex-col sm:flex-row gap-4 items-start">
             @if (ficha.fotoUrl) {
-              <img [appThumb]="ficha.fotoUrl" [alt]="ficha.nombre" class="w-full sm:w-44 h-32 object-cover rounded-2xl border border-slate-200 bg-slate-100">
+              <img [appThumb]="ficha.fotoUrl" [alt]="'Foto de ' + ficha.nombre" class="w-full sm:w-44 h-32 object-cover rounded-2xl border border-slate-200 bg-slate-100">
             }
             <div class="flex-1 min-w-0 space-y-2">
               <div class="flex items-center gap-2 flex-wrap">
                 <span class="px-2.5 py-1 bg-easydry-blue text-white font-mono font-bold text-xs rounded-lg">{{ ficha.codigo }}</span>
-                <span class="px-2.5 py-1 rounded-full text-[11px] font-extrabold" [ngClass]="claseEstado(ficha)">{{ etiquetaEstado(ficha) }}</span>
-                @if (!ficha.activa) {
-                  <span class="px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-rose-100 text-rose-800 border border-rose-300">Dada de baja</span>
-                }
+                <span [class]="badgeClase('maquina', etiquetaEstado(ficha), { activa: ficha.activa })">{{ etiquetaEstado(ficha) }}</span>
                 @if (ficha.incidentesNoAtendidos > 0) {
-                  <span class="px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-rose-600 text-white">{{ ficha.incidentesNoAtendidos }} incidencia(s) no atendida(s)</span>
+                  <span [class]="badgeNoAtendido">{{ ficha.incidentesNoAtendidos }} incidencia(s) no atendida(s)</span>
                 }
                 @if (ficha.mantenimientosVencidos > 0) {
-                  <span class="px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-rose-600 text-white">{{ ficha.mantenimientosVencidos }} mantenimiento(s) vencido(s)</span>
+                  <span [class]="badgeNoAtendido">{{ ficha.mantenimientosVencidos }} mantenimiento(s) vencido(s)</span>
                 }
               </div>
               <p class="text-xs text-slate-600">{{ ficha.marca }} {{ ficha.modelo }} @if (ficha.serie) { · Serie {{ ficha.serie }} } @if (ficha.tipo) { · {{ ficha.tipo }} }</p>
@@ -89,40 +93,37 @@ interface EventoVista {
               <!-- Acciones (según rol; el backend valida de nuevo) -->
               <div class="flex flex-wrap gap-2 pt-1">
                 @if (puedeEditar) {
-                  <button (click)="maquinaAcc.editar(ficha)" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-lg text-[11px] inline-flex items-center gap-1 cursor-pointer">
-                    <i-lucide name="pencil" class="w-3.5 h-3.5"></i-lucide> Editar
+                  <button type="button" (click)="maquinaAcc.editar(ficha)" class="btn btn-secondary btn-sm">
+                    <i-lucide name="pencil" class="w-3.5 h-3.5" aria-hidden="true"></i-lucide> Editar
                   </button>
                 }
                 @if (puedeActivar) {
                   @if (ficha.activa) {
-                    <button (click)="maquinaAcc.cambiarActiva(ficha, false)" class="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200 font-bold rounded-lg text-[11px] inline-flex items-center gap-1 cursor-pointer">
-                      <i-lucide name="x-circle" class="w-3.5 h-3.5"></i-lucide> Dar de baja
+                    <button type="button" (click)="maquinaAcc.cambiarActiva(ficha, false)" class="btn btn-danger btn-sm">
+                      <i-lucide name="x-circle" class="w-3.5 h-3.5" aria-hidden="true"></i-lucide> Dar de baja
                     </button>
                   } @else {
-                    <button (click)="maquinaAcc.cambiarActiva(ficha, true)" class="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold rounded-lg text-[11px] inline-flex items-center gap-1 cursor-pointer">
-                      <i-lucide name="check-circle-2" class="w-3.5 h-3.5"></i-lucide> Reactivar
+                    <button type="button" (click)="maquinaAcc.cambiarActiva(ficha, true)" class="btn btn-secondary btn-sm">
+                      <i-lucide name="check-circle-2" class="w-3.5 h-3.5" aria-hidden="true"></i-lucide> Reactivar
                     </button>
                   }
                 }
                 @if (puedeGestionar) {
-                  <button (click)="maquinaAcc.asignarOperador(ficha)" class="px-3 py-1.5 bg-cyan-50 hover:bg-cyan-100 text-cyan-800 border border-cyan-200 font-bold rounded-lg text-[11px] inline-flex items-center gap-1 cursor-pointer">
-                    <i-lucide name="user-cog" class="w-3.5 h-3.5"></i-lucide> Asignar operador
+                  <button type="button" (click)="maquinaAcc.configurarVentana(ficha)" class="btn btn-secondary btn-sm">
+                    <i-lucide name="timer" class="w-3.5 h-3.5" aria-hidden="true"></i-lucide> Ventana de adelanto
                   </button>
-                  <button (click)="maquinaAcc.configurarVentana(ficha)" class="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 font-bold rounded-lg text-[11px] inline-flex items-center gap-1 cursor-pointer">
-                    <i-lucide name="timer" class="w-3.5 h-3.5"></i-lucide> Ventana de adelanto
-                  </button>
-                  <button (click)="maquinaAcc.transferir(ficha)" class="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 font-bold rounded-lg text-[11px] inline-flex items-center gap-1 cursor-pointer">
-                    <i-lucide name="refresh-cw" class="w-3.5 h-3.5"></i-lucide> Transferir
+                  <button type="button" (click)="maquinaAcc.transferir(ficha)" class="btn btn-secondary btn-sm">
+                    <i-lucide name="refresh-cw" class="w-3.5 h-3.5" aria-hidden="true"></i-lucide> Transferir / Asignar
                   </button>
                   @if (ficha.activa) {
-                    <button (click)="trabajoAcc.programarMantenimiento(fichaComoMaquinaria(), [])" class="px-3 py-1.5 bg-easydry-blue/10 hover:bg-easydry-blue hover:text-white text-easydry-blue font-bold rounded-lg text-[11px] inline-flex items-center gap-1 cursor-pointer">
-                      <i-lucide name="calendar-clock" class="w-3.5 h-3.5"></i-lucide> Programar mantenimiento
+                    <button type="button" (click)="trabajoAcc.programarMantenimiento(fichaComoMaquinaria(), [])" class="btn btn-secondary btn-sm">
+                      <i-lucide name="calendar-clock" class="w-3.5 h-3.5" aria-hidden="true"></i-lucide> Programar mantenimiento
                     </button>
                   }
                 }
                 @if (puedeReportar) {
-                  <button (click)="trabajoAcc.reportarIncidente(ficha)" class="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-lg text-[11px] inline-flex items-center gap-1 cursor-pointer">
-                    <i-lucide name="alert-triangle" class="w-3.5 h-3.5"></i-lucide> Reportar incidencia
+                  <button type="button" (click)="trabajoAcc.reportarIncidente(ficha)" class="btn btn-cta btn-sm">
+                    <i-lucide name="alert-triangle" class="w-3.5 h-3.5" aria-hidden="true"></i-lucide> Reportar incidencia
                   </button>
                 }
               </div>
@@ -130,39 +131,42 @@ interface EventoVista {
           </div>
 
           <!-- Pestañas -->
-          <div class="flex items-center gap-1 bg-slate-100 p-1 rounded-xl overflow-x-auto">
+          <div class="flex items-center gap-1 bg-slate-100 p-1 rounded-xl overflow-x-auto" role="tablist" aria-label="Secciones de la máquina">
             @for (t of pestanas; track t.id) {
               <button type="button" (click)="cambiarPestana(t.id)"
-                class="flex-1 min-w-fit py-2 px-3 rounded-lg text-xs font-extrabold transition-all flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer"
+                role="tab" [id]="'tab-maq-' + t.id" [attr.aria-selected]="pestana === t.id"
+                [attr.aria-controls]="pestana === t.id ? 'panel-maq-' + t.id : null"
+                class="flex-1 min-w-fit min-h-9 py-2 px-3 rounded-lg text-xs font-extrabold transition-colors flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer"
                 [ngClass]="pestana === t.id ? 'bg-white text-easydry-blue shadow-xs' : 'text-slate-500 hover:text-slate-700'">
-                <i-lucide [name]="t.icono" class="w-4 h-4"></i-lucide>
+                <i-lucide [name]="t.icono" class="w-4 h-4" aria-hidden="true"></i-lucide>
                 {{ t.label }}
                 @if (t.id === 'incidencias' && ficha.incidentesNoAtendidos > 0) {
-                  <span class="px-1.5 py-0.5 rounded-full bg-rose-600 text-white text-[9px] font-bold">{{ ficha.incidentesNoAtendidos }}</span>
+                  <span class="px-1.5 py-0.5 rounded-full bg-rose-600 text-white text-[11px] font-bold">{{ ficha.incidentesNoAtendidos }}<span class="sr-only"> incidencias sin atender</span></span>
                 }
                 @if (t.id === 'mantenimientos' && ficha.mantenimientosVencidos > 0) {
-                  <span class="px-1.5 py-0.5 rounded-full bg-rose-600 text-white text-[9px] font-bold">{{ ficha.mantenimientosVencidos }}</span>
+                  <span class="px-1.5 py-0.5 rounded-full bg-rose-600 text-white text-[11px] font-bold">{{ ficha.mantenimientosVencidos }}<span class="sr-only"> mantenimientos vencidos</span></span>
                 }
               </button>
             }
           </div>
 
+          <div role="tabpanel" [id]="'panel-maq-' + pestana" [attr.aria-labelledby]="'tab-maq-' + pestana" class="space-y-5">
           <!-- ================= RESUMEN ================= -->
           @if (pestana === 'resumen') {
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div class="p-4 rounded-2xl border border-slate-200 bg-slate-50/60 space-y-3 text-xs">
                 <h4 class="font-bold text-slate-900 uppercase text-xs border-b border-slate-200 pb-2">Estado y ubicación</h4>
                 <div class="grid grid-cols-2 gap-3">
-                  <div><span class="block text-[10px] text-slate-400 font-bold uppercase">Estado operativo</span><span class="font-bold text-slate-800">{{ etiquetaEstado(ficha) }}</span></div>
-                  <div><span class="block text-[10px] text-slate-400 font-bold uppercase">Activa</span><span class="font-bold" [ngClass]="ficha.activa ? 'text-emerald-700' : 'text-rose-700'">{{ ficha.activa ? 'Sí' : 'No (de baja)' }}</span></div>
-                  <div><span class="block text-[10px] text-slate-400 font-bold uppercase">Agencia / ubicación</span><span class="font-bold text-slate-800">{{ ficha.agenciaNombre || 'Sin agencia' }}@if (esTaller) { <span class="text-amber-700"> (Taller)</span> }</span></div>
-                  <div><span class="block text-[10px] text-slate-400 font-bold uppercase">Bahía</span><span class="font-bold text-slate-800">{{ ficha.bahiaNombre || 'Sin bahía' }}</span></div>
+                  <div><span class="block text-[11px] text-slate-500 font-bold uppercase">Estado operativo</span><span class="font-bold text-slate-800">{{ etiquetaEstado(ficha) }}</span></div>
+                  <div><span class="block text-[11px] text-slate-500 font-bold uppercase">Activa</span><span class="font-bold" [ngClass]="ficha.activa ? 'text-emerald-700' : 'text-rose-700'">{{ ficha.activa ? 'Sí' : 'No (de baja)' }}</span></div>
+                  <div><span class="block text-[11px] text-slate-500 font-bold uppercase">Agencia / ubicación</span><span class="font-bold text-slate-800">{{ ficha.agenciaNombre || 'Sin agencia' }}@if (esTaller) { <span class="text-amber-700"> (Taller)</span> }</span></div>
+                  <div><span class="block text-[11px] text-slate-500 font-bold uppercase">Bahía</span><span class="font-bold text-slate-800">{{ ficha.bahiaNombre || 'Sin bahía' }}</span></div>
                 </div>
                 @if (!ficha.activa) {
                   <div class="p-3 bg-rose-50 border border-rose-200 rounded-xl space-y-1">
                     <p class="font-bold text-rose-800">Motivo de la baja</p>
-                    <p class="text-rose-700">{{ ficha.motivoDesactivacion || '—' }}</p>
-                    <p class="text-[10px] text-rose-600">{{ ficha.desactivadoPor?.nombre || '—' }} · {{ hora(ficha.fechaDesactivacion) }}</p>
+                    <p class="text-rose-700 break-words">{{ ficha.motivoDesactivacion || '—' }}</p>
+                    <p class="text-xs text-rose-700">{{ ficha.desactivadoPor?.nombre || '—' }} · {{ hora(ficha.fechaDesactivacion) }}</p>
                   </div>
                 }
               </div>
@@ -170,22 +174,22 @@ interface EventoVista {
               <div class="p-4 rounded-2xl border border-slate-200 bg-slate-50/60 space-y-3 text-xs">
                 <h4 class="font-bold text-slate-900 uppercase text-xs border-b border-slate-200 pb-2">Responsables</h4>
                 <div class="grid grid-cols-2 gap-3">
-                  <div><span class="block text-[10px] text-slate-400 font-bold uppercase">Operador asignado</span><span class="font-bold text-slate-800">{{ ficha.operadorAsignado?.nombre || 'Sin asignar' }}</span></div>
-                  <div><span class="block text-[10px] text-slate-400 font-bold uppercase">Creada por</span><span class="font-bold text-slate-800">{{ ficha.creadoPor?.nombre || '—' }}</span></div>
-                  <div><span class="block text-[10px] text-slate-400 font-bold uppercase">Fecha de creación</span><span class="font-mono text-slate-700">{{ hora(ficha.creadaEn) }}</span></div>
-                  <div><span class="block text-[10px] text-slate-400 font-bold uppercase">Horas de uso</span><span class="font-mono text-slate-700">{{ ficha.horasUso || 0 }}</span></div>
+                  <div><span class="block text-[11px] text-slate-500 font-bold uppercase">Operador asignado</span><span class="font-bold text-slate-800">{{ ficha.operadorAsignado?.nombre || 'Sin asignar' }}</span></div>
+                  <div><span class="block text-[11px] text-slate-500 font-bold uppercase">Creada por</span><span class="font-bold text-slate-800">{{ ficha.creadoPor?.nombre || '—' }}</span></div>
+                  <div><span class="block text-[11px] text-slate-500 font-bold uppercase">Fecha de creación</span><span class="font-mono text-slate-700">{{ hora(ficha.creadaEn) }}</span></div>
+                  <div><span class="block text-[11px] text-slate-500 font-bold uppercase">Horas de uso</span><span class="font-mono text-slate-700">{{ ficha.horasUso || 0 }}</span></div>
                 </div>
               </div>
 
               <div class="p-4 rounded-2xl border border-slate-200 bg-slate-50/60 space-y-3 text-xs">
                 <h4 class="font-bold text-slate-900 uppercase text-xs border-b border-slate-200 pb-2">Mantenimiento</h4>
                 <div class="grid grid-cols-2 gap-3">
-                  <div><span class="block text-[10px] text-slate-400 font-bold uppercase">Ventana de adelanto</span>
+                  <div><span class="block text-[11px] text-slate-500 font-bold uppercase">Ventana de adelanto</span>
                     <span class="font-bold text-slate-800">{{ ficha.ventanaAdelantoDias }} día(s)@if (ficha.ventanaAdelantoDias >= 7) { <span class="text-slate-500 font-semibold"> (~{{ ficha.ventanaAdelantoDias / 7 | number:'1.0-1' }} sem)</span> }</span></div>
-                  <div><span class="block text-[10px] text-slate-400 font-bold uppercase">Próximo mantenimiento</span>
+                  <div><span class="block text-[11px] text-slate-500 font-bold uppercase">Próximo mantenimiento</span>
                     @if (ficha.proximoMantenimiento) {
                       <span class="font-bold text-slate-800">{{ fechaProg(ficha.proximoMantenimiento.fechaProgramada) }}</span>
-                      <span class="block text-[10px] text-slate-500">{{ ficha.proximoMantenimiento.tipo }} · {{ ficha.proximoMantenimiento.estado }}</span>
+                      <span class="block text-xs text-slate-500">{{ ficha.proximoMantenimiento.tipo }} · {{ ficha.proximoMantenimiento.estado }}</span>
                     } @else { <span class="font-bold text-slate-500">Sin programar</span> }
                   </div>
                 </div>
@@ -195,18 +199,18 @@ interface EventoVista {
                 <h4 class="font-bold text-slate-900 uppercase text-xs border-b border-slate-200 pb-2">Pendientes y totales</h4>
                 <div class="grid grid-cols-2 gap-3">
                   <div class="p-2 rounded-xl" [ngClass]="ficha.incidentesNoAtendidos > 0 ? 'bg-rose-50 border border-rose-200' : 'bg-white border border-slate-200'">
-                    <span class="block text-[10px] text-slate-400 font-bold uppercase">Incidencias no atendidas</span>
+                    <span class="block text-[11px] text-slate-500 font-bold uppercase">Incidencias no atendidas</span>
                     <span class="text-lg font-extrabold" [ngClass]="ficha.incidentesNoAtendidos > 0 ? 'text-rose-700' : 'text-slate-800'">{{ ficha.incidentesNoAtendidos }}</span>
                   </div>
                   <div class="p-2 rounded-xl" [ngClass]="ficha.mantenimientosVencidos > 0 ? 'bg-rose-50 border border-rose-200' : 'bg-white border border-slate-200'">
-                    <span class="block text-[10px] text-slate-400 font-bold uppercase">Mantenimientos vencidos</span>
+                    <span class="block text-[11px] text-slate-500 font-bold uppercase">Mantenimientos vencidos</span>
                     <span class="text-lg font-extrabold" [ngClass]="ficha.mantenimientosVencidos > 0 ? 'text-rose-700' : 'text-slate-800'">{{ ficha.mantenimientosVencidos }}</span>
                   </div>
                 </div>
                 <p class="text-slate-600">Totales históricos: <strong>{{ ficha.totales.incidentes }}</strong> incidencias · <strong>{{ ficha.totales.mantenimientos }}</strong> mantenimientos · <strong>{{ ficha.totales.movimientos }}</strong> movimientos</p>
                 @if (ficha.fichaTecnicaUrl) {
-                  <button (click)="abrirFichaTecnica()" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-easydry-blue font-bold rounded-lg text-[11px] inline-flex items-center gap-1 cursor-pointer">
-                    <i-lucide name="file-text" class="w-3.5 h-3.5"></i-lucide> Ver ficha técnica
+                  <button type="button" (click)="abrirFichaTecnica()" class="btn btn-secondary btn-sm text-easydry-blue">
+                    <i-lucide name="file-text" class="w-3.5 h-3.5" aria-hidden="true"></i-lucide> Ver ficha técnica
                   </button>
                 }
               </div>
@@ -215,47 +219,52 @@ interface EventoVista {
 
           <!-- ================= INCIDENCIAS ================= -->
           @if (pestana === 'incidencias') {
-            @if (cargandoLista) { <p class="text-xs text-slate-500 font-semibold">Cargando incidencias...</p> }
-            @if (errorLista) { <div class="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs font-semibold text-rose-700">{{ errorLista }}</div> }
-            @if (!cargandoLista && incidencias.length === 0 && !errorLista) {
-              <p class="text-xs text-slate-400 font-semibold text-center py-6">Esta máquina no tiene incidencias registradas.</p>
+            @if (listaInc.error && listaInc.items.length === 0) {
+              <div role="alert" class="flex flex-col items-center gap-3 text-center py-4">
+                <div class="estado-error">{{ listaInc.error }}</div>
+                <button type="button" class="btn btn-secondary btn-sm" (click)="listaInc.reiniciar()">Reintentar</button>
+              </div>
+            } @else if (!listaInc.inicializada) {
+              <p class="text-xs text-slate-500 font-semibold" role="status" aria-live="polite">Cargando incidencias...</p>
+            } @else if (listaInc.items.length === 0) {
+              <p class="estado-vacio">Esta máquina no tiene incidencias registradas.</p>
             }
             <div class="space-y-3">
-              @for (inc of incidencias; track inc.id) {
+              @for (inc of listaInc.items; track inc.id) {
                 <div class="rounded-2xl border p-4 space-y-2"
                   [ngClass]="inc.noAtendida ? 'border-rose-300 bg-rose-50/60' : 'border-slate-200 bg-white'">
                   <div class="flex items-start justify-between gap-2 flex-wrap">
                     <div class="min-w-0">
                       <div class="flex items-center gap-2 flex-wrap">
-                        <span class="font-mono font-extrabold text-[11px] text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">{{ inc.codigoIncidente }}</span>
+                        <span class="font-mono font-extrabold text-xs text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">{{ inc.codigoIncidente }}</span>
                         @if (inc.noAtendida) {
-                          <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-600 text-white">No atendida</span>
+                          <span [class]="badgeNoAtendido">No atendida</span>
                         }
-                        <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold" [ngClass]="claseGravedad(inc.gravedadRaw)">{{ inc.prioridad }}</span>
-                        <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold" [ngClass]="claseEstadoIncidente(inc)">{{ inc.estado }}</span>
+                        <span [class]="badgeClase('gravedad', inc.gravedadRaw)">{{ inc.prioridad }}</span>
+                        <span [class]="badgeClase('incidente', inc.estadoRaw)">{{ inc.estado }}</span>
                       </div>
                       <p class="font-bold text-sm mt-1" [ngClass]="inc.noAtendida ? 'text-rose-800' : 'text-slate-900'">{{ inc.tipo }}</p>
-                      <p class="text-[11px] text-slate-500">Reportada {{ hora(inc.fechaReporteIso) }} por {{ inc.reportadoPor }} · Técnico: {{ inc.tecnicoAsignadoId ? inc.tecnicoAsignadoNombre : 'Sin asignar' }}</p>
+                      <p class="text-xs text-slate-500">Reportada {{ hora(inc.fechaReporteIso) }} por {{ inc.reportadoPor }} · Técnico: {{ inc.tecnicoAsignadoId ? inc.tecnicoAsignadoNombre : 'Sin asignar' }}</p>
                     </div>
                     <div class="flex flex-wrap gap-1.5">
-                      <button (click)="alternarIncidencia(inc)" class="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-lg text-[11px] cursor-pointer">{{ incExpandida === inc.id ? 'Ocultar' : 'Ver detalle' }}</button>
+                      <button type="button" (click)="alternarIncidencia(inc)" [attr.aria-expanded]="incExpandida === inc.id" class="btn btn-secondary btn-sm">{{ incExpandida === inc.id ? 'Ocultar' : 'Ver detalle' }}</button>
                       @if (puedeAsignarInc(inc)) {
-                        <button (click)="trabajoAcc.asignarIncidente(inc)" class="px-2.5 py-1.5 bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-lg text-[11px] cursor-pointer">{{ inc.tecnicoAsignadoId ? 'Reasignar' : 'Asignar' }}</button>
+                        <button type="button" (click)="trabajoAcc.asignarIncidente(inc)" class="btn btn-secondary btn-sm">{{ inc.tecnicoAsignadoId ? 'Reasignar' : 'Asignar' }}</button>
                       }
                       @if (puedeResolverInc(inc)) {
-                        <button (click)="trabajoAcc.resolverIncidente(inc)" class="px-2.5 py-1.5 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-lg text-[11px] cursor-pointer">Resolver</button>
+                        <button type="button" (click)="trabajoAcc.resolverIncidente(inc)" class="btn btn-primary btn-sm">Resolver</button>
                       }
                       @if (puedeEditarInc(inc)) {
-                        <button (click)="trabajoAcc.editarIncidente(inc)" class="px-2.5 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold rounded-lg text-[11px] cursor-pointer">Editar</button>
+                        <button type="button" (click)="trabajoAcc.editarIncidente(inc)" class="btn btn-secondary btn-sm">Editar</button>
                       }
                       @if (puedeAgregarEvidencia) {
-                        <button (click)="trabajoAcc.agregarEvidencia('INCIDENTE', inc)" class="px-2.5 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold rounded-lg text-[11px] cursor-pointer">+ Evidencia</button>
+                        <button type="button" (click)="trabajoAcc.agregarEvidencia('INCIDENTE', inc)" class="btn btn-secondary btn-sm">+ Evidencia</button>
                       }
                     </div>
                   </div>
                   @if (incExpandida === inc.id) {
                     <div class="pt-2 border-t border-slate-200/70 space-y-3 text-xs">
-                      <p class="text-slate-700"><strong>Descripción:</strong> {{ inc.descripcion }}</p>
+                      <p class="text-slate-700 break-words"><strong>Descripción:</strong> {{ inc.descripcion }}</p>
                       @if (inc.destinoTallerNombre) { <p class="text-slate-700"><strong>Taller destino:</strong> {{ inc.destinoTallerNombre }}</p> }
                       @if (inc.observacionSolucion) { <p class="text-slate-700"><strong>Solución:</strong> {{ inc.observacionSolucion }} @if (inc.solucionadoPor) { <span class="text-slate-500">({{ inc.solucionadoPor }}, {{ inc.fechaSolucion }})</span> }</p> }
                       <app-evidencia-galeria [evidencias]="inc.evidencias || []" [agruparPorEtapa]="true"></app-evidencia-galeria>
@@ -264,90 +273,133 @@ interface EventoVista {
                 </div>
               }
             </div>
+            @if (listaInc.items.length > 0) {
+              <app-infinite-scroll
+                [hasMore]="listaInc.hasMore"
+                [loading]="listaInc.cargando"
+                [error]="listaInc.error"
+                [total]="listaInc.total"
+                (cargarMas)="listaInc.siguiente()"
+                (reintentar)="listaInc.reintentar()">
+              </app-infinite-scroll>
+            }
           }
 
           <!-- ================= MOVIMIENTOS ================= -->
           @if (pestana === 'movimientos') {
-            @if (cargandoLista) { <p class="text-xs text-slate-500 font-semibold">Cargando movimientos...</p> }
-            @if (errorLista) { <div class="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs font-semibold text-rose-700">{{ errorLista }}</div> }
-            @if (!cargandoLista && movimientos.length === 0 && !errorLista) {
-              <p class="text-xs text-slate-400 font-semibold text-center py-6">Esta máquina no tiene movimientos registrados.</p>
+            @if (listaMov.error && listaMov.items.length === 0) {
+              <div role="alert" class="flex flex-col items-center gap-3 text-center py-4">
+                <div class="estado-error">{{ listaMov.error }}</div>
+                <button type="button" class="btn btn-secondary btn-sm" (click)="listaMov.reiniciar()">Reintentar</button>
+              </div>
+            } @else if (!listaMov.inicializada) {
+              <p class="text-xs text-slate-500 font-semibold" role="status" aria-live="polite">Cargando movimientos...</p>
+            } @else if (listaMov.items.length === 0) {
+              <p class="estado-vacio">Esta máquina no tiene movimientos registrados.</p>
             }
-            @if (movimientos.length > 0) {
+            @if (listaMov.items.length > 0) {
               <div class="overflow-x-auto rounded-2xl border border-slate-200">
                 <table class="w-full text-left text-xs">
-                  <thead class="bg-slate-50 text-slate-500 text-[10px] font-bold uppercase tracking-wider border-b border-slate-200">
-                    <tr><th class="py-2.5 px-3">Fecha y hora</th><th class="py-2.5 px-3">Responsable</th><th class="py-2.5 px-3">Origen</th><th class="py-2.5 px-3">Destino</th><th class="py-2.5 px-3">Motivo</th></tr>
+                  <thead class="bg-slate-50 text-slate-500 text-xs font-bold uppercase tracking-wider border-b border-slate-200">
+                    <tr><th scope="col" class="py-3 px-4">Fecha y hora</th><th scope="col" class="py-3 px-4">Responsable</th><th scope="col" class="py-3 px-4">Origen</th><th scope="col" class="py-3 px-4">Destino</th><th scope="col" class="py-3 px-4">Motivo</th></tr>
                   </thead>
                   <tbody class="divide-y divide-slate-100">
-                    @for (mv of movimientos; track mv.id) {
+                    @for (mv of listaMov.items; track mv.id) {
                       <tr>
-                        <td class="py-2.5 px-3 font-mono text-slate-700 whitespace-nowrap">{{ mv.fecha }}</td>
-                        <td class="py-2.5 px-3 font-semibold text-slate-800">{{ mv.usuarioResponsable || '—' }}</td>
-                        <td class="py-2.5 px-3">{{ mv.sucursalAnterior || '—' }} <span class="text-slate-400">/ {{ mv.bahiaAnterior || 'Sin bahía' }}</span></td>
-                        <td class="py-2.5 px-3 font-semibold text-easydry-blue">{{ mv.sucursalNueva || '—' }} <span class="text-slate-400 font-normal">/ {{ mv.bahiaNueva || 'Sin bahía' }}</span></td>
-                        <td class="py-2.5 px-3 text-slate-600">{{ mv.motivo || '—' }}</td>
+                        <td class="py-3 px-4 font-mono text-slate-700 whitespace-nowrap">{{ mv.fecha }}</td>
+                        <td class="py-3 px-4 font-semibold text-slate-800">{{ mv.usuarioResponsable || '—' }}</td>
+                        <td class="py-3 px-4">{{ mv.sucursalAnterior || '—' }} <span class="text-slate-500">/ {{ mv.bahiaAnterior || 'Sin bahía' }}</span></td>
+                        <td class="py-3 px-4 font-semibold text-easydry-blue">{{ mv.sucursalNueva || '—' }} <span class="text-slate-500 font-normal">/ {{ mv.bahiaNueva || 'Sin bahía' }}</span></td>
+                        <td class="py-3 px-4 text-slate-600">{{ mv.motivo || '—' }}</td>
                       </tr>
                     }
                   </tbody>
                 </table>
               </div>
+              @if (listaMov.items.length > 0) {
+                <app-infinite-scroll
+                  [hasMore]="listaMov.hasMore"
+                  [loading]="listaMov.cargando"
+                  [error]="listaMov.error"
+                  [total]="listaMov.total"
+                  (cargarMas)="listaMov.siguiente()"
+                  (reintentar)="listaMov.reintentar()">
+                </app-infinite-scroll>
+              }
             }
           }
 
           <!-- ================= MANTENIMIENTOS ================= -->
           @if (pestana === 'mantenimientos') {
-            @if (cargandoLista) { <p class="text-xs text-slate-500 font-semibold">Cargando mantenimientos...</p> }
-            @if (errorLista) { <div class="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs font-semibold text-rose-700">{{ errorLista }}</div> }
-            @if (!cargandoLista && mantenimientos.length === 0 && !errorLista) {
-              <p class="text-xs text-slate-400 font-semibold text-center py-6">Esta máquina no tiene mantenimientos registrados.</p>
+            @if (listaMant.error && listaMant.items.length === 0) {
+              <div role="alert" class="flex flex-col items-center gap-3 text-center py-4">
+                <div class="estado-error">{{ listaMant.error }}</div>
+                <button type="button" class="btn btn-secondary btn-sm" (click)="listaMant.reiniciar()">Reintentar</button>
+              </div>
+            } @else if (!listaMant.inicializada) {
+              <p class="text-xs text-slate-500 font-semibold" role="status" aria-live="polite">Cargando mantenimientos...</p>
+            } @else if (listaMant.items.length === 0) {
+              <p class="estado-vacio">Esta máquina no tiene mantenimientos registrados.</p>
             }
             <div class="space-y-3">
-              @for (m of mantenimientos; track m.id) {
+              @for (m of listaMant.items; track m.id) {
                 <div class="rounded-2xl border p-4 space-y-2"
                   [ngClass]="m.noAtendido ? 'border-rose-300 bg-rose-50/60' : 'border-slate-200 bg-white'">
                   <div class="flex items-start justify-between gap-2 flex-wrap">
                     <div class="min-w-0">
                       <div class="flex items-center gap-2 flex-wrap">
                         @if (m.noAtendido) {
-                          <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-600 text-white">No atendido</span>
+                          <span [class]="badgeNoAtendido">No atendido</span>
                         }
-                        <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold" [ngClass]="claseEstadoMant(m)">{{ m.estado }}</span>
-                        <span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-700">{{ m.tipo }}</span>
+                        <span [class]="badgeClase('mantenimiento', m.estadoRaw)">{{ m.estado }}</span>
+                        <span class="badge badge-neutral">{{ m.tipo }}</span>
                       </div>
                       <p class="font-bold text-sm mt-1" [ngClass]="m.noAtendido ? 'text-rose-800' : 'text-slate-900'">Programado: {{ fechaProg(m.fechaProgramada) }}</p>
-                      <p class="text-[11px] text-slate-500">
+                      <p class="text-xs text-slate-500">
                         Técnico: {{ m.tecnicoAsignadoNombre || 'Sin asignar' }} · Creado por {{ m.creadoPorNombre || '—' }}
                         @if (m.fechaEjecucion) { · Ejecutado {{ hora(m.fechaEjecucion) }} por {{ m.ejecutadoPorNombre || '—' }} }
                       </p>
                     </div>
                     <div class="flex flex-wrap gap-1.5">
-                      <button (click)="alternarMantenimiento(m)" class="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-lg text-[11px] cursor-pointer">{{ mantExpandido === m.id ? 'Ocultar' : 'Ver detalle' }}</button>
+                      <button type="button" (click)="alternarMantenimiento(m)" [attr.aria-expanded]="mantExpandido === m.id" class="btn btn-secondary btn-sm">{{ mantExpandido === m.id ? 'Ocultar' : 'Ver detalle' }}</button>
                       @if (puedeAsignarMant(m)) {
-                        <button (click)="trabajoAcc.asignarMantenimiento(m)" class="px-2.5 py-1.5 bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-lg text-[11px] cursor-pointer">{{ m.tecnicoAsignadoId ? 'Reasignar' : 'Asignar' }}</button>
+                        <button type="button" (click)="trabajoAcc.asignarMantenimiento(m)" class="btn btn-secondary btn-sm">{{ m.tecnicoAsignadoId ? 'Reasignar' : 'Asignar' }}</button>
                       }
                       @if (puedeEjecutarMant(m)) {
-                        <button (click)="trabajoAcc.ejecutarMantenimiento(m)" class="px-2.5 py-1.5 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-lg text-[11px] cursor-pointer">Ejecutar</button>
+                        <button type="button" (click)="trabajoAcc.ejecutarMantenimiento(m)" class="btn btn-primary btn-sm">Ejecutar</button>
                       }
                       @if (puedeEditarMant(m)) {
-                        <button (click)="trabajoAcc.editarMantenimiento(m)" class="px-2.5 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold rounded-lg text-[11px] cursor-pointer">Editar</button>
+                        <button type="button" (click)="trabajoAcc.editarMantenimiento(m)" class="btn btn-secondary btn-sm">Editar</button>
                       }
                       @if (puedeAgregarEvidencia) {
-                        <button (click)="trabajoAcc.agregarEvidencia('MANTENIMIENTO', m)" class="px-2.5 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold rounded-lg text-[11px] cursor-pointer">+ Evidencia</button>
+                        <button type="button" (click)="trabajoAcc.agregarEvidencia('MANTENIMIENTO', m)" class="btn btn-secondary btn-sm">+ Evidencia</button>
                       }
                     </div>
                   </div>
                   @if (mantExpandido === m.id) {
                     <div class="pt-2 border-t border-slate-200/70 space-y-3 text-xs">
-                      <p class="text-slate-700"><strong>Observaciones:</strong> {{ m.descripcion || '—' }}</p>
+                      <p class="text-slate-700 break-words"><strong>Observaciones:</strong> {{ m.descripcion || '—' }}</p>
                       @if (m.frecuenciaDias) { <p class="text-slate-700"><strong>Frecuencia:</strong> cada {{ m.frecuenciaDias }} días</p> }
                       @if (m.repuestosUtilizados?.length) { <p class="text-slate-700"><strong>Repuestos:</strong> {{ m.repuestosUtilizados!.join(', ') }}</p> }
+                      @if (m.estadoRaw === 'FINALIZADO') {
+                        <app-checklist-orden [mantenimientoId]="'' + m.id" [editable]="false"></app-checklist-orden>
+                      }
                       <app-evidencia-galeria [evidencias]="m.evidencias || []"></app-evidencia-galeria>
                     </div>
                   }
                 </div>
               }
             </div>
+            @if (listaMant.items.length > 0) {
+              <app-infinite-scroll
+                [hasMore]="listaMant.hasMore"
+                [loading]="listaMant.cargando"
+                [error]="listaMant.error"
+                [total]="listaMant.total"
+                (cargarMas)="listaMant.siguiente()"
+                (reintentar)="listaMant.reintentar()">
+              </app-infinite-scroll>
+            }
           }
 
           <!-- ================= LÍNEA DE TIEMPO ================= -->
@@ -355,45 +407,51 @@ interface EventoVista {
             <div class="p-4 rounded-2xl border border-slate-200 bg-slate-50/60 space-y-3">
               <div class="flex flex-wrap gap-1.5">
                 @for (t of tiposEvento; track t.codigo) {
-                  <button type="button" (click)="alternarTipo(t.codigo)"
-                    class="px-2.5 py-1 rounded-full text-[10px] font-bold border transition-colors cursor-pointer"
+                  <button type="button" (click)="alternarTipo(t.codigo)" [attr.aria-pressed]="tiposSeleccionados.has(t.codigo)"
+                    class="px-3 py-1.5 rounded-full text-xs font-bold border transition-colors cursor-pointer"
                     [ngClass]="tiposSeleccionados.has(t.codigo) ? 'bg-easydry-blue text-white border-easydry-blue' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'">
                     {{ t.label }}
                   </button>
                 }
               </div>
               <div class="flex flex-wrap items-end gap-3">
-                <div><label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Desde</label>
-                  <input type="date" [(ngModel)]="filtroDesde" name="tl-desde" class="p-2 border rounded-lg text-xs bg-white"></div>
-                <div><label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Hasta</label>
-                  <input type="date" [(ngModel)]="filtroHasta" name="tl-hasta" class="p-2 border rounded-lg text-xs bg-white"></div>
-                <button (click)="cargarLinea(true)" class="px-3 py-2 bg-easydry-blue text-white font-bold rounded-lg text-xs cursor-pointer">Aplicar filtros</button>
-                <button (click)="limpiarFiltrosLinea()" class="px-3 py-2 bg-slate-200 text-slate-700 font-bold rounded-lg text-xs cursor-pointer">Limpiar</button>
+                <div><label for="tl-desde" class="field-label">Desde</label>
+                  <input id="tl-desde" type="date" [(ngModel)]="filtroDesde" name="tl-desde" class="field"></div>
+                <div><label for="tl-hasta" class="field-label">Hasta</label>
+                  <input id="tl-hasta" type="date" [(ngModel)]="filtroHasta" name="tl-hasta" class="field"></div>
+                <button type="button" (click)="cargarLinea()" class="btn btn-primary">Aplicar filtros</button>
+                <button type="button" (click)="limpiarFiltrosLinea()" class="btn btn-secondary">Limpiar</button>
               </div>
             </div>
 
-            @if (errorLista) { <div class="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs font-semibold text-rose-700">{{ errorLista }}</div> }
-            @if (!cargandoLista && eventos.length === 0 && !errorLista) {
-              <p class="text-xs text-slate-400 font-semibold text-center py-6">No hay eventos con los filtros seleccionados.</p>
+            @if (listaLinea.error && listaLinea.items.length === 0) {
+              <div role="alert" class="flex flex-col items-center gap-3 text-center py-4">
+                <div class="estado-error">{{ listaLinea.error }}</div>
+                <button type="button" class="btn btn-secondary btn-sm" (click)="listaLinea.reiniciar()">Reintentar</button>
+              </div>
+            } @else if (!listaLinea.inicializada) {
+              <p class="text-xs text-slate-500 font-semibold" role="status" aria-live="polite">Cargando eventos...</p>
+            } @else if (listaLinea.items.length === 0) {
+              <p class="estado-vacio">No hay eventos con los filtros seleccionados.</p>
             }
 
             <div class="relative pl-5 space-y-4">
-              @for (ev of eventos; track ev.evento.id) {
+              @for (ev of listaLinea.items; track ev.evento.id) {
                 <div class="relative">
-                  <span class="absolute -left-[21px] top-1 w-3 h-3 rounded-full ring-4 ring-slate-100" [ngClass]="ev.color"></span>
+                  <span class="absolute -left-[21px] top-1 w-3 h-3 rounded-full ring-4 ring-slate-100" [ngClass]="ev.color" aria-hidden="true"></span>
                   <div class="bg-white border border-slate-200 rounded-xl p-3 space-y-1">
                     <div class="flex items-center justify-between gap-2 flex-wrap">
                       <p class="text-xs font-extrabold text-slate-900">{{ ev.etiqueta }}</p>
-                      <p class="text-[11px] font-mono text-slate-500">{{ hora(ev.evento.ocurridoEn) }}</p>
+                      <p class="text-xs font-mono text-slate-500">{{ hora(ev.evento.ocurridoEn) }}</p>
                     </div>
-                    <p class="text-[11px] text-slate-600">
-                      Por <strong>{{ ev.evento.actor?.nombre || 'Sistema' }}</strong>@if (ev.evento.actor?.rol) { <span class="text-slate-400"> ({{ ev.evento.actor?.rol }})</span> }
+                    <p class="text-xs text-slate-600">
+                      Por <strong>{{ ev.evento.actor?.nombre || 'Sistema' }}</strong>@if (ev.evento.actor?.rol) { <span class="text-slate-500"> ({{ ev.evento.actor?.rol }})</span> }
                     </p>
-                    @for (l of ev.lineas; track $index) { <p class="text-[11px] text-slate-700">{{ l }}</p> }
+                    @for (l of ev.lineas; track $index) { <p class="text-xs text-slate-700">{{ l }}</p> }
                     @if (ev.cambios.length > 0) {
                       <div class="mt-1 overflow-x-auto">
-                        <table class="w-full text-[11px]">
-                          <thead><tr class="text-slate-400 uppercase text-[9px] text-left"><th class="pr-3 py-1">Campo</th><th class="pr-3 py-1">Antes</th><th class="py-1">Después</th></tr></thead>
+                        <table class="w-full text-xs">
+                          <thead><tr class="text-slate-500 uppercase text-[11px] text-left"><th scope="col" class="pr-3 py-1">Campo</th><th scope="col" class="pr-3 py-1">Antes</th><th scope="col" class="py-1">Después</th></tr></thead>
                           <tbody>
                             @for (c of ev.cambios; track c.campo) {
                               <tr class="border-t border-slate-100">
@@ -410,18 +468,23 @@ interface EventoVista {
                 </div>
               }
             </div>
-            @if (cargandoLista) { <p class="text-xs text-slate-500 font-semibold">Cargando...</p> }
-            @if (eventos.length < totalEventos) {
-              <div class="text-center">
-                <button (click)="cargarLinea(false)" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl text-xs cursor-pointer">Cargar más ({{ eventos.length }} de {{ totalEventos }})</button>
-              </div>
+            @if (listaLinea.items.length > 0) {
+              <app-infinite-scroll
+                [hasMore]="listaLinea.hasMore"
+                [loading]="listaLinea.cargando"
+                [error]="listaLinea.error"
+                [total]="listaLinea.total"
+                (cargarMas)="listaLinea.siguiente()"
+                (reintentar)="listaLinea.reintentar()">
+              </app-infinite-scroll>
             }
           }
+          </div>
         </div>
       }
 
       <div modal-footer>
-        <button (click)="cerrar.emit()" class="px-5 py-2.5 bg-slate-200 text-slate-800 font-bold rounded-xl text-xs cursor-pointer">Cerrar</button>
+        <button type="button" (click)="cerrar.emit()" class="btn btn-secondary w-full sm:w-auto">Cerrar</button>
       </div>
     </app-modal>
 
@@ -442,7 +505,7 @@ interface EventoVista {
     <app-trabajo-acciones #trabajoAcc (hecho)="onAccionHecha($event)"></app-trabajo-acciones>
   `,
 })
-export class MaquinariaDetalleModalComponent implements OnChanges {
+export class MaquinariaDetalleModalComponent implements OnChanges, OnDestroy {
   private maquinariaService = inject(MaquinariaService);
   private incidenteService = inject(IncidenteService);
   private mantenimientoService = inject(MantenimientoService);
@@ -465,13 +528,37 @@ export class MaquinariaDetalleModalComponent implements OnChanges {
   errorFicha = '';
   pestana: PestanaMaquina = 'resumen';
 
-  incidencias: Incidente[] = [];
-  mantenimientos: Mantenimiento[] = [];
-  movimientos: MovimientoMaquinaria[] = [];
-  eventos: EventoVista[] = [];
-  totalEventos = 0;
-  cargandoLista = false;
-  errorLista = '';
+  // Cada pestaña con lista tiene la suya, con scroll infinito de a 30 (el cuerpo del modal es el que hace scroll).
+  // El servidor ordena las incidencias (no atendidas primero) y los movimientos/eventos (más reciente primero).
+  readonly listaInc = new ListaInfinita<Incidente>(
+    (page, size) => this.incidenteService
+      .getIncidentesPagina({ maquinariaId: this.idMaquina(), page, pageSize: size })
+      .pipe(map((r) => r.pagina)),
+    PAGE_SIZE_INFINITO,
+    (i) => i.id,
+  );
+  readonly listaMant = new ListaInfinita<Mantenimiento>(
+    (page, size) => this.mantenimientoService
+      .getMantenimientosPagina({ maquinariaId: this.idMaquina(), page, pageSize: size })
+      .pipe(map((r) => r.pagina)),
+    PAGE_SIZE_INFINITO,
+    (m) => m.id,
+  );
+  readonly listaMov = new ListaInfinita<MovimientoMaquinaria>(
+    (page, size) => this.movimientoService.getMovimientosPagina(this.idMaquina(), page, size),
+    PAGE_SIZE_INFINITO,
+    (m) => m.id,
+  );
+  readonly listaLinea = new ListaInfinita<EventoVista>(
+    (page, size) => this.maquinariaService
+      .getHistorial({ maquinariaId: this.idMaquina(), ...this.filtrosLineaAplicados, page, pageSize: size })
+      .pipe(map((p) => ({ ...p, items: p.items.map((e) => this.aVista(e)) }))),
+    PAGE_SIZE_INFINITO,
+    (ev) => ev.evento.id,
+  );
+  /** Pestañas cuya lista ya se cargó para esta máquina (se cargan solo al abrirlas). */
+  private cargadas = new Set<PestanaMaquina>();
+  private filtrosLineaAplicados: { tipos?: string[]; desde?: string; hasta?: string } = {};
   incExpandida: string | number | null = null;
   mantExpandido: string | number | null = null;
 
@@ -480,24 +567,26 @@ export class MaquinariaDetalleModalComponent implements OnChanges {
   tiposSeleccionados = new Set<string>();
   filtroDesde = '';
   filtroHasta = '';
-  private paginaLinea = 1;
-  private readonly tamanoPaginaLinea = 30;
 
   // ---- Roles y permisos de UI (el backend valida siempre) ----
-  private get rol(): string { return String(this.authService.getCurrentUser()?.role || ''); }
   private get miId(): string { return String(this.authService.getCurrentUser()?.id || ''); }
   private esMio(id?: string | number | null): boolean { return !!id && String(id) === this.miId; }
 
-  get puedeEditar(): boolean { return puedeEditarMaquina(this.rol); }
-  get puedeActivar(): boolean { return puedeActivarMaquina(this.rol); }
-  get puedeGestionar(): boolean { return puedeGestionarMaquina(this.rol); }
-  get puedeVerLinea(): boolean { return puedeVerTrazabilidad(this.rol); }
-  get puedeVerMant(): boolean { return puedeVerMantenimientos(this.rol); }
-  get puedeVerInc(): boolean { return ROLES_VER_MAQUINARIA.includes(this.rol) && this.rol !== 'COORD_BODEGA'; }
-  get puedeAgregarEvidencia(): boolean { return this.puedeVerInc; }
-  /** Reportar: solo pulidor/líder sobre máquinas asignadas a ellos (y activas). */
+  get puedeEditar(): boolean { return puedeEditarMaquina(this.authService); }
+  get puedeActivar(): boolean { return puedeActivarMaquina(this.authService); }
+  get puedeGestionar(): boolean { return puedeGestionarMaquina(this.authService); }
+  get puedeVerLinea(): boolean { return puedeVerTrazabilidad(this.authService); }
+  get puedeVerMant(): boolean { return puedeVerMantenimientos(this.authService); }
+  get puedeVerInc(): boolean { return puedeVerIncidentes(this.authService); }
+  get puedeAgregarEvidencia(): boolean { return puedeAgregarEvidenciaMaquinaria(this.authService); }
+  /**
+   * Reportar: con el permiso, sobre máquinas activas. El líder puede reportar cualquier máquina de su agencia
+   * (el servidor ya lo valida así); el resto de roles con el permiso, solo la asignada a él.
+   */
   get puedeReportar(): boolean {
-    return esOperadorMaquina(this.rol) && !!this.ficha?.activa && this.esMio(this.ficha?.operadorAsignado?.id);
+    if (!puedeReportarIncidente(this.authService) || !this.ficha?.activa) return false;
+    if (this.authService.hasRole('LIDER')) return true;
+    return this.esMio(this.ficha?.operadorAsignado?.id);
   }
   get esTaller(): boolean { return String(this.ficha?.agenciaTipo || '').startsWith('TALLER'); }
 
@@ -515,21 +604,21 @@ export class MaquinariaDetalleModalComponent implements OnChanges {
   }
   /** Técnico asignado, o coordinador/admin (que puede resolver una no asignada o una propia). */
   puedeResolverInc(i: Incidente): boolean {
-    if (i.estadoRaw === 'RESUELTO' || i.estadoRaw === 'CANCELADO' || !puedeTrabajarOrden(this.rol)) return false;
+    if (i.estadoRaw === 'RESUELTO' || i.estadoRaw === 'CANCELADO' || !puedeResolverIncidentes(this.authService)) return false;
     if (this.puedeGestionar) return !i.tecnicoAsignadoId || this.esMio(i.tecnicoAsignadoId);
     return this.esMio(i.tecnicoAsignadoId);
   }
   puedeEditarInc(i: Incidente): boolean {
-    return puedeTrabajarOrden(this.rol) && (this.puedeGestionar || this.esMio(i.tecnicoAsignadoId));
+    return puedeResolverIncidentes(this.authService) && (this.puedeGestionar || this.esMio(i.tecnicoAsignadoId));
   }
   puedeAsignarMant(m: Mantenimiento): boolean {
     return this.puedeGestionar && m.estadoRaw !== 'FINALIZADO';
   }
   puedeEjecutarMant(m: Mantenimiento): boolean {
-    return m.estadoRaw !== 'FINALIZADO' && puedeTrabajarOrden(this.rol) && this.esMio(m.tecnicoAsignadoId);
+    return m.estadoRaw !== 'FINALIZADO' && puedeEjecutarMantenimientos(this.authService) && this.esMio(m.tecnicoAsignadoId);
   }
   puedeEditarMant(m: Mantenimiento): boolean {
-    return puedeTrabajarOrden(this.rol) && (this.puedeGestionar || this.esMio(m.tecnicoAsignadoId));
+    return puedeEjecutarMantenimientos(this.authService) && (this.puedeGestionar || this.esMio(m.tecnicoAsignadoId));
   }
 
   // ---- Carga ----
@@ -537,11 +626,7 @@ export class MaquinariaDetalleModalComponent implements OnChanges {
     if (changes['maquinariaId']) {
       this.ficha = null;
       this.errorFicha = '';
-      this.incidencias = [];
-      this.mantenimientos = [];
-      this.movimientos = [];
-      this.eventos = [];
-      this.totalEventos = 0;
+      this.destruirListas();
       this.incExpandida = null;
       this.mantExpandido = null;
       this.limpiarFiltrosLinea(false);
@@ -571,42 +656,49 @@ export class MaquinariaDetalleModalComponent implements OnChanges {
 
   cambiarPestana(id: PestanaMaquina): void {
     this.pestana = id;
-    this.errorLista = '';
-    void this.cargarPestana();
+    // Cada lista se pide al abrir su pestaña por primera vez (o si quedó desactualizada tras una acción).
+    if (!this.cargadas.has(id)) this.cargarPestana(id);
   }
 
-  private async cargarPestana(): Promise<void> {
-    if (!this.ficha) return;
-    const id = String(this.ficha.id);
-    this.cargandoLista = true;
-    this.errorLista = '';
-    try {
-      switch (this.pestana) {
-        case 'incidencias':
-          // El backend ya las ordena (no atendidas primero): no se reordenan aquí.
-          this.incidencias = (await firstValueFrom(this.incidenteService.getIncidentesPagina({ maquinariaId: id }))).data;
-          break;
-        case 'mantenimientos':
-          this.mantenimientos = (await firstValueFrom(this.mantenimientoService.getMantenimientosPagina({ maquinariaId: id }))).data;
-          break;
-        case 'movimientos':
-          this.movimientos = (await firstValueFrom(this.movimientoService.getMovimientosPagina(id))).data;
-          break;
-        case 'timeline':
-          await this.cargarLinea(true);
-          break;
-      }
-    } catch (err) {
-      this.errorLista = mensajeError(err);
-    } finally {
-      this.cargandoLista = false;
+  private idMaquina(): string {
+    return String(this.ficha?.id ?? this.maquinariaId ?? '');
+  }
+
+  private listaDe(id: PestanaMaquina): { reiniciar(): void } | null {
+    switch (id) {
+      case 'incidencias': return this.listaInc;
+      case 'mantenimientos': return this.listaMant;
+      case 'movimientos': return this.listaMov;
+      case 'timeline': return this.listaLinea;
+      default: return null;
     }
   }
 
-  /** Tras una acción: recarga la ficha y la pestaña visible, y avisa al host. */
+  private cargarPestana(id: PestanaMaquina): void {
+    const lista = this.listaDe(id);
+    if (!lista || !this.ficha) return;
+    if (id === 'timeline') this.aplicarFiltrosLinea();
+    this.cargadas.add(id);
+    lista.reiniciar();
+  }
+
+  private destruirListas(): void {
+    this.listaInc.destruir();
+    this.listaMant.destruir();
+    this.listaMov.destruir();
+    this.listaLinea.destruir();
+    this.cargadas.clear();
+  }
+
+  ngOnDestroy(): void {
+    this.destruirListas();
+  }
+
+  /** Tras una acción: recarga la ficha y la pestaña visible (las demás se piden de nuevo al abrirlas), y avisa al host. */
   onAccionHecha(_evento: string): void {
     void this.cargarFicha(false);
-    void this.cargarPestana();
+    this.cargadas.clear();
+    this.cargarPestana(this.pestana);
     this.cambio.emit();
   }
 
@@ -621,35 +713,20 @@ export class MaquinariaDetalleModalComponent implements OnChanges {
     this.tiposSeleccionados = new Set<string>();
     this.filtroDesde = '';
     this.filtroHasta = '';
-    if (recargar && this.ficha) void this.cargarLinea(true);
+    if (recargar && this.ficha) this.cargarLinea();
   }
 
-  async cargarLinea(reiniciar: boolean): Promise<void> {
+  /** Congela los filtros de la línea de tiempo: el scroll infinito sigue pidiendo con los mismos hasta que se vuelvan a aplicar. */
+  private aplicarFiltrosLinea(): void {
+    const desde = this.filtroDesde ? new Date(`${this.filtroDesde}T00:00:00`).toISOString() : undefined;
+    const hasta = this.filtroHasta ? new Date(`${this.filtroHasta}T23:59:59.999`).toISOString() : undefined;
+    this.filtrosLineaAplicados = { tipos: [...this.tiposSeleccionados], desde, hasta };
+  }
+
+  /** Aplica los filtros de tipo y fechas: reinicia la línea de tiempo desde el evento más reciente. */
+  cargarLinea(): void {
     if (!this.ficha) return;
-    if (reiniciar) {
-      this.paginaLinea = 1;
-      this.eventos = [];
-    }
-    this.cargandoLista = true;
-    this.errorLista = '';
-    try {
-      const desde = this.filtroDesde ? new Date(`${this.filtroDesde}T00:00:00`).toISOString() : undefined;
-      const hasta = this.filtroHasta ? new Date(`${this.filtroHasta}T23:59:59.999`).toISOString() : undefined;
-      const pagina = await firstValueFrom(this.maquinariaService.getHistorial({
-        maquinariaId: String(this.ficha.id),
-        tipos: [...this.tiposSeleccionados],
-        desde, hasta,
-        page: this.paginaLinea,
-        pageSize: this.tamanoPaginaLinea,
-      }));
-      this.eventos = [...this.eventos, ...pagina.data.map(e => this.aVista(e))];
-      this.totalEventos = pagina.total;
-      this.paginaLinea++;
-    } catch (err) {
-      this.errorLista = mensajeError(err);
-    } finally {
-      this.cargandoLista = false;
-    }
+    this.cargarPestana('timeline');
   }
 
   private aVista(e: MaquinariaEvento): EventoVista {
@@ -714,24 +791,11 @@ export class MaquinariaDetalleModalComponent implements OnChanges {
   hora(iso?: string | null): string { return fechaHoraLocal(iso); }
   fechaProg(iso?: string | null): string { return fechaProgramadaLocal(iso); }
 
+  readonly badgeClase = badgeClase;
+  readonly badgeNoAtendido = BADGE_NO_ATENDIDO;
+
   etiquetaEstado(f: MaquinaFicha): string {
-    return f.estadoOperativo === 'DE_BAJA' ? 'De baja' : f.estadoOperativo === 'EN_MANTENIMIENTO' ? 'En mantenimiento' : 'Operativa';
-  }
-  claseEstado(f: MaquinaFicha): string {
-    return f.estadoOperativo === 'DE_BAJA'
-      ? 'bg-rose-100 text-rose-800 border border-rose-300'
-      : f.estadoOperativo === 'EN_MANTENIMIENTO'
-        ? 'bg-amber-100 text-amber-800 border border-amber-300'
-        : 'bg-easydry-green/20 text-easydry-green-dark border border-easydry-green/40';
-  }
-  claseGravedad(g?: string): string {
-    return g === 'CRITICA' ? 'bg-rose-600 text-white' : g === 'ALTA' ? 'bg-orange-100 text-orange-800' : g === 'BAJA' ? 'bg-slate-100 text-slate-700' : 'bg-amber-100 text-amber-800';
-  }
-  claseEstadoIncidente(i: Incidente): string {
-    return i.estadoRaw === 'RESUELTO' ? 'bg-easydry-green/20 text-easydry-green-dark' : i.estadoRaw === 'CANCELADO' ? 'bg-slate-200 text-slate-600' : i.estadoRaw === 'EN_PROCESO' ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800';
-  }
-  claseEstadoMant(m: Mantenimiento): string {
-    return m.estadoRaw === 'FINALIZADO' ? 'bg-easydry-green/20 text-easydry-green-dark' : m.estadoRaw === 'EN_PROCESO' ? 'bg-easydry-blue/15 text-easydry-blue' : 'bg-amber-100 text-amber-800';
+    return (f.estadoOperativo === 'DE_BAJA' || f.activa === false) ? 'De baja' : f.estadoOperativo === 'EN_MANTENIMIENTO' ? 'En mantenimiento' : 'Operativa';
   }
 
   alternarIncidencia(i: Incidente): void { this.incExpandida = this.incExpandida === i.id ? null : i.id; }

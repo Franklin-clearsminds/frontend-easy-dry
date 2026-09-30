@@ -29,7 +29,10 @@ export class BahiaService {
       estado: b.activa ? (b.operadorActual ? 'Ocupada' : 'Disponible') : 'Inactiva',
       operadorAsignado: nombreOp || 'Sin Asignar',
       operadorId: b.operadorActualId || b.operadorActual?.id || undefined,
-      maquinariaAsignada: []
+      maquinariaAsignada: [],
+      ocupada: b.ocupada
+        ? { placa: b.ocupada.placa, ordenTrabajoOT: b.ocupada.ordenTrabajoOT ?? null }
+        : null
     };
   }
 
@@ -54,6 +57,7 @@ export class BahiaService {
     );
   }
 
+  /** Activa o desactiva la bahía (permiso 'bahias.editar'). Si el servidor rechaza, el error se propaga. */
   actualizarEstadoBahia(id: string | number, nuevoEstado: Bahia['estado']): Observable<Bahia | null> {
     const activa = nuevoEstado !== 'Inactiva';
     return this.http.post<any>(apiUrl('/agencias/bahias/update'), { id: String(id), activa }).pipe(
@@ -65,8 +69,7 @@ export class BahiaService {
           current[idx] = { ...current[idx], ...mapped, estado: nuevoEstado };
           this.bahiasSubject.next([...current]);
         }
-      }),
-      catchError(() => of(null))
+      })
     );
   }
 
@@ -93,8 +96,7 @@ export class BahiaService {
           };
           this.bahiasSubject.next([...current]);
         }
-      }),
-      catchError(() => of(null))
+      })
     );
   }
 
@@ -104,8 +106,7 @@ export class BahiaService {
       tap(mapped => {
         const current = this.bahiasSubject.value;
         this.bahiasSubject.next([...current, mapped]);
-      }),
-      catchError(() => of(null))
+      })
     );
   }
 

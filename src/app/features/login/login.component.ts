@@ -38,8 +38,8 @@ import { ToastService } from '../../shared/services/toast.service';
     }
 
     .login-page {
-      --brand: #064a86;
-      --brand-deep: #062f57;
+      --brand: #004282;
+      --brand-deep: #002952;
       --ink: #132238;
       --muted: #66758a;
       min-height: 100dvh;
@@ -68,8 +68,8 @@ import { ToastService } from '../../shared/services/toast.service';
       height: 320px;
       left: -160px;
       bottom: -130px;
-      border: 1px solid rgba(6, 74, 134, .13);
-      box-shadow: 0 0 0 46px rgba(6, 74, 134, .035), 0 0 0 92px rgba(6, 74, 134, .025);
+      border: 1px solid rgba(0, 66, 130, .13);
+      box-shadow: 0 0 0 46px rgba(0, 66, 130, .035), 0 0 0 92px rgba(0, 66, 130, .025);
     }
 
     .ambient-two {
@@ -107,7 +107,7 @@ import { ToastService } from '../../shared/services/toast.service';
       color: #fff;
       background:
         radial-gradient(circle at 15% 5%, rgba(72, 174, 225, .28), transparent 30%),
-        linear-gradient(150deg, #07538f 0%, #063f75 48%, #052d52 100%);
+        linear-gradient(150deg, #004282 0%, #003A7C 48%, #002952 100%);
     }
 
     .bubble-field {
@@ -189,11 +189,11 @@ import { ToastService } from '../../shared/services/toast.service';
       gap: 8px;
       margin-bottom: 17px;
       padding: 6px 10px;
-      border: 1px solid rgba(184, 224, 88, .28);
+      border: 1px solid rgba(155, 203, 59, .28);
       border-radius: 999px;
-      color: #dff2a9;
+      color: #9BCB3B;
       background: rgba(155, 203, 59, .1);
-      font-size: 11px;
+      font-size: 12px;
       font-weight: 700;
       letter-spacing: .09em;
       text-transform: uppercase;
@@ -203,8 +203,8 @@ import { ToastService } from '../../shared/services/toast.service';
       width: 7px;
       height: 7px;
       border-radius: 50%;
-      background: #b2e040;
-      box-shadow: 0 0 0 5px rgba(178, 224, 64, .12);
+      background: #9BCB3B;
+      box-shadow: 0 0 0 5px rgba(155, 203, 59, .12);
     }
 
     .brand-copy h1 {
@@ -249,21 +249,21 @@ import { ToastService } from '../../shared/services/toast.service';
       display: grid;
       place-items: center;
       border-radius: 10px;
-      color: #cce889;
+      color: #9BCB3B;
       background: rgba(155, 203, 59, .12);
     }
 
     .feature-item strong {
       display: block;
       margin-bottom: 2px;
-      font-size: 11px;
+      font-size: 12px;
       font-weight: 700;
     }
 
     .feature-item span {
       display: block;
-      color: rgba(226, 240, 250, .64);
-      font-size: 10px;
+      color: rgba(226, 240, 250, .8);
+      font-size: 12px;
       line-height: 1.45;
     }
 
@@ -274,16 +274,16 @@ import { ToastService } from '../../shared/services/toast.service';
       align-items: center;
       gap: 10px;
       margin-top: 18px;
-      color: rgba(232, 244, 252, .7);
-      font-size: 11px;
+      color: rgba(232, 244, 252, .82);
+      font-size: 12px;
     }
 
     .status-dot {
       width: 8px;
       height: 8px;
       border-radius: 50%;
-      background: #a9d84d;
-      box-shadow: 0 0 0 5px rgba(169, 216, 77, .12);
+      background: #9BCB3B;
+      box-shadow: 0 0 0 5px rgba(155, 203, 59, .12);
     }
 
     .form-panel {
@@ -308,8 +308,8 @@ import { ToastService } from '../../shared/services/toast.service';
 
     .form-eyebrow {
       margin: 0 0 10px;
-      color: #08726f;
-      font-size: 11px;
+      color: #004282;
+      font-size: 12px;
       font-weight: 800;
       letter-spacing: .12em;
       text-transform: uppercase;
@@ -372,7 +372,7 @@ import { ToastService } from '../../shared/services/toast.service';
       width: 18px;
       height: 18px;
       transform: translateY(-50%);
-      color: #8290a3;
+      color: #66758a;
       pointer-events: none;
       transition: color .2s ease;
     }
@@ -391,15 +391,15 @@ import { ToastService } from '../../shared/services/toast.service';
       transition: border-color .2s ease, box-shadow .2s ease, background .2s ease;
     }
 
-    .input-wrap input::placeholder { color: #a1adbc; }
+    .input-wrap input::placeholder { color: #6b7a8d; }
     .input-wrap input:hover { border-color: #b9c7d4; }
     .input-wrap input:focus {
-      border-color: #178b88;
+      border-color: #004282;
       background: #fff;
-      box-shadow: 0 0 0 4px rgba(23, 139, 136, .11);
+      box-shadow: 0 0 0 4px rgba(0, 66, 130, .11);
     }
 
-    .input-wrap:focus-within .input-icon { color: #08726f; }
+    .input-wrap:focus-within .input-icon { color: #004282; }
 
     .password-toggle {
       position: absolute;
@@ -412,14 +412,14 @@ import { ToastService } from '../../shared/services/toast.service';
       transform: translateY(-50%);
       border: 0;
       border-radius: 9px;
-      color: #7b899b;
+      color: #66758a;
       background: transparent;
       cursor: pointer;
       transition: color .2s ease, background .2s ease;
     }
 
-    .password-toggle:hover { color: #07518b; background: #edf5fa; }
-    .password-toggle:focus-visible { outline: 3px solid rgba(23, 139, 136, .18); }
+    .password-toggle:hover { color: #004282; background: #edf5fa; }
+    .password-toggle:focus-visible { outline: 3px solid rgba(0, 66, 130, .18); }
 
     .form-options {
       display: flex;
@@ -443,21 +443,21 @@ import { ToastService } from '../../shared/services/toast.service';
       width: 16px;
       height: 16px;
       margin: 0;
-      accent-color: #087f7a;
+      accent-color: #003A7C;
     }
 
     .text-action {
       border: 0;
       padding: 0;
-      color: #07518b;
+      color: #004282;
       background: transparent;
       font-size: 12px;
       font-weight: 700;
       cursor: pointer;
     }
 
-    .text-action:hover { color: #087f7a; text-decoration: underline; }
-    .text-action:focus-visible { outline: 3px solid rgba(23, 139, 136, .18); outline-offset: 4px; }
+    .text-action:hover { color: #003A7C; text-decoration: underline; }
+    .text-action:focus-visible { outline: 3px solid rgba(0, 66, 130, .18); outline-offset: 4px; }
 
     .submit-button {
       width: 100%;
@@ -469,8 +469,8 @@ import { ToastService } from '../../shared/services/toast.service';
       border: 0;
       border-radius: 13px;
       color: #fff;
-      background: linear-gradient(110deg, #07518b 0%, #087f7a 100%);
-      box-shadow: 0 12px 24px rgba(6, 91, 124, .2);
+      background: linear-gradient(110deg, #004282 0%, #003A7C 100%);
+      box-shadow: 0 12px 24px rgba(0, 66, 130, .2);
       font-size: 13px;
       font-weight: 750;
       cursor: pointer;
@@ -479,12 +479,12 @@ import { ToastService } from '../../shared/services/toast.service';
 
     .submit-button:hover:not(:disabled) {
       transform: translateY(-1px);
-      box-shadow: 0 16px 28px rgba(6, 91, 124, .25);
+      box-shadow: 0 16px 28px rgba(0, 66, 130, .25);
       filter: saturate(1.08);
     }
 
     .submit-button:active:not(:disabled) { transform: translateY(0); }
-    .submit-button:focus-visible { outline: 4px solid rgba(23, 139, 136, .18); outline-offset: 3px; }
+    .submit-button:focus-visible { outline: 4px solid rgba(0, 66, 130, .18); outline-offset: 3px; }
     .submit-button:disabled { opacity: .68; cursor: wait; }
 
     .spinner { animation: spin .8s linear infinite; }
@@ -496,15 +496,15 @@ import { ToastService } from '../../shared/services/toast.service';
       margin-top: 22px;
       padding-top: 20px;
       border-top: 1px solid #edf1f4;
-      color: #79879a;
-      font-size: 11px;
+      color: #66758a;
+      font-size: 12px;
       line-height: 1.55;
     }
 
     .security-note i-lucide {
       flex: 0 0 auto;
       margin-top: 1px;
-      color: #7da62d;
+      color: #9BCB3B;
     }
 
     .form-footer {
@@ -514,13 +514,13 @@ import { ToastService } from '../../shared/services/toast.service';
       justify-content: space-between;
       gap: 18px;
       margin: 34px auto 0;
-      color: #8a97a7;
-      font-size: 10px;
+      color: #66758a;
+      font-size: 12px;
     }
 
     .form-footer .text-action {
       color: #64748b;
-      font-size: 10px;
+      font-size: 12px;
       font-weight: 600;
     }
 
@@ -637,21 +637,21 @@ import { ToastService } from '../../shared/services/toast.service';
 
               <div class="feature-list" aria-label="Beneficios de la plataforma">
                 <div class="feature-item">
-                  <div class="feature-icon"><i-lucide name="layout-dashboard" class="w-4 h-4"></i-lucide></div>
+                  <div class="feature-icon"><i-lucide aria-hidden="true" name="layout-dashboard" class="w-4 h-4"></i-lucide></div>
                   <div>
                     <strong>Visibilidad en tiempo real</strong>
                     <span>Indicadores y operación diaria en una sola vista.</span>
                   </div>
                 </div>
                 <div class="feature-item">
-                  <div class="feature-icon"><i-lucide name="building-2" class="w-4 h-4"></i-lucide></div>
+                  <div class="feature-icon"><i-lucide aria-hidden="true" name="building-2" class="w-4 h-4"></i-lucide></div>
                   <div>
                     <strong>Red de agencias conectada</strong>
                     <span>Procesos consistentes para todos los equipos.</span>
                   </div>
                 </div>
                 <div class="feature-item">
-                  <div class="feature-icon"><i-lucide name="shield-check" class="w-4 h-4"></i-lucide></div>
+                  <div class="feature-icon"><i-lucide aria-hidden="true" name="shield-check" class="w-4 h-4"></i-lucide></div>
                   <div>
                     <strong>Acceso seguro por rol</strong>
                     <span>Cada colaborador accede únicamente a lo necesario.</span>
@@ -679,7 +679,7 @@ import { ToastService } from '../../shared/services/toast.service';
 
             @if (errorMessage) {
               <div class="error-box" role="alert" aria-live="assertive">
-                <i-lucide name="alert-circle" class="w-5 h-5"></i-lucide>
+                <i-lucide aria-hidden="true" name="alert-circle" class="w-5 h-5"></i-lucide>
                 <span>{{ errorMessage }}</span>
               </div>
             }
@@ -688,7 +688,7 @@ import { ToastService } from '../../shared/services/toast.service';
               <div class="field">
                 <label for="login-email">Correo corporativo</label>
                 <div class="input-wrap">
-                  <i-lucide name="mail" class="input-icon"></i-lucide>
+                  <i-lucide aria-hidden="true" name="mail" class="input-icon"></i-lucide>
                   <input
                     id="login-email"
                     type="email"
@@ -707,7 +707,7 @@ import { ToastService } from '../../shared/services/toast.service';
               <div class="field">
                 <label for="login-password">Contraseña</label>
                 <div class="input-wrap">
-                  <i-lucide name="lock" class="input-icon"></i-lucide>
+                  <i-lucide aria-hidden="true" name="lock" class="input-icon"></i-lucide>
                   <input
                     id="login-password"
                     [type]="showPassword ? 'text' : 'password'"
@@ -727,7 +727,7 @@ import { ToastService } from '../../shared/services/toast.service';
                     [title]="showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'"
                     (click)="showPassword = !showPassword"
                   >
-                    <i-lucide [name]="showPassword ? 'eye-off' : 'eye'" class="w-[18px] h-[18px]"></i-lucide>
+                    <i-lucide aria-hidden="true" [name]="showPassword ? 'eye-off' : 'eye'" class="w-[18px] h-[18px]"></i-lucide>
                   </button>
                 </div>
               </div>
@@ -741,17 +741,17 @@ import { ToastService } from '../../shared/services/toast.service';
 
               <button class="submit-button" type="submit" [disabled]="loading">
                 @if (loading) {
-                  <i-lucide name="refresh-cw" class="w-[18px] h-[18px] spinner"></i-lucide>
+                  <i-lucide aria-hidden="true" name="refresh-cw" class="w-[18px] h-[18px] spinner"></i-lucide>
                   <span>Validando acceso...</span>
                 } @else {
                   <span>Ingresar a la plataforma</span>
-                  <i-lucide name="arrow-right" class="w-[18px] h-[18px]"></i-lucide>
+                  <i-lucide aria-hidden="true" name="arrow-right" class="w-[18px] h-[18px]"></i-lucide>
                 }
               </button>
             </form>
 
             <div class="security-note">
-              <i-lucide name="shield-check" class="w-[17px] h-[17px]"></i-lucide>
+              <i-lucide aria-hidden="true" name="shield-check" class="w-[17px] h-[17px]"></i-lucide>
               <span>Conexión segura. El acceso y las acciones quedan protegidos según tu rol corporativo.</span>
             </div>
           </div>
@@ -785,7 +785,7 @@ export class LoginComponent implements OnInit {
 
     if (this.authService.isLoggedIn()) {
       const user = this.authService.getCurrentUser();
-      const targetRoute = this.authService.getDefaultRouteForRole(user?.role);
+      const targetRoute = this.authService.rutaInicial();
       this.router.navigateByUrl(targetRoute);
       return;
     }
@@ -841,7 +841,7 @@ export class LoginComponent implements OnInit {
         if (res.success && res.user) {
           this.uiState.setSidebarExpanded(false);
           this.toastService.success('Acceso correcto', `Bienvenido(a) ${res.user.nombre} (${res.user.rolNombre})`);
-          const targetRoute = this.authService.getDefaultRouteForRole(res.user.role);
+          const targetRoute = this.authService.rutaInicial();
           this.router.navigateByUrl(targetRoute);
         } else {
           const rawMsg = res.message || '';

@@ -33,29 +33,30 @@ export type RecorderState = 'idle' | 'ready' | 'recording' | 'paused' | 'recorde
       <div class="flex items-center justify-between gap-2">
         <div class="flex items-center gap-2">
           <div
+            aria-hidden="true"
             class="w-2.5 h-2.5 rounded-full"
             [ngClass]="hasPendingUpload ? 'bg-amber-500' : (videoUrl ? 'bg-emerald-500' : (required ? 'bg-rose-500' : 'bg-slate-400'))"></div>
-          <label class="text-xs font-bold text-slate-800 uppercase tracking-wider">
+          <span class="text-xs font-bold text-slate-800 uppercase tracking-wider">
             {{ label }}
-          </label>
+          </span>
           @if (required && !tieneVideoActivo()) {
-            <span class="text-[9px] font-extrabold px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 uppercase font-mono">Obligatorio</span>
+            <span class="text-[11px] font-extrabold px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 uppercase font-mono">Obligatorio</span>
           }
         </div>
         <div class="flex items-center gap-1">
           @if (hasPendingUpload) {
-            <span class="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200">
-              <i-lucide name="clock" class="w-3.5 h-3.5 text-amber-600"></i-lucide>
+            <span class="inline-flex items-center gap-1 text-[11px] font-bold text-amber-800 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200">
+              <i-lucide name="clock" class="w-3.5 h-3.5 text-amber-600" aria-hidden="true"></i-lucide>
               Vídeo Listo · Se sube a S3 al guardar
             </span>
           } @else if (videoUrl) {
-            <span class="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-              <i-lucide name="check-circle" class="w-3 h-3 text-emerald-600"></i-lucide>
+            <span class="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+              <i-lucide name="check-circle" class="w-3 h-3 text-emerald-600" aria-hidden="true"></i-lucide>
               Guardado en AWS S3
             </span>
           } @else {
-            <span class="inline-flex items-center gap-1 text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
-              <i-lucide name="clock" class="w-3 h-3 text-slate-400"></i-lucide>
+            <span class="inline-flex items-center gap-1 text-[11px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
+              <i-lucide name="clock" class="w-3 h-3 text-slate-500" aria-hidden="true"></i-lucide>
               <span>Duración: {{ minDurationSeconds }}s a {{ maxDurationSeconds }}s</span>
             </span>
           }
@@ -63,11 +64,11 @@ export type RecorderState = 'idle' | 'ready' | 'recording' | 'paused' | 'recorde
       </div>
 
       @if (description) {
-        <p class="text-[11px] text-slate-500 leading-snug">{{ description }}</p>
+        <p class="text-xs text-slate-500 leading-snug">{{ description }}</p>
       }
 
       <!-- Contenedor Principal del Grabador / Visor -->
-      <div class="relative w-full rounded-2xl overflow-hidden border-2 transition-all duration-200 bg-slate-950 text-white shadow-sm"
+      <div class="relative w-full rounded-2xl overflow-hidden border-2 transition-colors duration-200 bg-slate-950 text-white shadow-sm"
            [ngClass]="{
              'border-slate-800': state === 'idle' || state === 'ready',
              'border-rose-500 ring-4 ring-rose-500/20': state === 'recording',
@@ -82,21 +83,25 @@ export type RecorderState = 'idle' | 'ready' | 'recording' | 'paused' | 'recorde
             <button
               type="button"
               (click)="setMode('camera')"
+              [attr.aria-pressed]="activeMode === 'camera'"
+              title="Cámara"
               [class.bg-white]="activeMode === 'camera'"
               [class.text-slate-950]="activeMode === 'camera'"
               [class.text-white]="activeMode !== 'camera'"
-              class="px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer">
-              <i-lucide name="camera" class="w-3.5 h-3.5"></i-lucide>
+              class="px-2.5 py-2 min-h-9 rounded-lg text-[11px] font-bold transition-colors flex items-center gap-1 cursor-pointer">
+              <i-lucide name="camera" class="w-3.5 h-3.5" aria-hidden="true"></i-lucide>
               <span class="hidden sm:inline">Cámara</span>
             </button>
             <button
               type="button"
               (click)="setMode('upload')"
+              [attr.aria-pressed]="activeMode === 'upload'"
+              title="Subir archivo"
               [class.bg-white]="activeMode === 'upload'"
               [class.text-slate-950]="activeMode === 'upload'"
               [class.text-white]="activeMode !== 'upload'"
-              class="px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer">
-              <i-lucide name="upload" class="w-3.5 h-3.5"></i-lucide>
+              class="px-2.5 py-2 min-h-9 rounded-lg text-[11px] font-bold transition-colors flex items-center gap-1 cursor-pointer">
+              <i-lucide name="upload" class="w-3.5 h-3.5" aria-hidden="true"></i-lucide>
               <span class="hidden sm:inline">Archivo</span>
             </button>
           </div>
@@ -105,7 +110,7 @@ export type RecorderState = 'idle' | 'ready' | 'recording' | 'paused' | 'recorde
         <!-- MODO CÁMARA: Visor y Stream en Vivo -->
         @if (activeMode === 'camera') {
           <div class="relative w-full aspect-video min-h-[220px] sm:min-h-[260px] flex items-center justify-center bg-slate-950">
-            
+
             <!-- Video en Vivo (Camera Stream) -->
             <video
               #liveVideoElement
@@ -121,6 +126,7 @@ export type RecorderState = 'idle' | 'ready' | 'recording' | 'paused' | 'recorde
               <video
                 #playbackVideoElement
                 [src]="previewUrl || videoUrl"
+                [attr.aria-label]="'Vídeo de evidencia: ' + label"
                 controls
                 playsinline
                 preload="auto"
@@ -132,17 +138,17 @@ export type RecorderState = 'idle' | 'ready' | 'recording' | 'paused' | 'recorde
             @if (state === 'idle' && !hasActiveStream && !videoUrl && !previewUrl) {
               <div class="flex flex-col items-center justify-center gap-3 p-6 text-center z-10">
                 <div class="w-14 h-14 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center text-white border border-white/10 shadow-inner">
-                  <i-lucide name="video" class="w-7 h-7 text-easydry-green"></i-lucide>
+                  <i-lucide name="video" class="w-7 h-7 text-easydry-green" aria-hidden="true"></i-lucide>
                 </div>
                 <div>
                   <h4 class="text-sm font-bold text-white">Cámara Lista</h4>
-                  <p class="text-[11px] text-slate-400 mt-0.5">Activa la cámara de tu dispositivo para capturar la evidencia</p>
+                  <p class="text-xs text-slate-300 mt-0.5">Activa la cámara de tu dispositivo para capturar la evidencia</p>
                 </div>
                 <button
                   type="button"
                   (click)="startCameraPreview()"
-                  class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all flex items-center gap-2 cursor-pointer shadow-glow-green">
-                  <i-lucide name="power" class="w-4 h-4"></i-lucide>
+                  class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-colors flex items-center gap-2 cursor-pointer shadow-glow-green">
+                  <i-lucide name="power" class="w-4 h-4" aria-hidden="true"></i-lucide>
                   <span>Encender Cámara</span>
                 </button>
               </div>
@@ -150,31 +156,31 @@ export type RecorderState = 'idle' | 'ready' | 'recording' | 'paused' | 'recorde
 
             <!-- Indicador en Vivo, Timer y Barra de Duración (30s a 90s) -->
             @if (state === 'recording' || state === 'paused') {
-              <div class="absolute top-3 left-3 z-20 flex flex-col gap-1.5 max-w-[80%] sm:max-w-none">
+              <div class="absolute top-3 left-3 z-20 flex flex-col gap-1.5 max-w-[80%] sm:max-w-none" role="status">
                 <div class="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-black/80 backdrop-blur-md border border-white/10 shadow-lg">
-                  <span class="w-3 h-3 rounded-full bg-rose-500" [ngClass]="{'animate-ping': state === 'recording'}"></span>
-                  <span class="text-xs font-mono font-black text-rose-400 tracking-wider">
+                  <span class="w-3 h-3 rounded-full bg-rose-500 motion-reduce:animate-none" aria-hidden="true" [ngClass]="{'animate-ping': state === 'recording'}"></span>
+                  <span class="text-xs font-mono font-extrabold text-rose-400 tracking-wider">
                     {{ state === 'recording' ? 'REC' : 'PAUSA' }}
                   </span>
                   <span class="text-xs font-mono font-bold text-white pl-1.5 border-l border-white/20">
                     {{ formatTime(recordingSeconds) }} / {{ formatTime(maxDurationSeconds) }}
                   </span>
                   @if (recordingSeconds < minDurationSeconds) {
-                    <span class="text-[10px] font-bold text-amber-300 bg-amber-950/60 px-2 py-0.5 rounded-md border border-amber-500/30">
+                    <span class="text-[11px] font-bold text-amber-300 bg-amber-950/60 px-2 py-0.5 rounded-md border border-amber-500/30">
                       Mín. {{ minDurationSeconds }}s (faltan {{ minDurationSeconds - recordingSeconds }}s)
                     </span>
                   } @else {
-                    <span class="text-[10px] font-bold text-emerald-300 bg-emerald-950/60 px-2 py-0.5 rounded-md border border-emerald-500/30 flex items-center gap-1">
-                      <i-lucide name="check" class="w-3 h-3"></i-lucide> Válido ({{ recordingSeconds }}s)
+                    <span class="text-[11px] font-bold text-emerald-300 bg-emerald-950/60 px-2 py-0.5 rounded-md border border-emerald-500/30 flex items-center gap-1">
+                      <i-lucide name="check" class="w-3 h-3" aria-hidden="true"></i-lucide> Válido ({{ recordingSeconds }}s)
                     </span>
                   }
                 </div>
 
                 <!-- Barra visual de progreso 30s - 90s -->
-                <div class="relative w-48 sm:w-64 bg-black/60 backdrop-blur-sm rounded-full h-2 p-0.5 border border-white/10 overflow-hidden">
+                <div class="relative w-48 sm:w-64 bg-black/60 rounded-full h-2 p-0.5 border border-white/10 overflow-hidden" aria-hidden="true">
                   <div class="absolute top-0 bottom-0 left-[33.3%] w-0.5 bg-amber-400 z-10" title="Mínimo 30s"></div>
                   <div
-                    class="h-full rounded-full transition-all duration-300"
+                    class="h-full rounded-full transition-[width] duration-300"
                     [ngClass]="recordingSeconds < minDurationSeconds ? 'bg-amber-400' : 'bg-emerald-500'"
                     [style.width.%]="(recordingSeconds / maxDurationSeconds) * 100">
                   </div>
@@ -187,30 +193,31 @@ export type RecorderState = 'idle' | 'ready' | 'recording' | 'paused' | 'recorde
               <button
                 type="button"
                 (click)="switchFacingMode()"
-                class="absolute bottom-3 right-3 z-20 p-2.5 rounded-xl bg-black/60 hover:bg-black/90 backdrop-blur-md text-white border border-white/15 transition-all cursor-pointer flex items-center gap-1.5 text-xs font-bold"
-                title="Cambiar Cámara (Frontal / Posterior)">
-                <i-lucide name="refresh-cw" class="w-4 h-4 text-easydry-green"></i-lucide>
-                <span class="text-[10px]">{{ facingMode === 'environment' ? 'Posterior' : 'Frontal' }}</span>
+                class="absolute bottom-3 right-3 z-20 p-2.5 rounded-xl bg-black/60 hover:bg-black/90 backdrop-blur-md text-white border border-white/15 transition-colors cursor-pointer flex items-center gap-1.5 text-xs font-bold"
+                title="Cambiar Cámara (Frontal / Posterior)"
+                aria-label="Cambiar cámara (frontal o posterior)">
+                <i-lucide name="refresh-cw" class="w-4 h-4 text-easydry-green" aria-hidden="true"></i-lucide>
+                <span class="text-[11px]">{{ facingMode === 'environment' ? 'Posterior' : 'Frontal' }}</span>
               </button>
             }
 
             <!-- Overlay de Subida al Storage Bucket en Guardado -->
             @if (state === 'uploading') {
-              <div class="absolute inset-0 z-30 bg-black/85 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center animate-fade-in">
-                <div class="w-12 h-12 rounded-2xl bg-easydry-blue/20 flex items-center justify-center text-easydry-blue mb-3 animate-pulse">
-                  <i-lucide name="upload-cloud" class="w-6 h-6"></i-lucide>
+              <div class="absolute inset-0 z-30 bg-black/85 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center animate-fade-in" role="status" aria-live="polite">
+                <div class="w-12 h-12 rounded-2xl bg-easydry-blue/20 flex items-center justify-center text-easydry-blue mb-3 animate-pulse motion-reduce:animate-none">
+                  <i-lucide name="upload-cloud" class="w-6 h-6" aria-hidden="true"></i-lucide>
                 </div>
                 <h4 class="text-sm font-bold text-white">Transfiriendo vídeo a AWS S3...</h4>
-                <p class="text-[11px] text-slate-400 mt-1">Conectando con bucket seguro de EasyDry...</p>
-                
+                <p class="text-xs text-slate-400 mt-1">Conectando con bucket seguro de EasyDry...</p>
+
                 <div class="w-full max-w-xs mt-4">
                   <div class="w-full bg-white/10 rounded-full h-2 overflow-hidden">
                     <div
-                      class="bg-easydry-green h-2 rounded-full transition-all duration-300"
+                      class="bg-easydry-green h-2 rounded-full transition-[width] duration-300"
                       [style.width.%]="uploadProgress">
                     </div>
                   </div>
-                  <div class="flex justify-between text-[10px] font-mono text-slate-400 mt-1.5">
+                  <div class="flex justify-between text-[11px] font-mono text-slate-400 mt-1.5">
                     <span>{{ uploadProgress }}%</span>
                     <span>Evidencia {{ evidenceType }}</span>
                   </div>
@@ -220,16 +227,16 @@ export type RecorderState = 'idle' | 'ready' | 'recording' | 'paused' | 'recorde
 
             <!-- Overlay de Error -->
             @if (state === 'error') {
-              <div class="absolute inset-0 z-30 bg-rose-950/90 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center">
+              <div class="absolute inset-0 z-30 bg-rose-950/90 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center" role="alert">
                 <div class="w-12 h-12 rounded-2xl bg-rose-500/20 text-rose-400 flex items-center justify-center mb-2">
-                  <i-lucide name="alert-triangle" class="w-6 h-6"></i-lucide>
+                  <i-lucide name="alert-triangle" class="w-6 h-6" aria-hidden="true"></i-lucide>
                 </div>
                 <h4 class="text-sm font-bold text-white">No se pudo procesar el vídeo</h4>
                 <p class="text-xs text-rose-200 mt-1 max-w-xs">{{ errorMessage }}</p>
                 <button
                   type="button"
                   (click)="resetRecorder()"
-                  class="mt-3 px-3.5 py-1.5 bg-white text-slate-900 font-extrabold rounded-xl text-xs hover:bg-slate-100 transition-all cursor-pointer">
+                  class="mt-3 px-3.5 py-1.5 bg-white text-slate-900 font-extrabold rounded-xl text-xs hover:bg-slate-100 transition-colors cursor-pointer">
                   Reintentar
                 </button>
               </div>
@@ -244,55 +251,59 @@ export type RecorderState = 'idle' | 'ready' | 'recording' | 'paused' | 'recorde
                (dragover)="onDragOver($event)"
                (dragleave)="onDragLeave($event)"
                (drop)="onDropFile($event)">
-            
+
             <input
               #fileInput
               type="file"
               accept="video/mp4,video/webm,video/quicktime,video/*"
-              class="hidden"
+              class="sr-only"
+              tabindex="-1"
+              aria-label="Seleccionar archivo de vídeo"
               (change)="onFileSelected($event)">
 
             @if (previewUrl || videoUrl) {
               <div class="w-full h-full flex flex-col items-center justify-center">
-                <video [src]="previewUrl || videoUrl" controls playsinline class="w-full h-40 object-contain rounded-xl bg-black mb-3"></video>
+                <video [src]="previewUrl || videoUrl" [attr.aria-label]="'Vídeo de evidencia: ' + label" controls playsinline class="w-full h-40 object-contain rounded-xl bg-black mb-3"></video>
                 <div class="flex items-center gap-2">
                   <button
                     type="button"
                     (click)="fileInput.click()"
-                    class="px-3.5 py-1.5 bg-white/15 hover:bg-white/25 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer">
-                    <i-lucide name="refresh-cw" class="w-3.5 h-3.5"></i-lucide>
+                    class="px-3.5 py-1.5 bg-white/15 hover:bg-white/25 text-white rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer">
+                    <i-lucide name="refresh-cw" class="w-3.5 h-3.5" aria-hidden="true"></i-lucide>
                     <span>Reemplazar Archivo</span>
                   </button>
                   <button
                     type="button"
                     (click)="eliminarVideo()"
-                    class="px-3.5 py-1.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer">
-                    <i-lucide name="trash-2" class="w-3.5 h-3.5"></i-lucide>
+                    class="px-3.5 py-1.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer">
+                    <i-lucide name="trash-2" class="w-3.5 h-3.5" aria-hidden="true"></i-lucide>
                     <span>Eliminar</span>
                   </button>
                 </div>
               </div>
             } @else {
-              <div (click)="fileInput.click()" class="flex flex-col items-center justify-center gap-2 cursor-pointer group">
-                <div class="w-12 h-12 rounded-2xl bg-white/10 group-hover:bg-easydry-green group-hover:text-slate-950 transition-all flex items-center justify-center text-white">
-                  <i-lucide name="upload-cloud" class="w-6 h-6"></i-lucide>
+              <div (click)="fileInput.click()" (keydown.enter)="fileInput.click()" (keydown.space)="$event.preventDefault(); fileInput.click()"
+                   tabindex="0" role="button" aria-label="Seleccionar un archivo de vídeo"
+                   class="flex flex-col items-center justify-center gap-2 cursor-pointer group rounded-2xl">
+                <div class="w-12 h-12 rounded-2xl bg-white/10 group-hover:bg-easydry-green group-hover:text-slate-950 transition-colors flex items-center justify-center text-white">
+                  <i-lucide name="upload-cloud" class="w-6 h-6" aria-hidden="true"></i-lucide>
                 </div>
                 <div>
                   <p class="text-xs font-bold text-white">Haz clic o arrastra un vídeo aquí</p>
-                  <p class="text-[10px] text-slate-400 mt-0.5">Formatos: MP4, WEBM, MOV (Duración: 30s a 90s · se sube a S3 al guardar)</p>
+                  <p class="text-xs text-slate-400 mt-0.5">Formatos: MP4, WEBM, MOV (Duración: 30s a 90s · se sube a S3 al guardar)</p>
                 </div>
               </div>
             }
 
             <!-- Overlay de subida modo archivo -->
             @if (state === 'uploading') {
-              <div class="absolute inset-0 z-30 bg-black/85 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center">
+              <div class="absolute inset-0 z-30 bg-black/85 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center" role="status" aria-live="polite">
                 <div class="w-10 h-10 rounded-xl bg-easydry-blue/20 text-easydry-blue flex items-center justify-center mb-2">
-                  <i-lucide name="upload-cloud" class="w-5 h-5"></i-lucide>
+                  <i-lucide name="upload-cloud" class="w-5 h-5" aria-hidden="true"></i-lucide>
                 </div>
                 <p class="text-xs font-bold text-white">Transfiriendo vídeo a AWS S3...</p>
                 <div class="w-48 bg-white/20 h-1.5 rounded-full mt-3 overflow-hidden">
-                  <div class="bg-easydry-green h-1.5 rounded-full transition-all duration-300" [style.width.%]="uploadProgress"></div>
+                  <div class="bg-easydry-green h-1.5 rounded-full transition-[width] duration-300" [style.width.%]="uploadProgress"></div>
                 </div>
               </div>
             }
@@ -302,25 +313,25 @@ export type RecorderState = 'idle' | 'ready' | 'recording' | 'paused' | 'recorde
         <!-- Barra Inferior de Acciones y Controles (Cámara) -->
         @if (activeMode === 'camera') {
           <div class="p-3 bg-slate-900 border-t border-white/10 flex flex-wrap items-center justify-between gap-2">
-            
+
             <!-- Estado IDLE o READY (Antes de grabar) -->
             @if (state === 'ready' || (state === 'idle' && hasActiveStream)) {
               <div class="flex items-center gap-2">
                 <button
                   type="button"
                   (click)="startRecording()"
-                  class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-black rounded-xl text-xs flex items-center gap-2 transition-all shadow-md cursor-pointer animate-pulse">
-                  <span class="w-2.5 h-2.5 rounded-full bg-white"></span>
+                  class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-extrabold rounded-xl text-xs flex items-center gap-2 transition-colors shadow-md cursor-pointer">
+                  <span class="w-2.5 h-2.5 rounded-full bg-white" aria-hidden="true"></span>
                   <span>INICIAR GRABACIÓN (30s - 90s)</span>
                 </button>
                 <button
                   type="button"
                   (click)="stopCameraPreview()"
-                  class="px-3 py-2 bg-white/10 hover:bg-white/20 text-slate-300 font-bold rounded-xl text-xs transition-all cursor-pointer">
+                  class="px-3 py-2 bg-white/10 hover:bg-white/20 text-slate-300 font-bold rounded-xl text-xs transition-colors cursor-pointer">
                   Apagar Cámara
                 </button>
               </div>
-              <span class="text-[11px] text-slate-400 font-medium">Graba entre 30 y 90 segundos</span>
+              <span class="text-xs text-slate-400 font-medium">Graba entre 30 y 90 segundos</span>
             }
 
             <!-- Estado RECORDING (Grabando) -->
@@ -330,7 +341,7 @@ export type RecorderState = 'idle' | 'ready' | 'recording' | 'paused' | 'recorde
                   type="button"
                   (click)="pauseRecording()"
                   class="px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-extrabold rounded-xl text-xs flex items-center gap-1.5 cursor-pointer">
-                  <i-lucide name="pause" class="w-3.5 h-3.5"></i-lucide>
+                  <i-lucide name="pause" class="w-3.5 h-3.5" aria-hidden="true"></i-lucide>
                   <span>Pausar</span>
                 </button>
 
@@ -340,9 +351,9 @@ export type RecorderState = 'idle' | 'ready' | 'recording' | 'paused' | 'recorde
                   [disabled]="recordingSeconds < minDurationSeconds"
                   [ngClass]="recordingSeconds < minDurationSeconds
                     ? 'bg-slate-700 text-slate-400 cursor-not-allowed border border-slate-600'
-                    : 'bg-rose-600 hover:bg-rose-700 text-white font-black shadow-lg cursor-pointer animate-pulse'"
-                  class="px-4 py-2 rounded-xl text-xs flex items-center gap-2 transition-all">
-                  <i-lucide name="square" class="w-3.5 h-3.5 fill-current"></i-lucide>
+                    : 'bg-rose-600 hover:bg-rose-700 text-white font-extrabold shadow-lg cursor-pointer'"
+                  class="px-4 py-2 rounded-xl text-xs flex items-center gap-2 transition-colors">
+                  <i-lucide name="square" class="w-3.5 h-3.5 fill-current" aria-hidden="true"></i-lucide>
                   @if (recordingSeconds < minDurationSeconds) {
                     <span>DETENER (MÍN. {{ minDurationSeconds - recordingSeconds }}s)</span>
                   } @else {
@@ -350,7 +361,7 @@ export type RecorderState = 'idle' | 'ready' | 'recording' | 'paused' | 'recorde
                   }
                 </button>
               </div>
-              <span class="text-[10px] font-mono" [ngClass]="recordingSeconds < minDurationSeconds ? 'text-amber-400' : 'text-emerald-400 animate-pulse'">
+              <span class="text-xs font-mono" [ngClass]="recordingSeconds < minDurationSeconds ? 'text-amber-400' : 'text-emerald-400'">
                 {{ recordingSeconds < minDurationSeconds ? 'Alcanza al menos 30 segundos...' : '¡Duración óptima! Puedes detener cuando desees.' }}
               </span>
             }
@@ -361,8 +372,8 @@ export type RecorderState = 'idle' | 'ready' | 'recording' | 'paused' | 'recorde
                 <button
                   type="button"
                   (click)="resumeRecording()"
-                  class="px-3.5 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-black rounded-xl text-xs flex items-center gap-1.5 cursor-pointer">
-                  <i-lucide name="play" class="w-3.5 h-3.5 fill-current"></i-lucide>
+                  class="px-3.5 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs flex items-center gap-1.5 cursor-pointer">
+                  <i-lucide name="play" class="w-3.5 h-3.5 fill-current" aria-hidden="true"></i-lucide>
                   <span>Reanudar</span>
                 </button>
 
@@ -374,11 +385,11 @@ export type RecorderState = 'idle' | 'ready' | 'recording' | 'paused' | 'recorde
                     ? 'bg-slate-700 text-slate-400 cursor-not-allowed'
                     : 'bg-rose-600 hover:bg-rose-700 text-white font-extrabold cursor-pointer'"
                   class="px-4 py-2 rounded-xl text-xs flex items-center gap-1.5">
-                  <i-lucide name="square" class="w-3.5 h-3.5 fill-current"></i-lucide>
+                  <i-lucide name="square" class="w-3.5 h-3.5 fill-current" aria-hidden="true"></i-lucide>
                   <span>{{ recordingSeconds < minDurationSeconds ? 'Mínimo 30s' : 'Finalizar (' + formatTime(recordingSeconds) + ')' }}</span>
                 </button>
               </div>
-              <span class="text-[10px] text-amber-300 font-medium">Grabación en pausa</span>
+              <span class="text-xs text-amber-300 font-medium" role="status">Grabación en pausa</span>
             }
 
             <!-- Estado RECORDED (Vídeo grabado listo en memoria) -->
@@ -388,20 +399,20 @@ export type RecorderState = 'idle' | 'ready' | 'recording' | 'paused' | 'recorde
                   type="button"
                   (click)="startCameraPreview()"
                   class="px-3.5 py-2 bg-white/10 hover:bg-white/20 text-slate-200 font-bold rounded-xl text-xs flex items-center gap-1.5 cursor-pointer">
-                  <i-lucide name="rotate-ccw" class="w-3.5 h-3.5"></i-lucide>
+                  <i-lucide name="rotate-ccw" class="w-3.5 h-3.5" aria-hidden="true"></i-lucide>
                   <span>Grabar de Nuevo</span>
                 </button>
 
                 <div class="flex items-center gap-2">
-                  <span class="text-[10px] font-bold text-amber-300 bg-amber-950/60 px-2.5 py-1 rounded-xl border border-amber-500/30 flex items-center gap-1">
-                    <i-lucide name="clock" class="w-3 h-3 text-amber-400"></i-lucide>
+                  <span class="text-[11px] font-bold text-amber-300 bg-amber-950/60 px-2.5 py-1 rounded-xl border border-amber-500/30 flex items-center gap-1">
+                    <i-lucide name="clock" class="w-3 h-3 text-amber-400" aria-hidden="true"></i-lucide>
                     Listo · Se subirá a AWS S3 al guardar
                   </span>
                   <button
                     type="button"
                     (click)="eliminarVideo()"
                     class="px-3 py-1.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer">
-                    <i-lucide name="trash-2" class="w-3.5 h-3.5"></i-lucide>
+                    <i-lucide name="trash-2" class="w-3.5 h-3.5" aria-hidden="true"></i-lucide>
                     <span>Eliminar</span>
                   </button>
                 </div>
@@ -412,7 +423,7 @@ export type RecorderState = 'idle' | 'ready' | 'recording' | 'paused' | 'recorde
             @if (videoUrl && !hasPendingUpload && state !== 'recording' && state !== 'ready' && state !== 'recorded' && state !== 'uploading') {
               <div class="flex items-center justify-between w-full">
                 <div class="flex items-center gap-2 text-emerald-400 text-xs font-bold">
-                  <i-lucide name="check-circle-2" class="w-4 h-4 text-emerald-400"></i-lucide>
+                  <i-lucide name="check-circle-2" class="w-4 h-4 text-emerald-400" aria-hidden="true"></i-lucide>
                   <span>Evidencia persistida en AWS S3</span>
                 </div>
                 <div class="flex items-center gap-2">
@@ -420,14 +431,14 @@ export type RecorderState = 'idle' | 'ready' | 'recording' | 'paused' | 'recorde
                     type="button"
                     (click)="startCameraPreview()"
                     class="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold flex items-center gap-1 cursor-pointer">
-                    <i-lucide name="refresh-cw" class="w-3 h-3"></i-lucide>
+                    <i-lucide name="refresh-cw" class="w-3 h-3" aria-hidden="true"></i-lucide>
                     <span>Regrabar</span>
                   </button>
                   <button
                     type="button"
                     (click)="eliminarVideo()"
                     class="px-3 py-1.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 rounded-xl text-xs font-bold flex items-center gap-1 cursor-pointer">
-                    <i-lucide name="trash-2" class="w-3 h-3"></i-lucide>
+                    <i-lucide name="trash-2" class="w-3 h-3" aria-hidden="true"></i-lucide>
                     <span>Eliminar</span>
                   </button>
                 </div>

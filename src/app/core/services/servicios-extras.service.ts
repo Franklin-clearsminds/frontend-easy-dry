@@ -4,6 +4,33 @@ import { BehaviorSubject, Observable, of, throwError } from 'rxjs';
 import { map, tap, catchError } from 'rxjs/operators';
 import { ServicioExtra } from '../models';
 import { apiUrl } from '../config/env';
+import { OrdenDir, PaginaServidor, normalizarPagina } from '../models/paginacion.model';
+import { PAGE_SIZE_MAX } from '../config/paginacion';
+
+/** Consulta paginada de servicios especiales (orden, búsqueda y filtros en el servidor). */
+export interface ConsultaExtras {
+  page?: number;
+  pageSize?: number;
+  /** fecha | ot | placa | servicio | agencia | region | operador | estado | tiempoPausa | tiempoEfectivo */
+  sortField?: string | null;
+  sortOrder?: OrdenDir;
+  search?: string;
+  estado?: string;
+  agenciaId?: string;
+  regionId?: string;
+  operadorId?: string;
+  tipoServicio?: string;
+  /** ISO 8601 (inicio del día local) */
+  fechaDesde?: string;
+  /** ISO 8601 (fin del día local) */
+  fechaHasta?: string;
+  incluirResumen?: boolean;
+}
+
+export interface RespuestaExtrasPagina {
+  pagina: PaginaServidor<ServicioExtra>;
+  resumen?: { porEstado: Record<string, number>; total: number };
+}
 
 @Injectable({ providedIn: 'root' })
 export class ServiciosExtrasService {
@@ -92,7 +119,7 @@ export class ServiciosExtrasService {
   }
 
   getServiciosExtras(filtro?: { regionId?: string; operadorId?: string; estado?: string }): Observable<ServicioExtra[]> {
-    const payload = filtro || {};
+    const payload = { pageSize: PAGE_SIZE_MAX, ...(filtro || {}) };
     return this.http.post<any>(apiUrl('/operaciones/servicios-especiales/list'), payload).pipe(
       map(res => {
         const list = Array.isArray(res) ? res : (res?.items || res?.data || []);
@@ -100,6 +127,37 @@ export class ServiciosExtrasService {
       }),
       tap(mapped => this.serviciosSubject.next(mapped)),
       catchError(() => of(this.serviciosSubject.value))
+    );
+  }
+
+  /**
+   * Una página de servicios especiales resuelta en el servidor. NO toca `serviciosSubject`
+   * (una página parcial no debe pisar la lista completa que usan otras pantallas).
+   */
+  getServiciosExtrasPagina(consulta: ConsultaExtras): Observable<RespuestaExtrasPagina> {
+    const c = consulta;
+    const body: Record<string, unknown> = {
+      page: c.page || 1,
+      pageSize: Math.min(c.pageSize || 25, PAGE_SIZE_MAX),
+    };
+    if (c.sortField) { body['sortField'] = c.sortField; body['sortOrder'] = c.sortOrder || 'desc'; }
+    const texto = (c.search || '').trim();
+    if (texto.length >= 2) body['search'] = texto;
+    const claves: (keyof ConsultaExtras)[] = ['estado', 'agenciaId', 'regionId', 'operadorId', 'tipoServicio', 'fechaDesde', 'fechaHasta'];
+    for (const k of claves) {
+      const v = c[k];
+      if (v !== undefined && v !== null && v !== '') body[k] = v;
+    }
+    if (c.incluirResumen) body['incluirResumen'] = true;
+
+    return this.http.post<any>(apiUrl('/operaciones/servicios-especiales/list'), body).pipe(
+      map((res) => {
+        const pagina = normalizarPagina<any>(res, body['page'] as number, body['pageSize'] as number);
+        return {
+          pagina: { ...pagina, items: pagina.items.map((item: any) => this.mapBackend(item)) },
+          resumen: res?.resumen as RespuestaExtrasPagina['resumen'],
+        };
+      }),
     );
   }
 
@@ -178,7 +236,6 @@ export class ServiciosExtrasService {
       }).pipe(
         map(res => this.mapBackend(res)),
         tap(updated => this._updateLocal(id, updated)),
-        catchError(() => of(null))
       );
     }
     if (updates.estado === 'Completado') {
@@ -190,7 +247,6 @@ export class ServiciosExtrasService {
       }).pipe(
         map(res => this.mapBackend(res)),
         tap(updated => this._updateLocal(id, updated)),
-        catchError(() => of(null))
       );
     }
     return of(null);
@@ -236,14 +292,25 @@ export class ServiciosExtrasService {
     return this.actualizarServicioExtra(id, { estado });
   }
 
-  eliminarServicioExtra(id: number | string): Observable<boolean> {
-    return this.http.post<any>(apiUrl('/operaciones/servicios-especiales/delete'), { id: String(id) }).pipe(
+  /** Anula un servicio especial (permiso 'especiales.anular'): motivo obligatorio, no se borra y deja registro. */
+  anularServicioExtra(id: number | string, motivo: string): Observable<boolean> {
+    return this.http.post<any>(apiUrl('/operaciones/servicios-especiales/delete'), { id: String(id), motivo: motivo.trim() }).pipe(
       map(() => true),
       tap(() => {
         const current = this.serviciosSubject.value.filter(s => String(s.id) !== String(id));
         this.serviciosSubject.next(current);
       }),
-      catchError(() => of(false))
+    );
+  }
+
+  /** Cambia el pulidor asignado (permiso 'especiales.reasignar'). Vacío deja el servicio sin asignar. */
+  reasignarServicioExtra(id: number | string, operadorId: string | null): Observable<ServicioExtra> {
+    return this.http.post<any>(apiUrl('/operaciones/servicios-especiales/reasignar'), {
+      id: String(id),
+      operadorId: operadorId || null,
+    }).pipe(
+      map(res => this.mapBackend(res)),
+      tap(updated => this._updateLocal(id, updated)),
     );
   }
 

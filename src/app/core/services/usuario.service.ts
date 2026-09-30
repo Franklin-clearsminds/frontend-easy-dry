@@ -4,6 +4,40 @@ import { BehaviorSubject, Observable, of, throwError } from 'rxjs';
 import { map, tap, catchError } from 'rxjs/operators';
 import { Usuario, ROLE_LABELS } from '../models';
 import { apiUrl } from '../config/env';
+import { PaginaServidor, normalizarPagina } from '../models/paginacion.model';
+import { PAGE_SIZE_MAX, PAGE_SIZE_TABLA } from '../config/paginacion';
+
+/** Lo que la pantalla de usuarios le pide al servidor (ids y códigos, no nombres para mostrar). */
+export interface ConsultaUsuarios {
+  page?: number;
+  pageSize?: number;
+  sortField?: string | null;
+  sortOrder?: 'asc' | 'desc';
+  search?: string;
+  /** Códigos de rol (namerol) separados por coma. */
+  rolNombre?: string;
+  agenciaId?: string;
+  regionId?: string;
+  clienteId?: string;
+  /** 1 = activo, 0 = inactivo. */
+  estado?: number;
+  segmento?: 'todos' | 'lavadores' | 'supervisores' | 'bodega' | 'admins' | 'inactivos';
+  incluirResumen?: boolean;
+}
+
+export interface ResumenUsuarios {
+  total: number;
+  lavadores: number;
+  supervisores: number;
+  bodega: number;
+  admins: number;
+  inactivos: number;
+}
+
+export interface RespuestaUsuariosPagina {
+  pagina: PaginaServidor<Usuario>;
+  resumen?: ResumenUsuarios;
+}
 
 @Injectable({
   providedIn: 'root'
@@ -95,6 +129,44 @@ export class UsuarioService {
         console.warn('Error al cargar usuarios desde API:', err);
         return of(this.usuariosSubject.value);
       })
+    );
+  }
+
+  /**
+   * Una página de usuarios con orden, búsqueda y filtros resueltos en el servidor.
+   * NO toca `usuariosSubject` (una página parcial no debe pisar la lista completa que usan otras pantallas)
+   * y propaga los errores para que la pantalla muestre su estado de error.
+   */
+  getUsuariosPagina(consulta: ConsultaUsuarios): Observable<RespuestaUsuariosPagina> {
+    const c = consulta;
+    const body: Record<string, unknown> = {
+      page: c.page || 1,
+      pageSize: Math.min(c.pageSize || PAGE_SIZE_TABLA, PAGE_SIZE_MAX),
+    };
+    if (c.sortField) { body['sortField'] = c.sortField; body['sortOrder'] = c.sortOrder || 'desc'; }
+    const texto = (c.search || '').trim();
+    if (texto.length >= 2) body['search'] = texto;
+    for (const k of ['rolNombre', 'agenciaId', 'regionId', 'clienteId'] as const) {
+      const v = c[k];
+      if (v !== undefined && v !== null && v !== '') body[k] = v;
+    }
+    if (c.estado === 0 || c.estado === 1) body['estado'] = c.estado;
+    if (c.segmento && c.segmento !== 'todos') body['segmento'] = c.segmento;
+    if (c.incluirResumen) body['incluirResumen'] = true;
+
+    return this.http.post<any>(apiUrl('/agencias/usuarios/list'), body).pipe(
+      map((res) => {
+        const pagina = normalizarPagina<any>(res, body['page'] as number, body['pageSize'] as number);
+        return {
+          pagina: {
+            ...pagina,
+            items: pagina.items
+              .map((u: any) => this.mapBackendUsuario(u))
+              .filter((u: Usuario) => (u.rolNombre || '').toUpperCase() !== 'SUPER_ADMIN'),
+          },
+          resumen: res?.resumen as ResumenUsuarios | undefined,
+        };
+      }),
     );
   }
 

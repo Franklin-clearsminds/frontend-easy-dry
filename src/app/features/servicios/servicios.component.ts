@@ -1,19 +1,19 @@
-import { Component, OnInit, ViewChild, inject } from '@angular/core';
-import { firstValueFrom } from 'rxjs';
+import { Component, OnDestroy, OnInit, ViewChild, inject } from '@angular/core';
+import { firstValueFrom, of, Observable, Subject, Subscription, debounceTime, distinctUntilChanged, map } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LucideAngularModule } from 'lucide-angular';
-import { ServicioLavadoService } from '../../core/services/servicio-lavado.service';
+import { ConsultaServicios, ServicioLavadoService } from '../../core/services/servicio-lavado.service';
 import { AuthService } from '../../core/services/auth.service';
 import { InventarioService } from '../../core/services/inventario.service';
 import { StorageUploadService } from '../../core/services/storage-upload.service';
-import { 
-  VehiculoServicio, 
-  CatalogoServicio, 
-  InsumoConsumidoServicio, 
-  InventarioItem, 
-  ArchivoAdjunto, 
-  Incidente, 
+import {
+  VehiculoServicio,
+  CatalogoServicio,
+  InsumoConsumidoServicio,
+  InventarioItem,
+  ArchivoAdjunto,
+  Incidente,
   Maquinaria,
   Operador,
   ServicioExtra,
@@ -23,18 +23,20 @@ import {
 } from '../../core/models';
 import { ModalComponent } from '../../shared/components/modal/modal.component';
 import { ToastService } from '../../shared/services/toast.service';
-import { Role } from '../../core/models/roles.model';
 import { CatalogoServiciosService } from '../../core/services/catalogo-servicios.service';
 import { SucursalService } from '../../core/services/sucursal.service';
-import { ServiciosExtrasService } from '../../core/services/servicios-extras.service';
+import { ConsultaExtras, ServiciosExtrasService } from '../../core/services/servicios-extras.service';
 import { OperadorService } from '../../core/services/operador.service';
 import { BahiaService } from '../../core/services/bahia.service';
-import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
+import { DataTableCellDirective, DataTableComponent, TableColumn } from '../../shared/components/data-table/data-table.component';
+import { InfiniteScrollComponent } from '../../shared/components/infinite-scroll/infinite-scroll.component';
+import { ListaInfinita } from '../../core/utils/lista-infinita';
+import { ConsultaTabla, OrdenDir } from '../../core/models/paginacion.model';
+import { BUSQUEDA_DEBOUNCE_MS, BUSQUEDA_MIN_CARACTERES, PAGE_SIZE_INFINITO, PAGE_SIZE_TABLA } from '../../core/config/paginacion';
 import { FilterBarComponent, FilterState } from '../../shared/components/filter-bar/filter-bar.component';
 import { MaquinariaService } from '../../core/services/maquinaria.service';
 import { IncidenteService } from '../../core/services/incidente.service';
-import { PermissionService } from '../../core/services/permission.service';
-import { formatearPlaca, placasEquivalentes, validarPlaca } from '../../core/utils/placa.util';
+import { formatearPlaca, validarPlaca } from '../../core/utils/placa.util';
 import { resolverRangoFechas, soloFecha } from '../../core/utils/fecha-rango';
 
 import { RouterModule } from '@angular/router';
@@ -44,27 +46,27 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
 @Component({
   selector: 'app-servicios',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, LucideAngularModule, ModalComponent, PaginationComponent, FilterBarComponent, VideoRecorderComponent, EvidenciaSelectorComponent],
+  imports: [CommonModule, RouterModule, FormsModule, LucideAngularModule, ModalComponent, DataTableComponent, DataTableCellDirective, InfiniteScrollComponent, FilterBarComponent, VideoRecorderComponent, EvidenciaSelectorComponent],
   template: `
     <div class="space-y-6 animate-fade-in">
-      
+
       <!-- Header Banner -->
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-100 shadow-easydry">
         <div>
           <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-easydry-blue/10 text-easydry-blue text-xs font-bold mb-2">
-            <i-lucide name="car" class="w-3.5 h-3.5"></i-lucide>
+            <i-lucide aria-hidden="true" name="car" class="w-3.5 h-3.5"></i-lucide>
             <span>Digitalización de Hoja de Control de Servicio</span>
           </div>
           <h1 class="text-2xl font-extrabold text-slate-900 font-outfit">Control y Registro de Servicios de Lavado</h1>
           <p class="text-slate-500 text-xs mt-1">Digitalización del proceso físico: OT, placa, evidencias en vídeo/fotos y flujo de aprobación por Gerencia.</p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
-          @if (!isAprobador && !isPulidor) {
+          @if (puedeVerCatalogoBoton) {
             <a
               routerLink="/configuracion/servicios"
               class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold rounded-xl text-xs transition-all flex items-center gap-2 cursor-pointer shadow-2xs border border-slate-200">
-              <i-lucide name="layout-list" class="w-4 h-4 text-easydry-blue"></i-lucide>
-              <span class="hidden sm:inline">{{ isLiderOperador ? 'Catálogo de Servicios' : 'Catálogo & Crear Servicios' }}</span>
+              <i-lucide aria-hidden="true" name="layout-list" class="w-4 h-4 text-easydry-blue"></i-lucide>
+              <span class="hidden sm:inline">{{ authService.puede('catalogo.gestionar') ? 'Catálogo & Crear Servicios' : 'Catálogo de Servicios' }}</span>
               <span class="sm:hidden">Catálogo</span>
             </a>
           }
@@ -73,7 +75,7 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
             <button
               (click)="abrirModalReportarFalla()"
               class="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white font-extrabold rounded-xl text-xs transition-all flex items-center gap-2 cursor-pointer shadow-xs">
-              <i-lucide name="alert-triangle" class="w-4 h-4"></i-lucide>
+              <i-lucide aria-hidden="true" name="alert-triangle" class="w-4 h-4"></i-lucide>
               <span class="hidden sm:inline">Reportar Falla / Avería</span>
               <span class="sm:hidden">Falla</span>
             </button>
@@ -83,8 +85,8 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
             <button
               (click)="abrirModalNuevaOT()"
               class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
-              <i-lucide name="plus" class="w-4 h-4"></i-lucide>
-              <span class="hidden sm:inline">{{ (tabActiva === 'especiales' || isPulidor || isCoordServiciosEspeciales) ? 'Nueva OT (Especial)' : 'Nueva Hoja de Control (OT)' }}</span>
+              <i-lucide aria-hidden="true" name="plus" class="w-4 h-4"></i-lucide>
+              <span class="hidden sm:inline">{{ tabActiva === 'especiales' ? 'Nueva OT (Especial)' : 'Nueva Hoja de Control (OT)' }}</span>
               <span class="sm:hidden">Nueva OT</span>
             </button>
           }
@@ -96,21 +98,21 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
         <div class="p-4 bg-indigo-50/95 border-2 border-indigo-300 rounded-2xl shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-fade-in">
           <div class="flex items-center gap-3">
             <div class="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold shrink-0 shadow-2xs">
-              <i-lucide name="truck" class="w-4 h-4"></i-lucide>
+              <i-lucide aria-hidden="true" name="truck" class="w-4 h-4"></i-lucide>
             </div>
             <div>
               <div class="flex items-center gap-2 flex-wrap">
-                <h3 class="text-xs font-black text-indigo-950 uppercase tracking-wide">
+                <h3 class="text-xs font-extrabold text-indigo-950 uppercase tracking-wide">
                   ¡Suministros en Camino para tu Sede!
                 </h3>
-                <span class="px-2 py-0.2 rounded-full text-[10px] font-black bg-indigo-200 text-indigo-900 font-mono">
+                <span class="px-2 py-0.5 rounded-full text-xs font-extrabold bg-indigo-200 text-indigo-900 font-mono">
                   Guía: {{ despachosPendientesLider[0].numeroGuia }}
                 </span>
-                <span class="px-2 py-0.2 rounded-full text-[10px] font-extrabold bg-blue-100 text-blue-800">
+                <span class="px-2 py-0.5 rounded-full text-xs font-extrabold bg-blue-100 text-blue-800">
                   {{ despachosPendientesLider.length }} despacho(s) en tránsito
                 </span>
               </div>
-              <p class="text-[11px] text-indigo-800 mt-0.5">
+              <p class="text-xs text-indigo-800 mt-0.5">
                 Bodega Central ha enviado suministros para tus servicios. Revisa la carga y confirma o rechaza la recepción.
               </p>
             </div>
@@ -119,7 +121,7 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
             <a
               routerLink="/inventario"
               class="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs transition-colors shadow-2xs flex items-center gap-1.5 cursor-pointer">
-              <i-lucide name="check-circle" class="w-3.5 h-3.5"></i-lucide>
+              <i-lucide aria-hidden="true" name="check-circle" class="w-3.5 h-3.5"></i-lucide>
               <span>Revisar y Confirmar en Inventario</span>
             </a>
           </div>
@@ -128,30 +130,30 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
 
       <!-- Tab Navigation: Generales y Especiales -->
       <div class="flex flex-wrap gap-2 p-1.5 bg-slate-200/80 rounded-2xl w-fit">
-        
+
         <!-- Pestaña 1: Servicios Generales (visible para Admin, Super Admin y personal operativo general) -->
-        @if ((!isPulidor && !isCoordServiciosEspeciales) || isSuperAdmin || isAdmin) {
+        @if (puedeVerGenerales) {
           <button
             (click)="cambiarTab('generales')"
             [ngClass]="tabActiva === 'generales' ? 'bg-white text-easydry-blue shadow-md font-extrabold' : 'text-slate-600 hover:text-slate-900 font-semibold'"
             class="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs transition-all cursor-pointer">
-            <i-lucide name="droplet" class="w-4 h-4 text-easydry-blue"></i-lucide>
+            <i-lucide aria-hidden="true" name="droplet" class="w-4 h-4 text-easydry-blue"></i-lucide>
             <span>Servicios Generales</span>
-            <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-700 font-bold ml-1">
+            <span class="text-xs px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-700 font-bold ml-1">
               {{ countServiciosGenerales }}
             </span>
           </button>
         }
 
         <!-- Pestaña 2: Servicios Especiales (visible para Admin, Super Admin, pulidores y agencias con especiales) -->
-        @if (tieneServiciosEspeciales || isPulidor || isCoordServiciosEspeciales || isSuperAdmin || isAdmin) {
+        @if (puedeVerEspeciales && (tieneServiciosEspeciales || isOperadorEspeciales || isAdmin)) {
           <button
             (click)="cambiarTab('especiales')"
             [ngClass]="tabActiva === 'especiales' ? 'bg-white text-amber-700 shadow-md font-extrabold' : 'text-slate-600 hover:text-slate-900 font-semibold'"
             class="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs transition-all cursor-pointer">
-            <i-lucide name="star" class="w-4 h-4 text-amber-500 fill-amber-500/20"></i-lucide>
+            <i-lucide aria-hidden="true" name="star" class="w-4 h-4 text-amber-500 fill-amber-500/20"></i-lucide>
             <span>Servicios Especiales</span>
-            <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold ml-1">
+            <span class="text-xs px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold ml-1">
               {{ countServiciosEspeciales }}
             </span>
           </button>
@@ -161,8 +163,8 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
 
 
       <!-- Global Filter Bar (Contenedor Unificado de Filtros y Búsqueda) -->
-      <app-filter-bar 
-        [showSucursal]="!isOperador && tabActiva === 'generales'" 
+      <app-filter-bar
+        [showSucursal]="!isOperador && tabActiva === 'generales'"
         [showOperador]="!isOperador"
         [showBahia]="!isOperador && tabActiva === 'generales'"
         [showServicio]="true"
@@ -176,10 +178,13 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
         [listaEstados]="tabActiva === 'generales' ? ['Todos', 'En Proceso', 'Por Aprobar', 'Realizados / Aprobados', 'Rechazados'] : ['Todos', 'Pendiente', 'En Proceso', 'Pausado', 'Completado', 'Cancelado']"
         (filterChange)="aplicarNuevosFiltros($event)">
       </app-filter-bar>
+      @if (busquedaCorta) {
+        <p class="-mt-3 px-2 text-[11px] font-semibold text-slate-500" role="status">Escribe al menos {{ minBusqueda }} letras para buscar.</p>
+      }
 
       <!-- Services List / Table Container (Componente Compuesto Unificado) -->
       <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry overflow-hidden flex flex-col">
-        
+
         <!-- Cabecera de la sección -->
         <div class="p-6 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100">
           <div>
@@ -188,220 +193,240 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
         </div>
 
         @if (tabActiva === 'generales') {
-          <!-- Desktop Table View: Servicios Generales -->
-          <div class="hidden lg:block overflow-x-auto flex-1">
-            <table class="w-full text-left text-sm">
-              <thead class="bg-slate-50 text-slate-500 text-xs font-bold uppercase tracking-wider border-b border-slate-200">
-                <tr>
-                  <th class="py-3.5 px-4">Nº OT</th>
-                  <th class="py-3.5 px-4">Vehículo</th>
-                  <th class="py-3.5 px-4">Categoría & Servicio</th>
-                  <th class="py-3.5 px-4">Sucursal / Bahía</th>
-                  <th class="py-3.5 px-4">Horarios</th>
-                  <th class="py-3.5 px-4">Lavador</th>
-                  <th class="py-3.5 px-4">Estado Workflow</th>
-                  <th class="py-3.5 px-4 text-center">Evidencia Inicio</th>
-                  <th class="py-3.5 px-4 text-center">Evidencia Fin</th>
-                  <th class="py-3.5 px-4 text-right">Acciones</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-slate-100">
-                @for (item of paginatedServicios; track item.id) {
-                  <tr class="hover:bg-slate-50/80 transition-colors">
-                    <td class="py-3.5 px-4">
-                      <span class="font-mono font-extrabold text-xs text-easydry-blue bg-easydry-blue/10 px-2.5 py-1 rounded-lg block w-fit">
-                        {{ item.ordenTrabajoOT || 'OT-9800' }}
-                      </span>
-                      @if (serviciosEnMismaOT(item) > 1) {
-                        <span class="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-extrabold bg-violet-50 text-violet-700 border border-violet-200"
-                          title="Esta OT tiene varios servicios registrados (una fila por servicio)">
-                          <i-lucide name="layers" class="w-3 h-3"></i-lucide>
-                          {{ serviciosEnMismaOT(item) }} servicios
-                        </span>
-                      }
-                    </td>
+          <!-- Vista de tabla (escritorio): páginas numeradas, orden y búsqueda en el servidor -->
+          @if (esEscritorio) {
+            <app-data-table
+              [serverSide]="true"
+              [embebida]="true"
+              [showToolbar]="false"
+              [columns]="columnasGenerales"
+              [data]="filasG"
+              [total]="totalG"
+              [page]="paginaG"
+              [pageSize]="pageSizeG"
+              [sortField]="sortFieldG"
+              [sortOrder]="sortOrderG"
+              [loading]="cargandoG"
+              [error]="errorG"
+              [rowClickable]="true"
+              maxHeight="none"
+              caption="Servicios de lavado"
+              [emptyTitle]="tituloVacioG"
+              emptyHint="Prueba ajustando los filtros o el texto de búsqueda."
+              (queryChange)="onTablaGCambio($event)"
+              (rowClick)="abrirDetalle($event)"
+              (reintentar)="cargarPaginaG()">
+          <ng-template appCell="ot" let-item>
+                                <span class="font-mono font-extrabold text-xs text-easydry-blue bg-easydry-blue/10 px-2.5 py-1 rounded-lg block w-fit">
+                                  {{ item.ordenTrabajoOT || '—' }}
+                                </span>
+                                @if (serviciosEnMismaOT(item) > 1) {
+                                  <span class="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-xs font-extrabold bg-violet-50 text-violet-700 border border-violet-200"
+                                    title="Esta OT tiene varios servicios registrados (una fila por servicio)">
+                                    <i-lucide aria-hidden="true" name="layers" class="w-3 h-3"></i-lucide>
+                                    {{ serviciosEnMismaOT(item) }} servicios
+                                  </span>
+                                }
+          </ng-template>
 
-                    <td class="py-3.5 px-4">
-                      <div class="font-bold text-slate-900 text-xs">{{ item.marca }} {{ item.modelo }}</div>
-                      <div class="text-xs font-mono font-extrabold text-easydry-blue">{{ item.placa }}</div>
-                      <div class="text-[10px] text-slate-500 font-semibold">{{ item.color }} ({{ item.anio }})</div>
-                    </td>
+          <ng-template appCell="placa" let-item>
+                                <div class="font-bold text-slate-900 text-xs">{{ item.marca }} {{ item.modelo }}</div>
+                                <div class="text-xs font-mono font-extrabold text-easydry-blue">{{ item.placa }}</div>
+                                <div class="text-xs text-slate-500 font-semibold">{{ item.color }} ({{ item.anio }})</div>
+          </ng-template>
 
-                    <td class="py-3.5 px-4">
-                      <span 
-                        class="px-2 py-0.5 rounded text-[10px] font-extrabold block w-fit mb-1 border bg-blue-100 text-blue-800 border-blue-300">
-                        Servicios Generales
-                      </span>
-                      <span class="font-bold text-slate-900 text-xs">{{ item.servicio }}</span>
-                    </td>
+          <ng-template appCell="servicio" let-item>
+                                <span
+                                  class="px-2 py-0.5 rounded text-xs font-extrabold block w-fit mb-1 border bg-blue-100 text-blue-800 border-blue-300">
+                                  Servicios Generales
+                                </span>
+                                <span class="font-bold text-slate-900 text-xs">{{ item.servicio }}</span>
+          </ng-template>
 
-                    <td class="py-3.5 px-4 text-xs">
-                      <p class="font-bold text-slate-800">{{ item.agencia }}</p>
-                      <p class="text-[11px] text-easydry-blue font-semibold">{{ item.bahia || 'Sin bahía' }}</p>
-                    </td>
+          <ng-template appCell="agencia" let-item>
+            <div class="text-xs">
+                                <p class="font-bold text-slate-800">{{ item.agencia }}</p>
+                                <p class="text-xs text-easydry-blue font-semibold">{{ item.bahia || 'Sin bahía' }}</p>
+            </div>
+          </ng-template>
 
-                    <td class="py-3.5 px-4 text-xs font-mono">
-                      <p class="text-slate-700 font-semibold">Ing: {{ item.horaIngreso || '08:30' }}</p>
-                      <p class="text-slate-400">Sal: {{ item.horaSalida || '--:--' }}</p>
-                      <span class="mt-0.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold font-mono border"
-                        [ngClass]="{
-                          'bg-emerald-50 text-emerald-800 border-emerald-200': item.estado === 'FINALIZADO' || item.estado === 'APROBADO',
-                          'bg-amber-50 text-amber-800 border-amber-200': item.estado === 'EN PROCESO',
-                          'bg-slate-100 text-slate-600 border-slate-200': item.estado !== 'FINALIZADO' && item.estado !== 'APROBADO' && item.estado !== 'EN PROCESO'
-                        }"
-                        title="Duración total del servicio de lavado">
-                        <i-lucide name="timer" class="w-3.5 h-3.5"></i-lucide>
-                        <span>{{ item.duracionFormateada || calcularDuracion(item.horaIngreso || '', item.horaSalida || '') }}</span>
-                      </span>
-                    </td>
+          <ng-template appCell="fecha" let-item>
+            <div class="text-xs font-mono">
+                                <p class="text-slate-700 font-semibold">Ing: {{ item.horaIngreso || '08:30' }}</p>
+                                <p class="text-slate-500">Sal: {{ item.horaSalida || '--:--' }}</p>
+                                <span class="mt-0.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-extrabold font-mono border"
+                                  [ngClass]="{
+                                    'bg-emerald-50 text-emerald-800 border-emerald-200': item.estado === 'FINALIZADO' || item.estado === 'APROBADO',
+                                    'bg-amber-50 text-amber-800 border-amber-200': item.estado === 'EN PROCESO',
+                                    'bg-slate-100 text-slate-600 border-slate-200': item.estado !== 'FINALIZADO' && item.estado !== 'APROBADO' && item.estado !== 'EN PROCESO'
+                                  }"
+                                  title="Duración total del servicio de lavado">
+                                  <i-lucide aria-hidden="true" name="timer" class="w-3.5 h-3.5"></i-lucide>
+                                  <span>{{ item.duracionFormateada || calcularDuracion(item.horaIngreso || '', item.horaSalida || '') }}</span>
+                                </span>
+            </div>
+          </ng-template>
 
-                    <td class="py-3.5 px-4 text-xs font-bold text-slate-800">
-                      {{ item.empleado }}
-                    </td>
+          <ng-template appCell="operador" let-item>
+            <div class="text-xs font-bold text-slate-800">
+                                {{ item.empleado }}
+            </div>
+          </ng-template>
 
-                    <td class="py-3.5 px-4">
-                      <span 
-                        class="px-3 py-1 rounded-full text-xs font-extrabold inline-flex items-center gap-1.5"
-                        [ngClass]="{
-                          'bg-amber-100 text-amber-800 border border-amber-300': item.estado === 'EN PROCESO',
-                          'bg-easydry-blue/15 text-easydry-blue border border-easydry-blue/30': item.estado === 'FINALIZADO',
-                          'bg-easydry-green/20 text-easydry-green-dark border border-easydry-green/40': item.estado === 'APROBADO',
-                          'bg-rose-100 text-rose-800 border border-rose-300': item.estado === 'RECHAZADO'
-                        }">
-                        <span>{{ item.estado }}</span>
-                      </span>
-                    </td>
+          <ng-template appCell="estado" let-item>
+                                <span
+                                  class="px-3 py-1 rounded-full text-xs font-extrabold inline-flex items-center gap-1.5"
+                                  [ngClass]="{
+                                    'bg-amber-100 text-amber-800 border border-amber-300': item.estado === 'EN PROCESO',
+                                    'bg-easydry-blue/15 text-easydry-blue border border-easydry-blue/30': item.estado === 'FINALIZADO',
+                                    'bg-easydry-green/20 text-easydry-green-text border border-easydry-green/40': item.estado === 'APROBADO',
+                                    'bg-rose-100 text-rose-800 border border-rose-300': item.estado === 'RECHAZADO'
+                                  }">
+                                  <span>{{ etiquetaEstado(item.estado) }}</span>
+                                </span>
+          </ng-template>
 
-                    <!-- Evidencia Inicio (Servicios Generales) -->
-                    <td class="py-3.5 px-4 text-center">
-                      @if (getVideoInicial(item); as vidIni) {
-                        <button 
-                          (click)="verVideoGenerico(vidIni, 'Evidencia de Inicio — OT: ' + (item.ordenTrabajoOT || item.placa))"
-                          title="Ver evidencia de inicio"
-                          class="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded-lg text-xs font-bold inline-flex items-center gap-1 shadow-2xs transition-all cursor-pointer">
-                          <i-lucide name="video" class="w-3.5 h-3.5 text-amber-600"></i-lucide>
-                          <span>Inicio</span>
-                        </button>
-                      } @else {
-                        <span class="text-xs text-slate-400 font-mono">-</span>
-                      }
-                    </td>
+          <ng-template appCell="evInicio" let-item>
+            <div (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+                                @if (getVideoInicial(item); as vidIni) {
+                                  <button
+                                    (click)="verVideoGenerico(vidIni, 'Evidencia de Inicio — OT: ' + (item.ordenTrabajoOT || item.placa))"
+                                    title="Ver evidencia de inicio"
+                                    class="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded-lg text-xs font-bold inline-flex items-center gap-1 shadow-2xs transition-all cursor-pointer">
+                                    <i-lucide aria-hidden="true" name="video" class="w-3.5 h-3.5 text-amber-600"></i-lucide>
+                                    <span>Inicio</span>
+                                  </button>
+                                } @else {
+                                  <span class="text-xs text-slate-500 font-mono">-</span>
+                                }
+            </div>
+          </ng-template>
 
-                    <!-- Evidencia Fin (Servicios Generales) -->
-                    <td class="py-3.5 px-4 text-center">
-                      @if (getVideoFinal(item); as vidFin) {
-                        <button 
-                          (click)="verVideoGenerico(vidFin, 'Evidencia Final / Entrega — OT: ' + (item.ordenTrabajoOT || item.placa))"
-                          title="Ver evidencia final / entrega"
-                          class="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg text-xs font-bold inline-flex items-center gap-1 shadow-2xs transition-all cursor-pointer">
-                          <i-lucide name="film" class="w-3.5 h-3.5 text-emerald-600"></i-lucide>
-                          <span>Fin</span>
-                        </button>
-                      } @else {
-                        <span class="text-xs text-slate-400 font-mono" [title]="(item.estado === 'EN PROCESO' || item.estado === 'EN_PROCESO') ? 'Pendiente hasta finalizar el servicio' : 'Sin evidencia final'">-</span>
-                      }
-                    </td>
+          <ng-template appCell="evFin" let-item>
+            <div (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+                                @if (getVideoFinal(item); as vidFin) {
+                                  <button
+                                    (click)="verVideoGenerico(vidFin, 'Evidencia Final / Entrega — OT: ' + (item.ordenTrabajoOT || item.placa))"
+                                    title="Ver evidencia final / entrega"
+                                    class="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg text-xs font-bold inline-flex items-center gap-1 shadow-2xs transition-all cursor-pointer">
+                                    <i-lucide aria-hidden="true" name="film" class="w-3.5 h-3.5 text-emerald-600"></i-lucide>
+                                    <span>Fin</span>
+                                  </button>
+                                } @else {
+                                  <span class="text-xs text-slate-500 font-mono" [title]="(item.estado === 'EN PROCESO' || item.estado === 'EN_PROCESO') ? 'Pendiente hasta finalizar el servicio' : 'Sin evidencia final'">-</span>
+                                }
+            </div>
+          </ng-template>
 
-                    <td class="py-3.5 px-4 text-right">
-                      <div class="flex items-center justify-end gap-1">
-                        @if (canFinalizar(item)) {
-                          <button
-                            (click)="abrirModalFinalizarServicio(item)"
-                            title="Finalizar servicio y adjuntar evidencia en vídeo"
-                            class="px-2.5 py-1 bg-easydry-blue/10 hover:bg-easydry-blue text-easydry-blue hover:text-white rounded-lg transition-colors cursor-pointer inline-flex items-center gap-1.5 text-xs font-bold shadow-2xs">
-                            <i-lucide name="check-circle" class="w-3.5 h-3.5"></i-lucide>
-                            <span>Finalizar</span>
-                          </button>
-                        }
+          <ng-template appCell="acciones" let-item>
+            <div (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+                                <div class="flex items-center justify-end gap-1">
+                                  @if (canFinalizar(item)) {
+                                    <button
+                                      (click)="abrirModalFinalizarServicio(item)"
+                                      title="Finalizar servicio y adjuntar evidencia en vídeo"
+                                      class="px-2.5 py-1 bg-easydry-blue/10 hover:bg-easydry-blue text-easydry-blue hover:text-white rounded-lg transition-colors cursor-pointer inline-flex items-center gap-1.5 text-xs font-bold shadow-2xs">
+                                      <i-lucide aria-hidden="true" name="check-circle" class="w-3.5 h-3.5"></i-lucide>
+                                      <span>Finalizar</span>
+                                    </button>
+                                  }
 
-                        @if (puedeAgregarServicio(item)) {
-                          <button
-                            (click)="abrirModalAgregarServicioAOT(item); $event.stopPropagation()"
-                            title="Agregar otro servicio a esta misma OT (mismo vehículo)"
-                            class="px-2.5 py-1 bg-violet-50 hover:bg-violet-600 text-violet-700 hover:text-white border border-violet-200 rounded-lg transition-colors cursor-pointer inline-flex items-center gap-1.5 text-xs font-bold shadow-2xs">
-                            <i-lucide name="plus-circle" class="w-3.5 h-3.5"></i-lucide>
-                            <span>Agregar servicio</span>
-                          </button>
-                        }
+                                  @if (puedeAgregarServicio(item)) {
+                                    <button
+                                      (click)="abrirModalAgregarServicioAOT(item); $event.stopPropagation()"
+                                      title="Agregar otro servicio a esta misma OT (mismo vehículo)"
+                                      class="px-2.5 py-1 bg-violet-50 hover:bg-violet-600 text-violet-700 hover:text-white border border-violet-200 rounded-lg transition-colors cursor-pointer inline-flex items-center gap-1.5 text-xs font-bold shadow-2xs">
+                                      <i-lucide aria-hidden="true" name="plus-circle" class="w-3.5 h-3.5"></i-lucide>
+                                      <span>Agregar servicio</span>
+                                    </button>
+                                  }
 
-                        @if (item.estado === 'FINALIZADO' && canApprove) {
-                          <button
-                            (click)="aprobarServicio(item)"
-                            title="Aprobar servicio"
-                            class="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer flex items-center justify-center">
-                            <i-lucide name="check" class="w-4 h-4"></i-lucide>
-                          </button>
-                        }
+                                  @if (item.estado === 'FINALIZADO' && item.agenciaSinAprobador) {
+                                    <span class="px-2 py-1 bg-amber-50 text-amber-800 border border-amber-200 rounded-lg text-[11px] font-bold" title="La agencia no tiene aprobador designado">Sin aprobador designado</span>
+                                  }
 
-                        @if (item.estado === 'APROBADO') {
-                          <span class="p-1.5 text-emerald-600 bg-emerald-50 rounded-lg flex items-center justify-center" title="Servicio Aprobado">
-                            <i-lucide name="check-circle-2" class="w-4 h-4"></i-lucide>
-                          </span>
-                        }
-                      </div>
-                    </td>
-                  </tr>
-                } @empty {
-                  <tr>
-                    <td colspan="9" class="py-12 text-center text-slate-400 text-xs font-medium">
-                      No hay servicios generales registrados para esta categoría o filtros aplicados.
-                    </td>
-                  </tr>
-                }
-              </tbody>
-            </table>
-          </div>
+                                  @if (item.estado === 'FINALIZADO' && item.puedeDecidir) {
+                                    <button
+                                      (click)="aprobarServicio(item)"
+                                      title="Aprobar servicio"
+                                      class="inline-flex items-center justify-center min-w-9 min-h-9 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer flex items-center justify-center" aria-label="Aprobar servicio">
+                                      <i-lucide aria-hidden="true" name="check" class="w-4 h-4"></i-lucide>
+                                    </button>
+                                  }
 
-          <!-- Mobile / Tablet Card View: Generales -->
-          <div class="block lg:hidden divide-y divide-slate-100 flex-1">
-            @for (item of paginatedServicios; track item.id) {
-              <div class="p-4 hover:bg-slate-50 transition-colors cursor-pointer" (click)="abrirDetalle(item)">
+                                  @if (puedeAnularServicio(item)) {
+                                    <button
+                                      type="button"
+                                      (click)="abrirModalAnularGeneral(item)"
+                                      title="Anular servicio (pide el motivo)"
+                                      class="px-2.5 py-1 bg-rose-50 hover:bg-rose-600 text-rose-700 hover:text-white border border-rose-200 rounded-lg transition-colors cursor-pointer inline-flex items-center gap-1 text-xs font-bold shadow-2xs">
+                                      <i-lucide aria-hidden="true" name="alert-triangle" class="w-3.5 h-3.5"></i-lucide>
+                                      <span>Anular</span>
+                                    </button>
+                                  }
+
+                                  @if (item.estado === 'APROBADO') {
+                                    <span class="p-1.5 text-emerald-600 bg-emerald-50 rounded-lg flex items-center justify-center" title="Servicio Aprobado">
+                                      <i-lucide aria-hidden="true" name="check-circle-2" class="w-4 h-4"></i-lucide>
+                                    </span>
+                                  }
+                                </div>
+            </div>
+          </ng-template>
+            </app-data-table>
+          }
+
+          <!-- Vista de tarjetas (móvil / tablet): scroll infinito -->
+          @if (!esEscritorio) {
+          <div class="divide-y divide-slate-100 flex-1">
+            @for (item of listaG.items; track item.id) {
+              <div class="p-4 hover:bg-slate-50 transition-colors cursor-pointer" tabindex="0" role="button" (click)="abrirDetalle(item)" (keydown.enter)="abrirDetalle(item)" (keydown.space)="abrirDetalle(item); $event.preventDefault()">
                 <div class="flex items-start justify-between mb-2">
                   <div>
                     <span class="font-mono font-extrabold text-xs text-easydry-blue bg-easydry-blue/10 px-2 py-0.5 rounded-md">
-                      {{ item.ordenTrabajoOT || 'OT-9800' }}
+                      {{ item.ordenTrabajoOT || '—' }}
                     </span>
                     @if (serviciosEnMismaOT(item) > 1) {
-                      <span class="ml-1 px-1.5 py-0.5 rounded-md text-[10px] font-extrabold bg-violet-50 text-violet-700 border border-violet-200">
+                      <span class="ml-1 px-1.5 py-0.5 rounded-md text-xs font-extrabold bg-violet-50 text-violet-700 border border-violet-200">
                         {{ serviciosEnMismaOT(item) }} servicios
                       </span>
                     }
                     <div class="text-xs font-bold text-slate-700 mt-1">{{ item.servicio }}</div>
                     <div class="font-bold text-slate-900 text-sm mt-1.5">{{ item.marca }} {{ item.modelo }}</div>
-                    <div class="text-[11px] font-mono font-extrabold text-slate-500">{{ item.placa }}</div>
+                    <div class="text-xs font-mono font-extrabold text-slate-500">{{ item.placa }}</div>
                   </div>
-                  <span class="px-2.5 py-1 rounded-full text-[10px] font-extrabold text-center max-w-[80px]"
+                  <span class="px-2.5 py-1 rounded-full text-xs font-extrabold text-center max-w-[80px]"
                     [ngClass]="{
                       'bg-amber-100 text-amber-800': item.estado === 'EN PROCESO',
                       'bg-easydry-blue/15 text-easydry-blue': item.estado === 'FINALIZADO',
-                      'bg-easydry-green/20 text-easydry-green-dark': item.estado === 'APROBADO',
+                      'bg-easydry-green/20 text-easydry-green-text': item.estado === 'APROBADO',
                       'bg-rose-100 text-rose-800': item.estado === 'RECHAZADO'
                     }">
-                    {{ item.estado }}
+                    {{ etiquetaEstado(item.estado) }}
                   </span>
                 </div>
-                
+
                 @if (puedeAgregarServicio(item)) {
                   <button
                     (click)="abrirModalAgregarServicioAOT(item); $event.stopPropagation()"
                     title="Agregar otro servicio a esta misma OT (mismo vehículo)"
                     class="mt-2 w-full px-2.5 py-1.5 bg-violet-50 hover:bg-violet-600 text-violet-700 hover:text-white border border-violet-200 rounded-lg transition-colors cursor-pointer inline-flex items-center justify-center gap-1.5 text-xs font-bold">
-                    <i-lucide name="plus-circle" class="w-3.5 h-3.5"></i-lucide>
+                    <i-lucide aria-hidden="true" name="plus-circle" class="w-3.5 h-3.5"></i-lucide>
                     <span>Agregar servicio a esta OT</span>
                   </button>
                 }
                 <div class="flex items-center justify-between mt-3 text-xs">
                   <div class="flex items-center gap-1.5 text-slate-500">
-                    <i-lucide name="clock" class="w-3.5 h-3.5"></i-lucide>
-                    <span>{{ item.horaIngreso || '08:30' }}</span>
+                    <i-lucide aria-hidden="true" name="clock" class="w-3.5 h-3.5"></i-lucide>
+                    <span>{{ item.horaIngreso || '—' }}</span>
                     @if (item.duracionFormateada || calcularDuracion(item.horaIngreso || '', item.horaSalida || '')) {
-                      <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-extrabold font-mono border"
+                      <span class="ml-1 px-1.5 py-0.5 rounded text-xs font-extrabold font-mono border"
                         [ngClass]="{
                           'bg-emerald-50 text-emerald-800 border-emerald-200': item.estado === 'FINALIZADO' || item.estado === 'APROBADO',
                           'bg-amber-50 text-amber-800 border-amber-200': item.estado === 'EN PROCESO',
                           'bg-slate-100 text-slate-600 border-slate-200': item.estado !== 'FINALIZADO' && item.estado !== 'APROBADO' && item.estado !== 'EN PROCESO'
                         }">
-                        <i-lucide name="clock" class="w-3 h-3"></i-lucide>
+                        <i-lucide aria-hidden="true" name="clock" class="w-3 h-3"></i-lucide>
                         <span>{{ item.duracionFormateada || calcularDuracion(item.horaIngreso || '', item.horaSalida || '') }}</span>
                       </span>
                     }
@@ -417,8 +442,8 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
                       <button
                         type="button"
                         (click)="$event.stopPropagation(); verVideoGenerico(vidIni, 'Evidencia de Inicio — OT: ' + (item.ordenTrabajoOT || item.placa))"
-                        class="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded-lg text-[10px] font-bold inline-flex items-center gap-1 shadow-2xs">
-                        <i-lucide name="video" class="w-3 h-3 text-amber-600"></i-lucide>
+                        class="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded-lg text-xs font-bold inline-flex items-center gap-1 shadow-2xs">
+                        <i-lucide aria-hidden="true" name="video" class="w-3 h-3 text-amber-600"></i-lucide>
                         <span>Evidencia Inicio</span>
                       </button>
                     }
@@ -426,279 +451,295 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
                       <button
                         type="button"
                         (click)="$event.stopPropagation(); verVideoGenerico(vidFin, 'Evidencia Final — OT: ' + (item.ordenTrabajoOT || item.placa))"
-                        class="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg text-[10px] font-bold inline-flex items-center gap-1 shadow-2xs">
-                        <i-lucide name="film" class="w-3 h-3 text-emerald-600"></i-lucide>
+                        class="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg text-xs font-bold inline-flex items-center gap-1 shadow-2xs">
+                        <i-lucide aria-hidden="true" name="film" class="w-3 h-3 text-emerald-600"></i-lucide>
                         <span>Evidencia Fin</span>
                       </button>
                     }
                   </div>
                 }
               </div>
-            } @empty {
-              <div class="py-8 text-center text-slate-400 text-xs font-medium">
-                No hay servicios registrados para esta categoría o filtros aplicados.
+            }
+            @if (listaG.error && listaG.items.length === 0) {
+              <div role="alert" class="p-6 flex flex-col items-center gap-3 text-center">
+                <div class="estado-error">{{ listaG.error }}</div>
+                <button type="button" class="btn btn-secondary btn-sm" (click)="listaG.reiniciar()">Reintentar</button>
               </div>
+            } @else if (!listaG.inicializada) {
+              <div class="p-4 space-y-3" role="status" aria-label="Cargando">
+                @for (n of [1, 2, 3, 4]; track n) {
+                  <div class="h-24 rounded-xl bg-slate-100 animate-pulse motion-reduce:animate-none"></div>
+                }
+              </div>
+            } @else if (listaG.items.length === 0) {
+              <div class="estado-vacio py-10">{{ tituloVacioG }}</div>
+            } @else {
+              <app-infinite-scroll
+                [hasMore]="listaG.hasMore"
+                [loading]="listaG.cargando"
+                [error]="listaG.error"
+                [total]="listaG.total"
+                (cargarMas)="listaG.siguiente()"
+                (reintentar)="listaG.reintentar()">
+              </app-infinite-scroll>
             }
           </div>
-
-          <!-- Paginación Generales -->
-          <app-pagination 
-            [totalItems]="serviciosFiltrados.length" 
-            [currentPage]="currentPage" 
-            [pageSize]="pageSize"
-            (pageChange)="onPageChange($event)"
-            (pageSizeChange)="onPageSizeChange($event)">
-          </app-pagination>
+          }
         } @else {
-          <!-- Desktop Table View: Servicios Especiales -->
-          <div class="hidden lg:block overflow-x-auto flex-1">
-            <table class="w-full text-left text-sm">
-              <thead class="bg-amber-50/70 text-amber-900 text-xs font-bold uppercase tracking-wider border-b border-amber-200">
-                <tr>
-                  <th class="py-3.5 px-4">Nº OT</th>
-                  <th class="py-3.5 px-4">Vehículo & Placa</th>
-                  <th class="py-3.5 px-4">Servicio Especial</th>
-                  <th class="py-3.5 px-4">Agencia / Sucursal</th>
-                  <th class="py-3.5 px-4">Región</th>
-                  <th class="py-3.5 px-4">Pulidor Responsable</th>
-                  <th class="py-3.5 px-4 text-center">T. Pausa</th>
-                  <th class="py-3.5 px-4 text-center">T. Efectivo</th>
-                  <th class="py-3.5 px-4 text-center">T. Total</th>
-                  <th class="py-3.5 px-4 text-center">Evidencia Inicio</th>
-                  <th class="py-3.5 px-4 text-center">Evidencias Pausas</th>
-                  <th class="py-3.5 px-4 text-center">Evidencia Fin</th>
-                  <th class="py-3.5 px-4">Estado</th>
-                  <th class="py-3.5 px-4 text-right">Acciones</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-slate-100">
-                @for (extra of paginatedExtras; track extra.id) {
-                  <tr class="hover:bg-amber-50/30 transition-colors">
-                    <td class="py-3.5 px-4">
-                      <span class="font-mono font-black text-xs text-amber-900 bg-amber-100 px-2.5 py-1 rounded-lg block w-fit border border-amber-300">
-                        {{ extra.ordenTrabajoOT || extra.codigoSE }}
-                      </span>
-                      <span class="text-[10px] text-slate-400 font-mono mt-0.5 block" title="Fecha y hora de creación">
-                        Creada {{ (extra.createdAt || extra.fechaProgramada) | date:'dd/MM/yyyy HH:mm' }}
-                      </span>
-                    </td>
+          <!-- Vista de tabla (escritorio): páginas numeradas, orden y búsqueda en el servidor -->
+          @if (esEscritorio) {
+            <app-data-table
+              [serverSide]="true"
+              [embebida]="true"
+              [showToolbar]="false"
+              [columns]="columnasEspeciales"
+              [data]="filasE"
+              [total]="totalE"
+              [page]="paginaE"
+              [pageSize]="pageSizeE"
+              [sortField]="sortFieldE"
+              [sortOrder]="sortOrderE"
+              [loading]="cargandoE"
+              [error]="errorE"
+              [rowClickable]="true"
+              maxHeight="none"
+              caption="Servicios especiales"
+              [emptyTitle]="tituloVacioE"
+              emptyHint="Prueba ajustando los filtros o el texto de búsqueda."
+              (queryChange)="onTablaECambio($event)"
+              (rowClick)="abrirDetalleEspecial($event)"
+              (reintentar)="cargarPaginaE()">
+          <ng-template appCell="ot" let-extra>
+                                <span class="font-mono font-extrabold text-xs text-amber-900 bg-amber-100 px-2.5 py-1 rounded-lg block w-fit border border-amber-300">
+                                  {{ extra.ordenTrabajoOT || extra.codigoSE }}
+                                </span>
+                                <span class="text-xs text-slate-500 font-mono mt-0.5 block" title="Fecha y hora de creación">
+                                  Creada {{ (extra.createdAt || extra.fechaProgramada) | date:'dd/MM/yyyy HH:mm' }}
+                                </span>
+          </ng-template>
 
-                    <td class="py-3.5 px-4">
-                      <div class="font-extrabold text-slate-900 text-xs">{{ extra.vehiculoInfo?.marca }} {{ extra.vehiculoInfo?.modelo }}</div>
-                      <div class="text-xs font-mono font-black text-easydry-blue">{{ extra.vehiculoInfo?.placa || extra.placa }}</div>
-                      <div class="text-[10px] text-slate-500 font-semibold">{{ extra.vehiculoInfo?.color }}</div>
-                    </td>
+          <ng-template appCell="placa" let-extra>
+                                <div class="font-extrabold text-slate-900 text-xs">{{ extra.vehiculoInfo?.marca }} {{ extra.vehiculoInfo?.modelo }}</div>
+                                <div class="text-xs font-mono font-extrabold text-easydry-blue">{{ extra.vehiculoInfo?.placa || extra.placa }}</div>
+                                <div class="text-xs text-slate-500 font-semibold">{{ extra.vehiculoInfo?.color }}</div>
+          </ng-template>
 
-                    <td class="py-3.5 px-4">
-                      <span class="font-bold text-slate-900 text-xs block">{{ extra.servicioNombre }}</span>
-                      @if (extra.insumosReceta && extra.insumosReceta.length > 0) {
-                        <span class="text-[10px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 mt-0.5 inline-block font-medium">
-                          {{ extra.insumosReceta.length }} insumo(s) químico(s)
-                        </span>
-                      }
-                    </td>
+          <ng-template appCell="servicio" let-extra>
+                                <span class="font-bold text-slate-900 text-xs block">{{ extra.servicioNombre }}</span>
+                                @if (extra.insumosReceta && extra.insumosReceta.length > 0) {
+                                  <span class="text-xs text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 mt-0.5 inline-block font-medium">
+                                    {{ extra.insumosReceta.length }} insumo(s) químico(s)
+                                  </span>
+                                }
+          </ng-template>
 
-                    <td class="py-3.5 px-4 text-xs font-bold text-slate-800">
-                      <div class="flex items-center gap-1.5">
-                        <i-lucide name="building-2" class="w-3.5 h-3.5 text-slate-400 shrink-0"></i-lucide>
-                        <span class="truncate">{{ extra.agenciaNombre || extra.agencia?.nombre || 'Sede Zonal' }}</span>
-                      </div>
-                    </td>
+          <ng-template appCell="agencia" let-extra>
+            <div class="text-xs font-bold text-slate-800">
+                                <div class="flex items-center gap-1.5">
+                                  <i-lucide aria-hidden="true" name="building-2" class="w-3.5 h-3.5 text-slate-400 shrink-0"></i-lucide>
+                                  <span class="truncate">{{ extra.agenciaNombre || extra.agencia?.nombre || 'Sede Zonal' }}</span>
+                                </div>
+            </div>
+          </ng-template>
 
-                    <td class="py-3.5 px-4 text-xs font-bold text-slate-700">
-                      <span class="px-2 py-0.5 bg-slate-100 text-slate-800 rounded-md font-mono text-[11px]">
-                        {{ extra.regionNombre || ('Zonal ' + userRegionNombre) }}
-                      </span>
-                    </td>
+          <ng-template appCell="region" let-extra>
+            <div class="text-xs font-bold text-slate-700">
+                                <span class="px-2 py-0.5 bg-slate-100 text-slate-800 rounded-md font-mono text-xs">
+                                  {{ extra.regionNombre || ('Zonal ' + userRegionNombre) }}
+                                </span>
+            </div>
+          </ng-template>
 
-                    <td class="py-3.5 px-4 text-xs font-bold text-slate-800">
-                      <div class="flex items-center gap-1.5">
-                        <i-lucide name="user" class="w-3.5 h-3.5 text-amber-600"></i-lucide>
-                        <span>{{ extra.operadorNombre }}</span>
-                      </div>
-                    </td>
+          <ng-template appCell="operador" let-extra>
+            <div class="text-xs font-bold text-slate-800">
+                                <div class="flex items-center gap-1.5">
+                                  <i-lucide aria-hidden="true" name="user" class="w-3.5 h-3.5 text-amber-600"></i-lucide>
+                                  <span>{{ extra.operadorNombre }}</span>
+                                </div>
+            </div>
+          </ng-template>
 
-                    <!-- Tiempo Total de Pausa -->
-                    <td class="py-3.5 px-4 text-center">
-                      @if (extra.tiempoPausaTotalSeg && extra.tiempoPausaTotalSeg > 0) {
-                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-mono text-[11px] font-extrabold bg-amber-50 text-amber-900 border border-amber-200" title="Tiempo total acumulado de pausas">
-                          <i-lucide name="pause-circle" class="w-3 h-3"></i-lucide>
-                          <span>{{ extra.tiempoPausaFormateado || '0 min' }}</span>
-                        </span>
-                      } @else {
-                        <span class="text-xs text-slate-400 font-mono">-</span>
-                      }
-                    </td>
+          <ng-template appCell="tiempoPausa" let-extra>
+                                @if (extra.tiempoPausaTotalSeg && extra.tiempoPausaTotalSeg > 0) {
+                                  <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-mono text-xs font-extrabold bg-amber-50 text-amber-900 border border-amber-200" title="Tiempo total acumulado de pausas">
+                                    <i-lucide aria-hidden="true" name="pause-circle" class="w-3 h-3"></i-lucide>
+                                    <span>{{ extra.tiempoPausaFormateado || '0 min' }}</span>
+                                  </span>
+                                } @else {
+                                  <span class="text-xs text-slate-500 font-mono">-</span>
+                                }
+          </ng-template>
 
-                    <!-- Tiempo Efectivo Desarrollado -->
-                    <td class="py-3.5 px-4 text-center">
-                      @if (extra.tiempoEfectivoFormateado || (extra.tiempoEfectivoSeg && extra.tiempoEfectivoSeg > 0)) {
-                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-mono text-[11px] font-extrabold bg-blue-50 text-blue-900 border border-blue-200" title="Tiempo neto de trabajo desarrollado">
-                          <i-lucide name="timer" class="w-3 h-3"></i-lucide>
-                          <span>{{ extra.tiempoEfectivoFormateado || '0 min' }}</span>
-                        </span>
-                      } @else {
-                        <span class="text-xs text-slate-400 font-mono">-</span>
-                      }
-                    </td>
+          <ng-template appCell="tiempoEfectivo" let-extra>
+                                @if (extra.tiempoEfectivoFormateado || (extra.tiempoEfectivoSeg && extra.tiempoEfectivoSeg > 0)) {
+                                  <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-mono text-xs font-extrabold bg-blue-50 text-blue-900 border border-blue-200" title="Tiempo neto de trabajo desarrollado">
+                                    <i-lucide aria-hidden="true" name="timer" class="w-3 h-3"></i-lucide>
+                                    <span>{{ extra.tiempoEfectivoFormateado || '0 min' }}</span>
+                                  </span>
+                                } @else {
+                                  <span class="text-xs text-slate-500 font-mono">-</span>
+                                }
+          </ng-template>
 
-                    <!-- Tiempo Total (pausa + efectivo) -->
-                    <td class="py-3.5 px-4 text-center">
-                      @if (extra.fechaInicio) {
-                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-mono text-[11px] font-extrabold bg-slate-100 text-slate-800 border border-slate-300" title="Tiempo total = tiempo de pausa + tiempo efectivo">
-                          <i-lucide name="clock" class="w-3 h-3"></i-lucide>
-                          <span>{{ extra.tiempoTotalFormateado || '0 min' }}</span>
-                        </span>
-                      } @else {
-                        <span class="text-xs text-slate-400 font-mono">-</span>
-                      }
-                    </td>
+          <ng-template appCell="tiempoTotal" let-extra>
+                                @if (extra.fechaInicio) {
+                                  <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-mono text-xs font-extrabold bg-slate-100 text-slate-800 border border-slate-300" title="Tiempo total = tiempo de pausa + tiempo efectivo">
+                                    <i-lucide aria-hidden="true" name="clock" class="w-3 h-3"></i-lucide>
+                                    <span>{{ extra.tiempoTotalFormateado || '0 min' }}</span>
+                                  </span>
+                                } @else {
+                                  <span class="text-xs text-slate-500 font-mono">-</span>
+                                }
+          </ng-template>
 
-                    <!-- Evidencia Vídeo Inicial -->
-                    <td class="py-3.5 px-4 text-center">
-                      @if (extra.videoInicialUrl || extra.videoInicial) {
-                        <button
-                          (click)="verVideoGenerico(extra.videoInicialUrl || extra.videoInicial, 'Vídeo Inicial OT: ' + extra.codigoSE)"
-                          class="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded-lg text-xs font-bold inline-flex items-center gap-1 shadow-2xs transition-all cursor-pointer">
-                          <i-lucide name="video" class="w-3.5 h-3.5 text-amber-600"></i-lucide>
-                          <span>Inicio</span>
-                        </button>
-                      } @else {
-                        <span class="text-[10px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded font-bold border border-amber-200">
-                          Al Iniciar
-                        </span>
-                      }
-                    </td>
+          <ng-template appCell="evInicio" let-extra>
+            <div (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+                                @if (extra.videoInicialUrl || extra.videoInicial) {
+                                  <button
+                                    (click)="verVideoGenerico(extra.videoInicialUrl || extra.videoInicial, 'Vídeo Inicial OT: ' + extra.codigoSE)"
+                                    class="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded-lg text-xs font-bold inline-flex items-center gap-1 shadow-2xs transition-all cursor-pointer">
+                                    <i-lucide aria-hidden="true" name="video" class="w-3.5 h-3.5 text-amber-600"></i-lucide>
+                                    <span>Inicio</span>
+                                  </button>
+                                } @else {
+                                  <span class="text-xs text-amber-700 bg-amber-50 px-2 py-0.5 rounded font-bold border border-amber-200">
+                                    Al Iniciar
+                                  </span>
+                                }
+            </div>
+          </ng-template>
 
-                    <!-- Evidencias Vídeos de Pausas -->
-                    <td class="py-3.5 px-4 text-center">
-                      @if ((extra.historialPausas && extra.historialPausas.length > 0) || extra.videoUltimaPausaUrl || extra.videoPausa) {
-                        <button
-                          (click)="verEvidenciasPausas(extra)"
-                          title="Ver evidencias de pausas y reanudaciones"
-                          class="px-2.5 py-1 bg-orange-50 hover:bg-orange-100 text-orange-900 border border-orange-300 rounded-lg text-xs font-bold inline-flex items-center gap-1 shadow-2xs transition-all cursor-pointer">
-                          <i-lucide name="pause-circle" class="w-3.5 h-3.5 text-orange-600"></i-lucide>
-                          <span>Pausas {{ extra.historialPausas && extra.historialPausas.length > 0 ? '(' + extra.historialPausas.length + ')' : '' }}</span>
-                        </button>
-                      } @else {
-                        <span class="text-xs text-slate-400 font-mono">-</span>
-                      }
-                    </td>
+          <ng-template appCell="evPausas" let-extra>
+            <div (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+                                @if ((extra.historialPausas && extra.historialPausas.length > 0) || extra.videoUltimaPausaUrl || extra.videoPausa) {
+                                  <button
+                                    (click)="verEvidenciasPausas(extra)"
+                                    title="Ver evidencias de pausas y reanudaciones"
+                                    class="px-2.5 py-1 bg-orange-50 hover:bg-orange-100 text-orange-900 border border-orange-300 rounded-lg text-xs font-bold inline-flex items-center gap-1 shadow-2xs transition-all cursor-pointer">
+                                    <i-lucide aria-hidden="true" name="pause-circle" class="w-3.5 h-3.5 text-orange-600"></i-lucide>
+                                    <span>Pausas {{ extra.historialPausas && extra.historialPausas.length > 0 ? '(' + extra.historialPausas.length + ')' : '' }}</span>
+                                  </button>
+                                } @else {
+                                  <span class="text-xs text-slate-500 font-mono">-</span>
+                                }
+            </div>
+          </ng-template>
 
-                    <!-- Evidencia Vídeo Final -->
-                    <td class="py-3.5 px-4 text-center">
-                      @if (extra.videoFinalUrl || extra.videoFinal) {
-                        <button
-                          (click)="verVideoGenerico(extra.videoFinalUrl || extra.videoFinal, 'Vídeo Final OT: ' + extra.codigoSE)"
-                          class="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg text-xs font-bold inline-flex items-center gap-1 shadow-2xs transition-all cursor-pointer">
-                          <i-lucide name="film" class="w-3.5 h-3.5 text-emerald-600"></i-lucide>
-                          <span>Fin</span>
-                        </button>
-                      } @else {
-                        <span class="text-xs text-slate-400 font-mono">-</span>
-                      }
-                    </td>
+          <ng-template appCell="evFin" let-extra>
+            <div (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+                                @if (extra.videoFinalUrl || extra.videoFinal) {
+                                  <button
+                                    (click)="verVideoGenerico(extra.videoFinalUrl || extra.videoFinal, 'Vídeo Final OT: ' + extra.codigoSE)"
+                                    class="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg text-xs font-bold inline-flex items-center gap-1 shadow-2xs transition-all cursor-pointer">
+                                    <i-lucide aria-hidden="true" name="film" class="w-3.5 h-3.5 text-emerald-600"></i-lucide>
+                                    <span>Fin</span>
+                                  </button>
+                                } @else {
+                                  <span class="text-xs text-slate-500 font-mono">-</span>
+                                }
+            </div>
+          </ng-template>
 
-                    <!-- Estado Workflow -->
-                    <td class="py-3.5 px-4">
-                      <span 
-                        class="px-3 py-1 rounded-full text-xs font-extrabold inline-flex items-center gap-1.5"
-                        [ngClass]="estadoExtraClass(extra.estado)">
-                        <span>{{ extra.estado }}</span>
-                      </span>
-                    </td>
+          <ng-template appCell="estado" let-extra>
+                                <span
+                                  class="px-3 py-1 rounded-full text-xs font-extrabold inline-flex items-center gap-1.5"
+                                  [ngClass]="estadoExtraClass(extra.estado)">
+                                  <span>{{ extra.estado }}</span>
+                                </span>
+          </ng-template>
 
-                    <!-- Acciones -->
-                    <td class="py-3.5 px-4 text-right">
-                      <div class="flex items-center justify-end gap-1.5">
-                        @if (extra.estado === 'Pendiente') {
-                          @if (puedeRealizarOT(extra)) {
-                            <button
-                              (click)="abrirModalIniciarEspecial(extra)"
-                              class="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white font-extrabold rounded-lg text-xs inline-flex items-center gap-1 shadow-2xs transition-all cursor-pointer">
-                              <i-lucide name="play" class="w-3 h-3"></i-lucide>
-                              <span>Iniciar</span>
-                            </button>
-                          } @else {
-                            <span class="text-[10px] text-slate-400 italic px-1.5 py-0.5 bg-slate-100 rounded">Asignado a otro</span>
-                          }
-                        }
+          <ng-template appCell="acciones" let-extra>
+            <div (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+                                <div class="flex items-center justify-end gap-1.5">
+                                  @if (extra.estado === 'Pendiente') {
+                                    @if (puedeRealizarOT(extra)) {
+                                      <button
+                                        (click)="abrirModalIniciarEspecial(extra)"
+                                        class="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white font-extrabold rounded-lg text-xs inline-flex items-center gap-1 shadow-2xs transition-all cursor-pointer">
+                                        <i-lucide aria-hidden="true" name="play" class="w-3 h-3"></i-lucide>
+                                        <span>Iniciar</span>
+                                      </button>
+                                    } @else {
+                                      <span class="text-xs text-slate-500 italic px-1.5 py-0.5 bg-slate-100 rounded">Asignado a otro</span>
+                                    }
+                                  }
 
-                        @if (extra.estado === 'En Proceso') {
-                          @if (puedeRealizarOT(extra)) {
-                            <button
-                              (click)="abrirModalPausarEspecial(extra)"
-                              title="Pausar servicio con motivo y vídeo de pausa"
-                              class="px-2.5 py-1 bg-amber-500/15 hover:bg-amber-500 text-amber-900 hover:text-white border border-amber-400 rounded-lg text-xs font-extrabold inline-flex items-center gap-1 shadow-2xs transition-all cursor-pointer">
-                              <i-lucide name="pause" class="w-3.5 h-3.5"></i-lucide>
-                              <span>Pausar</span>
-                            </button>
+                                  @if (extra.estado === 'En Proceso') {
+                                    @if (puedeRealizarOT(extra)) {
+                                      <button
+                                        (click)="abrirModalPausarEspecial(extra)"
+                                        title="Pausar servicio con motivo y vídeo de pausa"
+                                        class="px-2.5 py-1 bg-amber-500/15 hover:bg-amber-500 text-amber-900 hover:text-white border border-amber-400 rounded-lg text-xs font-extrabold inline-flex items-center gap-1 shadow-2xs transition-all cursor-pointer">
+                                        <i-lucide aria-hidden="true" name="pause" class="w-3.5 h-3.5"></i-lucide>
+                                        <span>Pausar</span>
+                                      </button>
 
-                            <button
-                              (click)="abrirModalFinalizarEspecial(extra)"
-                              class="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-lg text-xs inline-flex items-center gap-1 shadow-2xs transition-all cursor-pointer">
-                              <i-lucide name="check-circle-2" class="w-3.5 h-3.5"></i-lucide>
-                              <span>Finalizar</span>
-                            </button>
-                          } @else {
-                            <span class="text-[10px] text-amber-700 font-semibold px-1.5 py-0.5 bg-amber-50 rounded">En proceso</span>
-                          }
-                        }
+                                      <button
+                                        (click)="abrirModalFinalizarEspecial(extra)"
+                                        class="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-lg text-xs inline-flex items-center gap-1 shadow-2xs transition-all cursor-pointer">
+                                        <i-lucide aria-hidden="true" name="check-circle-2" class="w-3.5 h-3.5"></i-lucide>
+                                        <span>Finalizar</span>
+                                      </button>
+                                    } @else {
+                                      <span class="text-xs text-amber-700 font-semibold px-1.5 py-0.5 bg-amber-50 rounded">En proceso</span>
+                                    }
+                                  }
 
-                        @if (extra.estado === 'Pausado') {
-                          @if (puedeRealizarOT(extra)) {
-                            <button
-                              (click)="abrirModalReanudarEspecial(extra)"
-                              title="Reanudar servicio con vídeo de reanudación"
-                              class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white font-extrabold rounded-lg text-xs inline-flex items-center gap-1 shadow-2xs transition-all cursor-pointer">
-                              <i-lucide name="play" class="w-3.5 h-3.5"></i-lucide>
-                              <span>Reanudar</span>
-                            </button>
-                          } @else {
-                            <span class="text-[10px] text-orange-700 font-semibold px-1.5 py-0.5 bg-orange-50 rounded">Pausado</span>
-                          }
-                        }
+                                  @if (extra.estado === 'Pausado') {
+                                    @if (puedeRealizarOT(extra)) {
+                                      <button
+                                        (click)="abrirModalReanudarEspecial(extra)"
+                                        title="Reanudar servicio con vídeo de reanudación"
+                                        class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white font-extrabold rounded-lg text-xs inline-flex items-center gap-1 shadow-2xs transition-all cursor-pointer">
+                                        <i-lucide aria-hidden="true" name="play" class="w-3.5 h-3.5"></i-lucide>
+                                        <span>Reanudar</span>
+                                      </button>
+                                    } @else {
+                                      <span class="text-xs text-orange-700 font-semibold px-1.5 py-0.5 bg-orange-50 rounded">Pausado</span>
+                                    }
+                                  }
 
-                        @if (extra.estado === 'Completado') {
-                          <span class="px-2.5 py-1 bg-emerald-50 text-emerald-700 font-bold rounded-lg text-xs inline-flex items-center gap-1 border border-emerald-200">
-                            <i-lucide name="check" class="w-3.5 h-3.5"></i-lucide>
-                            <span>Listo</span>
-                          </span>
-                        }
+                                  @if (extra.estado === 'Completado') {
+                                    <span class="px-2.5 py-1 bg-emerald-50 text-emerald-700 font-bold rounded-lg text-xs inline-flex items-center gap-1 border border-emerald-200">
+                                      <i-lucide aria-hidden="true" name="check" class="w-3.5 h-3.5"></i-lucide>
+                                      <span>Listo</span>
+                                    </span>
+                                  }
 
-                        <button
-                          (click)="abrirDetalleEspecial(extra)"
-                          title="Ver detalle del servicio"
-                          class="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer">
-                          <i-lucide name="info" class="w-4 h-4"></i-lucide>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                } @empty {
-                  <tr>
-                    <td colspan="12" class="py-12 text-center text-slate-400 text-xs font-medium">
-                      No hay servicios especiales asignados o registrados en la región {{ userRegionNombre }}.
-                    </td>
-                  </tr>
-                }
-              </tbody>
-            </table>
-          </div>
+                                  @if (puedeReasignarExtra(extra)) {
+                                    <button type="button" (click)="abrirModalReasignar(extra)" title="Cambiar el pulidor asignado"
+                                      class="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-600 text-indigo-700 hover:text-white border border-indigo-200 rounded-lg text-xs font-bold cursor-pointer transition-colors">Reasignar</button>
+                                  }
+                                  @if (puedeAnularEspecial(extra)) {
+                                    <button type="button" (click)="abrirModalAnularEspecial(extra)" title="Anular servicio (pide el motivo)"
+                                      class="px-2.5 py-1 bg-rose-50 hover:bg-rose-600 text-rose-700 hover:text-white border border-rose-200 rounded-lg text-xs font-bold cursor-pointer transition-colors">Anular</button>
+                                  }
+                                  <button
+                                    (click)="abrirDetalleEspecial(extra)"
+                                    title="Ver detalle del servicio"
+                                    class="inline-flex items-center justify-center min-w-9 min-h-9 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer" aria-label="Ver detalle del servicio">
+                                    <i-lucide aria-hidden="true" name="info" class="w-4 h-4"></i-lucide>
+                                  </button>
+                                </div>
+            </div>
+          </ng-template>
+            </app-data-table>
+          }
 
-          <!-- Mobile Card View: Servicios Especiales -->
-          <div class="block lg:hidden divide-y divide-slate-100 flex-1">
-            @for (extra of paginatedExtras; track extra.id) {
+          <!-- Vista de tarjetas (móvil / tablet): scroll infinito -->
+          @if (!esEscritorio) {
+          <div class="divide-y divide-slate-100 flex-1">
+            @for (extra of listaE.items; track extra.id) {
               <div class="p-4 hover:bg-amber-50/20 transition-colors">
                 <div class="flex items-start justify-between mb-2">
                   <div>
-                    <span class="font-mono font-black text-xs text-amber-900 bg-amber-100 px-2 py-0.5 rounded-md border border-amber-200">
+                    <span class="font-mono font-extrabold text-xs text-amber-900 bg-amber-100 px-2 py-0.5 rounded-md border border-amber-200">
                       {{ extra.ordenTrabajoOT || extra.codigoSE }}
                     </span>
                     <div class="font-bold text-slate-900 text-sm mt-1.5">{{ extra.vehiculoInfo?.marca }} {{ extra.vehiculoInfo?.modelo }}</div>
-                    <div class="text-[11px] font-mono font-black text-easydry-blue">{{ extra.vehiculoInfo?.placa || extra.placa }}</div>
+                    <div class="text-xs font-mono font-extrabold text-easydry-blue">{{ extra.vehiculoInfo?.placa || extra.placa }}</div>
                   </div>
-                  <span class="px-2.5 py-1 rounded-full text-[10px] font-extrabold text-center"
+                  <span class="px-2.5 py-1 rounded-full text-xs font-extrabold text-center"
                     [ngClass]="estadoExtraClass(extra.estado)">
                     {{ extra.estado }}
                   </span>
@@ -707,22 +748,22 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
                 <div class="text-xs font-semibold text-slate-700 mb-1">
                   {{ extra.servicioNombre }}
                 </div>
-                <div class="text-[11px] text-slate-600 flex items-center gap-1 mb-2">
-                  <i-lucide name="building-2" class="w-3.5 h-3.5 text-slate-400 shrink-0"></i-lucide>
+                <div class="text-xs text-slate-600 flex items-center gap-1 mb-2">
+                  <i-lucide aria-hidden="true" name="building-2" class="w-3.5 h-3.5 text-slate-400 shrink-0"></i-lucide>
                   <span>{{ extra.agenciaNombre || extra.agencia?.nombre || 'Sede Zonal' }}</span>
                 </div>
 
                 @if ((extra.tiempoPausaTotalSeg && extra.tiempoPausaTotalSeg > 0) || extra.tiempoEfectivoFormateado) {
-                  <div class="flex flex-wrap items-center gap-1.5 mb-2 text-[10px] font-mono font-bold">
+                  <div class="flex flex-wrap items-center gap-1.5 mb-2 text-xs font-mono font-bold">
                     @if (extra.tiempoPausaTotalSeg && extra.tiempoPausaTotalSeg > 0) {
                       <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 text-amber-900 border border-amber-200 rounded-md">
-                        <i-lucide name="pause-circle" class="w-3 h-3"></i-lucide>
+                        <i-lucide aria-hidden="true" name="pause-circle" class="w-3 h-3"></i-lucide>
                         <span>Pausa: {{ extra.tiempoPausaFormateado }}</span>
                       </span>
                     }
                     @if (extra.tiempoEfectivoFormateado) {
                       <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-900 border border-blue-200 rounded-md">
-                        <i-lucide name="timer" class="w-3 h-3"></i-lucide>
+                        <i-lucide aria-hidden="true" name="timer" class="w-3 h-3"></i-lucide>
                         <span>Neto: {{ extra.tiempoEfectivoFormateado }}</span>
                       </span>
                     }
@@ -735,8 +776,8 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
                     <button
                       type="button"
                       (click)="verVideoGenerico(extra.videoInicialUrl || extra.videoInicial, 'Vídeo Inicial OT: ' + extra.codigoSE)"
-                      class="px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded-lg text-[10px] font-bold inline-flex items-center gap-1 shadow-2xs">
-                      <i-lucide name="video" class="w-3 h-3 text-amber-600"></i-lucide>
+                      class="px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded-lg text-xs font-bold inline-flex items-center gap-1 shadow-2xs">
+                      <i-lucide aria-hidden="true" name="video" class="w-3 h-3 text-amber-600"></i-lucide>
                       <span>Vídeo Inicio</span>
                     </button>
                   }
@@ -744,8 +785,8 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
                     <button
                       type="button"
                       (click)="verEvidenciasPausas(extra)"
-                      class="px-2 py-1 bg-orange-50 hover:bg-orange-100 text-orange-900 border border-orange-300 rounded-lg text-[10px] font-bold inline-flex items-center gap-1 shadow-2xs">
-                      <i-lucide name="pause-circle" class="w-3 h-3 text-orange-600"></i-lucide>
+                      class="px-2 py-1 bg-orange-50 hover:bg-orange-100 text-orange-900 border border-orange-300 rounded-lg text-xs font-bold inline-flex items-center gap-1 shadow-2xs">
+                      <i-lucide aria-hidden="true" name="pause-circle" class="w-3 h-3 text-orange-600"></i-lucide>
                       <span>Pausas {{ extra.historialPausas && extra.historialPausas.length > 0 ? '(' + extra.historialPausas.length + ')' : '' }}</span>
                     </button>
                   }
@@ -753,8 +794,8 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
                     <button
                       type="button"
                       (click)="verVideoGenerico(extra.videoFinalUrl || extra.videoFinal, 'Vídeo Final OT: ' + extra.codigoSE)"
-                      class="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg text-[10px] font-bold inline-flex items-center gap-1 shadow-2xs">
-                      <i-lucide name="film" class="w-3 h-3 text-emerald-600"></i-lucide>
+                      class="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg text-xs font-bold inline-flex items-center gap-1 shadow-2xs">
+                      <i-lucide aria-hidden="true" name="film" class="w-3 h-3 text-emerald-600"></i-lucide>
                       <span>Vídeo Fin</span>
                     </button>
                   }
@@ -762,7 +803,7 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
 
                 <div class="flex items-center justify-between mt-3 text-xs gap-2 pt-2 border-t border-slate-100">
                   <div class="flex items-center gap-1 text-slate-500 truncate">
-                    <i-lucide name="user" class="w-3.5 h-3.5 text-amber-600 shrink-0"></i-lucide>
+                    <i-lucide aria-hidden="true" name="user" class="w-3.5 h-3.5 text-amber-600 shrink-0"></i-lucide>
                     <span class="truncate">{{ extra.operadorNombre }}</span>
                   </div>
                   <div class="flex items-center gap-1.5 shrink-0">
@@ -770,7 +811,7 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
                       @if (puedeRealizarOT(extra)) {
                         <button (click)="abrirModalIniciarEspecial(extra)" class="px-2.5 py-1 bg-amber-500 text-white rounded-lg text-xs font-bold">Iniciar</button>
                       } @else {
-                        <span class="text-[10px] text-slate-400 italic">Asignado</span>
+                        <span class="text-xs text-slate-500 italic">Asignado</span>
                       }
                     }
                     @if (extra.estado === 'En Proceso') {
@@ -778,103 +819,148 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
                         <button (click)="abrirModalPausarEspecial(extra)" class="px-2 py-1 bg-amber-500/20 text-amber-900 border border-amber-400 rounded-lg text-xs font-bold">Pausar</button>
                         <button (click)="abrirModalFinalizarEspecial(extra)" class="px-2.5 py-1 bg-emerald-600 text-white rounded-lg text-xs font-bold">Finalizar</button>
                       } @else {
-                        <span class="text-[10px] text-amber-600">En proceso</span>
+                        <span class="text-xs text-amber-600">En proceso</span>
                       }
                     }
                     @if (extra.estado === 'Pausado') {
                       @if (puedeRealizarOT(extra)) {
                         <button (click)="abrirModalReanudarEspecial(extra)" class="px-2.5 py-1 bg-blue-600 text-white rounded-lg text-xs font-bold">Reanudar</button>
                       } @else {
-                        <span class="text-[10px] text-orange-600">Pausado</span>
+                        <span class="text-xs text-orange-600">Pausado</span>
                       }
                     }
-                    <button (click)="abrirDetalleEspecial(extra)" class="p-1 text-slate-500 hover:bg-slate-100 rounded-lg"><i-lucide name="info" class="w-4 h-4"></i-lucide></button>
+                    @if (puedeReasignarExtra(extra)) {
+                      <button type="button" (click)="abrirModalReasignar(extra)" class="px-2 py-1 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-bold">Reasignar</button>
+                    }
+                    @if (puedeAnularEspecial(extra)) {
+                      <button type="button" (click)="abrirModalAnularEspecial(extra)" class="px-2 py-1 bg-rose-50 text-rose-700 border border-rose-200 rounded-lg text-xs font-bold">Anular</button>
+                    }
+                    <button (click)="abrirDetalleEspecial(extra)" class="inline-flex items-center justify-center min-w-9 min-h-9 text-slate-500 hover:bg-slate-100 rounded-lg" aria-label="Ver detalle"><i-lucide aria-hidden="true" name="info" class="w-4 h-4"></i-lucide></button>
                   </div>
                 </div>
               </div>
-            } @empty {
-              <div class="py-8 text-center text-slate-400 text-xs font-medium">
-                No hay servicios especiales registrados.
+            }
+            @if (listaE.error && listaE.items.length === 0) {
+              <div role="alert" class="p-6 flex flex-col items-center gap-3 text-center">
+                <div class="estado-error">{{ listaE.error }}</div>
+                <button type="button" class="btn btn-secondary btn-sm" (click)="listaE.reiniciar()">Reintentar</button>
               </div>
+            } @else if (!listaE.inicializada) {
+              <div class="p-4 space-y-3" role="status" aria-label="Cargando">
+                @for (n of [1, 2, 3, 4]; track n) {
+                  <div class="h-24 rounded-xl bg-slate-100 animate-pulse motion-reduce:animate-none"></div>
+                }
+              </div>
+            } @else if (listaE.items.length === 0) {
+              <div class="estado-vacio py-10">{{ tituloVacioE }}</div>
+            } @else {
+              <app-infinite-scroll
+                [hasMore]="listaE.hasMore"
+                [loading]="listaE.cargando"
+                [error]="listaE.error"
+                [total]="listaE.total"
+                (cargarMas)="listaE.siguiente()"
+                (reintentar)="listaE.reintentar()">
+              </app-infinite-scroll>
             }
           </div>
-
-          <!-- Paginación Especiales -->
-          <app-pagination 
-            [totalItems]="extrasFiltrados.length" 
-            [currentPage]="currentPageExtras" 
-            [pageSize]="pageSizeExtras"
-            (pageChange)="onPageChangeExtras($event)"
-            (pageSizeChange)="onPageSizeChangeExtras($event)">
-          </app-pagination>
+          }
         }
       </div>
 
       <!-- Modal Detalle Servicio (Mobile) -->
-      <app-modal 
-        [isOpen]="modalDetalleOpen" 
-        [title]="'Detalle: ' + (servicioDetalleSeleccionado?.placa || '')" 
+      <app-modal size="md"
+        [isOpen]="modalDetalleOpen"
+        [title]="'Detalle: ' + (servicioDetalleSeleccionado?.placa || '')"
         icon="info"
         (close)="modalDetalleOpen = false">
-        
+
         @if (servicioDetalleSeleccionado) {
           <div class="space-y-4">
             <div class="grid grid-cols-2 gap-3 text-xs">
               <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                <span class="block text-[10px] text-slate-400 font-bold uppercase mb-1">Nº OT</span>
+                <span class="block text-[11px] text-slate-500 font-bold uppercase mb-1">Nº OT</span>
                 <span class="font-mono font-extrabold text-easydry-blue">{{ servicioDetalleSeleccionado.ordenTrabajoOT }}</span>
               </div>
               <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                <span class="block text-[10px] text-slate-400 font-bold uppercase mb-1">Vehículo</span>
+                <span class="block text-[11px] text-slate-500 font-bold uppercase mb-1">Vehículo</span>
                 <span class="font-bold text-slate-800">{{ servicioDetalleSeleccionado.marca }} {{ servicioDetalleSeleccionado.modelo }}</span>
-                <span class="block text-[10px] text-slate-500 mt-0.5">{{ servicioDetalleSeleccionado.color }}</span>
+                <span class="block text-xs text-slate-500 mt-0.5">{{ servicioDetalleSeleccionado.color }}</span>
               </div>
             </div>
 
             <div class="p-3 bg-easydry-blue/5 rounded-xl border border-easydry-blue/10 text-xs">
-              <span class="block text-[10px] text-easydry-blue font-bold uppercase mb-1">Servicio</span>
+              <span class="block text-[11px] text-easydry-blue font-bold uppercase mb-1">Servicio</span>
               <span class="font-bold text-slate-800 text-sm block mb-0.5">{{ servicioDetalleSeleccionado.servicio }}</span>
               <span class="text-slate-500 font-semibold">{{ servicioDetalleSeleccionado.categoriaServicio }}</span>
             </div>
-            
+
             <div class="grid grid-cols-2 gap-3 text-xs">
               <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                <span class="block text-[10px] text-slate-400 font-bold uppercase mb-1">Sucursal / Bahía</span>
+                <span class="block text-[11px] text-slate-500 font-bold uppercase mb-1">Sucursal / Bahía</span>
                 <span class="font-bold text-slate-800 block">{{ servicioDetalleSeleccionado.agencia }}</span>
                 <span class="text-slate-500 mt-0.5">{{ servicioDetalleSeleccionado.bahia || 'Sin bahía' }}</span>
               </div>
               <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                <span class="block text-[10px] text-slate-400 font-bold uppercase mb-1">Horarios</span>
-                <span class="font-bold text-slate-800 block">Ingreso: {{ servicioDetalleSeleccionado.horaIngreso || '08:30' }}</span>
-                <span class="text-slate-500 mt-0.5">Salida: {{ servicioDetalleSeleccionado.horaSalida || '09:30' }}</span>
+                <span class="block text-[11px] text-slate-500 font-bold uppercase mb-1">Horarios</span>
+                <span class="font-bold text-slate-800 block">Ingreso: {{ servicioDetalleSeleccionado.horaIngreso || '—' }}</span>
+                <span class="text-slate-500 mt-0.5">Salida: {{ servicioDetalleSeleccionado.horaSalida || '—' }}</span>
               </div>
             </div>
 
             <div class="p-3 bg-slate-50 rounded-xl border border-slate-100 text-xs flex justify-between items-center">
               <div>
-                <span class="block text-[10px] text-slate-400 font-bold uppercase mb-1">Lavador</span>
+                <span class="block text-[11px] text-slate-500 font-bold uppercase mb-1">Lavador</span>
                 <span class="font-bold text-slate-800">{{ servicioDetalleSeleccionado.empleado }}</span>
               </div>
               <div class="text-right">
-                <span class="block text-[10px] text-slate-400 font-bold uppercase mb-1">Estado</span>
+                <span class="block text-[11px] text-slate-500 font-bold uppercase mb-1">Estado</span>
                 <span class="font-extrabold" [ngClass]="{
                   'text-amber-600': servicioDetalleSeleccionado.estado === 'EN PROCESO',
                   'text-easydry-blue': servicioDetalleSeleccionado.estado === 'FINALIZADO',
-                  'text-easydry-green-dark': servicioDetalleSeleccionado.estado === 'APROBADO',
+                  'text-easydry-green-text': servicioDetalleSeleccionado.estado === 'APROBADO',
                   'text-rose-600': servicioDetalleSeleccionado.estado === 'RECHAZADO'
-                }">{{ servicioDetalleSeleccionado.estado }}</span>
+                }">{{ etiquetaEstado(servicioDetalleSeleccionado.estado, true) }}</span>
               </div>
             </div>
+
+            <!-- Registro de la decisión (quién, cuándo y con qué regla) y de la anulación -->
+            @if (servicioDetalleSeleccionado.estado === 'FINALIZADO') {
+              <div class="p-3 rounded-xl border border-blue-200 bg-blue-50 text-xs font-semibold text-blue-900 space-y-1">
+                <p>Pendiente de aprobación.</p>
+                @if (servicioDetalleSeleccionado.agenciaSinAprobador) {
+                  <p class="text-amber-800">Sin aprobador designado: solo un administrador o el supervisor de la región puede decidir.</p>
+                }
+              </div>
+            }
+            @if (servicioDetalleSeleccionado.estado === 'APROBADO' && servicioDetalleSeleccionado.aprobadoPor) {
+              <div class="p-3 rounded-xl border border-emerald-200 bg-emerald-50 text-xs font-semibold text-emerald-900">
+                Aprobado por {{ servicioDetalleSeleccionado.aprobadoPor }}{{ etiquetaRegla(servicioDetalleSeleccionado) }}{{ servicioDetalleSeleccionado.fechaAprobacion ? ' el ' + (servicioDetalleSeleccionado.fechaAprobacion | date:'dd/MM/yyyy HH:mm') : '' }}
+                @if (servicioDetalleSeleccionado.observacionGerente) { <span class="block font-medium mt-0.5">{{ servicioDetalleSeleccionado.observacionGerente }}</span> }
+              </div>
+            }
+            @if (servicioDetalleSeleccionado.estado === 'RECHAZADO') {
+              <div class="p-3 rounded-xl border border-rose-200 bg-rose-50 text-xs font-semibold text-rose-900">
+                Rechazado{{ servicioDetalleSeleccionado.aprobadoPor ? ' por ' + servicioDetalleSeleccionado.aprobadoPor : '' }}{{ etiquetaRegla(servicioDetalleSeleccionado) }}{{ servicioDetalleSeleccionado.fechaAprobacion ? ' el ' + (servicioDetalleSeleccionado.fechaAprobacion | date:'dd/MM/yyyy HH:mm') : '' }}
+                @if (servicioDetalleSeleccionado.motivoRechazo) { <span class="block font-medium mt-0.5">Motivo: {{ servicioDetalleSeleccionado.motivoRechazo }}</span> }
+              </div>
+            }
+            @if (servicioDetalleSeleccionado.anuladoEn || servicioDetalleSeleccionado.motivoAnulacion) {
+              <div class="p-3 rounded-xl border border-slate-300 bg-slate-100 text-xs font-semibold text-slate-800">
+                Servicio anulado{{ servicioDetalleSeleccionado.anuladoEn ? ' el ' + (servicioDetalleSeleccionado.anuladoEn | date:'dd/MM/yyyy HH:mm') : '' }}
+                @if (servicioDetalleSeleccionado.motivoAnulacion) { <span class="block font-medium mt-0.5">Motivo: {{ servicioDetalleSeleccionado.motivoAnulacion }}</span> }
+              </div>
+            }
 
             <!-- Insumos Utilizados en este Servicio -->
             @if (servicioDetalleSeleccionado.insumosUtilizados && servicioDetalleSeleccionado.insumosUtilizados.length > 0) {
               <div class="p-3.5 bg-blue-50/50 rounded-2xl border border-blue-100 text-xs space-y-2">
                 <div class="flex items-center justify-between">
                   <span class="text-[11px] text-blue-950 font-extrabold uppercase flex items-center gap-1.5">
-                    <i-lucide name="boxes" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide>
+                    <i-lucide aria-hidden="true" name="boxes" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide>
                     Insumos & Recursos Utilizados
                   </span>
-                  <span class="text-[10px] text-blue-700 font-bold bg-blue-100 px-2 py-0.5 rounded-full">
+                  <span class="text-xs text-blue-700 font-bold bg-blue-100 px-2 py-0.5 rounded-full">
                     Descontado de {{ servicioDetalleSeleccionado.agencia }}
                   </span>
                 </div>
@@ -883,7 +969,7 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
                     <div class="p-2.5 bg-white rounded-xl border border-blue-100/80 flex items-center justify-between shadow-2xs">
                       <div>
                         <p class="font-bold text-slate-900 text-xs">{{ ins.productoNombre }}</p>
-                        <span class="font-mono text-[10px] text-slate-400">{{ ins.productoSKU }}</span>
+                        <span class="font-mono text-xs text-slate-500">{{ ins.productoSKU }}</span>
                       </div>
                       <span class="font-mono font-extrabold text-xs text-easydry-blue bg-blue-50 px-2 py-1 rounded-lg">
                         {{ ins.cantidad }} {{ ins.unidadMedida }}
@@ -897,7 +983,7 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
             @if (servicioDetalleSeleccionado.fotoIngresoUrl || servicioDetalleSeleccionado.fotoSalidaUrl || servicioDetalleSeleccionado.video || servicioDetalleSeleccionado.videoUrl) {
               <div class="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 text-xs space-y-2">
                 <span class="text-[11px] text-slate-800 font-extrabold uppercase flex items-center gap-1.5">
-                  <i-lucide name="film" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide>
+                  <i-lucide aria-hidden="true" name="film" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide>
                   Evidencias en Vídeo Registradas
                 </span>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -907,11 +993,11 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
                       (click)="verVideoGenerico(servicioDetalleSeleccionado.fotoIngresoUrl || servicioDetalleSeleccionado.video || servicioDetalleSeleccionado.videoUrl, 'Vídeo de Ingreso: ' + servicioDetalleSeleccionado.placa)"
                       class="p-2.5 bg-white hover:bg-slate-100 rounded-xl border border-slate-200 flex items-center gap-2 font-bold text-slate-800 text-xs transition-colors cursor-pointer shadow-2xs">
                       <div class="w-7 h-7 rounded-lg bg-easydry-blue/10 text-easydry-blue flex items-center justify-center">
-                        <i-lucide name="play" class="w-3.5 h-3.5"></i-lucide>
+                        <i-lucide aria-hidden="true" name="play" class="w-3.5 h-3.5"></i-lucide>
                       </div>
                       <div class="text-left">
                         <p class="text-xs font-bold text-slate-900">Vídeo de Ingreso</p>
-                        <p class="text-[10px] text-slate-400 font-normal">Recepción del auto</p>
+                        <p class="text-xs text-slate-500 font-normal">Recepción del auto</p>
                       </div>
                     </button>
                   }
@@ -921,11 +1007,11 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
                       (click)="verVideoGenerico(servicioDetalleSeleccionado.fotoSalidaUrl, 'Vídeo de Salida: ' + servicioDetalleSeleccionado.placa)"
                       class="p-2.5 bg-white hover:bg-slate-100 rounded-xl border border-slate-200 flex items-center gap-2 font-bold text-slate-800 text-xs transition-colors cursor-pointer shadow-2xs">
                       <div class="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                        <i-lucide name="check-circle-2" class="w-3.5 h-3.5"></i-lucide>
+                        <i-lucide aria-hidden="true" name="check-circle-2" class="w-3.5 h-3.5"></i-lucide>
                       </div>
                       <div class="text-left">
                         <p class="text-xs font-bold text-slate-900">Vídeo de Salida</p>
-                        <p class="text-[10px] text-slate-400 font-normal">Entrega y acabado</p>
+                        <p class="text-xs text-slate-500 font-normal">Entrega y acabado</p>
                       </div>
                     </button>
                   }
@@ -941,52 +1027,124 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
               <button
                 (click)="modalDetalleOpen = false; abrirModalFinalizarServicio(servicioDetalleSeleccionado)"
                 class="w-full px-4 py-2.5 bg-easydry-blue text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 shadow-sm cursor-pointer">
-                <i-lucide name="check-circle-2" class="w-4 h-4"></i-lucide> Finalizar Servicio
+                <i-lucide aria-hidden="true" name="check-circle-2" class="w-4 h-4"></i-lucide> Finalizar Servicio
               </button>
             }
 
-            @if (servicioDetalleSeleccionado.estado === 'FINALIZADO' && canApprove) {
+            @if (servicioDetalleSeleccionado.estado === 'FINALIZADO' && servicioDetalleSeleccionado.puedeDecidir) {
               <button
                 (click)="aprobarServicio(servicioDetalleSeleccionado); modalDetalleOpen = false"
                 class="w-full px-4 py-2.5 bg-easydry-green text-slate-950 font-extrabold rounded-xl text-xs flex items-center justify-center gap-2 shadow-sm">
-                <i-lucide name="thumbs-up" class="w-4 h-4"></i-lucide> Aprobar Servicio
+                <i-lucide aria-hidden="true" name="thumbs-up" class="w-4 h-4"></i-lucide> Aprobar Servicio
+              </button>
+            }
+
+            @if (puedeAnularServicio(servicioDetalleSeleccionado)) {
+              <button
+                type="button"
+                (click)="abrirModalAnularGeneral(servicioDetalleSeleccionado)"
+                class="w-full px-4 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold rounded-xl text-xs flex items-center justify-center gap-2">
+                <i-lucide aria-hidden="true" name="alert-triangle" class="w-4 h-4"></i-lucide> Anular servicio
               </button>
             }
           }
-          <button (click)="modalDetalleOpen = false" class="w-full px-4 py-2.5 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs mt-1">Cerrar Detalle</button>
+          <button (click)="modalDetalleOpen = false" class="w-full px-4 py-2.5 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs mt-1 hover:bg-slate-300 transition-colors">Cerrar Detalle</button>
+        </div>
+      </app-modal>
+
+      <!-- Modal: anular servicio (general o especial) con motivo obligatorio -->
+      <app-modal size="md"
+        [isOpen]="modalAnularOpen"
+        title="Anular servicio"
+        icon="alert-triangle"
+        (close)="modalAnularOpen = false">
+        @if (anularObjetivo) {
+          <div class="space-y-3 text-xs">
+            <p class="text-slate-600">
+              Vas a anular el servicio <b>{{ anularObjetivo.titulo }}</b>. No se borra: queda el registro de quién lo anuló, cuándo y por qué.
+            </p>
+            <div>
+              <label for="srv-anular-motivo" class="block font-bold text-slate-700 mb-1">Motivo de la anulación * (mínimo 5 caracteres)</label>
+              <textarea id="srv-anular-motivo" [(ngModel)]="motivoAnulacion" name="motivoAnulacion" rows="3"
+                class="w-full p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-rose-500"></textarea>
+            </div>
+            @if (anularObjetivo.tipo === 'general') {
+              <label class="flex items-center gap-2 font-semibold text-slate-700">
+                <input type="checkbox" [(ngModel)]="reponerInsumosAnulacion" name="reponerInsumosAnulacion" />
+                Reponer al inventario los insumos que consumió
+              </label>
+            }
+          </div>
+        }
+        <div modal-footer class="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 w-full">
+          <button type="button" (click)="modalAnularOpen = false" class="btn btn-secondary w-full sm:w-auto">Cancelar</button>
+          <button type="button" (click)="confirmarAnulacion()" [disabled]="motivoAnulacion.trim().length < 5 || anulando"
+            class="px-4 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white disabled:opacity-50 cursor-pointer w-full sm:w-auto justify-center">
+            Anular servicio
+          </button>
+        </div>
+      </app-modal>
+
+      <!-- Modal: reasignar servicio especial a otro pulidor -->
+      <app-modal size="md"
+        [isOpen]="modalReasignarOpen"
+        title="Reasignar servicio especial"
+        icon="user"
+        (close)="modalReasignarOpen = false">
+        @if (extraReasignar) {
+          <div class="space-y-3 text-xs">
+            <p class="text-slate-600">Servicio <b>{{ extraReasignar.codigoSE }}</b>. Elige el pulidor que lo va a ejecutar (debe ser de la misma región y tener los insumos en su kit).</p>
+            <div>
+              <label for="srv-reasignar" class="block font-bold text-slate-700 mb-1">Pulidor</label>
+              <select id="srv-reasignar" [(ngModel)]="reasignarOperadorId" name="reasignarOperadorId"
+                class="w-full p-2.5 rounded-xl border border-slate-200 bg-white">
+                <option value="">Sin asignar</option>
+                @for (p of pulidoresDisponiblesRegion; track p.id) {
+                  <option [value]="p.id">{{ p.name }} {{ p.lastname }}</option>
+                }
+              </select>
+            </div>
+          </div>
+        }
+        <div modal-footer class="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 w-full">
+          <button type="button" (click)="modalReasignarOpen = false" class="btn btn-secondary w-full sm:w-auto">Cancelar</button>
+          <button type="button" (click)="confirmarReasignacion()" [disabled]="reasignando"
+            class="px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50 cursor-pointer w-full sm:w-auto justify-center">
+            Confirmar reasignación
+          </button>
         </div>
       </app-modal>
 
       <!-- Modal Digital HOJA DE CONTROL DE SERVICIO (Nueva OT) -->
-      <app-modal 
-        [isOpen]="modalNuevoRegistroOpen" 
-        [title]="agregarServicioOTFuente ? 'Agregar Servicio — OT: ' + (agregarServicioOTFuente.ordenTrabajoOT || '') : 'Digitalización: HOJA DE CONTROL DE SERVICIO'" 
+      <app-modal size="lg"
+        [isOpen]="modalNuevoRegistroOpen"
+        [title]="agregarServicioOTFuente ? 'Agregar Servicio — OT: ' + (agregarServicioOTFuente.ordenTrabajoOT || '') : 'Digitalización: HOJA DE CONTROL DE SERVICIO'"
         icon="car"
         (close)="agregarServicioOTFuente = null; modalNuevoRegistroOpen = false">
-        
+
         <form (ngSubmit)="guardarHojaServicio()" class="space-y-5">
 
           @if (agregarServicioOTFuente) {
             <div class="p-3 bg-violet-50 rounded-xl border border-violet-200 flex items-start gap-2.5">
-              <i-lucide name="plus-circle" class="w-4 h-4 text-violet-600 mt-0.5 shrink-0"></i-lucide>
+              <i-lucide aria-hidden="true" name="plus-circle" class="w-4 h-4 text-violet-600 mt-0.5 shrink-0"></i-lucide>
               <div>
                 <p class="text-xs font-extrabold text-violet-900 uppercase tracking-wide">Agregando servicio a trabajo existente</p>
-                <p class="text-[11px] text-violet-700 mt-0.5">
+                <p class="text-xs text-violet-700 mt-0.5">
                   OT: <strong class="font-mono">{{ agregarServicioOTFuente.ordenTrabajoOT }}</strong>
                   &nbsp;&bull;&nbsp; Placa: <strong class="font-mono">{{ agregarServicioOTFuente.placa }}</strong>
                   &nbsp;&bull;&nbsp; {{ agregarServicioOTFuente.marca }} {{ agregarServicioOTFuente.modelo }}
                   &nbsp;&bull;&nbsp; Color: {{ agregarServicioOTFuente.color }}
                 </p>
-                <p class="text-[11px] text-violet-700 mt-0.5">
+                <p class="text-xs text-violet-700 mt-0.5">
                   Bahía: <strong>{{ agregarServicioOTFuente.bahia || 'Sin bahía' }}</strong>
                   &nbsp;&bull;&nbsp; Lavador: <strong>{{ agregarServicioOTFuente.empleado || '—' }}</strong>
                 </p>
                 @if (serviciosYaEnOT.length > 0) {
-                  <p class="text-[11px] text-violet-700 mt-0.5">
+                  <p class="text-xs text-violet-700 mt-0.5">
                     Servicios ya registrados: <strong>{{ serviciosYaEnOTNombres }}</strong>
                   </p>
                 }
-                <p class="text-[10px] text-violet-500 mt-1">Cada servicio agregado aparecerá como una nueva fila con la misma OT y el mismo vehículo. Solo selecciona los servicios a agregar.</p>
+                <p class="text-xs text-violet-500 mt-1">Cada servicio agregado aparecerá como una nueva fila con la misma OT y el mismo vehículo. Solo selecciona los servicios a agregar.</p>
               </div>
             </div>
           }
@@ -1001,11 +1159,11 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
           <div class="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
             <div class="flex items-center justify-between">
               <span class="text-xs font-bold text-slate-800 uppercase flex items-center gap-1.5">
-                <i-lucide name="map-pin" class="w-4 h-4 text-easydry-blue"></i-lucide>
+                <i-lucide aria-hidden="true" name="map-pin" class="w-4 h-4 text-easydry-blue"></i-lucide>
                 Asignación de Sucursal, Bahía & Lavador
               </span>
               @if (isLiderOperador) {
-                <span class="px-2.5 py-0.5 rounded-full bg-teal-100 text-teal-800 text-[10px] font-extrabold border border-teal-200">
+                <span class="px-2.5 py-0.5 rounded-full bg-teal-100 text-teal-800 text-xs font-extrabold border border-teal-200">
                   Líder: {{ userSucursal }}
                 </span>
               }
@@ -1014,8 +1172,8 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <!-- Sucursal -->
               <div>
-                <label class="block text-[11px] font-bold text-slate-700 uppercase mb-1">Sucursal / Agencia</label>
-                <select
+                <label for="srv-f1" class="block text-[11px] font-bold text-slate-700 uppercase mb-1">Sucursal / Agencia</label>
+                <select id="srv-f1"
                   [(ngModel)]="nuevoRegistro.agencia"
                   name="agenciaSelect"
                   (change)="onSucursalFormChange()"
@@ -1027,45 +1185,44 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
                 </select>
               </div>
 
-              <!-- Bahía -->
+              <!-- Bahía (el estado 'ocupada' es solo informativo: nunca bloquea la selección ni el guardado) -->
               <div>
-                <label class="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                <label for="srv-f2" class="block text-[11px] font-bold text-slate-700 uppercase mb-1">
                   Bahía de Atención *
                   @if (bahiaOcupadaActual) {
-                    <span class="text-rose-600 font-extrabold text-[10px] ml-1">
-                      (Ocupada por {{ bahiaOcupadaActual.placa }})
+                    <span class="text-amber-600 font-extrabold text-xs ml-1">
+                      (En uso por {{ bahiaOcupadaActual.placa }})
                     </span>
                   }
                 </label>
-                <select
+                <select id="srv-f2"
                   [(ngModel)]="nuevoRegistro.bahiaId"
                   name="bahiaSelect"
                   (change)="onBahiaFormChange()"
-                  [ngClass]="bahiaOcupadaActual ? 'border-rose-400 bg-rose-50/70 text-rose-900 font-bold' : 'border-slate-200 bg-white'"
+                  [ngClass]="bahiaOcupadaActual ? 'border-amber-400 bg-amber-50/70 text-amber-900 font-bold' : 'border-slate-200 bg-white'"
                   class="w-full p-2 border rounded-xl text-xs font-semibold text-slate-800">
                   <option value="">Sin Bahía Específica</option>
                   @for (b of bahiasSucursalForm; track b.id) {
-                    @let ocupante = getVehiculoOcupanteBahia(b.id, b.nombre);
                     <option [value]="b.id">
-                      {{ b.nombre }} {{ ocupante ? '[En uso: ' + ocupante.placa + ' - ' + ocupante.ordenTrabajoOT + ']' : '[Disponible]' }}
+                      {{ b.nombre }} {{ b.ocupada ? ('[En uso: ' + b.ocupada.placa + ' - ' + (b.ocupada.ordenTrabajoOT || 'sin OT') + ']') : '[Disponible]' }}
                     </option>
                   }
                 </select>
                 @if (bahiaOcupadaActual) {
-                  <p class="text-[10px] text-rose-600 font-bold mt-1 flex items-center gap-1.5">
-                    <i-lucide name="alert-triangle" class="w-3.5 h-3.5 shrink-0"></i-lucide>
-                    <span>La {{ nuevoRegistro.bahia || 'bahía seleccionada' }} ya tiene un vehículo en proceso ({{ bahiaOcupadaActual.placa }} - {{ bahiaOcupadaActual.ordenTrabajoOT }}). Selecciona una bahía disponible.</span>
+                  <p class="text-xs text-amber-700 font-bold mt-1 flex items-center gap-1.5">
+                    <i-lucide aria-hidden="true" name="info" class="w-3.5 h-3.5 shrink-0"></i-lucide>
+                    <span>La {{ nuevoRegistro.bahia || 'bahía seleccionada' }} tiene un vehículo en proceso ({{ bahiaOcupadaActual.placa }} - {{ bahiaOcupadaActual.ordenTrabajoOT || 'sin OT' }}). Puedes continuar; esto es solo informativo.</span>
                   </p>
                 }
               </div>
 
               <!-- Operador Técnico (Trazabilidad) -->
               <div>
-                <label class="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                <label for="srv-f3" class="block text-[11px] font-bold text-slate-700 uppercase mb-1">
                   Lavador
-                  <span class="text-easydry-blue font-bold text-[10px]">(Trazabilidad)</span>
+                  <span class="text-easydry-blue font-bold text-xs">(Trazabilidad)</span>
                 </label>
-                <select
+                <select id="srv-f3"
                   [(ngModel)]="nuevoRegistro.empleado"
                   name="empleadoSelect"
                   class="w-full p-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800">
@@ -1078,21 +1235,21 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
                 </select>
               </div>
             </div>
-            <p class="text-[11px] text-slate-500">
+            <p class="text-xs text-slate-500">
               El servicio computará en la trazabilidad operativa y conteo de servicios del lavador seleccionado.
             </p>
           </div>
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Nº OT (Orden Trabajo) *</label>
-              <input type="text" [(ngModel)]="nuevoRegistro.ordenTrabajoOT" name="ordenTrabajoOT" placeholder="OT-9840"
+              <label for="srv-f4" class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Nº OT (Orden Trabajo) *</label>
+              <input id="srv-f4" type="text" [(ngModel)]="nuevoRegistro.ordenTrabajoOT" name="ordenTrabajoOT" placeholder="OT-9840"
                 [disabled]="!!agregarServicioOTFuente"
                 class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-easydry-blue focus:border-easydry-blue focus:ring-easydry-blue disabled:bg-violet-50 disabled:border-violet-200 disabled:text-violet-800 disabled:opacity-90" required>
             </div>
             <div>
               <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Placa Vehículo *</label>
-              <input
+              <input aria-label="PBX-1234"
                 type="text"
                 [ngModel]="nuevoRegistro.placa"
                 (ngModelChange)="agregarServicioOTFuente ? null : onPlacaChange($event)"
@@ -1106,8 +1263,8 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
                 [class.border-easydry-green]="!agregarServicioOTFuente && placaValida"
                 required>
               @if (!agregarServicioOTFuente) {
-                <p class="text-[10px] mt-1 font-semibold"
-                  [class.text-easydry-green-dark]="placaValida"
+                <p class="text-xs mt-1 font-semibold"
+                  [class.text-easydry-green-text]="placaValida"
                   [class.text-rose-600]="placaTocada && !placaValida"
                   [class.text-slate-400]="!placaTocada && !placaValida">
                   {{ placaMensaje }}
@@ -1118,20 +1275,20 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
 
           <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Marca *</label>
-              <input type="text" [(ngModel)]="nuevoRegistro.marca" name="marca" placeholder="Toyota"
+              <label for="srv-f5" class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Marca *</label>
+              <input id="srv-f5" type="text" [(ngModel)]="nuevoRegistro.marca" name="marca" placeholder="Toyota"
                 [disabled]="!!agregarServicioOTFuente"
                 class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:border-easydry-blue focus:ring-easydry-blue disabled:bg-violet-50 disabled:border-violet-200 disabled:text-violet-800 disabled:opacity-90" required>
             </div>
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Modelo *</label>
-              <input type="text" [(ngModel)]="nuevoRegistro.modelo" name="modelo" placeholder="Corolla Cross"
+              <label for="srv-f6" class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Modelo *</label>
+              <input id="srv-f6" type="text" [(ngModel)]="nuevoRegistro.modelo" name="modelo" placeholder="Corolla Cross"
                 [disabled]="!!agregarServicioOTFuente"
                 class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:border-easydry-blue focus:ring-easydry-blue disabled:bg-violet-50 disabled:border-violet-200 disabled:text-violet-800 disabled:opacity-90" required>
             </div>
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Color *</label>
-              <input type="text" [(ngModel)]="nuevoRegistro.color" name="color" placeholder="Blanco"
+              <label for="srv-f7" class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Color *</label>
+              <input id="srv-f7" type="text" [(ngModel)]="nuevoRegistro.color" name="color" placeholder="Blanco"
                 [disabled]="!!agregarServicioOTFuente"
                 class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:border-easydry-blue focus:ring-easydry-blue disabled:bg-violet-50 disabled:border-violet-200 disabled:text-violet-800 disabled:opacity-90" required>
             </div>
@@ -1142,14 +1299,14 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
               <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Hora Ingreso *</label>
               <div class="w-full p-2.5 bg-slate-100 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-700 flex items-center justify-between">
                 <span>{{ nuevoRegistro.horaIngreso || '--:--' }}</span>
-                <span class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Automática</span>
+                <span class="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Automática</span>
               </div>
             </div>
             <div>
               <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Hora Salida Estimada *</label>
               <div class="w-full p-2.5 bg-slate-100 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-700 flex items-center justify-between">
                 <span>{{ nuevoRegistro.horaSalida || '--:--' }}</span>
-                <span class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Automática</span>
+                <span class="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Automática</span>
               </div>
             </div>
           </div>
@@ -1159,23 +1316,23 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
           <div class="p-4 bg-slate-50/80 rounded-2xl border border-slate-200 space-y-3">
             @if (!agregarServicioOTFuente) {
             <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider">Categoría de Servicio *</label>
-            
+
             <div class="grid gap-2.5" [ngClass]="(!isPulidor && agenciaFormTieneEspeciales) ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'">
               @if (!isPulidor) {
-                <label 
-                  class="p-2.5 rounded-xl border cursor-pointer flex items-center gap-2 text-xs font-bold transition-all"
+                <label
+                  class="p-2.5 rounded-xl border cursor-pointer flex items-center gap-2 text-xs font-bold transition-shadow has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-easydry-blue"
                   [ngClass]="nuevoRegistro.categoriaServicio === 'GENERAL' ? 'bg-easydry-blue text-white border-easydry-blue shadow-xs' : 'bg-white text-slate-700 hover:border-slate-300'">
-                  <input type="radio" [(ngModel)]="nuevoRegistro.categoriaServicio" name="catRadio" value="GENERAL" (change)="onCategoriaChange()" class="hidden">
-                  <span class="flex items-center gap-1.5"><i-lucide name="droplet" class="w-4 h-4"></i-lucide> Generales</span>
+                  <input type="radio" [(ngModel)]="nuevoRegistro.categoriaServicio" name="catRadio" value="GENERAL" (change)="onCategoriaChange()" class="sr-only">
+                  <span class="flex items-center gap-1.5"><i-lucide aria-hidden="true" name="droplet" class="w-4 h-4"></i-lucide> Generales</span>
                 </label>
               }
 
               @if (agenciaFormTieneEspeciales || isPulidor) {
-                <label 
-                  class="p-2.5 rounded-xl border cursor-pointer flex items-center gap-2 text-xs font-bold transition-all"
+                <label
+                  class="p-2.5 rounded-xl border cursor-pointer flex items-center gap-2 text-xs font-bold transition-shadow has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-easydry-blue"
                   [ngClass]="nuevoRegistro.categoriaServicio === 'ESPECIAL' ? 'bg-amber-600 text-white border-amber-600 shadow-xs' : 'bg-white text-slate-700 hover:border-slate-300'">
-                  <input type="radio" [(ngModel)]="nuevoRegistro.categoriaServicio" name="catRadio" value="ESPECIAL" (change)="onCategoriaChange()" class="hidden">
-                  <span class="flex items-center gap-1.5"><i-lucide name="star" class="w-4 h-4"></i-lucide> Especiales</span>
+                  <input type="radio" [(ngModel)]="nuevoRegistro.categoriaServicio" name="catRadio" value="ESPECIAL" (change)="onCategoriaChange()" class="sr-only">
+                  <span class="flex items-center gap-1.5"><i-lucide aria-hidden="true" name="star" class="w-4 h-4"></i-lucide> Especiales</span>
                 </label>
               }
             </div>
@@ -1187,20 +1344,20 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
                   <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider">
                     {{ agregarServicioOTFuente ? 'Servicios a agregar *' : 'Servicios *' }}
                   </label>
-                  <span class="text-[10px] font-bold text-easydry-blue">
+                  <span class="text-xs font-bold text-easydry-blue">
                     {{ serviciosSeleccionadosIds.length }} seleccionado(s)
                   </span>
                 </div>
-                <p class="text-[10px] text-slate-500 mb-2">Puedes marcar uno o más servicios: cada uno se registrará como una fila con la misma OT.</p>
+                <p class="text-xs text-slate-500 mb-2">Puedes marcar uno o más servicios: cada uno se registrará como una fila con la misma OT.</p>
                 @if (opcionesServicios.length === 0) {
-                  <p class="text-xs text-slate-400 italic">
+                  <p class="text-xs text-slate-500 italic">
                     {{ agregarServicioOTFuente ? 'Esta OT ya tiene todos los servicios generales disponibles en la agencia.' : 'No hay servicios generales asignados a esta agencia.' }}
                   </p>
                 } @else {
                   <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     @for (s of opcionesServicios; track s.id) {
                       <label
-                        class="p-2.5 rounded-xl border cursor-pointer flex items-center gap-2 text-xs font-bold transition-all"
+                        class="p-2.5 rounded-xl border cursor-pointer flex items-center gap-2 text-xs font-bold transition-shadow"
                         [ngClass]="isServicioSeleccionado(s.id) ? 'bg-easydry-blue/10 border-easydry-blue text-easydry-blue' : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'">
                         <input
                           type="checkbox"
@@ -1209,7 +1366,7 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
                           class="w-4 h-4 accent-easydry-blue shrink-0">
                         <span class="flex-1">{{ s.nombre }}</span>
                         @if (s.tiempoEstimadoMin) {
-                          <span class="text-[10px] font-mono text-slate-400">{{ s.tiempoEstimadoMin }} min</span>
+                          <span class="text-xs font-mono text-slate-500">{{ s.tiempoEstimadoMin }} min</span>
                         }
                       </label>
                     }
@@ -1218,8 +1375,8 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
               </div>
             } @else {
               <div>
-                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Servicio Específico *</label>
-                <select [(ngModel)]="nuevoRegistro.servicio" name="servicio" (change)="onServicioSelect()" class="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:border-easydry-blue focus:ring-easydry-blue">
+                <label for="srv-f8" class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Servicio Específico *</label>
+                <select id="srv-f8" [(ngModel)]="nuevoRegistro.servicio" name="servicio" (change)="onServicioSelect()" class="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:border-easydry-blue focus:ring-easydry-blue">
                   @for (s of opcionesServicios; track s.id) {
                     <option [value]="s.nombre">{{ s.nombre }}</option>
                   }
@@ -1232,44 +1389,44 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
           <div class="p-4 bg-slate-50/80 rounded-2xl border border-slate-200 space-y-3">
             <div class="flex items-center justify-between">
               <label class="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                <i-lucide name="boxes" class="w-4 h-4 text-easydry-blue"></i-lucide>
+                <i-lucide aria-hidden="true" name="boxes" class="w-4 h-4 text-easydry-blue"></i-lucide>
                 Insumos a Consumir en este Servicio
               </label>
-              <span class="text-[10px] text-slate-500 font-semibold bg-white px-2 py-0.5 rounded border border-slate-200">
+              <span class="text-xs text-slate-500 font-semibold bg-white px-2 py-0.5 rounded border border-slate-200">
                 Descuento automático de: {{ nuevoRegistro.agencia }}
               </span>
             </div>
-            <p class="text-[10px] text-slate-500">
+            <p class="text-xs text-slate-500">
               Cantidades fijas según la receta del servicio. Para cambiarlas, edita el servicio en Catálogo de Servicios.
             </p>
 
             @if (insumosConsumoForm.length === 0) {
-              <p class="text-xs text-slate-400 italic">No hay insumos asignados a la receta de este servicio.</p>
+              <p class="text-xs text-slate-500 italic">No hay insumos asignados a la receta de este servicio.</p>
             } @else {
               <div class="space-y-2">
                 @for (ins of insumosConsumoForm; track ins.productoId; let idx = $index) {
                   @let stockDisp = getStockDisponible(ins.productoId, ins.productoSKU);
                   @let faltaStock = stockDisp < ins.cantidad;
-                  <div 
-                    class="p-2.5 rounded-xl border flex items-center justify-between gap-3 shadow-2xs transition-all"
+                  <div
+                    class="p-2.5 rounded-xl border flex items-center justify-between gap-3 shadow-2xs transition-shadow"
                     [ngClass]="faltaStock ? 'bg-rose-50/90 border-2 border-rose-400 ring-2 ring-rose-400/20' : 'bg-white border-slate-200'">
                     <div class="overflow-hidden flex-1">
                       <div class="flex items-center gap-1.5">
                         @if (faltaStock) {
-                          <i-lucide name="alert-triangle" class="w-3.5 h-3.5 text-rose-600 shrink-0"></i-lucide>
+                          <i-lucide aria-hidden="true" name="alert-triangle" class="w-3.5 h-3.5 text-rose-600 shrink-0"></i-lucide>
                         }
                         <p class="font-bold text-xs truncate" [ngClass]="faltaStock ? 'text-rose-950 font-extrabold' : 'text-slate-900'">{{ ins.productoNombre }}</p>
                       </div>
-                      <div class="flex items-center gap-2 text-[10px] text-slate-500 flex-wrap mt-0.5">
-                        <span class="font-mono bg-slate-100 px-1 py-0.2 rounded">{{ ins.productoSKU }}</span>
+                      <div class="flex items-center gap-2 text-xs text-slate-500 flex-wrap mt-0.5">
+                        <span class="font-mono bg-slate-100 px-1 py-0.5 rounded">{{ ins.productoSKU }}</span>
                         <span>•</span>
                         <span [class.text-rose-700]="faltaStock" [class.font-extrabold]="faltaStock" [class.text-easydry-blue]="!faltaStock" class="font-semibold">
                           Stock en {{ nuevoRegistro.agencia }}: {{ stockDisp }} {{ ins.unidadMedida }}
                         </span>
                         @if (stockDisp <= 0) {
-                          <span class="px-1.5 py-0.5 rounded-full bg-rose-600 text-white font-black text-[9px] uppercase tracking-wider animate-pulse">¡Agotado en Agencia!</span>
+                          <span class="px-1.5 py-0.5 rounded-full bg-rose-600 text-white font-extrabold text-[11px] uppercase tracking-wider">¡Agotado en Agencia!</span>
                         } @else if (faltaStock) {
-                          <span class="px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-300 font-extrabold text-[9px]">¡Stock Insuficiente (Faltan {{ (ins.cantidad - stockDisp).toFixed(1) }} {{ ins.unidadMedida }})!</span>
+                          <span class="px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-300 font-extrabold text-xs">¡Stock Insuficiente (Faltan {{ (ins.cantidad - stockDisp).toFixed(1) }} {{ ins.unidadMedida }})!</span>
                         }
                       </div>
                     </div>
@@ -1279,7 +1436,7 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
                         [ngClass]="faltaStock ? 'bg-rose-100 text-rose-900 border border-rose-300' : 'bg-indigo-50 text-indigo-700 border border-indigo-200'">
                         {{ ins.cantidad }} {{ ins.unidadMedida }}
                       </span>
-                      <p class="text-[9px] font-semibold mt-0.5" [ngClass]="faltaStock ? 'text-rose-600 font-bold' : 'text-slate-400'">{{ faltaStock ? 'Sin existencias' : 'Receta fija' }}</p>
+                      <p class="text-xs font-semibold mt-0.5" [ngClass]="faltaStock ? 'text-rose-600 font-bold' : 'text-slate-500'">{{ faltaStock ? 'Sin existencias' : 'Receta fija' }}</p>
                     </div>
                   </div>
                 }
@@ -1288,10 +1445,10 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
 
             @if (tieneInsumosSinStock) {
               <div class="p-3 bg-rose-50 border border-rose-300 rounded-xl flex items-start gap-2.5 text-rose-900 text-xs shadow-2xs">
-                <i-lucide name="alert-triangle" class="w-4 h-4 text-rose-600 mt-0.5 shrink-0"></i-lucide>
+                <i-lucide aria-hidden="true" name="alert-triangle" class="w-4 h-4 text-rose-600 mt-0.5 shrink-0"></i-lucide>
                 <div>
                   <p class="font-bold">No se puede iniciar el servicio: Stock Insuficiente</p>
-                  <p class="text-[11px] text-rose-700 mt-0.5 leading-relaxed">
+                  <p class="text-xs text-rose-700 mt-0.5 leading-relaxed">
                     No hay existencias suficientes de uno o más suministros en esta agencia. Para realizar este servicio se requiere solicitar y recibir suministros desde Bodega Central.
                   </p>
                 </div>
@@ -1316,22 +1473,22 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
 
         </form>
 
-        <div modal-footer class="flex flex-col-reverse sm:flex-row gap-2 w-full sm:w-auto">
-          <button (click)="agregarServicioOTFuente = null; modalNuevoRegistroOpen = false" [disabled]="guardandoServicio" class="w-full sm:w-auto px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs flex justify-center disabled:opacity-50">Cancelar</button>
-          <button 
-            (click)="guardarHojaServicio()" 
-            [disabled]="tieneInsumosSinStock || !!bahiaOcupadaActual || guardandoServicio || (esSeleccionMultipleServicios && serviciosSeleccionadosIds.length === 0)"
-            [class.opacity-50]="tieneInsumosSinStock || !!bahiaOcupadaActual || guardandoServicio || (esSeleccionMultipleServicios && serviciosSeleccionadosIds.length === 0)"
-            [class.cursor-not-allowed]="tieneInsumosSinStock || !!bahiaOcupadaActual || guardandoServicio || (esSeleccionMultipleServicios && serviciosSeleccionadosIds.length === 0)"
+        <div modal-footer class="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 w-full">
+          <button (click)="agregarServicioOTFuente = null; modalNuevoRegistroOpen = false" [disabled]="guardandoServicio" class="btn-secondary w-full sm:w-auto disabled:opacity-50">Cancelar</button>
+          <button
+            (click)="guardarHojaServicio()"
+            [disabled]="tieneInsumosSinStock || guardandoServicio || (esSeleccionMultipleServicios && serviciosSeleccionadosIds.length === 0)"
+            [class.opacity-50]="tieneInsumosSinStock || guardandoServicio || (esSeleccionMultipleServicios && serviciosSeleccionadosIds.length === 0)"
+            [class.cursor-not-allowed]="tieneInsumosSinStock || guardandoServicio || (esSeleccionMultipleServicios && serviciosSeleccionadosIds.length === 0)"
             class="w-full sm:w-auto px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs flex justify-center items-center gap-1.5 transition-all cursor-pointer">
-            <i-lucide *ngIf="guardandoServicio" name="loader" class="w-4 h-4 animate-spin"></i-lucide>
+            <i-lucide aria-hidden="true" *ngIf="guardandoServicio" name="loader" class="w-4 h-4 animate-spin"></i-lucide>
             <span>{{ guardandoServicio ? 'Guardando...' : agregarServicioOTFuente ? '+ Agregar Servicio a OT' : 'Guardar e Iniciar Servicio' }}</span>
           </button>
         </div>
       </app-modal>
 
       <!-- Modal Finalizar Servicio de Lavado General (Vídeo de Salida con Cámara) -->
-      <app-modal
+      <app-modal size="md"
         [isOpen]="modalFinalizarServicioOpen"
         [title]="tituloModalFinalizar"
         icon="check-circle-2"
@@ -1362,8 +1519,8 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
             </app-video-recorder>
 
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Observaciones de Entrega (Opcional)</label>
-              <input
+              <label for="srv-f9" class="block text-xs font-bold text-slate-700 uppercase mb-1">Observaciones de Entrega (Opcional)</label>
+              <input id="srv-f9"
                 type="text"
                 [(ngModel)]="observacionesSalidaInput"
                 placeholder="Ej. Servicio concluido, aspirado y secado verificado..."
@@ -1372,34 +1529,35 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
           </div>
         }
 
-        <div modal-footer class="flex items-center justify-end gap-2 w-full">
-          <button (click)="cerrarModalFinalizarServicio()" [disabled]="finalizandoServicio" class="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs disabled:opacity-50">Cancelar</button>
+        <div modal-footer class="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 w-full">
+          <button (click)="cerrarModalFinalizarServicio()" [disabled]="finalizandoServicio" class="btn-secondary w-full sm:w-auto disabled:opacity-50">Cancelar</button>
           <button
             (click)="confirmarFinalizarServicio()"
             [disabled]="finalizandoServicio"
-            class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-50">
-            <i-lucide *ngIf="finalizandoServicio" name="loader" class="w-3.5 h-3.5 animate-spin"></i-lucide>
-            <i-lucide *ngIf="!finalizandoServicio" name="check-circle-2" class="w-3.5 h-3.5"></i-lucide>
+            class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-xl text-xs inline-flex items-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-50 w-full sm:w-auto justify-center">
+            <i-lucide aria-hidden="true" *ngIf="finalizandoServicio" name="loader" class="w-3.5 h-3.5 animate-spin"></i-lucide>
+            <i-lucide aria-hidden="true" *ngIf="!finalizandoServicio" name="check-circle-2" class="w-3.5 h-3.5"></i-lucide>
             <span>{{ finalizandoServicio ? 'Finalizando...' : 'Confirmar y Finalizar Servicio' }}</span>
           </button>
         </div>
       </app-modal>
 
       <!-- Modal Reproductor de Vídeo Evidencia -->
-      <app-modal 
-        [isOpen]="modalVideoOpen" 
-        [title]="'Evidencia en Vídeo: ' + (servicioSeleccionado?.placa || '')" 
+      <app-modal size="lg"
+        [isOpen]="modalVideoOpen"
+        [title]="'Evidencia en Vídeo: ' + (servicioSeleccionado?.placa || '')"
         icon="film"
         (close)="modalVideoOpen = false">
-        
+
         @if (servicioSeleccionado) {
           <div class="space-y-4">
             <div class="aspect-video bg-black rounded-2xl overflow-hidden shadow-inner flex items-center justify-center">
               @if (servicioSeleccionado.videoUrl || servicioSeleccionado.video || servicioSeleccionado.fotoIngresoUrl || servicioSeleccionado.fotoSalidaUrl) {
-                <video 
-                  [src]="storageUploadService.resolveBackendUrl(servicioSeleccionado.videoUrl || servicioSeleccionado.video || servicioSeleccionado.fotoIngresoUrl || servicioSeleccionado.fotoSalidaUrl)" 
-                  controls 
-                  autoplay 
+                <video
+                  aria-label="Vídeo de evidencia del servicio"
+                  [src]="videoEvidenciaUrl"
+                  controls
+                  autoplay
                   class="w-full h-full object-contain">
                 </video>
               } @else {
@@ -1415,11 +1573,11 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
         }
 
         <div modal-footer class="w-full sm:w-auto">
-          <button (click)="modalVideoOpen = false" class="w-full sm:w-auto px-4 py-2 bg-slate-200 text-slate-800 font-bold rounded-xl text-xs flex justify-center">Cerrar Vídeo</button>
+          <button (click)="modalVideoOpen = false" class="btn-secondary w-full sm:w-auto">Cerrar Vídeo</button>
         </div>
       </app-modal>
 
-      <app-modal
+      <app-modal size="md"
         [isOpen]="modalReportarFallaOpen"
         title="Reportar Desperfecto o Falla de Maquinaria"
         icon="alert-triangle"
@@ -1440,16 +1598,16 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
             </p>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
-                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Equipo Afectado</label>
-                <select [(ngModel)]="maquinaSeleccionadaId" name="maquinaFalla" class="w-full p-2.5 border rounded-xl text-xs font-bold" required>
+                <label for="srv-f10" class="block text-xs font-bold text-slate-700 uppercase mb-1">Equipo Afectado</label>
+                <select id="srv-f10" [(ngModel)]="maquinaSeleccionadaId" name="maquinaFalla" class="w-full p-2.5 border rounded-xl text-xs font-bold" required>
                   @for (m of maquinasReporte; track m.id) {
                     <option [ngValue]="m.id">{{ m.codigo }} — {{ m.nombre }}</option>
                   }
                 </select>
               </div>
               <div>
-                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Tipo de Falla</label>
-                <select [(ngModel)]="nuevoIncidente.tipo" name="tipoFalla" class="w-full p-2.5 border rounded-xl text-xs font-bold">
+                <label for="srv-f11" class="block text-xs font-bold text-slate-700 uppercase mb-1">Tipo de Falla</label>
+                <select id="srv-f11" [(ngModel)]="nuevoIncidente.tipo" name="tipoFalla" class="w-full p-2.5 border rounded-xl text-xs font-bold">
                   @for (tipo of tiposFallaDisponibles; track tipo) {
                     <option [value]="tipo">{{ tipo }}</option>
                   }
@@ -1457,8 +1615,8 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
               </div>
             </div>
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Descripción del Problema</label>
-              <textarea
+              <label for="srv-f12" class="block text-xs font-bold text-slate-700 uppercase mb-1">Descripción del Problema</label>
+              <textarea id="srv-f12"
                 [(ngModel)]="nuevoIncidente.descripcion"
                 name="descripcionFalla"
                 placeholder="Describa ruidos, sobrecalentamiento, pads desgastados u otros síntomas..."
@@ -1467,31 +1625,31 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
                 required>
               </textarea>
             </div>
-            <!-- Evidencia obligatoria: 1+ foto/video y exactamente 1 PDF (se sube por ticket firmado) -->
+            <!-- Evidencia obligatoria: 1+ foto/video (PDF opcional al reportar; se sube por ticket firmado) -->
             <app-evidencia-selector #selFalla
               contexto="INCIDENTE" fase="reporte"
               [maquinariaCodigo]="codigoMaquinaSeleccionada" [clientUuid]="clientUuidFalla"
-              [exigirCompleta]="true">
+              [requiereMultimedia]="true" [requiereDocumento]="false">
             </app-evidencia-selector>
             @if (errorFalla) {
-              <div class="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs font-semibold text-rose-700">{{ errorFalla }}</div>
+              <div role="alert" class="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs font-semibold text-rose-700">{{ errorFalla }}</div>
             }
           }
         </form>
 
-        <div modal-footer>
-          <button (click)="modalReportarFallaOpen = false" class="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs">Cancelar</button>
+        <div modal-footer class="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 w-full">
+          <button (click)="modalReportarFallaOpen = false" class="btn-secondary w-full sm:w-auto">Cancelar</button>
           <button
             (click)="guardarReporteFalla()"
             [disabled]="maquinasReporte.length === 0"
-            class="px-4 py-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-bold rounded-xl text-xs">
+            class="px-4 py-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-bold rounded-xl text-xs w-full sm:w-auto justify-center">
             Enviar Reporte
           </button>
         </div>
       </app-modal>
 
       <!-- Modal Iniciar Servicio Especial (Obligatorio Vídeo Inicial) -->
-      <app-modal
+      <app-modal size="md"
         [isOpen]="modalIniciarServicioEspecialOpen"
         [title]="'Iniciar Servicio Especial: ' + (servicioEspecialSeleccionado?.codigoSE || '')"
         icon="play"
@@ -1523,21 +1681,21 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
           </div>
         }
 
-        <div modal-footer class="flex items-center justify-end gap-2 w-full">
-          <button (click)="modalIniciarServicioEspecialOpen = false" [disabled]="iniciandoEspecial" class="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs disabled:opacity-50">Cancelar</button>
+        <div modal-footer class="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 w-full">
+          <button (click)="modalIniciarServicioEspecialOpen = false" [disabled]="iniciandoEspecial" class="btn-secondary w-full sm:w-auto disabled:opacity-50">Cancelar</button>
           <button
             (click)="confirmarIniciarEspecial()"
             [disabled]="iniciandoEspecial || (!videoInicialInput && !videoInicialRecorder?.hasPendingUpload)"
-            class="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-extrabold rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-xs disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer">
-            <i-lucide *ngIf="iniciandoEspecial" name="loader" class="w-3.5 h-3.5 animate-spin"></i-lucide>
-            <i-lucide *ngIf="!iniciandoEspecial" name="play" class="w-3.5 h-3.5"></i-lucide>
+            class="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-extrabold rounded-xl text-xs inline-flex items-center gap-1.5 transition-all shadow-xs disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer w-full sm:w-auto justify-center">
+            <i-lucide aria-hidden="true" *ngIf="iniciandoEspecial" name="loader" class="w-3.5 h-3.5 animate-spin"></i-lucide>
+            <i-lucide aria-hidden="true" *ngIf="!iniciandoEspecial" name="play" class="w-3.5 h-3.5"></i-lucide>
             <span>{{ iniciandoEspecial ? 'Iniciando Trabajo...' : 'Iniciar Trabajo' }}</span>
           </button>
         </div>
       </app-modal>
 
       <!-- Modal Finalizar Servicio Especial (Obligatorio Vídeo Final + Descuento Químicos) -->
-      <app-modal
+      <app-modal size="md"
         [isOpen]="modalFinalizarServicioEspecialOpen"
         [title]="'Finalizar Servicio Especial: ' + (servicioEspecialSeleccionado?.codigoSE || '')"
         icon="check-circle"
@@ -1558,14 +1716,14 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
             @if (servicioEspecialSeleccionado.insumosReceta && servicioEspecialSeleccionado.insumosReceta.length > 0) {
               <div class="p-3 bg-blue-50/70 rounded-xl border border-blue-200 text-xs space-y-1.5">
                 <p class="font-bold text-blue-950 flex items-center gap-1.5">
-                  <i-lucide name="boxes" class="w-4 h-4 text-blue-600"></i-lucide>
+                  <i-lucide aria-hidden="true" name="boxes" class="w-4 h-4 text-blue-600"></i-lucide>
                   <span>Deducción de Insumos de tu Custodia:</span>
                 </p>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1">
                   @for (ins of servicioEspecialSeleccionado.insumosReceta; track ins.productoId) {
-                    <div class="p-2 bg-white rounded-lg border border-blue-100 flex items-center justify-between text-[11px]">
+                    <div class="p-2 bg-white rounded-lg border border-blue-100 flex items-center justify-between text-xs">
                       <span class="font-bold text-slate-800">{{ ins.productoNombre }}</span>
-                      <span class="font-mono font-black text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded">{{ ins.cantidadSugerida }} {{ ins.unidadMedida }}</span>
+                      <span class="font-mono font-extrabold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded">{{ ins.cantidadSugerida }} {{ ins.unidadMedida }}</span>
                     </div>
                   }
                 </div>
@@ -1586,8 +1744,8 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
             </app-video-recorder>
 
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Observaciones / Notas</label>
-              <input
+              <label for="srv-f13" class="block text-xs font-bold text-slate-700 uppercase mb-1">Observaciones / Notas</label>
+              <input id="srv-f13"
                 type="text"
                 [(ngModel)]="notasFinalizacionInput"
                 placeholder="Ej. Pulido de 3 pasos finalizado sin novedades..."
@@ -1596,21 +1754,21 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
           </div>
         }
 
-        <div modal-footer class="flex items-center justify-end gap-2 w-full">
-          <button (click)="modalFinalizarServicioEspecialOpen = false" [disabled]="finalizandoEspecial" class="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs disabled:opacity-50">Cancelar</button>
+        <div modal-footer class="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 w-full">
+          <button (click)="modalFinalizarServicioEspecialOpen = false" [disabled]="finalizandoEspecial" class="btn-secondary w-full sm:w-auto disabled:opacity-50">Cancelar</button>
           <button
             (click)="confirmarFinalizarEspecial()"
             [disabled]="finalizandoEspecial"
-            class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-xs disabled:opacity-50 cursor-pointer">
-            <i-lucide *ngIf="finalizandoEspecial" name="loader" class="w-3.5 h-3.5 animate-spin"></i-lucide>
-            <i-lucide *ngIf="!finalizandoEspecial" name="check-circle" class="w-3.5 h-3.5"></i-lucide>
+            class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-xl text-xs inline-flex items-center gap-1.5 transition-all shadow-xs disabled:opacity-50 cursor-pointer w-full sm:w-auto justify-center">
+            <i-lucide aria-hidden="true" *ngIf="finalizandoEspecial" name="loader" class="w-3.5 h-3.5 animate-spin"></i-lucide>
+            <i-lucide aria-hidden="true" *ngIf="!finalizandoEspecial" name="check-circle" class="w-3.5 h-3.5"></i-lucide>
             <span>{{ finalizandoEspecial ? 'Finalizando...' : 'Finalizar y Descontar Químicos' }}</span>
           </button>
         </div>
       </app-modal>
 
       <!-- Modal Pausar Servicio Especial (Motivo + Vídeo Obligatorio) -->
-      <app-modal
+      <app-modal size="md"
         [isOpen]="modalPausarServicioEspecialOpen"
         [title]="'Pausar Servicio Especial: ' + (servicioEspecialSeleccionado?.codigoSE || '')"
         icon="pause"
@@ -1628,8 +1786,8 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
             </div>
 
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Motivo de la Pausa *</label>
-              <select
+              <label for="srv-f14" class="block text-xs font-bold text-slate-700 uppercase mb-1">Motivo de la Pausa *</label>
+              <select id="srv-f14"
                 [(ngModel)]="motivoPausaInput"
                 class="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-amber-500">
                 <option value="Pausa para almuerzo / descanso reglamentario">Pausa para almuerzo / descanso reglamentario</option>
@@ -1642,8 +1800,8 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
             </div>
 
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Detalle o Justificación Adicional</label>
-              <textarea
+              <label for="srv-f15" class="block text-xs font-bold text-slate-700 uppercase mb-1">Detalle o Justificación Adicional</label>
+              <textarea id="srv-f15"
                 [(ngModel)]="motivoPausaDetalleInput"
                 rows="2"
                 placeholder="Explica brevemente la razón de la pausa..."
@@ -1666,21 +1824,21 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
           </div>
         }
 
-        <div modal-footer class="flex items-center justify-end gap-2 w-full">
-          <button (click)="modalPausarServicioEspecialOpen = false" [disabled]="pausandoEspecial" class="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs disabled:opacity-50">Cancelar</button>
+        <div modal-footer class="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 w-full">
+          <button (click)="modalPausarServicioEspecialOpen = false" [disabled]="pausandoEspecial" class="btn-secondary w-full sm:w-auto disabled:opacity-50">Cancelar</button>
           <button
             (click)="confirmarPausarEspecial()"
             [disabled]="pausandoEspecial"
-            class="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-extrabold rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-xs disabled:opacity-50 cursor-pointer">
-            <i-lucide *ngIf="pausandoEspecial" name="loader" class="w-3.5 h-3.5 animate-spin"></i-lucide>
-            <i-lucide *ngIf="!pausandoEspecial" name="pause" class="w-3.5 h-3.5"></i-lucide>
+            class="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-extrabold rounded-xl text-xs inline-flex items-center gap-1.5 transition-all shadow-xs disabled:opacity-50 cursor-pointer w-full sm:w-auto justify-center">
+            <i-lucide aria-hidden="true" *ngIf="pausandoEspecial" name="loader" class="w-3.5 h-3.5 animate-spin"></i-lucide>
+            <i-lucide aria-hidden="true" *ngIf="!pausandoEspecial" name="pause" class="w-3.5 h-3.5"></i-lucide>
             <span>{{ pausandoEspecial ? 'Pausando...' : 'Pausar Servicio' }}</span>
           </button>
         </div>
       </app-modal>
 
       <!-- Modal Reanudar Servicio Especial (Vídeo Obligatorio) -->
-      <app-modal
+      <app-modal size="md"
         [isOpen]="modalReanudarEspecialOpen"
         [title]="'Reanudar Servicio Especial: ' + (servicioEspecialSeleccionado?.codigoSE || '')"
         icon="play"
@@ -1696,8 +1854,8 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
                 Servicio: <strong>{{ servicioEspecialSeleccionado.servicioNombre }}</strong> • Pulidor: <strong>{{ servicioEspecialSeleccionado.operadorNombre }}</strong>
               </p>
               @if (servicioEspecialSeleccionado.motivoUltimaPausa) {
-                <p class="text-[11px] text-amber-800 font-bold mt-1 inline-flex items-center gap-1">
-                  <i-lucide name="pause-circle" class="w-3.5 h-3.5"></i-lucide>
+                <p class="text-xs text-amber-800 font-bold mt-1 inline-flex items-center gap-1">
+                  <i-lucide aria-hidden="true" name="pause-circle" class="w-3.5 h-3.5"></i-lucide>
                   <span>Motivo de pausa: {{ servicioEspecialSeleccionado.motivoUltimaPausa }}</span>
                 </p>
               }
@@ -1717,8 +1875,8 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
             </app-video-recorder>
 
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Observaciones de Reanudación</label>
-              <input
+              <label for="srv-f16" class="block text-xs font-bold text-slate-700 uppercase mb-1">Observaciones de Reanudación</label>
+              <input id="srv-f16"
                 type="text"
                 [(ngModel)]="observacionesReanudarInput"
                 placeholder="Ej. Se retoma pulido tras descanso..."
@@ -1727,21 +1885,21 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
           </div>
         }
 
-        <div modal-footer class="flex items-center justify-end gap-2 w-full">
-          <button (click)="modalReanudarEspecialOpen = false" [disabled]="reanudandoEspecial" class="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs disabled:opacity-50">Cancelar</button>
+        <div modal-footer class="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 w-full">
+          <button (click)="modalReanudarEspecialOpen = false" [disabled]="reanudandoEspecial" class="btn-secondary w-full sm:w-auto disabled:opacity-50">Cancelar</button>
           <button
             (click)="confirmarReanudarEspecial()"
             [disabled]="reanudandoEspecial"
-            class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-extrabold rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-xs disabled:opacity-50 cursor-pointer">
-            <i-lucide *ngIf="reanudandoEspecial" name="loader" class="w-3.5 h-3.5 animate-spin"></i-lucide>
-            <i-lucide *ngIf="!reanudandoEspecial" name="play" class="w-3.5 h-3.5"></i-lucide>
+            class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-extrabold rounded-xl text-xs inline-flex items-center gap-1.5 transition-all shadow-xs disabled:opacity-50 cursor-pointer w-full sm:w-auto justify-center">
+            <i-lucide aria-hidden="true" *ngIf="reanudandoEspecial" name="loader" class="w-3.5 h-3.5 animate-spin"></i-lucide>
+            <i-lucide aria-hidden="true" *ngIf="!reanudandoEspecial" name="play" class="w-3.5 h-3.5"></i-lucide>
             <span>{{ reanudandoEspecial ? 'Reanudando...' : 'Reanudar Servicio' }}</span>
           </button>
         </div>
       </app-modal>
 
       <!-- Modal Detalle Servicio Especial -->
-      <app-modal
+      <app-modal size="xl"
         [isOpen]="modalDetalleEspecialOpen"
         [title]="'Detalle Especial: ' + (servicioEspecialSeleccionado?.codigoSE || '')"
         icon="star"
@@ -1751,33 +1909,33 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
           <div class="space-y-4 text-xs">
             <div class="grid grid-cols-2 gap-3">
               <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                <span class="block text-[10px] text-slate-400 font-bold uppercase mb-1">Nº OT</span>
-                <span class="font-mono font-black text-amber-800">{{ servicioEspecialSeleccionado.ordenTrabajoOT || servicioEspecialSeleccionado.codigoSE }}</span>
+                <span class="block text-[11px] text-slate-500 font-bold uppercase mb-1">Nº OT</span>
+                <span class="font-mono font-extrabold text-amber-800">{{ servicioEspecialSeleccionado.ordenTrabajoOT || servicioEspecialSeleccionado.codigoSE }}</span>
               </div>
               <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                <span class="block text-[10px] text-slate-400 font-bold uppercase mb-1">Región</span>
+                <span class="block text-[11px] text-slate-500 font-bold uppercase mb-1">Región</span>
                 <span class="font-bold text-slate-800">{{ servicioEspecialSeleccionado.regionNombre || userRegionNombre }}</span>
               </div>
             </div>
 
             <div class="p-3.5 bg-amber-50/60 rounded-xl border border-amber-200/80">
-              <span class="block text-[10px] text-amber-800 font-bold uppercase mb-0.5">Vehículo Asignado</span>
+              <span class="block text-[11px] text-amber-800 font-bold uppercase mb-0.5">Vehículo Asignado</span>
               <p class="font-extrabold text-slate-900 text-sm">
                 {{ servicioEspecialSeleccionado.vehiculoInfo?.marca }} {{ servicioEspecialSeleccionado.vehiculoInfo?.modelo }}
               </p>
-              <p class="font-mono font-black text-easydry-blue text-xs mt-0.5">
+              <p class="font-mono font-extrabold text-easydry-blue text-xs mt-0.5">
                 Placa: {{ servicioEspecialSeleccionado.vehiculoInfo?.placa || servicioEspecialSeleccionado.placa }} • Color: {{ servicioEspecialSeleccionado.vehiculoInfo?.color }}
               </p>
             </div>
 
             <div class="p-3 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between">
               <div>
-                <span class="block text-[10px] text-slate-400 font-bold uppercase mb-0.5">Pulidor Responsable</span>
+                <span class="block text-[11px] text-slate-500 font-bold uppercase mb-0.5">Pulidor Responsable</span>
                 <span class="font-bold text-slate-800">{{ servicioEspecialSeleccionado.operadorNombre }}</span>
               </div>
               <div class="text-right">
-                <span class="block text-[10px] text-slate-400 font-bold uppercase mb-0.5">Estado</span>
-                <span class="px-2.5 py-1 rounded-full text-xs font-black inline-block" [ngClass]="estadoExtraClass(servicioEspecialSeleccionado.estado)">
+                <span class="block text-[11px] text-slate-500 font-bold uppercase mb-0.5">Estado</span>
+                <span class="px-2.5 py-1 rounded-full text-xs font-extrabold inline-block" [ngClass]="estadoExtraClass(servicioEspecialSeleccionado.estado)">
                   {{ servicioEspecialSeleccionado.estado }}
                 </span>
               </div>
@@ -1786,18 +1944,18 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
             <!-- Fechas y horas: creación, inicio y fin -->
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                <span class="block text-[10px] text-slate-400 font-bold uppercase mb-0.5">Creada</span>
+                <span class="block text-[11px] text-slate-500 font-bold uppercase mb-0.5">Creada</span>
                 <span class="font-mono font-bold text-slate-800 text-xs">{{ servicioEspecialSeleccionado.createdAt ? (servicioEspecialSeleccionado.createdAt | date:'dd/MM/yyyy HH:mm') : '-' }}</span>
                 @if (servicioEspecialSeleccionado.creadoPorNombre) {
-                  <p class="text-[10px] text-slate-500 mt-0.5">Por: {{ servicioEspecialSeleccionado.creadoPorNombre }}</p>
+                  <p class="text-xs text-slate-500 mt-0.5">Por: {{ servicioEspecialSeleccionado.creadoPorNombre }}</p>
                 }
               </div>
               <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                <span class="block text-[10px] text-slate-400 font-bold uppercase mb-0.5">Inicio del servicio</span>
+                <span class="block text-[11px] text-slate-500 font-bold uppercase mb-0.5">Inicio del servicio</span>
                 <span class="font-mono font-bold text-slate-800 text-xs">{{ servicioEspecialSeleccionado.fechaInicio ? (servicioEspecialSeleccionado.fechaInicio | date:'dd/MM/yyyy HH:mm') : 'Aún no inicia' }}</span>
               </div>
               <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                <span class="block text-[10px] text-slate-400 font-bold uppercase mb-0.5">Fin del servicio</span>
+                <span class="block text-[11px] text-slate-500 font-bold uppercase mb-0.5">Fin del servicio</span>
                 <span class="font-mono font-bold text-slate-800 text-xs">{{ servicioEspecialSeleccionado.fechaFin ? (servicioEspecialSeleccionado.fechaFin | date:'dd/MM/yyyy HH:mm') : 'En curso / pendiente' }}</span>
               </div>
             </div>
@@ -1805,89 +1963,89 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
             <!-- Tiempos de Pausa, Efectivo y Total -->
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div class="p-3 bg-amber-50/60 rounded-xl border border-amber-200">
-                <span class="block text-[10px] text-amber-800 font-bold uppercase mb-0.5">Tiempo Pausado</span>
-                <span class="inline-flex items-center gap-1 font-mono font-black text-amber-900 text-xs">
-                  <i-lucide name="pause-circle" class="w-3.5 h-3.5"></i-lucide>
+                <span class="block text-[11px] text-amber-800 font-bold uppercase mb-0.5">Tiempo Pausado</span>
+                <span class="inline-flex items-center gap-1 font-mono font-extrabold text-amber-900 text-xs">
+                  <i-lucide aria-hidden="true" name="pause-circle" class="w-3.5 h-3.5"></i-lucide>
                   <span>{{ servicioEspecialSeleccionado.tiempoPausaFormateado || '0 min' }}</span>
                 </span>
                 @if (servicioEspecialSeleccionado.motivoUltimaPausa) {
-                  <p class="text-[10px] text-slate-500 mt-1 truncate" [title]="servicioEspecialSeleccionado.motivoUltimaPausa">
+                  <p class="text-xs text-slate-500 mt-1 truncate" [title]="servicioEspecialSeleccionado.motivoUltimaPausa">
                     {{ servicioEspecialSeleccionado.motivoUltimaPausa }}
                   </p>
                 }
               </div>
               <div class="p-3 bg-blue-50/60 rounded-xl border border-blue-200">
-                <span class="block text-[10px] text-blue-800 font-bold uppercase mb-0.5">Tiempo Efectivo (Neto)</span>
-                <span class="inline-flex items-center gap-1 font-mono font-black text-blue-900 text-xs">
-                  <i-lucide name="timer" class="w-3.5 h-3.5"></i-lucide>
+                <span class="block text-[11px] text-blue-800 font-bold uppercase mb-0.5">Tiempo Efectivo (Neto)</span>
+                <span class="inline-flex items-center gap-1 font-mono font-extrabold text-blue-900 text-xs">
+                  <i-lucide aria-hidden="true" name="timer" class="w-3.5 h-3.5"></i-lucide>
                   <span>{{ servicioEspecialSeleccionado.tiempoEfectivoFormateado || '0 min' }}</span>
                 </span>
               </div>
               <div class="p-3 bg-slate-100 rounded-xl border border-slate-300">
-                <span class="block text-[10px] text-slate-700 font-bold uppercase mb-0.5">Tiempo Total</span>
-                <span class="inline-flex items-center gap-1 font-mono font-black text-slate-900 text-xs">
-                  <i-lucide name="clock" class="w-3.5 h-3.5"></i-lucide>
+                <span class="block text-[11px] text-slate-700 font-bold uppercase mb-0.5">Tiempo Total</span>
+                <span class="inline-flex items-center gap-1 font-mono font-extrabold text-slate-900 text-xs">
+                  <i-lucide aria-hidden="true" name="clock" class="w-3.5 h-3.5"></i-lucide>
                   <span>{{ servicioEspecialSeleccionado.fechaInicio ? (servicioEspecialSeleccionado.tiempoTotalFormateado || '0 min') : '-' }}</span>
                 </span>
-                <p class="text-[10px] text-slate-500 mt-1">Pausa + efectivo</p>
+                <p class="text-xs text-slate-500 mt-1">Pausa + efectivo</p>
               </div>
             </div>
 
             <!-- Evidencias en Vídeo -->
             <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
               <div class="p-2.5 bg-slate-50 rounded-xl border border-slate-100 flex flex-col justify-between">
-                <span class="text-[10px] text-slate-400 font-bold uppercase mb-1">Vídeo Inicial</span>
+                <span class="text-[11px] text-slate-500 font-bold uppercase mb-1">Vídeo Inicial</span>
                 @if (servicioEspecialSeleccionado.videoInicialUrl || servicioEspecialSeleccionado.videoInicial) {
                   <button
                     (click)="verVideoGenerico(servicioEspecialSeleccionado.videoInicialUrl || servicioEspecialSeleccionado.videoInicial, 'Vídeo Inicial: ' + servicioEspecialSeleccionado.codigoSE)"
-                    class="px-2 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-bold text-[11px] flex items-center justify-center gap-1 shadow-2xs">
-                    <i-lucide name="play" class="w-3 h-3"></i-lucide>
+                    class="px-2 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1 shadow-2xs">
+                    <i-lucide aria-hidden="true" name="play" class="w-3 h-3"></i-lucide>
                     <span>Inicial</span>
                   </button>
                 } @else {
-                  <span class="text-[10px] text-slate-400 italic text-center py-1">-</span>
+                  <span class="text-xs text-slate-500 italic text-center py-1">-</span>
                 }
               </div>
 
               <div class="p-2.5 bg-slate-50 rounded-xl border border-slate-100 flex flex-col justify-between">
-                <span class="text-[10px] text-slate-400 font-bold uppercase mb-1">Vídeo Pausa</span>
+                <span class="text-[11px] text-slate-500 font-bold uppercase mb-1">Vídeo Pausa</span>
                 @if (servicioEspecialSeleccionado.videoPausa || servicioEspecialSeleccionado.videoUltimaPausaUrl) {
                   <button
                     (click)="verVideoGenerico(servicioEspecialSeleccionado.videoPausa || servicioEspecialSeleccionado.videoUltimaPausaUrl, 'Vídeo de Pausa: ' + servicioEspecialSeleccionado.codigoSE)"
-                    class="px-2 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-bold text-[11px] flex items-center justify-center gap-1 shadow-2xs">
-                    <i-lucide name="pause" class="w-3 h-3"></i-lucide>
+                    class="px-2 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1 shadow-2xs">
+                    <i-lucide aria-hidden="true" name="pause" class="w-3 h-3"></i-lucide>
                     <span>Pausa</span>
                   </button>
                 } @else {
-                  <span class="text-[10px] text-slate-400 italic text-center py-1">-</span>
+                  <span class="text-xs text-slate-500 italic text-center py-1">-</span>
                 }
               </div>
 
               <div class="p-2.5 bg-slate-50 rounded-xl border border-slate-100 flex flex-col justify-between">
-                <span class="text-[10px] text-slate-400 font-bold uppercase mb-1">Vídeo Reanudar</span>
+                <span class="text-[11px] text-slate-500 font-bold uppercase mb-1">Vídeo Reanudar</span>
                 @if (servicioEspecialSeleccionado.videoReanudacion || servicioEspecialSeleccionado.videoUltimaReanudacionUrl) {
                   <button
                     (click)="verVideoGenerico(servicioEspecialSeleccionado.videoReanudacion || servicioEspecialSeleccionado.videoUltimaReanudacionUrl, 'Vídeo Reanudación: ' + servicioEspecialSeleccionado.codigoSE)"
-                    class="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-[11px] flex items-center justify-center gap-1 shadow-2xs">
-                    <i-lucide name="play" class="w-3 h-3"></i-lucide>
+                    class="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1 shadow-2xs">
+                    <i-lucide aria-hidden="true" name="play" class="w-3 h-3"></i-lucide>
                     <span>Reanudar</span>
                   </button>
                 } @else {
-                  <span class="text-[10px] text-slate-400 italic text-center py-1">-</span>
+                  <span class="text-xs text-slate-500 italic text-center py-1">-</span>
                 }
               </div>
 
               <div class="p-2.5 bg-slate-50 rounded-xl border border-slate-100 flex flex-col justify-between">
-                <span class="text-[10px] text-slate-400 font-bold uppercase mb-1">Vídeo Final</span>
+                <span class="text-[11px] text-slate-500 font-bold uppercase mb-1">Vídeo Final</span>
                 @if (servicioEspecialSeleccionado.videoFinalUrl || servicioEspecialSeleccionado.videoFinal) {
                   <button
                     (click)="verVideoGenerico(servicioEspecialSeleccionado.videoFinalUrl || servicioEspecialSeleccionado.videoFinal, 'Vídeo Final: ' + servicioEspecialSeleccionado.codigoSE)"
-                    class="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-[11px] flex items-center justify-center gap-1 shadow-2xs">
-                    <i-lucide name="play" class="w-3 h-3"></i-lucide>
+                    class="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1 shadow-2xs">
+                    <i-lucide aria-hidden="true" name="play" class="w-3 h-3"></i-lucide>
                     <span>Final</span>
                   </button>
                 } @else {
-                  <span class="text-[10px] text-slate-400 italic text-center py-1">-</span>
+                  <span class="text-xs text-slate-500 italic text-center py-1">-</span>
                 }
               </div>
             </div>
@@ -1895,12 +2053,12 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
         }
 
         <div modal-footer class="w-full">
-          <button (click)="modalDetalleEspecialOpen = false" class="w-full px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs">Cerrar</button>
+          <button (click)="modalDetalleEspecialOpen = false" class="btn-secondary w-full sm:w-auto">Cerrar</button>
         </div>
       </app-modal>
 
       <!-- Modal Reproductor de Vídeo Genérico -->
-      <app-modal
+      <app-modal size="lg"
         [isOpen]="modalVideoGenericoOpen"
         [title]="videoGenericoTitulo"
         icon="film"
@@ -1911,6 +2069,7 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
           <div class="relative aspect-video bg-black rounded-2xl overflow-hidden shadow-inner flex items-center justify-center group">
             <video
               #modalVideoPlayer
+              aria-label="Reproductor de vídeo de evidencia"
               [src]="videoGenericoUrl"
               controls
               autoplay
@@ -1927,7 +2086,7 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
 
             <!-- Rueda de carga (Spinner) centrada sin texto -->
             @if (videoCargandoBuffer) {
-              <div class="absolute inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center pointer-events-none z-10 transition-all">
+              <div class="absolute inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center pointer-events-none z-10 transition-shadow">
                 <div class="w-10 h-10 border-4 border-easydry-green border-t-transparent rounded-full animate-spin"></div>
               </div>
             }
@@ -1935,12 +2094,12 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
         </div>
 
         <div modal-footer class="w-full sm:w-auto">
-          <button (click)="modalVideoGenericoOpen = false" class="w-full sm:w-auto px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold rounded-xl text-xs cursor-pointer transition-colors">Cerrar Reproductor</button>
+          <button (click)="modalVideoGenericoOpen = false" class="btn-secondary w-full sm:w-auto">Cerrar Reproductor</button>
         </div>
       </app-modal>
 
       <!-- Modal Historial de Evidencias de Pausas -->
-      <app-modal
+      <app-modal size="lg"
         [isOpen]="modalPausasDetalleOpen"
         [title]="'Evidencias de Pausas: ' + (servicioPausasSeleccionado?.codigoSE || '')"
         icon="pause-circle"
@@ -1958,31 +2117,31 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
                 </p>
               </div>
               <div class="text-right">
-                <span class="text-[10px] text-amber-800 font-bold uppercase block">Tiempo Pausado</span>
-                <span class="inline-flex items-center gap-1 font-mono font-black text-amber-950 text-xs">
-                  <i-lucide name="pause-circle" class="w-3.5 h-3.5"></i-lucide>
+                <span class="text-[11px] text-amber-800 font-bold uppercase block">Tiempo Pausado</span>
+                <span class="inline-flex items-center gap-1 font-mono font-extrabold text-amber-950 text-xs">
+                  <i-lucide aria-hidden="true" name="pause-circle" class="w-3.5 h-3.5"></i-lucide>
                   <span>{{ servicioPausasSeleccionado.tiempoPausaFormateado || '0 min' }}</span>
                 </span>
               </div>
             </div>
 
-            <div class="space-y-2.5 max-h-[60vh] overflow-y-auto pr-1">
+            <div class="space-y-2.5">
               @for (p of pausasSeleccionadas; track p.id || $index; let idx = $index) {
                 <div class="p-3.5 bg-white rounded-xl border border-slate-200 shadow-2xs space-y-2">
                   <div class="flex items-center justify-between">
                     <div class="flex items-center gap-2">
-                      <span class="w-6 h-6 rounded-lg bg-amber-100 text-amber-800 font-black text-xs flex items-center justify-center">
+                      <span class="w-6 h-6 rounded-lg bg-amber-100 text-amber-800 font-extrabold text-xs flex items-center justify-center">
                         #{{ idx + 1 }}
                       </span>
                       <div>
                         <span class="font-extrabold text-xs text-slate-900 block">{{ p.motivo || 'Pausa Operativa' }}</span>
                         @if (p.fechaInicio) {
-                          <span class="text-[10px] text-slate-400 font-mono">{{ p.fechaInicio | date:'short' }}</span>
+                          <span class="text-xs text-slate-500 font-mono">{{ p.fechaInicio | date:'short' }}</span>
                         }
                       </div>
                     </div>
                     @if (p.duracionSegundos) {
-                      <span class="px-2 py-0.5 rounded-md font-mono text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                      <span class="px-2 py-0.5 rounded-md font-mono text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
                         {{ p.duracionFormateada || (Math.round(p.duracionSegundos / 60) + ' min') }}
                       </span>
                     }
@@ -1994,11 +2153,11 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
                         type="button"
                         (click)="verVideoGenerico(p.videoPausaUrl, 'Vídeo de Pausa #' + (idx + 1) + ' — OT: ' + (servicioPausasSeleccionado.codigoSE || ''))"
                         class="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-xs inline-flex items-center gap-1 shadow-2xs cursor-pointer">
-                        <i-lucide name="pause" class="w-3.5 h-3.5"></i-lucide>
+                        <i-lucide aria-hidden="true" name="pause" class="w-3.5 h-3.5"></i-lucide>
                         <span>Vídeo de Pausa</span>
                       </button>
                     } @else {
-                      <span class="text-[10px] text-slate-400 italic">Sin vídeo de pausa</span>
+                      <span class="text-xs text-slate-500 italic">Sin vídeo de pausa</span>
                     }
 
                     @if (p.videoReanudacionUrl) {
@@ -2006,11 +2165,11 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
                         type="button"
                         (click)="verVideoGenerico(p.videoReanudacionUrl, 'Vídeo de Reanudación #' + (idx + 1) + ' — OT: ' + (servicioPausasSeleccionado.codigoSE || ''))"
                         class="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-xs inline-flex items-center gap-1 shadow-2xs cursor-pointer">
-                        <i-lucide name="play" class="w-3.5 h-3.5"></i-lucide>
+                        <i-lucide aria-hidden="true" name="play" class="w-3.5 h-3.5"></i-lucide>
                         <span>Vídeo de Reanudación</span>
                       </button>
                     } @else if (p.fechaFin) {
-                      <span class="text-[10px] text-slate-400 italic">Sin vídeo de reanudación</span>
+                      <span class="text-xs text-slate-500 italic">Sin vídeo de reanudación</span>
                     }
                   </div>
                 </div>
@@ -2020,12 +2179,12 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
         }
 
         <div modal-footer class="w-full">
-          <button (click)="modalPausasDetalleOpen = false" class="w-full px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs">Cerrar</button>
+          <button (click)="modalPausasDetalleOpen = false" class="btn-secondary w-full sm:w-auto">Cerrar</button>
         </div>
       </app-modal>
 
       <!-- Modal Crear / Asignar Servicio Especial (Restringido a Región) -->
-      <app-modal
+      <app-modal size="lg"
         [isOpen]="showModalExtras"
         [title]="isCoordServiciosEspeciales ? 'Asignar Servicio Especial a Pulidor Móvil (Zonal ' + userRegionNombre + ')' : 'Registrar Nuevo Servicio Especial'"
         icon="star"
@@ -2041,11 +2200,11 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
           <div class="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
             <div class="flex items-center justify-between">
               <span class="text-xs font-bold text-slate-800 uppercase flex items-center gap-1.5">
-                <i-lucide name="map-pin" class="w-4 h-4 text-amber-600"></i-lucide>
+                <i-lucide aria-hidden="true" name="map-pin" class="w-4 h-4 text-amber-600"></i-lucide>
                 Asignación de Sucursal & Pulidor
               </span>
               @if (isPulidorFijo) {
-                <span class="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-extrabold border border-amber-200">
+                <span class="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 text-xs font-extrabold border border-amber-200">
                   Fijo en Sede: {{ miAgenciaNombre }}
                 </span>
               }
@@ -2079,16 +2238,16 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
                 <label class="block text-[11px] font-bold text-slate-700 uppercase mb-1">
                   Pulidor Asignado *
                   @if (pulidorFijoAgenciaSeleccionada) {
-                    <span class="text-emerald-700 font-bold text-[10px]">(Fijo en Sede)</span>
+                    <span class="text-emerald-700 font-bold text-xs">(Fijo en Sede)</span>
                   } @else {
-                    <span class="text-blue-700 font-bold text-[10px]">(Pulidor Móvil Requerido)</span>
+                    <span class="text-blue-700 font-bold text-xs">(Pulidor Móvil Requerido)</span>
                   }
                 </label>
 
                 @if (isPulidor) {
                   <div class="p-2.5 bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 flex items-center justify-between">
                     <span>{{ extraForm.operadorNombre || 'Pulidor' }}</span>
-                    <span class="px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[10px] font-extrabold border border-blue-200">
+                    <span class="px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 text-xs font-extrabold border border-blue-200">
                       Tú
                     </span>
                   </div>
@@ -2096,16 +2255,16 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
                   <!-- Si la agencia tiene pulidor fijo: se autorrellenan los campos y NO se puede editar -->
                   <div class="p-2.5 bg-slate-100 border border-emerald-300 rounded-xl text-xs font-bold text-slate-800 flex items-center justify-between shadow-xs">
                     <div class="flex items-center gap-2">
-                      <span class="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-extrabold border border-emerald-200 flex items-center gap-1">
-                        <i-lucide name="award" class="w-3 h-3 text-emerald-700"></i-lucide>
+                      <span class="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-extrabold border border-emerald-200 flex items-center gap-1">
+                        <i-lucide aria-hidden="true" name="award" class="w-3 h-3 text-emerald-700"></i-lucide>
                         <span>Pulidor Fijo</span>
                       </span>
                       <span class="text-slate-900 font-bold">{{ pulidorFijoAgenciaSeleccionada.name }} {{ pulidorFijoAgenciaSeleccionada.lastname }}</span>
                     </div>
-                    <i-lucide name="lock" class="w-3.5 h-3.5 text-slate-400"></i-lucide>
+                    <i-lucide aria-hidden="true" name="lock" class="w-3.5 h-3.5 text-slate-400"></i-lucide>
                   </div>
-                  <p class="text-[10px] text-slate-500 mt-1 flex items-center gap-1">
-                    <i-lucide name="lock" class="w-3 h-3 text-slate-400 shrink-0"></i-lucide>
+                  <p class="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                    <i-lucide aria-hidden="true" name="lock" class="w-3 h-3 text-slate-400 shrink-0"></i-lucide>
                     <span>Esta agencia cuenta con pulidor fijo asignado permanentemente.</span>
                   </p>
                 } @else {
@@ -2121,14 +2280,14 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
                       <option [value]="p.id">{{ p.name }} {{ p.lastname }} (Pulidor Móvil Zonal)</option>
                     }
                   </select>
-                  <p class="text-[10px] text-blue-700 font-semibold mt-1 flex items-center gap-1">
-                    <i-lucide name="car" class="w-3 h-3 text-blue-600 shrink-0"></i-lucide>
+                  <p class="text-xs text-blue-700 font-semibold mt-1 flex items-center gap-1">
+                    <i-lucide aria-hidden="true" name="car" class="w-3 h-3 text-blue-600 shrink-0"></i-lucide>
                     <span>Esta agencia no tiene pulidor fijo. Selecciona el pulidor móvil que viajará a atender la orden.</span>
                   </p>
                 }
               </div>
             </div>
-            <p class="text-[11px] text-slate-500">
+            <p class="text-xs text-slate-500">
               El servicio especial computará en la trazabilidad operativa y kit en custodia del pulidor asignado.
             </p>
           </div>
@@ -2136,8 +2295,8 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
           <!-- Identificación del Servicio: OT y Placa -->
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Nº OT (Orden Trabajo) *</label>
-              <input
+              <label for="srv-f17" class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Nº OT (Orden Trabajo) *</label>
+              <input id="srv-f17"
                 type="text"
                 [(ngModel)]="extraFormOT"
                 name="extraOT"
@@ -2146,8 +2305,8 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
                 required>
             </div>
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Placa Vehículo *</label>
-              <input
+              <label for="srv-f18" class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Placa Vehículo *</label>
+              <input id="srv-f18"
                 type="text"
                 [(ngModel)]="extraFormPlaca"
                 name="extraPlaca"
@@ -2162,16 +2321,16 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
           <!-- Datos del Vehículo -->
           <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Marca *</label>
-              <input type="text" [(ngModel)]="extraFormMarca" name="extraMarca" placeholder="Toyota" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:border-amber-500 focus:ring-amber-500" required>
+              <label for="srv-f19" class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Marca *</label>
+              <input id="srv-f19" type="text" [(ngModel)]="extraFormMarca" name="extraMarca" placeholder="Toyota" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:border-amber-500 focus:ring-amber-500" required>
             </div>
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Modelo *</label>
-              <input type="text" [(ngModel)]="extraFormModelo" name="extraModelo" placeholder="Fortuner" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:border-amber-500 focus:ring-amber-500" required>
+              <label for="srv-f20" class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Modelo *</label>
+              <input id="srv-f20" type="text" [(ngModel)]="extraFormModelo" name="extraModelo" placeholder="Fortuner" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:border-amber-500 focus:ring-amber-500" required>
             </div>
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Color *</label>
-              <input type="text" [(ngModel)]="extraFormColor" name="extraColor" placeholder="Negro" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:border-amber-500 focus:ring-amber-500" required>
+              <label for="srv-f21" class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Color *</label>
+              <input id="srv-f21" type="text" [(ngModel)]="extraFormColor" name="extraColor" placeholder="Negro" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:border-amber-500 focus:ring-amber-500" required>
             </div>
           </div>
 
@@ -2181,14 +2340,14 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
               <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Hora Ingreso *</label>
               <div class="w-full p-2.5 bg-slate-100 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-700 flex items-center justify-between">
                 <span>{{ extraFormHoraIngreso || '--:--' }}</span>
-                <span class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Automática</span>
+                <span class="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Automática</span>
               </div>
             </div>
             <div>
               <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Hora Salida Estimada *</label>
               <div class="w-full p-2.5 bg-slate-100 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-700 flex items-center justify-between">
                 <span>{{ extraFormHoraSalida || '--:--' }}</span>
-                <span class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Estimada Catálogo</span>
+                <span class="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Estimada Catálogo</span>
               </div>
             </div>
           </div>
@@ -2209,7 +2368,7 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
                 }
               </select>
             } @else {
-              <input
+              <input aria-label="Ej. Pulido y Corrección de Pintura en 3 Pasos"
                 type="text"
                 [(ngModel)]="extraForm.servicioNombre"
                 name="servicioNombreExtra"
@@ -2224,28 +2383,28 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
             <div class="p-4 bg-slate-50/80 rounded-2xl border border-slate-200 space-y-3">
               <div class="flex items-center justify-between">
                 <label class="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                  <i-lucide name="boxes" class="w-4 h-4 text-amber-600"></i-lucide>
+                  <i-lucide aria-hidden="true" name="boxes" class="w-4 h-4 text-amber-600"></i-lucide>
                   Insumos Requeridos (Receta del Servicio)
                 </label>
                 @if (extraForm.operadorId) {
-                  <span class="text-[10px] text-slate-500 font-semibold bg-white px-2 py-0.5 rounded border border-slate-200 flex items-center gap-1">
+                  <span class="text-xs text-slate-500 font-semibold bg-white px-2 py-0.5 rounded border border-slate-200 flex items-center gap-1">
                     <span class="w-2 h-2 rounded-full" [ngClass]="pulidorSeleccionadoActual?.esMovil ? 'bg-blue-500' : 'bg-emerald-500'"></span>
                     Kit de: <b class="text-slate-800">{{ extraForm.operadorNombre || 'Pulidor asignado' }}</b>
-                    <span class="text-[9px] text-slate-400">({{ pulidorSeleccionadoActual?.esMovil ? 'Móvil' : 'Fijo' }})</span>
+                    <span class="text-xs text-slate-500">({{ pulidorSeleccionadoActual?.esMovil ? 'Móvil' : 'Fijo' }})</span>
                   </span>
                 } @else {
-                  <span class="text-[10px] text-amber-700 font-semibold bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                  <span class="text-xs text-amber-700 font-semibold bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
                     Sin pulidor seleccionado
                   </span>
                 }
               </div>
-              <p class="text-[10px] text-slate-500">
+              <p class="text-xs text-slate-500">
                 Cantidades fijas según la receta del servicio especial. Se verifica el kit del pulidor asignado (móvil o fijo) en tiempo real.
               </p>
 
               @if (validandoStockPulidorOT) {
                 <div class="p-2.5 rounded-xl border border-blue-200 bg-blue-50 text-xs text-blue-900 flex items-center gap-2 animate-pulse">
-                  <i-lucide name="loader" class="w-4 h-4 animate-spin text-blue-600 shrink-0"></i-lucide>
+                  <i-lucide aria-hidden="true" name="loader" class="w-4 h-4 animate-spin text-blue-600 shrink-0"></i-lucide>
                   <span>Verificando inventario en custodia del pulidor {{ extraForm.operadorNombre ? '(' + extraForm.operadorNombre + ')' : '' }}...</span>
                 </div>
               }
@@ -2257,8 +2416,8 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
                     <div class="p-2.5 rounded-xl border border-slate-200 bg-white flex items-center justify-between gap-3 shadow-2xs">
                       <div class="overflow-hidden flex-1">
                         <p class="font-bold text-xs text-slate-900 truncate">{{ ins.productoNombre || ins.insumoNombre }}</p>
-                        <div class="flex items-center gap-2 text-[10px] text-slate-500 flex-wrap mt-0.5">
-                          <span class="font-mono bg-slate-100 px-1 py-0.2 rounded">{{ ins.productoSKU || ins.codigoSKU || '—' }}</span>
+                        <div class="flex items-center gap-2 text-xs text-slate-500 flex-wrap mt-0.5">
+                          <span class="font-mono bg-slate-100 px-1 py-0.5 rounded">{{ ins.productoSKU || ins.codigoSKU || '—' }}</span>
                           <span>•</span>
                           <span class="italic text-amber-700">Seleccione un pulidor para validar existencias</span>
                         </div>
@@ -2267,28 +2426,28 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
                         <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg font-mono font-bold text-xs bg-amber-50 text-amber-900 border border-amber-200">
                           {{ ins.cantidadSugerida || ins.cantidad || 0 }} {{ ins.unidadMedida || '' }}
                         </span>
-                        <p class="text-[9px] font-semibold text-slate-400 mt-0.5">Receta requerida</p>
+                        <p class="text-xs font-semibold text-slate-500 mt-0.5">Receta requerida</p>
                       </div>
                     </div>
                   } @else {
                     <!-- Pulidor seleccionado: muestra stock en kit vs necesario con validación en tiempo real -->
                     <div
-                      class="p-2.5 rounded-xl border flex items-center justify-between gap-3 shadow-2xs transition-all"
+                      class="p-2.5 rounded-xl border flex items-center justify-between gap-3 shadow-2xs transition-shadow"
                       [ngClass]="getStockCantidadInsumoPublic(ins.productoId || ins.insumoId || '', ins.productoSKU || ins.codigoSKU, ins.productoNombre || ins.insumoNombre) < (ins.cantidadSugerida || ins.cantidad || 0) ? 'bg-rose-50/90 border-2 border-rose-400 ring-2 ring-rose-400/20' : 'bg-white border-slate-200'">
                       <div class="overflow-hidden flex-1">
                         <div class="flex items-center gap-1.5">
                           @if (getStockCantidadInsumoPublic(ins.productoId || ins.insumoId || '', ins.productoSKU || ins.codigoSKU, ins.productoNombre || ins.insumoNombre) < (ins.cantidadSugerida || ins.cantidad || 0)) {
-                            <i-lucide name="alert-triangle" class="w-3.5 h-3.5 text-rose-600 shrink-0"></i-lucide>
+                            <i-lucide aria-hidden="true" name="alert-triangle" class="w-3.5 h-3.5 text-rose-600 shrink-0"></i-lucide>
                           } @else {
-                            <i-lucide name="check-circle" class="w-3.5 h-3.5 text-emerald-500 shrink-0"></i-lucide>
+                            <i-lucide aria-hidden="true" name="check-circle" class="w-3.5 h-3.5 text-emerald-500 shrink-0"></i-lucide>
                           }
                           <p class="font-bold text-xs truncate"
                             [ngClass]="getStockCantidadInsumoPublic(ins.productoId || ins.insumoId || '', ins.productoSKU || ins.codigoSKU, ins.productoNombre || ins.insumoNombre) < (ins.cantidadSugerida || ins.cantidad || 0) ? 'text-rose-950 font-extrabold' : 'text-slate-900'">
                             {{ ins.productoNombre || ins.insumoNombre }}
                           </p>
                         </div>
-                        <div class="flex items-center gap-2 text-[10px] text-slate-500 flex-wrap mt-0.5">
-                          <span class="font-mono bg-slate-100 px-1 py-0.2 rounded">{{ ins.productoSKU || ins.codigoSKU || '—' }}</span>
+                        <div class="flex items-center gap-2 text-xs text-slate-500 flex-wrap mt-0.5">
+                          <span class="font-mono bg-slate-100 px-1 py-0.5 rounded">{{ ins.productoSKU || ins.codigoSKU || '—' }}</span>
                           <span>•</span>
                           <span class="font-semibold"
                             [class.text-rose-700]="getStockCantidadInsumoPublic(ins.productoId || ins.insumoId || '', ins.productoSKU || ins.codigoSKU, ins.productoNombre || ins.insumoNombre) < (ins.cantidadSugerida || ins.cantidad || 0)"
@@ -2297,9 +2456,9 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
                             Kit del pulidor: {{ getStockCantidadInsumoPublic(ins.productoId || ins.insumoId || '', ins.productoSKU || ins.codigoSKU, ins.productoNombre || ins.insumoNombre) }} {{ ins.unidadMedida || '' }}
                           </span>
                           @if (getStockCantidadInsumoPublic(ins.productoId || ins.insumoId || '', ins.productoSKU || ins.codigoSKU, ins.productoNombre || ins.insumoNombre) <= 0) {
-                            <span class="px-1.5 py-0.5 rounded-full bg-rose-600 text-white font-black text-[9px] uppercase tracking-wider animate-pulse">¡Agotado!</span>
+                            <span class="px-1.5 py-0.5 rounded-full bg-rose-600 text-white font-extrabold text-[11px] uppercase tracking-wider">¡Agotado!</span>
                           } @else if (getStockCantidadInsumoPublic(ins.productoId || ins.insumoId || '', ins.productoSKU || ins.codigoSKU, ins.productoNombre || ins.insumoNombre) < (ins.cantidadSugerida || ins.cantidad || 0)) {
-                            <span class="px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-300 font-extrabold text-[9px]">
+                            <span class="px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-300 font-extrabold text-xs">
                               ¡Insuficiente!
                             </span>
                           }
@@ -2310,8 +2469,8 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
                           [ngClass]="getStockCantidadInsumoPublic(ins.productoId || ins.insumoId || '', ins.productoSKU || ins.codigoSKU, ins.productoNombre || ins.insumoNombre) < (ins.cantidadSugerida || ins.cantidad || 0) ? 'bg-rose-100 text-rose-900 border border-rose-300' : 'bg-emerald-50 text-emerald-800 border border-emerald-200'">
                           {{ ins.cantidadSugerida || ins.cantidad || 0 }} {{ ins.unidadMedida || '' }}
                         </span>
-                        <p class="text-[9px] font-semibold mt-0.5"
-                          [ngClass]="getStockCantidadInsumoPublic(ins.productoId || ins.insumoId || '', ins.productoSKU || ins.codigoSKU, ins.productoNombre || ins.insumoNombre) < (ins.cantidadSugerida || ins.cantidad || 0) ? 'text-rose-600 font-bold' : 'text-slate-400'">
+                        <p class="text-xs font-semibold mt-0.5"
+                          [ngClass]="getStockCantidadInsumoPublic(ins.productoId || ins.insumoId || '', ins.productoSKU || ins.codigoSKU, ins.productoNombre || ins.insumoNombre) < (ins.cantidadSugerida || ins.cantidad || 0) ? 'text-rose-600 font-bold' : 'text-slate-500'">
                           {{ getStockCantidadInsumoPublic(ins.productoId || ins.insumoId || '', ins.productoSKU || ins.codigoSKU, ins.productoNombre || ins.insumoNombre) < (ins.cantidadSugerida || ins.cantidad || 0) ? 'Insuficiente' : 'Verificado' }}
                         </p>
                       </div>
@@ -2322,10 +2481,10 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
 
               @if (faltantesInsumosOT.length > 0 && extraForm.operadorId) {
                 <div class="p-3 bg-rose-50 border border-rose-300 rounded-xl flex items-start gap-2.5 text-rose-900 text-xs shadow-2xs">
-                  <i-lucide name="alert-triangle" class="w-4 h-4 text-rose-600 mt-0.5 shrink-0"></i-lucide>
+                  <i-lucide aria-hidden="true" name="alert-triangle" class="w-4 h-4 text-rose-600 mt-0.5 shrink-0"></i-lucide>
                   <div>
                     <p class="font-bold">No se puede crear la OT: insumos insuficientes en el kit del pulidor</p>
-                    <p class="text-[11px] text-rose-700 mt-0.5 leading-relaxed">
+                    <p class="text-xs text-rose-700 mt-0.5 leading-relaxed">
                       El pulidor asignado ({{ extraForm.operadorNombre || 'pulidor' }}) no cuenta con todos los insumos requeridos. Solicite un despacho y asegúrese de que el pulidor lo confirme antes de asignarle esta OT.
                     </p>
                   </div>
@@ -2333,21 +2492,21 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
               }
               @if (!validandoStockPulidorOT && faltantesInsumosOT.length === 0 && extraForm.insumosReceta.length > 0 && extraForm.operadorId) {
                 <div class="p-2.5 rounded-xl border border-emerald-200 bg-emerald-50 text-xs text-emerald-900 font-semibold flex items-center gap-2">
-                  <i-lucide name="check-circle" class="w-4 h-4 text-emerald-600"></i-lucide>
+                  <i-lucide aria-hidden="true" name="check-circle" class="w-4 h-4 text-emerald-600"></i-lucide>
                   <span>Kit del pulidor verificado y suficiente para ejecutar este servicio.</span>
                 </div>
               }
             </div>
           } @else if (extraForm.servicioNombre && !validandoStockPulidorOT) {
             <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-500 flex items-center gap-2">
-              <i-lucide name="info" class="w-4 h-4 text-slate-400 shrink-0"></i-lucide>
+              <i-lucide aria-hidden="true" name="info" class="w-4 h-4 text-slate-400 shrink-0"></i-lucide>
               <span>Este servicio no tiene una receta de insumos configurada en el catálogo.</span>
             </div>
           }
 
           @if (isSuperAdmin || isAdmin) {
             <div class="p-2.5 rounded-xl border border-indigo-200 bg-indigo-50/70 text-xs text-indigo-900 font-semibold flex items-center gap-2">
-              <i-lucide name="shield-check" class="w-4 h-4 text-indigo-600 shrink-0"></i-lucide>
+              <i-lucide aria-hidden="true" name="shield-check" class="w-4 h-4 text-indigo-600 shrink-0"></i-lucide>
               <span>Acceso Administrativo Global: Creación directa con asignación de sucursal, bahía y pulidor.</span>
             </div>
           }
@@ -2367,17 +2526,17 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
             </app-video-recorder>
           } @else {
             <div class="p-3 bg-amber-50/80 border border-amber-200 rounded-xl text-xs text-amber-900 flex items-center gap-2.5">
-              <i-lucide name="film" class="w-4 h-4 text-amber-600 shrink-0"></i-lucide>
+              <i-lucide aria-hidden="true" name="film" class="w-4 h-4 text-amber-600 shrink-0"></i-lucide>
               <div class="space-y-0.5">
                 <p class="font-bold">Evidencia de Vídeo Inicial diferida al Pulidor</p>
-                <p class="text-[11px] text-amber-800/90">El pulidor asignado grabará obligatoriamente el vídeo de recepción con la cámara de su dispositivo al momento de iniciar el trabajo en la bahía o sede.</p>
+                <p class="text-xs text-amber-800/90">El pulidor asignado grabará obligatoriamente el vídeo de recepción con la cámara de su dispositivo al momento de iniciar el trabajo en la bahía o sede.</p>
               </div>
             </div>
           }
 
           <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Observaciones / Instrucciones</label>
-            <textarea
+            <label for="srv-f22" class="block text-xs font-bold text-slate-700 uppercase mb-1">Observaciones / Instrucciones</label>
+            <textarea id="srv-f22"
               [(ngModel)]="extraForm.notas"
               name="notasExtra"
               placeholder="Instrucciones para el pulidor..."
@@ -2387,13 +2546,13 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
           </div>
         </form>
 
-        <div modal-footer class="flex items-center justify-end gap-2 w-full">
-          <button (click)="cerrarModalExtras()" class="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs">Cancelar</button>
+        <div modal-footer class="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 w-full">
+          <button (click)="cerrarModalExtras()" class="btn-secondary w-full sm:w-auto">Cancelar</button>
           <button
             (click)="guardarServicioExtra()"
             [disabled]="!puedeCrearOTEspecialConInsumos"
-            class="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-extrabold rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-xs disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-amber-600">
-            <i-lucide name="plus" class="w-3.5 h-3.5"></i-lucide>
+            class="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-extrabold rounded-xl text-xs inline-flex items-center gap-1.5 transition-all shadow-xs disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-amber-600 w-full sm:w-auto justify-center">
+            <i-lucide aria-hidden="true" name="plus" class="w-3.5 h-3.5"></i-lucide>
             <span>{{ isCoordServiciosEspeciales ? 'Crear y Asignar OT a Pulidor' : 'Crear y Notificar Servicio' }}</span>
           </button>
         </div>
@@ -2402,28 +2561,28 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
     </div>
   `
 })
-export class ServiciosComponent implements OnInit {
+export class ServiciosComponent implements OnInit, OnDestroy {
   // ── Pestaña Activa: Servicios Generales vs Servicios Especiales ──
   tabActiva: 'generales' | 'especiales' = 'generales';
 
   cambiarTab(tab: 'generales' | 'especiales') {
-    if (this.isPulidor && !this.isSuperAdmin && !this.isAdmin && tab === 'generales') {
-      tab = 'especiales';
-    }
+    if (tab === 'generales' && !this.puedeVerGenerales && this.puedeVerEspeciales) tab = 'especiales';
+    if (tab === 'especiales' && !this.puedeVerEspeciales && this.puedeVerGenerales) tab = 'generales';
     this.tabActiva = tab;
-    this.currentPage = 1;
-    this.currentPageExtras = 1;
-    this.recalcularServiciosFiltrados();
+    this.cargarVistaActual();
   }
 
   abrirModalNuevaOT() {
-    if (this.isAprobador) {
-      this.toastService.warning('Acceso Restringido', 'El rol Aprobador no tiene permisos para crear órdenes de trabajo.');
+    if (this.tabActiva === 'especiales') {
+      if (!this.puedeCrearEspecial) {
+        this.toastService.warning('Acceso restringido', 'Tu rol no tiene permiso para crear servicios especiales.');
+        return;
+      }
+      this.abrirModalNuevoExtra();
       return;
     }
-    // Pulidores solo crean OT especiales
-    if (this.isPulidor || this.tabActiva === 'especiales' || this.isCoordServiciosEspeciales) {
-      this.abrirModalNuevoExtra();
+    if (!this.puedeCrearGeneral) {
+      this.toastService.warning('Acceso restringido', 'Tu rol no tiene permiso para crear órdenes de trabajo.');
       return;
     }
     this.agregarServicioOTFuente = null;
@@ -2438,9 +2597,8 @@ export class ServiciosComponent implements OnInit {
     if (!this.nuevoRegistro.agencia && this.sucursales.length > 0) {
       this.nuevoRegistro.agencia = this.sucursales[0].nombre;
     }
-    const randNum = Math.floor(1000 + Math.random() * 9000);
-    this.nuevoRegistro.ordenTrabajoOT = `OT-${randNum}`;
-    this.nuevoRegistro.numeroOrden = `ORD-${new Date().getFullYear()}-${randNum}`;
+    // La OT la escribe siempre el usuario: el campo queda vacío al abrir el modal.
+    this.nuevoRegistro.ordenTrabajoOT = '';
     this.nuevoRegistro.placa = '';
     this.nuevoRegistro.marca = '';
     this.nuevoRegistro.modelo = '';
@@ -2453,7 +2611,7 @@ export class ServiciosComponent implements OnInit {
     this.placaTocada = false;
     this.videoFileSelected = false;
     this.videoFileName = '';
-    this.inventarioService.cargarItems();
+    if (this.authService.puede('inventario.ver')) this.inventarioService.cargarItems();
     this.onSucursalFormChange();
     if (!this.agenciaFormTieneEspeciales) {
       this.nuevoRegistro.categoriaServicio = 'GENERAL';
@@ -2469,10 +2627,6 @@ export class ServiciosComponent implements OnInit {
    */
   abrirModalAgregarServicioAOT(item: VehiculoServicio): void {
     if (!this.puedeAgregarServicio(item)) return;
-    if (this.isAprobador) {
-      this.toastService.warning('Acceso Restringido', 'El rol Aprobador no puede agregar servicios.');
-      return;
-    }
 
     this.agregarServicioOTFuente = item;
 
@@ -2502,18 +2656,19 @@ export class ServiciosComponent implements OnInit {
     this.placaTocada = false;
     this.videoFileSelected = false;
     this.videoFileName = '';
-    this.inventarioService.cargarItems();
+    if (this.authService.puede('inventario.ver')) this.inventarioService.cargarItems();
     this.onSucursalFormChange();
     this.onCategoriaChange();
     this.modalNuevoRegistroOpen = true;
   }
 
+  /** Total de servicios de lavado del alcance del usuario (lo da el servidor; no depende de la página cargada). */
   get countServiciosGenerales(): number {
-    return this.servicios.filter(s => s.categoriaServicio === 'Servicios Generales' || s.categoriaServicio === 'GENERAL' || !s.categoriaServicio).length;
+    return this.conteoGenerales;
   }
 
   get countServiciosEspeciales(): number {
-    return this.serviciosExtras.length || this.servicios.filter(s => s.categoriaServicio === 'Servicios Especiales' || s.categoriaServicio === 'ESPECIAL' || s.categoriaServicio === 'EXTRA' || s.categoriaServicio === 'Servicios Extras').length;
+    return this.conteoEspeciales;
   }
 
   /** En el modal OT: Especiales solo si la agencia de la OT los tiene habilitados. */
@@ -2545,13 +2700,16 @@ export class ServiciosComponent implements OnInit {
     return Boolean(suc.servicioIds?.some((id: number) => espIds.has(id)));
   }
 
+  /**
+   * Servicios recientes (hasta 100) cargados aparte para las validaciones del formulario (OT/placa duplicada, bahía ocupada,
+   * servicios de la misma OT). Lo que se ve en pantalla viene de la consulta paginada del servidor (filasG / listaG).
+   */
   servicios: VehiculoServicio[] = [];
-  serviciosFiltrados: VehiculoServicio[] = [];
   servicioSeleccionado?: VehiculoServicio;
 
   filtroTexto = '';
   filtroCategoria = 'Todas';
-  
+
   // Guardamos el estado global
   filtrosGlobales: FilterState = { sucursal: 'Todas', region: 'Todas', marca: 'Todas', operador: 'Todos', bahia: 'Todas', estado: 'Todos', fecha: 'Hoy' };
 
@@ -2563,31 +2721,450 @@ export class ServiciosComponent implements OnInit {
   // Mapa sucursal -> marca (para poder filtrar servicios por marca)
   mapaMarcaSucursal: Record<string, string> = {};
 
-  aplicarNuevosFiltros(filtros: FilterState) {
-    this.filtrosGlobales = filtros;
-    if (filtros.busqueda !== undefined) {
-      this.filtroTexto = filtros.busqueda;
+  // ══════════════════════════════════════════════════════════════════════════
+  //  Paginación, orden, búsqueda y filtros en el SERVIDOR
+  //  Tablas (escritorio) → páginas numeradas. Tarjetas (móvil) → scroll infinito de a 30.
+  // ══════════════════════════════════════════════════════════════════════════
+
+  readonly minBusqueda = BUSQUEDA_MIN_CARACTERES;
+  /** true cuando el usuario escribió 1 letra (se pide un mínimo de 2 antes de consultar). */
+  busquedaCorta = false;
+  /** Texto que realmente se envía al servidor (ya con el mínimo de letras y la espera de 300 ms). */
+  private busquedaAplicada = '';
+  private readonly busqueda$ = new Subject<string>();
+  private suscripcionBusqueda?: Subscription;
+
+  /** Escritorio (>= 1024 px) = tabla; menos = tarjetas. Solo se carga la vista que se muestra. */
+  esEscritorio = true;
+  private mediaEscritorio?: MediaQueryList;
+  private readonly alCambiarPantalla = (e: MediaQueryListEvent) => {
+    if (e.matches === this.esEscritorio) return;
+    this.esEscritorio = e.matches;
+    this.cargarVistaActual();
+  };
+
+  /** Bahías con su agencia: el filtro de bahía del filter-bar entrega el nombre y el servidor pide el id. */
+  private bahiasTodas: Bahia[] = [];
+
+  /** Totales de las pestañas (los da el servidor, no dependen de lo cargado). */
+  conteoGenerales = 0;
+  conteoEspeciales = 0;
+
+  // ── Generales ──
+  readonly columnasGenerales: TableColumn[] = [
+    { key: 'ot', label: 'Nº OT', sortable: true },
+    { key: 'placa', label: 'Vehículo', sortable: true },
+    { key: 'servicio', label: 'Categoría & Servicio', sortable: true },
+    { key: 'agencia', label: 'Sucursal / Bahía', sortable: true },
+    { key: 'fecha', label: 'Horarios', sortable: true, defaultSort: 'desc' },
+    { key: 'operador', label: 'Lavador', sortable: true },
+    { key: 'estado', label: 'Estado Workflow', sortable: true },
+    { key: 'evInicio', label: 'Evidencia Inicio', align: 'center' },
+    { key: 'evFin', label: 'Evidencia Fin', align: 'center' },
+    { key: 'acciones', label: 'Acciones', align: 'right' },
+  ];
+  filasG: VehiculoServicio[] = [];
+  totalG = 0;
+  paginaG = 1;
+  pageSizeG = PAGE_SIZE_TABLA;
+  sortFieldG: string | null = 'fecha';
+  sortOrderG: OrdenDir = 'desc';
+  cargandoG = false;
+  errorG: string | null = null;
+  private subG?: Subscription;
+  readonly listaG = new ListaInfinita<VehiculoServicio>(
+    (page, size) => this.servicioService
+      .getServiciosPagina({ ...this.consultaGenerales(), page, pageSize: size })
+      .pipe(map((r) => r.pagina)),
+    PAGE_SIZE_INFINITO,
+    (s) => s.id,
+  );
+
+  // ── Especiales ──
+  readonly columnasEspeciales: TableColumn[] = [
+    { key: 'ot', label: 'Nº OT', sortable: true },
+    { key: 'placa', label: 'Vehículo & Placa', sortable: true },
+    { key: 'servicio', label: 'Servicio Especial', sortable: true },
+    { key: 'agencia', label: 'Agencia / Sucursal', sortable: true },
+    { key: 'region', label: 'Región', sortable: true },
+    { key: 'operador', label: 'Pulidor Responsable', sortable: true },
+    { key: 'tiempoPausa', label: 'T. Pausa', sortable: true, align: 'center' },
+    { key: 'tiempoEfectivo', label: 'T. Efectivo', sortable: true, align: 'center' },
+    { key: 'tiempoTotal', label: 'T. Total', align: 'center' },
+    { key: 'evInicio', label: 'Evidencia Inicio', align: 'center' },
+    { key: 'evPausas', label: 'Evidencias Pausas', align: 'center' },
+    { key: 'evFin', label: 'Evidencia Fin', align: 'center' },
+    { key: 'estado', label: 'Estado', sortable: true },
+    { key: 'acciones', label: 'Acciones', align: 'right' },
+  ];
+  filasE: ServicioExtra[] = [];
+  totalE = 0;
+  paginaE = 1;
+  pageSizeE = PAGE_SIZE_TABLA;
+  sortFieldE: string | null = null;
+  sortOrderE: OrdenDir = 'desc';
+  cargandoE = false;
+  errorE: string | null = null;
+  private subE?: Subscription;
+  readonly listaE = new ListaInfinita<ServicioExtra>(
+    (page, size) => this.extrasService
+      .getServiciosExtrasPagina({ ...this.consultaEspeciales(), page, pageSize: size })
+      .pipe(map((r) => r.pagina)),
+    PAGE_SIZE_INFINITO,
+    (e) => e.id,
+  );
+
+  private iniciarVistaServidor(): void {
+    this.suscripcionBusqueda = this.busqueda$
+      .pipe(debounceTime(BUSQUEDA_DEBOUNCE_MS), distinctUntilChanged())
+      .subscribe((texto) => {
+        this.busquedaAplicada = texto;
+        this.aplicarFiltros();
+      });
+
+    if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+      this.mediaEscritorio = window.matchMedia('(min-width: 1024px)');
+      this.esEscritorio = this.mediaEscritorio.matches;
+      this.mediaEscritorio.addEventListener('change', this.alCambiarPantalla);
     }
-    this.aplicarFiltros();
+    this.cargarVistaActual();
+  }
+
+  ngOnDestroy(): void {
+    this.suscripcionBusqueda?.unsubscribe();
+    this.mediaEscritorio?.removeEventListener('change', this.alCambiarPantalla);
+    this.subG?.unsubscribe();
+    this.subE?.unsubscribe();
+    this.listaG.destruir();
+    this.listaE.destruir();
+  }
+
+  // ---- Filtros del filter-bar ----
+
+  aplicarNuevosFiltros(filtros: FilterState) {
+    const previo = this.filtrosGlobales;
+    this.filtrosGlobales = filtros;
+    const busq = (filtros.busqueda ?? '').trim();
+    this.filtroTexto = busq;
+    this.busquedaCorta = busq.length > 0 && busq.length < BUSQUEDA_MIN_CARACTERES;
+
+    const otrosFiltrosCambiaron = this.huellaFiltros(previo) !== this.huellaFiltros(filtros);
+    if (otrosFiltrosCambiaron) {
+      // Un filtro (no el texto) cambió: se consulta ya. Si el texto es de una sola letra se conserva la búsqueda anterior.
+      if (!this.busquedaCorta) this.busquedaAplicada = busq;
+      this.aplicarFiltros();
+      return;
+    }
+    // Solo cambió el texto: espera 300 ms tras la última tecla y exige mínimo 2 letras (o vacío para quitar el filtro).
+    if (!this.busquedaCorta) this.busqueda$.next(busq);
   }
 
   onToolbarSearchChange(valor: string) {
-    this.filtroTexto = valor;
-    this.filtrosGlobales.busqueda = valor;
-    this.aplicarFiltros();
+    this.aplicarNuevosFiltros({ ...this.filtrosGlobales, busqueda: valor });
   }
 
+  /** Todo cambio de filtro o de texto vuelve a la primera página. */
   aplicarFiltros() {
-    this.currentPage = 1;
-    this.currentPageExtras = 1;
-    this.recalcularServiciosFiltrados();
+    this.paginaG = 1;
+    this.paginaE = 1;
+    this.cargarVistaActual();
   }
 
-  currentPage = 1;
-  pageSize = 5;
+  private huellaFiltros(f: FilterState | undefined): string {
+    if (!f) return '';
+    const { busqueda, ...resto } = f;
+    return JSON.stringify(resto);
+  }
+
+  private get hayFiltrosActivos(): boolean {
+    const f = this.filtrosGlobales;
+    const activo = (v: unknown, neutros: string[]) => !!v && !neutros.includes(String(v));
+    return !!this.busquedaAplicada
+      || activo(f.estado, ['Todos']) || activo(f.sucursal, ['Todas']) || activo(f.region, ['Todas'])
+      || activo(f.cliente, ['Todas']) || activo(f.marca, ['Todas']) || activo(f.bahia, ['Todas'])
+      || activo(f.operador, ['Todos']) || activo(f.servicio, ['Todos'])
+      || !!(f.fechaInicio && f.fechaFin);
+  }
+
+  get tituloVacioG(): string {
+    return this.hayFiltrosActivos
+      ? 'No hay servicios que coincidan con los filtros aplicados.'
+      : 'Aún no hay servicios de lavado registrados.';
+  }
+
+  get tituloVacioE(): string {
+    return this.hayFiltrosActivos
+      ? 'No hay servicios especiales que coincidan con los filtros aplicados.'
+      : `No hay servicios especiales asignados o registrados${this.userRegionNombre ? ' en la región ' + this.userRegionNombre : ''}.`;
+  }
+
+  // ---- Conversión nombre → id (el filter-bar entrega nombres; el servidor pide ids) ----
+
+  private neutro(v: string | undefined | null, ...neutros: string[]): string {
+    const t = (v ?? '').trim();
+    return !t || neutros.includes(t) ? '' : t;
+  }
+
+  private sucursalPorNombre(nombre: string): Sucursal | undefined {
+    const n = nombre.replace(/EasyDry\s*/i, '').trim().toLowerCase();
+    return this.sucursales.find((s) => (s.nombre || '').replace(/EasyDry\s*/i, '').trim().toLowerCase() === n);
+  }
+
+  /** Id de agencia elegida en el filtro (o el de alcance del usuario). '' si no aplica; id imposible si el nombre no existe. */
+  private agenciaIdFiltro(): string {
+    const nombre = this.neutro(this.filtrosGlobales.sucursal, 'Todas', 'TODAS');
+    if (!nombre) return '';
+    const suc = this.sucursalPorNombre(nombre);
+    return suc ? String(suc.id) : '__sin_coincidencia__';
+  }
+
+  private regionIdFiltro(): string {
+    const nombre = this.neutro(this.filtrosGlobales.region, 'Todas', 'TODAS');
+    if (!nombre) return '';
+    const suc = this.sucursales.find((s) => s.regionNombre === nombre && (s.regionId ?? s.region?.id) !== undefined);
+    const id = suc ? (suc.regionId ?? suc.region?.id) : undefined;
+    return id !== undefined && id !== null ? String(id) : '__sin_coincidencia__';
+  }
+
+  private clienteIdFiltro(): string {
+    const f = this.filtrosGlobales;
+    const nombre = this.neutro(f.cliente, 'Todas', 'TODAS') || this.neutro(f.marca, 'Todas', 'TODAS');
+    if (!nombre) return '';
+    const suc = this.sucursales.find((s) => (s.clienteNombre || s.marcaNombre) === nombre && (s.clienteId ?? s.marcaId) !== undefined);
+    const id = suc ? (suc.clienteId ?? suc.marcaId) : undefined;
+    return id !== undefined && id !== null ? String(id) : '__sin_coincidencia__';
+  }
+
+  /** Las bahías se llaman igual en varias agencias: se envían todos los ids que coinciden (o solo los de la agencia elegida). */
+  private bahiaIdsFiltro(): string {
+    const nombre = this.neutro(this.filtrosGlobales.bahia, 'Todas', 'TODAS').toLowerCase();
+    if (!nombre) return '';
+    const agencia = this.agenciaIdFiltro();
+    const ids = this.bahiasTodas
+      .filter((b) => (b.nombre || '').trim().toLowerCase() === nombre)
+      .filter((b) => !agencia || String(b.agenciaId ?? b.sucursalId ?? '') === agencia)
+      .map((b) => String(b.id));
+    return ids.length ? ids.join(',') : '__sin_coincidencia__';
+  }
+
+  private operadorIdFiltro(): string {
+    const nombre = this.neutro(this.filtrosGlobales.operador, 'Todos', 'TODOS');
+    if (!nombre) return '';
+    const op = this.operadores.find((o) => (o.nombre || o.cedula) === nombre);
+    return op ? String(op.id) : '__sin_coincidencia__';
+  }
+
+  private servicioIdFiltro(): number | undefined {
+    const nombre = this.neutro(this.filtrosGlobales.servicio, 'Todos', 'TODOS').toLowerCase();
+    if (!nombre) return undefined;
+    const cat = (this.catalogoCompleto || []).find((c) => (c.nombre || '').trim().toLowerCase() === nombre);
+    return cat ? Number(cat.id) : undefined;
+  }
+
+  /** Rango de fechas del filter-bar como inicio y fin del día LOCAL, en ISO (el servidor compara en UTC). */
+  private rangoFechasIso(): { fechaDesde?: string; fechaHasta?: string } {
+    const rango = resolverRangoFechas(this.filtrosGlobales);
+    if (!rango) return {};
+    const [yi, mi, di] = soloFecha(rango.inicio).split('-').map(Number);
+    const [yf, mf, df] = soloFecha(rango.fin).split('-').map(Number);
+    if (!yi || !mi || !di || !yf || !mf || !df) return {};
+    return {
+      fechaDesde: new Date(yi, mi - 1, di, 0, 0, 0, 0).toISOString(),
+      fechaHasta: new Date(yf, mf - 1, df, 23, 59, 59, 999).toISOString(),
+    };
+  }
+
+  private estadoGeneralesServidor(): string | undefined {
+    const e = this.neutro(this.filtrosGlobales.estado, 'Todos').toUpperCase();
+    if (!e) return undefined;
+    if (e === 'EN PROCESO' || e === 'EN_PROCESO') return 'EN_PROCESO';
+    if (e === 'POR APROBAR' || e === 'POR_APROBAR' || e === 'FALTAN DE APROBAR') return 'POR_APROBAR';
+    if (e === 'REALIZADOS / APROBADOS' || e === 'REALIZADO' || e === 'REALIZADOS' || e === 'APROBADO') return 'FINALIZADO';
+    if (e === 'RECHAZADOS' || e === 'RECHAZADO') return 'RECHAZADO';
+    return e.replace(/\s+/g, '_');
+  }
+
+  // ---- Consultas ----
+
+  /** Filtros de la pestaña Generales (sin página ni tamaño). */
+  private consultaGenerales(): ConsultaServicios {
+    const alcance = this._getFiltrosUsuario() || {};
+    const agencia = this.agenciaIdFiltro();
+    const region = this.regionIdFiltro();
+    const cliente = this.clienteIdFiltro();
+    const bahia = this.bahiaIdsFiltro();
+    const operador = this.operadorIdFiltro();
+    return {
+      sortField: this.esEscritorio ? this.sortFieldG : 'fecha',
+      sortOrder: this.esEscritorio ? this.sortOrderG : 'desc',
+      search: this.busquedaAplicada,
+      estado: this.estadoGeneralesServidor(),
+      agenciaId: agencia || alcance.agenciaId,
+      regionId: region || alcance.regionId,
+      clienteId: cliente || undefined,
+      bahiaId: bahia || undefined,
+      operadorId: operador || undefined,
+      servicioId: this.servicioIdFiltro(),
+      ...this.rangoFechasIso(),
+    };
+  }
+
+  private estadoEspecialesServidor(): string | undefined {
+    const e = this.neutro(this.filtrosGlobales.estado, 'Todos');
+    if (!e) return undefined;
+    if (e === 'Realizados / Aprobados') return 'Completado';
+    return e;
+  }
+
+  /** Filtros de la pestaña Especiales (sin página ni tamaño). */
+  private consultaEspeciales(): ConsultaExtras {
+    const alcance = this.alcanceEspeciales();
+    const agencia = this.agenciaIdFiltro();
+    const region = this.regionIdFiltro();
+    const operador = this.operadorIdFiltro();
+    const tipo = this.neutro(this.filtrosGlobales.servicio, 'Todos', 'TODOS');
+    return {
+      sortField: this.esEscritorio ? this.sortFieldE : null,
+      sortOrder: this.esEscritorio ? this.sortOrderE : 'desc',
+      search: this.busquedaAplicada,
+      estado: this.estadoEspecialesServidor(),
+      agenciaId: agencia || alcance.agenciaId,
+      regionId: region || alcance.regionId,
+      operadorId: alcance.operadorId || operador || undefined,
+      tipoServicio: tipo || undefined,
+      ...this.rangoFechasIso(),
+    };
+  }
+
+  private mensajeError(err: unknown): string {
+    const e = err as { error?: { message?: string | string[] }; message?: string } | undefined;
+    const detalle = e?.error?.message;
+    if (Array.isArray(detalle)) return detalle.join('. ');
+    return detalle || e?.message || 'No se pudo cargar la información.';
+  }
+
+  /** Carga lo que se ve ahora: la pestaña activa, en tabla (una página) o en tarjetas (primer bloque). */
+  cargarVistaActual(): void {
+    if ((this.tabActiva === 'generales' && !this.puedeVerGenerales) || (this.tabActiva === 'especiales' && !this.puedeVerEspeciales)) {
+      this.cargarConteos();
+      return;
+    }
+    if (this.tabActiva === 'generales') {
+      if (this.esEscritorio) this.cargarPaginaG(); else this.listaG.reiniciar();
+    } else {
+      if (this.esEscritorio) this.cargarPaginaE(); else this.listaE.reiniciar();
+    }
+    this.cargarConteos();
+  }
+
+  /** Vuelve a pedir la página actual (después de crear, finalizar, aprobar…). */
+  refrescarGenerales(): void {
+    if (this.tabActiva === 'generales') {
+      if (this.esEscritorio) this.cargarPaginaG(); else this.listaG.reiniciar();
+    }
+    this.cargarConteos();
+  }
+
+  refrescarEspeciales(): void {
+    if (this.tabActiva === 'especiales') {
+      if (this.esEscritorio) this.cargarPaginaE(); else this.listaE.reiniciar();
+    }
+    this.cargarConteos();
+  }
+
+  private cargarConteos(): void {
+    // Solo se llama a lo que el rol puede ver: el servidor exige 'servicios.ver' y 'especiales.ver' por separado.
+    if (this.puedeVerGenerales) {
+      const alcance = this._getFiltrosUsuario() || {};
+      this.servicioService.getServiciosPagina({ pageSize: 1, ...alcance }).subscribe({
+        next: (r) => { this.conteoGenerales = r.pagina.total; },
+        error: () => { /* el contador es informativo */ },
+      });
+    }
+    if (this.puedeVerEspeciales) {
+      this.extrasService.getServiciosExtrasPagina({ pageSize: 1, ...this.alcanceEspeciales() }).subscribe({
+        next: (r) => { this.conteoEspeciales = r.pagina.total; },
+        error: () => { /* el contador es informativo */ },
+      });
+    }
+  }
+
+  onTablaGCambio(q: ConsultaTabla): void {
+    this.paginaG = q.page;
+    this.pageSizeG = q.pageSize;
+    this.sortFieldG = q.sortField || 'fecha';
+    this.sortOrderG = q.sortOrder;
+    this.cargarPaginaG();
+  }
+
+  cargarPaginaG(): void {
+    this.subG?.unsubscribe();
+    this.cargandoG = true;
+    this.errorG = null;
+    this.subG = this.servicioService
+      .getServiciosPagina({ ...this.consultaGenerales(), page: this.paginaG, pageSize: this.pageSizeG })
+      .subscribe({
+        next: ({ pagina }) => {
+          // Si la página quedó vacía (se borró o cambió lo último de la lista) se retrocede a la última que exista.
+          if (pagina.items.length === 0 && this.paginaG > 1 && pagina.total > 0) {
+            this.paginaG = Math.max(1, pagina.totalPages);
+            this.cargarPaginaG();
+            return;
+          }
+          this.filasG = pagina.items;
+          this.totalG = pagina.total;
+          this.paginaG = pagina.page;
+          this.cargandoG = false;
+        },
+        error: (err) => {
+          this.filasG = [];
+          this.totalG = 0;
+          this.errorG = this.mensajeError(err);
+          this.cargandoG = false;
+        },
+      });
+  }
+
+  onTablaECambio(q: ConsultaTabla): void {
+    this.paginaE = q.page;
+    this.pageSizeE = q.pageSize;
+    this.sortFieldE = q.sortField;
+    this.sortOrderE = q.sortOrder;
+    this.cargarPaginaE();
+  }
+
+  cargarPaginaE(): void {
+    this.subE?.unsubscribe();
+    this.cargandoE = true;
+    this.errorE = null;
+    this.subE = this.extrasService
+      .getServiciosExtrasPagina({ ...this.consultaEspeciales(), page: this.paginaE, pageSize: this.pageSizeE })
+      .subscribe({
+        next: ({ pagina }) => {
+          if (pagina.items.length === 0 && this.paginaE > 1 && pagina.total > 0) {
+            this.paginaE = Math.max(1, pagina.totalPages);
+            this.cargarPaginaE();
+            return;
+          }
+          this.filasE = pagina.items;
+          this.totalE = pagina.total;
+          this.paginaE = pagina.page;
+          this.cargandoE = false;
+        },
+        error: (err) => {
+          this.filasE = [];
+          this.totalE = 0;
+          this.errorE = this.mensajeError(err);
+          this.cargandoE = false;
+        },
+      });
+  }
+
 
   modalNuevoRegistroOpen = false;
   modalVideoOpen = false;
+  /** URL ya resuelta (prefirmada si el archivo es privado) para el <video> del modal `modalVideoOpen`. */
+  videoEvidenciaUrl = '';
   modalReportarFallaOpen = false;
   maquinasReporte: Maquinaria[] = [];
   maquinaSeleccionadaId: number | string = 0;
@@ -2623,7 +3200,6 @@ export class ServiciosComponent implements OnInit {
   videoFileName = '';
 
   nuevoRegistro = {
-    numeroOrden: '',
     ordenTrabajoOT: '',
     placa: '',
     marca: '',
@@ -2716,13 +3292,18 @@ export class ServiciosComponent implements OnInit {
   serviciosEnMismaOT(item: VehiculoServicio): number {
     const ot = String(item.ordenTrabajoOT || '').trim().toUpperCase();
     if (!ot) return 1;
-    return this.servicios.filter(
-      (s) => String(s.ordenTrabajoOT || '').trim().toUpperCase() === ot && s.estado !== 'CANCELADO',
-    ).length;
+    // Une los servicios recientes y los de la página visible (sin repetir) para no depender de cuál se cargó primero.
+    const ids = new Set<string>();
+    for (const lista of [this.servicios, this.filasG, this.listaG.items]) {
+      for (const s of lista) {
+        if (String(s.ordenTrabajoOT || '').trim().toUpperCase() === ot && s.estado !== 'CANCELADO') ids.add(String(s.id));
+      }
+    }
+    return ids.size;
   }
 
   puedeAgregarServicio(item: VehiculoServicio): boolean {
-    if (!this.canCrearOT || this.isPulidor) return false;
+    if (!this.puedeCrearGeneral) return false;
     const estado = String(item.estado || '').toUpperCase();
     return estado === 'EN PROCESO' || estado === 'EN_PROCESO' || estado === 'FINALIZADO';
   }
@@ -2768,28 +3349,22 @@ export class ServiciosComponent implements OnInit {
       });
   }
 
-  getVehiculoOcupanteBahia(bahiaId: string | number, bahiaNombre?: string): VehiculoServicio | undefined {
-    return this.servicios.find(s => {
-      const enProceso = s.estado === 'EN PROCESO' || s.estado === 'EN_PROCESO' || s.estado === 'EN_ESPERA' || s.estado === 'EN COLA';
-      if (!enProceso) return false;
-      const matchAgencia = !s.agencia || !this.nuevoRegistro.agencia ||
-        s.agencia.toLowerCase().includes(this.nuevoRegistro.agencia.toLowerCase()) ||
-        this.nuevoRegistro.agencia.toLowerCase().includes(s.agencia.toLowerCase());
-      if (!matchAgencia) return false;
-      return (s.bahiaId && String(s.bahiaId) === String(bahiaId)) ||
-        (bahiaNombre && s.bahia && s.bahia.trim().toLowerCase() === bahiaNombre.trim().toLowerCase());
-    });
-  }
-
+  /**
+   * Estado real de ocupación de una bahía, leído del backend (`ocupada` en `agencias/bahias/list`).
+   * Es la única fuente de verdad: no se recalcula a partir de la lista de servicios en memoria.
+   * Puramente informativo — nunca bloquea la selección ni el guardado.
+   */
   isBahiaOcupada(b: Bahia): boolean {
-    return Boolean(this.getVehiculoOcupanteBahia(b.id, b.nombre));
+    return b.ocupada != null;
   }
 
-  get bahiaOcupadaActual(): VehiculoServicio | undefined {
+  get bahiaOcupadaActual(): { placa: string; ordenTrabajoOT: string | null } | undefined {
     // Al agregar un servicio, el vehículo ocupa su propia bahía: no es un conflicto.
     if (this.agregarServicioOTFuente) return undefined;
     if (!this.nuevoRegistro.bahiaId && !this.nuevoRegistro.bahia) return undefined;
-    return this.getVehiculoOcupanteBahia(this.nuevoRegistro.bahiaId, this.nuevoRegistro.bahia);
+    const b = this.bahiasSucursalForm.find(x => String(x.id) === String(this.nuevoRegistro.bahiaId))
+      || this.bahiasSucursalForm.find(x => x.nombre === this.nuevoRegistro.bahia);
+    return b?.ocupada || undefined;
   }
 
   productosInventario: InventarioItem[] = [];
@@ -2808,7 +3383,6 @@ export class ServiciosComponent implements OnInit {
   private toastService = inject(ToastService);
   private maquinariaService = inject(MaquinariaService);
   private incidenteService = inject(IncidenteService);
-  private permissions = inject(PermissionService);
 
   // ── Servicios Extras / Asignaciones Especiales ──
   serviciosExtras: ServicioExtra[] = [];
@@ -2821,8 +3395,6 @@ export class ServiciosComponent implements OnInit {
   filtroEstadoExtras = 'TODOS';
   filtroOperadorExtras = 0;
 
-  currentPageExtras = 1;
-  pageSizeExtras = 5;
 
   /** Servicio de lavado FINALIZADO que activa el modo 'agregar a OT existente' */
   agregarServicioOTFuente: VehiculoServicio | null = null;
@@ -2888,6 +3460,16 @@ export class ServiciosComponent implements OnInit {
   modalPausarServicioEspecialOpen = false;
   modalReanudarEspecialOpen = false;
   modalDetalleEspecialOpen = false;
+  // Anular (general o especial) y reasignar
+  modalAnularOpen = false;
+  anularObjetivo: { tipo: 'general' | 'especial'; id: string | number; titulo: string } | null = null;
+  motivoAnulacion = '';
+  reponerInsumosAnulacion = true;
+  anulando = false;
+  modalReasignarOpen = false;
+  extraReasignar?: ServicioExtra;
+  reasignarOperadorId = '';
+  reasignando = false;
   modalVideoGenericoOpen = false;
   videoGenericoUrl = '';
   videoGenericoTitulo = '';
@@ -2929,36 +3511,44 @@ export class ServiciosComponent implements OnInit {
   reanudandoEspecial = false;
 
   // ── Role helpers ──
-  get isSuperAdmin() { return this.authService.isSuperAdmin() || this.authService.hasRole(Role.SUPER_ADMIN); }
-  get isAdmin() { return this.authService.isAdmin() || this.isSuperAdmin; }
-  get isOperador() {
-    if (this.isSuperAdmin || this.isAdmin) return false;
-    return this.authService.hasRole(Role.OPERADOR);
+  // ── Permisos y ámbito: la web decide por permisos (los mismos que exige el servidor), no por nombre de rol ──
+  private get ambito(): string | undefined { return this.authService.getCurrentUser()?.ambito; }
+  /** El usuario ve toda la red (ámbito GLOBAL). */
+  get veTodaLaRed(): boolean { return this.ambito === 'GLOBAL'; }
+  /** Gestión total de OT (generales y especiales) con ámbito nacional: elige agencia, bahía y pulidor libremente. */
+  get isAdmin(): boolean {
+    return this.veTodaLaRed && this.authService.puede('servicios.crear') && this.authService.puede('especiales.crear');
   }
-  get isLiderOperador() {
-    if (this.isSuperAdmin || this.isAdmin) return false;
-    return this.authService.isLiderOperador();
+  get isSuperAdmin(): boolean { return this.isAdmin; }
+  get puedeVerGenerales(): boolean { return this.authService.puede('servicios.ver'); }
+  get puedeVerEspeciales(): boolean { return this.authService.puede('especiales.ver'); }
+  get puedeCrearGeneral(): boolean { return this.authService.puede('servicios.crear'); }
+  get puedeCrearEspecial(): boolean { return this.authService.puede('especiales.crear'); }
+  get puedeEditarGeneral(): boolean { return this.authService.puede('servicios.editar'); }
+  get puedeReasignarEspecial(): boolean { return this.authService.puede('especiales.reasignar'); }
+  get puedeVerCatalogoBoton(): boolean { return this.authService.puedeAlguno('catalogo.gestionar', 'servicios.crear'); }
+  /** Solo registra sus propios servicios (ámbito PROPIO). */
+  get isOperador(): boolean {
+    return !this.isAdmin && this.ambito === 'PROPIO' && this.puedeCrearGeneral;
   }
-  get isCoordServiciosEspeciales() {
-    if (this.isSuperAdmin || this.isAdmin) return false;
-    return this.authService.hasRole(Role.COORD_SERVICIOS_ESPECIALES) || this.authService.isCoordServiciosEspeciales();
+  /** Crea OT generales dentro de UNA agencia (ámbito AGENCIA): su sucursal queda fija en el formulario. */
+  get isLiderOperador(): boolean {
+    return !this.isAdmin && this.ambito === 'AGENCIA' && this.puedeCrearGeneral;
   }
-  get isPulidor() {
-    if (this.isSuperAdmin || this.isAdmin) return false;
-    if (this.isCoordServiciosEspeciales) return false;
-    return this.authService.hasRole(Role.PULIDOR) || this.authService.isPulidor();
+  /** Gestiona los servicios especiales de la red (reasigna) sin trabajar los generales. */
+  get isCoordServiciosEspeciales(): boolean {
+    return !this.isAdmin && this.puedeReasignarEspecial;
   }
+  /** Ejecuta servicios especiales (los inicia, pausa y completa) sin gestionarlos. */
+  get isPulidor(): boolean {
+    return !this.isAdmin && !this.isCoordServiciosEspeciales && this.authService.puede('especiales.operar');
+  }
+  /** Modalidad del pulidor según su agencia (no según el nombre del rol): con agencia opera en su sede; sin agencia, por región. */
   get isPulidorFijo(): boolean {
-    if (this.isSuperAdmin || this.isAdmin) return false;
-    const user = this.authService.getCurrentUser();
-    const rol = (user?.role || '').toUpperCase();
-    return (rol.includes('PULIDOR_FIJO') || (rol.includes('PULIDOR') && !!user?.agenciaId));
+    return this.isPulidor && !!this.authService.getCurrentUser()?.agenciaId;
   }
   get isPulidorMovil(): boolean {
-    if (this.isSuperAdmin || this.isAdmin) return false;
-    const user = this.authService.getCurrentUser();
-    const rol = (user?.role || '').toUpperCase();
-    return rol.includes('PULIDOR_MOVIL') || (rol.includes('PULIDOR') && !user?.agenciaId);
+    return this.isPulidor && !this.authService.getCurrentUser()?.agenciaId;
   }
   get miAgenciaNombre(): string {
     const user = this.authService.getCurrentUser();
@@ -3024,66 +3614,78 @@ export class ServiciosComponent implements OnInit {
   isPulidorDeAgenciaActual(op: any): boolean {
     return Boolean(op?.agenciaId && String(op.agenciaId) === String(this.extraFormAgenciaId));
   }
+  /** Iniciar, pausar, reanudar y completar: permiso 'especiales.operar' y ser el pulidor asignado (la gestión total también puede). */
   puedeRealizarOT(extra?: ServicioExtra): boolean {
-    if (!extra) return false;
-    if (this.isSuperAdmin || this.isAdmin) return true;
+    if (!extra || !this.authService.puede('especiales.operar')) return false;
+    if (this.isAdmin) return true;
     const user = this.authService.getCurrentUser();
     if (!user) return false;
     return String(extra.operadorId) === String(user.id);
   }
   get isOperadorEspeciales() {
-    if (this.isSuperAdmin || this.isAdmin) return false;
     return this.isCoordServiciosEspeciales || this.isPulidor;
   }
   get userRegionNombre(): string {
     const u = this.authService.getCurrentUser();
     return u?.regionNombre || u?.region || '';
   }
-  get isGerente() { return this.authService.hasAnyRole([Role.SUPER_ADMIN, Role.ADMIN, Role.GERENTE]); }
+  /** El ámbito del usuario es una región (supervisión regional). */
   get isSupervisor(): boolean {
-    const user = this.authService.getCurrentUser();
-    const rol = (user?.role || '').toUpperCase();
-    return (rol === 'SUPERVISOR' || rol === 'GERENTE_REGIONAL' || rol.includes('SUPERVISOR') || rol.includes('REGIONAL')) && !this.isAdmin && !this.isSuperAdmin;
-  }
-  get isAprobador(): boolean {
-    const user = this.authService.getCurrentUser();
-    const rol = (user?.role || '').toUpperCase();
-    return (rol === 'APROBADOR' || rol === 'GERENTE' || user?.role === Role.APROBADOR || user?.role === Role.GERENTE) && !this.isAdmin && !this.isSuperAdmin;
+    return !this.isAdmin && this.ambito === 'REGION';
   }
   get canCrearOT(): boolean {
-    if (this.isAprobador) return false;
-    return this.permissions.canRegistrarServicio() || this.isOperador || this.isLiderOperador || this.isOperadorEspeciales || this.isAdmin || this.isSuperAdmin;
+    return this.tabActiva === 'especiales' ? this.puedeCrearEspecial : this.puedeCrearGeneral;
   }
   get userSucursal(): string | undefined {
     return this.authService.getCurrentUser()?.sucursalNombre || this.authService.getCurrentUser()?.sucursal;
   }
   get puedeReportarFalla() {
-    return !this.isAprobador && this.authService.hasAnyRole([Role.OPERADOR, Role.LIDER_OPERADOR, Role.OPERADOR_SERVICIOS_ESPECIALES])
-      && this.permissions.canRegistrarIncidente();
+    return !this.isAdmin && this.authService.puede('incidentes.reportar');
   }
 
-  /** Solo Gerente, SuperAdmin y Admin pueden aprobar servicios */
-  get canApprove() {
-    return this.authService.hasAnyRole([Role.SUPER_ADMIN, Role.ADMIN, Role.GERENTE, Role.APROBADOR]);
-  }
-
-  /** Helper para obtener filtros de alcance del usuario */
+  /** Alcance del usuario según su ámbito (el servidor lo aplica igual; esto solo acota lo que se pide). */
   private _getFiltrosUsuario(): { agenciaId?: string; regionId?: string } | undefined {
     const user = this.authService.getCurrentUser();
-    if (this.isAprobador && user?.agenciaId) {
-      return { agenciaId: String(user.agenciaId) };
-    }
-    if (this.isSupervisor && user?.regionId) {
-      return { regionId: String(user.regionId) };
-    }
+    if (user?.ambito === 'AGENCIA' && user.agenciaId) return { agenciaId: String(user.agenciaId) };
+    if (user?.ambito === 'REGION' && user.regionId) return { regionId: String(user.regionId) };
     return undefined;
   }
 
-  /** El operador / líder / admin puede finalizar servicios en proceso o en cola (Aprobador NO puede) */
+  /** Finalizar un servicio general = actualizarlo (permiso 'servicios.editar'); solo si sigue en proceso o en cola. */
   canFinalizar(item: VehiculoServicio): boolean {
-    if (this.isAprobador) return false;
+    if (!this.puedeEditarGeneral) return false;
     const estado = (item.estado || '').toUpperCase();
     return estado === 'EN PROCESO' || estado === 'EN_PROCESO' || estado === 'EN COLA' || estado === 'EN_ESPERA';
+  }
+
+  /** Anular un servicio general: permiso 'servicios.anular'; uno aprobado solo lo anula la gestión total (el servidor lo exige). */
+  puedeAnularServicio(item: VehiculoServicio): boolean {
+    if (!this.authService.puede('servicios.anular')) return false;
+    const estado = (item.estado || '').toUpperCase();
+    if (estado === 'CANCELADO' || item.anuladoEn) return false;
+    return estado !== 'APROBADO' || this.isAdmin;
+  }
+
+  puedeAnularEspecial(extra: ServicioExtra): boolean {
+    if (!this.authService.puede('especiales.anular')) return false;
+    return extra.estado !== 'Completado' && extra.estado !== 'Cancelado';
+  }
+
+  puedeReasignarExtra(extra: ServicioExtra): boolean {
+    return this.puedeReasignarEspecial && extra.estado !== 'Completado' && extra.estado !== 'Cancelado';
+  }
+
+  /** Estado tal como lo ve el usuario: un servicio finalizado queda pendiente hasta que el aprobador decide. */
+  etiquetaEstado(estado: string | undefined, largo = false): string {
+    if (estado === 'FINALIZADO') return largo ? 'PENDIENTE DE APROBACIÓN' : 'POR APROBAR';
+    return estado || '';
+  }
+
+  /** " (aprobador de la agencia)" o " (respaldo…)" según la regla con la que se decidió. */
+  etiquetaRegla(item: VehiculoServicio): string {
+    if (item.reglaDecision === 'TITULAR') return ' (aprobador de la agencia)';
+    if (item.reglaDecision === 'RESPALDO') return ' (respaldo: la agencia no tenía aprobador)';
+    return '';
   }
 
   /** Obtiene la evidencia de inicio del servicio si existe */
@@ -3111,8 +3713,8 @@ export class ServiciosComponent implements OnInit {
   ngOnInit(): void {
     const user = this.authService.getCurrentUser();
 
-    // Si el usuario es de servicios especiales (pulidor o coord exclusivo), pre-seleccionar pestaña de especiales
-    if ((this.isCoordServiciosEspeciales || this.isPulidor) && !this.isSuperAdmin && !this.isAdmin) {
+    // Quien solo puede ver servicios especiales (sin 'servicios.ver') arranca en esa pestaña.
+    if (!this.puedeVerGenerales && this.puedeVerEspeciales) {
       this.tabActiva = 'especiales';
       this.tieneServiciosEspeciales = true;
     } else {
@@ -3131,12 +3733,21 @@ export class ServiciosComponent implements OnInit {
       if (user.bahiaNombre) this.nuevoRegistro.bahia = user.bahiaNombre;
     }
 
-    this.servicioService.getServicios(this._getFiltrosUsuario()).subscribe(list => {
-      this.servicios = list;
-      this.recalcularServiciosFiltrados();
-    });
+    if (this.puedeVerGenerales) {
+      this.servicioService.getServicios(this._getFiltrosUsuario()).subscribe(list => {
+        this.servicios = list;
+      });
+    }
 
-    this.catalogoService.getServiciosActivos().subscribe(cat => {
+    this.iniciarVistaServidor();
+
+    // Cada consulta auxiliar se hace solo si el rol tiene el permiso que el servidor exige en ese endpoint.
+    if (this.authService.puede('agencias.ver')) {
+      this.bahiaService.getBahias().subscribe(list => { this.bahiasTodas = list || []; });
+    }
+
+    const catalogo$: Observable<any[]> = this.authService.puede('catalogo.ver') ? this.catalogoService.getServiciosActivos() : of([]);
+    catalogo$.subscribe(cat => {
       this.catalogoCompleto = cat;
       const nombres = cat.map(c => c.nombre).filter(Boolean);
       if (nombres.length) this.listaServiciosFiltro = Array.from(new Set(nombres));
@@ -3144,7 +3755,8 @@ export class ServiciosComponent implements OnInit {
       this.recalcularTieneServiciosEspeciales();
     });
 
-    this.sucursalService.getSucursales().subscribe(list => {
+    const sucursales$: Observable<any[]> = this.authService.puede('agencias.ver') ? this.sucursalService.getSucursales() : of([]);
+    sucursales$.subscribe(list => {
       this.sucursales = list;
       const sucClean = (user?.sucursalNombre || user?.sucursal || (user as any)?.agencia || '').toLowerCase().trim();
       const suc = list.find(s =>
@@ -3174,22 +3786,26 @@ export class ServiciosComponent implements OnInit {
       this.productosInventario = items;
     });
 
-    if (this.isLiderOperador) {
+    if (this.isLiderOperador && this.authService.puede('despachos.ver')) {
       const agId = user?.agenciaId || user?.sucursalNombre || user?.sucursal || '';
       this.inventarioService.getDespachosPendientesAgencia(String(agId)).subscribe(list => {
         this.despachosPendientesLider = list || [];
       });
     }
 
-    this.operadorService.getOperadores().subscribe(ops => {
-      this.operadores = ops;
-    });
+    if (this.authService.puede('usuarios.ver')) {
+      this.operadorService.getOperadores().subscribe(ops => {
+        this.operadores = ops;
+      });
+    }
 
-    // Cargar Servicios Especiales Regionales
-    this.cargarServiciosEspeciales();
-    this.cargarPulidoresRegion();
-    if (this.isPulidor) {
-      this.cargarStockPulidor();
+    // Cargar Servicios Especiales Regionales (la vista paginada ya la carga iniciarVistaServidor)
+    if (this.puedeVerEspeciales) {
+      this.cargarServiciosEspeciales(false);
+      this.cargarPulidoresRegion();
+      if (this.isPulidor) {
+        this.cargarStockPulidor();
+      }
     }
 
     if (this.isOperadorEspeciales) {
@@ -3205,7 +3821,7 @@ export class ServiciosComponent implements OnInit {
       this.nuevoIncidente.tipo = 'Sobrecalentamiento';
     }
 
-    if (this.puedeReportarFalla) {
+    if (this.puedeReportarFalla && this.authService.puede('maquinaria.ver')) {
       this.maquinariaService.getMaquinaria().subscribe(list => {
         this.maquinasReporte = this.isOperadorEspeciales
           ? list.filter(m => this.esEquipoServiciosEspeciales(m))
@@ -3223,20 +3839,24 @@ export class ServiciosComponent implements OnInit {
     }
   }
 
-  cargarServiciosEspeciales() {
+  /** Filtros de alcance del usuario para los servicios especiales (el servidor también los aplica por rol). */
+  private alcanceEspeciales(): { regionId?: string; agenciaId?: string; operadorId?: string } {
     const user = this.authService.getCurrentUser();
-    const filtro: any = {};
-    if (this.isSuperAdmin || this.isAdmin) {
-      // Super Admin y Admin: acceso nacional completo
-    } else if (this.isSupervisor && user?.regionId) {
+    const filtro: { regionId?: string; agenciaId?: string; operadorId?: string } = {};
+    if (this.veTodaLaRed) return filtro; // toda la red: sin acotar
+    if (user?.ambito === 'REGION' && user.regionId) {
       filtro.regionId = String(user.regionId);
-    } else if (this.isAprobador && user?.agenciaId) {
+    } else if (user?.ambito === 'AGENCIA' && user.agenciaId) {
       filtro.agenciaId = String(user.agenciaId);
-    } else if (this.isCoordServiciosEspeciales && user?.regionId) {
-      filtro.regionId = String(user.regionId);
-    } else if (this.isPulidor && user?.id) {
-      filtro.operadorId = String(user.id);
+    } else if ((user?.ambito === 'PROPIO' || this.isPulidorMovil) && user?.id) {
+      filtro.operadorId = String(user.id); // pulidor móvil (sin agencia): solo los suyos
     }
+    return filtro;
+  }
+
+  cargarServiciosEspeciales(refrescarVista = true) {
+    const filtro: any = this.alcanceEspeciales();
+    if (refrescarVista) this.refrescarEspeciales();
 
     this.extrasService.getServiciosExtras(filtro).subscribe(extras => {
       this.serviciosExtras = extras || [];
@@ -3247,8 +3867,15 @@ export class ServiciosComponent implements OnInit {
   }
 
   cargarPulidoresRegion() {
+    // El coordinador (y el admin) tiene alcance nacional y puede crear/reasignar la OT en cualquier
+    // agencia del país, no solo en la región del que la crea: se trae el listado completo de
+    // pulidores de toda la red. Filtrar por la región del usuario dejaba fuera al pulidor fijo de
+    // cualquier agencia fuera de su región, y el formulario caía sin motivo al modo "elegir pulidor
+    // móvil" aunque la agencia sí tuviera uno fijo asignado.
     const user = this.authService.getCurrentUser();
-    const regId = user?.regionId ? String(user.regionId) : undefined;
+    const regId = (this.isSuperAdmin || this.isAdmin || this.isCoordServiciosEspeciales)
+      ? undefined
+      : (user?.regionId ? String(user.regionId) : undefined);
     this.extrasService.getPulidoresPorRegion(regId).subscribe(list => {
       this.pulidoresDisponiblesRegion = list || [];
     });
@@ -3290,7 +3917,7 @@ export class ServiciosComponent implements OnInit {
     ) || this.sucursalService.getSucursalPorNombre(user.sucursalNombre || user.sucursal);
 
     // Admin / supervisor sin agencia fija: pueden ver el módulo completo
-    if ((this.isSuperAdmin || this.isAdmin || this.isSupervisor || this.isGerente) && !suc && !user.agenciaId) {
+    if ((this.isSuperAdmin || this.isAdmin || this.isSupervisor) && !suc && !user.agenciaId) {
       this.tieneServiciosEspeciales = true;
       return;
     }
@@ -3634,9 +4261,12 @@ export class ServiciosComponent implements OnInit {
     }
   }
 
-  get bahiaExtraOcupadaActual(): VehiculoServicio | undefined {
+  /** Informativo (backend `ocupada`): no bloquea la selección de bahía en el formulario de especiales. */
+  get bahiaExtraOcupadaActual(): { placa: string; ordenTrabajoOT: string | null } | undefined {
     if (!this.extraFormBahiaId && !this.extraFormBahia) return undefined;
-    return this.getVehiculoOcupanteBahia(this.extraFormBahiaId, this.extraFormBahia);
+    const b = this.bahiasSucursalExtraForm.find(x => String(x.id) === String(this.extraFormBahiaId))
+      || this.bahiasSucursalExtraForm.find(x => x.nombre === this.extraFormBahia);
+    return b?.ocupada || undefined;
   }
 
   get operadoresSucursalForm(): Operador[] {
@@ -3646,137 +4276,6 @@ export class ServiciosComponent implements OnInit {
       return !agencia || opSuc.includes(agencia) || agencia.includes(opSuc);
     });
     return ops.length > 0 ? ops : this.operadores;
-  }
-
-  private recalcularServiciosFiltrados(): void {
-    const user = this.authService.getCurrentUser();
-    const role = this.authService.getRole();
-    const texto = this.filtroTexto.toLowerCase().trim();
-
-    const isSuper = role === Role.SUPER_ADMIN || role === Role.ADMIN || role === 'SUPER_ADMIN' || role === 'ADMIN';
-    const isSupervisor = this.isSupervisor;
-    const isAprobador = this.isAprobador;
-    const userSucClean = (this.userSucursal || user?.sucursalNombre || user?.sucursal || (user as any)?.agencia || '').replace(/EasyDry\s*/i, '').toLowerCase().trim();
-    const uReg = (user?.regionNombre || user?.region || '').toLowerCase();
-
-    let resultados = this.servicios.filter(s => {
-      if (isAprobador && userSucClean) {
-        const itemSucClean = (s.agencia || '').replace(/EasyDry\s*/i, '').toLowerCase().trim();
-        const matchSucursal = !itemSucClean || itemSucClean.includes(userSucClean) || userSucClean.includes(itemSucClean);
-        if (!matchSucursal) return false;
-      } else if (isSupervisor && uReg) {
-        if (this.mapaRegionSucursal[s.agencia]) {
-          const sReg = (this.mapaRegionSucursal[s.agencia] || '').toLowerCase();
-          if (!sReg.includes(uReg) && !uReg.includes(sReg)) return false;
-        }
-      } else if (!isSuper && !isSupervisor && userSucClean) {
-        const itemSucClean = (s.agencia || '').replace(/EasyDry\s*/i, '').toLowerCase().trim();
-        const matchSucursal = !itemSucClean || itemSucClean.includes(userSucClean) || userSucClean.includes(itemSucClean);
-        const matchOperador = user && s.empleado?.toLowerCase().includes((user.nombre || '').toLowerCase());
-        if (!matchSucursal && !matchOperador) return false;
-      }
-
-      const matchTexto = !texto ||
-        s.placa.toLowerCase().includes(texto) ||
-        (s.ordenTrabajoOT?.toLowerCase().includes(texto) ?? false) ||
-        (s.numeroOrden?.toLowerCase().includes(texto) ?? false) ||
-        (s.modelo?.toLowerCase().includes(texto) ?? false);
-
-      return matchTexto;
-    });
-
-    if (this.filtrosGlobales.estado !== 'Todos') {
-      const fe = this.filtrosGlobales.estado.toUpperCase();
-      resultados = resultados.filter(s => {
-        const se = (s.estado || '').toUpperCase();
-        if (fe === 'EN PROCESO' || fe === 'EN_PROCESO') {
-          return se === 'EN PROCESO' || se === 'EN_PROCESO' || se === 'EN COLA' || se === 'EN_ESPERA';
-        }
-        if (fe === 'POR APROBAR' || fe === 'POR_APROBAR' || fe === 'FALTAN DE APROBAR') {
-          return se === 'FINALIZADO' && (!s.aprobadoPor || s.aprobadoPor.trim() === '');
-        }
-        if (fe === 'REALIZADOS / APROBADOS' || fe === 'REALIZADO' || fe === 'REALIZADOS' || fe === 'APROBADO') {
-          return se === 'APROBADO' || se === 'FINALIZADO';
-        }
-        if (fe === 'RECHAZADOS' || fe === 'RECHAZADO') {
-          return se === 'RECHAZADO';
-        }
-        return se === fe;
-      });
-    }
-    if (this.filtrosGlobales.sucursal !== 'Todas') {
-      const fs = (this.filtrosGlobales.sucursal || '').replace(/EasyDry\s*/i, '').toLowerCase().trim();
-      resultados = resultados.filter(s => {
-        const sa = (s.agencia || '').replace(/EasyDry\s*/i, '').toLowerCase().trim();
-        return sa.includes(fs) || fs.includes(sa);
-      });
-    }
-    if (this.filtrosGlobales.bahia !== 'Todas') {
-      const fb = (this.filtrosGlobales.bahia || '').toLowerCase().trim();
-      resultados = resultados.filter(s => {
-        const sb = (s.bahia || '').toLowerCase().trim();
-        return sb.includes(fb) || fb.includes(sb);
-      });
-    }
-    if (this.filtrosGlobales.operador !== 'Todos') {
-      const fo = (this.filtrosGlobales.operador || '').toLowerCase().trim();
-      resultados = resultados.filter(s => (s.empleado || '').toLowerCase().includes(fo));
-    }
-    if (this.filtrosGlobales.servicio && this.filtrosGlobales.servicio !== 'Todos') {
-      const fserv = this.filtrosGlobales.servicio.toLowerCase().trim();
-      resultados = resultados.filter(s =>
-        (s.servicio || '').toLowerCase().includes(fserv)
-      );
-    }
-    if (this.filtrosGlobales.region && this.filtrosGlobales.region !== 'Todas') {
-      resultados = resultados.filter(s =>
-        this.mapaRegionSucursal[s.agencia] === this.filtrosGlobales.region
-      );
-    }
-    const targetClienteFiltro = (this.filtrosGlobales.cliente && this.filtrosGlobales.cliente !== 'Todas')
-      ? this.filtrosGlobales.cliente
-      : (this.filtrosGlobales.marca && this.filtrosGlobales.marca !== 'Todas' ? this.filtrosGlobales.marca : null);
-    if (targetClienteFiltro) {
-      resultados = resultados.filter(s =>
-        this.mapaMarcaSucursal[s.agencia] === targetClienteFiltro
-      );
-    }
-    if (this.filtrosGlobales.busqueda?.trim()) {
-      const b = this.filtrosGlobales.busqueda.trim().toLowerCase();
-      resultados = resultados.filter(s =>
-        s.placa?.toLowerCase().includes(b) ||
-        s.ordenTrabajoOT?.toLowerCase().includes(b) ||
-        s.numeroOrden?.toLowerCase().includes(b) ||
-        s.marca?.toLowerCase().includes(b) ||
-        s.modelo?.toLowerCase().includes(b) ||
-        s.color?.toLowerCase().includes(b)
-      );
-    }
-
-    const rango = resolverRangoFechas(this.filtrosGlobales);
-    if (rango) {
-      resultados = resultados.filter(s => {
-        const d = soloFecha(s.fecha);
-        return d >= rango.inicio && d <= rango.fin;
-      });
-    }
-
-    this.serviciosFiltrados = resultados;
-  }
-
-  get paginatedServicios() {
-    const start = (this.currentPage - 1) * this.pageSize;
-    const end = start + this.pageSize;
-    return this.serviciosFiltrados.slice(start, end);
-  }
-
-  onPageChange(page: number) {
-    this.currentPage = page;
-  }
-
-  onPageSizeChange(size: number) {
-    this.pageSize = size;
-    this.currentPage = 1;
   }
 
   calcularDuracion(inicio: string, fin: string): string {
@@ -3830,18 +4329,10 @@ export class ServiciosComponent implements OnInit {
         this.toastService.warning('Servicio ya registrado', `"${repetido.nombre}" ya forma parte de la OT ${otGenUpper}.`);
         return;
       }
-    } else {
-      const existeEnGenerales = this.servicios.some(s =>
-        s.ordenTrabajoOT?.toUpperCase() === otGenUpper && s.estado !== 'CANCELADO'
-      );
-      const existeEnEspeciales = this.serviciosExtras.some(e =>
-        (e.codigoSE || (e as any).ordenTrabajoOT)?.toUpperCase() === otGenUpper && e.estado !== 'Cancelado'
-      );
-      if (existeEnGenerales || existeEnEspeciales) {
-        this.toastService.warning('Orden de Trabajo Duplicada', `La OT "${otGenUpper}" ya se encuentra registrada en el sistema. Use "Agregar servicio" desde la fila para sumar servicios a esa OT.`);
-        return;
-      }
     }
+    // Nota: la validación de OT duplicada la hace el backend (fuente de verdad, único espacio
+    // de numeración autoritativo). No se bloquea aquí con datos en memoria del cliente; el
+    // error del backend se muestra en el callback `error` de la petición de guardado.
 
     if (!this.nuevoRegistro.marca?.trim()) {
       this.toastService.warning('Campos Incompletos', 'Ingrese la marca del vehículo.');
@@ -3868,26 +4359,9 @@ export class ServiciosComponent implements OnInit {
       return;
     }
 
-    if (this.bahiaOcupadaActual) {
-      this.toastService.warning(
-        'Bahía ocupada',
-        `La "${this.nuevoRegistro.bahia || 'bahía seleccionada'}" ya se encuentra ocupada por el vehículo ${this.bahiaOcupadaActual.placa} (OT: ${this.bahiaOcupadaActual.ordenTrabajoOT || 'En curso'}). Seleccione otra bahía disponible.`
-      );
-      this.guardandoServicio = false;
-      return;
-    }
-
-    const ocupada = modoAgregar ? undefined : this.servicios.find(s =>
-      placasEquivalentes(s.placa, resultado.placa) &&
-      (s.estado === 'EN PROCESO' || s.estado === 'EN_PROCESO' || s.estado === 'EN_ESPERA')
-    );
-    if (ocupada) {
-      this.toastService.warning(
-        'Placa en bahía',
-        `${resultado.placa} ya tiene la OT ${ocupada.ordenTrabajoOT} en proceso.`
-      );
-      return;
-    }
+    // Nota: la ocupación de bahía y la placa duplicada son solo informativas (el backend agrega
+    // una advertencia a las observaciones si corresponde, pero nunca rechaza el registro), así
+    // que no bloquean aquí el guardado.
 
     // Subir vídeo de ingreso a S3 al guardar si fue grabado o seleccionado
     if (this.videoIngresoRecorder?.hasPendingUpload) {
@@ -3965,14 +4439,16 @@ export class ServiciosComponent implements OnInit {
         this.filtroCategoria = 'Todas';
         this.filtrosGlobales.busqueda = '';
         this.filtrosGlobales.estado = 'Todos';
-        this.currentPage = 1;
+        this.busquedaAplicada = '';
         this.agregarServicioOTFuente = null;
 
-        this.inventarioService.cargarItems();
+        if (this.authService.puede('inventario.ver')) this.inventarioService.cargarItems();
         this.servicioService.getServicios(this._getFiltrosUsuario()).subscribe(list => {
           this.servicios = list;
-          this.recalcularServiciosFiltrados();
         });
+        // La OT nueva es la más reciente: solo se ve en la primera página, así que aquí sí se vuelve a la 1.
+        this.paginaG = 1;
+        this.refrescarGenerales();
       },
       error: (err) => {
         this.guardandoServicio = false;
@@ -3984,8 +4460,8 @@ export class ServiciosComponent implements OnInit {
   }
 
   abrirModalFinalizarServicio(item: VehiculoServicio) {
-    if (this.isAprobador) {
-      this.toastService.warning('Acceso Restringido', 'El rol Aprobador no puede finalizar servicios; solo auditar y aprobar/rechazar.');
+    if (!this.puedeEditarGeneral) {
+      this.toastService.warning('Acceso restringido', 'Tu rol no tiene permiso para finalizar servicios.');
       return;
     }
 
@@ -4063,16 +4539,12 @@ export class ServiciosComponent implements OnInit {
         this.modalFinalizarServicioOpen = false;
         this.servicioAFinalizar = null;
         if (res) {
-          const autoAprobado = res.estado === 'APROBADO';
-          const titulo = autoAprobado ? 'Servicio Finalizado y Aprobado' : 'Servicio Finalizado';
-          const msg = autoAprobado
-            ? `Vehículo ${item.placa} finalizado con evidencia y aprobado automáticamente.`
-            : `Vehículo ${item.placa} finalizado con evidencia de entrega. Enviado a revisión del Gerente/Aprobador.`;
-          this.toastService.success(titulo, msg);
+          // Un servicio finalizado siempre queda pendiente de aprobación (no hay aprobación automática).
+          this.toastService.success('Servicio finalizado', `Vehículo ${item.placa} finalizado con evidencia de entrega. Queda pendiente de aprobación.`);
           this.servicioService.getServicios(this._getFiltrosUsuario()).subscribe(list => {
             this.servicios = list;
-            this.recalcularServiciosFiltrados();
           });
+          this.refrescarGenerales();
         }
       },
       error: (err) => {
@@ -4088,28 +4560,118 @@ export class ServiciosComponent implements OnInit {
     this.abrirModalFinalizarServicio(item);
   }
 
+  /** Mensaje del servidor (403/400 traen `message` en español); si no hay, el texto por defecto. */
+  private mensajeErrorAccion(err: any, porDefecto: string): string {
+    const msg = err?.error?.message || err?.message || porDefecto;
+    return Array.isArray(msg) ? msg.join('. ') : msg;
+  }
+
   aprobarServicio(item: VehiculoServicio) {
+    if (!item.puedeDecidir) {
+      this.toastService.warning('No disponible', 'Este servicio no lo puedes aprobar ahora.');
+      return;
+    }
     this.servicioService.aprobarServicioGerente(item.id).subscribe({
-      next: (res) => {
-        if (res) {
-          this.toastService.success('Servicio Aprobado', `Servicio ${item.placa} aprobado por Gerencia.`);
-          this.servicioService.getServicios(this._getFiltrosUsuario()).subscribe(list => {
-            this.servicios = list;
-            this.recalcularServiciosFiltrados();
-          });
-        }
+      next: () => {
+        this.toastService.success('Servicio aprobado', `Servicio ${item.placa} aprobado.`);
+        this.servicioService.getServicios(this._getFiltrosUsuario()).subscribe(list => {
+          this.servicios = list;
+        });
+        this.refrescarGenerales();
       },
       error: (err) => {
         console.error('Error al aprobar servicio:', err);
-        const msg = err?.error?.message || err?.message || 'No se pudo aprobar el servicio.';
-        this.toastService.error('Error al Aprobar', Array.isArray(msg) ? msg.join('. ') : msg);
+        this.toastService.error('No se pudo aprobar', this.mensajeErrorAccion(err, 'No se pudo aprobar el servicio.'));
+        this.refrescarGenerales();
       }
     });
   }
 
-  verVideoEvidencia(item: VehiculoServicio) {
+  // ── Anular (servicios generales y especiales): motivo obligatorio, no se borra ──
+  abrirModalAnularGeneral(item: VehiculoServicio) {
+    this.anularObjetivo = { tipo: 'general', id: item.id, titulo: `${item.placa} (${item.ordenTrabajoOT || 'sin OT'})` };
+    this.motivoAnulacion = '';
+    this.reponerInsumosAnulacion = true;
+    this.modalAnularOpen = true;
+  }
+
+  abrirModalAnularEspecial(extra: ServicioExtra) {
+    this.anularObjetivo = { tipo: 'especial', id: extra.id, titulo: `${extra.placa || extra.vehiculoInfo?.placa || ''} (${extra.codigoSE})` };
+    this.motivoAnulacion = '';
+    this.modalAnularOpen = true;
+  }
+
+  confirmarAnulacion() {
+    const objetivo = this.anularObjetivo;
+    const motivo = this.motivoAnulacion.trim();
+    if (!objetivo || motivo.length < 5) {
+      this.toastService.warning('Motivo requerido', 'Escribe el motivo de la anulación (mínimo 5 caracteres).');
+      return;
+    }
+    this.anulando = true;
+    const peticion = objetivo.tipo === 'general'
+      ? this.servicioService.anularServicio(objetivo.id, motivo, this.reponerInsumosAnulacion)
+      : this.extrasService.anularServicioExtra(objetivo.id, motivo);
+    peticion.subscribe({
+      next: () => {
+        this.anulando = false;
+        this.modalAnularOpen = false;
+        this.modalDetalleOpen = false;
+        this.modalDetalleEspecialOpen = false;
+        this.toastService.success('Servicio anulado', `${objetivo.titulo} quedó anulado; se guardó tu motivo.`);
+        if (objetivo.tipo === 'general') {
+          this.servicioService.getServicios(this._getFiltrosUsuario()).subscribe(list => { this.servicios = list; });
+          this.refrescarGenerales();
+        } else {
+          this.cargarServiciosEspeciales();
+        }
+      },
+      error: (err) => {
+        this.anulando = false;
+        this.toastService.error('No se pudo anular', this.mensajeErrorAccion(err, 'No se pudo anular el servicio.'));
+      }
+    });
+  }
+
+  // ── Reasignar servicio especial (permiso 'especiales.reasignar') ──
+  abrirModalReasignar(extra: ServicioExtra) {
+    if (!this.puedeReasignarExtra(extra)) return;
+    this.extraReasignar = extra;
+    this.reasignarOperadorId = extra.operadorId ? String(extra.operadorId) : '';
+    this.modalReasignarOpen = true;
+  }
+
+  confirmarReasignacion() {
+    const extra = this.extraReasignar;
+    if (!extra) return;
+    this.reasignando = true;
+    this.extrasService.reasignarServicioExtra(extra.id, this.reasignarOperadorId || null).subscribe({
+      next: () => {
+        this.reasignando = false;
+        this.modalReasignarOpen = false;
+        this.toastService.success('Servicio reasignado', `${extra.codigoSE} tiene nuevo responsable.`);
+        this.cargarServiciosEspeciales();
+      },
+      error: (err) => {
+        this.reasignando = false;
+        this.toastService.error('No se pudo reasignar', this.mensajeErrorAccion(err, 'No se pudo reasignar el servicio.'));
+      }
+    });
+  }
+
+  async verVideoEvidencia(item: VehiculoServicio) {
     this.servicioSeleccionado = item;
+    this.videoEvidenciaUrl = '';
     this.modalVideoOpen = true;
+    const url = item.videoUrl || item.video || item.fotoIngresoUrl || item.fotoSalidaUrl;
+    if (!url) return;
+    // Resuelve primero la URL prefirmada (si el archivo es privado) en vez de intentar /storage/file
+    // directamente, que respondería 403 para evidencias privadas.
+    try {
+      this.videoEvidenciaUrl = await this.storageUploadService.getDirectStreamingUrl(url);
+    } catch {
+      this.videoEvidenciaUrl = this.storageUploadService.resolveBackendUrl(url);
+    }
   }
 
   abrirDetalle(item: VehiculoServicio) {
@@ -4122,60 +4684,6 @@ export class ServiciosComponent implements OnInit {
   get extrasEnProceso()   { return this.serviciosExtras.filter(e => e.estado === 'En Proceso').length; }
   get extrasCompletados() { return this.serviciosExtras.filter(e => e.estado === 'Completado').length; }
   get extrasCancelados()  { return this.serviciosExtras.filter(e => e.estado === 'Cancelado').length; }
-
-  get extrasFiltrados() {
-    const user = this.authService.getCurrentUser();
-    const isSupervisor = this.isSupervisor;
-    const isAprobador = this.isAprobador;
-    const uReg = (user?.regionNombre || user?.region || '').toLowerCase();
-    const uSuc = (this.userSucursal || user?.sucursalNombre || user?.sucursal || '').toLowerCase().trim();
-
-    return this.serviciosExtras.filter(e => {
-      // Scope RBAC para Especiales:
-      if (this.isPulidor && !this.isSuperAdmin && !this.isAdmin) {
-        // Los servicios especiales solo le salen al pulidor al que se le asignó la OT
-        if (String(e.operadorId) !== String(user?.id)) return false;
-      } else if (isAprobador && uSuc) {
-        const hasSuc = (e.sucursales || []).some(s => s.toLowerCase().includes(uSuc) || uSuc.includes(s.toLowerCase()));
-        if (!hasSuc) return false;
-      } else if (isSupervisor && uReg) {
-        const eReg = (e.regionNombre || '').toLowerCase();
-        if (eReg && !eReg.includes(uReg) && !uReg.includes(eReg)) return false;
-      }
-
-      const matchEst = this.filtrosGlobales.estado === 'Todos' ||
-        e.estado?.toLowerCase() === this.filtrosGlobales.estado?.toLowerCase() ||
-        (this.filtrosGlobales.estado === 'En Proceso' && (e.estado === 'En Proceso' || e.estado === 'Pendiente')) ||
-        ((this.filtrosGlobales.estado === 'Completado' || this.filtrosGlobales.estado === 'Realizados / Aprobados') && (e.estado === 'Completado' || (e.estado as string) === 'FINALIZADO'));
-
-      const matchReg = !this.filtrosGlobales.region || this.filtrosGlobales.region === 'Todas' ||
-        (e.regionNombre || '').toLowerCase().includes(this.filtrosGlobales.region.toLowerCase());
-
-      const matchSuc = !this.filtrosGlobales.sucursal || this.filtrosGlobales.sucursal === 'Todas' ||
-        (e.sucursales || []).some(s => s.toLowerCase().includes(this.filtrosGlobales.sucursal.toLowerCase()));
-
-      const matchOp = !this.filtrosGlobales.operador || this.filtrosGlobales.operador === 'Todos' ||
-        (e.operadorNombre || '').toLowerCase().includes(this.filtrosGlobales.operador.toLowerCase());
-
-      const busq = (this.filtrosGlobales.busqueda || this.filtroTexto || '').trim().toLowerCase();
-      const matchTxt = !busq ||
-        e.servicioNombre.toLowerCase().includes(busq) ||
-        (e.ordenTrabajoOT || '').toLowerCase().includes(busq) ||
-        e.codigoSE.toLowerCase().includes(busq) ||
-        (e.vehiculoInfo?.placa || e.placa || '').toLowerCase().includes(busq) ||
-        e.operadorNombre.toLowerCase().includes(busq);
-
-      return matchEst && matchReg && matchSuc && matchOp && matchTxt;
-    });
-  }
-
-  get paginatedExtras() {
-    const start = (this.currentPageExtras - 1) * this.pageSizeExtras;
-    return this.extrasFiltrados.slice(start, start + this.pageSizeExtras);
-  }
-
-  onPageChangeExtras(page: number) { this.currentPageExtras = page; }
-  onPageSizeChangeExtras(size: number) { this.pageSizeExtras = size; this.currentPageExtras = 1; }
 
   get puedeCrearOTEspecialConInsumos(): boolean {
     if (this.validandoStockPulidorOT) return false;
@@ -4267,7 +4775,7 @@ export class ServiciosComponent implements OnInit {
       const activo = s.estado === 'Activo' || (s as any).estado === 1 || s.estado == null;
       return activo && cat === 'ESPECIAL';
     });
-    if (this.isPulidor && this.authService.isPulidorMovil()) {
+    if (this.isPulidorMovil) {
       const ids = (this.authService.getCurrentUser()?.servicioIds || []).map(Number);
       this.serviciosEspecialesOpciones = ids.length
         ? especiales.filter(s => ids.includes(Number(s.id)))
@@ -4309,7 +4817,9 @@ export class ServiciosComponent implements OnInit {
     // Asegurar que la lista de pulidores esté cargada antes de inicializar el formulario:
     if (this.pulidoresDisponiblesRegion.length === 0) {
       const user = this.authService.getCurrentUser();
-      const regId = (this.isSuperAdmin || this.isAdmin) ? undefined : (user?.regionId ? String(user.regionId) : undefined);
+      const regId = (this.isSuperAdmin || this.isAdmin || this.isCoordServiciosEspeciales)
+        ? undefined
+        : (user?.regionId ? String(user.regionId) : undefined);
       this.extrasService.getPulidoresPorRegion(regId).subscribe(list => {
         this.pulidoresDisponiblesRegion = list || [];
         this.abrirModalNuevoExtraConDatos();
@@ -4611,7 +5121,7 @@ export class ServiciosComponent implements OnInit {
       error: (err) => {
         this.iniciandoEspecial = false;
         console.error('Error al iniciar:', err);
-        this.toastService.error('Error al iniciar', 'No se pudo registrar el inicio del servicio.');
+        this.toastService.error('Error al iniciar', this.mensajeErrorAccion(err, 'No se pudo registrar el inicio del servicio.'));
       }
     });
   }
@@ -4676,7 +5186,7 @@ export class ServiciosComponent implements OnInit {
       error: (err) => {
         this.finalizandoEspecial = false;
         console.error('Error al finalizar:', err);
-        this.toastService.error('Error al finalizar', 'No se pudo completar el servicio.');
+        this.toastService.error('Error al finalizar', this.mensajeErrorAccion(err, 'No se pudo completar el servicio.'));
       }
     });
   }

@@ -3,6 +3,13 @@ import { Injectable, inject } from '@angular/core';
 import { Observable, catchError, map, of } from 'rxjs';
 import { apiUrl } from '../config/env';
 import { Reto } from '../models/reto.model';
+import { ConsultaTabla } from '../models/paginacion.model';
+import { PaginaConResumen, cuerpoConsulta, postPagina } from '../utils/tabla-servidor';
+
+/** Lo que pide el directorio de retos: la de la tabla más la vigencia. */
+export interface ConsultaRetos extends Partial<ConsultaTabla> {
+  vigencia?: 'ACTIVOS' | 'VENCIDOS' | 'TODOS';
+}
 
 @Injectable({
   providedIn: 'root'
@@ -12,6 +19,14 @@ export class RetosService {
 
   getAllRetos(): Observable<Reto[]> {
     return this.list({ incluirTodos: true, soloActivos: false });
+  }
+
+  /**
+   * Una página de retos para el directorio: búsqueda por título, vigencia (ACTIVOS, VENCIDOS o TODOS) y orden en el servidor
+   * (titulo, inicio, fin, estado, fecha). La visibilidad por rol la aplica el servidor. No captura errores: la tabla muestra el suyo.
+   */
+  getRetosPagina(c: ConsultaRetos): Observable<PaginaConResumen<Reto>> {
+    return postPagina<Reto>(this.http, apiUrl('/retos/list'), cuerpoConsulta(c, ['vigencia']), (item) => this.mapReto(item));
   }
 
   getRetosVisibles(): Observable<Reto[]> {
@@ -40,7 +55,6 @@ export class RetosService {
   eliminarReto(id: string): Observable<boolean> {
     return this.http.post<any>(apiUrl('/retos/delete'), { id }).pipe(
       map((response) => response?.success === true),
-      catchError(() => of(false)),
     );
   }
 

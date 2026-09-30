@@ -7,13 +7,29 @@ import {
   MaquinaFicha,
   MaquinariaEvento,
   HistorialFiltro,
-  PaginaResultado,
   TallerUbicacion,
   nombrePersona,
 } from '../models';
 import { apiUrl } from '../config/env';
+import { ConsultaTabla, PaginaServidor, normalizarPagina } from '../models/paginacion.model';
+import { cuerpoConsulta } from '../utils/tabla-servidor';
+import { PAGE_SIZE_INFINITO, PAGE_SIZE_MAX } from '../config/paginacion';
 
 /** Filtros de POST /maquinaria/list (cada rol ve solo lo suyo: lo filtra el backend). */
+/** Consulta de la lista de equipos: la de la tabla más los filtros por nombre que emite el filter-bar. */
+export interface ConsultaMaquinaria extends Partial<ConsultaTabla> {
+  agenciaNombre?: string;
+  bahiaNombre?: string;
+  regionNombre?: string;
+  clienteNombre?: string;
+  agenciaId?: string;
+  bahiaId?: string;
+  tipo?: string;
+  estadoOperativo?: string;
+  activa?: boolean;
+  operadorAsignadoId?: string;
+}
+
 export interface MaquinariaFiltro {
   agenciaId?: string;
   bahiaId?: string;
@@ -82,6 +98,7 @@ export class MaquinariaService {
       ventanaAdelantoDias: Number(m.ventanaAdelantoDias ?? 0),
       incidentesNoAtendidos: Number(m.incidentesNoAtendidos ?? 0),
       mantenimientosVencidos: Number(m.mantenimientosVencidos ?? 0),
+      proximoMantenimiento: m.proximoMantenimiento || null,
     };
   }
 
@@ -140,6 +157,22 @@ export class MaquinariaService {
       }),
       tap(mapped => this.maquinariaSubject.next(mapped)),
       catchError(() => of(this.maquinariaSubject.value))
+    );
+  }
+
+  /**
+   * Una página de equipos con búsqueda y filtros en el servidor (orden: codigo, nombre, tipo, estado, agencia, bahia, fecha).
+   * No toca la caché ni captura errores: la pantalla muestra el suyo.
+   */
+  getMaquinariaPagina(c: ConsultaMaquinaria): Observable<PaginaServidor<Maquinaria>> {
+    const body = cuerpoConsulta(c, [
+      'agenciaNombre', 'bahiaNombre', 'regionNombre', 'clienteNombre', 'agenciaId', 'bahiaId', 'tipo', 'estadoOperativo', 'activa', 'operadorAsignadoId',
+    ]);
+    return this.http.post<any>(apiUrl('/maquinaria/list'), body).pipe(
+      map((res) => {
+        const pagina = normalizarPagina<any>(res, body['page'] as number, body['pageSize'] as number);
+        return { ...pagina, items: pagina.items.map((m: any) => this.mapBackendMaquinaria(m)) };
+      }),
     );
   }
 
@@ -228,20 +261,22 @@ export class MaquinariaService {
     });
   }
 
-  /** Línea de tiempo de la máquina (ADMIN, SUPER_ADMIN, COORD_MANTENIMIENTO). */
-  getHistorial(filtro: HistorialFiltro): Observable<PaginaResultado<MaquinariaEvento>> {
+  /**
+   * Línea de tiempo de la máquina (ADMIN, SUPER_ADMIN, COORD_MANTENIMIENTO), una página por petición (scroll infinito).
+   * Propaga los errores para que la lista muestre "Reintentar".
+   */
+  getHistorial(filtro: HistorialFiltro): Observable<PaginaServidor<MaquinariaEvento>> {
+    const page = filtro.page || 1;
+    const pageSize = Math.min(filtro.pageSize || PAGE_SIZE_INFINITO, PAGE_SIZE_MAX);
     return this.http.post<any>(apiUrl('/maquinaria/historial'), {
       ...filtro,
+      page,
+      pageSize,
       tipos: filtro.tipos?.length ? filtro.tipos : undefined,
       desde: filtro.desde || undefined,
       hasta: filtro.hasta || undefined,
     }).pipe(
-      map(res => ({
-        data: (res?.data || []) as MaquinariaEvento[],
-        total: Number(res?.total ?? 0),
-        page: Number(res?.page ?? 1),
-        pageSize: Number(res?.pageSize ?? 50),
-      }))
+      map(res => normalizarPagina<MaquinariaEvento>(res, page, pageSize)),
     );
   }
 

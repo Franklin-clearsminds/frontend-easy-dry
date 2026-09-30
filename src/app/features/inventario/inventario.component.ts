@@ -1,10 +1,11 @@
-import { Component, OnInit, ViewChild, inject } from '@angular/core';
+import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
+import { Component, HostListener, OnDestroy, OnInit, ViewChild, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { LucideAngularModule } from 'lucide-angular';
-import { of } from 'rxjs';
-import { catchError } from 'rxjs/operators';
+import { Subject, Subscription, of } from 'rxjs';
+import { catchError, debounceTime, distinctUntilChanged, map, tap } from 'rxjs/operators';
 import { ModalComponent } from '../../shared/components/modal/modal.component';
 import { ModalPortalDirective } from '../../shared/directives/modal-portal.directive';
 import { ImageUploaderComponent } from '../../shared/components/image-uploader/image-uploader.component';
@@ -29,11 +30,19 @@ import {
 import { apiUrl } from '../../core/config/env';
 import { ConsumoServiciosComponent } from './consumo-servicios/consumo-servicios.component';
 import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
+import { DataTableCellDirective, DataTableComponent, TableColumn } from '../../shared/components/data-table/data-table.component';
+import { BUSQUEDA_DEBOUNCE_MS, BUSQUEDA_MIN_CARACTERES, PAGE_SIZE_INFINITO, PAGE_SIZE_TABLA } from '../../core/config/paginacion';
+import { ConsultaTabla, OrdenDir } from '../../core/models/paginacion.model';
+import { TablaServidor } from '../../core/utils/tabla-servidor';
+import { ConsultaFichas, MetaBodega, ResumenAlertas } from '../../core/services/inventario.service';
+import { ListaInfinita } from '../../core/utils/lista-infinita';
+import { InfiniteScrollComponent } from '../../shared/components/infinite-scroll/infinite-scroll.component';
+import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-ubicacion-insumos.component';
 
 @Component({
   selector: 'app-inventario',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, ModalPortalDirective, ImageUploaderComponent, ConsumoServiciosComponent, ThumbSrcDirective],
+  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, ModalPortalDirective, ImageUploaderComponent, ConsumoServiciosComponent, ThumbSrcDirective, DataTableComponent, DataTableCellDirective, InfiniteScrollComponent, StockUbicacionInsumosComponent, PaginationComponent],
   template: `
     <div class="space-y-6 animate-fade-in pb-16">
 
@@ -43,8 +52,8 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
       <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-easydry">
         <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-easydry-blue/10 text-easydry-blue text-[11px] font-bold mb-1">
-              <i-lucide name="boxes" class="w-3.5 h-3.5"></i-lucide>
+            <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-easydry-blue/10 text-easydry-blue text-xs font-bold mb-1">
+              <i-lucide aria-hidden="true" name="boxes" class="w-3.5 h-3.5"></i-lucide>
               <span>Gestión Integral de Inventario & Insumos</span>
             </div>
             <h1 class="text-2xl font-extrabold text-slate-900 font-outfit">Inventario de Productos & Insumos</h1>
@@ -59,7 +68,7 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
               *ngIf="puedeGenerarDespacho || puedeDespacharABodega"
               (click)="abrirModalDespacho()"
               class="px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer">
-              <i-lucide name="truck" class="w-4 h-4"></i-lucide>
+              <i-lucide aria-hidden="true" name="truck" class="w-4 h-4"></i-lucide>
               <span>Despachar</span>
             </button>
 
@@ -67,15 +76,15 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
               *ngIf="puedeRegistrarIngreso"
               (click)="abrirModalEntrada()"
               class="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer">
-              <i-lucide name="plus-circle" class="w-4 h-4"></i-lucide>
+              <i-lucide aria-hidden="true" name="plus-circle" class="w-4 h-4"></i-lucide>
               <span>Registrar Entrada</span>
             </button>
 
             <button
-              *ngIf="!isOperador"
+              *ngIf="puedeGestionarCatalogos"
               (click)="abrirModalNuevoProducto()"
               class="px-3.5 py-2 rounded-xl bg-easydry-blue hover:bg-blue-700 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer">
-              <i-lucide name="plus" class="w-4 h-4"></i-lucide>
+              <i-lucide aria-hidden="true" name="plus" class="w-4 h-4"></i-lucide>
               <span>Nuevo Insumo / Producto</span>
             </button>
           </div>
@@ -85,80 +94,84 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
         <div class="flex items-center gap-2 sm:gap-4 mt-5 pt-3 border-t border-slate-100 overflow-x-auto">
           <!-- 1. Productos — catálogo de insumos -->
           <button
-            *ngIf="!isOperador || esAdminGlobal"
-            (click)="activeTab = 'productos'"
+            *ngIf="puedeVerInventario && puedeOperarBodega"
+            (click)="activeTab = 'productos'; abrirProductos()"
             class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
             [ngClass]="activeTab === 'productos' ? 'bg-blue-50 text-easydry-blue font-extrabold shadow-2xs' : 'text-slate-600 hover:bg-slate-50'">
-            <i-lucide name="package" class="w-4 h-4"></i-lucide>
+            <i-lucide aria-hidden="true" name="package" class="w-4 h-4"></i-lucide>
             <span>Productos</span>
-            <span class="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-200 text-slate-700 ml-1">{{ productos.length }}</span>
+            <span class="px-1.5 py-0.5 rounded-full text-xs bg-slate-200 text-slate-700 ml-1">{{ productos.length }}</span>
           </button>
 
           <!-- 2. Bodegas — CENTRAL / REGIONAL -->
           <button
-            *ngIf="!isOperador || esAdminGlobal"
+            *ngIf="puedeVerInventario && puedeOperarBodega"
             (click)="activeTab = 'bodegas'"
             class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
             [ngClass]="activeTab === 'bodegas' ? 'bg-blue-50 text-easydry-blue font-extrabold shadow-2xs' : 'text-slate-600 hover:bg-slate-50'">
-            <i-lucide name="warehouse" class="w-4 h-4"></i-lucide>
+            <i-lucide aria-hidden="true" name="warehouse" class="w-4 h-4"></i-lucide>
             <span>Bodegas</span>
           </button>
 
           <!-- 3. Agencias — stock / monitoreo de sedes -->
           <button
+            *ngIf="puedeVerInventario"
             (click)="activeTab = 'agencias'"
             class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
             [ngClass]="activeTab === 'agencias' ? 'bg-purple-50 text-purple-700 font-extrabold border border-purple-200 shadow-2xs' : 'text-slate-600 hover:bg-slate-50'">
-            <i-lucide name="store" class="w-4 h-4"></i-lucide>
+            <i-lucide aria-hidden="true" name="store" class="w-4 h-4"></i-lucide>
             <span>Agencias</span>
-            <span *ngIf="resumenAgencias.agenciasEnAlerta > 0" class="px-1.5 py-0.2 rounded-full text-[10px] bg-amber-500 text-white ml-1">
+            <span *ngIf="resumenAgencias.agenciasEnAlerta > 0" class="px-1.5 py-0.5 rounded-full text-xs bg-amber-500 text-white ml-1">
               {{ resumenAgencias.agenciasEnAlerta }}
             </span>
           </button>
 
           <!-- 4. Pulidores — kits de pulidores móviles y fijos -->
           <button
+            *ngIf="puedeVerInventario"
             (click)="activeTab = 'pulidores'; cargarStockPulidoresResumen()"
             class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
             [ngClass]="activeTab === 'pulidores' ? 'bg-cyan-50 text-cyan-800 font-extrabold border border-cyan-200 shadow-2xs' : 'text-slate-600 hover:bg-slate-50'">
-            <i-lucide name="sparkles" class="w-4 h-4 text-cyan-600"></i-lucide>
+            <i-lucide aria-hidden="true" name="sparkles" class="w-4 h-4 text-cyan-600"></i-lucide>
             <span>Pulidores</span>
-            <span *ngIf="resumenPulidores?.pulidoresEnAlerta > 0" class="px-1.5 py-0.2 rounded-full text-[10px] bg-amber-500 text-white ml-1">
+            <span *ngIf="resumenPulidores?.pulidoresEnAlerta > 0" class="px-1.5 py-0.5 rounded-full text-xs bg-amber-500 text-white ml-1">
               {{ resumenPulidores.pulidoresEnAlerta }}
             </span>
           </button>
 
           <!-- 5. Stock Bajo — déficit y reposición -->
           <button
+            *ngIf="puedeVerStockBajoBodegaCentral || operaDesdeAgencia"
             (click)="activeTab = 'stock_bajo'"
             class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
             [ngClass]="activeTab === 'stock_bajo' ? 'bg-rose-50 text-rose-700 font-extrabold border border-rose-200 shadow-2xs' : 'text-slate-600 hover:bg-slate-50'">
-            <i-lucide name="alert-triangle" class="w-4 h-4"></i-lucide>
+            <i-lucide aria-hidden="true" name="alert-triangle" class="w-4 h-4"></i-lucide>
             <span>Stock Bajo</span>
-            <span *ngIf="productosStockBajoList.length > 0" class="px-1.5 py-0.2 rounded-full text-[10px] bg-rose-500 text-white ml-1">
-              {{ productosStockBajoList.length }}
+            <span *ngIf="stockBajoTabla.total > 0" class="px-1.5 py-0.5 rounded-full text-xs bg-rose-500 text-white ml-1">
+              {{ stockBajoTabla.total }}
             </span>
           </button>
 
           <!-- 6. Alertas de Reabastecimiento -->
           <button
+            *ngIf="puedeVerAlertas"
             (click)="activeTab = 'alertas_reabastecimiento'"
             class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
             [ngClass]="activeTab === 'alertas_reabastecimiento' ? 'bg-amber-50 text-amber-800 font-extrabold border border-amber-200 shadow-2xs' : 'text-slate-600 hover:bg-slate-50'">
-            <i-lucide name="bell-ring" class="w-4 h-4 text-amber-600"></i-lucide>
+            <i-lucide aria-hidden="true" name="bell-ring" class="w-4 h-4 text-amber-600"></i-lucide>
             <span>Alertas de Reabastecimiento</span>
-            <span *ngIf="alertasStockFiltradas.length > 0" class="px-1.5 py-0.2 rounded-full text-[10px] bg-rose-500 text-white ml-1">
-              {{ alertasStockFiltradas.length }}
+            <span *ngIf="(alertasTabla.resumen?.activas ?? 0) > 0" class="px-1.5 py-0.5 rounded-full text-xs bg-rose-500 text-white ml-1">
+              {{ alertasTabla.resumen?.activas }}
             </span>
           </button>
 
           <!-- 7. Movimientos (Kardex) -->
           <button
-            *ngIf="!isOperador || esAdminGlobal"
+            *ngIf="puedeVerInventario && puedeOperarBodega"
             (click)="activeTab = 'movimientos'"
             class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
             [ngClass]="activeTab === 'movimientos' ? 'bg-blue-50 text-easydry-blue font-extrabold shadow-2xs' : 'text-slate-600 hover:bg-slate-50'">
-            <i-lucide name="refresh-cw" class="w-4 h-4"></i-lucide>
+            <i-lucide aria-hidden="true" name="refresh-cw" class="w-4 h-4"></i-lucide>
             <span>Movimientos (Kardex)</span>
           </button>
 
@@ -168,17 +181,17 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
             (click)="activeTab = 'consumo_servicios'"
             class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
             [ngClass]="activeTab === 'consumo_servicios' ? 'bg-blue-50 text-easydry-blue font-extrabold shadow-2xs' : 'text-slate-600 hover:bg-slate-50'">
-            <i-lucide name="history" class="w-4 h-4"></i-lucide>
+            <i-lucide aria-hidden="true" name="history" class="w-4 h-4"></i-lucide>
             <span>Consumo por Servicio</span>
           </button>
 
           <!-- 8. Configuración -->
           <button
-            *ngIf="!isOperador || esAdminGlobal"
-            (click)="activeTab = 'configuracion'"
+            *ngIf="puedeGestionarCatalogos"
+            (click)="activeTab = 'configuracion'; abrirConfiguracion()"
             class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
             [ngClass]="activeTab === 'configuracion' ? 'bg-purple-50 text-purple-700 font-extrabold shadow-2xs' : 'text-slate-600 hover:bg-slate-50'">
-            <i-lucide name="settings" class="w-4 h-4"></i-lucide>
+            <i-lucide aria-hidden="true" name="settings" class="w-4 h-4"></i-lucide>
             <span>Configuración</span>
           </button>
         </div>
@@ -194,15 +207,15 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
           <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-teal-50 border border-teal-200 text-teal-800 text-xs font-bold mb-2">
-                <i-lucide name="store" class="w-3.5 h-3.5 text-teal-600"></i-lucide>
+                <i-lucide aria-hidden="true" name="store" class="w-3.5 h-3.5 text-teal-600"></i-lucide>
                 <span>{{ isPulidor ? (isPulidorFijo ? ('Pulidor Fijo · ' + (infoAgenciaInsumos?.nombre || miAgenciaNombre || 'Sucursal')) : (infoAgenciaInsumos?.nombre || 'Kit móvil')) : ('Sede: ' + (infoAgenciaInsumos?.nombre || miAgenciaNombre)) }}</span>
                 <span class="text-teal-400">•</span>
                 <span class="text-teal-700 font-normal">{{ isPulidor ? (isPulidorFijo ? 'Servicios de Pulido de Sucursal' : 'Servicios asignados al pulidor') : 'Recetas de Servicios Autorizados' }}</span>
               </div>
-              <h2 class="text-xl font-black text-slate-900 font-outfit">
+              <h2 class="text-xl font-extrabold text-slate-900 font-outfit">
                 {{ isPulidor
                   ? (isPulidorFijo ? 'Insumos y químicos de mi kit asignado a sucursal' : 'Insumos de mi kit según servicios asignados')
-                  : (isLiderOperador ? 'Insumos de mi Sede Requeridos por Servicios' : 'Insumos Requeridos por Servicios de Sede') }}
+                  : (operaDesdeAgencia ? 'Insumos de mi Sede Requeridos por Servicios' : 'Insumos Requeridos por Servicios de Sede') }}
               </h2>
               <p class="text-slate-500 text-xs mt-1 max-w-3xl">
                 {{ isPulidor
@@ -216,9 +229,9 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
             <div class="flex items-center gap-2.5 flex-wrap">
               <!-- Selector de Sede para Insumos por Servicios -->
               <div *ngIf="sucursalesActivas.length > 0 && !isPulidor" class="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl shadow-2xs">
-                <i-lucide name="store" class="w-3.5 h-3.5 text-teal-600"></i-lucide>
-                <label class="text-[11px] font-bold text-slate-600 whitespace-nowrap">Sede:</label>
-                <select
+                <i-lucide aria-hidden="true" name="store" class="w-3.5 h-3.5 text-teal-600"></i-lucide>
+                <label for="inv-f1" class="text-xs font-bold text-slate-600 whitespace-nowrap">Sede:</label>
+                <select id="inv-f1"
                   [ngModel]="miAgenciaId"
                   (ngModelChange)="onCambiarSede($event)"
                   class="bg-transparent text-xs font-bold text-slate-800 focus:outline-none cursor-pointer pr-1">
@@ -231,7 +244,7 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
               <button
                 (click)="cargarInsumosPorServicios(); cargarDespachosPendientes()"
                 class="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer">
-                <i-lucide name="refresh-cw" class="w-3.5 h-3.5" [ngClass]="{'animate-spin': cargandoInsumosServicios || procesandoRecepcion}"></i-lucide>
+                <i-lucide aria-hidden="true" name="refresh-cw" class="w-3.5 h-3.5" [ngClass]="{'animate-spin': cargandoInsumosServicios || procesandoRecepcion}"></i-lucide>
                 <span>Actualizar Stock</span>
               </button>
             </div>
@@ -245,14 +258,14 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div class="flex items-center gap-3">
               <div class="w-10 h-10 rounded-xl bg-rose-600 text-white flex items-center justify-center font-bold shadow-sm shrink-0">
-                <i-lucide name="alert-triangle" class="w-5 h-5"></i-lucide>
+                <i-lucide aria-hidden="true" name="alert-triangle" class="w-5 h-5"></i-lucide>
               </div>
               <div>
                 <div class="flex items-center gap-2">
-                  <h3 class="text-sm font-black text-rose-950 uppercase tracking-wide">
+                  <h3 class="text-sm font-extrabold text-rose-950 uppercase tracking-wide">
                     Alerta Logística: {{ despachosRechazadosSuperAdmin.length }} Despacho(s) Rechazado(s) por Sedes
                   </h3>
-                  <span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-200 text-rose-900 animate-pulse">
+                  <span class="px-2 py-0.5 rounded-full text-xs font-extrabold bg-rose-200 text-rose-900">
                     Stock Reintegrado a Bodega Central
                   </span>
                 </div>
@@ -265,7 +278,7 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
             <button
               (click)="cargarDespachosRechazadosSuperAdmin()"
               class="px-3 py-1.5 rounded-xl bg-white hover:bg-rose-100 text-rose-800 text-xs font-bold transition border border-rose-200 shadow-2xs self-end sm:self-auto cursor-pointer flex items-center gap-1">
-              <i-lucide name="refresh-cw" class="w-3.5 h-3.5"></i-lucide>
+              <i-lucide aria-hidden="true" name="refresh-cw" class="w-3.5 h-3.5"></i-lucide>
               <span>Actualizar Alertas</span>
             </button>
           </div>
@@ -275,32 +288,32 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
             <div *ngFor="let rech of despachosRechazadosSuperAdmin" class="p-4 bg-white rounded-xl border border-rose-200 shadow-2xs space-y-2.5">
               <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-slate-100 pb-2">
                 <div class="flex items-center gap-2">
-                  <span class="px-2 py-0.5 rounded font-mono font-black text-xs bg-rose-100 text-rose-900 border border-rose-200">
+                  <span class="px-2 py-0.5 rounded font-mono font-extrabold text-xs bg-rose-100 text-rose-900 border border-rose-200">
                     {{ rech.numeroGuia }}
                   </span>
                   <span class="font-bold text-slate-800 text-xs">
                     {{ rech.destinoUbicacion }}
                   </span>
                 </div>
-                <span class="text-[10px] font-mono text-slate-400">
+                <span class="text-xs font-mono text-slate-500">
                   {{ (rech.fechaRecepcion || rech.updatedAt) | date:'medium' }}
                 </span>
               </div>
 
               <!-- Insumos y cantidades involucradas -->
               <div class="space-y-1">
-                <span class="text-[10px] font-bold text-slate-400 uppercase">Insumos y Cantidades Despachadas:</span>
+                <span class="text-[11px] font-bold text-slate-500 uppercase">Insumos y Cantidades Despachadas:</span>
                 <div class="flex flex-wrap gap-1">
-                  <div *ngFor="let det of rech.detalles" class="px-2 py-1 bg-slate-100 rounded-lg text-slate-800 font-semibold text-[11px] border border-slate-200">
-                    <span class="font-mono text-rose-700 font-black">{{ det.cantidadEnviada }} und</span> - {{ det.insumo?.nombre }}
+                  <div *ngFor="let det of rech.detalles" class="px-2 py-1 bg-slate-100 rounded-lg text-slate-800 font-semibold text-xs border border-slate-200">
+                    <span class="font-mono text-rose-700 font-extrabold">{{ det.cantidadEnviada }} und</span> - {{ det.insumo?.nombre }}
                   </div>
                 </div>
               </div>
 
               <!-- Comentario reportado -->
               <div class="p-2.5 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-950">
-                <span class="font-black text-rose-800 uppercase text-[10px] mb-0.5 inline-flex items-center gap-1">
-                  <i-lucide name="info" class="w-3 h-3 text-rose-600"></i-lucide>
+                <span class="font-extrabold text-rose-800 uppercase text-[11px] mb-0.5 inline-flex items-center gap-1">
+                  <i-lucide aria-hidden="true" name="info" class="w-3 h-3 text-rose-600"></i-lucide>
                   <span>Razón de Rechazo Indicada por la Agencia:</span>
                 </span>
                 <p class="font-medium italic">"{{ rech.motivoRechazo || rech.observaciones || 'Sin motivo reportado' }}"</p>
@@ -316,14 +329,14 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div class="flex items-center gap-3">
               <div class="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold shadow-sm shrink-0">
-                <i-lucide name="truck" class="w-5 h-5"></i-lucide>
+                <i-lucide aria-hidden="true" name="truck" class="w-5 h-5"></i-lucide>
               </div>
               <div>
                 <div class="flex items-center gap-2">
-                  <h3 class="text-sm font-black text-indigo-950 uppercase tracking-wide">
+                  <h3 class="text-sm font-extrabold text-indigo-950 uppercase tracking-wide">
                     ¡Suministros en Camino para tu Sede!
                   </h3>
-                  <span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-indigo-200 text-indigo-900 animate-pulse">
+                  <span class="px-2 py-0.5 rounded-full text-xs font-extrabold bg-indigo-200 text-indigo-900">
                     {{ despachosPendientesAgencia.length }} Despacho(s) Pendiente(s)
                   </span>
                 </div>
@@ -339,20 +352,20 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
             <div *ngFor="let desp of despachosPendientesAgencia" class="p-4 bg-white rounded-xl border border-indigo-200 shadow-2xs space-y-3">
               <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
                 <div class="flex items-center gap-2 flex-wrap">
-                  <span class="px-2.5 py-1 rounded-lg font-mono font-black text-xs bg-slate-100 text-slate-800 border border-slate-200">
+                  <span class="px-2.5 py-1 rounded-lg font-mono font-extrabold text-xs bg-slate-100 text-slate-800 border border-slate-200">
                     Guía: {{ desp.numeroGuia }}
                   </span>
                   <span class="text-xs text-slate-600">
                     Origen: <b>{{ desp.origenUbicacion }}</b>
                   </span>
-                  <span class="text-slate-300">•</span>
+                  <span class="text-slate-500">•</span>
                   <span class="text-xs text-slate-500">
                     Fecha de salida: {{ desp.fechaDespacho | date:'medium' }}
                   </span>
                 </div>
 
-                <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-100 text-blue-800 border border-blue-200 inline-flex items-center gap-1 w-fit">
-                  <i-lucide name="clock" class="w-3 h-3"></i-lucide>
+                <span class="px-2 py-0.5 rounded-full text-xs font-extrabold bg-blue-100 text-blue-800 border border-blue-200 inline-flex items-center gap-1 w-fit">
+                  <i-lucide aria-hidden="true" name="clock" class="w-3 h-3"></i-lucide>
                   <span>En Tránsito hacia tu Sede</span>
                 </span>
               </div>
@@ -364,7 +377,7 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
                   <div *ngFor="let det of desp.detalles" class="p-2 bg-slate-50 rounded-lg border border-slate-200/80 flex items-center justify-between">
                     <div class="truncate mr-2">
                       <p class="font-bold text-slate-800 text-xs truncate">{{ det.insumo?.nombre || 'Insumo' }}</p>
-                      <span class="text-[10px] font-mono text-slate-400">{{ det.insumo?.codigoSKU }}</span>
+                      <span class="text-xs font-mono text-slate-500">{{ det.insumo?.codigoSKU }}</span>
                     </div>
                     <span class="px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 font-mono font-extrabold text-xs shrink-0">
                       {{ det.cantidadEnviada }} und
@@ -377,18 +390,20 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
               <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
                 <button
                   type="button"
+                  *ngIf="puedeRecibirDespacho"
                   (click)="abrirModalRechazoDespacho(desp)"
                   class="px-3.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-extrabold transition border border-rose-200 cursor-pointer flex items-center gap-1.5">
-                  <i-lucide name="x-circle" class="w-4 h-4"></i-lucide>
+                  <i-lucide aria-hidden="true" name="x-circle" class="w-4 h-4"></i-lucide>
                   <span>Rechazar (No Llegó / Incompleto)</span>
                 </button>
 
                 <button
                   type="button"
+                  *ngIf="puedeRecibirDespacho"
                   (click)="confirmarRecepcionDespacho(desp)"
                   [disabled]="procesandoRecepcion"
-                  class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black transition shadow-sm cursor-pointer flex items-center gap-1.5">
-                  <i-lucide name="check-circle" class="w-4 h-4"></i-lucide>
+                  class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold transition shadow-sm cursor-pointer flex items-center gap-1.5">
+                  <i-lucide aria-hidden="true" name="check-circle" class="w-4 h-4"></i-lucide>
                   <span>Aceptar y Recibir Suministros</span>
                 </button>
               </div>
@@ -401,18 +416,18 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-2">
               <div class="w-8 h-8 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center font-bold">
-                <i-lucide name="alert-triangle" class="w-4 h-4"></i-lucide>
+                <i-lucide aria-hidden="true" name="alert-triangle" class="w-4 h-4"></i-lucide>
               </div>
               <div>
                 <h3 class="text-xs font-extrabold text-amber-900 uppercase tracking-wide">
                   Alertas de Reabastecimiento de Insumos en Sede
                 </h3>
-                <p class="text-[11px] text-amber-700">
+                <p class="text-xs text-amber-700">
                   Existen {{ resumenInsumosServicios.totalAlertas }} insumo(s) en nivel bajo o agotado que condicionan la capacidad de lavado.
                 </p>
               </div>
             </div>
-            <span class="px-2.5 py-1 rounded-full text-[10px] font-black bg-amber-200/80 text-amber-900">
+            <span class="px-2.5 py-1 rounded-full text-xs font-extrabold bg-amber-200/80 text-amber-900">
               {{ resumenInsumosServicios.totalAlertas }} en Alerta
             </span>
           </div>
@@ -429,45 +444,45 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div class="p-4 rounded-2xl bg-white border border-slate-100 shadow-sm flex items-center justify-between">
             <div>
-              <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">Insumos Requeridos</span>
-              <p class="text-2xl font-black text-slate-900 font-outfit mt-1">{{ resumenInsumosServicios.totalInsumosRequeridos || 0 }}</p>
+              <span class="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">Insumos Requeridos</span>
+              <p class="text-2xl font-extrabold text-slate-900 font-outfit mt-1">{{ resumenInsumosServicios.totalInsumosRequeridos || 0 }}</p>
               <span class="text-xs text-slate-500">Definidos en recetas de la sede</span>
             </div>
             <div class="w-12 h-12 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center">
-              <i-lucide name="boxes" class="w-6 h-6"></i-lucide>
+              <i-lucide aria-hidden="true" name="boxes" class="w-6 h-6"></i-lucide>
             </div>
           </div>
 
           <div class="p-4 rounded-2xl bg-white border border-slate-100 shadow-sm flex items-center justify-between">
             <div>
               <span class="text-[11px] font-bold uppercase tracking-wider text-emerald-600 block">Stock Óptimo</span>
-              <p class="text-2xl font-black text-emerald-600 font-outfit mt-1">{{ resumenInsumosServicios.insumosOptimos || 0 }}</p>
+              <p class="text-2xl font-extrabold text-emerald-600 font-outfit mt-1">{{ resumenInsumosServicios.insumosOptimos || 0 }}</p>
               <span class="text-xs text-emerald-600">Disponibilidad completa</span>
             </div>
             <div class="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-              <i-lucide name="check-circle" class="w-6 h-6"></i-lucide>
+              <i-lucide aria-hidden="true" name="check-circle" class="w-6 h-6"></i-lucide>
             </div>
           </div>
 
           <div class="p-4 rounded-2xl bg-white border border-slate-100 shadow-sm flex items-center justify-between">
             <div>
               <span class="text-[11px] font-bold uppercase tracking-wider text-amber-600 block">Bajo Mínimo</span>
-              <p class="text-2xl font-black text-amber-600 font-outfit mt-1">{{ resumenInsumosServicios.insumosBajoMinimo || 0 }}</p>
+              <p class="text-2xl font-extrabold text-amber-600 font-outfit mt-1">{{ resumenInsumosServicios.insumosBajoMinimo || 0 }}</p>
               <span class="text-xs text-amber-600">Requieren reabastecimiento</span>
             </div>
             <div class="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
-              <i-lucide name="alert-triangle" class="w-6 h-6"></i-lucide>
+              <i-lucide aria-hidden="true" name="alert-triangle" class="w-6 h-6"></i-lucide>
             </div>
           </div>
 
           <div class="p-4 rounded-2xl bg-white border border-slate-100 shadow-sm flex items-center justify-between">
             <div>
               <span class="text-[11px] font-bold uppercase tracking-wider text-rose-600 block">Agotados / Crítico</span>
-              <p class="text-2xl font-black text-rose-600 font-outfit mt-1">{{ resumenInsumosServicios.insumosAgotados || 0 }}</p>
+              <p class="text-2xl font-extrabold text-rose-600 font-outfit mt-1">{{ resumenInsumosServicios.insumosAgotados || 0 }}</p>
               <span class="text-xs text-rose-600">Bloquea lavado</span>
             </div>
             <div class="w-12 h-12 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
-              <i-lucide name="x-circle" class="w-6 h-6"></i-lucide>
+              <i-lucide aria-hidden="true" name="x-circle" class="w-6 h-6"></i-lucide>
             </div>
           </div>
         </div>
@@ -476,8 +491,8 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
         <div class="bg-white p-4 rounded-xl border border-slate-100 shadow-xs flex flex-col md:flex-row items-center gap-3 justify-between">
           <div class="flex items-center gap-3 w-full md:w-auto flex-1 flex-wrap">
             <div class="relative flex-1 max-w-sm">
-              <i-lucide name="search" class="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5"></i-lucide>
-              <input
+              <i-lucide aria-hidden="true" name="search" class="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5"></i-lucide>
+              <input aria-label="Buscar por insumo, SKU o servicio..."
                 type="text"
                 [(ngModel)]="filtroTextoInsumosServicio"
                 (ngModelChange)="filtrarInsumosServicios()"
@@ -507,31 +522,31 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
         <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry overflow-hidden">
           <div class="overflow-x-auto">
             <table class="w-full text-left text-xs text-slate-600">
-              <thead class="bg-slate-50 text-slate-400 text-[10px] font-bold uppercase tracking-wider">
+              <thead class="bg-slate-50 text-slate-500 text-xs font-bold uppercase tracking-wider">
                 <tr>
-                  <th class="p-3.5">Código SKU</th>
-                  <th class="p-3.5">Producto</th>
-                  <th class="p-3.5">Tipo</th>
-                  <th class="p-3.5">Contenido x Envase</th>
-                  <th class="p-3.5">Stock en Unidades</th>
-                  <th class="p-3.5">Stock Contenido Total</th>
-                  <th class="p-3.5">Stock Mín. Agencia</th>
-                  <th class="p-3.5">Stock Óptimo Agencia</th>
-                  <th class="p-3.5">Alerta de Stock</th>
-                  <th class="p-3.5">Estado</th>
-                  <th class="p-3.5 text-right">Acciones</th>
+                  <th scope="col" class="py-3 px-4">Código SKU</th>
+                  <th scope="col" class="py-3 px-4">Producto</th>
+                  <th scope="col" class="py-3 px-4">Tipo</th>
+                  <th scope="col" class="py-3 px-4">Contenido x Envase</th>
+                  <th scope="col" class="py-3 px-4">Stock en Unidades</th>
+                  <th scope="col" class="py-3 px-4">Stock Contenido Total</th>
+                  <th scope="col" class="py-3 px-4">Stock Mín. Agencia</th>
+                  <th scope="col" class="py-3 px-4">Stock Óptimo Agencia</th>
+                  <th scope="col" class="py-3 px-4">Alerta de Stock</th>
+                  <th scope="col" class="py-3 px-4">Estado</th>
+                  <th scope="col" class="py-3 px-4 text-right">Acciones</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-slate-100">
                 <tr *ngIf="cargandoInsumosServicios">
-                  <td colspan="11" class="p-8 text-center text-slate-400">
-                    <i-lucide name="refresh-cw" class="w-5 h-5 mx-auto animate-spin text-teal-600 mb-2"></i-lucide>
+                  <td colspan="11" class="estado-vacio">
+                    <i-lucide aria-hidden="true" name="refresh-cw" class="w-5 h-5 mx-auto animate-spin text-teal-600 mb-2"></i-lucide>
                     <span>Cargando insumos de la sede...</span>
                   </td>
                 </tr>
 
                 <tr *ngIf="!cargandoInsumosServicios && insumosServiciosFiltrados.length === 0">
-                  <td colspan="11" class="p-8 text-center text-slate-400">
+                  <td colspan="11" class="estado-vacio">
                     No se encontraron insumos de servicios asignados a esta sede.
                   </td>
                 </tr>
@@ -541,23 +556,23 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
                   <td class="p-3.5">
                     <div>
                       <span class="font-bold text-slate-900 block">{{ item.nombre }}</span>
-                      <span class="text-[10px] text-slate-400 line-clamp-1">{{ item.descripcion || 'Sin descripción' }}</span>
+                      <span class="text-xs text-slate-500 line-clamp-1">{{ item.descripcion || 'Sin descripción' }}</span>
                       <div *ngIf="item.serviciosQueLoUsan?.length && item.estado !== 'NO_NECESARIO'" class="flex flex-wrap gap-1 mt-1.5">
-                        <span *ngFor="let s of item.serviciosQueLoUsan" class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-50 text-easydry-blue border border-blue-200">
-                          <i-lucide name="sparkles" class="w-2.5 h-2.5"></i-lucide>
+                        <span *ngFor="let s of item.serviciosQueLoUsan" class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-bold bg-blue-50 text-easydry-blue border border-blue-200">
+                          <i-lucide aria-hidden="true" name="sparkles" class="w-2.5 h-2.5"></i-lucide>
                           <span>{{ s.nombre }}</span>
                           <span *ngIf="s.cantidadPorServicio" class="font-mono">({{ s.cantidadPorServicio }} {{ s.unidad || item.unidadMedida }})</span>
                         </span>
                       </div>
                       <div *ngIf="item.estado === 'NO_NECESARIO'" class="mt-1.5">
-                        <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                        <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-bold bg-slate-100 text-slate-600 border border-slate-200">
                           Sin servicio de la sede que lo requiera
                         </span>
                       </div>
                     </div>
                   </td>
                   <td class="p-3.5 whitespace-nowrap">
-                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-easydry-blue border border-blue-100">
+                    <span class="px-2 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-easydry-blue border border-blue-100">
                       {{ item.tipoProducto || item.categoria || 'General' }}
                     </span>
                   </td>
@@ -583,15 +598,15 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
                   </td>
                   <td class="p-3.5 text-slate-600 font-mono whitespace-nowrap">
                     <b>{{ getStockEnUnidades(item.stockMinimoAgencia || item.stockMinimo, item.contenidoNeto) | number:'1.0-2' }} und</b>
-                    <span class="text-[10px] text-slate-400 block">({{ (item.stockMinimoAgencia || item.stockMinimo || 0) | number:'1.0-2' }} {{ item.unidadMedida }})</span>
+                    <span class="text-xs text-slate-500 block">({{ (item.stockMinimoAgencia || item.stockMinimo || 0) | number:'1.0-2' }} {{ item.unidadMedida }})</span>
                   </td>
                   <td class="p-3.5 text-slate-500 font-mono whitespace-nowrap">
                     <b>{{ getStockEnUnidades(item.stockOptimoAgencia, item.contenidoNeto) | number:'1.0-2' }} und</b>
-                    <span class="text-[10px] text-slate-400 block">({{ (item.stockOptimoAgencia || 0) | number:'1.0-2' }} {{ item.unidadMedida }})</span>
+                    <span class="text-xs text-slate-500 block">({{ (item.stockOptimoAgencia || 0) | number:'1.0-2' }} {{ item.unidadMedida }})</span>
                   </td>
                   <td class="p-3.5 whitespace-nowrap">
                     <span
-                      class="px-2.5 py-1 rounded-full text-[11px] font-bold inline-flex items-center gap-1"
+                      class="px-2.5 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1"
                       [ngClass]="{
                         'bg-rose-100 text-rose-800': item.estado === 'AGOTADO' || item.estado === 'CRITICO',
                         'bg-amber-100 text-amber-800': item.estado === 'BAJO',
@@ -599,7 +614,7 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
                         'bg-slate-100 text-slate-600': item.estado === 'NO_NECESARIO'
                       }"
                       [title]="item.mensajeAlerta || ''">
-                      <i-lucide
+                      <i-lucide aria-hidden="true"
                         [name]="item.estado === 'NO_NECESARIO' ? 'minus-circle' : (item.estado === 'OPTIMO' ? 'check-circle' : (item.estado === 'AGOTADO' ? 'x-circle' : 'alert-triangle'))"
                         class="w-3.5 h-3.5"></i-lucide>
                       <span>{{ getLabelEstadoInsumoServicio(item.estado) }}</span>
@@ -607,33 +622,33 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
                   </td>
                   <td class="p-3.5 whitespace-nowrap">
                     <span
-                      class="px-2 py-0.5 rounded-full text-[10px] font-bold"
+                      class="px-2 py-0.5 rounded-full text-xs font-bold"
                       [ngClass]="item.activo !== false ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'">
                       {{ item.activo !== false ? 'Activo' : 'Inactivo' }}
                     </span>
                   </td>
                   <td class="p-3.5 text-right space-x-1 whitespace-nowrap">
                     <button
-                      *ngIf="(isLiderOperador || esSuperAdmin) && puedeGenerarDespacho && item.estado !== 'NO_NECESARIO'"
+                      *ngIf="puedeGenerarDespacho && item.estado !== 'NO_NECESARIO'"
                       (click)="abrirModalDespachoAgencia(undefined, item)"
                       title="Despachar a otra agencia o pulidor"
-                      class="px-2.5 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-800 text-[11px] font-bold transition cursor-pointer inline-flex items-center gap-1 border border-purple-200">
-                      <i-lucide name="truck" class="w-3 h-3"></i-lucide>
+                      class="px-2.5 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-800 text-xs font-bold transition cursor-pointer inline-flex items-center gap-1 border border-purple-200">
+                      <i-lucide aria-hidden="true" name="truck" class="w-3 h-3"></i-lucide>
                       <span>Despachar</span>
                     </button>
                     <button
-                      *ngIf="(isLiderOperador || esSuperAdmin) && puedeGenerarDespacho && item.estado === 'NO_NECESARIO' && item.stockActual > 0"
+                      *ngIf="puedeGenerarDespacho && item.estado === 'NO_NECESARIO' && item.stockActual > 0"
                       (click)="abrirModalDespachoAgencia(undefined, item)"
                       title="Reubicar stock no requerido por servicios"
-                      class="px-2.5 py-1 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-700 text-[11px] font-bold transition cursor-pointer inline-flex items-center gap-1 border border-slate-200">
-                      <i-lucide name="send" class="w-3 h-3"></i-lucide>
+                      class="px-2.5 py-1 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold transition cursor-pointer inline-flex items-center gap-1 border border-slate-200">
+                      <i-lucide aria-hidden="true" name="send" class="w-3 h-3"></i-lucide>
                       <span>Reubicar</span>
                     </button>
                     <button
-                      *ngIf="item.estado !== 'NO_NECESARIO'"
+                      *ngIf="puedeCrearAlerta && item.estado !== 'NO_NECESARIO'"
                       (click)="solicitarReabastecimiento(item)"
-                      class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold transition cursor-pointer inline-flex items-center gap-1">
-                      <i-lucide name="truck" class="w-3 h-3 text-slate-500"></i-lucide>
+                      class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer inline-flex items-center gap-1">
+                      <i-lucide aria-hidden="true" name="truck" class="w-3 h-3 text-slate-500"></i-lucide>
                       <span>Pedir Reabastecimiento</span>
                     </button>
                   </td>
@@ -654,9 +669,9 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
           <div class="flex items-center gap-3 w-full md:w-auto flex-1 flex-wrap">
             <!-- Selector de Sede para Productos -->
             <div *ngIf="sucursalesActivas.length > 0" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white shadow-2xs">
-              <i-lucide name="store" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide>
-              <label class="text-[11px] font-bold text-slate-600 whitespace-nowrap">Sede:</label>
-              <select
+              <i-lucide aria-hidden="true" name="store" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide>
+              <label for="inv-f2" class="text-xs font-bold text-slate-600 whitespace-nowrap">Sede:</label>
+              <select id="inv-f2"
                 [ngModel]="miAgenciaId"
                 (ngModelChange)="onCambiarSede($event)"
                 class="text-xs bg-transparent focus:outline-none text-slate-800 font-semibold cursor-pointer">
@@ -667,22 +682,10 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
               </select>
             </div>
 
-            <div class="relative flex-1 max-w-sm">
-              <span class="absolute left-3 inset-y-0 flex items-center pointer-events-none text-slate-400">
-                <i-lucide name="search" class="w-4 h-4"></i-lucide>
-              </span>
-              <input
-                type="text"
-                [(ngModel)]="filtroTextoProducto"
-                (ngModelChange)="filtrarProductos()"
-                placeholder="Buscar por código SKU o nombre..."
-                class="w-full pl-9 pr-3 py-1.5 text-xs rounded-lg border border-slate-200 focus:outline-none focus:border-easydry-blue" />
-            </div>
-
             <!-- Filtro Dinámico por Tipo de Producto (de BD) -->
             <select
               [(ngModel)]="filtroTipoProductoId"
-              (change)="filtrarProductos()"
+              (change)="reiniciarProductos()"
               class="px-3 py-1.5 text-xs rounded-lg border border-slate-200 bg-white focus:outline-none focus:border-easydry-blue text-slate-700">
               <option value="">Todos los Tipos</option>
               <option *ngFor="let t of tiposProducto" [value]="t.id">{{ t.nombre }}</option>
@@ -691,7 +694,7 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
             <!-- Filtro por Nivel de Alerta de Stock -->
             <select
               [(ngModel)]="filtroAlertaStock"
-              (change)="filtrarProductos()"
+              (change)="reiniciarProductos()"
               class="px-3 py-1.5 text-xs rounded-lg border border-slate-200 bg-white focus:outline-none focus:border-easydry-blue text-slate-700">
               <option value="">Todos los Niveles de Stock</option>
               <option value="alerta_total">En Alerta (Agotado o Bajo Mínimo)</option>
@@ -704,7 +707,7 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
             <!-- Filtro Activo / Inactivo (inactivos siguen visibles) -->
             <select
               [(ngModel)]="filtroEstadoProducto"
-              (change)="filtrarProductos()"
+              (change)="reiniciarProductos()"
               class="px-3 py-1.5 text-xs rounded-lg border border-slate-200 bg-white focus:outline-none focus:border-easydry-blue text-slate-700">
               <option value="">Todos (Activos e Inactivos)</option>
               <option value="activo">Solo Activos</option>
@@ -712,157 +715,167 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
             </select>
           </div>
 
-          <div class="text-xs text-slate-500 font-medium whitespace-nowrap">
-            Mostrando <b>{{ productosFiltrados.length }}</b> de <b>{{ productos.length }}</b> productos
-          </div>
         </div>
 
         <!-- Banner informativo: Insumos vinculados a servicios -->
         <div class="flex items-center justify-between px-4 py-2.5 bg-blue-50/70 border border-blue-200/80 rounded-xl text-xs text-slate-700">
           <div class="flex items-center gap-2">
-            <i-lucide name="check-circle-2" class="w-4 h-4 text-easydry-blue shrink-0"></i-lucide>
+            <i-lucide aria-hidden="true" name="check-circle-2" class="w-4 h-4 text-easydry-blue shrink-0"></i-lucide>
             <span class="font-medium">
-              {{ isLiderOperador ? 'Insumos requeridos por los servicios autorizados de tu sede.' : 'Catálogo maestro de insumos y suministros registrados en el sistema.' }}
+              {{ operaDesdeAgencia ? 'Insumos requeridos por los servicios autorizados de tu sede.' : 'Catálogo maestro de insumos y suministros registrados en el sistema.' }}
             </span>
           </div>
         </div>
 
-        <!-- Tabla Completa de Productos con Todas las Columnas y Alertas -->
-        <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry overflow-hidden">
-          <div class="overflow-x-auto">
-            <table class="w-full text-left text-xs text-slate-600">
-              <thead class="bg-slate-50 text-slate-400 text-[10px] font-bold uppercase tracking-wider">
-                <tr>
-                  <th class="p-3.5">Código SKU</th>
-                  <th class="p-3.5">Producto</th>
-                  <th class="p-3.5">Tipo</th>
-                  <th class="p-3.5">Contenido x Envase</th>
-                  <th class="p-3.5">Stock en Unidades</th>
-                  <th class="p-3.5">Stock Contenido Total</th>
-                  <th class="p-3.5">Stock Mín. Bodega</th>
-                  <th class="p-3.5">Stock Óptimo Bodega</th>
-                  <th class="p-3.5">Stock Mín. Agencia</th>
-                  <th class="p-3.5">Stock Óptimo Agencia</th>
-                  <th class="p-3.5">Alerta de Stock</th>
-                  <th class="p-3.5">Estado</th>
-                  <th class="p-3.5 text-right">Acciones</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-slate-100">
-                <tr *ngIf="productosFiltrados.length === 0">
-                  <td colspan="13" class="p-8 text-center text-slate-400">
-                    No se encontraron productos registrados que coincidan con los filtros aplicados.
-                  </td>
-                </tr>
+        <!-- Tabla de productos: páginas numeradas, orden, búsqueda y filtros en el servidor -->
+        <app-data-table
+          [serverSide]="true"
+          [columns]="columnasProductos"
+          [data]="productosTabla.filas"
+          [total]="productosTabla.total"
+          [page]="productosTabla.pagina"
+          [pageSize]="productosTabla.pageSize"
+          [sortField]="productosTabla.sortField"
+          [sortOrder]="productosTabla.sortOrder"
+          [loading]="productosTabla.cargando"
+          [error]="productosTabla.error"
+          maxHeight="70vh"
+          caption="Productos e insumos"
+          searchPlaceholder="Buscar por código SKU, nombre o descripción..."
+          emptyTitle="No se encontraron productos que coincidan con los filtros aplicados."
+          (queryChange)="productosTabla.alCambiar($event)"
+          (reintentar)="productosTabla.cargar(true)">
 
-                <tr *ngFor="let p of productosFiltrados" class="hover:bg-slate-50/60 transition">
-                  <td class="p-3.5 font-mono font-bold text-slate-800">{{ p.codigoSKU }}</td>
-                  <td class="p-3.5">
-                    <div class="flex items-center gap-3">
-                      <!-- Miniatura Cuadrada (1:1) con Lightbox Zoom -->
-                      <div
-                        *ngIf="p.imagenUrl || p.imagen; else defaultIcon"
-                        (click)="abrirZoomImagen(p.imagenUrl || p.imagen || '', 'Foto del insumo')"
-                        class="w-12 h-12 rounded-xl overflow-hidden border border-slate-200 shadow-2xs flex-shrink-0 bg-slate-50 cursor-pointer group relative">
-                        <img loading="lazy" decoding="async" [appThumb]="resolverUrlImagen(p.imagenUrl || p.imagen)" alt="Foto Insumo" class="w-full h-full object-cover transition-transform group-hover:scale-110" />
-                        <div class="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                          <i-lucide name="zoom-in" class="w-4 h-4 text-white"></i-lucide>
-                        </div>
-                      </div>
-                      <ng-template #defaultIcon>
-                        <div class="w-12 h-12 rounded-xl bg-easydry-blue/10 text-easydry-blue flex items-center justify-center flex-shrink-0 border border-slate-200/60">
-                          <i-lucide name="package" class="w-6 h-6"></i-lucide>
-                        </div>
-                      </ng-template>
-                      <div>
-                        <span class="font-bold text-slate-900 block">{{ p.nombre }}</span>
-                        <span class="text-[10px] text-slate-400 line-clamp-1">{{ p.descripcion || 'Sin descripción' }}</span>
-                      </div>
-                    </div>
-                  </td>
-                  <td class="p-3.5 whitespace-nowrap">
-                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-easydry-blue border border-blue-100">
-                      {{ p.tipoProducto?.nombre || 'General' }}
-                    </span>
-                  </td>
-                  <td class="p-3.5 font-mono font-bold text-slate-700 whitespace-nowrap">
-                    {{ (p.contenidoNeto || 1) | number:'1.0-2' }} {{ p.unidadMedida }}
-                  </td>
-                  <td class="p-3.5 whitespace-nowrap">
-                    <span class="px-2.5 py-1 rounded-md font-mono font-bold text-xs bg-indigo-50 text-indigo-700 border border-indigo-200 inline-block">
-                      {{ getStockEnUnidades(p.stockActual, p.contenidoNeto) | number:'1.0-2' }} und
-                    </span>
-                  </td>
-                  <td class="p-3.5 whitespace-nowrap">
-                    <span
-                      class="px-2.5 py-1 rounded-md font-mono font-bold text-xs inline-block"
-                      [ngClass]="{
-                        'bg-rose-100 text-rose-800 border border-rose-200': p.stockActual <= (p.stockMinimoBodega || 0),
-                        'bg-amber-100 text-amber-800 border border-amber-200': p.stockActual > (p.stockMinimoBodega || 0) && (p.stockOptimoBodega ? p.stockActual < p.stockOptimoBodega : false),
-                        'bg-emerald-100 text-emerald-800 border border-emerald-200': p.stockActual >= (p.stockOptimoBodega || (p.stockMinimoBodega || 1))
-                      }">
-                      {{ p.stockActual | number:'1.0-2' }} {{ p.unidadMedida }}
-                    </span>
-                  </td>
-                  <td class="p-3.5 text-slate-600 font-mono whitespace-nowrap">
-                    <b>{{ getStockEnUnidades(p.stockMinimoBodega, p.contenidoNeto) | number:'1.0-2' }} und</b>
-                    <span class="text-[10px] text-slate-400 block">({{ (p.stockMinimoBodega || 0) | number:'1.0-2' }} {{ p.unidadMedida }})</span>
-                  </td>
-                  <td class="p-3.5 text-slate-500 font-mono whitespace-nowrap">
-                    <b>{{ getStockEnUnidades(p.stockOptimoBodega, p.contenidoNeto) | number:'1.0-2' }} und</b>
-                    <span class="text-[10px] text-slate-400 block">({{ (p.stockOptimoBodega || 0) | number:'1.0-2' }} {{ p.unidadMedida }})</span>
-                  </td>
-                  <td class="p-3.5 text-slate-600 font-mono whitespace-nowrap">
-                    <b>{{ getStockEnUnidades(p.stockMinimoAgencia, p.contenidoNeto) | number:'1.0-2' }} und</b>
-                    <span class="text-[10px] text-slate-400 block">({{ (p.stockMinimoAgencia || 0) | number:'1.0-2' }} {{ p.unidadMedida }})</span>
-                  </td>
-                  <td class="p-3.5 text-slate-500 font-mono whitespace-nowrap">
-                    <b>{{ getStockEnUnidades(p.stockOptimoAgencia, p.contenidoNeto) | number:'1.0-2' }} und</b>
-                    <span class="text-[10px] text-slate-400 block">({{ (p.stockOptimoAgencia || 0) | number:'1.0-2' }} {{ p.unidadMedida }})</span>
-                  </td>
-                  <td class="p-3.5 whitespace-nowrap">
-                    <span
-                      class="px-2.5 py-1 rounded-full text-[11px] font-bold inline-flex items-center gap-1"
-                      [ngClass]="getInfoAlertaStock(p).badgeClass">
-                      <i-lucide [name]="getInfoAlertaStock(p).icon" class="w-3.5 h-3.5"></i-lucide>
-                      <span>{{ getInfoAlertaStock(p).label }}</span>
-                    </span>
-                  </td>
-                  <td class="p-3.5 whitespace-nowrap">
-                    <span
-                      class="px-2 py-0.5 rounded-full text-[10px] font-bold"
-                      [ngClass]="p.activo ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'">
-                      {{ p.activo ? 'Activo' : 'Inactivo' }}
-                    </span>
-                  </td>
-                  <td class="p-3.5 text-right space-x-1 whitespace-nowrap">
-                    <button
-                      *ngIf="puedeRegistrarIngreso"
-                      (click)="seleccionarParaEntrada(p)"
-                      title="Registrar Entrada de Stock (solo Bodega Central)"
-                      class="p-1.5 rounded-lg hover:bg-emerald-50 text-slate-400 hover:text-emerald-600 transition cursor-pointer">
-                      <i-lucide name="plus-circle" class="w-3.5 h-3.5"></i-lucide>
-                    </button>
-                    <button
-                      (click)="abrirModalEditarProducto(p)"
-                      title="Editar Producto"
-                      class="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-easydry-blue transition cursor-pointer">
-                      <i-lucide name="pencil" class="w-3.5 h-3.5"></i-lucide>
-                    </button>
-                    <button
-                      *ngIf="puedeCambiarEstadoProducto()"
-                      (click)="toggleEstadoProducto(p)"
-                      [title]="p.activo ? 'Desactivar producto (conserva historial)' : 'Activar producto'"
-                      class="p-1.5 rounded-lg hover:bg-slate-100 transition cursor-pointer"
-                      [ngClass]="p.activo ? 'text-rose-400 hover:text-rose-600' : 'text-emerald-400 hover:text-emerald-600'">
-                      <i-lucide [name]="p.activo ? 'x-circle' : 'check-circle'" class="w-3.5 h-3.5"></i-lucide>
-                    </button>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
+          <ng-template appCell="sku" let-p><span class="font-mono font-bold text-slate-800">{{ p.codigoSKU }}</span></ng-template>
+
+          <ng-template appCell="nombre" let-p>
+            <div class="flex items-center gap-3 min-w-56">
+              <!-- Miniatura Cuadrada (1:1) con Lightbox Zoom -->
+              <div
+                *ngIf="p.imagenUrl || p.imagen; else defaultIcon"
+                (click)="abrirZoomImagen(p.imagenUrl || p.imagen || '', 'Foto del insumo')"
+                (keydown.enter)="abrirZoomImagen(p.imagenUrl || p.imagen || '', 'Foto del insumo')"
+                tabindex="0" role="button" aria-label="Ampliar foto del insumo"
+                class="w-12 h-12 rounded-xl overflow-hidden border border-slate-200 shadow-2xs flex-shrink-0 bg-slate-50 cursor-pointer group relative">
+                <img loading="lazy" decoding="async" [appThumb]="resolverUrlImagen(p.imagenUrl || p.imagen)" [alt]="'Foto de ' + (p.nombre || 'insumo')" class="w-full h-full object-cover transition-transform group-hover:scale-110" />
+                <div class="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <i-lucide aria-hidden="true" name="zoom-in" class="w-4 h-4 text-white"></i-lucide>
+                </div>
+              </div>
+              <ng-template #defaultIcon>
+                <div class="w-12 h-12 rounded-xl bg-easydry-blue/10 text-easydry-blue flex items-center justify-center flex-shrink-0 border border-slate-200/60">
+                  <i-lucide aria-hidden="true" name="package" class="w-6 h-6"></i-lucide>
+                </div>
+              </ng-template>
+              <div>
+                <span class="font-bold text-slate-900 block">{{ p.nombre }}</span>
+                <span class="text-xs text-slate-500 line-clamp-1">{{ p.descripcion || 'Sin descripción' }}</span>
+              </div>
+            </div>
+          </ng-template>
+
+          <ng-template appCell="tipo" let-p>
+            <span class="px-2 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-easydry-blue border border-blue-100 whitespace-nowrap">
+              {{ p.tipoProducto?.nombre || 'General' }}
+            </span>
+          </ng-template>
+
+          <ng-template appCell="contenido" let-p>
+            <span class="font-mono font-bold text-slate-700 whitespace-nowrap">{{ (p.contenidoNeto || 1) | number:'1.0-2' }} {{ p.unidadMedida }}</span>
+          </ng-template>
+
+          <ng-template appCell="stockUnidades" let-p>
+            <span class="px-2.5 py-1 rounded-md font-mono font-bold text-xs bg-indigo-50 text-indigo-700 border border-indigo-200 inline-block whitespace-nowrap">
+              {{ getStockEnUnidades(p.stockActual, p.contenidoNeto) | number:'1.0-2' }} und
+            </span>
+          </ng-template>
+
+          <ng-template appCell="stock" let-p>
+            <span
+              class="px-2.5 py-1 rounded-md font-mono font-bold text-xs inline-block whitespace-nowrap"
+              [ngClass]="{
+                'bg-rose-100 text-rose-800 border border-rose-200': p.stockActual <= (p.stockMinimoBodega || 0),
+                'bg-amber-100 text-amber-800 border border-amber-200': p.stockActual > (p.stockMinimoBodega || 0) && (p.stockOptimoBodega ? p.stockActual < p.stockOptimoBodega : false),
+                'bg-emerald-100 text-emerald-800 border border-emerald-200': p.stockActual >= (p.stockOptimoBodega || (p.stockMinimoBodega || 1))
+              }">
+              {{ p.stockActual | number:'1.0-2' }} {{ p.unidadMedida }}
+            </span>
+          </ng-template>
+
+          <ng-template appCell="stockMinimoBodega" let-p>
+            <div class="text-slate-600 font-mono whitespace-nowrap">
+              <b>{{ getStockEnUnidades(p.stockMinimoBodega, p.contenidoNeto) | number:'1.0-2' }} und</b>
+              <span class="text-xs text-slate-500 block">({{ (p.stockMinimoBodega || 0) | number:'1.0-2' }} {{ p.unidadMedida }})</span>
+            </div>
+          </ng-template>
+
+          <ng-template appCell="stockOptimoBodega" let-p>
+            <div class="text-slate-500 font-mono whitespace-nowrap">
+              <b>{{ getStockEnUnidades(p.stockOptimoBodega, p.contenidoNeto) | number:'1.0-2' }} und</b>
+              <span class="text-xs text-slate-500 block">({{ (p.stockOptimoBodega || 0) | number:'1.0-2' }} {{ p.unidadMedida }})</span>
+            </div>
+          </ng-template>
+
+          <ng-template appCell="stockMinimoAgencia" let-p>
+            <div class="text-slate-600 font-mono whitespace-nowrap">
+              <b>{{ getStockEnUnidades(p.stockMinimoAgencia, p.contenidoNeto) | number:'1.0-2' }} und</b>
+              <span class="text-xs text-slate-500 block">({{ (p.stockMinimoAgencia || 0) | number:'1.0-2' }} {{ p.unidadMedida }})</span>
+            </div>
+          </ng-template>
+
+          <ng-template appCell="stockOptimoAgencia" let-p>
+            <div class="text-slate-500 font-mono whitespace-nowrap">
+              <b>{{ getStockEnUnidades(p.stockOptimoAgencia, p.contenidoNeto) | number:'1.0-2' }} und</b>
+              <span class="text-xs text-slate-500 block">({{ (p.stockOptimoAgencia || 0) | number:'1.0-2' }} {{ p.unidadMedida }})</span>
+            </div>
+          </ng-template>
+
+          <ng-template appCell="alerta" let-p>
+            <span
+              class="px-2.5 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1 whitespace-nowrap"
+              [ngClass]="getInfoAlertaStock(p).badgeClass">
+              <i-lucide aria-hidden="true" [name]="getInfoAlertaStock(p).icon" class="w-3.5 h-3.5"></i-lucide>
+              <span>{{ getInfoAlertaStock(p).label }}</span>
+            </span>
+          </ng-template>
+
+          <ng-template appCell="estado" let-p>
+            <span class="px-2 py-0.5 rounded-full text-xs font-bold" [ngClass]="p.activo ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'">
+              {{ p.activo ? 'Activo' : 'Inactivo' }}
+            </span>
+          </ng-template>
+
+          <ng-template appCell="acciones" let-p>
+            <div class="flex items-center justify-end gap-1 whitespace-nowrap">
+              <button
+                type="button"
+                *ngIf="puedeRegistrarIngreso"
+                (click)="seleccionarParaEntrada(p)"
+                title="Registrar Entrada de Stock (solo Bodega Central)"
+                class="inline-flex items-center justify-center min-w-9 min-h-9 rounded-lg hover:bg-emerald-50 text-slate-400 hover:text-emerald-600 transition cursor-pointer" aria-label="Registrar Entrada de Stock (solo Bodega Central)">
+                <i-lucide aria-hidden="true" name="plus-circle" class="w-3.5 h-3.5"></i-lucide>
+              </button>
+              <button
+                type="button"
+                *ngIf="puedeGestionarCatalogos"
+                (click)="abrirModalEditarProducto(p)"
+                title="Editar Producto"
+                class="inline-flex items-center justify-center min-w-9 min-h-9 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-easydry-blue transition cursor-pointer" aria-label="Editar Producto">
+                <i-lucide aria-hidden="true" name="pencil" class="w-3.5 h-3.5"></i-lucide>
+              </button>
+              <button
+                type="button"
+                *ngIf="puedeCambiarEstadoProducto()"
+                (click)="toggleEstadoProducto(p)"
+                [title]="p.activo ? 'Desactivar producto (conserva historial)' : 'Activar producto'"
+                [attr.aria-label]="p.activo ? 'Desactivar producto' : 'Activar producto'"
+                class="inline-flex items-center justify-center min-w-9 min-h-9 rounded-lg hover:bg-slate-100 transition cursor-pointer"
+                [ngClass]="p.activo ? 'text-rose-400 hover:text-rose-600' : 'text-emerald-400 hover:text-emerald-600'">
+                <i-lucide aria-hidden="true" [name]="p.activo ? 'x-circle' : 'check-circle'" class="w-3.5 h-3.5"></i-lucide>
+              </button>
+            </div>
+          </ng-template>
+        </app-data-table>
       </div>
 
       <!-- ============================================================== -->
@@ -874,11 +887,11 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
         <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-easydry space-y-4">
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-50 text-easydry-blue text-[11px] font-bold mb-1 border border-blue-100">
-                <i-lucide name="warehouse" class="w-3.5 h-3.5"></i-lucide>
+              <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-50 text-easydry-blue text-xs font-bold mb-1 border border-blue-100">
+                <i-lucide aria-hidden="true" name="warehouse" class="w-3.5 h-3.5"></i-lucide>
                 <span>Red de Distribución & Almacenamiento</span>
               </div>
-              <h2 class="text-xl font-black text-slate-900 font-outfit">Bodegas del Sistema & Asistentes</h2>
+              <h2 class="text-xl font-extrabold text-slate-900 font-outfit">Bodegas del Sistema & Asistentes</h2>
               <p class="text-slate-500 text-xs mt-0.5">
                 Selecciona una bodega para inspeccionar su inventario en tiempo real y el personal de asistentes asignado a su custodia.
               </p>
@@ -886,17 +899,17 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
 
             <div class="flex items-center gap-2">
               <button
-                *ngIf="esGestorGlobalOBodegaAdmin"
+                *ngIf="puedeGestionarBodegas"
                 (click)="abrirModalCrearBodega()"
-                class="px-4 py-2 rounded-xl bg-easydry-green hover:bg-easydry-green-dark text-slate-950 text-xs font-black transition flex items-center gap-2 shadow-glow-green cursor-pointer">
-                <i-lucide name="plus-circle" class="w-4 h-4"></i-lucide>
+                class="px-4 py-2 rounded-xl bg-easydry-green hover:bg-easydry-green-dark text-slate-950 text-xs font-extrabold transition flex items-center gap-2 shadow-glow-green cursor-pointer">
+                <i-lucide aria-hidden="true" name="plus-circle" class="w-4 h-4"></i-lucide>
                 <span>Registrar Nueva Bodega</span>
               </button>
 
               <button
                 (click)="cargarBodegasDisponibles(); cargarUsuariosYAsistentes(); cargarStockBodega()"
                 class="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer">
-                <i-lucide name="refresh-cw" class="w-3.5 h-3.5" [ngClass]="{'animate-spin': cargandoBodegas}"></i-lucide>
+                <i-lucide aria-hidden="true" name="refresh-cw" class="w-3.5 h-3.5" [ngClass]="{'animate-spin': cargandoBodegas}"></i-lucide>
                 <span>Actualizar Bodegas</span>
               </button>
             </div>
@@ -907,35 +920,40 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
             <div
               *ngFor="let bod of getBodegasParaVisualizacion()"
               (click)="seleccionarBodega(bod.id)"
-              class="p-4 rounded-xl border transition-all cursor-pointer relative overflow-hidden group flex flex-col justify-between"
+              (keydown.enter)="seleccionarBodega(bod.id)"
+              (keydown.space)="seleccionarBodega(bod.id); $event.preventDefault()"
+              tabindex="0"
+              role="button"
+              [attr.aria-pressed]="bodegaSeleccionadaId === bod.id"
+              class="p-4 rounded-xl border transition-shadow cursor-pointer relative overflow-hidden group flex flex-col justify-between"
               [ngClass]="bodegaSeleccionadaId === bod.id ? 'border-easydry-blue bg-blue-50/40 ring-2 ring-easydry-blue/20 shadow-sm' : 'border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-50/70'">
               
               <div class="flex items-start justify-between gap-2 mb-2">
                 <div class="w-9 h-9 rounded-lg flex items-center justify-center font-bold shrink-0"
                   [ngClass]="bod.esCentral ? 'bg-blue-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 group-hover:bg-blue-100 group-hover:text-easydry-blue'">
-                  <i-lucide name="warehouse" class="w-4 h-4"></i-lucide>
+                  <i-lucide aria-hidden="true" name="warehouse" class="w-4 h-4"></i-lucide>
                 </div>
                 <div class="flex items-center gap-1">
                   <span
-                    class="px-2 py-0.5 rounded-full text-[10px] font-bold"
+                    class="px-2 py-0.5 rounded-full text-xs font-bold"
                     [ngClass]="(bod.tipo === 'CENTRAL' || bod.esCentral) ? 'bg-blue-100 text-blue-800 border border-blue-200' : 'bg-slate-100 text-slate-700 border border-slate-200'">
                     {{ (bod.tipo === 'CENTRAL' || bod.esCentral) ? 'CENTRAL' : 'REGIONAL' }}
                   </span>
                   <button
-                    *ngIf="esGestorGlobalOBodegaAdmin"
+                    *ngIf="puedeGestionarBodegas"
                     type="button"
                     (click)="$event.stopPropagation(); abrirModalEditarBodega(bod)"
-                    class="p-1 rounded-lg hover:bg-slate-200 text-slate-500 hover:text-easydry-blue transition"
-                    title="Editar Bodega">
-                    <i-lucide name="edit-2" class="w-3.5 h-3.5"></i-lucide>
+                    class="inline-flex items-center justify-center min-w-9 min-h-9 rounded-lg hover:bg-slate-200 text-slate-500 hover:text-easydry-blue transition"
+                    title="Editar Bodega" aria-label="Editar Bodega">
+                    <i-lucide aria-hidden="true" name="edit-2" class="w-3.5 h-3.5"></i-lucide>
                   </button>
                   <button
-                    *ngIf="!bod.esCentral && esGestorGlobalOBodegaAdmin"
+                    *ngIf="!bod.esCentral && puedeGestionarBodegas"
                     type="button"
                     (click)="$event.stopPropagation(); eliminarBodega(bod)"
-                    class="p-1 rounded-lg hover:bg-rose-100 text-slate-400 hover:text-rose-600 transition"
-                    title="Eliminar Bodega">
-                    <i-lucide name="trash-2" class="w-3.5 h-3.5"></i-lucide>
+                    class="inline-flex items-center justify-center min-w-9 min-h-9 rounded-lg hover:bg-rose-100 text-slate-400 hover:text-rose-600 transition"
+                    title="Eliminar Bodega" aria-label="Eliminar Bodega">
+                    <i-lucide aria-hidden="true" name="trash-2" class="w-3.5 h-3.5"></i-lucide>
                   </button>
                 </div>
               </div>
@@ -944,15 +962,15 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
                 <h3 class="font-extrabold text-sm text-slate-900 group-hover:text-easydry-blue transition line-clamp-1">
                   {{ bod.nombre }}
                 </h3>
-                <p class="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1">
-                  <i-lucide name="map-pin" class="w-3 h-3 text-slate-400"></i-lucide>
+                <p class="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
+                  <i-lucide aria-hidden="true" name="map-pin" class="w-3 h-3 text-slate-400"></i-lucide>
                   <span>{{ bod.ciudad }} ({{ bod.region }})</span>
                 </p>
               </div>
 
-              <div class="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-end text-[11px]">
-                <span class="inline-flex items-center gap-1 font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md text-[10px]">
-                  <i-lucide name="users" class="w-3 h-3 text-easydry-blue"></i-lucide>
+              <div class="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-end text-xs">
+                <span class="inline-flex items-center gap-1 font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md text-xs">
+                  <i-lucide aria-hidden="true" name="users" class="w-3 h-3 text-easydry-blue"></i-lucide>
                   <span>{{ getAsistentesDeBodega(bod).length }} Asistente(s)</span>
                 </span>
               </div>
@@ -964,7 +982,7 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
         <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-easydry flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div class="flex items-start gap-3">
             <div class="w-12 h-12 rounded-xl bg-blue-50 text-easydry-blue flex items-center justify-center font-bold shrink-0">
-              <i-lucide name="warehouse" class="w-6 h-6"></i-lucide>
+              <i-lucide aria-hidden="true" name="warehouse" class="w-6 h-6"></i-lucide>
             </div>
             <div>
               <div class="flex items-center gap-2">
@@ -972,7 +990,7 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
                   {{ bodegaSeleccionada?.nombre || resumenBodegas.bodega?.nombre || 'Bodega Central Nacional' }}
                 </h2>
                 <span
-                  class="px-2 py-0.5 rounded-full text-[10px] font-bold"
+                  class="px-2 py-0.5 rounded-full text-xs font-bold"
                   [ngClass]="(bodegaSeleccionada?.esCentral || resumenBodegas.bodega?.esCentral) ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-purple-50 text-purple-700 border border-purple-200'">
                   {{ (bodegaSeleccionada?.esCentral || resumenBodegas.bodega?.esCentral) ? 'HUB Principal Operativo' : 'Sede Logística Regional' }}
                 </span>
@@ -986,24 +1004,24 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
             </div>
           </div>
 
-          <div class="flex items-center gap-2 flex-wrap justify-end" *ngIf="esBodegaCentralActual">
+          <div class="flex items-center gap-2 flex-wrap justify-end" *ngIf="esBodegaCentralActual && puedeRegistrarIngreso">
             <button
               (click)="abrirModalEntrada()"
               class="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer">
-              <i-lucide name="plus-circle" class="w-4 h-4"></i-lucide>
+              <i-lucide aria-hidden="true" name="plus-circle" class="w-4 h-4"></i-lucide>
               <span>Ingresar Stock a Bodega Central</span>
             </button>
           </div>
-          <div class="flex items-center gap-2 flex-wrap justify-end" *ngIf="!esBodegaCentralActual && (esGestorBodega || esAsistenteBodega || esSuperAdmin)">
-            <span class="text-[11px] text-slate-500 font-medium max-w-xs text-right">
+          <div class="flex items-center gap-2 flex-wrap justify-end" *ngIf="!esBodegaCentralActual && puedeAjustarStock">
+            <span class="text-xs text-slate-500 font-medium max-w-xs text-right">
               Esta bodega se abastece por <b>Envíos</b> desde Central (no admite ingresos directos).
             </span>
             <button
-              *ngIf="esGestorBodega || esSuperAdmin"
+              *ngIf="puedeAbastecerBodegas"
               type="button"
               (click)="abrirModalDespachoHaciaBodegaSeleccionada()"
               class="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer shrink-0">
-              <i-lucide name="warehouse" class="w-4 h-4"></i-lucide>
+              <i-lucide aria-hidden="true" name="warehouse" class="w-4 h-4"></i-lucide>
               <span>Despachar a esta Bodega</span>
             </button>
           </div>
@@ -1014,14 +1032,14 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div class="flex items-center gap-2.5">
               <div class="w-8 h-8 rounded-lg bg-teal-50 text-teal-700 flex items-center justify-center font-bold">
-                <i-lucide name="users" class="w-4 h-4"></i-lucide>
+                <i-lucide aria-hidden="true" name="users" class="w-4 h-4"></i-lucide>
               </div>
               <div>
                 <div class="flex items-center gap-2">
-                  <h3 class="text-sm font-black text-slate-900 uppercase tracking-wide">
+                  <h3 class="text-sm font-extrabold text-slate-900 uppercase tracking-wide">
                     Asistentes de Bodega Asignados
                   </h3>
-                  <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-teal-100 text-teal-800 border border-teal-200">
+                  <span class="px-2 py-0.5 rounded-full text-xs font-extrabold bg-teal-100 text-teal-800 border border-teal-200">
                     {{ getAsistentesDeBodega(bodegaSeleccionada).length }} en custodia
                   </span>
                 </div>
@@ -1045,7 +1063,7 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
                   class="w-11 h-11 rounded-full object-cover border-2 border-white shadow-xs" />
                 <div
                   *ngIf="!asis.avatar"
-                  class="w-11 h-11 rounded-full bg-teal-600 text-white font-black text-sm flex items-center justify-center shadow-xs">
+                  class="w-11 h-11 rounded-full bg-teal-600 text-white font-extrabold text-sm flex items-center justify-center shadow-xs">
                   {{ (asis.nombre || 'A').charAt(0).toUpperCase() }}
                 </div>
                 <span class="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white" title="Activo"></span>
@@ -1053,25 +1071,25 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
 
               <div class="min-w-0 flex-1">
                 <div class="flex items-center justify-between gap-1">
-                  <h4 class="text-xs font-black text-slate-900 truncate">
+                  <h4 class="text-xs font-extrabold text-slate-900 truncate">
                     {{ asis.nombre }} {{ asis.apellido }}
                   </h4>
-                  <span class="px-1.5 py-0.5 rounded text-[9px] font-black bg-emerald-100 text-emerald-800 shrink-0">
+                  <span class="px-1.5 py-0.5 rounded text-xs font-extrabold bg-emerald-100 text-emerald-800 shrink-0">
                     Activo
                   </span>
                 </div>
                 
-                <span class="inline-block px-2 py-0.5 rounded-md text-[10px] font-bold bg-teal-50 text-teal-700 border border-teal-100 mt-1">
+                <span class="inline-block px-2 py-0.5 rounded-md text-xs font-bold bg-teal-50 text-teal-700 border border-teal-100 mt-1">
                   {{ asis.rol || asis.rolNombre || 'Asistente de Bodega' }}
                 </span>
 
-                <div class="mt-2 space-y-1 text-[11px] text-slate-500">
+                <div class="mt-2 space-y-1 text-xs text-slate-500">
                   <div class="flex items-center gap-1.5 truncate">
-                    <i-lucide name="mail" class="w-3 h-3 text-slate-400 shrink-0"></i-lucide>
+                    <i-lucide aria-hidden="true" name="mail" class="w-3 h-3 text-slate-400 shrink-0"></i-lucide>
                     <a [href]="'mailto:' + asis.email" class="text-easydry-blue hover:underline truncate">{{ asis.email }}</a>
                   </div>
-                  <div class="flex items-center gap-1.5 truncate text-[10px] text-slate-400">
-                    <i-lucide name="map-pin" class="w-3 h-3 text-slate-400 shrink-0"></i-lucide>
+                  <div class="flex items-center gap-1.5 truncate text-xs text-slate-500">
+                    <i-lucide aria-hidden="true" name="map-pin" class="w-3 h-3 text-slate-400 shrink-0"></i-lucide>
                     <span class="truncate">{{ asis.region || asis.agencia || bodegaSeleccionada?.region || 'Región Asignada' }}</span>
                   </div>
                 </div>
@@ -1082,10 +1100,10 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
           <!-- Estado Vacío cuando no hay asistentes -->
           <div *ngIf="getAsistentesDeBodega(bodegaSeleccionada).length === 0" class="p-6 rounded-xl bg-slate-50 border border-dashed border-slate-200 text-center space-y-2">
             <div class="w-10 h-10 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center mx-auto">
-              <i-lucide name="users" class="w-5 h-5"></i-lucide>
+              <i-lucide aria-hidden="true" name="users" class="w-5 h-5"></i-lucide>
             </div>
             <p class="text-xs font-bold text-slate-700">Sin Asistentes de Bodega asignados a esta ubicación</p>
-            <p class="text-[11px] text-slate-500 max-w-md mx-auto">
+            <p class="text-xs text-slate-500 max-w-md mx-auto">
               Para asignar personal operativo a esta bodega, accede al módulo de <b>Gestión de Usuarios</b> y crea o edita un usuario con el rol de <b>Asistente de Bodega</b> en la región o bodega correspondiente.
             </p>
           </div>
@@ -1097,202 +1115,176 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
             <div class="flex items-center justify-between">
               <span class="text-xs font-bold text-slate-500">Insumos en Custodia</span>
               <div class="w-8 h-8 rounded-lg bg-blue-50 text-easydry-blue flex items-center justify-center">
-                <i-lucide name="boxes" class="w-4 h-4"></i-lucide>
+                <i-lucide aria-hidden="true" name="boxes" class="w-4 h-4"></i-lucide>
               </div>
             </div>
-            <div class="mt-2 text-2xl font-black text-slate-900 font-outfit">
+            <div class="mt-2 text-2xl font-extrabold text-slate-900 font-outfit">
               {{ resumenBodegas.metricas?.totalInsumos || 0 }}
             </div>
-            <span class="text-[11px] text-slate-400">Productos registrados en inventario</span>
+            <span class="text-xs text-slate-500">Productos registrados en inventario</span>
           </div>
 
           <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-easydry">
             <div class="flex items-center justify-between">
               <span class="text-xs font-bold text-slate-500">Existencias Totales</span>
               <div class="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
-                <i-lucide name="layers" class="w-4 h-4"></i-lucide>
+                <i-lucide aria-hidden="true" name="layers" class="w-4 h-4"></i-lucide>
               </div>
             </div>
-            <div class="mt-2 text-2xl font-black text-indigo-700 font-outfit font-mono">
+            <div class="mt-2 text-2xl font-extrabold text-indigo-700 font-outfit font-mono">
               {{ (resumenBodegas.metricas?.stockTotalUnidades || 0) | number:'1.0-2' }}
             </div>
-            <span class="text-[11px] text-slate-400">Unidades base almacenadas</span>
+            <span class="text-xs text-slate-500">Unidades base almacenadas</span>
           </div>
 
           <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-easydry">
             <div class="flex items-center justify-between">
               <span class="text-xs font-bold text-slate-500">Bajo Mínimo en Bodega</span>
               <div class="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center">
-                <i-lucide name="alert-triangle" class="w-4 h-4"></i-lucide>
+                <i-lucide aria-hidden="true" name="alert-triangle" class="w-4 h-4"></i-lucide>
               </div>
             </div>
-            <div class="mt-2 text-2xl font-black text-rose-600 font-outfit">
+            <div class="mt-2 text-2xl font-extrabold text-rose-600 font-outfit">
               {{ resumenBodegas.metricas?.insumosBajoMinimo || 0 }}
             </div>
-            <span class="text-[11px] text-rose-500 font-medium">Requieren compra a proveedor</span>
+            <span class="text-xs text-rose-500 font-medium">Requieren compra a proveedor</span>
           </div>
 
           <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-easydry">
             <div class="flex items-center justify-between">
               <span class="text-xs font-bold text-slate-500">Insumos con Stock Óptimo</span>
               <div class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                <i-lucide name="check-circle" class="w-4 h-4"></i-lucide>
+                <i-lucide aria-hidden="true" name="check-circle" class="w-4 h-4"></i-lucide>
               </div>
             </div>
-            <div class="mt-2 text-2xl font-black text-emerald-600 font-outfit">
+            <div class="mt-2 text-2xl font-extrabold text-emerald-600 font-outfit">
               {{ resumenBodegas.metricas?.insumosOptimos || 0 }}
             </div>
-            <span class="text-[11px] text-emerald-600 font-medium">Abastecimiento adecuado</span>
+            <span class="text-xs text-emerald-600 font-medium">Abastecimiento adecuado</span>
           </div>
         </div>
 
-        <!-- Filtros y Búsqueda en Bodega -->
-        <div class="bg-white p-4 rounded-xl border border-slate-100 shadow-xs flex flex-col md:flex-row items-center gap-3 justify-between">
-          <div class="flex items-center gap-3 w-full md:w-auto flex-1">
-            <div class="relative flex-1 max-w-sm">
-              <i-lucide name="search" class="w-4 h-4 text-slate-400 absolute left-3 top-2.5"></i-lucide>
-              <input
-                type="text"
-                [(ngModel)]="filtroTextoBodega"
-                (ngModelChange)="filtrarInsumosBodega()"
-                placeholder="Buscar por SKU o nombre de insumo..."
-                class="w-full pl-9 pr-3 py-1.5 text-xs rounded-lg border border-slate-200 focus:outline-none focus:border-easydry-blue" />
+        <!-- Filtro de estado (la búsqueda está en la barra de la tabla) -->
+        <div class="bg-white p-4 rounded-xl border border-slate-100 shadow-xs flex items-center gap-3">
+          <select
+            [(ngModel)]="filtroEstadoBodega"
+            (change)="reiniciarBodega()"
+            aria-label="Filtrar insumos de la bodega por estado"
+            class="px-3 py-1.5 text-xs rounded-lg border border-slate-200 bg-white focus:outline-none focus:border-easydry-blue text-slate-700">
+            <option value="">Todos los Estados</option>
+            <option value="Óptimo">Óptimo</option>
+            <option value="Bajo">Bajo</option>
+            <option value="Crítico">Crítico</option>
+            <option value="Agotado">Agotado</option>
+            <option value="No necesario">No necesario</option>
+          </select>
+        </div>
+
+        <!-- Tabla de Insumos en Bodega: páginas numeradas, orden, búsqueda y filtro de estado en el servidor -->
+        <app-data-table
+          [serverSide]="true"
+          [columns]="columnasBodega"
+          [data]="bodegaTabla.filas"
+          [total]="bodegaTabla.total"
+          [page]="bodegaTabla.pagina"
+          [pageSize]="bodegaTabla.pageSize"
+          [sortField]="bodegaTabla.sortField"
+          [sortOrder]="bodegaTabla.sortOrder"
+          [loading]="bodegaTabla.cargando"
+          [error]="bodegaTabla.error"
+          maxHeight="70vh"
+          caption="Insumos en bodega"
+          searchPlaceholder="Buscar por SKU, nombre o tipo..."
+          emptyTitle="No se encontraron insumos almacenados en la bodega que coincidan con el filtro."
+          emptyHint=""
+          (queryChange)="bodegaTabla.alCambiar($event)"
+          (reintentar)="bodegaTabla.cargar(true)">
+
+          <ng-template appCell="sku" let-item><span class="font-mono font-bold text-slate-800">{{ item.codigoSKU }}</span></ng-template>
+          <ng-template appCell="nombre" let-item><span class="font-bold text-slate-900">{{ item.nombre }}</span></ng-template>
+          <ng-template appCell="tipo" let-item>
+            <span class="px-2 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-easydry-blue border border-blue-100">{{ item.tipoProducto }}</span>
+          </ng-template>
+          <ng-template appCell="contenido" let-item>
+            <span class="font-mono font-bold text-slate-700 whitespace-nowrap">{{ (item.contenidoNeto || 1) | number:'1.0-2' }} {{ item.unidad }}</span>
+          </ng-template>
+          <ng-template appCell="stockUnidades" let-item>
+            <span class="px-2.5 py-1 rounded-md font-mono font-bold text-xs bg-indigo-50 text-indigo-700 border border-indigo-200 inline-block whitespace-nowrap">
+              {{ getStockEnUnidades(item.stockActual, item.contenidoNeto) | number:'1.0-2' }} und
+            </span>
+          </ng-template>
+          <ng-template appCell="stock" let-item>
+            <span
+              class="px-2.5 py-1 rounded-md font-mono font-bold text-xs inline-block whitespace-nowrap"
+              [ngClass]="{
+                'bg-rose-100 text-rose-800 border border-rose-200': item.estado === 'Agotado' || item.estado === 'Crítico',
+                'bg-amber-100 text-amber-800 border border-amber-200': item.estado === 'Bajo',
+                'bg-emerald-100 text-emerald-800 border border-emerald-200': item.estado === 'Óptimo',
+                'bg-slate-100 text-slate-600 border border-slate-200': item.estado === 'No necesario'
+              }">
+              {{ item.stockActual | number:'1.0-2' }} {{ item.unidad }}
+            </span>
+          </ng-template>
+          <ng-template appCell="minimo" let-item>
+            <div class="font-mono text-slate-600 whitespace-nowrap">
+              <b>{{ getStockEnUnidades(item.stockMinimo, item.contenidoNeto) | number:'1.0-2' }} und</b>
+              <span class="text-xs text-slate-500 block">({{ item.stockMinimo | number:'1.0-2' }} {{ item.unidad }})</span>
             </div>
-
-            <select
-              [(ngModel)]="filtroEstadoBodega"
-              (change)="filtrarInsumosBodega()"
-              class="px-3 py-1.5 text-xs rounded-lg border border-slate-200 bg-white focus:outline-none focus:border-easydry-blue text-slate-700">
-              <option value="">Todos los Estados</option>
-              <option value="Óptimo">Óptimo</option>
-              <option value="Bajo">Bajo</option>
-              <option value="Crítico">Crítico</option>
-              <option value="Agotado">Agotado</option>
-              <option value="No necesario">No necesario</option>
-            </select>
-          </div>
-
-          <div class="text-xs text-slate-500 font-medium whitespace-nowrap">
-            Mostrando <b>{{ insumosBodegaFiltrados.length }}</b> de <b>{{ resumenBodegas.insumos?.length || 0 }}</b> insumos en bodega
-          </div>
-        </div>
-
-        <!-- Tabla de Insumos en Bodega -->
-        <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry overflow-hidden">
-          <div class="overflow-x-auto">
-            <table class="w-full text-left text-xs text-slate-600">
-              <thead class="bg-slate-50 text-slate-400 text-[10px] font-bold uppercase tracking-wider">
-                <tr>
-                  <th class="p-3.5">Código SKU</th>
-                  <th class="p-3.5">Producto</th>
-                  <th class="p-3.5">Tipo</th>
-                  <th class="p-3.5">Contenido x Envase</th>
-                  <th class="p-3.5">Stock en Unidades</th>
-                  <th class="p-3.5">Stock Contenido Total</th>
-                  <th class="p-3.5">Stock Mínimo</th>
-                  <th class="p-3.5">Umbral Alerta (% config)</th>
-                  <th class="p-3.5">Stock Óptimo</th>
-                  <th class="p-3.5">Estado / Nivel Alerta</th>
-                  <th class="p-3.5 text-right">Acciones</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-slate-100">
-                <tr *ngIf="insumosBodegaFiltrados.length === 0">
-                  <td colspan="11" class="p-8 text-center text-slate-400">
-                    No se encontraron insumos almacenados en la bodega que coincidan con el filtro.
-                  </td>
-                </tr>
-
-                <tr *ngFor="let item of insumosBodegaFiltrados" class="hover:bg-slate-50/60 transition">
-                  <td class="p-3.5 font-mono font-bold text-slate-800">{{ item.codigoSKU }}</td>
-                  <td class="p-3.5">
-                    <span class="font-bold text-slate-900 block">{{ item.nombre }}</span>
-                  </td>
-                  <td class="p-3.5">
-                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-easydry-blue border border-blue-100">
-                      {{ item.tipoProducto }}
-                    </span>
-                  </td>
-                  <td class="p-3.5 font-mono font-bold text-slate-700 whitespace-nowrap">
-                    {{ (item.contenidoNeto || 1) | number:'1.0-2' }} {{ item.unidad }}
-                  </td>
-                  <td class="p-3.5 whitespace-nowrap">
-                    <span class="px-2.5 py-1 rounded-md font-mono font-bold text-xs bg-indigo-50 text-indigo-700 border border-indigo-200 inline-block">
-                      {{ getStockEnUnidades(item.stockActual, item.contenidoNeto) | number:'1.0-2' }} und
-                    </span>
-                  </td>
-                  <td class="p-3.5 whitespace-nowrap">
-                    <span
-                      class="px-2.5 py-1 rounded-md font-mono font-bold text-xs inline-block"
-                      [ngClass]="{
-                        'bg-rose-100 text-rose-800 border border-rose-200': item.estado === 'Agotado' || item.estado === 'Crítico',
-                        'bg-amber-100 text-amber-800 border border-amber-200': item.estado === 'Bajo',
-                        'bg-emerald-100 text-emerald-800 border border-emerald-200': item.estado === 'Óptimo',
-                        'bg-slate-100 text-slate-600 border border-slate-200': item.estado === 'No necesario'
-                      }">
-                      {{ item.stockActual | number:'1.0-2' }} {{ item.unidad }}
-                    </span>
-                  </td>
-                  <td class="p-3.5 font-mono text-slate-600 whitespace-nowrap">
-                    <b>{{ getStockEnUnidades(item.stockMinimo, item.contenidoNeto) | number:'1.0-2' }} und</b>
-                    <span class="text-[10px] text-slate-400 block">({{ item.stockMinimo | number:'1.0-2' }} {{ item.unidad }})</span>
-                  </td>
-                  <td class="p-3.5 font-mono whitespace-nowrap">
-                    <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200 inline-flex items-center gap-1">
-                      <span>{{ item.umbralAlerta || (item.stockMinimo * 1.2) | number:'1.0-2' }} {{ item.unidad }}</span>
-                      <span class="text-[9px] font-black text-amber-600 font-mono">(+{{ item.porcentajeAlerta || 20 }}%)</span>
-                    </span>
-                  </td>
-                  <td class="p-3.5 font-mono text-slate-500 whitespace-nowrap">
-                    <b>{{ getStockEnUnidades(item.stockOptimo, item.contenidoNeto) | number:'1.0-2' }} und</b>
-                    <span class="text-[10px] text-slate-400 block">({{ item.stockOptimo | number:'1.0-2' }} {{ item.unidad }})</span>
-                  </td>
-                  <td class="p-3.5 whitespace-nowrap">
-                    <span
-                      class="px-2.5 py-1 rounded-full text-[10px] font-extrabold inline-flex items-center gap-1"
-                      [ngClass]="{
-                        'bg-rose-100 text-rose-800 border border-rose-200': item.estado === 'Agotado' || item.estado === 'Crítico',
-                        'bg-amber-100 text-amber-800 border border-amber-200': item.estado === 'Bajo',
-                        'bg-emerald-100 text-emerald-800 border border-emerald-200': item.estado === 'Óptimo',
-                        'bg-slate-100 text-slate-600 border border-slate-200': item.estado === 'No necesario'
-                      }">
-                      <span>{{ getLabelEstadoBodega(item) }}</span>
-                    </span>
-                  </td>
-                  <td class="p-3.5 text-right space-x-1.5 whitespace-nowrap">
-                    <button
-                      *ngIf="puedeGenerarDespacho && (esGestorBodega || esAsistenteBodega || esSuperAdmin)"
-                      (click)="abrirModalDespachoDesdeBodegaActual(item)"
-                      title="Despachar este insumo desde la bodega seleccionada"
-                      class="px-2.5 py-1 rounded-lg bg-easydry-blue hover:bg-blue-700 text-white font-bold text-[11px] transition cursor-pointer inline-flex items-center gap-1">
-                      <i-lucide name="truck" class="w-3 h-3"></i-lucide>
-                      <span>Despachar</span>
-                    </button>
-                    <button
-                      *ngIf="esBodegaCentralActual && puedeRegistrarIngreso"
-                      (click)="seleccionarParaEntrada(item)"
-                      class="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] transition cursor-pointer">
-                      Ingresar Stock
-                    </button>
-                    <button
-                      *ngIf="puedeReajustarStock"
-                      (click)="abrirModalReajuste(item)"
-                      title="Reajustar stock por conteo físico"
-                      class="px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-[11px] transition cursor-pointer inline-flex items-center gap-1">
-                      <i-lucide name="sliders" class="w-3 h-3"></i-lucide>
-                      <span>Reajustar</span>
-                    </button>
-                    <span
-                      *ngIf="!esBodegaCentralActual && esAdminGlobal && !esSuperAdmin"
-                      class="text-[10px] text-slate-400 font-medium">
-                      Solo supervisión
-                    </span>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
+          </ng-template>
+          <ng-template appCell="umbral" let-item>
+            <span class="px-2 py-0.5 rounded text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 inline-flex items-center gap-1 font-mono whitespace-nowrap">
+              <span>{{ item.umbralAlerta || (item.stockMinimo * 1.2) | number:'1.0-2' }} {{ item.unidad }}</span>
+              <span class="text-xs font-extrabold text-amber-600">(+{{ item.porcentajeAlerta || 20 }}%)</span>
+            </span>
+          </ng-template>
+          <ng-template appCell="optimo" let-item>
+            <div class="font-mono text-slate-500 whitespace-nowrap">
+              <b>{{ getStockEnUnidades(item.stockOptimo, item.contenidoNeto) | number:'1.0-2' }} und</b>
+              <span class="text-xs text-slate-500 block">({{ item.stockOptimo | number:'1.0-2' }} {{ item.unidad }})</span>
+            </div>
+          </ng-template>
+          <ng-template appCell="estado" let-item>
+            <span
+              class="px-2.5 py-1 rounded-full text-xs font-extrabold inline-flex items-center gap-1 whitespace-nowrap"
+              [ngClass]="{
+                'bg-rose-100 text-rose-800 border border-rose-200': item.estado === 'Agotado' || item.estado === 'Crítico',
+                'bg-amber-100 text-amber-800 border border-amber-200': item.estado === 'Bajo',
+                'bg-emerald-100 text-emerald-800 border border-emerald-200': item.estado === 'Óptimo',
+                'bg-slate-100 text-slate-600 border border-slate-200': item.estado === 'No necesario'
+              }">
+              <span>{{ getLabelEstadoBodega(item) }}</span>
+            </span>
+          </ng-template>
+          <ng-template appCell="acciones" let-item>
+            <div class="flex items-center justify-end gap-1.5 whitespace-nowrap">
+              <button
+                type="button"
+                *ngIf="puedeGenerarDespacho && puedeAjustarStock"
+                (click)="abrirModalDespachoDesdeBodegaActual(item)"
+                title="Despachar este insumo desde la bodega seleccionada"
+                class="px-2.5 py-1 rounded-lg bg-easydry-blue hover:bg-blue-700 text-white font-bold text-xs transition cursor-pointer inline-flex items-center gap-1">
+                <i-lucide aria-hidden="true" name="truck" class="w-3 h-3"></i-lucide>
+                <span>Despachar</span>
+              </button>
+              <button
+                type="button"
+                *ngIf="esBodegaCentralActual && puedeRegistrarIngreso"
+                (click)="seleccionarParaEntrada(item)"
+                class="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition cursor-pointer">
+                Ingresar Stock
+              </button>
+              <button
+                type="button"
+                *ngIf="puedeReajustarStock"
+                (click)="abrirModalReajuste(item)"
+                title="Reajustar stock por conteo físico"
+                class="px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs transition cursor-pointer inline-flex items-center gap-1">
+                <i-lucide aria-hidden="true" name="sliders" class="w-3 h-3"></i-lucide>
+                <span>Reajustar</span>
+              </button>
+            </div>
+          </ng-template>
+        </app-data-table>
       </div>
 
       <!-- ============================================================== -->
@@ -1303,14 +1295,14 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
         <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-easydry flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div class="flex items-start gap-3">
             <div class="w-12 h-12 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold shrink-0">
-              <i-lucide name="store" class="w-6 h-6"></i-lucide>
+              <i-lucide aria-hidden="true" name="store" class="w-6 h-6"></i-lucide>
             </div>
             <div>
               <div class="flex items-center gap-2">
                 <h2 class="text-lg font-extrabold text-slate-900 font-outfit">
                   Monitoreo de Suministros en Otras Agencias
                 </h2>
-                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                <span class="px-2 py-0.5 rounded-full text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200">
                   Red de Sucursales
                 </span>
               </div>
@@ -1324,7 +1316,7 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
             *ngIf="puedeGenerarDespacho"
             (click)="abrirModalDespachoAgencia()"
             class="px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition flex items-center gap-2 shadow-sm cursor-pointer shrink-0">
-            <i-lucide name="truck" class="w-4 h-4"></i-lucide>
+            <i-lucide aria-hidden="true" name="truck" class="w-4 h-4"></i-lucide>
             <span>Despachar a otra Agencia</span>
           </button>
         </div>
@@ -1335,39 +1327,39 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
             <div class="flex items-center justify-between">
               <span class="text-xs font-bold text-slate-500">Agencias Monitoreadas</span>
               <div class="w-8 h-8 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center">
-                <i-lucide name="building-2" class="w-4 h-4"></i-lucide>
+                <i-lucide aria-hidden="true" name="building-2" class="w-4 h-4"></i-lucide>
               </div>
             </div>
-            <div class="mt-2 text-2xl font-black text-slate-900 font-outfit">
+            <div class="mt-2 text-2xl font-extrabold text-slate-900 font-outfit">
               {{ resumenAgencias.totalAgencias || 0 }}
             </div>
-            <span class="text-[11px] text-slate-400">Sedes operativas conectadas</span>
+            <span class="text-xs text-slate-500">Sedes operativas conectadas</span>
           </div>
 
           <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-easydry">
             <div class="flex items-center justify-between">
               <span class="text-xs font-bold text-slate-500">Agencias en Alerta</span>
               <div class="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
-                <i-lucide name="alert-triangle" class="w-4 h-4"></i-lucide>
+                <i-lucide aria-hidden="true" name="alert-triangle" class="w-4 h-4"></i-lucide>
               </div>
             </div>
-            <div class="mt-2 text-2xl font-black text-amber-600 font-outfit">
+            <div class="mt-2 text-2xl font-extrabold text-amber-600 font-outfit">
               {{ resumenAgencias.agenciasEnAlerta || 0 }}
             </div>
-            <span class="text-[11px] text-amber-600 font-medium">Presentan déficit de insumos</span>
+            <span class="text-xs text-amber-600 font-medium">Presentan déficit de insumos</span>
           </div>
 
           <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-easydry">
             <div class="flex items-center justify-between">
               <span class="text-xs font-bold text-slate-500">Insumos Críticos en la Red</span>
               <div class="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center">
-                <i-lucide name="x-circle" class="w-4 h-4"></i-lucide>
+                <i-lucide aria-hidden="true" name="x-circle" class="w-4 h-4"></i-lucide>
               </div>
             </div>
-            <div class="mt-2 text-2xl font-black text-rose-600 font-outfit">
+            <div class="mt-2 text-2xl font-extrabold text-rose-600 font-outfit">
               {{ resumenAgencias.insumosCriticosTotal || 0 }}
             </div>
-            <span class="text-[11px] text-rose-500 font-medium">Insumos bajo mínimo o agotados</span>
+            <span class="text-xs text-rose-500 font-medium">Insumos bajo mínimo o agotados</span>
           </div>
         </div>
 
@@ -1375,18 +1367,9 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
         <div class="bg-white p-4 rounded-xl border border-slate-100 shadow-xs flex flex-col md:flex-row items-center gap-3 justify-between">
           <div class="flex items-center gap-3 w-full md:w-auto flex-1 flex-wrap">
             <select
-              [(ngModel)]="filtroAgenciaId"
-              (change)="filtrarAgencias()"
-              class="px-3 py-1.5 text-xs rounded-lg border border-slate-200 bg-white focus:outline-none focus:border-easydry-blue text-slate-700">
-              <option value="">Todas las Agencias ({{ resumenAgencias.agencias?.length || 0 }})</option>
-              <option *ngFor="let ag of resumenAgencias.agencias" [value]="ag.agencia.id">
-                {{ ag.agencia.nombre }} ({{ ag.agencia.codigo }})
-              </option>
-            </select>
-
-            <select
               [(ngModel)]="filtroEstadoAgencia"
-              (change)="filtrarAgencias()"
+              (change)="reiniciarAgencias()"
+              aria-label="Filtrar sedes por estado"
               class="px-3 py-1.5 text-xs rounded-lg border border-slate-200 bg-white focus:outline-none focus:border-easydry-blue text-slate-700">
               <option value="">Todos los Estados</option>
               <option value="alerta">Solo Sedes en Alerta</option>
@@ -1394,150 +1377,95 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
             </select>
 
             <div class="relative flex-1 max-w-xs">
-              <i-lucide name="search" class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5"></i-lucide>
-              <input
-                type="text"
-                [(ngModel)]="filtroTextoInsumoAgencia"
-                (ngModelChange)="filtrarAgencias()"
-                placeholder="Filtrar insumo..."
+              <i-lucide aria-hidden="true" name="search" class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5"></i-lucide>
+              <input aria-label="Buscar agencia, región o insumo..."
+                type="search"
+                [ngModel]="textoAgencias"
+                (ngModelChange)="onBusquedaAgencias($event)"
+                placeholder="Buscar agencia, región o insumo..."
                 class="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-slate-200 focus:outline-none focus:border-easydry-blue" />
             </div>
+            <span *ngIf="busquedaAgenciasCorta" class="text-[11px] font-semibold text-slate-500" role="status">Escribe al menos 2 letras para buscar.</span>
           </div>
+          <span class="text-xs font-bold text-slate-500">Total: <strong class="text-easydry-blue">{{ agenciasLista.total }}</strong> agencias</span>
         </div>
 
-        <!-- Estado Vacío Si no hay agencias creadas en BD -->
-        <div *ngIf="resumenAgencias.totalAgencias === 0" class="bg-white p-12 rounded-2xl border border-slate-100 text-center space-y-3 shadow-easydry">
+        <!-- Estado vacío -->
+        <div *ngIf="agenciasLista.inicializada && agenciasLista.total === 0 && !agenciasLista.error" class="bg-white p-12 rounded-2xl border border-slate-100 text-center space-y-3 shadow-easydry">
           <div class="w-14 h-14 mx-auto rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold">
-            <i-lucide name="store" class="w-7 h-7"></i-lucide>
+            <i-lucide aria-hidden="true" name="store" class="w-7 h-7"></i-lucide>
           </div>
-          <h3 class="text-base font-bold text-slate-800 font-outfit">No hay agencias registradas en el sistema</h3>
+          <h3 class="text-base font-bold text-slate-800 font-outfit">
+            {{ (resumenAgencias.totalAgencias || 0) === 0 ? 'No hay agencias registradas en el sistema' : 'No se encontraron agencias con estos filtros' }}
+          </h3>
           <p class="text-xs text-slate-500 max-w-md mx-auto">
-            Para monitorear cómo van de insumos y suministros en otras sedes, crea agencias o sucursales en la sección correspondiente. El monitoreo de inventario se sincronizará automáticamente.
+            {{ (resumenAgencias.totalAgencias || 0) === 0
+              ? 'Para monitorear cómo van de insumos y suministros en otras sedes, crea agencias o sucursales en la sección correspondiente. El monitoreo de inventario se sincronizará automáticamente.'
+              : 'Prueba ajustando el estado o el texto de búsqueda.' }}
           </p>
         </div>
 
-        <!-- Listado de Agencias y su Detalle de Insumos -->
-        <div *ngIf="resumenAgencias.totalAgencias > 0" class="space-y-6">
-          <div *ngFor="let itemAg of agenciasFiltradas" class="bg-white rounded-2xl border border-slate-100 shadow-easydry overflow-hidden">
+        <!-- Listado de Agencias (scroll infinito) y su Detalle de Insumos (tabla con páginas, al expandir la ficha) -->
+        <div class="space-y-6">
+          <div *ngFor="let itemAg of agenciasLista.items; trackBy: trackFicha" class="bg-white rounded-2xl border border-slate-100 shadow-easydry overflow-hidden">
             <!-- Header de la Ficha de la Agencia -->
             <div class="p-4 bg-slate-50/70 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div class="flex items-center gap-3">
                 <div class="w-9 h-9 rounded-xl bg-white border border-slate-200 text-slate-700 flex items-center justify-center font-bold shrink-0">
-                  <i-lucide name="building-2" class="w-4 h-4 text-purple-600"></i-lucide>
+                  <i-lucide aria-hidden="true" name="building-2" class="w-4 h-4 text-purple-600"></i-lucide>
                 </div>
                 <div>
                   <div class="flex items-center gap-2">
                     <span class="font-bold text-slate-900 text-sm font-outfit">{{ itemAg.agencia.nombre }}</span>
-                    <span class="px-2 py-0.2 rounded-md font-mono text-[10px] font-bold bg-slate-200 text-slate-700">
+                    <span class="px-2 py-0.5 rounded-md font-mono text-xs font-bold bg-slate-200 text-slate-700">
                       {{ itemAg.agencia.codigo }}
                     </span>
                   </div>
-                  <p class="text-[11px] text-slate-500">
+                  <p class="text-xs text-slate-500">
                     Región: <b>{{ itemAg.agencia.region || 'N/A' }}</b> • Bahías: {{ itemAg.agencia.numeroBahias || 0 }} • Insumos monitoreados: {{ itemAg.totalInsumos }}
                   </p>
                 </div>
               </div>
 
-              <div class="flex items-center gap-2">
+              <div class="flex items-center gap-2 flex-wrap">
                 <span
-                  class="px-2.5 py-1 rounded-full text-[11px] font-bold inline-flex items-center gap-1"
+                  class="px-2.5 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1"
                   [ngClass]="itemAg.tieneAlerta ? 'bg-rose-50 text-rose-700 border border-rose-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'">
-                  <i-lucide [name]="itemAg.tieneAlerta ? 'alert-circle' : 'check-circle'" class="w-3.5 h-3.5"></i-lucide>
+                  <i-lucide aria-hidden="true" [name]="itemAg.tieneAlerta ? 'alert-circle' : 'check-circle'" class="w-3.5 h-3.5"></i-lucide>
                   <span>{{ itemAg.tieneAlerta ? (itemAg.insumosCriticos + ' insumos en alerta') : 'Suministros Óptimos' }}</span>
                 </span>
+                <button
+                  type="button"
+                  (click)="alternarFicha(agenciasExpandidas, itemAg.agencia.id)"
+                  [attr.aria-expanded]="agenciasExpandidas.has(itemAg.agencia.id)"
+                  class="btn btn-secondary btn-sm inline-flex items-center gap-1.5 cursor-pointer">
+                  <i-lucide aria-hidden="true" [name]="agenciasExpandidas.has(itemAg.agencia.id) ? 'chevron-up' : 'chevron-down'" class="w-3.5 h-3.5"></i-lucide>
+                  <span>{{ agenciasExpandidas.has(itemAg.agencia.id) ? 'Ocultar insumos' : 'Ver insumos' }}</span>
+                </button>
               </div>
             </div>
 
-            <!-- Tabla de Insumos de la Agencia -->
-            <div class="overflow-x-auto">
-              <table class="w-full text-left text-xs text-slate-600">
-                <thead class="bg-white text-slate-400 text-[10px] font-bold uppercase tracking-wider border-b border-slate-100">
-                  <tr>
-                    <th class="p-3">Código SKU</th>
-                    <th class="p-3">Insumo</th>
-                    <th class="p-3">Tipo</th>
-                    <th class="p-3">Contenido x Envase</th>
-                    <th class="p-3">Stock en Unidades</th>
-                    <th class="p-3">Stock Contenido Total</th>
-                    <th class="p-3">Stock Mínimo</th>
-                    <th class="p-3">Déficit</th>
-                    <th class="p-3">Estado de Salud</th>
-                    <th class="p-3 text-right">Acción</th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100">
-                  <tr *ngIf="itemAg.insumos.length === 0">
-                    <td colspan="10" class="p-6 text-center text-slate-400">
-                      No hay insumos registrados para esta agencia.
-                    </td>
-                  </tr>
-
-                  <tr *ngFor="let ins of itemAg.insumos" class="hover:bg-slate-50/50 transition">
-                    <td class="p-3 font-mono font-bold text-slate-800">{{ ins.codigoSKU }}</td>
-                    <td class="p-3 font-bold text-slate-900">{{ ins.nombre }}</td>
-                    <td class="p-3">
-                      <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-easydry-blue">
-                        {{ ins.tipoProducto }}
-                      </span>
-                    </td>
-                    <td class="p-3 font-mono font-bold text-slate-700 whitespace-nowrap">
-                      {{ (ins.contenidoNeto || 1) | number:'1.0-2' }} {{ ins.unidad }}
-                    </td>
-                    <td class="p-3 whitespace-nowrap">
-                      <span class="px-2.5 py-1 rounded-md font-mono font-bold text-xs bg-indigo-50 text-indigo-700 border border-indigo-200 inline-block">
-                        {{ getStockEnUnidades(ins.stockActual, ins.contenidoNeto) | number:'1.0-2' }} und
-                      </span>
-                    </td>
-                    <td class="p-3">
-                      <span
-                        class="px-2.5 py-0.5 rounded-md font-mono font-bold text-xs"
-                        [ngClass]="{
-                          'bg-rose-100 text-rose-800': ins.estado === 'Sin Stock' || ins.estado === 'Crítico',
-                          'bg-amber-100 text-amber-800': ins.estado === 'Bajo',
-                          'bg-emerald-100 text-emerald-800': ins.estado === 'Óptimo'
-                        }">
-                        {{ ins.stockActual | number:'1.0-2' }} {{ ins.unidad }}
-                      </span>
-                    </td>
-                    <td class="p-3 font-mono text-slate-600 whitespace-nowrap">
-                      <b>{{ getStockEnUnidades(ins.stockMinimo, ins.contenidoNeto) | number:'1.0-2' }} und</b>
-                      <span class="text-[10px] text-slate-400 block">({{ ins.stockMinimo | number:'1.0-2' }} {{ ins.unidad }})</span>
-                    </td>
-                    <td class="p-3 font-mono font-bold" [ngClass]="ins.deficit > 0 ? 'text-rose-600' : 'text-slate-400'">
-                      {{ ins.deficit > 0 ? ('-' + (getStockEnUnidades(ins.deficit, ins.contenidoNeto) | number:'1.0-2') + ' und') : 'Cubierto' }}
-                    </td>
-                    <td class="p-3">
-                      <span
-                        class="px-2 py-0.5 rounded-full text-[10px] font-bold"
-                        [ngClass]="{
-                          'bg-rose-50 text-rose-700 border border-rose-200': ins.estado === 'Sin Stock' || ins.estado === 'Crítico',
-                          'bg-amber-50 text-amber-700 border border-amber-200': ins.estado === 'Bajo',
-                          'bg-emerald-50 text-emerald-700 border border-emerald-200': ins.estado === 'Óptimo'
-                        }">
-                        {{ ins.estado }}
-                      </span>
-                    </td>
-                    <td class="p-3 text-right space-x-1.5 whitespace-nowrap">
-                      <button
-                        *ngIf="puedeGenerarDespacho"
-                        (click)="seleccionarParaDespachoAgencia(itemAg.agencia, ins)"
-                        class="px-2.5 py-1 rounded-lg bg-easydry-blue hover:bg-blue-700 text-white font-bold text-[11px] transition cursor-pointer">
-                        Despachar
-                      </button>
-                      <button
-                        *ngIf="puedeReajustarStock"
-                        (click)="abrirModalReajusteAgencia(itemAg.agencia, ins)"
-                        title="Reajustar stock por conteo físico"
-                        class="px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-[11px] transition cursor-pointer inline-flex items-center gap-1">
-                        <i-lucide name="sliders" class="w-3 h-3"></i-lucide>
-                        <span>Reajustar</span>
-                      </button>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+            <!-- Tabla de Insumos de la Agencia (se pide al servidor solo al expandir) -->
+            <app-stock-ubicacion-insumos
+              *ngIf="agenciasExpandidas.has(itemAg.agencia.id)"
+              tipo="agencia"
+              [ubicacionId]="itemAg.agencia.id"
+              [puedeDespachar]="puedeGenerarDespacho"
+              [puedeReajustar]="puedeReajustarStock"
+              [refreshToken]="stockRefreshToken"
+              (despachar)="seleccionarParaDespachoAgencia(itemAg.agencia, $event)"
+              (reajustar)="abrirModalReajusteAgencia(itemAg.agencia, $event)">
+            </app-stock-ubicacion-insumos>
           </div>
+
+          <app-infinite-scroll
+            [hasMore]="agenciasLista.hasMore"
+            [loading]="agenciasLista.cargando"
+            [error]="agenciasLista.error"
+            [total]="agenciasLista.total"
+            (cargarMas)="agenciasLista.siguiente()"
+            (reintentar)="agenciasLista.reintentar()">
+          </app-infinite-scroll>
         </div>
       </div>
 
@@ -1551,12 +1479,12 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
           <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-50 border border-cyan-200 text-cyan-800 text-xs font-bold mb-2">
-                <i-lucide name="sparkles" class="w-3.5 h-3.5 text-cyan-600"></i-lucide>
+                <i-lucide aria-hidden="true" name="sparkles" class="w-3.5 h-3.5 text-cyan-600"></i-lucide>
                 <span>Gestión de Suministros en Kits de Pulidores</span>
                 <span class="text-cyan-400">•</span>
                 <span class="text-cyan-700 font-normal">Pulidores Móviles & Fijos de Red</span>
               </div>
-              <h2 class="text-xl font-black text-slate-900 font-outfit">
+              <h2 class="text-xl font-extrabold text-slate-900 font-outfit">
                 {{ isPulidor ? 'Insumos Químicos en Custodia de mi Kit' : 'Monitoreo de Insumos en Kits de Pulidores' }}
               </h2>
               <p class="text-slate-500 text-xs mt-1 max-w-3xl">
@@ -1570,15 +1498,15 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
               <button
                 (click)="cargarStockPulidoresResumen()"
                 class="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer">
-                <i-lucide name="refresh-cw" class="w-3.5 h-3.5" [ngClass]="{'animate-spin': cargandoPulidores}"></i-lucide>
+                <i-lucide aria-hidden="true" name="refresh-cw" class="w-3.5 h-3.5" [ngClass]="{'animate-spin': pulidoresLista.cargando}"></i-lucide>
                 <span>Actualizar Kits</span>
               </button>
 
               <button
-                *ngIf="!isOperador || esAdminGlobal || esGestorBodega"
+                *ngIf="puedeGenerarDespacho"
                 (click)="abrirModalDespacho('pulidor')"
                 class="px-3.5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm">
-                <i-lucide name="send" class="w-3.5 h-3.5"></i-lucide>
+                <i-lucide aria-hidden="true" name="send" class="w-3.5 h-3.5"></i-lucide>
                 <span>Despachar a Pulidor</span>
               </button>
             </div>
@@ -1589,34 +1517,34 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
         <div *ngIf="!isPulidor" class="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div class="p-4 rounded-2xl bg-white border border-slate-100 shadow-sm flex items-center justify-between">
             <div>
-              <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">Total Pulidores</span>
+              <span class="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">Total Pulidores</span>
               <p class="text-2xl font-extrabold text-slate-900 font-outfit mt-1">{{ resumenPulidores.totalPulidores }}</p>
               <span class="text-xs text-slate-500">Móviles y asignados a sede</span>
             </div>
             <div class="w-12 h-12 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center">
-              <i-lucide name="users" class="w-6 h-6"></i-lucide>
+              <i-lucide aria-hidden="true" name="users" class="w-6 h-6"></i-lucide>
             </div>
           </div>
 
           <div class="p-4 rounded-2xl bg-white border border-slate-100 shadow-sm flex items-center justify-between">
             <div>
-              <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">Kits en Alerta</span>
+              <span class="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">Kits en Alerta</span>
               <p class="text-2xl font-extrabold text-amber-600 font-outfit mt-1">{{ resumenPulidores.pulidoresEnAlerta }}</p>
               <span class="text-xs text-amber-600">Requieren reabastecimiento</span>
             </div>
             <div class="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
-              <i-lucide name="alert-triangle" class="w-6 h-6"></i-lucide>
+              <i-lucide aria-hidden="true" name="alert-triangle" class="w-6 h-6"></i-lucide>
             </div>
           </div>
 
           <div class="p-4 rounded-2xl bg-white border border-slate-100 shadow-sm flex items-center justify-between">
             <div>
-              <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">Insumos Críticos</span>
+              <span class="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">Insumos Críticos</span>
               <p class="text-2xl font-extrabold text-rose-600 font-outfit mt-1">{{ resumenPulidores.insumosCriticosTotal }}</p>
               <span class="text-xs text-rose-600">Agotados o bajo mínimo</span>
             </div>
             <div class="w-12 h-12 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
-              <i-lucide name="package-x" class="w-6 h-6"></i-lucide>
+              <i-lucide aria-hidden="true" name="package-x" class="w-6 h-6"></i-lucide>
             </div>
           </div>
         </div>
@@ -1625,16 +1553,9 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
         <div *ngIf="!isPulidor" class="bg-white p-4 rounded-xl border border-slate-100 shadow-xs flex flex-col md:flex-row items-center gap-3 justify-between">
           <div class="flex items-center gap-3 w-full md:w-auto flex-1 flex-wrap">
             <select
-              [(ngModel)]="filtroPulidorId"
-              class="px-3 py-1.5 text-xs rounded-lg border border-slate-200 bg-white focus:outline-none focus:border-easydry-blue text-slate-700">
-              <option value="">Todos los Pulidores ({{ resumenPulidores.pulidores?.length || 0 }})</option>
-              <option *ngFor="let pul of resumenPulidores.pulidores" [value]="pul.id">
-                {{ pul.nombre }} ({{ pul.tipoPulidor === 'PULIDOR_FIJO' ? 'Fijo' : 'Móvil' }})
-              </option>
-            </select>
-
-            <select
               [(ngModel)]="filtroPulidorTipo"
+              (change)="reiniciarPulidores()"
+              aria-label="Filtrar por tipo de pulidor"
               class="px-3 py-1.5 text-xs rounded-lg border border-slate-200 bg-white focus:outline-none focus:border-easydry-blue text-slate-700">
               <option value="">Todos los Tipos</option>
               <option value="PULIDOR_MOVIL">Pulidor Móvil (En Ruta)</option>
@@ -1643,6 +1564,8 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
 
             <select
               [(ngModel)]="filtroPulidorEstado"
+              (change)="reiniciarPulidores()"
+              aria-label="Filtrar kits por estado"
               class="px-3 py-1.5 text-xs rounded-lg border border-slate-200 bg-white focus:outline-none focus:border-easydry-blue text-slate-700">
               <option value="">Todos los Estados</option>
               <option value="alerta">Solo Kits en Alerta</option>
@@ -1650,20 +1573,23 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
             </select>
 
             <div class="relative flex-1 max-w-xs">
-              <i-lucide name="search" class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5"></i-lucide>
-              <input
-                type="text"
-                [(ngModel)]="filtroPulidorTexto"
-                placeholder="Filtrar insumo o pulidor..."
+              <i-lucide aria-hidden="true" name="search" class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5"></i-lucide>
+              <input aria-label="Buscar pulidor o insumo..."
+                type="search"
+                [ngModel]="textoPulidores"
+                (ngModelChange)="onBusquedaPulidores($event)"
+                placeholder="Buscar pulidor o insumo..."
                 class="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-slate-200 focus:outline-none focus:border-easydry-blue" />
             </div>
+            <span *ngIf="busquedaPulidoresCorta" class="text-[11px] font-semibold text-slate-500" role="status">Escribe al menos 2 letras para buscar.</span>
           </div>
+          <span class="text-xs font-bold text-slate-500">Total: <strong class="text-easydry-blue">{{ pulidoresLista.total }}</strong> pulidores</span>
         </div>
 
         <!-- Estado Vacío Si no hay pulidores -->
-        <div *ngIf="pulidoresFiltrados.length === 0 && !cargandoPulidores" class="bg-white p-12 rounded-2xl border border-slate-100 text-center space-y-3 shadow-easydry">
+        <div *ngIf="pulidoresLista.inicializada && pulidoresLista.total === 0 && !pulidoresLista.error" class="bg-white p-12 rounded-2xl border border-slate-100 text-center space-y-3 shadow-easydry">
           <div class="w-14 h-14 mx-auto rounded-2xl bg-cyan-50 text-cyan-600 flex items-center justify-center font-bold">
-            <i-lucide name="sparkles" class="w-7 h-7"></i-lucide>
+            <i-lucide aria-hidden="true" name="sparkles" class="w-7 h-7"></i-lucide>
           </div>
           <h3 class="text-base font-bold text-slate-800 font-outfit">No se encontraron pulidores disponibles</h3>
           <p class="text-xs text-slate-500 max-w-md mx-auto">
@@ -1671,132 +1597,71 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
           </p>
         </div>
 
-        <!-- Listado de Pulidores y su Detalle de Insumos -->
-        <div *ngIf="pulidoresFiltrados.length > 0" class="space-y-6">
-          <div *ngFor="let p of pulidoresFiltrados" class="bg-white rounded-2xl border border-slate-100 shadow-easydry overflow-hidden">
+        <!-- Listado de Pulidores (scroll infinito) y su Detalle de Insumos (tabla con páginas, al expandir la ficha) -->
+        <div class="space-y-6">
+          <div *ngFor="let p of pulidoresLista.items; trackBy: trackFicha" class="bg-white rounded-2xl border border-slate-100 shadow-easydry overflow-hidden">
             <!-- Header de la Ficha del Pulidor -->
             <div class="p-4 bg-slate-50/70 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div class="flex items-center gap-3">
                 <div
                   class="w-9 h-9 rounded-xl bg-white border border-slate-200 flex items-center justify-center font-bold shrink-0"
                   [ngClass]="p.tipoPulidor === 'PULIDOR_FIJO' ? 'text-purple-600' : 'text-cyan-600'">
-                  <i-lucide [name]="p.tipoPulidor === 'PULIDOR_FIJO' ? 'user-check' : 'sparkles'" class="w-4 h-4"></i-lucide>
+                  <i-lucide aria-hidden="true" [name]="p.tipoPulidor === 'PULIDOR_FIJO' ? 'user-check' : 'sparkles'" class="w-4 h-4"></i-lucide>
                 </div>
                 <div>
                   <div class="flex items-center gap-2">
                     <span class="font-bold text-slate-900 text-sm font-outfit uppercase">{{ p.nombre }}</span>
                     <span
-                      class="px-2 py-0.2 rounded-md font-mono text-[10px] font-bold"
+                      class="px-2 py-0.5 rounded-md font-mono text-xs font-bold"
                       [ngClass]="p.tipoPulidor === 'PULIDOR_FIJO' ? 'bg-purple-100 text-purple-800' : 'bg-cyan-100 text-cyan-800'">
                       {{ p.tipoPulidor === 'PULIDOR_FIJO' ? 'PULIDOR-FIJO' : 'PULIDOR-MOVIL' }}
                     </span>
                   </div>
-                  <p class="text-[11px] text-slate-500">
-                    Región: <b>{{ p.regionNombre || 'N/A' }}</b> • Sede: <b>{{ p.agenciaNombre || (p.tipoPulidor === 'PULIDOR_FIJO' ? 'Sucursal' : 'En Ruta') }}</b> • Insumos monitoreados: {{ p.totalInsumos || p.insumos?.length || 0 }}
+                  <p class="text-xs text-slate-500">
+                    Región: <b>{{ p.regionNombre || 'N/A' }}</b> • Sede: <b>{{ p.agenciaNombre || (p.tipoPulidor === 'PULIDOR_FIJO' ? 'Sucursal' : 'En Ruta') }}</b> • Insumos monitoreados: {{ p.totalInsumos || 0 }}
                   </p>
                 </div>
               </div>
 
-              <div class="flex items-center gap-2">
+              <div class="flex items-center gap-2 flex-wrap">
                 <span
-                  class="px-2.5 py-1 rounded-full text-[11px] font-bold inline-flex items-center gap-1"
+                  class="px-2.5 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1"
                   [ngClass]="p.tieneAlerta ? 'bg-rose-50 text-rose-700 border border-rose-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'">
-                  <i-lucide [name]="p.tieneAlerta ? 'alert-circle' : 'check-circle'" class="w-3.5 h-3.5"></i-lucide>
+                  <i-lucide aria-hidden="true" [name]="p.tieneAlerta ? 'alert-circle' : 'check-circle'" class="w-3.5 h-3.5"></i-lucide>
                   <span>{{ p.tieneAlerta ? (p.insumosCriticos + ' insumos en alerta') : 'Kit Óptimo' }}</span>
                 </span>
+                <button
+                  type="button"
+                  (click)="alternarFicha(pulidoresExpandidos, p.id)"
+                  [attr.aria-expanded]="pulidoresExpandidos.has(p.id)"
+                  class="btn btn-secondary btn-sm inline-flex items-center gap-1.5 cursor-pointer">
+                  <i-lucide aria-hidden="true" [name]="pulidoresExpandidos.has(p.id) ? 'chevron-up' : 'chevron-down'" class="w-3.5 h-3.5"></i-lucide>
+                  <span>{{ pulidoresExpandidos.has(p.id) ? 'Ocultar insumos' : 'Ver insumos' }}</span>
+                </button>
               </div>
             </div>
 
-            <!-- Tabla de Insumos del Kit del Pulidor -->
-            <div class="overflow-x-auto">
-              <table class="w-full text-left text-xs text-slate-600">
-                <thead class="bg-white text-slate-400 text-[10px] font-bold uppercase tracking-wider border-b border-slate-100">
-                  <tr>
-                    <th class="p-3">Código SKU</th>
-                    <th class="p-3">Insumo</th>
-                    <th class="p-3">Tipo</th>
-                    <th class="p-3">Contenido x Envase</th>
-                    <th class="p-3">Stock en Unidades</th>
-                    <th class="p-3">Stock Contenido Total</th>
-                    <th class="p-3">Stock Mínimo</th>
-                    <th class="p-3">Déficit</th>
-                    <th class="p-3">Estado de Salud</th>
-                    <th class="p-3 text-right">Acción</th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100">
-                  <tr *ngIf="!p.insumos || p.insumos.length === 0">
-                    <td colspan="10" class="p-6 text-center text-slate-400">
-                      No hay insumos registrados para el kit de este pulidor.
-                    </td>
-                  </tr>
-
-                  <tr *ngFor="let ins of p.insumos" class="hover:bg-slate-50/50 transition">
-                    <td class="p-3 font-mono font-bold text-slate-800">{{ ins.codigoSKU || ins.sku }}</td>
-                    <td class="p-3 font-bold text-slate-900 uppercase">{{ ins.nombre }}</td>
-                    <td class="p-3">
-                      <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-easydry-blue">
-                        {{ ins.tipoProducto || ins.categoria || 'Líquido' }}
-                      </span>
-                    </td>
-                    <td class="p-3 font-mono font-bold text-slate-700 whitespace-nowrap">
-                      {{ (ins.contenidoNeto || 1) | number:'1.0-2' }} {{ ins.unidad }}
-                    </td>
-                    <td class="p-3 whitespace-nowrap">
-                      <span class="px-2.5 py-1 rounded-md font-mono font-bold text-xs bg-indigo-50 text-indigo-700 border border-indigo-200 inline-block">
-                        {{ getStockEnUnidades(ins.stockActual, ins.contenidoNeto) | number:'1.0-2' }} und
-                      </span>
-                    </td>
-                    <td class="p-3">
-                      <span
-                        class="px-2.5 py-0.5 rounded-md font-mono font-bold text-xs"
-                        [ngClass]="{
-                          'bg-rose-100 text-rose-800': ins.estado === 'Sin Stock' || ins.estado === 'Crítico',
-                          'bg-amber-100 text-amber-800': ins.estado === 'Bajo',
-                          'bg-emerald-100 text-emerald-800': ins.estado === 'Óptimo'
-                        }">
-                        {{ ins.stockActual | number:'1.0-2' }} {{ ins.unidad }}
-                      </span>
-                    </td>
-                    <td class="p-3 font-mono text-slate-600 whitespace-nowrap">
-                      <b>{{ getStockEnUnidades(ins.stockMinimo, ins.contenidoNeto) | number:'1.0-2' }} und</b>
-                      <span class="text-[10px] text-slate-400 block">({{ ins.stockMinimo | number:'1.0-2' }} {{ ins.unidad }})</span>
-                    </td>
-                    <td class="p-3 font-mono font-bold" [ngClass]="ins.deficit > 0 ? 'text-rose-600' : 'text-slate-400'">
-                      {{ ins.deficit > 0 ? ('-' + (getStockEnUnidades(ins.deficit, ins.contenidoNeto) | number:'1.0-2') + ' und') : 'Cubierto' }}
-                    </td>
-                    <td class="p-3">
-                      <span
-                        class="px-2 py-0.5 rounded-full text-[10px] font-bold"
-                        [ngClass]="{
-                          'bg-rose-50 text-rose-700 border border-rose-200': ins.estado === 'Sin Stock' || ins.estado === 'Crítico',
-                          'bg-amber-50 text-amber-700 border border-amber-200': ins.estado === 'Bajo',
-                          'bg-emerald-50 text-emerald-700 border border-emerald-200': ins.estado === 'Óptimo'
-                        }">
-                        {{ ins.estado }}
-                      </span>
-                    </td>
-                    <td class="p-3 text-right space-x-1.5 whitespace-nowrap">
-                      <button
-                        *ngIf="puedeGenerarDespacho"
-                        (click)="seleccionarParaDespachoPulidor(p, ins)"
-                        class="px-2.5 py-1 rounded-lg bg-easydry-blue hover:bg-blue-700 text-white font-bold text-[11px] transition cursor-pointer">
-                        Despachar
-                      </button>
-                      <button
-                        *ngIf="puedeReajustarStock"
-                        (click)="abrirModalReajustePulidor(p, ins)"
-                        title="Reajustar stock por conteo físico"
-                        class="px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-[11px] transition cursor-pointer inline-flex items-center gap-1">
-                        <i-lucide name="sliders" class="w-3 h-3"></i-lucide>
-                        <span>Reajustar</span>
-                      </button>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+            <!-- Tabla de Insumos del Kit del Pulidor (se pide al servidor solo al expandir) -->
+            <app-stock-ubicacion-insumos
+              *ngIf="pulidoresExpandidos.has(p.id)"
+              tipo="pulidor"
+              [ubicacionId]="p.id"
+              [puedeDespachar]="puedeGenerarDespacho"
+              [puedeReajustar]="puedeReajustarStock"
+              [refreshToken]="stockRefreshToken"
+              (despachar)="seleccionarParaDespachoPulidor(p, $event)"
+              (reajustar)="abrirModalReajustePulidor(p, $event)">
+            </app-stock-ubicacion-insumos>
           </div>
+
+          <app-infinite-scroll
+            [hasMore]="pulidoresLista.hasMore"
+            [loading]="pulidoresLista.cargando"
+            [error]="pulidoresLista.error"
+            [total]="pulidoresLista.total"
+            (cargarMas)="pulidoresLista.siguiente()"
+            (reintentar)="pulidoresLista.reintentar()">
+          </app-infinite-scroll>
         </div>
       </div>
 
@@ -1808,11 +1673,25 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
       </div>
 
       <div *ngIf="activeTab === 'movimientos'" class="space-y-4 animate-fade-in">
-        <div class="bg-white p-4 rounded-xl border border-slate-100 shadow-xs flex flex-col md:flex-row items-center gap-3 justify-between">
-          <div class="flex items-center gap-3 w-full md:w-auto flex-1 flex-wrap">
+        <div class="bg-white p-4 rounded-xl border border-slate-100 shadow-xs flex flex-col gap-3">
+          <div class="flex items-center gap-3 w-full flex-wrap">
+            <div class="relative w-full sm:w-64">
+              <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-500 pointer-events-none">
+                <i-lucide aria-hidden="true" name="search" class="w-4 h-4"></i-lucide>
+              </span>
+              <input
+                type="search"
+                aria-label="Buscar en el Kardex"
+                [ngModel]="busquedaMovimientos"
+                (ngModelChange)="onBusquedaMovimientos($event)"
+                placeholder="Buscar comprobante, producto, responsable…"
+                class="w-full pl-9 pr-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-700 placeholder:text-slate-500 outline-none focus:border-easydry-blue transition-colors">
+            </div>
+
             <select
               [(ngModel)]="filtroMovimientoTipoId"
-              (change)="cargarHistorialMovimientos()"
+              (change)="alCambiarFiltroMovimientos()"
+              aria-label="Filtrar por tipo de movimiento"
               class="px-3 py-1.5 text-xs rounded-lg border border-slate-200 bg-white focus:outline-none focus:border-easydry-blue text-slate-700">
               <option value="">Todos los Tipos de Movimiento</option>
               <option *ngFor="let tm of tiposMovimiento" [value]="tm.id">{{ tm.nombre }}</option>
@@ -1820,89 +1699,119 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
 
             <select
               [(ngModel)]="filtroMovimientoInsumoId"
-              (change)="cargarHistorialMovimientos()"
+              (change)="alCambiarFiltroMovimientos()"
+              aria-label="Filtrar por producto"
               class="px-3 py-1.5 text-xs rounded-lg border border-slate-200 bg-white focus:outline-none focus:border-easydry-blue text-slate-700">
               <option value="">Todos los Productos</option>
               <option *ngFor="let prod of productos" [value]="prod.id">{{ prod.nombre }}</option>
             </select>
-          </div>
 
-          <div class="text-xs text-slate-500 font-medium">
-            Total Asientos: <b>{{ totalMovimientos }}</b>
+            <label class="flex items-center gap-1.5 text-xs font-semibold text-slate-600">
+              <span>Desde</span>
+              <input
+                type="date"
+                [(ngModel)]="filtroMovimientoFechaDesde"
+                (change)="alCambiarFiltroMovimientos()"
+                class="px-2 py-1.5 text-xs rounded-lg border border-slate-200 bg-white focus:outline-none focus:border-easydry-blue text-slate-700">
+            </label>
+            <label class="flex items-center gap-1.5 text-xs font-semibold text-slate-600">
+              <span>Hasta</span>
+              <input
+                type="date"
+                [(ngModel)]="filtroMovimientoFechaHasta"
+                (change)="alCambiarFiltroMovimientos()"
+                class="px-2 py-1.5 text-xs rounded-lg border border-slate-200 bg-white focus:outline-none focus:border-easydry-blue text-slate-700">
+            </label>
+
+            <button
+              *ngIf="hayFiltrosMovimientos"
+              type="button"
+              (click)="limpiarFiltrosMovimientos()"
+              class="btn btn-secondary btn-sm">
+              Limpiar filtros
+            </button>
+
+            <div class="text-xs text-slate-600 font-medium sm:ml-auto">
+              Total Asientos: <b>{{ totalMovimientos }}</b>
+            </div>
           </div>
+          <p *ngIf="busquedaMovimientosCorta" class="text-[11px] font-semibold text-slate-500">Escribe al menos 2 letras para buscar.</p>
         </div>
 
-        <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry overflow-hidden">
-          <div class="overflow-x-auto">
-            <table class="w-full text-left text-xs text-slate-600">
-              <thead class="bg-slate-50 text-slate-400 text-[10px] font-bold uppercase tracking-wider">
-                <tr>
-                  <th class="p-3">Fecha</th>
-                  <th class="p-3">Comprobante</th>
-                  <th class="p-3">Producto</th>
-                  <th class="p-3">Tipo</th>
-                  <th class="p-3">Origen → Destino</th>
-                  <th class="p-3">Movimiento</th>
-                  <th class="p-3">Cantidad Base</th>
-                  <th class="p-3">Stock Anterior</th>
-                  <th class="p-3">Stock Nuevo</th>
-                  <th class="p-3">Responsable</th>
-                  <th class="p-3">Observación</th>
-                  <th class="p-3">Evidencia</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-slate-100">
-                <tr *ngIf="historialMovimientos.length === 0">
-                  <td colspan="12" class="p-8 text-center text-slate-400">
-                    No hay movimientos registrados en el Kardex.
-                  </td>
-                </tr>
-
-                <tr *ngFor="let m of historialMovimientos" class="hover:bg-slate-50/50 transition">
-                  <td class="p-3 text-slate-500 whitespace-nowrap">{{ m.fechaMovimiento | date:'dd/MM/yyyy HH:mm' }}</td>
-                  <td class="p-3 font-mono font-bold text-slate-700">{{ m.numeroComprobante }}</td>
-                  <td class="p-3 font-bold text-slate-900">{{ m.insumo.nombre || '—' }}</td>
-                  <td class="p-3">
-                    <span
-                      class="px-2 py-0.5 rounded-full text-[10px] font-bold inline-block"
-                      [ngClass]="getClaseTipoMovimiento(m)">
-                      {{ getLabelTipoMovimiento(m) }}
-                    </span>
-                  </td>
-                  <td class="p-3 min-w-[200px]">
-                    <div class="flex flex-col gap-0.5 leading-tight">
-                      <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wide">Desde</span>
-                      <span class="font-semibold text-slate-700">{{ m.origenUbicacion || '—' }}</span>
-                      <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wide mt-1">Hacia</span>
-                      <span class="font-semibold text-easydry-blue">{{ m.destinoUbicacion || '—' }}</span>
-                    </div>
-                  </td>
-                  <td class="p-3 text-slate-700">
-                    <span *ngIf="m.presentacion">{{ m.cantidad }} × {{ m.presentacion.nombre }}</span>
-                    <span *ngIf="!m.presentacion">{{ m.cantidad }} {{ m.unidad.simbolo || m.insumo.unidadMedida?.simbolo || '' }}</span>
-                  </td>
-                  <td class="p-3 font-mono font-bold" [ngClass]="m.cantidadBase >= 0 ? 'text-emerald-600' : 'text-amber-600'">
-                    {{ m.cantidadBase > 0 ? '+' : '' }}{{ m.cantidadBase | number:'1.0-2' }} {{ m.insumo.unidadMedida?.simbolo || m.unidad.simbolo || '' }}
-                  </td>
-                  <td class="p-3 font-mono text-slate-500">{{ m.stockAnterior | number:'1.0-2' }}</td>
-                  <td class="p-3 font-mono font-bold text-slate-800">{{ m.stockNuevo | number:'1.0-2' }}</td>
-                  <td class="p-3 text-slate-500 whitespace-nowrap">{{ m.responsable ? (m.responsable.name + ' ' + m.responsable.lastname) : 'Sistema' }}</td>
-                  <td class="p-3 text-slate-400 text-[11px] max-w-xs truncate">{{ m.observaciones || m.referencia || '-' }}</td>
-                  <td class="p-3">
-                    <button
-                      *ngIf="getEvidenciaReajusteUrl(m) as evidenciaUrl"
-                      type="button"
-                      (click)="abrirZoomImagen(evidenciaUrl, tituloEvidenciaKardex(m))"
-                      class="text-[11px] font-bold text-easydry-blue hover:underline cursor-pointer bg-transparent border-0 p-0">
-                      Ver foto
-                    </button>
-                    <span *ngIf="!getEvidenciaReajusteUrl(m)">—</span>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <app-data-table
+          [serverSide]="true"
+          [showToolbar]="false"
+          [columns]="columnasMovimientos"
+          [data]="historialMovimientos"
+          [total]="totalMovimientos"
+          [page]="paginaMovimientos"
+          [pageSize]="pageSizeMovimientos"
+          [sortField]="sortFieldMovimientos"
+          [sortOrder]="sortOrderMovimientos"
+          [loading]="cargandoMovimientos"
+          [error]="errorMovimientos"
+          maxHeight="none"
+          caption="Movimientos del Kardex de inventario"
+          [emptyTitle]="hayFiltrosMovimientos ? 'No hay movimientos con estos filtros' : 'No hay movimientos registrados en el Kardex.'"
+          emptyHint="Prueba ajustando los filtros o el texto de búsqueda."
+          (queryChange)="onTablaMovimientosCambio($event)"
+          (reintentar)="cargarHistorialMovimientos()">
+          <ng-template appCell="fecha" let-m>
+            <span class="text-slate-600 whitespace-nowrap">{{ m.fechaMovimiento | date:'dd/MM/yyyy HH:mm' }}</span>
+          </ng-template>
+          <ng-template appCell="comprobante" let-m>
+            <span class="font-mono font-bold text-slate-700">{{ m.numeroComprobante }}</span>
+          </ng-template>
+          <ng-template appCell="producto" let-m>
+            <span class="font-bold text-slate-900">{{ m.insumo?.nombre || '—' }}</span>
+          </ng-template>
+          <ng-template appCell="tipo" let-m>
+            <span class="px-2 py-0.5 rounded-full text-xs font-bold inline-block" [ngClass]="getClaseTipoMovimiento(m)">
+              {{ getLabelTipoMovimiento(m) }}
+            </span>
+          </ng-template>
+          <ng-template appCell="ruta" let-m>
+            <div class="flex flex-col gap-0.5 leading-tight min-w-[200px]">
+              <span class="text-[11px] text-slate-500 font-bold uppercase tracking-wide">Desde</span>
+              <span class="font-semibold text-slate-700">{{ m.origenUbicacion || '—' }}</span>
+              <span class="text-[11px] text-slate-500 font-bold uppercase tracking-wide mt-1">Hacia</span>
+              <span class="font-semibold text-easydry-blue">{{ m.destinoUbicacion || '—' }}</span>
+            </div>
+          </ng-template>
+          <ng-template appCell="cantidad" let-m>
+            <span class="text-slate-700">
+              <span *ngIf="m.presentacion">{{ m.cantidad }} × {{ m.presentacion.nombre }}</span>
+              <span *ngIf="!m.presentacion">{{ m.cantidad }} {{ m.unidad?.simbolo || m.insumo?.unidadMedida?.simbolo || '' }}</span>
+            </span>
+          </ng-template>
+          <ng-template appCell="cantidadBase" let-m>
+            <span class="font-mono font-bold" [ngClass]="m.cantidadBase >= 0 ? 'text-emerald-600' : 'text-amber-600'">
+              {{ m.cantidadBase > 0 ? '+' : '' }}{{ m.cantidadBase | number:'1.0-2' }} {{ m.insumo?.unidadMedida?.simbolo || m.unidad?.simbolo || '' }}
+            </span>
+          </ng-template>
+          <ng-template appCell="stockAnterior" let-m>
+            <span class="font-mono text-slate-600">{{ m.stockAnterior | number:'1.0-2' }}</span>
+          </ng-template>
+          <ng-template appCell="stockNuevo" let-m>
+            <span class="font-mono font-bold text-slate-800">{{ m.stockNuevo | number:'1.0-2' }}</span>
+          </ng-template>
+          <ng-template appCell="responsable" let-m>
+            <span class="text-slate-600 whitespace-nowrap">{{ m.responsable ? (m.responsable.name + ' ' + m.responsable.lastname) : 'Sistema' }}</span>
+          </ng-template>
+          <ng-template appCell="observacion" let-m>
+            <span class="text-slate-600 text-xs block max-w-xs truncate" [attr.title]="m.observaciones || m.referencia || null">{{ m.observaciones || m.referencia || '-' }}</span>
+          </ng-template>
+          <ng-template appCell="evidencia" let-m>
+            <button
+              *ngIf="getEvidenciaReajusteUrl(m) as evidenciaUrl"
+              type="button"
+              (click)="abrirZoomImagen(evidenciaUrl, tituloEvidenciaKardex(m))"
+              class="text-xs font-bold text-easydry-blue hover:underline cursor-pointer bg-transparent border-0 p-0">
+              Ver foto
+            </button>
+            <span *ngIf="!getEvidenciaReajusteUrl(m)">—</span>
+          </ng-template>
+        </app-data-table>
       </div>
 
       <!-- ============================================================== -->
@@ -1917,30 +1826,30 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
           <div class="bg-gradient-to-r from-rose-500/10 via-rose-500/5 to-amber-500/10 border border-rose-200/80 rounded-2xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm">
             <div class="flex items-start gap-3.5">
               <div class="w-12 h-12 rounded-xl bg-rose-600 text-white flex items-center justify-center font-bold shadow-md shadow-rose-200 shrink-0">
-                <i-lucide name="alert-triangle" class="w-6 h-6"></i-lucide>
+                <i-lucide aria-hidden="true" name="alert-triangle" class="w-6 h-6"></i-lucide>
               </div>
               <div>
                 <div class="flex flex-wrap items-center gap-2">
                   <h3 class="text-base font-extrabold text-slate-900 font-outfit">
-                    {{ isLiderOperador ? 'Alertas de Stock Bajo de mi Sede' : 'Alertas de Stock Bajo emitidas por Sucursales' }}
+                    {{ operaDesdeAgencia ? 'Alertas de Stock Bajo de mi Sede' : 'Alertas de Stock Bajo emitidas por Sucursales' }}
                   </h3>
-                  <span *ngIf="esAdminGlobal || esGestorBodega" class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-blue-100 text-blue-800 border border-blue-200">
-                    <i-lucide name="globe" class="w-3 h-3 text-blue-700"></i-lucide>
+                  <span *ngIf="ambitoGlobal" class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-blue-100 text-blue-800 border border-blue-200">
+                    <i-lucide aria-hidden="true" name="globe" class="w-3 h-3 text-blue-700"></i-lucide>
                     <span>Red Nacional Completa · Ver Todo de Todos</span>
                   </span>
-                  <span *ngIf="esAsistenteBodega" class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-purple-100 text-purple-800 border border-purple-200">
-                    <i-lucide name="map-pin" class="w-3 h-3 text-purple-700"></i-lucide>
+                  <span *ngIf="operaBodegaPropia" class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-purple-100 text-purple-800 border border-purple-200">
+                    <i-lucide aria-hidden="true" name="map-pin" class="w-3 h-3 text-purple-700"></i-lucide>
                     <span>Región {{ userRegionDisplay }} · Solo Sucursales de tu Región</span>
                   </span>
-                  <span *ngIf="isLiderOperador" class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-teal-100 text-teal-800 border border-teal-200">
-                    <i-lucide name="building-2" class="w-3 h-3 text-teal-700"></i-lucide>
+                  <span *ngIf="operaDesdeAgencia" class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-teal-100 text-teal-800 border border-teal-200">
+                    <i-lucide aria-hidden="true" name="building-2" class="w-3 h-3 text-teal-700"></i-lucide>
                     <span>Solo mi sede · {{ miAgenciaNombre || 'Agencia asignada' }}</span>
                   </span>
                 </div>
                 <p class="text-xs text-slate-600 mt-1">
-                  {{ (esAdminGlobal || esGestorBodega)
+                  {{ ambitoGlobal
                     ? 'Monitoreo consolidado de alertas de desabastecimiento generadas por todas las sedes del país.'
-                    : (isLiderOperador
+                    : (operaDesdeAgencia
                       ? 'Solo alertas generadas o asociadas a tu sucursal. No verás alertas de otras sedes ni de Bodega Central.'
                       : 'Alertas generadas por consumo o déficit exclusivamente de las sedes de tu región asignada.') }}
                 </p>
@@ -1948,14 +1857,14 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
             </div>
 
             <div class="flex items-center gap-2 self-end md:self-center shrink-0">
-              <span class="px-3 py-1.5 rounded-xl font-mono text-xs font-black bg-white text-rose-700 border border-rose-200 shadow-2xs">
-                {{ alertasStockFiltradas.length }} alerta(s) activa(s)
+              <span class="px-3 py-1.5 rounded-xl font-mono text-xs font-extrabold bg-white text-rose-700 border border-rose-200 shadow-2xs">
+                {{ alertasTabla.resumen?.activas ?? 0 }} alerta(s) activa(s)
               </span>
               <button
-                (click)="cargarAlertasStock()"
-                class="p-2 rounded-xl bg-white hover:bg-slate-50 text-slate-600 hover:text-slate-900 border border-slate-200 shadow-2xs transition cursor-pointer"
-                title="Actualizar alertas">
-                <i-lucide name="refresh-cw" class="w-4 h-4" [ngClass]="{ 'animate-spin': cargandoAlertasStock }"></i-lucide>
+                (click)="cargarAlertasStock(true)"
+                class="inline-flex items-center justify-center min-w-9 min-h-9 rounded-xl bg-white hover:bg-slate-50 text-slate-600 hover:text-slate-900 border border-slate-200 shadow-2xs transition cursor-pointer"
+                title="Actualizar alertas" aria-label="Actualizar alertas">
+                <i-lucide aria-hidden="true" name="refresh-cw" class="w-4 h-4" [ngClass]="{ 'animate-spin': cargandoAlertasStock }"></i-lucide>
               </button>
             </div>
           </div>
@@ -1963,19 +1872,10 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
           <!-- Filtros de la Bandeja de Alertas -->
           <div class="flex flex-wrap items-center justify-between gap-3 bg-white p-3.5 rounded-xl border border-slate-100 shadow-2xs">
             <div class="flex flex-wrap items-center gap-2 flex-1">
-              <div class="relative min-w-[220px] flex-1">
-                <i-lucide name="search" class="w-4 h-4 absolute left-3 top-2.5 text-slate-400"></i-lucide>
-                <input
-                  type="text"
-                  [(ngModel)]="filtroAlertaAgencia"
-                  (ngModelChange)="filtrarAlertasStock()"
-                  placeholder="Buscar por sucursal, insumo o detalle..."
-                  class="w-full pl-9 pr-3 py-1.5 text-xs rounded-lg border border-slate-200 focus:outline-none focus:border-rose-500 text-slate-700" />
-              </div>
-
               <select
                 [(ngModel)]="filtroAlertaNivel"
-                (ngModelChange)="filtrarAlertasStock()"
+                aria-label="Filtrar por nivel de alerta"
+                (ngModelChange)="reiniciarAlertas()"
                 class="px-3 py-1.5 text-xs rounded-lg border border-slate-200 bg-white focus:outline-none focus:border-rose-500 text-slate-700">
                 <option value="">Todos los Niveles</option>
                 <option value="CRITICO">Crítico / Agotado</option>
@@ -1984,94 +1884,84 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
             </div>
           </div>
 
-          <!-- Tabla de Alertas de Sucursales -->
-          <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry overflow-hidden">
-            <div class="overflow-x-auto">
-              <table class="w-full text-left text-xs text-slate-600">
-                <thead class="bg-slate-50 text-slate-400 text-[10px] font-bold uppercase tracking-wider">
-                  <tr>
-                    <th class="p-3.5">Sucursal / Región</th>
-                    <th class="p-3.5">Insumo Requerido</th>
-                    <th class="p-3.5">Nivel Alerta</th>
-                    <th class="p-3.5">Detalle Reportado</th>
-                    <th class="p-3.5">Fecha Reporte</th>
-                    <th class="p-3.5">Estado</th>
-                    <th class="p-3.5 text-right">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100">
-                  <tr *ngIf="alertasStockFiltradas.length === 0">
-                    <td colspan="7" class="p-8 text-center text-slate-400">
-                      <div class="flex flex-col items-center justify-center gap-1.5">
-                        <i-lucide name="check-circle-2" class="w-6 h-6 text-emerald-500"></i-lucide>
-                        <span class="font-medium text-slate-600">
-                          {{ isLiderOperador
-                            ? 'No hay alertas de stock bajo pendientes en tu sede.'
-                            : (esAsistenteBodega
-                              ? 'No hay alertas de stock bajo pendientes en las sucursales de tu región.'
-                              : 'No hay alertas de stock bajo pendientes en las sucursales.') }}
-                        </span>
-                      </div>
-                    </td>
-                  </tr>
+          <!-- Tabla de Alertas de Sucursales: páginas numeradas, orden, búsqueda y filtros en el servidor -->
+          <app-data-table
+            [serverSide]="true"
+            [columns]="columnasAlertas"
+            [data]="alertasTabla.filas"
+            [total]="alertasTabla.total"
+            [page]="alertasTabla.pagina"
+            [pageSize]="alertasTabla.pageSize"
+            [sortField]="alertasTabla.sortField"
+            [sortOrder]="alertasTabla.sortOrder"
+            [loading]="alertasTabla.cargando"
+            [error]="alertasTabla.error"
+            maxHeight="70vh"
+            caption="Alertas de stock bajo"
+            searchPlaceholder="Buscar por sucursal, insumo o detalle..."
+            [emptyTitle]="mensajeSinAlertas"
+            emptyHint="Prueba ajustando los filtros o el texto de búsqueda."
+            (queryChange)="alertasTabla.alCambiar($event)"
+            (reintentar)="alertasTabla.cargar(true)">
 
-                  <tr *ngFor="let a of alertasStockFiltradas" class="hover:bg-slate-50/60 transition">
-                    <td class="p-3.5">
-                      <div class="font-bold text-slate-800" *ngIf="a.pulidor">
-                        Kit · {{ a.pulidor.name }} {{ a.pulidor.lastname }}
-                      </div>
-                      <div class="font-bold text-slate-800" *ngIf="!a.pulidor">
-                        {{ a.agencia?.nombre || 'Bodega Central' }}
-                      </div>
-                      <span *ngIf="a.agencia?.region" class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200 mt-0.5 inline-block">
-                        {{ a.agencia.region }}
-                      </span>
-                    </td>
-                    <td class="p-3.5">
-                      <div class="font-bold text-slate-900">{{ a.insumo?.nombre || 'Insumo' }}</div>
-                      <span class="font-mono text-[10px] text-slate-400">{{ a.insumo?.codigoSKU }}</span>
-                    </td>
-                    <td class="p-3.5 whitespace-nowrap">
-                      <span
-                        class="px-2.5 py-1 rounded-md text-[11px] font-bold inline-flex items-center gap-1 border"
-                        [ngClass]="(a.nivel === 'CRITICO' || a.nivel === 'AGOTADO') ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-amber-50 text-amber-700 border-amber-200'">
-                        <i-lucide [name]="(a.nivel === 'CRITICO' || a.nivel === 'AGOTADO') ? 'alert-triangle' : 'alert-circle'" class="w-3.5 h-3.5"></i-lucide>
-                        <span>{{ (a.nivel === 'CRITICO' || a.nivel === 'AGOTADO') ? 'Crítico / Agotado' : 'Bajo Mínimo' }}</span>
-                      </span>
-                    </td>
-                    <td class="p-3.5 max-w-xs text-slate-700 font-medium">
-                      {{ a.mensaje || 'Nivel de existencias por debajo del umbral mínimo configurado.' }}
-                    </td>
-                    <td class="p-3.5 whitespace-nowrap font-mono text-slate-500 text-[11px]">
-                      {{ a.createdAt | date:'short' }}
-                    </td>
-                    <td class="p-3.5 whitespace-nowrap">
-                      <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase"
-                        [ngClass]="a.estado === 'RESUELTO' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'">
-                        {{ a.estado || 'PENDIENTE' }}
-                      </span>
-                    </td>
-                    <td class="p-3.5 text-right whitespace-nowrap space-x-1.5">
-                      <button
-                        *ngIf="puedeGenerarDespacho && (a.agencia || a.pulidor)"
-                        (click)="abrirDespachoDesdeAlerta(a)"
-                        class="px-2.5 py-1 rounded-lg bg-easydry-blue hover:bg-blue-700 text-white font-bold text-[11px] transition shadow-2xs cursor-pointer inline-flex items-center gap-1">
-                        <i-lucide name="truck" class="w-3 h-3"></i-lucide>
-                        <span>Despachar</span>
-                      </button>
-                      <button
-                        *ngIf="a.estado !== 'RESUELTO'"
-                        (click)="resolverAlerta(a)"
-                        class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] transition border border-slate-200 cursor-pointer inline-flex items-center gap-1">
-                        <i-lucide name="check" class="w-3 h-3"></i-lucide>
-                        <span>Atendida</span>
-                      </button>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
+            <ng-template appCell="sede" let-a>
+              <div class="font-bold text-slate-800" *ngIf="a.pulidor">Kit · {{ a.pulidor.name }} {{ a.pulidor.lastname }}</div>
+              <div class="font-bold text-slate-800" *ngIf="!a.pulidor">{{ a.agencia?.nombre || 'Bodega Central' }}</div>
+              <span *ngIf="a.agencia?.region" class="px-2 py-0.5 rounded text-xs font-bold bg-slate-100 text-slate-600 border border-slate-200 mt-0.5 inline-block">
+                {{ a.agencia.region }}
+              </span>
+            </ng-template>
+
+            <ng-template appCell="insumo" let-a>
+              <div class="font-bold text-slate-900">{{ a.insumo?.nombre || 'Insumo' }}</div>
+              <span class="font-mono text-xs text-slate-500">{{ a.insumo?.codigoSKU }}</span>
+            </ng-template>
+
+            <ng-template appCell="nivel" let-a>
+              <span
+                class="px-2.5 py-1 rounded-md text-xs font-bold inline-flex items-center gap-1 border whitespace-nowrap"
+                [ngClass]="(a.nivel === 'CRITICO' || a.nivel === 'AGOTADO') ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-amber-50 text-amber-700 border-amber-200'">
+                <i-lucide aria-hidden="true" [name]="(a.nivel === 'CRITICO' || a.nivel === 'AGOTADO') ? 'alert-triangle' : 'alert-circle'" class="w-3.5 h-3.5"></i-lucide>
+                <span>{{ (a.nivel === 'CRITICO' || a.nivel === 'AGOTADO') ? 'Crítico / Agotado' : 'Bajo Mínimo' }}</span>
+              </span>
+            </ng-template>
+
+            <ng-template appCell="mensaje" let-a>
+              <span class="block max-w-xs text-slate-700 font-medium">{{ a.mensaje || 'Nivel de existencias por debajo del umbral mínimo configurado.' }}</span>
+            </ng-template>
+
+            <ng-template appCell="fecha" let-a>
+              <span class="whitespace-nowrap font-mono text-slate-500 text-xs">{{ a.createdAt | date:'short' }}</span>
+            </ng-template>
+
+            <ng-template appCell="estado" let-a>
+              <span class="px-2 py-0.5 rounded-full text-[11px] font-bold uppercase"
+                [ngClass]="a.estado === 'RESUELTO' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'">
+                {{ a.estado || 'PENDIENTE' }}
+              </span>
+            </ng-template>
+
+            <ng-template appCell="acciones" let-a>
+              <div class="flex items-center justify-end gap-1.5 whitespace-nowrap">
+                <button
+                  type="button"
+                  *ngIf="puedeGenerarDespacho && (a.agencia || a.pulidor)"
+                  (click)="abrirDespachoDesdeAlerta(a)"
+                  class="px-2.5 py-1 rounded-lg bg-easydry-blue hover:bg-blue-700 text-white font-bold text-xs transition shadow-2xs cursor-pointer inline-flex items-center gap-1">
+                  <i-lucide aria-hidden="true" name="truck" class="w-3 h-3"></i-lucide>
+                  <span>Despachar</span>
+                </button>
+                <button
+                  type="button"
+                  *ngIf="puedeAtenderAlertas && a.estado !== 'RESUELTO'"
+                  (click)="resolverAlerta(a)"
+                  class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition border border-slate-200 cursor-pointer inline-flex items-center gap-1">
+                  <i-lucide aria-hidden="true" name="check" class="w-3 h-3"></i-lucide>
+                  <span>Atendida</span>
+                </button>
+              </div>
+            </ng-template>
+          </app-data-table>
         </div>
       </div>
 
@@ -2085,14 +1975,14 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
           <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-rose-50 border border-rose-200 text-rose-800 text-xs font-bold mb-2">
-                <i-lucide name="alert-triangle" class="w-3.5 h-3.5 text-rose-600"></i-lucide>
+                <i-lucide aria-hidden="true" name="alert-triangle" class="w-3.5 h-3.5 text-rose-600"></i-lucide>
                 <span>Déficit de Inventario y Reposición Física</span>
               </div>
-              <h2 class="text-xl font-black text-slate-900 font-outfit">
-                {{ isLiderOperador ? 'Insumos Bajo Mínimo en mi Sede' : 'Insumos con Stock Bajo / Déficit' }}
+              <h2 class="text-xl font-extrabold text-slate-900 font-outfit">
+                {{ operaDesdeAgencia ? 'Insumos Bajo Mínimo en mi Sede' : 'Insumos con Stock Bajo / Déficit' }}
               </h2>
               <p class="text-slate-500 text-xs mt-1 max-w-3xl">
-                {{ isLiderOperador
+                {{ operaDesdeAgencia
                   ? 'Listado de insumos críticos que se encuentran por debajo del nivel mínimo operativo en tu sede según los servicios asignados.'
                   : 'Monitoreo de productos cuyo stock actual en bodega está por debajo del umbral mínimo de seguridad establecido para reposición.' }}
               </p>
@@ -2102,14 +1992,14 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
               <button
                 (click)="cargarStockBajo()"
                 class="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer">
-                <i-lucide name="refresh-cw" class="w-3.5 h-3.5"></i-lucide>
+                <i-lucide aria-hidden="true" name="refresh-cw" class="w-3.5 h-3.5"></i-lucide>
                 <span>Actualizar</span>
               </button>
               <button
                 *ngIf="puedeRegistrarIngreso"
                 (click)="abrirModalEntrada()"
                 class="px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm">
-                <i-lucide name="plus" class="w-3.5 h-3.5"></i-lucide>
+                <i-lucide aria-hidden="true" name="plus" class="w-3.5 h-3.5"></i-lucide>
                 <span>Abastecer Productos</span>
               </button>
             </div>
@@ -2123,7 +2013,7 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
           <div class="bg-rose-50 border border-rose-200 rounded-2xl p-4 flex items-center justify-between">
             <div class="flex items-center gap-3">
               <div class="w-10 h-10 rounded-xl bg-rose-500 text-white flex items-center justify-center font-bold">
-                <i-lucide name="package-x" class="w-5 h-5"></i-lucide>
+                <i-lucide aria-hidden="true" name="package-x" class="w-5 h-5"></i-lucide>
               </div>
               <div>
                 <h3 class="text-sm font-bold text-rose-900">Insumos con Stock Bajo en Bodega</h3>
@@ -2134,76 +2024,73 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
               *ngIf="puedeRegistrarIngreso"
               (click)="abrirModalEntrada()"
               class="px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer">
-              <i-lucide name="plus" class="w-4 h-4"></i-lucide>
+              <i-lucide aria-hidden="true" name="plus" class="w-4 h-4"></i-lucide>
               <span>Abastecer Productos</span>
             </button>
           </div>
 
-          <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry overflow-hidden">
-            <div class="overflow-x-auto">
-              <table class="w-full text-left text-xs text-slate-600">
-                <thead class="bg-slate-50 text-slate-400 text-[10px] font-bold uppercase tracking-wider">
-                  <tr>
-                    <th class="p-3.5">SKU</th>
-                    <th class="p-3.5">Producto</th>
-                    <th class="p-3.5">Tipo</th>
-                    <th class="p-3.5">Contenido x Envase</th>
-                    <th class="p-3.5">Stock en Unidades</th>
-                    <th class="p-3.5">Stock Contenido</th>
-                    <th class="p-3.5">Stock Mínimo</th>
-                    <th class="p-3.5">Déficit</th>
-                    <th class="p-3.5 text-right">Acción</th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100">
-                  <tr *ngIf="productosStockBajoList.length === 0">
-                    <td colspan="9" class="p-8 text-center text-emerald-600 font-bold">
-                      ¡Excelente! Todos los productos cuentan con existencias óptimas en bodega.
-                    </td>
-                  </tr>
+          <app-data-table
+            [serverSide]="true"
+            [columns]="columnasStockBajo"
+            [data]="stockBajoTabla.filas"
+            [total]="stockBajoTabla.total"
+            [page]="stockBajoTabla.pagina"
+            [pageSize]="stockBajoTabla.pageSize"
+            [sortField]="stockBajoTabla.sortField"
+            [sortOrder]="stockBajoTabla.sortOrder"
+            [loading]="stockBajoTabla.cargando"
+            [error]="stockBajoTabla.error"
+            [rowClass]="claseFilaStockBajo"
+            maxHeight="70vh"
+            caption="Insumos con stock bajo en bodega"
+            searchPlaceholder="Buscar por SKU o nombre..."
+            emptyTitle="¡Excelente! Todos los productos cuentan con existencias óptimas en bodega."
+            emptyHint=""
+            (queryChange)="stockBajoTabla.alCambiar($event)"
+            (reintentar)="stockBajoTabla.cargar(true)">
 
-                  <tr *ngFor="let p of productosStockBajoList" class="hover:bg-rose-50/30 transition">
-                    <td class="p-3.5 font-mono font-bold text-slate-800">{{ p.codigoSKU }}</td>
-                    <td class="p-3.5 font-bold text-slate-900">{{ p.nombre }}</td>
-                    <td class="p-3.5">{{ p.tipoProducto?.nombre || 'General' }}</td>
-                    <td class="p-3.5 font-mono font-bold text-slate-700 whitespace-nowrap">
-                      {{ (p.contenidoNeto || 1) | number:'1.0-2' }} {{ p.unidadMedida }}
-                    </td>
-                    <td class="p-3.5 whitespace-nowrap">
-                      <span class="px-2.5 py-1 rounded-md font-mono font-bold text-xs bg-rose-50 text-rose-700 border border-rose-200 inline-block">
-                        {{ getStockEnUnidades(p.stockActual, p.contenidoNeto) | number:'1.0-2' }} und
-                      </span>
-                    </td>
-                    <td class="p-3.5 font-mono font-bold text-rose-600 whitespace-nowrap">
-                      {{ p.stockActual | number:'1.0-2' }} {{ p.unidadMedida }}
-                    </td>
-                    <td class="p-3.5 font-mono text-slate-600 whitespace-nowrap">
-                      <b>{{ getStockEnUnidades(p.stockMinimoBodega, p.contenidoNeto) | number:'1.0-2' }} und</b>
-                      <span class="text-[10px] text-slate-400 block">({{ (p.stockMinimoBodega || 0) | number:'1.0-2' }} {{ p.unidadMedida }})</span>
-                    </td>
-                    <td class="p-3.5 font-mono font-bold text-rose-700 whitespace-nowrap">
-                      <b>-{{ getStockEnUnidades(((p.stockMinimoBodega || 0) - p.stockActual), p.contenidoNeto) | number:'1.0-2' }} und</b>
-                      <span class="text-[10px] text-rose-500 block">(-{{ ((p.stockMinimoBodega || 0) - p.stockActual) | number:'1.0-2' }} {{ p.unidadMedida }})</span>
-                    </td>
-                    <td class="p-3.5 text-right">
-                      <button
-                        (click)="seleccionarParaEntrada(p)"
-                        class="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] transition cursor-pointer">
-                        Ingresar Stock
-                      </button>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
+            <ng-template appCell="sku" let-p><span class="font-mono font-bold text-slate-800">{{ p.codigoSKU }}</span></ng-template>
+            <ng-template appCell="nombre" let-p><span class="font-bold text-slate-900">{{ p.nombre }}</span></ng-template>
+            <ng-template appCell="tipo" let-p><span>{{ p.tipoProducto?.nombre || 'General' }}</span></ng-template>
+            <ng-template appCell="contenido" let-p>
+              <span class="font-mono font-bold text-slate-700 whitespace-nowrap">{{ (p.contenidoNeto || 1) | number:'1.0-2' }} {{ p.unidadMedida }}</span>
+            </ng-template>
+            <ng-template appCell="stockUnidades" let-p>
+              <span class="px-2.5 py-1 rounded-md font-mono font-bold text-xs bg-rose-50 text-rose-700 border border-rose-200 inline-block whitespace-nowrap">
+                {{ getStockEnUnidades(p.stockActual, p.contenidoNeto) | number:'1.0-2' }} und
+              </span>
+            </ng-template>
+            <ng-template appCell="stock" let-p>
+              <span class="font-mono font-bold text-rose-600 whitespace-nowrap">{{ p.stockActual | number:'1.0-2' }} {{ p.unidadMedida }}</span>
+            </ng-template>
+            <ng-template appCell="minimo" let-p>
+              <div class="font-mono text-slate-600 whitespace-nowrap">
+                <b>{{ getStockEnUnidades(p.stockMinimoBodega, p.contenidoNeto) | number:'1.0-2' }} und</b>
+                <span class="text-xs text-slate-500 block">({{ (p.stockMinimoBodega || 0) | number:'1.0-2' }} {{ p.unidadMedida }})</span>
+              </div>
+            </ng-template>
+            <ng-template appCell="deficit" let-p>
+              <div class="font-mono font-bold text-rose-700 whitespace-nowrap">
+                <b>-{{ getStockEnUnidades(((p.stockMinimoBodega || 0) - p.stockActual), p.contenidoNeto) | number:'1.0-2' }} und</b>
+                <span class="text-xs text-rose-500 block">(-{{ ((p.stockMinimoBodega || 0) - p.stockActual) | number:'1.0-2' }} {{ p.unidadMedida }})</span>
+              </div>
+            </ng-template>
+            <ng-template appCell="acciones" let-p>
+              <button
+                type="button"
+                (click)="seleccionarParaEntrada(p)"
+                class="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition cursor-pointer">
+                Ingresar Stock
+              </button>
+            </ng-template>
+          </app-data-table>
         </div>
 
         <!-- Líder / Asistente: stock bajo operativo de su alcance (no Bodega Central) -->
-        <div *ngIf="isLiderOperador && insumosBajosMiSede.length > 0" class="space-y-4 pt-4 border-t border-slate-200">
+        <div *ngIf="operaDesdeAgencia && insumosBajosMiSede.length > 0" class="space-y-4 pt-4 border-t border-slate-200">
           <div class="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center gap-3">
             <div class="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold">
-              <i-lucide name="package-x" class="w-5 h-5"></i-lucide>
+              <i-lucide aria-hidden="true" name="package-x" class="w-5 h-5"></i-lucide>
             </div>
             <div>
               <h3 class="text-sm font-bold text-amber-900">Insumos bajo mínimo en mi sede</h3>
@@ -2213,32 +2100,33 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
           <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry overflow-hidden">
             <div class="overflow-x-auto">
               <table class="w-full text-left text-xs text-slate-600">
-                <thead class="bg-slate-50 text-slate-400 text-[10px] font-bold uppercase tracking-wider">
+                <thead class="bg-slate-50 text-slate-500 text-xs font-bold uppercase tracking-wider">
                   <tr>
-                    <th class="p-3.5">SKU</th>
-                    <th class="p-3.5">Producto</th>
-                    <th class="p-3.5">Stock und</th>
-                    <th class="p-3.5">Estado</th>
-                    <th class="p-3.5 text-right">Acción</th>
+                    <th scope="col" class="py-3 px-4">SKU</th>
+                    <th scope="col" class="py-3 px-4">Producto</th>
+                    <th scope="col" class="py-3 px-4">Stock und</th>
+                    <th scope="col" class="py-3 px-4">Estado</th>
+                    <th scope="col" class="py-3 px-4 text-right">Acción</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
-                  <tr *ngFor="let item of insumosBajosMiSede" class="hover:bg-amber-50/40 transition">
+                  <tr *ngFor="let item of insumosBajosPagina" class="hover:bg-amber-50/40 transition">
                     <td class="p-3.5 font-mono font-bold">{{ item.codigoSKU }}</td>
                     <td class="p-3.5 font-bold text-slate-900">{{ item.nombre }}</td>
                     <td class="p-3.5 font-mono">
                       {{ getStockEnUnidades(item.stockActual, item.contenidoNeto) | number:'1.0-2' }} und
                     </td>
                     <td class="p-3.5">
-                      <span class="px-2 py-0.5 rounded-full text-[10px] font-bold"
+                      <span class="px-2 py-0.5 rounded-full text-xs font-bold"
                         [ngClass]="item.estado === 'AGOTADO' ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-amber-800'">
                         {{ getLabelEstadoInsumoServicio(item.estado) }}
                       </span>
                     </td>
                     <td class="p-3.5 text-right">
                       <button
+                        *ngIf="puedeCrearAlerta"
                         (click)="solicitarReabastecimiento(item)"
-                        class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold cursor-pointer">
+                        class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer">
                         Pedir Reabastecimiento
                       </button>
                     </td>
@@ -2246,6 +2134,13 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
                 </tbody>
               </table>
             </div>
+            <app-pagination
+              [totalItems]="insumosBajosMiSede.length"
+              [currentPage]="paginaBajosSede"
+              [pageSize]="pageSizeBajosSede"
+              (pageChange)="paginaBajosSede = $event"
+              (pageSizeChange)="pageSizeBajosSede = $event; paginaBajosSede = 1">
+            </app-pagination>
           </div>
         </div>
       </div>
@@ -2257,13 +2152,13 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
         <!-- Subpestañas de Configuración -->
         <div class="flex items-center gap-3 border-b border-slate-200 pb-2">
           <button
-            (click)="subTabConfig = 'tipos'"
+            (click)="cambiarSubTabConfig('tipos')"
             class="px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer"
             [ngClass]="subTabConfig === 'tipos' ? 'bg-purple-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'">
             Tipos de Producto
           </button>
           <button
-            (click)="subTabConfig = 'unidades'"
+            (click)="cambiarSubTabConfig('unidades')"
             class="px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer"
             [ngClass]="subTabConfig === 'unidades' ? 'bg-purple-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'">
             Unidades de Medida
@@ -2280,44 +2175,47 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
             <button
               (click)="abrirModalTipoProducto()"
               class="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition flex items-center gap-1 cursor-pointer">
-              <i-lucide name="plus" class="w-3.5 h-3.5"></i-lucide>
+              <i-lucide aria-hidden="true" name="plus" class="w-3.5 h-3.5"></i-lucide>
               <span>Nuevo Tipo</span>
             </button>
           </div>
 
-          <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry overflow-hidden">
-            <table class="w-full text-left text-xs text-slate-600">
-              <thead class="bg-slate-50 text-slate-400 text-[10px] font-bold uppercase tracking-wider">
-                <tr>
-                  <th class="p-3">Código</th>
-                  <th class="p-3">Nombre</th>
-                  <th class="p-3">Descripción</th>
-                  <th class="p-3">Estado</th>
-                  <th class="p-3 text-right">Acciones</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-slate-100">
-                <tr *ngFor="let t of tiposProducto" class="hover:bg-slate-50">
-                  <td class="p-3 font-mono font-bold text-slate-800">{{ t.codigo }}</td>
-                  <td class="p-3 font-bold text-slate-900">{{ t.nombre }}</td>
-                  <td class="p-3 text-slate-500">{{ t.descripcion || '-' }}</td>
-                  <td class="p-3">
-                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold" [ngClass]="t.estado === 1 ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'">
-                      {{ t.estado === 1 ? 'Activo' : 'Inactivo' }}
-                    </span>
-                  </td>
-                  <td class="p-3 text-right space-x-1">
-                    <button (click)="editarTipoProducto(t)" class="p-1 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-purple-600 cursor-pointer">
-                      <i-lucide name="pencil" class="w-3.5 h-3.5"></i-lucide>
-                    </button>
-                    <button (click)="toggleEstadoTipo(t)" class="p-1 rounded-lg hover:bg-slate-100 cursor-pointer" [ngClass]="t.estado === 1 ? 'text-rose-500' : 'text-emerald-500'">
-                      <i-lucide [name]="t.estado === 1 ? 'x-circle' : 'check-circle'" class="w-3.5 h-3.5"></i-lucide>
-                    </button>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+          <app-data-table
+            [serverSide]="true"
+            [columns]="columnasTipos"
+            [data]="tiposTabla.filas"
+            [total]="tiposTabla.total"
+            [page]="tiposTabla.pagina"
+            [pageSize]="tiposTabla.pageSize"
+            [sortField]="tiposTabla.sortField"
+            [sortOrder]="tiposTabla.sortOrder"
+            [loading]="tiposTabla.cargando"
+            [error]="tiposTabla.error"
+            maxHeight="65vh"
+            caption="Tipos de producto"
+            searchPlaceholder="Buscar por código, nombre o descripción..."
+            emptyTitle="No hay tipos de producto que coincidan."
+            (queryChange)="tiposTabla.alCambiar($event)"
+            (reintentar)="tiposTabla.cargar(true)">
+            <ng-template appCell="codigo" let-t><span class="font-mono font-bold text-slate-800">{{ t.codigo }}</span></ng-template>
+            <ng-template appCell="nombre" let-t><span class="font-bold text-slate-900">{{ t.nombre }}</span></ng-template>
+            <ng-template appCell="descripcion" let-t><span class="text-slate-500">{{ t.descripcion || '-' }}</span></ng-template>
+            <ng-template appCell="estado" let-t>
+              <span class="px-2 py-0.5 rounded-full text-xs font-bold" [ngClass]="t.estado === 1 ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'">
+                {{ t.estado === 1 ? 'Activo' : 'Inactivo' }}
+              </span>
+            </ng-template>
+            <ng-template appCell="acciones" let-t>
+              <div class="flex items-center justify-end gap-1">
+                <button type="button" (click)="editarTipoProducto(t)" class="inline-flex items-center justify-center min-w-9 min-h-9 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-purple-600 cursor-pointer" aria-label="Editar">
+                  <i-lucide aria-hidden="true" name="pencil" class="w-3.5 h-3.5"></i-lucide>
+                </button>
+                <button type="button" (click)="toggleEstadoTipo(t)" class="inline-flex items-center justify-center min-w-9 min-h-9 rounded-lg hover:bg-slate-100 cursor-pointer" [ngClass]="t.estado === 1 ? 'text-rose-500' : 'text-emerald-500'" [attr.aria-label]="t.estado === 1 ? 'Desactivar' : 'Activar'">
+                  <i-lucide aria-hidden="true" [name]="t.estado === 1 ? 'x-circle' : 'check-circle'" class="w-3.5 h-3.5"></i-lucide>
+                </button>
+              </div>
+            </ng-template>
+          </app-data-table>
         </div>
 
         <!-- 5.2 Sub-tab Unidades de Medida -->
@@ -2330,87 +2228,88 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
             <button
               (click)="abrirModalUnidad()"
               class="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition flex items-center gap-1 cursor-pointer">
-              <i-lucide name="plus" class="w-3.5 h-3.5"></i-lucide>
+              <i-lucide aria-hidden="true" name="plus" class="w-3.5 h-3.5"></i-lucide>
               <span>Nueva Unidad</span>
             </button>
           </div>
 
-          <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry overflow-hidden">
-            <table class="w-full text-left text-xs text-slate-600">
-              <thead class="bg-slate-50 text-slate-400 text-[10px] font-bold uppercase tracking-wider">
-                <tr>
-                  <th class="p-3">Código</th>
-                  <th class="p-3">Nombre</th>
-                  <th class="p-3">Símbolo</th>
-                  <th class="p-3">Familia / Tipo</th>
-                  <th class="p-3">Factor Base</th>
-                  <th class="p-3">Estado</th>
-                  <th class="p-3 text-right">Acciones</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-slate-100">
-                <tr *ngFor="let u of unidadesMedida" class="hover:bg-slate-50">
-                  <td class="p-3 font-mono font-bold text-slate-800">{{ u.codigo }}</td>
-                  <td class="p-3 font-bold text-slate-900">{{ u.nombre }}</td>
-                  <td class="p-3 font-mono font-bold text-easydry-blue">{{ u.simbolo }}</td>
-                  <td class="p-3 text-slate-500">{{ u.tipo }}</td>
-                  <td class="p-3 font-mono text-slate-600">{{ u.factorBase || 1 }}</td>
-                  <td class="p-3">
-                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold" [ngClass]="u.estado === 1 ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'">
-                      {{ u.estado === 1 ? 'Activo' : 'Inactivo' }}
-                    </span>
-                  </td>
-                  <td class="p-3 text-right space-x-1">
-                    <button (click)="editarUnidad(u)" class="p-1 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-purple-600 cursor-pointer">
-                      <i-lucide name="pencil" class="w-3.5 h-3.5"></i-lucide>
-                    </button>
-                    <button (click)="toggleEstadoUnidad(u)" class="p-1 rounded-lg hover:bg-slate-100 cursor-pointer" [ngClass]="u.estado === 1 ? 'text-rose-500' : 'text-emerald-500'">
-                      <i-lucide [name]="u.estado === 1 ? 'x-circle' : 'check-circle'" class="w-3.5 h-3.5"></i-lucide>
-                    </button>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+          <app-data-table
+            [serverSide]="true"
+            [columns]="columnasUnidades"
+            [data]="unidadesTabla.filas"
+            [total]="unidadesTabla.total"
+            [page]="unidadesTabla.pagina"
+            [pageSize]="unidadesTabla.pageSize"
+            [sortField]="unidadesTabla.sortField"
+            [sortOrder]="unidadesTabla.sortOrder"
+            [loading]="unidadesTabla.cargando"
+            [error]="unidadesTabla.error"
+            maxHeight="65vh"
+            caption="Unidades de medida"
+            searchPlaceholder="Buscar por código, nombre o símbolo..."
+            emptyTitle="No hay unidades de medida que coincidan."
+            (queryChange)="unidadesTabla.alCambiar($event)"
+            (reintentar)="unidadesTabla.cargar(true)">
+            <ng-template appCell="codigo" let-u><span class="font-mono font-bold text-slate-800">{{ u.codigo }}</span></ng-template>
+            <ng-template appCell="nombre" let-u><span class="font-bold text-slate-900">{{ u.nombre }}</span></ng-template>
+            <ng-template appCell="simbolo" let-u><span class="font-mono font-bold text-easydry-blue">{{ u.simbolo }}</span></ng-template>
+            <ng-template appCell="tipo" let-u><span class="text-slate-500">{{ u.tipo }}</span></ng-template>
+            <ng-template appCell="factorBase" let-u><span class="font-mono text-slate-600">{{ u.factorBase || 1 }}</span></ng-template>
+            <ng-template appCell="estado" let-u>
+              <span class="px-2 py-0.5 rounded-full text-xs font-bold" [ngClass]="u.estado === 1 ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'">
+                {{ u.estado === 1 ? 'Activo' : 'Inactivo' }}
+              </span>
+            </ng-template>
+            <ng-template appCell="acciones" let-u>
+              <div class="flex items-center justify-end gap-1">
+                <button type="button" (click)="editarUnidad(u)" class="inline-flex items-center justify-center min-w-9 min-h-9 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-purple-600 cursor-pointer" aria-label="Editar">
+                  <i-lucide aria-hidden="true" name="pencil" class="w-3.5 h-3.5"></i-lucide>
+                </button>
+                <button type="button" (click)="toggleEstadoUnidad(u)" class="inline-flex items-center justify-center min-w-9 min-h-9 rounded-lg hover:bg-slate-100 cursor-pointer" [ngClass]="u.estado === 1 ? 'text-rose-500' : 'text-emerald-500'" [attr.aria-label]="u.estado === 1 ? 'Desactivar' : 'Activar'">
+                  <i-lucide aria-hidden="true" [name]="u.estado === 1 ? 'x-circle' : 'check-circle'" class="w-3.5 h-3.5"></i-lucide>
+                </button>
+              </div>
+            </ng-template>
+          </app-data-table>
         </div>
       </div>
 
       <!-- ============================================================== -->
       <!-- MODAL: REGISTRAR ENTRADA DE STOCK                              -->
       <!-- ============================================================== -->
-      <div *ngIf="modalEntradaAbierto" appModalPortal class="fixed inset-0 z-[10050] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-        <div class="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-100 max-h-[90vh] flex flex-col overflow-hidden" (click)="$event.stopPropagation()">
+      <div *ngIf="modalEntradaAbierto" appModalPortal role="dialog" aria-modal="true" aria-labelledby="inv-modal-titulo-1" class="fixed inset-0 z-[10050] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+        <div class="bg-white rounded-2xl max-w-xl w-full shadow-2xl border border-slate-100 max-h-[90dvh] flex flex-col overflow-hidden" (click)="$event.stopPropagation()">
           <div class="shrink-0 px-6 py-4 flex items-center justify-between border-b border-slate-100 bg-white">
             <div class="flex items-center gap-2 min-w-0">
               <div class="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold shrink-0">
-                <i-lucide name="plus-circle" class="w-5 h-5"></i-lucide>
+                <i-lucide aria-hidden="true" name="plus-circle" class="w-5 h-5"></i-lucide>
               </div>
-              <h3 class="text-base font-bold text-slate-900 truncate">{{ productoEntradaFijo?.nombre || 'Registrar Entrada de Inventario' }}</h3>
+              <h3 id="inv-modal-titulo-1" class="text-base font-bold text-slate-900 truncate">{{ productoEntradaFijo?.nombre || 'Registrar Entrada de Inventario' }}</h3>
             </div>
-            <button (click)="cerrarModalEntrada()" class="text-slate-400 hover:text-slate-600 cursor-pointer shrink-0">
-              <i-lucide name="x" class="w-5 h-5"></i-lucide>
+            <button (click)="cerrarModalEntrada()" class="text-slate-500 hover:text-slate-600 cursor-pointer shrink-0" aria-label="Cerrar">
+              <i-lucide aria-hidden="true" name="x" class="w-5 h-5"></i-lucide>
             </button>
           </div>
 
           <div class="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-4 text-xs">
-            <div *ngIf="formEntrada.bodegaId || bodegaSeleccionada" class="p-2.5 rounded-xl bg-blue-50 border border-blue-100 text-[11px] text-easydry-blue font-bold flex items-center gap-2">
-              <i-lucide name="warehouse" class="w-3.5 h-3.5 shrink-0"></i-lucide>
+            <div *ngIf="formEntrada.bodegaId || bodegaSeleccionada" class="p-2.5 rounded-xl bg-blue-50 border border-blue-100 text-xs text-easydry-blue font-bold flex items-center gap-2">
+              <i-lucide aria-hidden="true" name="warehouse" class="w-3.5 h-3.5 shrink-0"></i-lucide>
               <span>Destino del ingreso: <b>Bodega Central Nacional</b> (única que admite compras/ingresos)</span>
             </div>
             <!-- Insumo Fijo (Bloqueado) si viene preseleccionado -->
             <div *ngIf="productoEntradaFijo" class="p-3 bg-emerald-50/80 rounded-xl border border-emerald-200 flex items-center justify-between">
               <div class="flex items-center gap-2.5 truncate mr-2">
                 <div class="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold shrink-0">
-                  <i-lucide name="package" class="w-4 h-4"></i-lucide>
+                  <i-lucide aria-hidden="true" name="package" class="w-4 h-4"></i-lucide>
                 </div>
                 <div class="truncate">
                   <p class="font-extrabold text-slate-900 text-xs truncate">{{ productoEntradaFijo.nombre }}</p>
-                  <span class="text-[10px] font-mono text-emerald-900/80 block">
+                  <span class="text-xs font-mono text-emerald-900/80 block">
                     SKU: {{ productoEntradaFijo.codigoSKU }} | Unidad: {{ productoEntradaFijo.unidadMedida || 'u' }}
                   </span>
                 </div>
               </div>
-              <span class="px-2.5 py-1 rounded-lg text-[10px] font-extrabold bg-emerald-200/80 text-emerald-900 border border-emerald-300 shrink-0">
+              <span class="px-2.5 py-1 rounded-lg text-xs font-extrabold bg-emerald-200/80 text-emerald-900 border border-emerald-300 shrink-0">
                 Insumo Fijo (Bloqueado)
               </span>
             </div>
@@ -2419,30 +2318,30 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
             <div *ngIf="!productoEntradaFijo" class="space-y-4">
               <!-- Buscador de Producto / Insumo -->
               <div>
-                <label class="block font-bold text-slate-700 mb-1">Buscar Producto / Insumo</label>
+                <label for="inv-f3" class="block font-bold text-slate-700 mb-1">Buscar Producto / Insumo</label>
                 <div class="relative flex items-center">
                   <span class="absolute left-3 inset-y-0 flex items-center pointer-events-none text-slate-400">
-                    <i-lucide name="search" class="w-4 h-4"></i-lucide>
+                    <i-lucide aria-hidden="true" name="search" class="w-4 h-4"></i-lucide>
                   </span>
-                  <input
+                  <input id="inv-f3"
                     type="text"
                     [(ngModel)]="busquedaProductoEntrada"
                     (input)="filtrarProductosEntrada()"
                     placeholder="Buscar por código SKU o nombre de producto..."
-                    class="w-full pl-9 pr-9 py-2.5 text-xs rounded-xl border border-slate-200 focus:outline-none focus:border-easydry-blue" />
+                    class="w-full pl-10 pr-10 py-2.5 text-xs rounded-xl border border-slate-200 focus:outline-none focus:border-easydry-blue" />
                   <button
                     *ngIf="busquedaProductoEntrada"
                     (click)="busquedaProductoEntrada = ''; filtrarProductosEntrada()"
-                    class="absolute right-3 inset-y-0 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer">
-                    <i-lucide name="x" class="w-4 h-4"></i-lucide>
+                    class="absolute right-3 inset-y-0 flex items-center text-slate-500 hover:text-slate-600 cursor-pointer" aria-label="Cerrar">
+                    <i-lucide aria-hidden="true" name="x" class="w-4 h-4"></i-lucide>
                   </button>
                 </div>
               </div>
 
               <!-- Selector de Producto / Insumo -->
               <div>
-                <label class="block font-bold text-slate-700 mb-1">Producto / Insumo Seleccionado *</label>
-                <select
+                <label for="inv-f4" class="block font-bold text-slate-700 mb-1">Producto / Insumo Seleccionado *</label>
+                <select id="inv-f4"
                   [(ngModel)]="formEntrada.insumoId"
                   (change)="alCambiarProductoEntrada()"
                   class="w-full p-2.5 rounded-xl border border-slate-200 bg-white focus:outline-none focus:border-easydry-blue">
@@ -2451,7 +2350,7 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
                     {{ p.nombre }} (SKU: {{ p.codigoSKU }}) — Stock: {{ getStockEnUnidades(p.stockActual, p.contenidoNeto) | number:'1.0-2' }} und ({{ p.stockActual | number:'1.0-2' }} {{ p.unidadMedida }})
                   </option>
                 </select>
-                <p *ngIf="productosEntradaFiltrados.length === 0" class="text-[11px] text-amber-600 mt-1">
+                <p *ngIf="productosEntradaFiltrados.length === 0" class="text-xs text-amber-600 mt-1">
                   No se encontraron productos que coincidan con la búsqueda.
                 </p>
               </div>
@@ -2476,11 +2375,11 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
 
             <!-- Cantidad de Unidades a Ingresar -->
             <div>
-              <label class="block font-bold text-slate-700 mb-1">
+              <label for="inv-f5" class="block font-bold text-slate-700 mb-1">
                 Cantidad de Unidades / Envases a Ingresar *
               </label>
               <div class="relative">
-                <input
+                <input id="inv-f5"
                   type="number"
                   min="1"
                   step="1"
@@ -2488,19 +2387,19 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
                   (input)="calcularPreviewEntrada()"
                   placeholder="ej. 5"
                   class="w-full p-2.5 pr-24 rounded-xl border border-slate-200 focus:outline-none focus:border-easydry-blue font-mono text-base font-bold text-slate-800" />
-                <span class="absolute right-3 top-2.5 text-xs font-bold text-slate-400">
+                <span class="absolute right-3 top-2.5 text-xs font-bold text-slate-500">
                   unidades
                 </span>
               </div>
-              <p class="text-[11px] text-slate-500 mt-1">
+              <p class="text-xs text-slate-500 mt-1">
                 El ingreso siempre se registra por unidades físicas del producto (bidones, cajas, frascos, piezas), sin importar si es líquido, polvo o unitario.
               </p>
             </div>
 
             <!-- Observaciones -->
             <div>
-              <label class="block font-bold text-slate-700 mb-1">Observaciones</label>
-              <input
+              <label for="inv-f6" class="block font-bold text-slate-700 mb-1">Observaciones</label>
+              <input id="inv-f6"
                 type="text"
                 [(ngModel)]="formEntrada.observaciones"
                 placeholder="Detalles del ingreso o notas adicionales"
@@ -2523,21 +2422,21 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
                 <div *ngIf="imagenEntradaPreview" class="relative w-full flex flex-col items-center justify-center">
                   <img loading="lazy" decoding="async" [src]="imagenEntradaPreview" alt="Evidencia de Entrada" class="max-h-36 rounded-lg object-contain border border-emerald-200 mb-2 shadow-xs" />
                   <div class="flex items-center gap-2 text-emerald-800">
-                    <i-lucide name="check-circle-2" class="w-4 h-4"></i-lucide>
+                    <i-lucide aria-hidden="true" name="check-circle-2" class="w-4 h-4"></i-lucide>
                     <span class="text-xs font-bold">{{ imagenEntradaNombre || 'Evidencia cargada' }}</span>
                   </div>
                   <div class="flex items-center gap-3 mt-2">
-                    <span class="text-[10px] text-slate-500 hover:underline">Toca para cambiar la imagen</span>
-                    <button type="button" (click)="$event.stopPropagation(); eliminarImagenEntrada()" class="text-[10px] font-bold text-rose-600 hover:underline">Eliminar foto</button>
+                    <span class="text-xs text-slate-500 hover:underline">Toca para cambiar la imagen</span>
+                    <button type="button" (click)="$event.stopPropagation(); eliminarImagenEntrada()" class="text-xs font-bold text-rose-600 hover:underline">Eliminar foto</button>
                   </div>
                 </div>
 
                 <div *ngIf="!imagenEntradaPreview" class="flex flex-col items-center justify-center">
                   <div class="p-3 bg-emerald-100/80 text-emerald-700 rounded-full mb-2">
-                    <i-lucide name="camera" class="w-6 h-6"></i-lucide>
+                    <i-lucide aria-hidden="true" name="camera" class="w-6 h-6"></i-lucide>
                   </div>
                   <p class="text-xs font-bold text-slate-700 text-center">Toca para capturar o subir evidencia del ingreso</p>
-                  <p class="text-[10px] text-slate-400 text-center mt-1">Foto de factura, guía de remisión o producto recibido</p>
+                  <p class="text-xs text-slate-500 text-center mt-1">Foto de factura, guía de remisión o producto recibido</p>
                 </div>
               </div>
             </div>
@@ -2546,14 +2445,14 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
             <div *ngIf="previewEntradaCantidadBase > 0 && productoEntradaSeleccionado" class="p-3.5 bg-emerald-50 rounded-xl border border-emerald-200 space-y-2">
               <div class="flex items-center justify-between">
                 <div>
-                  <span class="text-[10px] font-bold text-emerald-800 uppercase tracking-wider block">Ingreso en Unidades Físicas:</span>
-                  <span class="text-base font-black text-emerald-700 font-mono">
+                  <span class="text-[11px] font-bold text-emerald-800 uppercase tracking-wider block">Ingreso en Unidades Físicas:</span>
+                  <span class="text-base font-extrabold text-emerald-700 font-mono">
                     +{{ formEntrada.cantidadUnidades | number:'1.0-2' }} und
                   </span>
                 </div>
                 <div class="text-right">
-                  <span class="text-[10px] font-bold text-emerald-800 uppercase tracking-wider block">Contenido Total Equivalente:</span>
-                  <span class="text-base font-black text-emerald-700 font-mono">
+                  <span class="text-[11px] font-bold text-emerald-800 uppercase tracking-wider block">Contenido Total Equivalente:</span>
+                  <span class="text-base font-extrabold text-emerald-700 font-mono">
                     +{{ previewEntradaCantidadBase | number:'1.0-2' }} {{ productoEntradaSeleccionado.unidadMedida }}
                   </span>
                 </div>
@@ -2568,17 +2467,17 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
             </div>
           </div>
 
-          <div class="shrink-0 flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50">
+          <div class="shrink-0 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 px-6 py-4 border-t border-slate-100 bg-slate-50">
             <button
               (click)="cerrarModalEntrada()"
-              class="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 text-xs font-bold transition cursor-pointer">
+              class="btn-secondary w-full sm:w-auto">
               Cancelar
             </button>
             <button
               (click)="guardarEntrada()"
               [disabled]="guardandoMovimiento"
-              class="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer disabled:opacity-50">
-              <i-lucide *ngIf="!guardandoMovimiento" name="check" class="w-4 h-4"></i-lucide>
+              class="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition inline-flex items-center gap-1.5 shadow-sm cursor-pointer disabled:opacity-50 w-full sm:w-auto justify-center">
+              <i-lucide aria-hidden="true" *ngIf="!guardandoMovimiento" name="check" class="w-4 h-4"></i-lucide>
               <span>{{ guardandoMovimiento ? 'Procesando...' : 'Confirmar Ingreso' }}</span>
             </button>
           </div>
@@ -2588,20 +2487,20 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
       <!-- ============================================================== -->
       <!-- MODAL: REAJUSTE DE STOCK (auditoría + foto S3)                 -->
       <!-- ============================================================== -->
-      <div *ngIf="modalReajusteAbierto" appModalPortal class="fixed inset-0 z-[10050] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-        <div class="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-100 max-h-[90vh] flex flex-col overflow-hidden" (click)="$event.stopPropagation()">
+      <div *ngIf="modalReajusteAbierto" appModalPortal role="dialog" aria-modal="true" aria-labelledby="inv-modal-titulo-2" class="fixed inset-0 z-[10050] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+        <div class="bg-white rounded-2xl max-w-xl w-full shadow-2xl border border-slate-100 max-h-[90dvh] flex flex-col overflow-hidden" (click)="$event.stopPropagation()">
           <div class="shrink-0 px-6 py-4 flex items-center justify-between border-b border-slate-100 bg-white">
             <div class="flex items-center gap-2 min-w-0">
               <div class="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center font-bold shrink-0">
-                <i-lucide name="sliders" class="w-5 h-5"></i-lucide>
+                <i-lucide aria-hidden="true" name="sliders" class="w-5 h-5"></i-lucide>
               </div>
               <div class="min-w-0">
-                <h3 class="text-base font-bold text-slate-900 truncate">Reajuste de stock</h3>
+                <h3 id="inv-modal-titulo-2" class="text-base font-bold text-slate-900 truncate">Reajuste de stock</h3>
                 <p class="text-xs text-slate-500 truncate">{{ itemReajuste?.nombre }} · {{ itemReajuste?.ubicacionLabel }}</p>
               </div>
             </div>
-            <button (click)="cerrarModalReajuste()" [disabled]="guardandoReajuste" class="text-slate-400 hover:text-slate-600 cursor-pointer shrink-0">
-              <i-lucide name="x" class="w-5 h-5"></i-lucide>
+            <button (click)="cerrarModalReajuste()" [disabled]="guardandoReajuste" class="text-slate-500 hover:text-slate-600 cursor-pointer shrink-0" aria-label="Cerrar">
+              <i-lucide aria-hidden="true" name="x" class="w-5 h-5"></i-lucide>
             </button>
           </div>
 
@@ -2609,20 +2508,20 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
             <div class="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs">
               <div class="flex justify-between gap-3">
                 <span class="text-slate-500 font-bold">SKU</span>
-                <span class="font-mono font-black text-slate-800">{{ itemReajuste?.codigoSKU }}</span>
+                <span class="font-mono font-extrabold text-slate-800">{{ itemReajuste?.codigoSKU }}</span>
               </div>
               <div class="flex justify-between gap-3 mt-1.5">
                 <span class="text-slate-500 font-bold">Stock actual</span>
-                <span class="font-mono font-black text-slate-800 text-right">
+                <span class="font-mono font-extrabold text-slate-800 text-right">
                   {{ getStockEnUnidades(itemReajuste?.stockActual, reajusteContenidoNeto) | number:'1.0-2' }} und
-                  <span class="block text-[10px] font-bold text-slate-500">
+                  <span class="block text-xs font-bold text-slate-500">
                     {{ itemReajuste?.stockActual | number:'1.0-2' }} {{ itemReajuste?.unidad }}
                   </span>
                 </span>
               </div>
               <div *ngIf="puedeElegirModoReajuste" class="flex justify-between gap-3 mt-1.5">
                 <span class="text-slate-500 font-bold">Contenido x envase</span>
-                <span class="font-mono font-black text-slate-800">{{ reajusteContenidoNeto | number:'1.0-2' }} {{ itemReajuste?.unidad }}</span>
+                <span class="font-mono font-extrabold text-slate-800">{{ reajusteContenidoNeto | number:'1.0-2' }} {{ itemReajuste?.unidad }}</span>
               </div>
             </div>
 
@@ -2630,24 +2529,24 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
               <button
                 type="button"
                 (click)="cambiarModoReajuste('unidades')"
-                class="flex-1 px-3 py-2 text-[11px] font-bold transition"
+                class="flex-1 px-3 py-2 text-xs font-bold transition"
                 [ngClass]="formReajuste.modo === 'unidades' ? 'bg-amber-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'">
                 Por unidades
               </button>
               <button
                 type="button"
                 (click)="cambiarModoReajuste('cantidad')"
-                class="flex-1 px-3 py-2 text-[11px] font-bold transition border-l border-slate-200"
+                class="flex-1 px-3 py-2 text-xs font-bold transition border-l border-slate-200"
                 [ngClass]="formReajuste.modo === 'cantidad' ? 'bg-amber-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'">
                 Por cantidad ({{ itemReajuste?.unidad }})
               </button>
             </div>
 
             <div>
-              <label class="block text-xs font-bold text-slate-700 mb-1">
+              <label for="inv-f7" class="block text-xs font-bold text-slate-700 mb-1">
                 {{ formReajuste.modo === 'unidades' ? 'Unidades contadas *' : 'Cantidad contada *' }}
               </label>
-              <input
+              <input id="inv-f7"
                 type="number"
                 min="0"
                 [step]="formReajuste.modo === 'unidades' ? '1' : '0.01'"
@@ -2655,7 +2554,7 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
                 name="cantidadContadaReajuste"
                 class="w-full p-2.5 rounded-xl border border-slate-200 font-mono font-bold"
                 [placeholder]="formReajuste.modo === 'unidades' ? '0' : '0.00'" />
-              <p class="mt-1 text-[11px] font-bold" [ngClass]="deltaReajuste === 0 ? 'text-slate-400' : (deltaReajuste > 0 ? 'text-emerald-700' : 'text-rose-700')">
+              <p class="mt-1 text-xs font-bold" [ngClass]="deltaReajuste === 0 ? 'text-slate-500' : (deltaReajuste > 0 ? 'text-emerald-700' : 'text-rose-700')">
                 {{ deltaReajuste > 0 ? 'Aumento' : (deltaReajuste < 0 ? 'Disminución' : 'Sin cambio') }}:
                 {{ deltaReajuste > 0 ? '+' : '' }}{{ getStockEnUnidades(deltaReajuste, reajusteContenidoNeto) | number:'1.0-2' }} und
                 <span class="font-semibold">
@@ -2665,8 +2564,8 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
             </div>
 
             <div>
-              <label class="block text-xs font-bold text-slate-700 mb-1">Motivo *</label>
-              <textarea
+              <label for="inv-f8" class="block text-xs font-bold text-slate-700 mb-1">Motivo *</label>
+              <textarea id="inv-f8"
                 [(ngModel)]="formReajuste.motivoTexto"
                 name="motivoTextoReajuste"
                 rows="3"
@@ -2687,17 +2586,17 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
             </app-image-uploader>
           </div>
 
-          <div class="shrink-0 flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50">
+          <div class="shrink-0 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 px-6 py-4 border-t border-slate-100 bg-slate-50">
             <button
               (click)="cerrarModalReajuste()"
               [disabled]="guardandoReajuste"
-              class="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 text-xs font-bold transition cursor-pointer disabled:opacity-50">
+              class="btn-secondary w-full sm:w-auto disabled:opacity-50">
               Cancelar
             </button>
             <button
               (click)="guardarReajuste()"
               [disabled]="guardandoReajuste"
-              class="px-5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer disabled:opacity-50">
+              class="px-5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition inline-flex items-center gap-1.5 shadow-sm cursor-pointer disabled:opacity-50 w-full sm:w-auto justify-center">
               <span>{{ guardandoReajuste ? 'Guardando...' : 'Confirmar reajuste' }}</span>
             </button>
           </div>
@@ -2707,15 +2606,15 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
       <!-- ============================================================== -->
       <!-- MODAL: GESTIÓN DE PRESENTACIONES POR PRODUCTO                  -->
       <!-- ============================================================== -->
-      <div *ngIf="modalPresentacionesAbierto" appModalPortal class="fixed inset-0 z-[10050] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-        <div class="bg-white rounded-2xl max-w-xl w-full shadow-2xl border border-slate-100 max-h-[90vh] flex flex-col overflow-hidden" (click)="$event.stopPropagation()">
+      <div *ngIf="modalPresentacionesAbierto" appModalPortal role="dialog" aria-modal="true" aria-labelledby="inv-modal-titulo-3" class="fixed inset-0 z-[10050] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+        <div class="bg-white rounded-2xl max-w-xl w-full shadow-2xl border border-slate-100 max-h-[90dvh] flex flex-col overflow-hidden" (click)="$event.stopPropagation()">
           <div class="shrink-0 px-6 py-4 flex items-center justify-between border-b border-slate-100 bg-white">
             <div class="min-w-0">
-              <h3 class="text-base font-bold text-slate-900 truncate">Presentaciones del Producto</h3>
+              <h3 id="inv-modal-titulo-3" class="text-base font-bold text-slate-900 truncate">Presentaciones del Producto</h3>
               <p class="text-xs text-slate-500 truncate">{{ productoPresentacionesSeleccionado?.nombre }} (Base: {{ productoPresentacionesSeleccionado?.unidadMedida }})</p>
             </div>
-            <button (click)="modalPresentacionesAbierto = false" class="text-slate-400 hover:text-slate-600 cursor-pointer shrink-0">
-              <i-lucide name="x" class="w-5 h-5"></i-lucide>
+            <button (click)="modalPresentacionesAbierto = false" class="text-slate-500 hover:text-slate-600 cursor-pointer shrink-0" aria-label="Cerrar">
+              <i-lucide aria-hidden="true" name="x" class="w-5 h-5"></i-lucide>
             </button>
           </div>
 
@@ -2723,18 +2622,18 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
           <!-- Formulario Agregar Presentación -->
           <div class="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3 mb-4 text-xs">
             <h4 class="font-bold text-slate-800">Agregar Nueva Presentación</h4>
-            <div class="grid grid-cols-2 gap-3">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label class="block font-bold text-slate-700 mb-1">Nombre Presentación *</label>
-                <input
+                <label for="inv-f9" class="block font-bold text-slate-700 mb-1">Nombre Presentación *</label>
+                <input id="inv-f9"
                   type="text"
                   [(ngModel)]="nuevaPres.nombre"
                   placeholder="ej. Botella 1000 ml, Galón"
                   class="w-full p-2 rounded-lg border border-slate-200 bg-white" />
               </div>
               <div>
-                <label class="block font-bold text-slate-700 mb-1">Unidad de Presentación *</label>
-                <select
+                <label for="inv-f10" class="block font-bold text-slate-700 mb-1">Unidad de Presentación *</label>
+                <select id="inv-f10"
                   [(ngModel)]="nuevaPres.unidadId"
                   class="w-full p-2 rounded-lg border border-slate-200 bg-white">
                   <option value="">Seleccione unidad...</option>
@@ -2743,18 +2642,18 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
               </div>
             </div>
 
-            <div class="grid grid-cols-2 gap-3">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label class="block font-bold text-slate-700 mb-1">Cantidad *</label>
-                <input
+                <label for="inv-f11" class="block font-bold text-slate-700 mb-1">Cantidad *</label>
+                <input id="inv-f11"
                   type="number"
                   [(ngModel)]="nuevaPres.cantidad"
                   placeholder="1"
                   class="w-full p-2 rounded-lg border border-slate-200 bg-white" />
               </div>
               <div>
-                <label class="block font-bold text-slate-700 mb-1">Equivalente en Unidad Base *</label>
-                <input
+                <label for="inv-f12" class="block font-bold text-slate-700 mb-1">Equivalente en Unidad Base *</label>
+                <input id="inv-f12"
                   type="number"
                   [(ngModel)]="nuevaPres.factorAUnidadBase"
                   placeholder="ej. 1000 para 1 Litro en base ml"
@@ -2773,8 +2672,8 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
 
           <!-- Listado de Presentaciones Existentes -->
           <div class="space-y-2">
-            <h4 class="text-xs font-bold uppercase text-slate-400">Presentaciones Activas</h4>
-            <div *ngIf="presentacionesProductoActual.length === 0" class="text-center py-4 text-xs text-slate-400">
+            <h4 class="text-xs font-bold uppercase text-slate-500">Presentaciones Activas</h4>
+            <div *ngIf="presentacionesProductoActual.length === 0" class="text-center py-4 text-xs text-slate-500">
               No hay presentaciones registradas para este producto.
             </div>
 
@@ -2786,7 +2685,7 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
                 </span>
               </div>
               <div class="flex items-center gap-2">
-                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold" [ngClass]="pres.estado === 1 ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'">
+                <span class="px-2 py-0.5 rounded-full text-xs font-bold" [ngClass]="pres.estado === 1 ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'">
                   {{ pres.estado === 1 ? 'Activa' : 'Inactiva' }}
                 </span>
               </div>
@@ -2794,10 +2693,10 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
           </div>
           </div>
 
-          <div class="shrink-0 flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50">
+          <div class="shrink-0 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 px-6 py-4 border-t border-slate-100 bg-slate-50">
             <button
               (click)="modalPresentacionesAbierto = false"
-              class="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 text-xs font-bold transition cursor-pointer">
+              class="btn-secondary w-full sm:w-auto">
               Cerrar
             </button>
           </div>
@@ -2807,7 +2706,7 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
       <!-- ============================================================== -->
       <!-- MODAL: CREAR / EDITAR PRODUCTO                                 -->
       <!-- ============================================================== -->
-      <app-modal
+      <app-modal size="lg"
         [isOpen]="modalProductoAbierto"
         [title]="editandoProducto ? 'Editar Insumo / Producto EasyDry' : 'Registrar Nuevo Insumo / Producto EasyDry'"
         icon="package"
@@ -2815,10 +2714,10 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
         
         <form (submit)="$event.preventDefault(); guardarProducto()" class="space-y-4">
           <div class="space-y-3 text-xs">
-            <div class="grid grid-cols-2 gap-3">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label class="block font-bold text-slate-700 mb-1">Código SKU *</label>
-                <input
+                <label for="inv-f13" class="block font-bold text-slate-700 mb-1">Código SKU *</label>
+                <input id="inv-f13"
                   type="text"
                   [(ngModel)]="formProducto.codigoSKU"
                   name="codigoSKU"
@@ -2826,8 +2725,8 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
                   class="w-full p-2.5 rounded-xl border border-slate-200" />
               </div>
               <div>
-                <label class="block font-bold text-slate-700 mb-1">Nombre del Insumo *</label>
-                <input
+                <label for="inv-f14" class="block font-bold text-slate-700 mb-1">Nombre del Insumo *</label>
+                <input id="inv-f14"
                   type="text"
                   [(ngModel)]="formProducto.nombre"
                   name="nombreInsumo"
@@ -2837,10 +2736,10 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
             </div>
 
             <!-- Tipo de Producto & Unidad Base -->
-            <div class="grid grid-cols-2 gap-3">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label class="block font-bold text-slate-700 mb-1">Tipo de Producto *</label>
-                <select
+                <label for="inv-f15" class="block font-bold text-slate-700 mb-1">Tipo de Producto *</label>
+                <select id="inv-f15"
                   [(ngModel)]="formProducto.tipoProductoId"
                   name="tipoProductoId"
                   class="w-full p-2.5 rounded-xl border border-slate-200 bg-white">
@@ -2850,8 +2749,8 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
               </div>
 
               <div>
-                <label class="block font-bold text-slate-700 mb-1">Unidad Base de Inventario *</label>
-                <select
+                <label for="inv-f16" class="block font-bold text-slate-700 mb-1">Unidad Base de Inventario *</label>
+                <select id="inv-f16"
                   [(ngModel)]="formProducto.unidadMedidaId"
                   name="unidadMedidaId"
                   class="w-full p-2.5 rounded-xl border border-slate-200 bg-white">
@@ -2863,10 +2762,10 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
 
             <!-- Cantidad en base a la unidad elegida -->
             <div>
-              <label class="block font-bold text-slate-700 mb-1">
+              <label for="inv-f17" class="block font-bold text-slate-700 mb-1">
                 Cantidad {{ getSimboloUnidadSeleccionada() ? 'en ' + getSimboloUnidadSeleccionada() : 'en Base a Unidad Seleccionada' }} *
               </label>
-              <input
+              <input id="inv-f17"
                 type="number"
                 min="0.001"
                 step="any"
@@ -2874,7 +2773,7 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
                 name="contenidoNeto"
                 placeholder="ej. 1, 1000, 3.78"
                 class="w-full p-2.5 rounded-xl border border-slate-200" />
-              <p class="text-[11px] text-slate-400 mt-1">
+              <p class="text-xs text-slate-500 mt-1">
                 Indique la cantidad del producto en función de la unidad de medida elegida.
               </p>
             </div>
@@ -2882,9 +2781,9 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
             <!-- Stocks obligatorios (ingreso en unidades físicas; se guarda en cantidad base) -->
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               <div>
-                <label class="block font-bold text-slate-700 mb-1">Stock Mín. Bodega *</label>
+                <label for="inv-f18" class="block font-bold text-slate-700 mb-1">Stock Mín. Bodega *</label>
                 <div class="relative">
-                  <input
+                  <input id="inv-f18"
                     type="number"
                     min="1"
                     step="1"
@@ -2893,18 +2792,18 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
                     placeholder="ej. 5"
                     required
                     class="w-full p-2.5 pr-14 rounded-xl border border-slate-200" />
-                  <span class="absolute right-3 top-2.5 text-[11px] font-bold text-slate-400">und</span>
+                  <span class="absolute right-3 top-2.5 text-xs font-bold text-slate-500">und</span>
                 </div>
-                <p class="text-[10px] text-slate-400 mt-1">
+                <p class="text-xs text-slate-500 mt-1">
                   ≈ {{ getCantidadDesdeUnidades(formProducto.stockMinimoBodega, formProducto.contenidoNeto) | number:'1.0-2' }}
                   <span *ngIf="getSimboloUnidadSeleccionada()"> {{ getSimboloUnidadSeleccionada() }}</span>
                   <span *ngIf="!getSimboloUnidadSeleccionada()"> (cantidad base)</span>
                 </p>
               </div>
               <div>
-                <label class="block font-bold text-slate-700 mb-1">Stock Óptimo Bodega *</label>
+                <label for="inv-f19" class="block font-bold text-slate-700 mb-1">Stock Óptimo Bodega *</label>
                 <div class="relative">
-                  <input
+                  <input id="inv-f19"
                     type="number"
                     min="1"
                     step="1"
@@ -2913,18 +2812,18 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
                     placeholder="ej. 20"
                     required
                     class="w-full p-2.5 pr-14 rounded-xl border border-slate-200" />
-                  <span class="absolute right-3 top-2.5 text-[11px] font-bold text-slate-400">und</span>
+                  <span class="absolute right-3 top-2.5 text-xs font-bold text-slate-500">und</span>
                 </div>
-                <p class="text-[10px] text-slate-400 mt-1">
+                <p class="text-xs text-slate-500 mt-1">
                   ≈ {{ getCantidadDesdeUnidades(formProducto.stockOptimoBodega, formProducto.contenidoNeto) | number:'1.0-2' }}
                   <span *ngIf="getSimboloUnidadSeleccionada()"> {{ getSimboloUnidadSeleccionada() }}</span>
                   <span *ngIf="!getSimboloUnidadSeleccionada()"> (cantidad base)</span>
                 </p>
               </div>
               <div>
-                <label class="block font-bold text-slate-700 mb-1">Stock Mín. Agencia *</label>
+                <label for="inv-f20" class="block font-bold text-slate-700 mb-1">Stock Mín. Agencia *</label>
                 <div class="relative">
-                  <input
+                  <input id="inv-f20"
                     type="number"
                     min="1"
                     step="1"
@@ -2933,18 +2832,18 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
                     placeholder="ej. 2"
                     required
                     class="w-full p-2.5 pr-14 rounded-xl border border-slate-200" />
-                  <span class="absolute right-3 top-2.5 text-[11px] font-bold text-slate-400">und</span>
+                  <span class="absolute right-3 top-2.5 text-xs font-bold text-slate-500">und</span>
                 </div>
-                <p class="text-[10px] text-slate-400 mt-1">
+                <p class="text-xs text-slate-500 mt-1">
                   ≈ {{ getCantidadDesdeUnidades(formProducto.stockMinimoAgencia, formProducto.contenidoNeto) | number:'1.0-2' }}
                   <span *ngIf="getSimboloUnidadSeleccionada()"> {{ getSimboloUnidadSeleccionada() }}</span>
                   <span *ngIf="!getSimboloUnidadSeleccionada()"> (cantidad base)</span>
                 </p>
               </div>
               <div>
-                <label class="block font-bold text-slate-700 mb-1">Stock Óptimo Agencia *</label>
+                <label for="inv-f21" class="block font-bold text-slate-700 mb-1">Stock Óptimo Agencia *</label>
                 <div class="relative">
-                  <input
+                  <input id="inv-f21"
                     type="number"
                     min="1"
                     step="1"
@@ -2953,9 +2852,9 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
                     placeholder="ej. 5"
                     required
                     class="w-full p-2.5 pr-14 rounded-xl border border-slate-200" />
-                  <span class="absolute right-3 top-2.5 text-[11px] font-bold text-slate-400">und</span>
+                  <span class="absolute right-3 top-2.5 text-xs font-bold text-slate-500">und</span>
                 </div>
-                <p class="text-[10px] text-slate-400 mt-1">
+                <p class="text-xs text-slate-500 mt-1">
                   ≈ {{ getCantidadDesdeUnidades(formProducto.stockOptimoAgencia, formProducto.contenidoNeto) | number:'1.0-2' }}
                   <span *ngIf="getSimboloUnidadSeleccionada()"> {{ getSimboloUnidadSeleccionada() }}</span>
                   <span *ngIf="!getSimboloUnidadSeleccionada()"> (cantidad base)</span>
@@ -2967,10 +2866,10 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
             <div *ngIf="editandoProducto" class="flex items-center justify-between p-3 rounded-xl border border-slate-200 bg-slate-50/80">
               <div>
                 <p class="text-xs font-bold text-slate-800">Estado del producto</p>
-                <p class="text-[11px] text-slate-500">Desactivar conserva historial; no elimina el registro.</p>
+                <p class="text-xs text-slate-500">Desactivar conserva historial; no elimina el registro.</p>
               </div>
               <label class="inline-flex items-center gap-2 cursor-pointer select-none">
-                <span class="text-[11px] font-bold" [ngClass]="formProducto.estado === 1 ? 'text-emerald-600' : 'text-slate-500'">
+                <span class="text-xs font-bold" [ngClass]="formProducto.estado === 1 ? 'text-emerald-600' : 'text-slate-500'">
                   {{ formProducto.estado === 1 ? 'Activo' : 'Inactivo' }}
                 </span>
                 <button
@@ -2988,8 +2887,8 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
 
             <!-- Descripción -->
             <div>
-              <label class="block font-bold text-slate-700 mb-1">Descripción</label>
-              <textarea
+              <label for="inv-f22" class="block font-bold text-slate-700 mb-1">Descripción</label>
+              <textarea id="inv-f22"
                 [(ngModel)]="formProducto.descripcion"
                 name="descripcion"
                 rows="2"
@@ -3012,20 +2911,20 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
           </div>
         </form>
 
-        <div modal-footer class="flex items-center justify-end gap-3 w-full">
+        <div modal-footer class="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 w-full">
           <button
             type="button"
             (click)="cerrarModalProducto()"
             [disabled]="guardandoProducto"
-            class="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 text-xs font-bold transition cursor-pointer disabled:opacity-50">
+            class="btn-secondary w-full sm:w-auto disabled:opacity-50">
             Cancelar
           </button>
           <button
             type="button"
             (click)="guardarProducto()"
             [disabled]="guardandoProducto"
-            class="px-5 py-2 rounded-xl bg-easydry-blue hover:bg-blue-700 text-white text-xs font-bold transition shadow-sm cursor-pointer disabled:opacity-50 flex items-center gap-1.5">
-            <i-lucide *ngIf="guardandoProducto" name="loader" class="w-4 h-4 animate-spin"></i-lucide>
+            class="px-5 py-2 rounded-xl bg-easydry-blue hover:bg-blue-700 text-white text-xs font-bold transition shadow-sm cursor-pointer disabled:opacity-50 inline-flex items-center gap-1.5 w-full sm:w-auto justify-center">
+            <i-lucide aria-hidden="true" *ngIf="guardandoProducto" name="loader" class="w-4 h-4 animate-spin"></i-lucide>
             <span>{{ guardandoProducto ? 'Guardando en S3 y BD...' : (editandoProducto ? 'Actualizar Producto' : 'Guardar Producto') }}</span>
           </button>
         </div>
@@ -3034,35 +2933,35 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
       <!-- ============================================================== -->
       <!-- MODAL: CONFIGURAR TIPO DE PRODUCTO (CRUD DINÁMICO)             -->
       <!-- ============================================================== -->
-      <div *ngIf="modalTipoAbierto" appModalPortal class="fixed inset-0 z-[10050] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-        <div class="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-100 max-h-[90vh] flex flex-col overflow-hidden" (click)="$event.stopPropagation()">
+      <div *ngIf="modalTipoAbierto" appModalPortal role="dialog" aria-modal="true" aria-labelledby="inv-modal-titulo-4" class="fixed inset-0 z-[10050] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+        <div class="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-100 max-h-[90dvh] flex flex-col overflow-hidden" (click)="$event.stopPropagation()">
           <div class="shrink-0 px-6 py-4 flex items-center justify-between border-b border-slate-100 bg-white">
-            <h3 class="text-base font-bold text-slate-900 truncate">{{ formTipo.id ? 'Editar Tipo de Producto' : 'Nuevo Tipo de Producto' }}</h3>
-            <button (click)="modalTipoAbierto = false" class="text-slate-400 hover:text-slate-600 cursor-pointer shrink-0">
-              <i-lucide name="x" class="w-5 h-5"></i-lucide>
+            <h3 id="inv-modal-titulo-4" class="text-base font-bold text-slate-900 truncate">{{ formTipo.id ? 'Editar Tipo de Producto' : 'Nuevo Tipo de Producto' }}</h3>
+            <button (click)="modalTipoAbierto = false" class="text-slate-500 hover:text-slate-600 cursor-pointer shrink-0" aria-label="Cerrar">
+              <i-lucide aria-hidden="true" name="x" class="w-5 h-5"></i-lucide>
             </button>
           </div>
 
           <div class="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-3 text-xs">
             <div>
-              <label class="block font-bold text-slate-700 mb-1">Código Único *</label>
-              <input
+              <label for="inv-f23" class="block font-bold text-slate-700 mb-1">Código Único *</label>
+              <input id="inv-f23"
                 type="text"
                 [(ngModel)]="formTipo.codigo"
                 placeholder="ej. GEL, ESPUMA, LIQUIDO"
                 class="w-full p-2.5 rounded-xl border border-slate-200 uppercase font-mono" />
             </div>
             <div>
-              <label class="block font-bold text-slate-700 mb-1">Nombre Visual *</label>
-              <input
+              <label for="inv-f24" class="block font-bold text-slate-700 mb-1">Nombre Visual *</label>
+              <input id="inv-f24"
                 type="text"
                 [(ngModel)]="formTipo.nombre"
                 placeholder="ej. Gel Industrial, Espuma Activa"
                 class="w-full p-2.5 rounded-xl border border-slate-200" />
             </div>
             <div>
-              <label class="block font-bold text-slate-700 mb-1">Descripción</label>
-              <textarea
+              <label for="inv-f25" class="block font-bold text-slate-700 mb-1">Descripción</label>
+              <textarea id="inv-f25"
                 [(ngModel)]="formTipo.descripcion"
                 rows="2"
                 placeholder="Descripción opcional..."
@@ -3070,11 +2969,11 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
             </div>
           </div>
 
-          <div class="shrink-0 flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50">
-            <button (click)="modalTipoAbierto = false" class="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 text-xs font-bold cursor-pointer">
+          <div class="shrink-0 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 px-6 py-4 border-t border-slate-100 bg-slate-50">
+            <button (click)="modalTipoAbierto = false" class="btn-secondary w-full sm:w-auto">
               Cancelar
             </button>
-            <button (click)="guardarTipoProducto()" class="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold cursor-pointer">
+            <button (click)="guardarTipoProducto()" class="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold cursor-pointer w-full sm:w-auto justify-center">
               Guardar Tipo
             </button>
           </div>
@@ -3084,28 +2983,28 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
       <!-- ============================================================== -->
       <!-- MODAL: CONFIGURAR UNIDAD DE MEDIDA (CRUD DINÁMICO)             -->
       <!-- ============================================================== -->
-      <div *ngIf="modalUnidadAbierto" appModalPortal class="fixed inset-0 z-[10050] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-        <div class="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-100 max-h-[90vh] flex flex-col overflow-hidden" (click)="$event.stopPropagation()">
+      <div *ngIf="modalUnidadAbierto" appModalPortal role="dialog" aria-modal="true" aria-labelledby="inv-modal-titulo-5" class="fixed inset-0 z-[10050] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+        <div class="bg-white rounded-2xl max-w-xl w-full shadow-2xl border border-slate-100 max-h-[90dvh] flex flex-col overflow-hidden" (click)="$event.stopPropagation()">
           <div class="shrink-0 px-6 py-4 flex items-center justify-between border-b border-slate-100 bg-white">
-            <h3 class="text-base font-bold text-slate-900 truncate">{{ formUnidad.id ? 'Editar Unidad de Medida' : 'Nueva Unidad de Medida' }}</h3>
-            <button (click)="modalUnidadAbierto = false" class="text-slate-400 hover:text-slate-600 cursor-pointer shrink-0">
-              <i-lucide name="x" class="w-5 h-5"></i-lucide>
+            <h3 id="inv-modal-titulo-5" class="text-base font-bold text-slate-900 truncate">{{ formUnidad.id ? 'Editar Unidad de Medida' : 'Nueva Unidad de Medida' }}</h3>
+            <button (click)="modalUnidadAbierto = false" class="text-slate-500 hover:text-slate-600 cursor-pointer shrink-0" aria-label="Cerrar">
+              <i-lucide aria-hidden="true" name="x" class="w-5 h-5"></i-lucide>
             </button>
           </div>
 
           <div class="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-3 text-xs">
-            <div class="grid grid-cols-2 gap-3">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label class="block font-bold text-slate-700 mb-1">Código *</label>
-                <input
+                <label for="inv-f26" class="block font-bold text-slate-700 mb-1">Código *</label>
+                <input id="inv-f26"
                   type="text"
                   [(ngModel)]="formUnidad.codigo"
                   placeholder="ej. ML, L, KG"
                   class="w-full p-2.5 rounded-xl border border-slate-200 uppercase font-mono" />
               </div>
               <div>
-                <label class="block font-bold text-slate-700 mb-1">Símbolo *</label>
-                <input
+                <label for="inv-f27" class="block font-bold text-slate-700 mb-1">Símbolo *</label>
+                <input id="inv-f27"
                   type="text"
                   [(ngModel)]="formUnidad.simbolo"
                   placeholder="ej. ml, L, g"
@@ -3113,18 +3012,18 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
               </div>
             </div>
 
-            <div class="grid grid-cols-2 gap-3">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label class="block font-bold text-slate-700 mb-1">Nombre Completo *</label>
-                <input
+                <label for="inv-f28" class="block font-bold text-slate-700 mb-1">Nombre Completo *</label>
+                <input id="inv-f28"
                   type="text"
                   [(ngModel)]="formUnidad.nombre"
                   placeholder="ej. Mililitro, Litro"
                   class="w-full p-2.5 rounded-xl border border-slate-200" />
               </div>
               <div>
-                <label class="block font-bold text-slate-700 mb-1">Familia / Tipo *</label>
-                <input
+                <label for="inv-f29" class="block font-bold text-slate-700 mb-1">Familia / Tipo *</label>
+                <input id="inv-f29"
                   type="text"
                   [(ngModel)]="formUnidad.tipo"
                   placeholder="VOLUMEN, MASA, UNITARIO"
@@ -3133,8 +3032,8 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
             </div>
 
             <div>
-              <label class="block font-bold text-slate-700 mb-1">Factor a Unidad Base de Familia</label>
-              <input
+              <label for="inv-f30" class="block font-bold text-slate-700 mb-1">Factor a Unidad Base de Familia</label>
+              <input id="inv-f30"
                 type="number"
                 step="any"
                 [(ngModel)]="formUnidad.factorBase"
@@ -3143,11 +3042,11 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
             </div>
           </div>
 
-          <div class="shrink-0 flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50">
-            <button (click)="modalUnidadAbierto = false" class="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 text-xs font-bold cursor-pointer">
+          <div class="shrink-0 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 px-6 py-4 border-t border-slate-100 bg-slate-50">
+            <button (click)="modalUnidadAbierto = false" class="btn-secondary w-full sm:w-auto">
               Cancelar
             </button>
-            <button (click)="guardarUnidadMedida()" class="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold cursor-pointer">
+            <button (click)="guardarUnidadMedida()" class="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold cursor-pointer w-full sm:w-auto justify-center">
               Guardar Unidad
             </button>
           </div>
@@ -3157,24 +3056,24 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
       <!-- ============================================================== -->
       <!-- MODAL: RECHAZAR DESPACHO DE SUMINISTROS (NO LLEGÓ / ANOMALÍA)  -->
       <!-- ============================================================== -->
-      <div *ngIf="modalRechazoDespachoOpen" appModalPortal class="fixed inset-0 z-[10050] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-        <div class="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-100 max-h-[90vh] flex flex-col overflow-hidden" (click)="$event.stopPropagation()">
+      <div *ngIf="modalRechazoDespachoOpen" appModalPortal role="dialog" aria-modal="true" aria-labelledby="inv-modal-titulo-6" class="fixed inset-0 z-[10050] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+        <div class="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-100 max-h-[90dvh] flex flex-col overflow-hidden" (click)="$event.stopPropagation()">
           <div class="shrink-0 px-6 py-4 flex items-center justify-between border-b border-slate-100 bg-white">
             <div class="flex items-center gap-2 min-w-0">
               <div class="w-8 h-8 rounded-lg bg-rose-100 text-rose-600 flex items-center justify-center font-bold shrink-0">
-                <i-lucide name="alert-triangle" class="w-4 h-4"></i-lucide>
+                <i-lucide aria-hidden="true" name="alert-triangle" class="w-4 h-4"></i-lucide>
               </div>
-              <h3 class="text-sm font-black text-slate-900 truncate">Rechazar Recepción de Suministros</h3>
+              <h3 id="inv-modal-titulo-6" class="text-sm font-extrabold text-slate-900 truncate">Rechazar Recepción de Suministros</h3>
             </div>
-            <button (click)="modalRechazoDespachoOpen = false" class="text-slate-400 hover:text-slate-600 cursor-pointer shrink-0">
-              <i-lucide name="x" class="w-5 h-5"></i-lucide>
+            <button (click)="modalRechazoDespachoOpen = false" class="text-slate-500 hover:text-slate-600 cursor-pointer shrink-0" aria-label="Cerrar">
+              <i-lucide aria-hidden="true" name="x" class="w-5 h-5"></i-lucide>
             </button>
           </div>
 
           <div class="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-4">
           <div class="p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-800 space-y-1">
             <p class="font-bold">Guía: {{ despachoSeleccionadoRechazo?.numeroGuia }}</p>
-            <p class="text-[11px]">
+            <p class="text-xs">
               Al rechazar el despacho, los insumos <b>no se sumarán</b> al inventario de tu agencia y se notificará de inmediato a Bodega Central para resolver la incidencia.
             </p>
           </div>
@@ -3189,8 +3088,8 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
             </div>
 
             <div>
-              <label class="block font-bold text-slate-700 mb-1">Detalle u Observación Adicional</label>
-              <textarea
+              <label for="inv-f31" class="block font-bold text-slate-700 mb-1">Detalle u Observación Adicional</label>
+              <textarea id="inv-f31"
                 [(ngModel)]="observacionRechazoTexto"
                 rows="2"
                 placeholder="Indique detalles adicionales si aplica (ej. el transporte no llegó a la sede, rotura de envase...)"
@@ -3199,16 +3098,16 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
           </div>
           </div>
 
-          <div class="shrink-0 flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50">
+          <div class="shrink-0 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 px-6 py-4 border-t border-slate-100 bg-slate-50">
             <button
               (click)="modalRechazoDespachoOpen = false"
-              class="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 text-xs font-bold cursor-pointer">
+              class="btn-secondary w-full sm:w-auto">
               Cancelar
             </button>
             <button
               (click)="ejecutarRechazoDespacho()"
               [disabled]="procesandoRecepcion"
-              class="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black cursor-pointer">
+              class="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-extrabold cursor-pointer w-full sm:w-auto justify-center">
               Confirmar Rechazo
             </button>
           </div>
@@ -3218,25 +3117,25 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
       <!-- ============================================================== -->
       <!-- MODAL: DESPACHAR SUMINISTRO (AGENCIA / BODEGA / PULIDOR)       -->
       <!-- ============================================================== -->
-      <div *ngIf="modalDespachoAgenciaOpen" appModalPortal class="fixed inset-0 z-[10050] overflow-y-auto p-4 sm:p-6 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-        <div class="relative bg-white w-full max-w-xl rounded-2xl shadow-2xl border border-slate-100 my-auto flex flex-col max-h-[88vh] overflow-hidden animate-fade-in" (click)="$event.stopPropagation()">
+      <div *ngIf="modalDespachoAgenciaOpen" appModalPortal role="dialog" aria-modal="true" aria-labelledby="inv-modal-titulo-7" class="fixed inset-0 z-[10050] overflow-y-auto p-4 sm:p-6 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+        <div class="relative bg-white w-full max-w-xl rounded-2xl shadow-2xl border border-slate-100 my-auto flex flex-col max-h-[90dvh] overflow-hidden animate-fade-in" (click)="$event.stopPropagation()">
           
           <!-- Header Fijo Superior (Sticky) -->
           <div class="shrink-0 px-6 py-4 flex items-center justify-between border-b border-slate-100 bg-white sticky top-0 z-20">
             <div class="flex items-center gap-3 min-w-0">
               <div class="w-9 h-9 rounded-xl flex items-center justify-center font-bold shrink-0 transition-colors"
                 [ngClass]="modoDespachoDestino === 'bodega' ? 'bg-indigo-100 text-indigo-700' : (modoDespachoDestino === 'pulidor' ? 'bg-cyan-100 text-cyan-700' : (modoDespachoDestino === 'pulidor_fijo' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'))">
-                <i-lucide [name]="modoDespachoDestino === 'bodega' ? 'warehouse' : (modoDespachoDestino === 'pulidor' ? 'user' : (modoDespachoDestino === 'pulidor_fijo' ? 'user-check' : 'truck'))" class="w-5 h-5"></i-lucide>
+                <i-lucide aria-hidden="true" [name]="modoDespachoDestino === 'bodega' ? 'warehouse' : (modoDespachoDestino === 'pulidor' ? 'user' : (modoDespachoDestino === 'pulidor_fijo' ? 'user-check' : 'truck'))" class="w-5 h-5"></i-lucide>
               </div>
               <div class="min-w-0">
-                <h3 class="text-sm font-black text-slate-900 truncate">
+                <h3 id="inv-modal-titulo-7" class="text-sm font-extrabold text-slate-900 truncate">
                   {{ modoDespachoDestino === 'bodega'
                     ? 'Despachar Suministro a Bodega'
                     : (modoDespachoDestino === 'pulidor_fijo'
                       ? 'Despachar a Pulidor Fijo (Sucursal)'
                       : (modoDespachoDestino === 'pulidor' ? 'Despachar a Pulidor Móvil' : 'Despachar Suministro a Sede')) }}
                 </h3>
-                <p class="text-[11px] text-slate-500 truncate">
+                <p class="text-xs text-slate-500 truncate">
                   {{ modoDespachoDestino === 'bodega'
                     ? 'Envío entre bodegas con confirmación obligatoria en destino'
                     : (modoDespachoDestino === 'pulidor_fijo'
@@ -3250,9 +3149,9 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
             <button
               type="button"
               (click)="modalDespachoAgenciaOpen = false"
-              class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer shrink-0"
-              title="Cerrar modal">
-              <i-lucide name="x" class="w-5 h-5"></i-lucide>
+              class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer shrink-0"
+              title="Cerrar modal" aria-label="Cerrar modal">
+              <i-lucide aria-hidden="true" name="x" class="w-5 h-5"></i-lucide>
             </button>
           </div>
 
@@ -3262,13 +3161,13 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
             <!-- ─── ORIGEN DEL DESPACHO ("Desde dónde") ─── -->
             <div class="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-2">
               <!-- Admin / Super Admin: Selector libre de Bodega Origen -->
-              <div *ngIf="esSuperAdmin || esAdminGlobal">
+              <div *ngIf="origenLibre">
                 <div class="flex items-center justify-between mb-1.5">
                   <label class="font-bold text-slate-800 flex items-center gap-1.5">
-                    <i-lucide name="arrow-up-right" class="w-4 h-4 text-purple-600"></i-lucide>
+                    <i-lucide aria-hidden="true" name="arrow-up-right" class="w-4 h-4 text-purple-600"></i-lucide>
                     <span>Origen del Despacho (Bodega de Salida) *</span>
                   </label>
-                  <span class="text-[10px] font-extrabold text-purple-700 bg-purple-100 px-2 py-0.5 rounded-full border border-purple-200">
+                  <span class="text-xs font-extrabold text-purple-700 bg-purple-100 px-2 py-0.5 rounded-full border border-purple-200">
                     Control Nacional Admin
                   </span>
                 </div>
@@ -3283,44 +3182,44 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
                     {{ b.nombre }} · {{ b.esCentral || b.tipo === 'CENTRAL' ? 'Bodega Central' : ('Regional · ' + (b.region || '')) }}
                   </option>
                 </select>
-                <p class="text-[11px] text-slate-500 mt-1 font-medium">
+                <p class="text-xs text-slate-500 mt-1 font-medium">
                   Como administrador puedes despachar suministros desde cualquiera de las bodegas del país.
                 </p>
               </div>
 
               <!-- Gestor / Asistente de Bodega: Bodega Fija Asignada -->
-              <div *ngIf="!esSuperAdmin && !esAdminGlobal && (esGestorBodega || esAsistenteBodega)">
+              <div *ngIf="!origenLibre && puedeAjustarStock">
                 <label class="block font-bold text-slate-700 mb-1">Origen del Despacho (Tu Bodega)</label>
                 <div class="p-2.5 bg-white rounded-xl border border-indigo-200 flex items-center justify-between shadow-2xs">
                   <div class="flex items-center gap-2.5">
                     <div class="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold shrink-0">
-                      <i-lucide name="warehouse" class="w-4 h-4"></i-lucide>
+                      <i-lucide aria-hidden="true" name="warehouse" class="w-4 h-4"></i-lucide>
                     </div>
                     <div>
                       <p class="font-bold text-slate-800 text-xs">{{ getNombreBodegaOrigenContexto() }}</p>
-                      <p class="text-[10px] text-slate-400">Bodega autorizada para tu usuario</p>
+                      <p class="text-xs text-slate-500">Bodega autorizada para tu usuario</p>
                     </div>
                   </div>
-                  <span class="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                  <span class="px-2 py-0.5 rounded-md text-xs font-extrabold bg-indigo-50 text-indigo-700 border border-indigo-200">
                     Origen Fijo
                   </span>
                 </div>
               </div>
 
               <!-- Líder Operador: Sede Fija Asignada -->
-              <div *ngIf="isLiderOperador">
+              <div *ngIf="operaDesdeAgencia">
                 <label class="block font-bold text-slate-700 mb-1">Origen del Despacho (Tu Sucursal)</label>
                 <div class="p-2.5 bg-white rounded-xl border border-purple-200 flex items-center justify-between shadow-2xs">
                   <div class="flex items-center gap-2.5">
                     <div class="w-8 h-8 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center font-bold shrink-0">
-                      <i-lucide name="store" class="w-4 h-4"></i-lucide>
+                      <i-lucide aria-hidden="true" name="store" class="w-4 h-4"></i-lucide>
                     </div>
                     <div>
                       <p class="font-bold text-slate-800 text-xs">{{ getNombreAgenciaOrigenContexto() }}</p>
-                      <p class="text-[10px] text-slate-400">Despacho desde las existencias físicas de tu sede</p>
+                      <p class="text-xs text-slate-500">Despacho desde las existencias físicas de tu sede</p>
                     </div>
                   </div>
-                  <span class="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-purple-50 text-purple-700 border border-purple-200">
+                  <span class="px-2 py-0.5 rounded-md text-xs font-extrabold bg-purple-50 text-purple-700 border border-purple-200">
                     Sede Asignada
                   </span>
                 </div>
@@ -3330,13 +3229,13 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
             <!-- Selector de Tipo de Destino (Agencia / Bodega / Pulidor Móvil / Pulidor Fijo) -->
             <div *ngIf="!agenciaDespachoFija">
               <label class="block font-bold text-slate-700 mb-1.5">Destino del Despacho *</label>
-              <div class="grid gap-2" [ngClass]="puedeDespacharABodega ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-3'">
+              <div class="grid gap-2" [ngClass]="puedeDespacharABodega ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-1 sm:grid-cols-3'">
                 <button
                   type="button"
                   (click)="cambiarTipoDestinoDespacho('agencia')"
                   class="px-2.5 py-2.5 rounded-xl text-xs font-bold border transition flex items-center justify-center gap-1.5 cursor-pointer"
                   [ngClass]="modoDespachoDestino === 'agencia' ? 'bg-purple-600 text-white border-purple-600 shadow-sm' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'">
-                  <i-lucide name="store" class="w-4 h-4"></i-lucide>
+                  <i-lucide aria-hidden="true" name="store" class="w-4 h-4"></i-lucide>
                   <span>A Agencia</span>
                 </button>
                 <button
@@ -3345,7 +3244,7 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
                   (click)="cambiarTipoDestinoDespacho('bodega')"
                   class="px-2.5 py-2.5 rounded-xl text-xs font-bold border transition flex items-center justify-center gap-1.5 cursor-pointer"
                   [ngClass]="modoDespachoDestino === 'bodega' ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'">
-                  <i-lucide name="warehouse" class="w-4 h-4"></i-lucide>
+                  <i-lucide aria-hidden="true" name="warehouse" class="w-4 h-4"></i-lucide>
                   <span>A Bodega</span>
                 </button>
                 <button
@@ -3353,7 +3252,7 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
                   (click)="cambiarTipoDestinoDespacho('pulidor')"
                   class="px-2.5 py-2.5 rounded-xl text-xs font-bold border transition flex items-center justify-center gap-1.5 cursor-pointer"
                   [ngClass]="modoDespachoDestino === 'pulidor' ? 'bg-cyan-600 text-white border-cyan-600 shadow-sm' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'">
-                  <i-lucide name="user" class="w-4 h-4"></i-lucide>
+                  <i-lucide aria-hidden="true" name="user" class="w-4 h-4"></i-lucide>
                   <span>Pulidor Móvil</span>
                 </button>
                 <button
@@ -3361,7 +3260,7 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
                   (click)="cambiarTipoDestinoDespacho('pulidor_fijo')"
                   class="px-2.5 py-2.5 rounded-xl text-xs font-bold border transition flex items-center justify-center gap-1.5 cursor-pointer"
                   [ngClass]="modoDespachoDestino === 'pulidor_fijo' ? 'bg-blue-600 text-white border-blue-600 shadow-sm' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'">
-                  <i-lucide name="user-check" class="w-4 h-4"></i-lucide>
+                  <i-lucide aria-hidden="true" name="user-check" class="w-4 h-4"></i-lucide>
                   <span>Pulidor Fijo</span>
                 </button>
               </div>
@@ -3372,11 +3271,11 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
               <label class="block font-bold text-slate-700 mb-1">Agencia / Sede Receptora *</label>
               <div *ngIf="agenciaDespachoFija" class="p-3 bg-purple-50/60 rounded-xl border border-purple-200 flex items-center justify-between">
                 <div class="flex items-center gap-2">
-                  <i-lucide name="store" class="w-4 h-4 text-purple-700 shrink-0"></i-lucide>
+                  <i-lucide aria-hidden="true" name="store" class="w-4 h-4 text-purple-700 shrink-0"></i-lucide>
                   <span class="font-bold text-slate-800 text-xs">{{ agenciaDespachoFija.nombre }}</span>
-                  <span *ngIf="agenciaDespachoFija.ciudad" class="text-slate-500 text-[11px]">({{ agenciaDespachoFija.ciudad }})</span>
+                  <span *ngIf="agenciaDespachoFija.ciudad" class="text-slate-500 text-xs">({{ agenciaDespachoFija.ciudad }})</span>
                 </div>
-                <span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-200/80 text-purple-800 shrink-0">
+                <span class="px-2 py-0.5 rounded-md text-xs font-bold bg-purple-200/80 text-purple-800 shrink-0">
                   Sede Asignada
                 </span>
               </div>
@@ -3392,7 +3291,7 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
                     {{ ag.nombre }} ({{ ag.ciudad || 'Sede' }})
                   </option>
                 </select>
-                <p *ngIf="getAgenciasDestinoDisponibles().length === 0" class="text-[11px] text-rose-600 mt-1 font-semibold">
+                <p *ngIf="getAgenciasDestinoDisponibles().length === 0" class="text-xs text-rose-600 mt-1 font-semibold">
                   No hay otras agencias disponibles en tu alcance.
                 </p>
               </div>
@@ -3400,8 +3299,8 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
 
             <!-- Destino Bodega -->
             <div *ngIf="modoDespachoDestino === 'bodega'">
-              <label class="block font-bold text-slate-700 mb-1">Bodega Receptora *</label>
-              <select
+              <label for="inv-f32" class="block font-bold text-slate-700 mb-1">Bodega Receptora *</label>
+              <select id="inv-f32"
                 [(ngModel)]="despachoAgenciaForm.bodegaId"
                 name="bodegaIdDestino"
                 class="w-full p-2.5 rounded-xl border border-slate-200 bg-white font-medium text-slate-800 focus:outline-none focus:border-indigo-500"
@@ -3411,18 +3310,18 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
                   {{ bod.nombre }} ({{ bod.ciudad || bod.region || 'Bodega' }})
                 </option>
               </select>
-              <p *ngIf="getBodegasDestinoDespacho().length === 0" class="text-[11px] text-amber-600 mt-1">
+              <p *ngIf="getBodegasDestinoDespacho().length === 0" class="text-xs text-amber-600 mt-1">
                 No hay otras bodegas regionales registradas.
               </p>
-              <p *ngIf="getBodegasDestinoDespacho().length > 0" class="text-[11px] text-slate-500 mt-1">
+              <p *ngIf="getBodegasDestinoDespacho().length > 0" class="text-xs text-slate-500 mt-1">
                 No se lista tu bodega de origen. El receptor deberá confirmar el envío al llegar.
               </p>
             </div>
 
             <!-- Destino Pulidor Móvil -->
             <div *ngIf="modoDespachoDestino === 'pulidor'">
-              <label class="block font-bold text-slate-700 mb-1">Pulidor Móvil *</label>
-              <select
+              <label for="inv-f33" class="block font-bold text-slate-700 mb-1">Pulidor Móvil *</label>
+              <select id="inv-f33"
                 [(ngModel)]="despachoAgenciaForm.pulidorId"
                 name="pulidorIdDestino"
                 class="w-full p-2.5 rounded-xl border border-slate-200 bg-white font-medium text-slate-800 focus:outline-none focus:border-cyan-500"
@@ -3432,15 +3331,15 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
                   {{ p.nombre || (p.name + ' ' + (p.lastname || '')) }} {{ p.regionNombre ? '· Región: ' + p.regionNombre : '(Móvil)' }}
                 </option>
               </select>
-              <p *ngIf="getPulidoresDestino('pulidor').length === 0" class="text-[11px] text-rose-600 mt-1 font-semibold">
+              <p *ngIf="getPulidoresDestino('pulidor').length === 0" class="text-xs text-rose-600 mt-1 font-semibold">
                 No hay pulidores móviles disponibles en tu región.
               </p>
             </div>
 
             <!-- Destino Pulidor Fijo -->
             <div *ngIf="modoDespachoDestino === 'pulidor_fijo'">
-              <label class="block font-bold text-slate-700 mb-1">Pulidor Fijo (Asignado a Sucursal) *</label>
-              <select
+              <label for="inv-f34" class="block font-bold text-slate-700 mb-1">Pulidor Fijo (Asignado a Sucursal) *</label>
+              <select id="inv-f34"
                 [(ngModel)]="despachoAgenciaForm.pulidorId"
                 name="pulidorFijoIdDestino"
                 class="w-full p-2.5 rounded-xl border border-slate-200 bg-white font-medium text-slate-800 focus:outline-none focus:border-blue-500"
@@ -3450,7 +3349,7 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
                   {{ p.nombre || (p.name + ' ' + (p.lastname || '')) }} {{ p.agenciaNombre ? '· Sucursal: ' + p.agenciaNombre : '(Sede Fija)' }}
                 </option>
               </select>
-              <p *ngIf="getPulidoresDestino('pulidor_fijo').length === 0" class="text-[11px] text-rose-600 mt-1 font-semibold">
+              <p *ngIf="getPulidoresDestino('pulidor_fijo').length === 0" class="text-xs text-rose-600 mt-1 font-semibold">
                 No hay pulidores fijos asignados a sucursal disponibles.
               </p>
             </div>
@@ -3463,11 +3362,11 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
               <div *ngIf="productoDespachoFijo" class="p-3 bg-purple-50/70 rounded-xl border border-purple-200 flex items-center justify-between">
                 <div class="flex items-center gap-2.5 truncate mr-2">
                   <div class="w-8 h-8 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center font-bold shrink-0">
-                    <i-lucide name="package" class="w-4 h-4"></i-lucide>
+                    <i-lucide aria-hidden="true" name="package" class="w-4 h-4"></i-lucide>
                   </div>
                   <div class="truncate">
                     <p class="font-extrabold text-slate-900 text-xs truncate">{{ productoDespachoFijo.nombre }}</p>
-                    <span class="text-[10px] font-mono text-purple-900/80 block">
+                    <span class="text-xs font-mono text-purple-900/80 block">
                       SKU: {{ productoDespachoFijo.codigoSKU }} | Contenido: {{ (productoDespachoFijo.contenidoNeto || 1) | number:'1.0-2' }} {{ productoDespachoFijo.unidadMedida || 'u' }}
                       <span *ngIf="productoDespachoFijo.stockActual !== undefined">
                         • Stock: <b>{{ getStockEnUnidades(productoDespachoFijo.stockActual, productoDespachoFijo.contenidoNeto) | number:'1.0-0' }} und</b>
@@ -3475,7 +3374,7 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
                     </span>
                   </div>
                 </div>
-                <span class="px-2.5 py-1 rounded-lg text-[10px] font-extrabold bg-purple-200/80 text-purple-900 border border-purple-300 shrink-0">
+                <span class="px-2.5 py-1 rounded-lg text-xs font-extrabold bg-purple-200/80 text-purple-900 border border-purple-300 shrink-0">
                   Insumo Fijo
                 </span>
               </div>
@@ -3492,11 +3391,11 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
                     {{ p.nombre }} (SKU: {{ p.codigoSKU }} | Stock: {{ getStockEnUnidades(p.stockActual, p.contenidoNeto) | number:'1.0-0' }} und)
                   </option>
                 </select>
-                <p *ngIf="insumosDisponiblesDespacho.length === 0" class="text-[11px] text-rose-600 font-medium">
+                <p *ngIf="insumosDisponiblesDespacho.length === 0" class="text-xs text-rose-600 font-medium">
                   No hay insumos disponibles.
                 </p>
-                <p *ngIf="insumosDisponiblesDespacho.length > 0" class="text-[11px] text-slate-500">
-                  {{ isLiderOperador ? 'Solo se listan los insumos que tu sede utiliza para sus servicios.' : 'Listado de insumos con stock en bodega.' }}
+                <p *ngIf="insumosDisponiblesDespacho.length > 0" class="text-xs text-slate-500">
+                  {{ operaDesdeAgencia ? 'Solo se listan los insumos que tu sede utiliza para sus servicios.' : 'Listado de insumos con stock en bodega.' }}
                 </p>
               </div>
             </div>
@@ -3504,8 +3403,8 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
             <!-- Cantidad y Nota -->
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label class="block font-bold text-slate-700 mb-1">Cantidad a Enviar (unidades) *</label>
-                <input
+                <label for="inv-f35" class="block font-bold text-slate-700 mb-1">Cantidad a Enviar (unidades) *</label>
+                <input id="inv-f35"
                   type="number"
                   [(ngModel)]="despachoAgenciaForm.cantidad"
                   name="cantidad"
@@ -3514,11 +3413,11 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
                   placeholder="1"
                   class="w-full p-2.5 rounded-xl border border-slate-200 font-bold text-slate-900 bg-white focus:outline-none focus:border-purple-500"
                   required />
-                <p class="text-[10px] text-slate-500 mt-1">Solo unidades completas (envases). No se envía por volumen (L/ml).</p>
+                <p class="text-xs text-slate-500 mt-1">Solo unidades completas (envases). No se envía por volumen (L/ml).</p>
               </div>
               <div>
-                <label class="block font-bold text-slate-700 mb-1">Nota u Observación</label>
-                <input
+                <label for="inv-f36" class="block font-bold text-slate-700 mb-1">Nota u Observación</label>
+                <input id="inv-f36"
                   type="text"
                   [(ngModel)]="despachoAgenciaForm.observacion"
                   name="observacion"
@@ -3529,14 +3428,14 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
 
             <!-- Información del Flujo -->
             <div
-              class="p-3.5 rounded-xl text-[11px] space-y-1"
+              class="p-3.5 rounded-xl text-xs space-y-1"
               [ngClass]="modoDespachoDestino === 'bodega'
                 ? 'bg-indigo-50 border border-indigo-200 text-indigo-900'
                 : (modoDespachoDestino === 'pulidor_fijo'
                   ? 'bg-blue-50 border border-blue-200 text-blue-900'
                   : (modoDespachoDestino === 'pulidor' ? 'bg-cyan-50 border border-cyan-200 text-cyan-900' : 'bg-purple-50 border border-purple-200 text-purple-900'))">
               <p class="font-bold flex items-center gap-1.5">
-                <i-lucide name="info" class="w-3.5 h-3.5"></i-lucide>
+                <i-lucide aria-hidden="true" name="info" class="w-3.5 h-3.5"></i-lucide>
                 <span>Información del Flujo:</span>
               </p>
               <p>1. La cantidad es en <b>unidades completas</b> (envases). El sistema convierte a volumen al reservar stock.</p>
@@ -3558,24 +3457,24 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
           </div>
 
           <!-- Footer Fijo Inferior (Sticky) -->
-          <div class="shrink-0 flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50 sticky bottom-0 z-20">
+          <div class="shrink-0 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 px-6 py-4 border-t border-slate-100 bg-slate-50 sticky bottom-0 z-20">
             <button
               type="button"
               (click)="modalDespachoAgenciaOpen = false"
-              class="px-4 py-2.5 rounded-xl text-slate-600 hover:bg-slate-200 text-xs font-bold transition cursor-pointer">
+              class="btn-secondary w-full sm:w-auto">
               Cancelar
             </button>
             <button
               type="button"
               (click)="ejecutarDespachoAgencia()"
               [disabled]="procesandoDespachoAgencia || !puedeConfirmarDespachoModal() || (!productoDespachoFijo && !despachoAgenciaForm.insumoId) || !despachoAgenciaForm.cantidad || despachoAgenciaForm.cantidad <= 0"
-              class="px-5 py-2.5 rounded-xl text-white text-xs font-black shadow-md flex items-center gap-2 cursor-pointer transition disabled:opacity-50 disabled:cursor-not-allowed"
+              class="px-5 py-2.5 rounded-xl text-white text-xs font-extrabold shadow-md inline-flex w-full sm:w-auto justify-center items-center gap-2 cursor-pointer transition disabled:opacity-50 disabled:cursor-not-allowed"
               [ngClass]="modoDespachoDestino === 'bodega'
                 ? 'bg-indigo-600 hover:bg-indigo-700'
                 : (modoDespachoDestino === 'pulidor_fijo'
                   ? 'bg-blue-600 hover:bg-blue-700'
                   : (modoDespachoDestino === 'pulidor' ? 'bg-cyan-600 hover:bg-cyan-700' : 'bg-purple-600 hover:bg-purple-700'))">
-              <i-lucide name="send" class="w-4 h-4"></i-lucide>
+              <i-lucide aria-hidden="true" name="send" class="w-4 h-4"></i-lucide>
               <span>{{ procesandoDespachoAgencia
                 ? 'Despachando...'
                 : (modoDespachoDestino === 'bodega'
@@ -3592,17 +3491,17 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
       <!-- ============================================================== -->
       <!-- MODAL: REGISTRAR / EDITAR BODEGA                               -->
       <!-- ============================================================== -->
-      <app-modal
+      <app-modal size="md"
         [isOpen]="modalBodegaOpen"
         [title]="editandoBodega ? 'Editar Bodega Regional' : 'Registrar Nueva Bodega Regional'"
         icon="warehouse"
         (close)="modalBodegaOpen = false">
         <form (ngSubmit)="guardarBodega()" class="space-y-4">
           <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">
+            <label for="inv-f37" class="block text-xs font-bold text-slate-700 uppercase mb-1">
               Nombre de la Bodega <span class="text-rose-500">*</span>
             </label>
-            <input
+            <input id="inv-f37"
               type="text"
               [(ngModel)]="bodegaForm.nombre"
               name="bodegaNombre"
@@ -3613,10 +3512,10 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
 
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">
+              <label for="inv-f38" class="block text-xs font-bold text-slate-700 uppercase mb-1">
                 Tipo de Bodega <span class="text-rose-500">*</span>
               </label>
-              <select
+              <select id="inv-f38"
                 [(ngModel)]="bodegaForm.tipo"
                 name="bodegaTipo"
                 class="w-full p-2.5 rounded-xl border border-slate-200 text-sm font-semibold bg-white focus:border-easydry-blue outline-none"
@@ -3624,15 +3523,15 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
                 <option value="REGIONAL">REGIONAL</option>
                 <option value="CENTRAL">CENTRAL (única nacional)</option>
               </select>
-              <p class="text-[11px] text-slate-400 mt-1">
+              <p class="text-xs text-slate-500 mt-1">
                 Solo puede existir una bodega CENTRAL a nivel nacional.
               </p>
             </div>
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">
+              <label for="inv-f39" class="block text-xs font-bold text-slate-700 uppercase mb-1">
                 Región Asignada <span *ngIf="bodegaForm.tipo !== 'CENTRAL'" class="text-rose-500">*</span>
               </label>
-              <select
+              <select id="inv-f39"
                 [(ngModel)]="bodegaForm.regionId"
                 name="bodegaRegion"
                 class="w-full p-2.5 rounded-xl border border-slate-200 text-sm font-semibold bg-white focus:border-easydry-blue outline-none"
@@ -3642,7 +3541,7 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
                   {{ r.nombre }} ({{ r.codigo }})
                 </option>
               </select>
-              <p class="text-[11px] text-slate-400 mt-1">
+              <p class="text-xs text-slate-500 mt-1">
                 Obligatoria para REGIONAL; opcional para CENTRAL.
               </p>
             </div>
@@ -3650,10 +3549,10 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
 
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">
+              <label for="inv-f40" class="block text-xs font-bold text-slate-700 uppercase mb-1">
                 Ciudad Principal
               </label>
-              <input
+              <input id="inv-f40"
                 type="text"
                 [(ngModel)]="bodegaForm.ciudad"
                 name="bodegaCiudad"
@@ -3661,10 +3560,10 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
                 class="w-full p-2.5 rounded-xl border border-slate-200 text-sm focus:border-easydry-blue outline-none" />
             </div>
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">
+              <label for="inv-f41" class="block text-xs font-bold text-slate-700 uppercase mb-1">
                 Teléfono de Contacto
               </label>
-              <input
+              <input id="inv-f41"
                 type="text"
                 [(ngModel)]="bodegaForm.telefono"
                 name="bodegaTelefono"
@@ -3674,10 +3573,10 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
           </div>
 
           <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">
+              <label for="inv-f42" class="block text-xs font-bold text-slate-700 uppercase mb-1">
                 Dirección Física / HUB Logístico
               </label>
-              <input
+              <input id="inv-f42"
                 type="text"
                 [(ngModel)]="bodegaForm.direccion"
                 name="bodegaDireccion"
@@ -3686,11 +3585,11 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
           </div>
 
           <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">
+              <label for="inv-f43" class="block text-xs font-bold text-slate-700 uppercase mb-1">
                 % Umbral Alerta Mínimo de Stock
               </label>
               <div class="relative flex items-center">
-                <input
+                <input id="inv-f43"
                   type="number"
                   min="1"
                   max="100"
@@ -3698,15 +3597,15 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
                   name="bodegaPorcentajeAlerta"
                   placeholder="ej. 20"
                   class="w-full p-2.5 rounded-xl border border-slate-200 text-sm focus:border-easydry-blue outline-none pr-8" />
-                <span class="absolute right-3 text-slate-400 font-bold text-xs">%</span>
+                <span class="absolute right-3 text-slate-500 font-bold text-xs">%</span>
               </div>
-              <p class="text-[10px] text-slate-400 mt-0.5">
+              <p class="text-xs text-slate-500 mt-0.5">
                 Margen sobre el mínimo para alerta preventiva.
               </p>
           </div>
 
           <div class="p-3 bg-blue-50 rounded-xl border border-blue-200 text-blue-900 text-xs flex items-start gap-2">
-            <i-lucide name="shield-check" class="w-4 h-4 text-easydry-blue shrink-0 mt-0.5"></i-lucide>
+            <i-lucide aria-hidden="true" name="shield-check" class="w-4 h-4 text-easydry-blue shrink-0 mt-0.5"></i-lucide>
             <p>
               Esta bodega quedará disponible inmediatamente para la asignación de <b>Asistentes de Bodega</b> en Gestión de Usuarios y despachos zonales.
             </p>
@@ -3722,8 +3621,8 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
             <button
               type="submit"
               [disabled]="guardandoBodega || !bodegaForm.nombre.trim() || (bodegaForm.tipo !== 'CENTRAL' && !bodegaForm.regionId)"
-              class="px-5 py-2 rounded-xl bg-easydry-blue hover:bg-blue-700 text-white text-xs font-black cursor-pointer shadow-sm flex items-center gap-1.5 disabled:opacity-50">
-              <i-lucide name="save" class="w-3.5 h-3.5"></i-lucide>
+              class="px-5 py-2 rounded-xl bg-easydry-blue hover:bg-blue-700 text-white text-xs font-extrabold cursor-pointer shadow-sm flex items-center gap-1.5 disabled:opacity-50">
+              <i-lucide aria-hidden="true" name="save" class="w-3.5 h-3.5"></i-lucide>
               <span>{{ guardandoBodega ? 'Guardando...' : (editandoBodega ? 'Guardar Cambios' : 'Registrar Bodega') }}</span>
             </button>
           </div>
@@ -3733,15 +3632,15 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
       <!-- ============================================================== -->
       <!-- MODAL LIGHTBOX ZOOM DE IMAGEN DEL INSUMO                       -->
       <!-- ============================================================== -->
-      <div *ngIf="imagenModalZoom" appModalPortal class="fixed inset-0 z-[10060] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in" (click)="cerrarZoomImagen()">
-        <div class="relative max-w-3xl w-full bg-white rounded-3xl p-4 shadow-2xl flex flex-col items-center gap-3 overflow-hidden" (click)="$event.stopPropagation()">
+      <div *ngIf="imagenModalZoom" appModalPortal role="dialog" aria-modal="true" aria-labelledby="inv-modal-titulo-8" class="fixed inset-0 z-[10060] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in" (click)="cerrarZoomImagen()">
+        <div class="relative max-w-3xl w-full bg-white rounded-2xl p-4 shadow-2xl flex flex-col items-center gap-3 overflow-hidden" (click)="$event.stopPropagation()">
           <div class="w-full flex items-center justify-between pb-2 border-b border-slate-100">
-            <span class="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-              <i-lucide name="image" class="w-4 h-4 text-easydry-blue"></i-lucide>
+            <span id="inv-modal-titulo-8" class="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+              <i-lucide aria-hidden="true" name="image" class="w-4 h-4 text-easydry-blue"></i-lucide>
               {{ imagenModalTitulo }}
             </span>
-            <button type="button" (click)="cerrarZoomImagen()" class="p-1.5 text-slate-400 hover:text-slate-700 rounded-xl hover:bg-slate-100 transition cursor-pointer">
-              <i-lucide name="x" class="w-5 h-5"></i-lucide>
+            <button type="button" (click)="cerrarZoomImagen()" class="inline-flex items-center justify-center min-w-9 min-h-9 text-slate-500 hover:text-slate-700 rounded-xl hover:bg-slate-100 transition cursor-pointer" aria-label="Cerrar">
+              <i-lucide aria-hidden="true" name="x" class="w-5 h-5"></i-lucide>
             </button>
           </div>
           <div class="w-full min-h-64 max-h-[80vh] rounded-2xl overflow-auto bg-slate-950 border border-slate-200 shadow-inner flex items-center justify-center p-3">
@@ -3758,7 +3657,7 @@ import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
     </div>
   `,
 })
-export class InventarioComponent implements OnInit {
+export class InventarioComponent implements OnInit, OnDestroy {
   private inventarioService = inject(InventarioService);
   private toast = inject(ToastService);
   private auth = inject(AuthService);
@@ -3783,6 +3682,19 @@ export class InventarioComponent implements OnInit {
     }
   }
 
+  /** Cierra con Esc el modal manual que este en primer plano. */
+  @HostListener('document:keydown.escape')
+  onEscapeModales(): void {
+    if (this.imagenModalZoom) { this.cerrarZoomImagen(); return; }
+    if (this.modalEntradaAbierto) { this.cerrarModalEntrada(); return; }
+    if (this.modalReajusteAbierto && !this.guardandoReajuste) { this.cerrarModalReajuste(); return; }
+    if (this.modalPresentacionesAbierto) { this.modalPresentacionesAbierto = false; return; }
+    if (this.modalTipoAbierto) { this.modalTipoAbierto = false; return; }
+    if (this.modalUnidadAbierto) { this.modalUnidadAbierto = false; return; }
+    if (this.modalRechazoDespachoOpen) { this.modalRechazoDespachoOpen = false; return; }
+    if (this.modalDespachoAgenciaOpen) { this.modalDespachoAgenciaOpen = false; }
+  }
+
   public cerrarZoomImagen(): void {
     this.imagenModalZoom = null;
   }
@@ -3795,14 +3707,43 @@ export class InventarioComponent implements OnInit {
   // Navegación
   activeTab: 'productos' | 'bodegas' | 'agencias' | 'pulidores' | 'stock_bajo' | 'alertas_reabastecimiento' | 'movimientos' | 'consumo_servicios' | 'configuracion' | 'insumos_servicios' = 'productos';
 
-  /** Trazabilidad de consumo por servicio: solo administración y bodega. */
+  /** Trazabilidad de consumo por servicio (mismo permiso que el endpoint de consumos). */
   get puedeVerConsumoServicios(): boolean {
-    return this.auth.isSuperAdmin()
-      || this.auth.hasRole('ADMIN')
-      || this.auth.hasRole('COORD_BODEGA')
-      || this.auth.hasRole('ASISTENTE_BODEGA');
+    return this.auth.puede('consumos.ver');
   }
   subTabConfig: 'tipos' | 'unidades' = 'tipos';
+
+  // ── Configuración: catálogos con páginas numeradas, orden y búsqueda en el servidor ──
+  // (las listas `tiposProducto` / `unidadesMedida` de arriba siguen siendo los catálogos completos de los selectores)
+  readonly columnasTipos: TableColumn[] = [
+    { key: 'codigo', label: 'Código', sortable: true, defaultSort: 'asc' },
+    { key: 'nombre', label: 'Nombre', sortable: true, defaultSort: 'asc' },
+    { key: 'descripcion', label: 'Descripción' },
+    { key: 'estado', label: 'Estado', sortable: true, defaultSort: 'asc' },
+    { key: 'acciones', label: 'Acciones', align: 'right' },
+  ];
+  readonly columnasUnidades: TableColumn[] = [
+    { key: 'codigo', label: 'Código', sortable: true, defaultSort: 'asc' },
+    { key: 'nombre', label: 'Nombre', sortable: true, defaultSort: 'asc' },
+    { key: 'simbolo', label: 'Símbolo', sortable: true, defaultSort: 'asc' },
+    { key: 'tipo', label: 'Familia / Tipo', sortable: true, defaultSort: 'asc' },
+    { key: 'factorBase', label: 'Factor Base', sortable: true, defaultSort: 'asc' },
+    { key: 'estado', label: 'Estado', sortable: true, defaultSort: 'asc' },
+    { key: 'acciones', label: 'Acciones', align: 'right' },
+  ];
+  readonly tiposTabla = new TablaServidor<TipoProductoCatalog>((c) => this.inventarioService.getTiposPagina(c));
+  readonly unidadesTabla = new TablaServidor<UnidadMedidaCatalog>((c) => this.inventarioService.getUnidadesPagina(c));
+
+  /** Al abrir Configuración se pide (una sola vez) la tabla de la subpestaña visible. */
+  public abrirConfiguracion(): void {
+    this.cambiarSubTabConfig(this.subTabConfig);
+  }
+
+  public cambiarSubTabConfig(sub: 'tipos' | 'unidades'): void {
+    this.subTabConfig = sub;
+    const tabla = sub === 'tipos' ? this.tiposTabla : this.unidadesTabla;
+    if (!tabla.inicializada && !tabla.cargando) tabla.reiniciar();
+  }
 
   // Bodegas & Asistentes
   bodegasDisponibles: BodegaInventario[] = [];
@@ -3826,20 +3767,40 @@ export class InventarioComponent implements OnInit {
     porcentajeAlerta: 20
   };
 
-  get esGestorGlobalOBodegaAdmin(): boolean {
-    const role = (this.currentUser?.role || '').toUpperCase();
-    const rolNombre = (this.currentUser?.rolNombre || '').toLowerCase();
-    return (
-      this.auth.isSuperAdmin() ||
-      this.auth.isAdmin() ||
-      role === 'COORD_BODEGA' ||
-      role === 'DISTRIBUIDOR' ||
-      role === 'SUPER_ADMIN' ||
-      role === 'ADMIN' ||
-      rolNombre.includes('bodega') ||
-      rolNombre.includes('distribuidor') ||
-      rolNombre.includes('inventario')
-    );
+  // ── Permisos: los mismos códigos que el backend exige en cada endpoint (el rol no se consulta por nombre) ──
+  get puedeVerInventario(): boolean { return this.auth.puede('inventario.ver'); }
+  get puedeGestionarCatalogos(): boolean { return this.auth.puede('inventario.catalogos.gestionar'); }
+  get puedeGestionarBodegas(): boolean { return this.auth.puede('bodegas.gestionar'); }
+  get puedeAjustarStock(): boolean { return this.auth.puede('stock.ajustar'); }
+  get puedeVerDespachos(): boolean { return this.auth.puede('despachos.ver'); }
+  get puedeRecibirDespacho(): boolean { return this.auth.puede('despachos.recibir'); }
+  get puedeVerAlertas(): boolean { return this.auth.puede('alertas.ver'); }
+  get puedeCrearAlerta(): boolean { return this.auth.puede('alertas.crear'); }
+  get puedeAtenderAlertas(): boolean { return this.auth.puede('alertas.atender'); }
+
+  /** Opera el stock de bodegas (ajustes, catálogo o compras): ve las pestañas de gestión de bodega. */
+  get puedeOperarBodega(): boolean {
+    return this.puedeAjustarStock || this.puedeGestionarCatalogos || this.auth.puede('compras.registrar');
+  }
+
+  /** Contexto de alcance del usuario (dato de su perfil, no un permiso). */
+  get ambitoGlobal(): boolean {
+    return this.auth.getCurrentUser()?.ambito === 'GLOBAL';
+  }
+
+  /** Opera una bodega regional propia (ajusta stock pero no con alcance nacional). */
+  get operaBodegaPropia(): boolean {
+    return this.puedeAjustarStock && !this.ambitoGlobal;
+  }
+
+  /** Puede elegir libremente la bodega de origen del despacho (alcance nacional). */
+  get origenLibre(): boolean {
+    return this.puedeGenerarDespacho && this.ambitoGlobal;
+  }
+
+  /** Abastecer bodegas regionales desde la central. */
+  get puedeAbastecerBodegas(): boolean {
+    return this.puedeAjustarStock && this.puedeGenerarDespacho && this.ambitoGlobal;
   }
 
   /** Solo Bodega Central admite ingresos; regionales se abastecen por envíos. */
@@ -3851,39 +3812,28 @@ export class InventarioComponent implements OnInit {
     return !!(bod.esCentral || bod.tipo === 'CENTRAL' || bod.id === 'bod_central' || bod.codigo === 'BOD-CENTRAL');
   }
 
-  /** Quién puede registrar compra/ingreso (siempre a Central). Asistente regional no. */
+  /** Registrar compra/ingreso (siempre a la Bodega Central): permiso 'compras.registrar'. */
   get puedeRegistrarIngreso(): boolean {
-    return !!(this.esAdminGlobal || this.esGestorBodega);
+    return this.auth.puede('compras.registrar');
   }
 
   get puedeReajustarStock(): boolean {
-    return !!(this.esAdminGlobal || this.esGestorBodega || this.esAsistenteBodega);
+    return this.puedeAjustarStock;
   }
 
-  get esSuperAdmin(): boolean {
-    const role = (this.currentUser?.role || '').toUpperCase();
-    return (
-      this.auth.isSuperAdmin() ||
-      role === 'SUPER_ADMIN' ||
-      (role.includes('SUPER') && role.includes('ADMIN'))
-    );
-  }
-
-  /** Generar despachos/envíos: Super Admin / Admin (acceso total), Coord, Asistente o Líder. */
+  /** Generar despachos: permiso 'despachos.crear' (el servidor limita origen y destino según el alcance). */
   get puedeGenerarDespacho(): boolean {
-    if (this.esSuperAdmin || this.esAdminGlobal) return true;
-    return !!(this.esGestorBodega || this.esAsistenteBodega || this.isLiderOperador || this.esLiderAgencia);
+    return this.auth.puede('despachos.crear');
   }
 
-  /** Despacho entre bodegas: Super Admin, Admin y personal de bodega. */
+  /** Despacho hacia bodegas: quien despacha y no opera desde una agencia (el líder nunca despacha a bodegas). */
   get puedeDespacharABodega(): boolean {
-    if (this.esSuperAdmin || this.esAdminGlobal) return true;
-    return !!(this.esGestorBodega || this.esAsistenteBodega);
+    return this.puedeGenerarDespacho && !this.operaDesdeAgencia;
   }
 
-  /** Catálogo stock bajo de Bodega: Admin, Coord y Asistente de Bodega. */
+  /** Estado de la bodega central (stock bajo): mismo permiso que 'stock-bajo/list'. */
   get puedeVerStockBajoBodegaCentral(): boolean {
-    return !!(this.esAdminGlobal || this.esGestorBodega || this.esAsistenteBodega);
+    return this.puedeAjustarStock;
   }
 
   /** Insumos de la sede del líder con alerta real (no “No necesario”). */
@@ -3896,14 +3846,23 @@ export class InventarioComponent implements OnInit {
     );
   }
 
+  /** Alertas de la sede con páginas numeradas (la lista ya viene acotada a la sede, así que se corta en el navegador). */
+  paginaBajosSede = 1;
+  pageSizeBajosSede = PAGE_SIZE_TABLA;
+  get insumosBajosPagina(): any[] {
+    const ultima = Math.max(1, Math.ceil(this.insumosBajosMiSede.length / this.pageSizeBajosSede));
+    if (this.paginaBajosSede > ultima) this.paginaBajosSede = ultima;
+    const desde = (this.paginaBajosSede - 1) * this.pageSizeBajosSede;
+    return this.insumosBajosMiSede.slice(desde, desde + this.pageSizeBajosSede);
+  }
+
   get contadorBadgeStockBajo(): number {
-    const alertas = (this.alertasStockList || []).filter(
-      (a: any) => (a.estado || '').toUpperCase() !== 'RESUELTO',
-    ).length;
-    if (this.isLiderOperador) {
+    // Alertas sin resolver dentro del alcance del usuario (dato del servidor).
+    const alertas = this.alertasTabla.resumen?.activas ?? 0;
+    if (this.operaDesdeAgencia) {
       return alertas + this.insumosBajosMiSede.length;
     }
-    if (this.esAsistenteBodega) {
+    if (this.operaBodegaPropia) {
       return alertas;
     }
     return alertas > 0 ? alertas : Number(this.resumenDashboard?.productosStockBajo || 0);
@@ -3922,8 +3881,8 @@ export class InventarioComponent implements OnInit {
   isPulidor: boolean = false;
   isPulidorMovil: boolean = false;
   isPulidorFijo: boolean = false;
-  isLiderOperador: boolean = false;
-  esLiderAgencia: boolean = false;
+  /** Contexto: trabaja desde su agencia (despacha y recibe con el stock de su sede). */
+  operaDesdeAgencia: boolean = false;
   miAgenciaId: string = '';
   miAgenciaNombre: string = '';
   sucursalesActivas: any[] = [];
@@ -3996,18 +3955,11 @@ export class InventarioComponent implements OnInit {
   };
   historialMovimientos: MovimientoInventarioGlobalItem[] = [];
   totalMovimientos = 0;
-  productosStockBajoList: ProductoInsumo[] = [];
 
   // Bandeja de Alertas de Stock Bajo en Sucursales (AlertaStock)
-  alertasStockList: any[] = [];
-  alertasStockFiltradas: any[] = [];
   cargandoAlertasStock = false;
   filtroAlertaNivel = '';
-  filtroAlertaAgencia = '';
   userRegionDisplay = '';
-  esGestorBodega = false;
-  esAsistenteBodega = false;
-  esAdminGlobal = false;
 
   // Estado Bodegas & Otras Agencias
   resumenBodegas: any = {
@@ -4015,32 +3967,37 @@ export class InventarioComponent implements OnInit {
     metricas: { totalInsumos: 0, stockTotalUnidades: 0, insumosBajoMinimo: 0, insumosOptimos: 0 },
     insumos: [],
   };
-  insumosBodegaFiltrados: any[] = [];
-  filtroTextoBodega = '';
   filtroEstadoBodega = '';
 
   resumenAgencias: any = {
     totalAgencias: 0,
     agenciasEnAlerta: 0,
     insumosCriticosTotal: 0,
-    agencias: [],
   };
-  agenciasFiltradas: any[] = [];
-  filtroAgenciaId = '';
   filtroEstadoAgencia = '';
-  filtroTextoInsumoAgencia = '';
+  textoAgencias = '';
+  busquedaAgenciasCorta = false;
+  private busquedaAgenciasAplicada = '';
+  private readonly busquedaAgencias$ = new Subject<string>();
+  private busquedaAgenciasSub?: Subscription;
+  /** Fichas de agencia que tienen abierta su tabla de insumos. */
+  readonly agenciasExpandidas = new Set<string>();
+  /** Se incrementa para que las tablas de insumos abiertas vuelvan a pedir su página (tras despachar, reajustar…). */
+  stockRefreshToken = 0;
 
-  resumenPulidores: any = {
+    resumenPulidores: any = {
     totalPulidores: 0,
     pulidoresEnAlerta: 0,
     insumosCriticosTotal: 0,
-    pulidores: [],
   };
-  cargandoPulidores: boolean = false;
-  filtroPulidorTexto: string = '';
   filtroPulidorTipo: string = '';
-  filtroPulidorId: string = '';
   filtroPulidorEstado: string = '';
+  textoPulidores = '';
+  busquedaPulidoresCorta = false;
+  private busquedaPulidoresAplicada = '';
+  private readonly busquedaPulidores$ = new Subject<string>();
+  private busquedaPulidoresSub?: Subscription;
+  readonly pulidoresExpandidos = new Set<string>();
 
   // Filtros
   filtroTextoProducto = '';
@@ -4049,6 +4006,36 @@ export class InventarioComponent implements OnInit {
   filtroEstadoProducto = '';
   filtroMovimientoTipoId = '';
   filtroMovimientoInsumoId = '';
+  filtroMovimientoFechaDesde = '';
+  filtroMovimientoFechaHasta = '';
+
+  // ── Kardex (tabla con páginas numeradas; orden, búsqueda y filtros en el servidor) ──
+  readonly columnasMovimientos: TableColumn[] = [
+    { key: 'fecha', label: 'Fecha', sortable: true, defaultSort: 'desc' },
+    { key: 'comprobante', label: 'Comprobante', sortable: true },
+    { key: 'producto', label: 'Producto', sortable: true },
+    { key: 'tipo', label: 'Tipo', sortable: true },
+    { key: 'ruta', label: 'Origen → Destino', sortable: true },
+    { key: 'cantidad', label: 'Movimiento', sortable: true },
+    { key: 'cantidadBase', label: 'Cantidad Base', sortable: true },
+    { key: 'stockAnterior', label: 'Stock Anterior', sortable: true },
+    { key: 'stockNuevo', label: 'Stock Nuevo', sortable: true },
+    { key: 'responsable', label: 'Responsable', sortable: true },
+    { key: 'observacion', label: 'Observación' },
+    { key: 'evidencia', label: 'Evidencia' },
+  ];
+  paginaMovimientos = 1;
+  pageSizeMovimientos = PAGE_SIZE_TABLA;
+  sortFieldMovimientos: string | null = 'fecha';
+  sortOrderMovimientos: OrdenDir = 'desc';
+  cargandoMovimientos = false;
+  errorMovimientos: string | null = null;
+  busquedaMovimientos = '';
+  busquedaMovimientosCorta = false;
+  private busquedaMovimientosAplicada = '';
+  private readonly busquedaMovimientos$ = new Subject<string>();
+  private busquedaMovimientosSub?: Subscription;
+  private cargaMovimientosSub?: Subscription;
 
   // Estados de Modales
   modalEntradaAbierto = false;
@@ -4111,61 +4098,79 @@ export class InventarioComponent implements OnInit {
   formTipo = { id: '', codigo: '', nombre: '', descripcion: '', estado: 1 };
   formUnidad = { id: '', codigo: '', nombre: '', simbolo: '', tipo: 'VOLUMEN', factorBase: 1, estado: 1 };
 
+  ngOnDestroy(): void {
+    this.busquedaMovimientosSub?.unsubscribe();
+    this.cargaMovimientosSub?.unsubscribe();
+    this.busquedaAgenciasSub?.unsubscribe();
+    this.busquedaPulidoresSub?.unsubscribe();
+    this.bodegaTabla.destruir();
+    this.agenciasLista.destruir();
+    this.pulidoresLista.destruir();
+    this.tiposTabla.destruir();
+    this.unidadesTabla.destruir();
+    this.productosTabla.destruir();
+    this.stockBajoTabla.destruir();
+    this.alertasTabla.destruir();
+  }
+
   ngOnInit(): void {
+    this.busquedaMovimientosSub = this.busquedaMovimientos$
+      .pipe(debounceTime(BUSQUEDA_DEBOUNCE_MS), distinctUntilChanged())
+      .subscribe((texto) => {
+        if (texto === this.busquedaMovimientosAplicada) return;
+        this.busquedaMovimientosAplicada = texto;
+        this.paginaMovimientos = 1;
+        this.cargarHistorialMovimientos();
+      });
+    // Búsqueda de fichas (agencias y kits): espera 300 ms tras la última tecla y exige 2 letras.
+    this.busquedaAgenciasSub = this.busquedaAgencias$
+      .pipe(debounceTime(BUSQUEDA_DEBOUNCE_MS), distinctUntilChanged())
+      .subscribe((texto) => {
+        this.busquedaAgenciasAplicada = texto;
+        this.agenciasLista.reiniciar();
+      });
+    this.busquedaPulidoresSub = this.busquedaPulidores$
+      .pipe(debounceTime(BUSQUEDA_DEBOUNCE_MS), distinctUntilChanged())
+      .subscribe((texto) => {
+        this.busquedaPulidoresAplicada = texto;
+        this.pulidoresLista.reiniciar();
+      });
     this.currentUser = this.auth.getCurrentUser();
-    const role = (this.currentUser?.role || '').toUpperCase();
-    const rolNombre = (this.currentUser?.rolNombre || '').toLowerCase();
-    
-    const esAdminOSuperAdmin =
-      this.auth.isAdmin() ||
-      this.auth.isSuperAdmin() ||
-      role === 'ADMIN' ||
-      role === 'SUPER_ADMIN';
 
-    const esBodega =
-      role === 'COORD_BODEGA' ||
-      role === 'DISTRIBUIDOR' ||
-      role === 'ASISTENTE_BODEGA' ||
-      rolNombre.includes('bodega') ||
-      rolNombre.includes('distribuidor');
-
-    const esAdminOBodega = esAdminOSuperAdmin || esBodega;
-
-    this.isOperador = !esAdminOBodega;
-    this.isPulidor = this.auth.isPulidor();
-    this.isPulidorMovil = this.isPulidor && this.auth.isPulidorMovil();
+    // Contexto del usuario, derivado de sus permisos y su ámbito (no del nombre de su rol).
+    this.isOperador = !this.puedeOperarBodega;
+    this.isPulidor = this.isOperador && this.auth.puede('especiales.operar');
+    this.isPulidorMovil = this.isPulidor && !this.currentUser?.agenciaId;
     this.isPulidorFijo = this.isPulidor && !this.isPulidorMovil;
-    this.isLiderOperador = this.isOperador && !this.isPulidor && (role === 'LIDER' || role === 'LIDER_OPERADOR' || role === 'LIDER_AGENCIA' || rolNombre.includes('lider'));
-    this.esLiderAgencia = this.isLiderOperador;
-
-    this.esGestorBodega = (role === 'COORD_BODEGA' || role === 'DISTRIBUIDOR' || rolNombre.includes('coordinador') || rolNombre.includes('gestor'));
-    this.esAsistenteBodega = (role === 'ASISTENTE_BODEGA' || rolNombre.includes('asistente'));
-    this.esAdminGlobal = esAdminOSuperAdmin;
-    this.userRegionDisplay = this.currentUser?.region || this.currentUser?.regionNombre || ((esAdminOSuperAdmin || this.esGestorBodega) ? 'Red Nacional (Ver todo de todos)' : '');
+    this.operaDesdeAgencia = this.isOperador && !this.isPulidor && this.currentUser?.ambito === 'AGENCIA';
+    this.userRegionDisplay = this.currentUser?.region || this.currentUser?.regionNombre || (this.ambitoGlobal ? 'Red Nacional (Ver todo de todos)' : '');
 
     this.miAgenciaNombre = this.currentUser?.sucursalNombre || this.currentUser?.sucursal || '';
     this.miAgenciaId = (this.currentUser?.agenciaId ? String(this.currentUser.agenciaId) : '') || this.miAgenciaNombre;
 
-    // Asistente: contexto = su bodega asignada (nunca Central por defecto)
-    if (this.esAsistenteBodega && this.currentUser?.bodegaId) {
+    // Quien opera una bodega regional propia: su contexto es su bodega asignada (nunca Central por defecto)
+    if (this.operaBodegaPropia && this.currentUser?.bodegaId) {
       this.bodegaSeleccionadaId = String(this.currentUser.bodegaId);
-    } else if (!this.esAsistenteBodega) {
+    } else if (!this.operaBodegaPropia) {
       this.bodegaSeleccionadaId = this.bodegaSeleccionadaId || 'bod_central';
     }
 
     if (this.isPulidor) {
       this.activeTab = 'pulidores';
-    } else if (this.isLiderOperador) {
+    } else if (this.isOperador) {
       this.activeTab = 'agencias';
     } else {
       this.activeTab = 'productos';
     }
 
+    // Sin permiso de lectura de inventario no se consulta nada (evita errores 403 de fondo).
+    if (!this.puedeVerInventario) return;
+
     this.cargarTodosLosCatalogos();
-    this.cargarRegiones();
+    if (this.puedeGestionarBodegas) this.cargarRegiones();
     this.cargarBodegasDisponibles();
-    this.cargarUsuariosYAsistentes();
-    this.cargarPulidoresDestino();
+    if (this.puedeOperarBodega && this.auth.puede('usuarios.ver')) this.cargarUsuariosYAsistentes();
+    if (this.puedeGenerarDespacho) this.cargarPulidoresDestino();
     this.cargarInsumosPorServicios();
     this.cargarDespachosPendientes();
     this.cargarDespachosRechazadosSuperAdmin();
@@ -4176,7 +4181,7 @@ export class InventarioComponent implements OnInit {
     this.cargarStockBajo();
 
     // Cargar sedes activas para el selector de agencias
-    this.sucursalService.getSucursales().subscribe((sucursales) => {
+    if (this.auth.puede('agencias.ver')) this.sucursalService.getSucursales().subscribe((sucursales) => {
       this.sucursalesActivas = (sucursales || []).filter((s) => s.estado === 'Activo' || (s.estado as any) === 1);
       if (this.sucursalesActivas.length > 0) {
         const encontrada = this.sucursalesActivas.find(
@@ -4192,6 +4197,8 @@ export class InventarioComponent implements OnInit {
         this.cargarInsumosPorServicios();
         this.cargarDespachosPendientes();
         this.cargarProductos();
+        // "Otras agencias" excluye la propia por su id: se vuelve a pedir ahora que ya se conoce.
+        if (this.isOperador) this.cargarStockAgencias();
       }
     });
   }
@@ -4207,6 +4214,7 @@ export class InventarioComponent implements OnInit {
     this.cargarInsumosPorServicios();
     this.cargarDespachosPendientes();
     this.cargarProductos();
+    if (this.isOperador) this.cargarStockAgencias();
   }
 
   // ==============================================================
@@ -4214,7 +4222,7 @@ export class InventarioComponent implements OnInit {
   // ==============================================================
 
   public cargarDespachosRechazadosSuperAdmin(): void {
-    if (this.isOperador) return;
+    if (this.isOperador || !this.puedeVerDespachos) return;
     this.inventarioService.getDespachosRechazados().subscribe({
       next: (list) => {
         this.despachosRechazadosSuperAdmin = list || [];
@@ -4224,8 +4232,7 @@ export class InventarioComponent implements OnInit {
   }
 
   public getAgenciasDestinoDisponibles(): any[] {
-    const role = (this.currentUser?.role || '').toUpperCase();
-    const esAsistenteBodega = role === 'ASISTENTE_BODEGA' || this.esAsistenteBodega;
+    const restringeARegion = this.operaBodegaPropia;
     const userRegion = (this.currentUser?.region || this.currentUser?.regionNombre || '').toLowerCase().trim();
     const userRegionId = (this.currentUser as any)?.regionId;
     const miId = String(this.miAgenciaId || '');
@@ -4237,7 +4244,7 @@ export class InventarioComponent implements OnInit {
       (userRegion && s.ciudad && String(s.ciudad).toLowerCase().includes(userRegion));
 
     // Líder: solo otras agencias de su región (nunca la propia)
-    if (this.isLiderOperador) {
+    if (this.operaDesdeAgencia) {
       const otras = this.sucursalesActivas.filter(
         (s) =>
           String(s.id) !== miId &&
@@ -4247,7 +4254,7 @@ export class InventarioComponent implements OnInit {
       return otras;
     }
 
-    if (esAsistenteBodega) {
+    if (restringeARegion) {
       const regionales = this.sucursalesActivas.filter((s) => sameRegion(s));
       return regionales.length > 0 ? regionales : this.sucursalesActivas;
     }
@@ -4269,7 +4276,7 @@ export class InventarioComponent implements OnInit {
     const userRegionId = (this.currentUser as any)?.regionId;
     let list = (this.pulidoresDestinoDisponibles || []);
 
-    if (this.isLiderOperador && (userRegion || userRegionId)) {
+    if (this.operaDesdeAgencia && (userRegion || userRegionId)) {
       list = list.filter((p) =>
         (userRegionId && p.regionId && String(p.regionId) === String(userRegionId)) ||
         (userRegion && p.regionNombre && String(p.regionNombre).toLowerCase().includes(userRegion))
@@ -4284,7 +4291,7 @@ export class InventarioComponent implements OnInit {
   }
 
   public cargarPulidoresDestino(): void {
-    const isDirector = this.esSuperAdmin || this.esAdminGlobal || this.esGestorBodega;
+    const isDirector = this.ambitoGlobal;
     const regionId = isDirector ? undefined : ((this.currentUser as any)?.regionId || undefined);
     this.http
       .post<any[]>(apiUrl('/operaciones/servicios-especiales/pulidores'), { regionId })
@@ -4328,7 +4335,7 @@ export class InventarioComponent implements OnInit {
       this.despachoAgenciaForm.bodegaId = '';
       const ops = this.getAgenciasDestinoDisponibles();
       this.despachoAgenciaForm.agenciaId = ops[0] ? String(ops[0].id) : '';
-      if (!this.isLiderOperador) {
+      if (!this.operaDesdeAgencia) {
         this.alCambiarAgenciaDespacho();
       } else {
         this.insumosDisponiblesDespacho = (this.insumosServiciosList || [])
@@ -4393,7 +4400,7 @@ export class InventarioComponent implements OnInit {
 
   public abrirModalDespachoHaciaBodegaSeleccionada(): void {
     if (!this.puedeDespacharABodega) {
-      this.toast.warning('Sin permiso', 'Solo el coordinador de bodega puede abastecer bodegas regionales.');
+      this.toast.warning('Sin permiso', 'No tienes permiso para despachar a bodegas.');
       return;
     }
     const destinoId = String(this.bodegaSeleccionadaId || this.bodegaSeleccionada?.id || '').trim();
@@ -4557,7 +4564,7 @@ export class InventarioComponent implements OnInit {
     this.agenciaDespachoFija = agenciaParam ? agObj : null;
 
     // Catálogo modal líder: solo insumos que SÍ requieren los servicios de la sede
-    const catalogoInsumos = this.isLiderOperador
+    const catalogoInsumos = this.operaDesdeAgencia
       ? (this.insumosServiciosList || [])
           .filter((i: any) => i.necesario !== false && i.estado !== 'NO_NECESARIO')
           .map((i: any) => ({
@@ -4595,15 +4602,15 @@ export class InventarioComponent implements OnInit {
     this.productoDespachoFijo = insumoParam ? prodFijo : null;
     this.insumosDisponiblesDespacho = catalogoInsumos;
 
-    if (this.isLiderOperador && agenciasOpciones.length === 0 && this.pulidoresDestinoDisponibles.length === 0) {
+    if (this.operaDesdeAgencia && agenciasOpciones.length === 0 && this.pulidoresDestinoDisponibles.length === 0) {
       this.toast.warning(
         'Sin destinos',
         'No hay otras agencias ni pulidores en tu región para despachar.'
       );
     }
 
-    const defaultOrigenBodega = (this.esSuperAdmin || this.esAdminGlobal)
-      ? (this.bodegasDisponibles[0]?.id || this.obtenerIdBodegaCentral())
+    const defaultOrigenBodega = this.origenLibre
+      ? (this.obtenerBodegaIdContexto() || this.bodegasDisponibles[0]?.id || this.obtenerIdBodegaCentral())
       : (this.obtenerBodegaIdContexto() || this.obtenerIdBodegaCentral() || '');
 
     this.despachoAgenciaForm = {
@@ -4611,7 +4618,7 @@ export class InventarioComponent implements OnInit {
       bodegaId: '',
       pulidorId: '',
       // Líder despacha desde stock de su agencia (BE usa usuario.agenciaId)
-      origenBodegaId: this.isLiderOperador
+      origenBodegaId: this.operaDesdeAgencia
         ? ''
         : String(this.despachoAgenciaForm?.origenBodegaId || defaultOrigenBodega || ''),
       insumoId: insId,
@@ -4619,9 +4626,9 @@ export class InventarioComponent implements OnInit {
       cantidad: insDeficit,
       observacion: agObj
         ? `Despacho hacia sede: ${agObj.nombre || ''} (${agObj.codigo || ''})`
-        : (this.isLiderOperador ? 'Despacho desde stock de mi sede' : ''),
+        : (this.operaDesdeAgencia ? 'Despacho desde stock de mi sede' : ''),
     };
-    if (!this.isLiderOperador) {
+    if (!this.operaDesdeAgencia) {
       this.alCambiarAgenciaDespacho();
     } else if (agenciasOpciones.length === 0 && this.pulidoresDestinoDisponibles.length > 0) {
       this.cambiarTipoDestinoDespacho('pulidor');
@@ -4631,7 +4638,7 @@ export class InventarioComponent implements OnInit {
 
   public alCambiarAgenciaDespacho(): void {
     const agId = this.despachoAgenciaForm.agenciaId;
-    if (!this.isLiderOperador) {
+    if (!this.operaDesdeAgencia) {
       this.insumosDisponiblesDespacho = this.productos && this.productos.length > 0 ? [...this.productos] : [];
       if (
         this.insumosDisponiblesDespacho.length > 0 &&
@@ -4648,32 +4655,35 @@ export class InventarioComponent implements OnInit {
       return;
     }
 
-    const agResumen = (this.resumenAgencias?.agencias || []).find(
-      (a: any) =>
-        String(a.agencia?.id) === String(agId) ||
-        a.agencia?.nombre === agId ||
-        String(a.agencia?.codigo) === String(agId)
-    );
+    // Insumos de la agencia destino: se piden al servidor (antes salían de un resumen de todas las agencias en memoria).
+    // Mientras llegan se ofrece el catálogo completo; si la agencia no tiene insumos propios, queda así.
+    this.insumosDisponiblesDespacho = [...this.productos];
+    this.corregirInsumoDespachoSeleccionado();
+    this.inventarioService.getInsumosUbicacionPagina('agencia', String(agId), { page: 1, pageSize: 100 }).subscribe({
+      next: ({ pagina }) => this.aplicarInsumosDespachoDeAgencia(pagina.items, String(agId)),
+      error: () => undefined,
+    });
+  }
 
-    if (agResumen && agResumen.insumos && agResumen.insumos.length > 0) {
-      const idsValidos = new Set(agResumen.insumos.map((i: any) => String(i.insumoId || i.id)));
-      const filtrados = this.productos.filter((p) => idsValidos.has(String(p.id)));
-      if (filtrados.length > 0) {
-        this.insumosDisponiblesDespacho = filtrados;
-      } else {
-        this.insumosDisponiblesDespacho = agResumen.insumos.map((i: any) => ({
+  private aplicarInsumosDespachoDeAgencia(insumosAgencia: any[], agId: string): void {
+    // Si mientras tanto eligió otra agencia, esta respuesta ya no vale.
+    if (String(this.despachoAgenciaForm.agenciaId) !== agId || insumosAgencia.length === 0) return;
+    const idsValidos = new Set(insumosAgencia.map((i: any) => String(i.insumoId || i.id)));
+    const filtrados = this.productos.filter((p) => idsValidos.has(String(p.id)));
+    this.insumosDisponiblesDespacho = filtrados.length > 0
+      ? filtrados
+      : insumosAgencia.map((i: any) => ({
           id: i.insumoId || i.id,
           nombre: i.nombre,
           codigoSKU: i.codigoSKU,
           unidadMedida: i.unidad || 'u',
           contenidoNeto: Number(i.contenidoNeto || 1),
-          stockActual: i.stockActual || 0
-        }));
-      }
-    } else {
-      this.insumosDisponiblesDespacho = [...this.productos];
-    }
+          stockActual: i.stockActual || 0,
+        })) as any;
+    this.corregirInsumoDespachoSeleccionado();
+  }
 
+  private corregirInsumoDespachoSeleccionado(): void {
     if (
       this.insumosDisponiblesDespacho.length > 0 &&
       !this.insumosDisponiblesDespacho.some((p) => String(p.id) === String(this.despachoAgenciaForm.insumoId))
@@ -4684,7 +4694,7 @@ export class InventarioComponent implements OnInit {
 
   public ejecutarDespachoAgencia(): void {
     if (!this.puedeGenerarDespacho && !this.puedeDespacharABodega) {
-      this.toast.warning('Sin permiso', 'Admin / Super Admin no pueden generar envíos.');
+      this.toast.warning('Sin permiso', 'No tienes permiso para crear despachos.');
       return;
     }
     const esBodega = this.modoDespachoDestino === 'bodega';
@@ -4718,7 +4728,7 @@ export class InventarioComponent implements OnInit {
     const unidades = Math.round(cantUnd);
 
     this.procesandoDespachoAgencia = true;
-    const origenBodegaId = this.isLiderOperador
+    const origenBodegaId = this.operaDesdeAgencia
       ? undefined
       : String(this.despachoAgenciaForm.origenBodegaId || this.obtenerBodegaIdContexto() || this.obtenerIdBodegaCentral() || '');
 
@@ -4738,7 +4748,7 @@ export class InventarioComponent implements OnInit {
         pulidorDestinoId: String(this.despachoAgenciaForm.pulidorId),
         destinoPulidorId: String(this.despachoAgenciaForm.pulidorId),
         origenBodegaId: origenBodegaId || undefined,
-        origenAgenciaId: this.isLiderOperador ? (this.miAgenciaId || undefined) : undefined,
+        origenAgenciaId: this.operaDesdeAgencia ? (this.miAgenciaId || undefined) : undefined,
         observaciones: this.despachoAgenciaForm.observacion || (esFijo ? 'Despacho a pulidor fijo desde sección de suministros' : 'Despacho a pulidor móvil desde sección de suministros'),
         detalles: [{ insumoId: String(targetInsumoId), cantidadEnviada: unidades }],
       };
@@ -4749,7 +4759,7 @@ export class InventarioComponent implements OnInit {
         sucursalDestinoId: String(this.despachoAgenciaForm.agenciaId),
         agenciaDestinoId: String(this.despachoAgenciaForm.agenciaId),
         origenBodegaId: origenBodegaId || undefined,
-        origenAgenciaId: this.isLiderOperador ? (this.miAgenciaId || undefined) : undefined,
+        origenAgenciaId: this.operaDesdeAgencia ? (this.miAgenciaId || undefined) : undefined,
         observaciones: this.despachoAgenciaForm.observacion || 'Despacho directo desde sección de suministros',
         detalles: [{ insumoId: String(targetInsumoId), cantidadEnviada: unidades }],
       };
@@ -4768,19 +4778,27 @@ export class InventarioComponent implements OnInit {
         this.cargarDespachosRechazadosSuperAdmin();
         this.cargarStockAgencias();
         this.cargarStockBodega(this.bodegaSeleccionadaId || origenBodegaId);
-        if (this.isLiderOperador) {
+        if (this.operaDesdeAgencia) {
           this.cargarInsumosPorServicios();
         }
       },
       error: (err: any) => {
         this.procesandoDespachoAgencia = false;
-        const msg = err?.error?.message || 'Error al despachar el suministro desde bodega';
+        const msg = this.mensajeServidor(err, 'Error al despachar el suministro desde bodega');
         this.toast.error('Error en Despacho', msg);
       }
     });
   }
 
+  /** Mensaje en español que trae el servidor (cadena o lista); si no viene, el de respaldo. */
+  private mensajeServidor(err: any, respaldo: string): string {
+    const m = err?.error?.message;
+    if (Array.isArray(m)) return m.join('. ');
+    return m || respaldo;
+  }
+
   public cargarDespachosPendientes(): void {
+    if (!this.puedeVerDespachos) return;
     this.inventarioService.getDespachosPendientesAgencia(this.miAgenciaId).subscribe({
       next: (list) => {
         this.despachosPendientesAgencia = list || [];
@@ -4805,9 +4823,9 @@ export class InventarioComponent implements OnInit {
         this.cargarStockAgencias();
         this.cargarStockBodega();
       },
-      error: () => {
+      error: (err: any) => {
         this.procesandoRecepcion = false;
-        this.toast.error('Error', 'No se pudo registrar la recepción del despacho');
+        this.toast.error('Error', this.mensajeServidor(err, 'No se pudo registrar la recepción del despacho'));
       }
     });
   }
@@ -4840,9 +4858,9 @@ export class InventarioComponent implements OnInit {
         this.cargarDespachosPendientes();
         this.cargarDespachosRechazadosSuperAdmin();
       },
-      error: () => {
+      error: (err: any) => {
         this.procesandoRecepcion = false;
-        this.toast.error('Error', 'No se pudo procesar el rechazo del despacho');
+        this.toast.error('Error', this.mensajeServidor(err, 'No se pudo procesar el rechazo del despacho'));
       }
     });
   }
@@ -4977,7 +4995,7 @@ export class InventarioComponent implements OnInit {
   }
 
   private obtenerBodegaIdContexto(): string {
-    if (this.esAsistenteBodega) {
+    if (this.operaBodegaPropia) {
       return String(this.currentUser?.bodegaId || this.bodegaSeleccionadaId || '').trim();
     }
     return String(
@@ -4985,18 +5003,66 @@ export class InventarioComponent implements OnInit {
     ).trim();
   }
 
-  public cargarProductos(): void {
-    const dto: any = {};
+  /** Contexto del stock que se muestra: la sede (si es de sede) o la bodega elegida. */
+  private dtoContextoProductos(): { agenciaId?: string; bodegaId?: string } {
+    const dto: { agenciaId?: string; bodegaId?: string } = {};
     if (this.isOperador && this.miAgenciaId) {
       dto.agenciaId = this.miAgenciaId;
     } else {
       const bodegaId = this.obtenerBodegaIdContexto();
       if (bodegaId) dto.bodegaId = bodegaId;
     }
-    this.inventarioService.getProductos(dto).subscribe((prods) => {
+    return dto;
+  }
+
+  /**
+   * Catálogo completo para los selectores y formularios (modo heredado: hasta 100). La tabla de la pestaña Productos
+   * se pide aparte, paginada, y aquí solo se refresca si ya está en uso.
+   */
+  public cargarProductos(): void {
+    this.inventarioService.getProductos(this.dtoContextoProductos()).subscribe((prods) => {
       this.productos = prods;
       this.filtrarProductos();
     });
+    if (this.activeTab === 'productos' || this.productosTabla.inicializada) this.productosTabla.refrescar();
+  }
+
+  // ── Tabla de productos: páginas numeradas, orden, búsqueda y filtros en el servidor ──
+  readonly columnasProductos: TableColumn[] = [
+    { key: 'sku', label: 'Código SKU', sortable: true, defaultSort: 'asc' },
+    { key: 'nombre', label: 'Producto', sortable: true, defaultSort: 'asc' },
+    { key: 'tipo', label: 'Tipo', sortable: true, defaultSort: 'asc' },
+    { key: 'contenido', label: 'Contenido x Envase', sortable: true, defaultSort: 'desc' },
+    { key: 'stockUnidades', label: 'Stock en Unidades' },
+    { key: 'stock', label: 'Stock Contenido Total', sortable: true, defaultSort: 'asc' },
+    { key: 'stockMinimoBodega', label: 'Stock Mín. Bodega', sortable: true, defaultSort: 'desc' },
+    { key: 'stockOptimoBodega', label: 'Stock Óptimo Bodega', sortable: true, defaultSort: 'desc' },
+    { key: 'stockMinimoAgencia', label: 'Stock Mín. Agencia', sortable: true, defaultSort: 'desc' },
+    { key: 'stockOptimoAgencia', label: 'Stock Óptimo Agencia', sortable: true, defaultSort: 'desc' },
+    { key: 'alerta', label: 'Alerta de Stock', sortable: true, defaultSort: 'asc' },
+    { key: 'estado', label: 'Estado', sortable: true, defaultSort: 'asc' },
+    { key: 'acciones', label: 'Acciones', align: 'right' },
+  ];
+  readonly productosTabla = new TablaServidor<ProductoInsumo>((c) =>
+    this.inventarioService.getProductosPagina({ ...c, ...this.dtoContextoProductos(), ...this.filtrosProductosServidor() }),
+  );
+
+  private filtrosProductosServidor(): { tipoProductoId?: string; estado?: number; nivelStock?: string } {
+    return {
+      tipoProductoId: this.filtroTipoProductoId || undefined,
+      estado: this.filtroEstadoProducto === 'activo' ? 1 : this.filtroEstadoProducto === 'inactivo' ? 0 : undefined,
+      nivelStock: this.filtroAlertaStock || undefined,
+    };
+  }
+
+  /** Al abrir la pestaña Productos se pide (una sola vez) su tabla. */
+  public abrirProductos(): void {
+    if (!this.productosTabla.inicializada && !this.productosTabla.cargando) this.productosTabla.reiniciar();
+  }
+
+  /** Cambió un selector de la barra de filtros: vuelve a la primera página. */
+  public reiniciarProductos(): void {
+    this.productosTabla.reiniciar();
   }
 
   public filtrarProductos(): void {
@@ -5084,15 +5150,100 @@ export class InventarioComponent implements OnInit {
     });
   }
 
+  /** Vuelve a pedir la página actual del Kardex con los filtros vigentes (también tras registrar un movimiento). */
   public cargarHistorialMovimientos(): void {
-    const payload: any = { page: 1, pageSize: 30 };
-    if (this.filtroMovimientoTipoId) payload.tipoMovimientoId = this.filtroMovimientoTipoId;
-    if (this.filtroMovimientoInsumoId) payload.insumoId = this.filtroMovimientoInsumoId;
+    this.cargaMovimientosSub?.unsubscribe();
+    this.cargandoMovimientos = true;
+    this.errorMovimientos = null;
+    this.cargaMovimientosSub = this.inventarioService
+      .getMovimientosPagina({
+        page: this.paginaMovimientos,
+        pageSize: this.pageSizeMovimientos,
+        sortField: this.sortFieldMovimientos,
+        sortOrder: this.sortOrderMovimientos,
+        search: this.busquedaMovimientosAplicada,
+        tipoMovimientoId: this.filtroMovimientoTipoId || undefined,
+        insumoId: this.filtroMovimientoInsumoId || undefined,
+        fechaDesde: this.inicioDelDiaIso(this.filtroMovimientoFechaDesde),
+        fechaHasta: this.finDelDiaIso(this.filtroMovimientoFechaHasta),
+      })
+      .subscribe({
+        next: ({ pagina }) => {
+          // Si la página quedó vacía (cambió lo último de la lista) se retrocede a la última que exista.
+          if (pagina.items.length === 0 && this.paginaMovimientos > 1 && pagina.total > 0) {
+            this.paginaMovimientos = Math.max(1, pagina.totalPages);
+            this.cargarHistorialMovimientos();
+            return;
+          }
+          this.historialMovimientos = pagina.items;
+          this.totalMovimientos = pagina.total;
+          this.paginaMovimientos = pagina.page;
+          this.cargandoMovimientos = false;
+        },
+        error: (err) => {
+          this.historialMovimientos = [];
+          this.totalMovimientos = 0;
+          this.errorMovimientos = err?.error?.message || 'No se pudo cargar el historial de movimientos.';
+          this.cargandoMovimientos = false;
+        },
+      });
+  }
 
-    this.inventarioService.getHistorialMovimientos(payload).subscribe((res) => {
-      this.historialMovimientos = res.items || [];
-      this.totalMovimientos = res.total || 0;
-    });
+  public onTablaMovimientosCambio(q: ConsultaTabla): void {
+    this.paginaMovimientos = q.page;
+    this.pageSizeMovimientos = q.pageSize;
+    this.sortFieldMovimientos = q.sortField || 'fecha';
+    this.sortOrderMovimientos = q.sortOrder;
+    this.cargarHistorialMovimientos();
+  }
+
+  /** Cambiar un filtro vuelve a la primera página. */
+  public alCambiarFiltroMovimientos(): void {
+    this.paginaMovimientos = 1;
+    this.cargarHistorialMovimientos();
+  }
+
+  public onBusquedaMovimientos(texto: string): void {
+    this.busquedaMovimientos = texto;
+    const limpio = (texto || '').trim();
+    // Con una sola letra no se consulta (y se conserva la búsqueda anterior); vacío quita el filtro.
+    this.busquedaMovimientosCorta = limpio.length > 0 && limpio.length < BUSQUEDA_MIN_CARACTERES;
+    if (this.busquedaMovimientosCorta) return;
+    this.busquedaMovimientos$.next(limpio);
+  }
+
+  get hayFiltrosMovimientos(): boolean {
+    return !!(
+      this.filtroMovimientoTipoId ||
+      this.filtroMovimientoInsumoId ||
+      this.filtroMovimientoFechaDesde ||
+      this.filtroMovimientoFechaHasta ||
+      this.busquedaMovimientosAplicada
+    );
+  }
+
+  public limpiarFiltrosMovimientos(): void {
+    this.filtroMovimientoTipoId = '';
+    this.filtroMovimientoInsumoId = '';
+    this.filtroMovimientoFechaDesde = '';
+    this.filtroMovimientoFechaHasta = '';
+    this.busquedaMovimientos = '';
+    this.busquedaMovimientosCorta = false;
+    this.busquedaMovimientosAplicada = '';
+    this.alCambiarFiltroMovimientos();
+  }
+
+  /** "2026-09-01" (campo de fecha) → inicio de ese día en la hora local, en ISO. */
+  private inicioDelDiaIso(fecha: string): string | undefined {
+    if (!fecha) return undefined;
+    const d = new Date(`${fecha}T00:00:00`);
+    return Number.isNaN(d.getTime()) ? undefined : d.toISOString();
+  }
+
+  private finDelDiaIso(fecha: string): string | undefined {
+    if (!fecha) return undefined;
+    const d = new Date(`${fecha}T23:59:59.999`);
+    return Number.isNaN(d.getTime()) ? undefined : d.toISOString();
   }
 
   public getLabelTipoMovimiento(m: {
@@ -5127,54 +5278,80 @@ export class InventarioComponent implements OnInit {
     return 'bg-amber-50 text-amber-700 border border-amber-200';
   }
 
+  // ── Stock bajo en bodega: páginas numeradas, orden y búsqueda en el servidor ──
+  readonly columnasStockBajo: TableColumn[] = [
+    { key: 'sku', label: 'SKU', sortable: true, defaultSort: 'asc' },
+    { key: 'nombre', label: 'Producto', sortable: true, defaultSort: 'asc' },
+    { key: 'tipo', label: 'Tipo', sortable: true, defaultSort: 'asc' },
+    { key: 'contenido', label: 'Contenido x Envase' },
+    { key: 'stockUnidades', label: 'Stock en Unidades' },
+    { key: 'stock', label: 'Stock Contenido', sortable: true, defaultSort: 'asc' },
+    { key: 'minimo', label: 'Stock Mínimo', sortable: true, defaultSort: 'desc' },
+    { key: 'deficit', label: 'Déficit', sortable: true, defaultSort: 'desc' },
+    { key: 'acciones', label: 'Acción', align: 'right' },
+  ];
+  /** Por defecto el servidor muestra primero el de menor stock. */
+  readonly stockBajoTabla = new TablaServidor<ProductoInsumo>((c) => this.inventarioService.getStockBajoPagina(c));
+  readonly claseFilaStockBajo = (): string => 'hover:bg-rose-50/30';
+
   public cargarStockBajo(): void {
-    if (!this.puedeVerStockBajoBodegaCentral) {
-      this.productosStockBajoList = [];
+    if (!this.puedeVerStockBajoBodegaCentral) return;
+    this.stockBajoTabla.refrescar();
+  }
+
+  // ── Alertas de stock: páginas numeradas, orden, búsqueda y filtros en el servidor ──
+  readonly columnasAlertas: TableColumn[] = [
+    { key: 'sede', label: 'Sucursal / Región', sortable: true, defaultSort: 'asc' },
+    { key: 'insumo', label: 'Insumo Requerido', sortable: true, defaultSort: 'asc' },
+    { key: 'nivel', label: 'Nivel Alerta', sortable: true, defaultSort: 'desc' },
+    { key: 'mensaje', label: 'Detalle Reportado' },
+    { key: 'fecha', label: 'Fecha Reporte', sortable: true, defaultSort: 'desc' },
+    { key: 'estado', label: 'Estado', sortable: true, defaultSort: 'asc' },
+    { key: 'acciones', label: 'Acciones', align: 'right' },
+  ];
+  readonly alertasTabla = new TablaServidor<any, ResumenAlertas>((c) =>
+    this.inventarioService.getAlertasPagina({ ...c, ...this.filtrosAlertasServidor() }),
+  );
+
+  private filtrosAlertasServidor(): { grupoNivel?: string; agenciaId?: string; sucursalId?: string } {
+    const f: { grupoNivel?: string; agenciaId?: string; sucursalId?: string } = {};
+    if (this.filtroAlertaNivel) f.grupoNivel = this.filtroAlertaNivel;
+    // El servidor limita al líder a su sede de todos modos; aquí se envía para dejarlo explícito.
+    if (this.operaDesdeAgencia && this.miAgenciaId) {
+      f.sucursalId = this.miAgenciaId;
+      f.agenciaId = this.miAgenciaId;
+    }
+    return f;
+  }
+
+  get mensajeSinAlertas(): string {
+    if (this.filtroAlertaNivel) return 'No hay alertas que coincidan con los filtros aplicados.';
+    if (this.operaDesdeAgencia) return 'No hay alertas de stock bajo pendientes en tu sede.';
+    if (this.operaBodegaPropia) return 'No hay alertas de stock bajo pendientes en las sucursales de tu región.';
+    return 'No hay alertas de stock bajo pendientes en las sucursales.';
+  }
+
+  /**
+   * Genera en el servidor las alertas de insumos requeridos sin stock (el listado paginado ya no escribe) y recarga la
+   * bandeja. forzar: ignora el límite de frecuencia (botón "Actualizar").
+   */
+  public cargarAlertasStock(forzar = false): void {
+    if (!this.puedeVerAlertas) return;
+    // Sincronizar alertas exige 'alertas.atender'; quien solo puede ver, solo recarga la lista.
+    if (!this.puedeAtenderAlertas) {
+      this.alertasTabla.reiniciar();
       return;
     }
-    this.inventarioService.getStockBajo().subscribe((res) => {
-      this.productosStockBajoList = res.items || [];
-    });
-  }
-
-  public cargarAlertasStock(): void {
     this.cargandoAlertasStock = true;
-    const dto: any = {};
-    if (this.isLiderOperador && this.miAgenciaId) {
-      dto.sucursalId = this.miAgenciaId;
-      dto.agenciaId = this.miAgenciaId;
-    }
-    this.inventarioService.getAlertasStock(dto).subscribe({
-      next: (alertas) => {
-        this.alertasStockList = alertas || [];
-        this.filtrarAlertasStock();
-        this.cargandoAlertasStock = false;
-      },
-      error: (err) => {
-        this.cargandoAlertasStock = false;
-        console.error('Error al cargar alertas de stock:', err);
-      }
+    this.inventarioService.sincronizarAlertas(forzar).subscribe(() => {
+      this.cargandoAlertasStock = false;
+      this.alertasTabla.reiniciar();
     });
   }
 
-  public filtrarAlertasStock(): void {
-    let list = [...(this.alertasStockList || [])];
-    if (this.filtroAlertaNivel) {
-      list = list.filter((a) => (a.nivel || '').toUpperCase() === this.filtroAlertaNivel.toUpperCase());
-    }
-    if (this.filtroAlertaAgencia.trim()) {
-      const q = this.filtroAlertaAgencia.toLowerCase();
-      list = list.filter(
-        (a) =>
-          a.agencia?.nombre?.toLowerCase().includes(q) ||
-          a.agencia?.codigo?.toLowerCase().includes(q) ||
-          a.agencia?.region?.toLowerCase().includes(q) ||
-          a.insumo?.nombre?.toLowerCase().includes(q) ||
-          a.insumo?.codigoSKU?.toLowerCase().includes(q) ||
-          (a.mensaje && a.mensaje.toLowerCase().includes(q))
-      );
-    }
-    this.alertasStockFiltradas = list;
+  /** Cambió el filtro de nivel: vuelve a la primera página. */
+  public reiniciarAlertas(): void {
+    this.alertasTabla.reiniciar();
   }
 
   public abrirDespachoDesdeAlerta(alerta: any): void {
@@ -5216,7 +5393,7 @@ export class InventarioComponent implements OnInit {
         this.toast.success('Alerta resuelta', 'La alerta de stock bajo ha sido atendida correctamente.');
         this.cargarAlertasStock();
       },
-      error: () => this.toast.error('Error', 'No se pudo actualizar el estado de la alerta.')
+      error: (err: any) => this.toast.error('Error', this.mensajeServidor(err, 'No se pudo actualizar el estado de la alerta.'))
     });
   }
 
@@ -5227,7 +5404,7 @@ export class InventarioComponent implements OnInit {
         const todas = bodegas || [];
         const miBodegaId = String(this.currentUser?.bodegaId || '').trim();
 
-        if (this.esAsistenteBodega) {
+        if (this.operaBodegaPropia) {
           // Solo su bodega asignada
           const propia = miBodegaId ? todas.filter((b) => String(b.id) === miBodegaId) : [];
           this.bodegasDisponibles = propia.length > 0 ? propia : todas.filter((b) => !b.esCentral && b.tipo !== 'CENTRAL');
@@ -5409,40 +5586,61 @@ export class InventarioComponent implements OnInit {
     this.bodegaSeleccionadaId = bodegaId;
     this.bodegaSeleccionada = this.bodegasDisponibles.find((b) => b.id === bodegaId) || null;
     // Limpiar tabla de inmediato para no mostrar stock de otra bodega mientras carga
-    this.insumosBodegaFiltrados = [];
+    this.bodegaTabla.limpiar();
     this.resumenBodegas = {
       bodega: this.bodegaSeleccionada,
       metricas: { totalInsumos: 0, stockTotalUnidades: 0, insumosBajoMinimo: 0, insumosOptimos: 0 },
       insumos: [],
     };
+    this.bodegaConsultadaId = String(bodegaId || '').trim();
     this.cargarStockBodega(bodegaId);
     this.cargarProductos();
+  }
+
+  // ── Insumos de la bodega: páginas numeradas, orden, búsqueda y estado en el servidor ──
+  readonly columnasBodega: TableColumn[] = [
+    { key: 'sku', label: 'Código SKU', sortable: true, defaultSort: 'asc' },
+    { key: 'nombre', label: 'Producto', sortable: true, defaultSort: 'asc' },
+    { key: 'tipo', label: 'Tipo', sortable: true, defaultSort: 'asc' },
+    { key: 'contenido', label: 'Contenido x Envase', sortable: true, defaultSort: 'desc' },
+    { key: 'stockUnidades', label: 'Stock en Unidades' },
+    { key: 'stock', label: 'Stock Contenido Total', sortable: true, defaultSort: 'asc' },
+    { key: 'minimo', label: 'Stock Mínimo', sortable: true, defaultSort: 'desc' },
+    { key: 'umbral', label: 'Umbral Alerta (% config)' },
+    { key: 'optimo', label: 'Stock Óptimo', sortable: true, defaultSort: 'desc' },
+    { key: 'estado', label: 'Estado / Nivel Alerta', sortable: true, defaultSort: 'asc' },
+    { key: 'acciones', label: 'Acciones', align: 'right' },
+  ];
+  /** Bodega que consulta la tabla (la fija `cargarStockBodega`). */
+  private bodegaConsultadaId = '';
+  readonly bodegaTabla = new TablaServidor<any, MetaBodega>((c) => {
+    const pedida = this.bodegaConsultadaId;
+    return this.inventarioService
+      .getStockBodegaPagina({ ...c, bodegaId: pedida, estado: this.filtroEstadoBodega || undefined })
+      .pipe(tap(({ resumen }) => this.alRecibirBodega(resumen, pedida)));
+  });
+
+  /** Cada página trae la bodega y las métricas de todos sus insumos; aquí se conservan para las tarjetas y el encabezado. */
+  private alRecibirBodega(meta: MetaBodega | undefined, pedida: string): void {
+    if (!meta || pedida !== this.bodegaConsultadaId) return; // respuesta atrasada de otra bodega
+    if (meta.bodega?.id && String(meta.bodega.id) !== String(pedida)) return;
+    this.resumenBodegas = { bodega: meta.bodega ?? this.bodegaSeleccionada, bodegas: meta.bodegas, metricas: meta.metricas, insumos: [] };
+    if (meta.bodega) {
+      this.bodegaSeleccionada = meta.bodega;
+      this.bodegaSeleccionadaId = meta.bodega.id;
+    }
   }
 
   public cargarStockBodega(bodegaId?: string): void {
     const id = (bodegaId || this.bodegaSeleccionadaId || '').toString().trim();
     if (!id) return;
+    this.bodegaConsultadaId = id;
+    this.bodegaTabla.refrescar();
+  }
 
-    const seq = ++this.stockBodegaRequestSeq;
-    this.inventarioService.getStockBodegasResumen({ bodegaId: id }).subscribe({
-      next: (res) => {
-        // Ignorar respuestas atrasadas de otra bodega
-        if (seq !== this.stockBodegaRequestSeq) return;
-        if (res?.bodega?.id && String(res.bodega.id) !== String(id)) return;
-
-        this.resumenBodegas = res || {
-          bodega: this.bodegaSeleccionada,
-          metricas: { totalInsumos: 0, stockTotalUnidades: 0, insumosBajoMinimo: 0, insumosOptimos: 0 },
-          insumos: [],
-        };
-        if (res?.bodega) {
-          this.bodegaSeleccionada = res.bodega;
-          this.bodegaSeleccionadaId = res.bodega.id;
-        }
-        this.filtrarInsumosBodega();
-      },
-      error: (err) => console.error('Error al cargar stock de bodegas:', err),
-    });
+  /** Cambió el filtro de estado de la bodega: vuelve a la primera página. */
+  public reiniciarBodega(): void {
+    if (this.bodegaConsultadaId) this.bodegaTabla.reiniciar();
   }
 
   public getAsistentesDeBodega(bodega: BodegaInventario | null): Usuario[] {
@@ -5490,12 +5688,11 @@ export class InventarioComponent implements OnInit {
   }
 
   public getBodegasParaVisualizacion(): BodegaInventario[] {
-    const role = (this.currentUser?.role || '').toUpperCase();
-    const esAsistenteBodega = role === 'ASISTENTE_BODEGA';
+    const soloSuRegion = this.operaBodegaPropia;
     const userRegion = (this.currentUser?.region || this.currentUser?.regionNombre || '').toLowerCase().trim();
     const userRegionId = (this.currentUser as any)?.regionId;
 
-    if (esAsistenteBodega && (userRegion || userRegionId)) {
+    if (soloSuRegion && (userRegion || userRegionId)) {
       const asignadas = this.bodegasDisponibles.filter(
         (b) =>
           (userRegionId && b.regionId && String(b.regionId) === String(userRegionId)) ||
@@ -5507,22 +5704,6 @@ export class InventarioComponent implements OnInit {
 
     // Admin, SuperAdmin, Gestor de Inventario (COORD_BODEGA): todas las bodegas creadas a nivel nacional
     return this.bodegasDisponibles;
-  }
-
-  public filtrarInsumosBodega(): void {
-    let list = [...(this.resumenBodegas?.insumos || [])];
-    if (this.filtroTextoBodega.trim()) {
-      const q = this.filtroTextoBodega.toLowerCase();
-      list = list.filter(
-        (i: any) =>
-          i.nombre?.toLowerCase().includes(q) ||
-          i.codigoSKU?.toLowerCase().includes(q)
-      );
-    }
-    if (this.filtroEstadoBodega) {
-      list = list.filter((i: any) => i.estado === this.filtroEstadoBodega);
-    }
-    this.insumosBodegaFiltrados = list;
   }
 
   public getLabelEstadoBodega(item: { estado?: string; porcentajeAlerta?: number }): string {
@@ -5549,71 +5730,53 @@ export class InventarioComponent implements OnInit {
     }
   }
 
-  public cargarStockAgencias(): void {
-    this.inventarioService.getStockAgenciasResumen().subscribe({
-      next: (res) => {
-        this.resumenAgencias = res || {
-          totalAgencias: 0,
-          agenciasEnAlerta: 0,
-          insumosCriticosTotal: 0,
-          agencias: [],
-        };
-        this.filtrarAgencias();
-      },
-      error: (err) => console.error('Error al cargar stock de agencias:', err),
-    });
-  }
-
-  public filtrarAgencias(): void {
-    let list = [...(this.resumenAgencias?.agencias || [])];
-    const role = (this.currentUser?.role || '').toUpperCase();
-    const esAsistenteBodega = role === 'ASISTENTE_BODEGA';
-    const userRegion = (this.currentUser?.region || this.currentUser?.regionNombre || '').toLowerCase().trim();
-    const userRegionId = (this.currentUser as any)?.regionId;
-
-    if (esAsistenteBodega && (userRegion || userRegionId)) {
-      // Asistente de Bodega: gestiona y visualiza ÚNICAMENTE las agencias de su región asignada
-      list = list.filter((a: any) => {
-        const regAgencia = (a.agencia?.region || '').toLowerCase();
-        const ciudadAgencia = (a.agencia?.ciudad || '').toLowerCase();
-        const regIdAgencia = a.agencia?.regionId ? String(a.agencia.regionId) : '';
-        const matchRegId = userRegionId && regIdAgencia === String(userRegionId);
-        const matchRegion = userRegion && regAgencia.includes(userRegion);
-        const matchCiudad = userRegion && ciudadAgencia.includes(userRegion);
-        return matchRegId || matchRegion || matchCiudad;
-      });
-    } else if (this.isOperador && this.miAgenciaId) {
-      const otras = list.filter(
-        (a: any) =>
-          String(a.agencia?.id) !== String(this.miAgenciaId) &&
-          a.agencia?.nombre?.toLowerCase() !== this.miAgenciaNombre?.toLowerCase()
-      );
-      if (otras.length > 0) {
-        list = otras;
-      }
-    }
-    // Super Admin, Admin y Gestor de Inventario (COORD_BODEGA): ven todas las agencias del país sin restricción regional
-    if (this.filtroAgenciaId) {
-      list = list.filter((a: any) => a.agencia?.id === this.filtroAgenciaId);
-    }
-    if (this.filtroEstadoAgencia === 'alerta') {
-      list = list.filter((a: any) => a.tieneAlerta);
-    } else if (this.filtroEstadoAgencia === 'optimo') {
-      list = list.filter((a: any) => !a.tieneAlerta);
-    }
-    if (this.filtroTextoInsumoAgencia.trim()) {
-      const q = this.filtroTextoInsumoAgencia.toLowerCase();
-      list = list.map((a: any) => ({
-        ...a,
-        insumos: (a.insumos || []).filter(
-          (i: any) =>
-            i.nombre?.toLowerCase().includes(q) ||
-            i.codigoSKU?.toLowerCase().includes(q)
+  // ── Fichas de agencias (scroll infinito) y sus insumos (tabla al expandir) ──
+  readonly agenciasLista = new ListaInfinita<any>(
+    (page, size) =>
+      this.inventarioService
+        .getAgenciasFichasPagina({
+          page,
+          pageSize: size,
+          search: this.busquedaAgenciasAplicada,
+          estadoUbicacion: (this.filtroEstadoAgencia as 'alerta' | 'optimo' | '') || undefined,
+          // "Otras agencias": quien opera una sede no ve la propia en la lista.
+          excluirAgenciaId: this.isOperador && this.miAgenciaId ? this.miAgenciaId : undefined,
+        })
+        .pipe(
+          tap(({ pagina, metricas }) => {
+            if (metricas) this.resumenAgencias = { ...this.resumenAgencias, ...metricas };
+            // Con pocas fichas se muestran abiertas para no obligar a un clic por cada una.
+            if (pagina.page === 1 && pagina.total <= 3) pagina.items.forEach((a) => this.agenciasExpandidas.add(String(a.agencia?.id)));
+          }),
+          map(({ pagina }) => pagina),
         ),
-      }));
-    }
-    this.agenciasFiltradas = list;
+    PAGE_SIZE_INFINITO,
+    (a) => a.agencia?.id,
+  );
+
+  public cargarStockAgencias(): void {
+    this.agenciasLista.reiniciar();
+    this.stockRefreshToken++;
   }
+
+  public reiniciarAgencias(): void {
+    this.agenciasLista.reiniciar();
+  }
+
+  public onBusquedaAgencias(texto: string): void {
+    this.textoAgencias = texto;
+    const limpio = texto.trim();
+    this.busquedaAgenciasCorta = limpio.length > 0 && limpio.length < BUSQUEDA_MIN_CARACTERES;
+    if (!this.busquedaAgenciasCorta) this.busquedaAgencias$.next(limpio);
+  }
+
+  public alternarFicha(abiertas: Set<string>, id: string): void {
+    const clave = String(id);
+    if (abiertas.has(clave)) abiertas.delete(clave);
+    else abiertas.add(clave);
+  }
+
+  public trackFicha = (_: number, ficha: any): string => String(ficha?.agencia?.id ?? ficha?.id);
 
   public seleccionarParaDespachoAgencia(agencia: any, insumo: any): void {
     this.abrirModalDespachoAgencia(agencia, insumo);
@@ -5623,77 +5786,45 @@ export class InventarioComponent implements OnInit {
   // GESTIÓN DE STOCK DE PULIDORES
   // ==============================================================
 
+  // ── Kits de pulidores (scroll infinito) y sus insumos (tabla al expandir) ──
+  readonly pulidoresLista = new ListaInfinita<any>(
+    (page, size) => {
+      const consulta: ConsultaFichas = {
+        page,
+        pageSize: size,
+        search: this.busquedaPulidoresAplicada,
+        estadoUbicacion: (this.filtroPulidorEstado as 'alerta' | 'optimo' | '') || undefined,
+        tipoPulidor: this.filtroPulidorTipo || undefined,
+      };
+      // El servidor limita al pulidor a su propio kit y al asistente a su región; aquí se envía para dejarlo explícito.
+      if (this.isPulidor && this.currentUser?.id) consulta.pulidorId = String(this.currentUser.id);
+      else if (this.operaBodegaPropia && this.currentUser?.regionId) consulta.regionId = String(this.currentUser.regionId);
+      return this.inventarioService.getPulidoresFichasPagina(consulta).pipe(
+        tap(({ pagina, metricas }) => {
+          if (metricas) this.resumenPulidores = { ...this.resumenPulidores, ...metricas };
+          if (pagina.page === 1 && pagina.total <= 3) pagina.items.forEach((p) => this.pulidoresExpandidos.add(String(p.id)));
+        }),
+        map(({ pagina }) => pagina),
+      );
+    },
+    PAGE_SIZE_INFINITO,
+    (p) => p.id,
+  );
+
   public cargarStockPulidoresResumen(): void {
-    this.cargandoPulidores = true;
-    const dto: any = {};
-    if (this.isPulidor && this.currentUser?.id) {
-      dto.pulidorId = String(this.currentUser.id);
-    } else if (this.esAsistenteBodega && this.currentUser?.regionId) {
-      dto.regionId = String(this.currentUser.regionId);
-    }
-    this.inventarioService.getStockPulidoresResumen(dto).subscribe({
-      next: (res) => {
-        this.resumenPulidores = res || {
-          totalPulidores: 0,
-          pulidoresEnAlerta: 0,
-          insumosCriticosTotal: 0,
-          pulidores: [],
-        };
-        this.cargandoPulidores = false;
-      },
-      error: (err) => {
-        console.error('Error al cargar stock de pulidores:', err);
-        this.cargandoPulidores = false;
-      },
-    });
+    this.pulidoresLista.reiniciar();
+    this.stockRefreshToken++;
   }
 
-  get pulidoresFiltrados(): any[] {
-    let list = [...(this.resumenPulidores?.pulidores || [])];
-    if (this.filtroPulidorId) {
-      list = list.filter((p: any) => String(p.id) === String(this.filtroPulidorId));
-    }
-    if (this.filtroPulidorTipo) {
-      list = list.filter((p: any) => p.tipoPulidor === this.filtroPulidorTipo);
-    }
-    if (this.filtroPulidorEstado === 'alerta') {
-      list = list.filter((p: any) => p.tieneAlerta);
-    } else if (this.filtroPulidorEstado === 'optimo') {
-      list = list.filter((p: any) => !p.tieneAlerta);
-    }
-    if (this.filtroPulidorTexto && this.filtroPulidorTexto.trim()) {
-      const q = this.filtroPulidorTexto.toLowerCase().trim();
-      list = list
-        .map((p: any) => {
-          const matchPulidor =
-            (p.nombre || '').toLowerCase().includes(q) ||
-            (p.email || '').toLowerCase().includes(q) ||
-            (p.agenciaNombre || '').toLowerCase().includes(q) ||
-            (p.regionNombre || '').toLowerCase().includes(q);
-          if (matchPulidor) {
-            return p;
-          }
-          const insumosFiltrados = (p.insumos || []).filter(
-            (ins: any) =>
-              (ins.nombre || '').toLowerCase().includes(q) ||
-              (ins.codigoSKU || '').toLowerCase().includes(q) ||
-              (ins.sku || '').toLowerCase().includes(q)
-          );
-          return {
-            ...p,
-            insumos: insumosFiltrados,
-          };
-        })
-        .filter((p: any) => {
-          const matchPulidor =
-            (p.nombre || '').toLowerCase().includes(q) ||
-            (p.email || '').toLowerCase().includes(q) ||
-            (p.agenciaNombre || '').toLowerCase().includes(q) ||
-            (p.regionNombre || '').toLowerCase().includes(q);
-          return matchPulidor || (p.insumos && p.insumos.length > 0);
-        });
-    }
-    return list;
+  public reiniciarPulidores(): void {
+    this.pulidoresLista.reiniciar();
+  }
+
+  public onBusquedaPulidores(texto: string): void {
+    this.textoPulidores = texto;
+    const limpio = texto.trim();
+    this.busquedaPulidoresCorta = limpio.length > 0 && limpio.length < BUSQUEDA_MIN_CARACTERES;
+    if (!this.busquedaPulidoresCorta) this.busquedaPulidores$.next(limpio);
   }
 
   public abrirDespachoAPulidor(p: any, insumo?: any): void {
@@ -5803,7 +5934,7 @@ export class InventarioComponent implements OnInit {
 
   public abrirModalReajuste(item: any): void {
     if (!this.puedeReajustarStock) {
-      this.toast.warning('Sin permiso', 'Tu rol no puede reajustar stock.');
+      this.toast.warning('Sin permiso', 'No tienes permiso para reajustar stock.');
       return;
     }
     this.itemReajuste = {
@@ -5942,7 +6073,7 @@ export class InventarioComponent implements OnInit {
     if (!this.puedeRegistrarIngreso) {
       this.toast.warning(
         'Ingreso no permitido',
-        'Solo se registran ingresos en Bodega Central. Las demás bodegas se abastecen por envíos.'
+        'No tienes permiso para registrar compras en la Bodega Central. Las demás bodegas se abastecen por envíos.'
       );
       return;
     }
@@ -6333,7 +6464,7 @@ export class InventarioComponent implements OnInit {
   }
 
   public puedeCambiarEstadoProducto(): boolean {
-    return !!(this.esAdminGlobal || this.esGestorBodega);
+    return this.puedeGestionarCatalogos;
   }
 
   public async guardarProducto(): Promise<void> {
@@ -6474,7 +6605,7 @@ export class InventarioComponent implements OnInit {
 
   public toggleEstadoProducto(p: ProductoInsumo): void {
     if (!this.puedeCambiarEstadoProducto()) {
-      this.toast.warning('Sin permiso', 'Solo Admin, Super Admin o Coordinador de Bodega pueden cambiar el estado.');
+      this.toast.warning('Sin permiso', 'No tienes permiso para gestionar el catálogo de insumos.');
       return;
     }
     const nuevoEstado = p.activo ? 0 : 1;
@@ -6523,6 +6654,7 @@ export class InventarioComponent implements OnInit {
         this.toast.success('Éxito', 'Tipo de producto guardado con éxito');
         this.modalTipoAbierto = false;
         this.cargarTiposProducto();
+        this.tiposTabla.refrescar();
       },
       error: (err) => this.toast.error('Error', err?.error?.message || 'Error al guardar tipo de producto'),
     });
@@ -6534,6 +6666,7 @@ export class InventarioComponent implements OnInit {
       next: () => {
         t.estado = nuevoEstado;
         this.toast.success('Éxito', `Tipo ${nuevoEstado === 1 ? 'activado' : 'desactivado'}`);
+        this.cargarTiposProducto();
       },
     });
   }
@@ -6570,6 +6703,7 @@ export class InventarioComponent implements OnInit {
         this.toast.success('Éxito', 'Unidad de medida guardada con éxito');
         this.modalUnidadAbierto = false;
         this.cargarUnidadesMedida();
+        this.unidadesTabla.refrescar();
       },
       error: (err) => this.toast.error('Error', err?.error?.message || 'Error al guardar unidad de medida'),
     });
@@ -6581,6 +6715,7 @@ export class InventarioComponent implements OnInit {
       next: () => {
         u.estado = nuevoEstado;
         this.toast.success('Éxito', `Unidad ${nuevoEstado === 1 ? 'activada' : 'desactivada'}`);
+        this.cargarUnidadesMedida();
       },
     });
   }

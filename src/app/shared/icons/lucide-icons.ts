@@ -19,6 +19,8 @@ import {
   Clock,
   ShieldCheck,
   ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
   Download,
   Eye,
   Play,
@@ -119,7 +121,9 @@ import {
   ExternalLink,
   Crop,
   ImagePlus,
-  Move
+  Move,
+  PanelLeftOpen,
+  PanelLeftClose
 } from 'lucide-angular';
 
 export const EASYDRY_ICONS = {
@@ -146,6 +150,8 @@ export const EASYDRY_ICONS = {
   Clock,
   ShieldCheck,
   ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
   Download,
   Eye,
   Play,
@@ -245,6 +251,8 @@ export const EASYDRY_ICONS = {
   Crop,
   ImagePlus,
   Move,
+  PanelLeftOpen,
+  PanelLeftClose,
 
   // Kebab-case mappings
   'external-link': ExternalLink,
@@ -271,6 +279,8 @@ export const EASYDRY_ICONS = {
   'clock': Clock,
   'shield-check': ShieldCheck,
   'chevron-right': ChevronRight,
+  'chevrons-left': ChevronsLeft,
+  'chevrons-right': ChevronsRight,
   'download': Download,
   'eye': Eye,
   'play': Play,
@@ -367,5 +377,7 @@ export const EASYDRY_ICONS = {
   'package-check': PackageCheck,
   'package-minus': PackageMinus,
   'pause': Pause,
-  'pause-circle': PauseCircle
+  'pause-circle': PauseCircle,
+  'panel-left-open': PanelLeftOpen,
+  'panel-left-close': PanelLeftClose
 };

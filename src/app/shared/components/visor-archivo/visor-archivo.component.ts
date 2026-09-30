@@ -35,18 +35,22 @@ const ZOOM_DOBLE_CLIC = 2.5;
       [closeOnBackdrop]="true"
       (close)="cerrar.emit()">
       @if (cargando) {
-        <p class="text-sm text-slate-500 font-semibold py-10 text-center">Cargando...</p>
+        <p class="estado-vacio py-10" role="status" aria-live="polite">Cargando...</p>
       }
       @if (error) {
-        <div class="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs font-semibold text-rose-700">{{ error }}</div>
+        <div class="estado-error" role="alert">{{ error }}</div>
       }
       @if (srcActual && !error) {
         @if (tipo === 'pdf') {
-          <iframe [src]="urlSegura" [title]="titulo" class="w-full h-[70vh] rounded-xl border border-slate-200 bg-white"></iframe>
+          <iframe [src]="urlSegura" [title]="titulo" class="w-full h-[70dvh] rounded-xl border border-slate-200 bg-white"></iframe>
         } @else {
           <div class="relative">
             <div #viewport
-                 class="relative w-full h-[70vh] overflow-hidden rounded-xl border border-slate-200 bg-slate-900 select-none cursor-grab"
+                 tabindex="0"
+                 role="group"
+                 aria-label="Visor de imagen. Use + y − para acercar o alejar, 0 para ajustar."
+                 (keydown)="alTecla($event)"
+                 class="relative w-full h-[70dvh] overflow-hidden rounded-xl border border-slate-200 bg-slate-900 select-none cursor-grab"
                  style="touch-action: none;">
               <img #imagen [src]="srcActual" [alt]="titulo" draggable="false" decoding="async" fetchpriority="high"
                    class="absolute inset-0 w-full h-full object-contain pointer-events-none"
@@ -55,36 +59,35 @@ const ZOOM_DOBLE_CLIC = 2.5;
                    (error)="alFallarImagen()">
               @if (!imagenCargada) {
                 <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <span class="text-xs font-semibold text-white/70">Cargando imagen...</span>
+                  <span class="text-xs font-semibold text-white/70" role="status">Cargando imagen...</span>
                 </div>
               }
             </div>
 
             <!-- Controles de zoom -->
             <div class="absolute top-3 right-3 flex items-center gap-1 bg-white rounded-xl shadow-md border border-slate-200 p-1">
-              <button type="button" (click)="acercar()" title="Acercar" [disabled]="escala >= ZOOM_MAX"
-                      class="p-1.5 rounded-lg hover:bg-slate-100 text-slate-700 disabled:opacity-40 cursor-pointer">
-                <i-lucide name="zoom-in" class="w-4 h-4"></i-lucide>
+              <button type="button" (click)="acercar()" title="Acercar" aria-label="Acercar" [disabled]="escala >= ZOOM_MAX"
+                      class="w-9 h-9 inline-flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-700 disabled:opacity-40 cursor-pointer">
+                <i-lucide name="zoom-in" class="w-4 h-4" aria-hidden="true"></i-lucide>
               </button>
               <span #pct class="text-[11px] font-bold text-slate-600 w-11 text-center tabular-nums">{{ porcentaje }}%</span>
-              <button type="button" (click)="alejar()" title="Alejar" [disabled]="escala <= ZOOM_MIN"
-                      class="p-1.5 rounded-lg hover:bg-slate-100 text-slate-700 disabled:opacity-40 cursor-pointer">
-                <i-lucide name="zoom-out" class="w-4 h-4"></i-lucide>
+              <button type="button" (click)="alejar()" title="Alejar" aria-label="Alejar" [disabled]="escala <= ZOOM_MIN"
+                      class="w-9 h-9 inline-flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-700 disabled:opacity-40 cursor-pointer">
+                <i-lucide name="zoom-out" class="w-4 h-4" aria-hidden="true"></i-lucide>
               </button>
-              <button type="button" (click)="restablecer()" title="Ajustar a la ventana"
-                      class="p-1.5 rounded-lg hover:bg-slate-100 text-slate-700 cursor-pointer">
-                <i-lucide name="maximize" class="w-4 h-4"></i-lucide>
+              <button type="button" (click)="restablecer()" title="Ajustar a la ventana" aria-label="Ajustar a la ventana"
+                      class="w-9 h-9 inline-flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-700 disabled:opacity-40 cursor-pointer">
+                <i-lucide name="maximize" class="w-4 h-4" aria-hidden="true"></i-lucide>
               </button>
             </div>
-            <p class="mt-2 text-[10px] text-slate-400 font-semibold text-center">
-              Rueda del ratón o pellizca para agrandar · arrastra para mover · doble clic para acercar
+            <p class="mt-2 text-xs text-slate-500 font-semibold text-center">
+              Rueda del ratón o pellizca para agrandar · arrastra para mover · doble clic para acercar · teclas + − 0
             </p>
           </div>
         }
       }
       <div modal-footer>
-        <button type="button" (click)="cerrar.emit()"
-                class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold rounded-xl text-xs cursor-pointer">Cerrar</button>
+        <button type="button" (click)="cerrar.emit()" class="btn-secondary">Cerrar</button>
       </div>
     </app-modal>
   `,
@@ -189,6 +192,16 @@ export class VisorArchivoComponent implements OnChanges, OnDestroy {
 
   ngOnDestroy(): void {
     this.desadjuntar();
+  }
+
+  /** Atajos de teclado con el visor enfocado: + acerca, − aleja, 0 ajusta. Esc lo maneja el modal. */
+  alTecla(evento: KeyboardEvent): void {
+    if (evento.ctrlKey || evento.metaKey || evento.altKey) return;
+    switch (evento.key) {
+      case '+': case '=': evento.preventDefault(); this.acercar(); break;
+      case '-': case '_': evento.preventDefault(); this.alejar(); break;
+      case '0': evento.preventDefault(); this.restablecer(); break;
+    }
   }
 
   // ---- Controles (botones) ----

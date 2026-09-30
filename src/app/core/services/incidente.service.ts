@@ -2,7 +2,9 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { BehaviorSubject, Observable, of } from 'rxjs';
 import { map, tap, catchError } from 'rxjs/operators';
-import { Incidente, ArchivoAdjunto, PaginaResultado, nombrePersona } from '../models';
+import { Incidente, ArchivoAdjunto, nombrePersona } from '../models';
+import { PaginaServidor, OrdenDir, normalizarPagina } from '../models/paginacion.model';
+import { PAGE_SIZE_MAX, PAGE_SIZE_TABLA, BUSQUEDA_MIN_CARACTERES } from '../config/paginacion';
 import { apiUrl } from '../config/env';
 import { mapEvidenciasMaquinaria, fechaISOLocal, fechaLocal } from '../utils/evidencia-maquinaria';
 
@@ -26,14 +28,39 @@ export interface ReportarIncidentePayload {
   evidencias: EvidenciaInput[];
 }
 
-export interface IncidenteFiltro {
-  maquinariaId?: string;
-  estado?: string;
-  gravedad?: string;
-  agenciaId?: string;
-  soloNoAtendidas?: boolean;
+/** Consulta paginada de incidencias: todo (orden, búsqueda y filtros) se resuelve en el servidor. */
+export interface ConsultaIncidentes {
   page?: number;
   pageSize?: number;
+  /** fecha | solucion | estado | gravedad | titulo | maquina | agencia | reportadoPor | tecnico. Sin él: no atendidas, en proceso, cerradas. */
+  sortField?: string | null;
+  sortOrder?: OrdenDir;
+  search?: string;
+  maquinariaId?: string;
+  /** ABIERTO | EN_PROCESO | RESUELTO | CANCELADO */
+  estado?: string;
+  gravedad?: string;
+  tecnicoId?: string;
+  agenciaId?: string;
+  regionId?: string;
+  clienteId?: string;
+  soloNoAtendidas?: boolean;
+  /** AAAA-MM-DD o ISO (por fecha de reporte). */
+  fechaDesde?: string;
+  fechaHasta?: string;
+  incluirResumen?: boolean;
+}
+
+export interface ResumenIncidentes {
+  noAtendidas: number;
+  enProceso: number;
+  cerradas: number;
+  total: number;
+}
+
+export interface RespuestaIncidentesPagina {
+  pagina: PaginaServidor<Incidente>;
+  resumen?: ResumenIncidentes;
 }
 
 @Injectable({
@@ -46,7 +73,12 @@ export class IncidenteService {
 
   private mapBackendIncidente(item: any): Incidente {
     const maqNombre = item.maquinaria?.nombre || item.maquinaria?.codigo || item.maquina || 'Equipo';
-    const agNombre = item.maquinaria?.agencia?.nombre || item.agencia || 'Taller Central';
+    // El backend ya resuelve la agencia efectiva: si la máquina tiene pulidor asignado, manda su ubicación
+    // (agencia del fijo, o "Pulidor Móvil" si no tiene agencia fija) en vez de la agencia física de la máquina.
+    const esPulidorMovil = item.esPulidorMovil === true;
+    const agNombre = esPulidorMovil
+      ? 'Pulidor Móvil'
+      : (item.agenciaMostrada || item.maquinaria?.agencia?.nombre || item.agencia || 'Taller Central');
     const repNombre = item.reportadoPor ? (nombrePersona(item.reportadoPor) || item.reportadoPor.email) : (item.reportadoPor || 'Operador');
     const resNombre = item.resueltoPor ? nombrePersona(item.resueltoPor) : (item.solucionadoPor || undefined);
     const evidencias = mapEvidenciasMaquinaria(item.evidencias);
@@ -79,6 +111,7 @@ export class IncidenteService {
       codigoIncidente: item.codigoIncidente || (typeof item.id === 'string' ? `INC-${item.id.substring(0, 6).toUpperCase()}` : `INC-2026-${String(item.id).padStart(3, '0')}`),
       maquina: maqNombre,
       agencia: agNombre,
+      esPulidorMovil,
       fecha: fechaReporte ? fechaISOLocal(fechaReporte) : (item.fecha || fechaISOLocal(new Date().toISOString())),
       tipo: item.titulo || item.tipo || 'Falla técnica',
       prioridad: gravedadRaw
@@ -117,26 +150,41 @@ export class IncidenteService {
   }
 
   /**
-   * Lista de incidencias. El backend ya las devuelve ordenadas (no atendidas primero, luego en proceso, luego
-   * cerradas): NO se reordenan en el cliente.
+   * Una página de incidencias con orden, búsqueda y filtros en el servidor. El backend ya las devuelve agrupadas
+   * (no atendidas, en proceso, cerradas) cuando no hay `sortField`: NO se reordenan en el cliente.
+   * NO toca `incidentesSubject` y propaga los errores (la pantalla muestra "Reintentar").
    */
-  getIncidentesPagina(filtro: IncidenteFiltro = {}): Observable<PaginaResultado<Incidente>> {
-    return this.http.post<any>(apiUrl('/maquinaria/incidentes/list'), { pageSize: 200, ...filtro }).pipe(
+  getIncidentesPagina(consulta: ConsultaIncidentes = {}): Observable<RespuestaIncidentesPagina> {
+    const body: Record<string, unknown> = {};
+    const c = consulta;
+    body['page'] = c.page || 1;
+    body['pageSize'] = Math.min(c.pageSize || PAGE_SIZE_TABLA, PAGE_SIZE_MAX);
+    if (c.sortField) { body['sortField'] = c.sortField; body['sortOrder'] = c.sortOrder || 'desc'; }
+    const texto = (c.search || '').trim();
+    if (texto.length >= BUSQUEDA_MIN_CARACTERES) body['search'] = texto;
+    const claves: (keyof ConsultaIncidentes)[] = ['maquinariaId', 'estado', 'gravedad', 'tecnicoId', 'agenciaId', 'regionId', 'clienteId', 'fechaDesde', 'fechaHasta'];
+    for (const k of claves) {
+      const v = c[k];
+      if (v !== undefined && v !== null && v !== '') body[k] = v;
+    }
+    if (c.soloNoAtendidas) body['soloNoAtendidas'] = true;
+    if (c.incluirResumen) body['incluirResumen'] = true;
+
+    return this.http.post<any>(apiUrl('/maquinaria/incidentes/list'), body).pipe(
       map(res => {
-        const rawItems = Array.isArray(res) ? res : (res?.data || []);
+        const pagina = normalizarPagina<any>(res, body['page'] as number, body['pageSize'] as number);
         return {
-          data: rawItems.map((item: any) => this.mapBackendIncidente(item)) as Incidente[],
-          total: Number(res?.total ?? rawItems.length),
-          page: Number(res?.page ?? 1),
-          pageSize: Number(res?.pageSize ?? rawItems.length),
+          pagina: { ...pagina, items: pagina.items.map((item: any) => this.mapBackendIncidente(item)) as Incidente[] },
+          resumen: res?.resumen as ResumenIncidentes | undefined,
         };
-      })
+      }),
     );
   }
 
-  getIncidentes(filtro?: IncidenteFiltro): Observable<Incidente[]> {
-    return this.getIncidentesPagina(filtro || {}).pipe(
-      map(p => p.data),
+  /** Lista plana (hasta 100, el máximo por petición) para pantallas que aún no paginan. Ante un error conserva lo último. */
+  getIncidentes(filtro: ConsultaIncidentes = {}): Observable<Incidente[]> {
+    return this.getIncidentesPagina({ ...filtro, pageSize: PAGE_SIZE_MAX }).pipe(
+      map(r => r.pagina.items),
       tap(items => this.incidentesSubject.next(items)),
       catchError(() => of(this.incidentesSubject.value))
     );

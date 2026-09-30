@@ -1,4 +1,4 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule, ActivatedRoute } from '@angular/router';
@@ -14,41 +14,51 @@ import { ModalComponent } from '../../shared/components/modal/modal.component';
 import { ToastService } from '../../shared/services/toast.service';
 import { CatalogoServiciosService } from '../../core/services/catalogo-servicios.service';
 import { FilterBarComponent, FilterState } from '../../shared/components/filter-bar/filter-bar.component';
+import { DataTableComponent, DataTableCellDirective, TableColumn } from '../../shared/components/data-table/data-table.component';
+import { TablaServidor } from '../../core/utils/tabla-servidor';
+import { OpcionesService } from '../../core/services/opciones.service';
+import { SelectSearchComponent } from '../../shared/components/select-search/select-search.component';
+import { ListaInfinita } from '../../core/utils/lista-infinita';
+import { InfiniteScrollComponent } from '../../shared/components/infinite-scroll/infinite-scroll.component';
+import { Subject, Subscription } from 'rxjs';
+import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
+import { BUSQUEDA_DEBOUNCE_MS, BUSQUEDA_MIN_CARACTERES, PAGE_SIZE_INFINITO } from '../../core/config/paginacion';
+import { ConsultaAgencias } from '../../core/services/sucursal.service';
 
 @Component({
   selector: 'app-sucursales',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, LucideAngularModule, ModalComponent, FilterBarComponent],
+  imports: [CommonModule, FormsModule, RouterModule, LucideAngularModule, ModalComponent, FilterBarComponent, DataTableComponent, DataTableCellDirective, InfiniteScrollComponent, SelectSearchComponent],
   template: `
     <div class="space-y-6 animate-fade-in">
 
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-100 shadow-easydry">
         <div>
           <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-easydry-blue/10 text-easydry-blue text-xs font-bold mb-2">
-            <i-lucide name="building-2" class="w-3.5 h-3.5"></i-lucide>
+            <i-lucide aria-hidden="true" name="building-2" class="w-3.5 h-3.5"></i-lucide>
             <span>Gestión de Red Física y Operatividad en Vivo</span>
           </div>
           <h1 class="text-2xl font-extrabold text-slate-900 font-outfit">Agencias & Mapa de Red EasyDry®</h1>
           <p class="text-slate-500 text-xs mt-1">Control administrativo de sedes, regiones operativas, clientes corporativos y trazabilidad jerárquica de bahías en tiempo real.</p>
         </div>
         <button
-          *ngIf="tabActiva === 'agencias' || tabActiva === 'sucursales'"
+          *ngIf="(tabActiva === 'agencias' || tabActiva === 'sucursales') && puedeCrearAgencia"
           (click)="abrirModalCrearSucursal()"
-          class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
-          <i-lucide name="plus" class="w-4 h-4"></i-lucide>
+          class="btn btn-cta">
+          <i-lucide aria-hidden="true" name="plus" class="w-4 h-4"></i-lucide>
           <span>Registrar Agencia</span>
         </button>
       </div>
 
       <div class="flex flex-wrap gap-2">
-        @for (tab of tabs; track tab.id) {
+        @for (tab of tabsVisibles; track tab.id) {
           <button
             (click)="tabActiva = tab.id"
             class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-extrabold border transition-colors cursor-pointer"
             [ngClass]="tabActiva === tab.id
               ? 'bg-easydry-blue text-white border-easydry-blue shadow-sm'
               : 'bg-white text-slate-600 border-slate-200 hover:border-easydry-blue/40'">
-            <i-lucide [name]="tab.icon" class="w-4 h-4" [ngClass]="tabActiva === tab.id ? 'text-white' : 'text-slate-500'"></i-lucide>
+            <i-lucide aria-hidden="true" [name]="tab.icon" class="w-4 h-4" [ngClass]="tabActiva === tab.id ? 'text-white' : 'text-slate-500'"></i-lucide>
             <span>{{ tab.label }}</span>
           </button>
         }
@@ -64,7 +74,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
           <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-xs flex flex-wrap items-center justify-between gap-4">
             <div class="flex items-center gap-3 flex-wrap flex-1">
               <div class="flex items-center gap-2">
-                <i-lucide name="filter" class="w-4 h-4 text-easydry-blue"></i-lucide>
+                <i-lucide aria-hidden="true" name="filter" class="w-4 h-4 text-easydry-blue"></i-lucide>
                 <span class="text-xs font-bold text-slate-700 uppercase">Filtrar Agencia:</span>
               </div>
               <select [(ngModel)]="filtroSucursalMapaId" class="bg-slate-50 border border-slate-200 text-xs font-bold rounded-xl px-3 py-2 min-w-56 focus:ring-2 focus:ring-easydry-blue">
@@ -76,7 +86,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
             </div>
 
             <!-- Leyenda de Estados de Bahía -->
-            <div class="flex items-center gap-3 flex-wrap text-[11px] font-bold text-slate-600">
+            <div class="flex items-center gap-3 flex-wrap text-xs font-bold text-slate-600">
               <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> Disponible</span>
               <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span> Lavado</span>
               <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span> Secado</span>
@@ -93,12 +103,12 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                 <div class="p-5 bg-gradient-to-r from-slate-50 to-white border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div class="flex items-center gap-3">
                     <div class="w-10 h-10 rounded-xl bg-easydry-blue/10 text-easydry-blue flex items-center justify-center font-bold">
-                      <i-lucide name="building-2" class="w-5 h-5"></i-lucide>
+                      <i-lucide aria-hidden="true" name="building-2" class="w-5 h-5"></i-lucide>
                     </div>
                     <div>
                       <div class="flex items-center gap-2">
                         <h3 class="font-extrabold text-base text-slate-900 font-outfit">{{ suc.nombre }}</h3>
-                        <span class="px-2 py-0.5 rounded-full text-[10px] font-bold"
+                        <span class="px-2 py-0.5 rounded-full text-xs font-bold"
                           [ngClass]="suc.estado === 'Activo' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'">
                           {{ suc.estado }}
                         </span>
@@ -115,7 +125,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                     </span>
                     <a [routerLink]="['/agencias', suc.id]" class="px-3 py-1.5 bg-easydry-blue/10 hover:bg-easydry-blue hover:text-white text-easydry-blue font-bold rounded-xl text-xs transition-colors flex items-center gap-1">
                       <span>Gestionar</span>
-                      <i-lucide name="chevron-right" class="w-3.5 h-3.5"></i-lucide>
+                      <i-lucide aria-hidden="true" name="chevron-right" class="w-3.5 h-3.5"></i-lucide>
                     </a>
                   </div>
                 </div>
@@ -123,7 +133,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                 <!-- Grilla de Bahías de la Sucursal -->
                 <div class="p-5">
                   @if (getBahiasDeSucursal(suc.id).length === 0) {
-                    <p class="text-xs text-slate-400 italic py-4 text-center">No hay bahías configuradas para esta agencia.</p>
+                    <p class="text-xs text-slate-500 italic py-4 text-center">No hay bahías configuradas para esta agencia.</p>
                   } @else {
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                       @for (bahia of getBahiasDeSucursal(suc.id); track bahia.id) {
@@ -132,10 +142,10 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                             <!-- Header de Bahía -->
                             <div class="flex items-start justify-between gap-2 mb-2">
                               <div>
-                                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider font-mono">Bahía #{{ bahia.id }}</span>
+                                <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider font-mono">Bahía #{{ bahia.id }}</span>
                                 <h4 class="font-extrabold text-sm text-slate-900">{{ bahia.nombre }}</h4>
                               </div>
-                              <span class="px-2.5 py-1 rounded-lg text-[10px] font-extrabold uppercase tracking-wider border"
+                              <span class="px-2.5 py-1 rounded-lg text-[11px] font-extrabold uppercase tracking-wider border"
                                 [ngClass]="getEstadoBahiaBadge(bahia.estado)">
                                 {{ bahia.estado }}
                               </span>
@@ -144,47 +154,47 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                             <!-- Responsable y Operador asignado (Punto 16) -->
                             <div class="mt-3 p-2.5 bg-white rounded-xl border border-slate-100 text-xs space-y-2">
                               <div>
-                                <div class="text-[9px] font-extrabold text-purple-700 uppercase tracking-wider mb-0.5 flex items-center gap-1">
-                                  <i-lucide name="shield" class="w-3 h-3 text-purple-600"></i-lucide>
+                                <div class="text-[11px] font-extrabold text-purple-700 uppercase tracking-wider mb-0.5 flex items-center gap-1">
+                                  <i-lucide aria-hidden="true" name="shield" class="w-3 h-3 text-purple-600"></i-lucide>
                                   <span>Responsable de Agencia</span>
                                 </div>
-                                <p class="font-bold text-slate-800 text-[11px] truncate">{{ suc.responsable || 'Sin asignar' }}</p>
+                                <p class="font-bold text-slate-800 text-xs truncate">{{ suc.responsable || 'Sin asignar' }}</p>
                               </div>
                               <div>
-                                <div class="text-[9px] font-extrabold text-easydry-blue uppercase tracking-wider mb-0.5 flex items-center gap-1">
-                                  <i-lucide name="user" class="w-3 h-3 text-easydry-blue"></i-lucide>
+                                <div class="text-[11px] font-extrabold text-easydry-blue uppercase tracking-wider mb-0.5 flex items-center gap-1">
+                                  <i-lucide aria-hidden="true" name="user" class="w-3 h-3 text-easydry-blue"></i-lucide>
                                   <span>Operador Asignado</span>
                                 </div>
                                 @if (bahia.operadorAsignado) {
-                                  <p class="font-bold text-slate-800 text-[11px] truncate">{{ bahia.operadorAsignado }}</p>
+                                  <p class="font-bold text-slate-800 text-xs truncate">{{ bahia.operadorAsignado }}</p>
                                 } @else {
-                                  <p class="text-slate-400 italic text-[11px]">Sin operador asignado</p>
+                                  <p class="text-slate-500 italic text-xs">Sin operador asignado</p>
                                 }
                               </div>
                             </div>
 
                             <!-- Maquinaria e Insumos vinculados -->
-                            <div class="mt-2 text-[11px] text-slate-500 space-y-1">
+                            <div class="mt-2 text-xs text-slate-500 space-y-1">
                               @if (bahia.maquinariaAsignada && bahia.maquinariaAsignada.length > 0) {
                                 <div class="flex items-center gap-1 text-slate-600">
-                                  <i-lucide name="wrench" class="w-3 h-3 text-slate-400"></i-lucide>
+                                  <i-lucide aria-hidden="true" name="wrench" class="w-3 h-3 text-slate-400"></i-lucide>
                                   <span>{{ bahia.maquinariaAsignada.length }} máquina(s) en línea</span>
                                 </div>
                               }
                               @if (bahia.vehiculoActual) {
                                 <div class="flex items-center gap-1 text-easydry-blue font-bold">
-                                  <i-lucide name="car" class="w-3 h-3"></i-lucide>
+                                  <i-lucide aria-hidden="true" name="car" class="w-3 h-3"></i-lucide>
                                   <span>En atención: {{ bahia.vehiculoActual }}</span>
                                 </div>
                               }
                             </div>
                           </div>
 
-                          <div class="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
-                            <span class="text-slate-400">Tipo: {{ bahia.tipo || 'General' }}</span>
+                          <div class="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+                            <span class="text-slate-500">Tipo: {{ bahia.tipo || 'General' }}</span>
                             <a [routerLink]="['/agencias', suc.id]" class="text-easydry-blue font-bold hover:underline flex items-center gap-0.5">
                               <span>Ver detalle</span>
-                              <i-lucide name="arrow-right" class="w-3 h-3"></i-lucide>
+                              <i-lucide aria-hidden="true" name="arrow-right" class="w-3 h-3"></i-lucide>
                             </a>
                           </div>
                         </div>
@@ -194,8 +204,8 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                 </div>
               </div>
             } @empty {
-              <div class="bg-white rounded-2xl border border-slate-100 p-12 text-center text-slate-400">
-                <i-lucide name="building-2" class="w-12 h-12 mx-auto mb-2 opacity-30"></i-lucide>
+              <div class="bg-white rounded-2xl border border-slate-100 p-12 text-center text-slate-500">
+                <i-lucide aria-hidden="true" name="building-2" class="w-12 h-12 mx-auto mb-2 opacity-30"></i-lucide>
                 <p class="font-bold text-sm">No se encontraron agencias para el filtro seleccionado.</p>
               </div>
             }
@@ -214,103 +224,155 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
           [showEstado]="true"
           [listaEstados]="['Todos', 'Activo', 'Mantenimiento', 'Inactivo']"
           [showFechas]="false"
-          [showBusqueda]="false"
+          [showBusqueda]="true"
           (filterChange)="aplicarNuevosFiltros($event)">
         </app-filter-bar>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          @for (suc of sucursalesFiltradas; track suc.id) {
-            <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry hover:shadow-easydry-hover transition-all duration-300 p-6 flex flex-col justify-between group">
-              <div>
-                <div class="flex items-start justify-between mb-4">
-                  <div class="w-12 h-12 rounded-2xl bg-easydry-blue/10 text-easydry-blue flex items-center justify-center font-bold">
-                    <i-lucide name="building-2" class="w-6 h-6"></i-lucide>
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+          @for (suc of agenciasLista.items; track suc.id) {
+            <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry hover:shadow-easydry-hover transition-shadow duration-300 p-5 flex flex-col justify-between group">
+              <div class="space-y-4">
+                <!-- Cabecera: nombre, código, estado y cliente -->
+                <div class="flex items-start justify-between gap-3">
+                  <div class="flex items-start gap-3 min-w-0">
+                    <div class="w-11 h-11 shrink-0 rounded-2xl bg-easydry-blue/10 text-easydry-blue flex items-center justify-center">
+                      <i-lucide aria-hidden="true" name="building-2" class="w-5 h-5"></i-lucide>
+                    </div>
+                    <div class="min-w-0">
+                      <h3 class="font-bold text-slate-900 text-base font-outfit leading-tight group-hover:text-easydry-blue transition-colors">{{ suc.nombre }}</h3>
+                      @if (suc.codigo) { <p class="text-[11px] font-mono text-slate-500 mt-0.5">{{ suc.codigo }}</p> }
+                    </div>
                   </div>
-                  <div class="flex items-center gap-2">
-                    <button (click)="abrirModalTransferir(suc)" class="p-1.5 bg-amber-50 hover:bg-amber-500 text-amber-600 hover:text-white rounded-lg transition-colors" title="Transferir región o marca">
-                      <i-lucide name="refresh-cw" class="w-4 h-4"></i-lucide>
-                    </button>
-                    <button (click)="abrirModalEditar(suc)" class="p-1.5 bg-slate-100 hover:bg-easydry-blue text-slate-400 hover:text-white rounded-lg transition-colors" title="Editar Agencia">
-                      <i-lucide name="pencil" class="w-4 h-4"></i-lucide>
-                    </button>
-                    <span
-                      class="px-2.5 py-1 rounded-full text-xs font-bold"
-                      [ngClass]="suc.estado === 'Activo' ? 'bg-easydry-green/20 text-easydry-green-dark' : 'bg-rose-100 text-rose-800'">
+                  <div class="flex flex-col items-end gap-1.5 shrink-0">
+                    <span class="px-2.5 py-1 rounded-full text-xs font-bold"
+                      [ngClass]="suc.estado === 'Activo' ? 'bg-easydry-green/20 text-easydry-green-text' : (suc.estado === 'Mantenimiento' ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800')">
                       {{ suc.estado }}
                     </span>
-                  </div>
-                </div>
-
-                <h3 class="font-bold text-slate-900 text-lg font-outfit group-hover:text-easydry-blue transition-colors">{{ suc.nombre }}</h3>
-                <p class="text-xs text-slate-500 font-semibold flex items-center gap-1 mt-1">
-                  <i-lucide name="building-2" class="w-3.5 h-3.5 text-slate-400"></i-lucide>
-                  <span>{{ suc.ciudad }}</span>
-                </p>
-                <div class="flex flex-wrap gap-1.5 mt-3">
-                  <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-easydry-blue/10 text-easydry-blue text-[10px] font-extrabold uppercase">
-                    <i-lucide name="map-pin" class="w-3 h-3"></i-lucide>
-                    {{ suc.regionNombre || 'Sin región' }}
-                  </span>
-                  <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-extrabold uppercase text-white"
-                    [style.background-color]="colorMarca(suc.marcaId)">
-                    <i-lucide name="tag" class="w-3 h-3"></i-lucide>
-                    {{ suc.marcaNombre || 'Sin marca' }}
-                  </span>
-                  <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-slate-100 text-slate-700 text-[10px] font-extrabold uppercase">
-                    <i-lucide name="sparkles" class="w-3 h-3"></i-lucide>
-                    {{ contarServiciosSucursal(suc) }} servicios
-                  </span>
-                </div>
-                <p class="text-xs text-slate-400 mt-2 line-clamp-2">{{ suc.direccion }}</p>
-              </div>
-
-              <div class="mt-6 pt-4 border-t border-slate-100 space-y-3">
-                <div class="grid grid-cols-2 gap-2 text-xs">
-                  <div class="p-2 bg-slate-50 rounded-xl">
-                    <span class="text-[10px] text-slate-400 uppercase font-bold block">Bahías</span>
-                    <span class="font-extrabold text-easydry-blue text-sm">{{ suc.cantidadBahias }} Bahías</span>
-                  </div>
-                  <div class="p-2 bg-slate-50 rounded-xl">
-                    <span class="text-[10px] text-slate-400 uppercase font-bold block">Operadores</span>
-                    <span class="font-extrabold text-easydry-green-dark text-sm">{{ suc.operadoresActivos ?? 0 }} Activos</span>
-                  </div>
-                </div>
-
-                <div class="space-y-1 pt-1 border-t border-slate-100 mt-1">
-                  <div class="flex items-center justify-between text-xs">
-                    <span class="text-slate-500">Responsable:</span>
-                    <span class="font-bold text-slate-800">{{ suc.responsable || 'Sin Asignar' }}</span>
-                  </div>
-                  <div class="flex items-center justify-between text-xs">
-                    <span class="text-slate-500">Líder:</span>
-                    <span class="font-bold" [ngClass]="getLiderOperador(suc) !== 'Sin Asignar' ? 'text-easydry-blue' : 'text-slate-400'">
-                      {{ getLiderOperador(suc) }}
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-extrabold uppercase text-white"
+                      [style.background-color]="colorMarca(suc.marcaId)">
+                      <i-lucide aria-hidden="true" name="tag" class="w-3 h-3"></i-lucide>
+                      {{ suc.clienteNombre || suc.marcaNombre || 'Sin cliente' }}
                     </span>
                   </div>
                 </div>
-                <div class="flex items-center gap-2 mt-2">
-                  <button
-                    (click)="verEnMapa(suc)"
-                    class="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer">
-                    <i-lucide name="map" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide>
-                    <span>Ver en Mapa</span>
-                  </button>
-                  <a
-                    [routerLink]="['/agencias', suc.id]"
-                    class="flex-1 py-2 bg-easydry-blue/10 hover:bg-easydry-blue hover:text-white text-easydry-blue font-bold rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5">
-                    <i-lucide name="eye" class="w-3.5 h-3.5"></i-lucide>
-                    <span>Detalle Bahías</span>
-                  </a>
+
+                <!-- Ubicación -->
+                <div class="space-y-1 text-xs text-slate-600">
+                  <p class="flex items-center gap-1.5 font-semibold">
+                    <i-lucide aria-hidden="true" name="map-pin" class="w-3.5 h-3.5 text-easydry-blue shrink-0"></i-lucide>
+                    <span>{{ suc.regionNombre || 'Sin región' }}@if (suc.ciudad && suc.ciudad !== suc.regionNombre) { · {{ suc.ciudad }} }</span>
+                  </p>
+                  @if (suc.direccion) { <p class="pl-5 text-slate-500 line-clamp-2">{{ suc.direccion }}</p> }
+                  @if (suc.telefono) {
+                    <p class="flex items-center gap-1.5 text-slate-500">
+                      <i-lucide aria-hidden="true" name="phone" class="w-3.5 h-3.5 shrink-0"></i-lucide><span>{{ suc.telefono }}</span>
+                    </p>
+                  }
                 </div>
+
+                <!-- Personas -->
+                <div class="p-3 bg-slate-50 rounded-xl space-y-1.5 text-xs">
+                  <div class="flex items-center justify-between gap-2">
+                    <span class="text-slate-500">Responsable</span>
+                    <span class="font-bold text-slate-800 text-right truncate">{{ suc.responsable || 'Sin Asignar' }}</span>
+                  </div>
+                  <div class="flex items-center justify-between gap-2">
+                    <span class="text-slate-500">Líder operador</span>
+                    <span class="font-bold text-right truncate" [ngClass]="getLiderOperador(suc) !== 'Sin Asignar' ? 'text-easydry-blue' : 'text-slate-500'">{{ getLiderOperador(suc) }}</span>
+                  </div>
+                  <div class="flex items-center justify-between gap-2">
+                    <span class="text-slate-500">Aprobación gerencial</span>
+                    <span class="font-bold" [ngClass]="suc.requiereAprobacion ? 'text-emerald-700' : 'text-slate-500'">{{ suc.requiereAprobacion ? 'Requerida' : 'No requerida' }}</span>
+                  </div>
+                </div>
+
+                <!-- Capacidad -->
+                <div class="grid grid-cols-4 gap-2 text-center">
+                  <div class="p-2 bg-slate-50 rounded-xl"><span class="block font-extrabold text-easydry-blue text-sm">{{ suc.cantidadBahias }}</span><span class="text-[10px] uppercase font-bold text-slate-500">Bahías</span></div>
+                  <div class="p-2 bg-slate-50 rounded-xl"><span class="block font-extrabold text-slate-800 text-sm">{{ suc.maxLavadoresPorBahia || 1 }}</span><span class="text-[10px] uppercase font-bold text-slate-500">Lav./bahía</span></div>
+                  <div class="p-2 bg-slate-50 rounded-xl"><span class="block font-extrabold text-easydry-green-text text-sm">{{ suc.operadoresActivos ?? 0 }}</span><span class="text-[10px] uppercase font-bold text-slate-500">Operad.</span></div>
+                  <div class="p-2 bg-slate-50 rounded-xl"><span class="block font-extrabold text-slate-800 text-sm">{{ suc.maquinasAsignadasCount ?? 0 }}</span><span class="text-[10px] uppercase font-bold text-slate-500">Máquinas</span></div>
+                </div>
+
+                <!-- Servicios -->
+                <div class="space-y-1.5">
+                  <div class="flex items-center justify-between text-xs">
+                    <span class="font-bold text-slate-700 flex items-center gap-1.5">
+                      <i-lucide aria-hidden="true" name="sparkles" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide>{{ cantidadServicios(suc) }} servicios
+                    </span>
+                    @if (suc.tieneServiciosEspeciales) {
+                      <span class="px-2 py-0.5 rounded-lg bg-amber-50 text-amber-700 border border-amber-200 text-[11px] font-extrabold">Atiende especiales</span>
+                    }
+                  </div>
+                  <div class="flex flex-wrap gap-1">
+                    @for (n of (suc.serviciosNombres || []).slice(0, 3); track n) {
+                      <span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[11px] font-semibold">{{ n }}</span>
+                    }
+                    @if ((suc.serviciosNombres || []).length > 3) {
+                      <span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-500 text-[11px] font-bold">+{{ (suc.serviciosNombres || []).length - 3 }}</span>
+                    }
+                  </div>
+                </div>
+
+                <!-- Actividad -->
+                <div class="space-y-1">
+                  <div class="flex items-center justify-between text-xs">
+                    <span class="text-slate-500">Productividad del mes</span>
+                    <span class="font-extrabold text-slate-800">{{ suc.productividad ?? 0 }}%</span>
+                  </div>
+                  <div class="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                    <div class="h-full bg-easydry-green rounded-full" [style.width.%]="suc.productividad ?? 0"></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Acciones -->
+              <div class="mt-5 pt-4 border-t border-slate-100 flex items-center gap-2">
+                <button (click)="verEnMapa(suc)" class="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer">
+                  <i-lucide aria-hidden="true" name="map" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide><span>Mapa</span>
+                </button>
+                <a [routerLink]="['/agencias', suc.id]" class="flex-1 py-2 bg-easydry-blue/10 hover:bg-easydry-blue hover:text-white text-easydry-blue font-bold rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5">
+                  <i-lucide aria-hidden="true" name="eye" class="w-3.5 h-3.5"></i-lucide><span>Detalle</span>
+                </a>
+@if (puedeCrearAgencia) {
+                <button (click)="abrirModalTransferir(suc)" class="p-2 min-w-9 min-h-9 inline-flex items-center justify-center bg-amber-50 hover:bg-amber-500 text-amber-600 hover:text-white rounded-xl transition-colors" title="Transferir región o marca" aria-label="Transferir región o marca">
+                  <i-lucide aria-hidden="true" name="refresh-cw" class="w-4 h-4"></i-lucide>
+                </button>
+                }
+                @if (puedeCambiarEstadoAgencia) {
+                <button (click)="alternarEstadoAgencia(suc)" class="px-2.5 min-h-9 inline-flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors" [title]="suc.estado === 'Inactivo' ? 'Activar agencia' : 'Desactivar agencia'">
+                  {{ suc.estado === 'Inactivo' ? 'Activar' : 'Desactivar' }}
+                </button>
+                }
+                @if (puedeEditarAgencia) {
+                <button (click)="abrirModalEditar(suc)" class="p-2 min-w-9 min-h-9 inline-flex items-center justify-center bg-slate-100 hover:bg-easydry-blue text-slate-500 hover:text-white rounded-xl transition-colors" title="Editar Agencia" aria-label="Editar Agencia">
+                  <i-lucide aria-hidden="true" name="pencil" class="w-4 h-4"></i-lucide>
+                </button>
+                }
               </div>
             </div>
           }
         </div>
 
+        @if (agenciasLista.inicializada && agenciasLista.items.length === 0 && !agenciasLista.error) {
+          <div class="bg-white rounded-2xl border border-slate-100 p-12 text-center text-slate-500">
+            <i-lucide aria-hidden="true" name="building-2" class="w-12 h-12 mx-auto mb-2 opacity-30"></i-lucide>
+            <p class="font-bold text-sm">No hay agencias que coincidan con los filtros.</p>
+          </div>
+        }
+        <app-infinite-scroll
+          [hasMore]="agenciasLista.hasMore"
+          [loading]="agenciasLista.cargando"
+          [error]="agenciasLista.error"
+          [total]="agenciasLista.total"
+          (cargarMas)="agenciasLista.siguiente()"
+          (reintentar)="agenciasLista.reintentar()">
+        </app-infinite-scroll>
+
         @if (movimientos.length > 0) {
           <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry p-5">
             <h3 class="font-bold text-slate-900 text-sm font-outfit mb-3 flex items-center gap-2">
-              <i-lucide name="history" class="w-4 h-4 text-easydry-blue"></i-lucide>
+              <i-lucide aria-hidden="true" name="history" class="w-4 h-4 text-easydry-blue"></i-lucide>
               Historial de transferencias
             </h3>
             <div class="space-y-2">
@@ -318,13 +380,13 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                 <div class="flex flex-wrap items-center justify-between gap-2 text-xs p-2.5 rounded-xl bg-slate-50 border border-slate-100">
                   <div>
                     <span class="font-extrabold text-slate-800">{{ mov.sucursalNombre }}</span>
-                    <span class="text-slate-400 mx-1">·</span>
+                    <span class="text-slate-500 mx-1">·</span>
                     <span class="font-bold" [class.text-easydry-blue]="mov.tipo === 'REGION'" [class.text-amber-700]="mov.tipo === 'MARCA'">
                       {{ mov.tipo === 'REGION' ? 'Región' : 'Marca' }}
                     </span>
                     <span class="text-slate-500"> {{ mov.valorAnterior }} → {{ mov.valorNuevo }}</span>
                   </div>
-                  <span class="text-slate-400">{{ mov.fecha }} · {{ mov.realizadoPor }}</span>
+                  <span class="text-slate-500">{{ mov.fecha }} · {{ mov.realizadoPor }}</span>
                 </div>
               }
             </div>
@@ -335,36 +397,49 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
       @if (tabActiva === 'regiones') {
         <div class="flex items-center justify-between">
           <p class="text-xs text-slate-500">Crea regiones y luego pasa sucursales a cada una.</p>
-          <button (click)="abrirModalRegion()" class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
-            <i-lucide name="plus" class="w-3.5 h-3.5"></i-lucide> Nueva Región
+          @if (puedeGestionarRegiones) {
+          <button (click)="abrirModalRegion()" class="btn btn-cta">
+            <i-lucide aria-hidden="true" name="plus" class="w-3.5 h-3.5"></i-lucide> Nueva Región
           </button>
+          }
         </div>
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div class="space-y-3">
-            @for (r of regiones; track r.id) {
-              <button
-                (click)="regionSeleccionada = r"
-                class="w-full text-left bg-white rounded-2xl border p-4 shadow-xs hover:shadow-easydry transition-all"
-                [ngClass]="regionSeleccionada?.id === r.id ? 'border-easydry-blue ring-2 ring-easydry-blue/20' : 'border-slate-100'">
-                <div class="flex items-start justify-between gap-2">
-                  <div>
-                    <p class="font-extrabold text-slate-900 text-sm">{{ r.nombre }}</p>
-                    <p class="text-[10px] font-mono text-slate-400">{{ r.codigo }}</p>
-                  </div>
-                  <span class="px-2 py-0.5 rounded-lg text-[10px] font-extrabold"
-                    [ngClass]="r.estado === 'Activa' ? 'bg-easydry-green/20 text-easydry-green-dark' : 'bg-slate-100 text-slate-500'">
-                    {{ r.estado }}
-                  </span>
-                </div>
-                <p class="text-xs text-slate-500 mt-1 line-clamp-2">{{ r.descripcion }}</p>
-                <p class="text-[11px] font-semibold text-slate-600 mt-1 flex items-center gap-1">
-                  <i-lucide name="user-check" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide>
-                  <span>Supervisor: <b class="text-slate-800">{{ r.responsable || 'Sin supervisor' }}</b></span>
-                </p>
-                <p class="text-[11px] font-bold text-easydry-blue mt-1">{{ sucursalesDeRegion(r.id).length }} agencias</p>
-              </button>
-            }
-          </div>
+          <app-data-table
+            [serverSide]="true"
+            [embebida]="true"
+            [columns]="columnasRegiones"
+            [data]="regionesTabla.filas"
+            [total]="regionesTabla.total"
+            [page]="regionesTabla.pagina"
+            [pageSize]="regionesTabla.pageSize"
+
+            [sortField]="regionesTabla.sortField"
+            [sortOrder]="regionesTabla.sortOrder"
+            [loading]="regionesTabla.cargando"
+            [error]="regionesTabla.error"
+            [rowClickable]="true"
+            [rowClass]="claseFilaRegion"
+            maxHeight="60vh"
+            caption="Regiones operativas"
+            searchPlaceholder="Buscar región..."
+            emptyTitle="No hay regiones que coincidan."
+            emptyHint="Crea una con «Nueva Región» o cambia la búsqueda."
+            (rowClick)="regionSeleccionada = $event"
+            (queryChange)="regionesTabla.alCambiar($event)"
+            (reintentar)="regionesTabla.cargar(true)">
+            <ng-template appCell="nombre" let-r>
+              <p class="font-extrabold text-slate-900 text-sm">{{ r.nombre }}</p>
+              <p class="text-xs font-mono text-slate-500">{{ r.codigo }}</p>
+              <p class="text-xs text-slate-500 mt-1 line-clamp-2">{{ r.descripcion }}</p>
+              <p class="text-xs font-semibold text-slate-600 mt-1">Supervisor: <b class="text-slate-800">{{ r.responsable || 'Sin supervisor' }}</b></p>
+            </ng-template>
+            <ng-template appCell="estado" let-r>
+              <span class="px-2 py-0.5 rounded-lg text-xs font-extrabold"
+                [ngClass]="r.estado === 'Activa' ? 'bg-easydry-green/20 text-easydry-green-text' : 'bg-slate-100 text-slate-500'">
+                {{ r.estado }}
+              </span>
+            </ng-template>
+          </app-data-table>
           <div class="lg:col-span-2 bg-white rounded-2xl border border-slate-100 shadow-easydry p-6 min-h-[280px]">
             @if (!regionSeleccionada) {
               <p class="text-sm text-slate-500">Selecciona una región para ver y asignar agencias.</p>
@@ -373,13 +448,17 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                 <div>
                   <h3 class="font-extrabold text-slate-900 font-outfit text-lg">{{ regionSeleccionada.nombre }}</h3>
                   <p class="text-xs text-slate-500">{{ regionSeleccionada.descripcion }}</p>
-                  <p class="text-xs text-slate-400 mt-1">Responsable: {{ regionSeleccionada.responsable || '—' }}</p>
+                  <p class="text-xs text-slate-500 mt-1">Responsable: {{ regionSeleccionada.responsable || '—' }}</p>
                 </div>
                 <div class="flex gap-2">
+                  @if (puedeGestionarRegiones) {
                   <button (click)="abrirModalRegion(regionSeleccionada)" class="px-3 py-2 bg-slate-100 text-slate-700 font-bold rounded-xl text-xs">Editar</button>
+                  }
+                  @if (puedeCrearAgencia) {
                   <button (click)="abrirAsignarARegion(regionSeleccionada)" class="px-3 py-2 bg-easydry-green text-slate-950 font-bold rounded-xl text-xs">
                     Pasar agencia a esta región
                   </button>
+                  }
                 </div>
               </div>
               <div class="space-y-2">
@@ -387,11 +466,13 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                   <div class="flex items-center justify-between p-3 rounded-xl border border-slate-100 bg-slate-50">
                     <div>
                       <p class="text-sm font-bold text-slate-900">{{ suc.nombre }}</p>
-                      <p class="text-[11px] text-slate-500">{{ suc.ciudad }} · {{ suc.marcaNombre }}</p>
+                      <p class="text-xs text-slate-500">{{ suc.ciudad }} · {{ suc.marcaNombre }}</p>
                     </div>
                     <div class="flex gap-2">
-                      <button (click)="abrirModalTransferir(suc)" class="px-2.5 py-1.5 text-[11px] font-bold text-amber-700 bg-amber-50 rounded-lg">Transferir</button>
-                      <a [routerLink]="['/agencias', suc.id]" class="px-2.5 py-1.5 text-[11px] font-bold text-easydry-blue bg-easydry-blue/10 rounded-lg">Ver</a>
+                      @if (puedeCrearAgencia) {
+                      <button (click)="abrirModalTransferir(suc)" class="px-2.5 py-1.5 text-xs font-bold text-amber-700 bg-amber-50 rounded-lg">Transferir</button>
+                      }
+                      <a [routerLink]="['/agencias', suc.id]" class="px-2.5 py-1.5 text-xs font-bold text-easydry-blue bg-easydry-blue/10 rounded-lg">Ver</a>
                     </div>
                   </div>
                 } @empty {
@@ -406,35 +487,52 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
       @if (tabActiva === 'clientes' || tabActiva === 'marcas') {
         <div class="flex items-center justify-between">
           <p class="text-xs text-slate-500">Crea clientes corporativos de agencia y asígnalos o transfiérelos entre locales.</p>
-          <button (click)="abrirModalMarca()" class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
-            <i-lucide name="plus" class="w-3.5 h-3.5"></i-lucide> Nuevo Cliente
+          @if (puedeGestionarClientes) {
+          <button (click)="abrirModalMarca()" class="btn btn-cta">
+            <i-lucide aria-hidden="true" name="plus" class="w-3.5 h-3.5"></i-lucide> Nuevo Cliente
           </button>
+          }
         </div>
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div class="space-y-3">
-            @for (m of marcas; track m.id) {
-              <button
-                (click)="marcaSeleccionada = m"
-                class="w-full text-left bg-white rounded-2xl border p-4 shadow-xs hover:shadow-easydry transition-all"
-                [ngClass]="marcaSeleccionada?.id === m.id ? 'border-easydry-blue ring-2 ring-easydry-blue/20' : 'border-slate-100'">
-                <div class="flex items-start justify-between gap-2">
-                  <div class="flex items-center gap-2">
-                    <span class="w-3 h-3 rounded-full" [style.background-color]="m.color"></span>
-                    <div>
-                      <p class="font-extrabold text-slate-900 text-sm">{{ m.nombre }}</p>
-                      <p class="text-[10px] font-mono text-slate-400">{{ m.codigo }}</p>
-                    </div>
-                  </div>
-                  <span class="px-2 py-0.5 rounded-lg text-[10px] font-extrabold"
-                    [ngClass]="m.estado === 'Activa' ? 'bg-easydry-green/20 text-easydry-green-dark' : 'bg-slate-100 text-slate-500'">
-                    {{ m.estado }}
-                  </span>
+          <app-data-table
+            [serverSide]="true"
+            [embebida]="true"
+            [columns]="columnasClientes"
+            [data]="clientesTabla.filas"
+            [total]="clientesTabla.total"
+            [page]="clientesTabla.pagina"
+            [pageSize]="clientesTabla.pageSize"
+
+            [sortField]="clientesTabla.sortField"
+            [sortOrder]="clientesTabla.sortOrder"
+            [loading]="clientesTabla.cargando"
+            [error]="clientesTabla.error"
+            [rowClickable]="true"
+            [rowClass]="claseFilaCliente"
+            maxHeight="60vh"
+            caption="Clientes corporativos"
+            searchPlaceholder="Buscar cliente..."
+            emptyTitle="No hay clientes que coincidan."
+            emptyHint="Crea uno con «Nuevo Cliente» o cambia la búsqueda."
+            (rowClick)="marcaSeleccionada = $event"
+            (queryChange)="clientesTabla.alCambiar($event)"
+            (reintentar)="clientesTabla.cargar(true)">
+            <ng-template appCell="nombre" let-m>
+              <div class="flex items-center gap-2">
+                <span class="w-3 h-3 rounded-full flex-shrink-0" [style.background-color]="m.color"></span>
+                <div>
+                  <p class="font-extrabold text-slate-900 text-sm">{{ m.nombre }}</p>
+                  <p class="text-xs font-mono text-slate-500">{{ m.codigo }}</p>
                 </div>
-                <p class="text-xs text-slate-500 mt-1 line-clamp-2">{{ m.descripcion }}</p>
-                <p class="text-[11px] font-bold text-easydry-blue mt-2">{{ sucursalesDeMarca(m.id).length }} agencias</p>
-              </button>
-            }
-          </div>
+              </div>
+            </ng-template>
+            <ng-template appCell="estado" let-m>
+              <span class="px-2 py-0.5 rounded-lg text-xs font-extrabold"
+                [ngClass]="m.estado === 'Activa' ? 'bg-easydry-green/20 text-easydry-green-text' : 'bg-slate-100 text-slate-500'">
+                {{ m.estado }}
+              </span>
+            </ng-template>
+          </app-data-table>
           <div class="lg:col-span-2 bg-white rounded-2xl border border-slate-100 shadow-easydry p-6 min-h-[280px]">
             @if (!marcaSeleccionada) {
               <p class="text-sm text-slate-500">Selecciona un cliente para ver, asignar o transferir agencias.</p>
@@ -445,10 +543,14 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                   <p class="text-xs text-slate-500">{{ marcaSeleccionada.descripcion }}</p>
                 </div>
                 <div class="flex gap-2">
+                  @if (puedeGestionarClientes) {
                   <button (click)="abrirModalMarca(marcaSeleccionada)" class="px-3 py-2 bg-slate-100 text-slate-700 font-bold rounded-xl text-xs">Editar</button>
+                  }
+                  @if (puedeCrearAgencia) {
                   <button (click)="abrirAsignarAMarca(marcaSeleccionada)" class="px-3 py-2 bg-easydry-green text-slate-950 font-bold rounded-xl text-xs">
                     Asignar agencia a este cliente
                   </button>
+                  }
                 </div>
               </div>
               <div class="space-y-2">
@@ -456,11 +558,13 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                   <div class="flex items-center justify-between p-3 rounded-xl border border-slate-100 bg-slate-50">
                     <div>
                       <p class="text-sm font-bold text-slate-900">{{ suc.nombre }}</p>
-                      <p class="text-[11px] text-slate-500">{{ suc.ciudad }} · Región {{ suc.regionNombre }}</p>
+                      <p class="text-xs text-slate-500">{{ suc.ciudad }} · Región {{ suc.regionNombre }}</p>
                     </div>
                     <div class="flex gap-2">
-                      <button (click)="abrirModalTransferir(suc)" class="px-2.5 py-1.5 text-[11px] font-bold text-amber-700 bg-amber-50 rounded-lg">Cambiar</button>
-                      <a [routerLink]="['/agencias', suc.id]" class="px-2.5 py-1.5 text-[11px] font-bold text-easydry-blue bg-easydry-blue/10 rounded-lg">Ver</a>
+                      @if (puedeCrearAgencia) {
+                      <button (click)="abrirModalTransferir(suc)" class="px-2.5 py-1.5 text-xs font-bold text-amber-700 bg-amber-50 rounded-lg">Cambiar</button>
+                      }
+                      <a [routerLink]="['/agencias', suc.id]" class="px-2.5 py-1.5 text-xs font-bold text-easydry-blue bg-easydry-blue/10 rounded-lg">Ver</a>
                     </div>
                   </div>
                 } @empty {
@@ -481,22 +585,24 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
             <div>
               <div class="flex items-center gap-2">
                 <span class="p-2 rounded-xl bg-purple-100 text-purple-700">
-                  <i-lucide name="user-check" class="w-5 h-5"></i-lucide>
+                  <i-lucide aria-hidden="true" name="user-check" class="w-5 h-5"></i-lucide>
                 </span>
                 <h2 class="text-lg font-extrabold text-slate-900 font-outfit">Gestión Exclusiva de Gerentes de Agencia</h2>
               </div>
               <p class="text-xs text-slate-500 mt-1">
-                Asignación de agencias restringida exclusivamente a usuarios con rol <strong class="text-purple-700">GERENTE</strong>.
+                Aprobador designado de cada agencia. Solo usuarios con rol <strong class="text-purple-700">APROBADOR</strong>.
               </p>
             </div>
 
+            @if (puedeAsignarPersonas) {
             <button
               type="button"
               (click)="abrirModalAsignarGerente()"
               class="px-4 py-2.5 bg-purple-700 hover:bg-purple-800 text-white font-bold rounded-xl text-xs transition-colors flex items-center gap-2 shadow-xs cursor-pointer">
-              <i-lucide name="plus" class="w-4 h-4"></i-lucide>
-              <span>Asignar Agencia a Gerente</span>
+              <i-lucide aria-hidden="true" name="plus" class="w-4 h-4"></i-lucide>
+              <span>Asignar Agencia a Aprobador</span>
             </button>
+            }
           </div>
 
           <!-- Matriz de Gerentes y Agencias Asignadas -->
@@ -509,7 +615,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                       @if (ger.avatar) {
                         <img loading="lazy" decoding="async"
                           [src]="ger.avatar"
-                          alt="Avatar"
+                          alt="Foto de gerente"
                           class="w-11 h-11 rounded-full object-cover ring-2 ring-purple-300">
                       } @else {
                         <div class="w-11 h-11 rounded-full bg-slate-100 ring-2 ring-purple-300 flex items-center justify-center text-xs font-extrabold text-slate-500">
@@ -518,24 +624,24 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                       }
                       <div>
                         <h4 class="font-bold text-sm text-slate-900 leading-tight">{{ ger.nombre }} {{ ger.apellido }}</h4>
-                        <p class="text-[11px] text-slate-500 truncate">{{ ger.email }}</p>
+                        @if (ger.email) { <p class="text-xs text-slate-500 truncate">{{ ger.email }}</p> }
                       </div>
                     </div>
-                    <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-purple-50 text-purple-800 border border-purple-200">
-                      Rol: {{ ger.rolNombre || ger.rol || 'GERENTE' }}
+                    <span class="px-2 py-0.5 rounded-full text-xs font-extrabold bg-purple-50 text-purple-800 border border-purple-200">
+                      Rol: {{ ger.rolNombre || ger.rol || 'APROBADOR' }}
                     </span>
                   </div>
 
                   <!-- Información de Sucursal Asignada -->
                   <div class="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-1.5 mt-2">
-                    <div class="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider flex items-center gap-1">
-                      <i-lucide name="building-2" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide>
+                    <div class="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                      <i-lucide aria-hidden="true" name="building-2" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide>
                       <span>Agencia Asignada</span>
                     </div>
                     @if (ger.agencia) {
                       <div class="flex items-center justify-between">
                         <span class="font-extrabold text-slate-900 text-xs">{{ ger.agencia }}</span>
-                        <span class="px-2 py-0.5 rounded-md text-[9px] font-bold bg-emerald-100 text-emerald-800">
+                        <span class="px-2 py-0.5 rounded-md text-xs font-bold bg-emerald-100 text-emerald-800">
                           Asignada
                         </span>
                       </div>
@@ -547,38 +653,40 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
 
                 <!-- Acciones de Gestión de Gerente -->
                 <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
-                  <div class="flex items-center gap-1.5 text-[11px] text-slate-500">
-                    <i-lucide name="check-circle" class="w-3.5 h-3.5 text-emerald-600"></i-lucide>
+                  <div class="flex items-center gap-1.5 text-xs text-slate-500">
+                    <i-lucide aria-hidden="true" name="check-circle" class="w-3.5 h-3.5 text-emerald-600"></i-lucide>
                     <span>Aprobador Oficial</span>
                   </div>
 
+                  @if (puedeAsignarPersonas) {
                   <div class="flex items-center gap-1.5">
                     <button
                       type="button"
                       (click)="abrirModalReasignar(ger)"
-                      class="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-easydry-blue hover:text-white text-slate-700 text-[11px] font-bold transition-colors cursor-pointer inline-flex items-center gap-1">
-                      <i-lucide name="refresh-cw" class="w-3.5 h-3.5"></i-lucide>
+                      class="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-easydry-blue hover:text-white text-slate-700 text-xs font-bold transition-colors cursor-pointer inline-flex items-center gap-1">
+                      <i-lucide aria-hidden="true" name="refresh-cw" class="w-3.5 h-3.5"></i-lucide>
                       <span>Reasignar</span>
                     </button>
                     @if (ger.agencia) {
                       <button
                         type="button"
                         (click)="desasignarGerente(ger)"
-                        class="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-600 hover:text-white text-rose-700 text-[11px] font-bold transition-colors cursor-pointer inline-flex items-center gap-1"
+                        class="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-600 hover:text-white text-rose-700 text-xs font-bold transition-colors cursor-pointer inline-flex items-center gap-1"
                         title="Remover asignación">
-                        <i-lucide name="user-x" class="w-3.5 h-3.5"></i-lucide>
+                        <i-lucide aria-hidden="true" name="user-x" class="w-3.5 h-3.5"></i-lucide>
                         <span>Remover</span>
                       </button>
                     }
                   </div>
+                  }
                 </div>
 
               </div>
             } @empty {
-              <div class="col-span-full p-8 text-center bg-white rounded-2xl border border-slate-100 text-slate-400 space-y-3">
+              <div class="col-span-full p-8 text-center bg-white rounded-2xl border border-slate-100 text-slate-500 space-y-3">
                 <p>No hay usuarios con rol Aprobador dados de alta en el directorio.</p>
                 <a routerLink="/usuarios" class="inline-flex items-center gap-2 px-4 py-2 bg-purple-100 hover:bg-purple-200 text-purple-800 font-bold rounded-xl text-xs transition-colors">
-                  <i-lucide name="user-plus" class="w-4 h-4"></i-lucide>
+                  <i-lucide aria-hidden="true" name="user-plus" class="w-4 h-4"></i-lucide>
                   <span>Crear Aprobador en Directorio</span>
                 </a>
               </div>
@@ -589,35 +697,35 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
 
       <!-- Modal Asignar / Reasignar Agencia a Gerente (Validación Exclusiva Rol GERENTE) -->
       <app-modal
-        [isOpen]="modalAsignarGerenteOpen"
+        [isOpen]="modalAsignarGerenteOpen" size="lg"
         title="Asignación Exclusiva de Agencia a Gerente"
         icon="shield"
         (close)="modalAsignarGerenteOpen = false">
         <div class="space-y-4">
           <div class="p-3 bg-purple-50 rounded-xl border border-purple-200 text-purple-900 text-xs flex items-center gap-2">
-            <i-lucide name="info" class="w-4 h-4 shrink-0"></i-lucide>
-            <span>Por política de seguridad RBAC, solo usuarios con rol <strong>GERENTE</strong> pueden ser seleccionados.</span>
+            <i-lucide aria-hidden="true" name="info" class="w-4 h-4 shrink-0"></i-lucide>
+            <span>Solo usuarios con rol <strong>APROBADOR</strong> pueden ser designados como aprobador de una agencia.</span>
           </div>
 
           <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">
-              Usuario Gerente (Exclusivo Rol GERENTE)
+            <label for="sucursales-f1" class="block text-xs font-bold text-slate-700 uppercase mb-1">
+              Usuario Aprobador
             </label>
-            <select
+            <select id="sucursales-f1"
               [(ngModel)]="formAsignarGerente.gerenteId"
               class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800">
-              <option [ngValue]="0" disabled>Selecciona un usuario con rol GERENTE...</option>
+              <option [ngValue]="0" disabled>Selecciona un usuario con rol Aprobador...</option>
               @for (g of gerentesUsuarios; track g.id) {
-                <option [ngValue]="g.id">{{ g.nombre }} {{ g.apellido }} ({{ g.email }}) · Rol: GERENTE</option>
+                <option [ngValue]="g.id">{{ g.nombre }} {{ g.apellido }}@if (g.email) { ({{ g.email }}) }</option>
               }
             </select>
           </div>
 
           <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">
+            <label for="sucursales-f2" class="block text-xs font-bold text-slate-700 uppercase mb-1">
               Agencia a Asignar
             </label>
-            <select
+            <select id="sucursales-f2"
               [(ngModel)]="formAsignarGerente.sucursalId"
               class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800">
               <option [ngValue]="0" disabled>Selecciona la agencia...</option>
@@ -628,17 +736,17 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
           </div>
         </div>
 
-        <div modal-footer class="flex items-center justify-end gap-2 w-full">
+        <div modal-footer class="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2 w-full">
           <button
             type="button"
             (click)="modalAsignarGerenteOpen = false"
-            class="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-200 transition-colors">
+            class="btn btn-secondary w-full sm:w-auto">
             Cancelar
           </button>
           <button
             type="button"
             (click)="guardarAsignacionGerente()"
-            class="px-4 py-2 rounded-xl text-xs font-bold bg-purple-700 hover:bg-purple-800 text-white transition-colors">
+            class="btn btn-primary w-full sm:w-auto">
             Confirmar Asignación
           </button>
         </div>
@@ -646,93 +754,109 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
 
       <!-- Modal Crear / Editar Agencia -->
       <app-modal
-        [isOpen]="modalCrearOpen"
+        [isOpen]="modalCrearOpen" size="xl"
         [title]="editandoSucursal ? 'Editar Agencia EasyDry' : 'Registrar Nueva Agencia EasyDry'"
         [icon]="editandoSucursal ? 'pencil' : 'building-2'"
         (close)="cerrarModal()">
 
         <form (ngSubmit)="guardarSucursal()" class="space-y-4">
           <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Nombre de Agencia</label>
-            <input type="text" [(ngModel)]="nuevaSucursal.nombre" name="nombre" placeholder="ej. EasyDry Guayaquil Samborondón" class="w-full p-2.5 border rounded-xl text-sm" required>
+            <label for="sucursales-f3" class="block text-xs font-bold text-slate-700 uppercase mb-1">Nombre de Agencia</label>
+            <input id="sucursales-f3" type="text" [(ngModel)]="nuevaSucursal.nombre" name="nombre" placeholder="ej. EasyDry Guayaquil Samborondón" class="w-full p-2.5 border rounded-xl text-sm" required>
           </div>
 
+          @if (puedeCrearAgencia) {
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <div class="flex items-center justify-between mb-1">
                 <label class="block text-xs font-bold text-slate-700 uppercase">Región</label>
-                <button type="button" (click)="mostrarAltaRegion = !mostrarAltaRegion" class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">Crear región</button>
+                @if (puedeGestionarRegiones) { <button type="button" (click)="mostrarAltaRegion = !mostrarAltaRegion" class="btn btn-cta">Crear región</button> }
               </div>
-              <select [(ngModel)]="nuevaSucursal.regionId" name="regionId" class="w-full p-2.5 border rounded-xl text-sm font-semibold" required>
-                <option [ngValue]="0">Seleccione región</option>
-                @for (r of regionesActivas; track r.id) {
-                  <option [ngValue]="r.id">{{ r.nombre }}</option>
-                }
-              </select>
+              <app-select-search
+                [cargar]="opcRegiones"
+                [value]="nuevaSucursal.regionId ? '' + nuevaSucursal.regionId : null"
+                [valueLabel]="nuevaSucursal.regionNombre || nombreRegion(nuevaSucursal.regionId)"
+                [todasLabel]="null"
+                [clearable]="false"
+                placeholder="Seleccione región"
+                buscadorPlaceholder="Buscar…"
+                ariaLabel="Región"
+                (valueChange)="nuevaSucursal.regionId = $event || 0"
+                (seleccion)="$event && (nuevaSucursal.regionNombre = $event.label)">
+              </app-select-search>
               @if (mostrarAltaRegion) {
                 <div class="mt-2 flex gap-2">
                   <input type="text" [(ngModel)]="altaRapidaRegion" name="altaRapidaRegion" placeholder="Nombre de la región" class="flex-1 p-2 border rounded-xl text-xs">
-                  <button type="button" (click)="crearRegionRapida()" class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">Crear</button>
+                  <button type="button" (click)="crearRegionRapida()" class="btn btn-cta">Crear</button>
                 </div>
               }
             </div>
             <div>
               <div class="flex items-center justify-between mb-1">
                 <label class="block text-xs font-bold text-slate-700 uppercase">Cliente de agencia</label>
-                <button type="button" (click)="mostrarAltaMarca = !mostrarAltaMarca" class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">Crear cliente</button>
+                @if (puedeGestionarClientes) { <button type="button" (click)="mostrarAltaMarca = !mostrarAltaMarca" class="btn btn-cta">Crear cliente</button> }
               </div>
-              <select [(ngModel)]="nuevaSucursal.marcaId" (ngModelChange)="nuevaSucursal.clienteId = $event" name="marcaId" class="w-full p-2.5 border rounded-xl text-sm font-semibold" required>
-                <option [ngValue]="0">Seleccione cliente</option>
-                @for (m of marcasActivas; track m.id) {
-                  <option [ngValue]="m.id">{{ m.nombre }}</option>
-                }
-              </select>
+              <app-select-search
+                [cargar]="opcClientes"
+                [value]="nuevaSucursal.marcaId ? '' + nuevaSucursal.marcaId : null"
+                [valueLabel]="nuevaSucursal.marcaNombre || nombreCliente(nuevaSucursal.marcaId)"
+                [todasLabel]="null"
+                [clearable]="false"
+                placeholder="Seleccione cliente"
+                buscadorPlaceholder="Buscar…"
+                ariaLabel="Cliente de agencia"
+                (valueChange)="nuevaSucursal.marcaId = $event || 0; nuevaSucursal.clienteId = $event || 0"
+                (seleccion)="$event && (nuevaSucursal.marcaNombre = $event.label)">
+              </app-select-search>
               @if (mostrarAltaMarca) {
                 <div class="mt-2 flex gap-2">
                   <input type="text" [(ngModel)]="altaRapidaMarca" name="altaRapidaMarca" placeholder="Nombre del cliente" class="flex-1 p-2 border rounded-xl text-xs">
-                  <button type="button" (click)="crearMarcaRapida()" class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">Crear</button>
+                  <button type="button" (click)="crearMarcaRapida()" class="btn btn-cta">Crear</button>
                 </div>
               }
             </div>
           </div>
 
+          }
+
           <div class="grid grid-cols-2 gap-4">
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Ciudad</label>
-              <input type="text" [(ngModel)]="nuevaSucursal.ciudad" name="ciudad" placeholder="Quito / Guayaquil / Cuenca" class="w-full p-2.5 border rounded-xl text-sm" required>
+              <label for="sucursales-f4" class="block text-xs font-bold text-slate-700 uppercase mb-1">Ciudad</label>
+              <input id="sucursales-f4" type="text" [(ngModel)]="nuevaSucursal.ciudad" [disabled]="!puedeCrearAgencia" name="ciudad" placeholder="Quito / Guayaquil / Cuenca" class="w-full p-2.5 border rounded-xl text-sm disabled:opacity-60 disabled:bg-slate-100" required>
             </div>
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Cantidad de Bahías</label>
-              <input type="number" [(ngModel)]="nuevaSucursal.cantidadBahias" name="cantidadBahias" min="1" max="12" class="w-full p-2.5 border rounded-xl text-sm" required>
+              <label for="sucursales-f5" class="block text-xs font-bold text-slate-700 uppercase mb-1">Cantidad de Bahías</label>
+              <input id="sucursales-f5" type="number" [(ngModel)]="nuevaSucursal.cantidadBahias" [disabled]="!puedeCrearBahias" name="cantidadBahias" min="1" max="12" class="w-full p-2.5 border rounded-xl text-sm disabled:opacity-60 disabled:bg-slate-100" required>
             </div>
           </div>
 
           <div class="grid grid-cols-2 gap-4">
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Máximo Lavadores por Bahía</label>
-              <input type="number" [(ngModel)]="nuevaSucursal.maxLavadoresPorBahia" name="maxLavadoresPorBahia" min="1" max="10" class="w-full p-2.5 border rounded-xl text-sm" required>
+              <label for="sucursales-f6" class="block text-xs font-bold text-slate-700 uppercase mb-1">Máximo Lavadores por Bahía</label>
+              <input id="sucursales-f6" type="number" [(ngModel)]="nuevaSucursal.maxLavadoresPorBahia" name="maxLavadoresPorBahia" min="1" max="10" class="w-full p-2.5 border rounded-xl text-sm" required>
             </div>
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Dirección Exacta</label>
-              <input type="text" [(ngModel)]="nuevaSucursal.direccion" name="direccion" placeholder="Av. Principal N45-120" class="w-full p-2.5 border rounded-xl text-sm" required>
+              <label for="sucursales-f7" class="block text-xs font-bold text-slate-700 uppercase mb-1">Dirección Exacta</label>
+              <input id="sucursales-f7" type="text" [(ngModel)]="nuevaSucursal.direccion" name="direccion" placeholder="Av. Principal N45-120" class="w-full p-2.5 border rounded-xl text-sm" required>
             </div>
           </div>
 
+          @if (puedeAsignarPersonas) {
           <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1 flex items-center gap-1">
-              <i-lucide name="crown" class="w-3.5 h-3.5 text-teal-600"></i-lucide>
+            <label for="sucursales-f8" class="block text-xs font-bold text-slate-700 uppercase mb-1 flex items-center gap-1">
+              <i-lucide aria-hidden="true" name="crown" class="w-3.5 h-3.5 text-teal-600"></i-lucide>
               Líder Operador
             </label>
-            <select [(ngModel)]="nuevaSucursal.liderOperadorId" (ngModelChange)="alCambiarLiderOperador($event)" name="liderOperadorId"
+            <select id="sucursales-f8" [(ngModel)]="nuevaSucursal.liderOperadorId" (ngModelChange)="alCambiarLiderOperador($event)" name="liderOperadorId"
                     class="w-full p-2.5 border rounded-xl text-sm font-semibold">
               <option [ngValue]="undefined">— Sin Líder Operador asignado —</option>
               @for (lid of lideresOperadoresUsuarios; track lid.id) {
-                <option [ngValue]="lid.id">{{ lid.nombre }} {{ lid.apellido }} ({{ lid.email }})</option>
+                <option [ngValue]="lid.id">{{ lid.nombre }} {{ lid.apellido }}@if (lid.email) { ({{ lid.email }}) }</option>
               }
             </select>
             @if (!lideresOperadoresUsuarios.length) {
-              <p class="text-[11px] text-amber-600 mt-1.5 flex items-center gap-1">
-                <i-lucide name="alert-triangle" class="w-3 h-3"></i-lucide>
+              <p class="text-xs text-amber-600 mt-1.5 flex items-center gap-1">
+                <i-lucide aria-hidden="true" name="alert-triangle" class="w-3 h-3"></i-lucide>
                 No hay usuarios con rol Líder registrados. Créalos en Gestión de Usuarios.
               </p>
             }
@@ -743,15 +867,15 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
           <div class="rounded-2xl border-2 transition-all"
                [ngClass]="nuevaSucursal.requiereAprobacion ? 'border-easydry-green bg-easydry-green/5' : 'border-slate-200 bg-slate-50'">
             <div class="flex items-center justify-between p-4 cursor-pointer select-none"
-                 (click)="alCambiarToggleAprobacion(!nuevaSucursal.requiereAprobacion)">
+                 (click)="alCambiarToggleAprobacion(!nuevaSucursal.requiereAprobacion)" tabindex="0" role="button" (keydown.enter)="alCambiarToggleAprobacion(!nuevaSucursal.requiereAprobacion)" (keydown.space)="alCambiarToggleAprobacion(!nuevaSucursal.requiereAprobacion); $event.preventDefault()">
                <div class="flex items-center gap-3">
                 <div class="w-8 h-8 rounded-xl flex items-center justify-center"
-                     [ngClass]="nuevaSucursal.requiereAprobacion ? 'bg-easydry-green/20 text-easydry-green-dark' : 'bg-slate-200 text-slate-500'">
-                  <i-lucide name="shield-check" class="w-4 h-4"></i-lucide>
+                     [ngClass]="nuevaSucursal.requiereAprobacion ? 'bg-easydry-green/20 text-easydry-green-text' : 'bg-slate-200 text-slate-500'">
+                  <i-lucide aria-hidden="true" name="shield-check" class="w-4 h-4"></i-lucide>
                 </div>
                 <div>
                   <p class="text-xs font-extrabold text-slate-800 uppercase">Requiere Aprobador</p>
-                  <p class="text-[11px] text-slate-500">Los servicios finalizados deben ser aprobados antes del cierre del día</p>
+                  <p class="text-xs text-slate-500">Los servicios finalizados deben ser aprobados antes del cierre del día</p>
                 </div>
               </div>
               <!-- Toggle switch -->
@@ -764,11 +888,11 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
             <!-- Selector de Gerente (solo si aprobación activa) -->
             @if (nuevaSucursal.requiereAprobacion) {
               <div class="px-4 pb-4 border-t border-easydry-green/20 pt-3">
-                <label class="block text-xs font-bold text-slate-700 uppercase mb-1.5">
-                  <i-lucide name="user-check" class="w-3.5 h-3.5 inline mr-1 text-easydry-green-dark"></i-lucide>
+                <label for="sucursales-f9" class="block text-xs font-bold text-slate-700 uppercase mb-1.5">
+                  <i-lucide aria-hidden="true" name="user-check" class="w-3.5 h-3.5 inline mr-1 text-easydry-green-text"></i-lucide>
                   Aprobador
                 </label>
-                <select [(ngModel)]="nuevaSucursal.gerenteId" (ngModelChange)="alCambiarGerente($event)" name="gerenteId"
+                <select id="sucursales-f9" [(ngModel)]="nuevaSucursal.gerenteId" (ngModelChange)="alCambiarGerente($event)" name="gerenteId"
                         class="w-full p-2.5 border border-easydry-green/30 rounded-xl text-sm font-semibold bg-white focus:ring-2 focus:ring-easydry-green/30">
                   <option [ngValue]="undefined">— Seleccione un Aprobador —</option>
                   @for (ger of gerentesUsuarios; track ger.id) {
@@ -776,8 +900,8 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                   }
                 </select>
                 @if (!gerentesUsuarios.length) {
-                  <p class="text-[11px] text-amber-600 mt-1.5 flex items-center gap-1">
-                    <i-lucide name="alert-triangle" class="w-3 h-3"></i-lucide>
+                  <p class="text-xs text-amber-600 mt-1.5 flex items-center gap-1">
+                    <i-lucide aria-hidden="true" name="alert-triangle" class="w-3 h-3"></i-lucide>
                     No hay usuarios con rol Aprobador registrados aún.
                   </p>
                 }
@@ -785,26 +909,28 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
             }
           </div>
 
+          }
+
           <!-- ─── Servicios Especiales ─── -->
           <div class="rounded-2xl border-2 transition-all"
                [ngClass]="nuevaSucursal.tieneServiciosEspeciales ? 'border-amber-400 bg-amber-50/60' : 'border-slate-200 bg-slate-50'">
             <div class="flex items-center justify-between p-4 cursor-pointer select-none"
-                 (click)="alCambiarToggleServiciosEspeciales(!nuevaSucursal.tieneServiciosEspeciales)">
+                 (click)="alCambiarToggleServiciosEspeciales(!nuevaSucursal.tieneServiciosEspeciales)" tabindex="0" role="button" (keydown.enter)="alCambiarToggleServiciosEspeciales(!nuevaSucursal.tieneServiciosEspeciales)" (keydown.space)="alCambiarToggleServiciosEspeciales(!nuevaSucursal.tieneServiciosEspeciales); $event.preventDefault()">
               <div class="flex items-center gap-3">
                 <div class="w-8 h-8 rounded-xl flex items-center justify-center"
                      [ngClass]="nuevaSucursal.tieneServiciosEspeciales ? 'bg-amber-200 text-amber-700' : 'bg-slate-200 text-slate-500'">
-                  <i-lucide name="star" class="w-4 h-4"></i-lucide>
+                  <i-lucide aria-hidden="true" name="star" class="w-4 h-4"></i-lucide>
                 </div>
                 <div>
                   <div class="flex items-center gap-2">
                     <p class="text-xs font-extrabold text-slate-800 uppercase">Cuenta con Servicios Especiales</p>
                     @if (nuevaSucursal.tieneServiciosEspeciales) {
-                      <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-200 text-amber-900 border border-amber-300">
+                      <span class="px-2 py-0.5 rounded-full text-xs font-extrabold bg-amber-200 text-amber-900 border border-amber-300">
                         {{ serviciosEspeciales.length }} servicios especiales habilitados
                       </span>
                     }
                   </div>
-                  <p class="text-[11px] text-slate-500">Pulido, tratamiento cerámico, limpieza de motor y otros servicios premium</p>
+                  <p class="text-xs text-slate-500">Pulido, tratamiento cerámico, limpieza de motor y otros servicios premium</p>
                 </div>
               </div>
               <!-- Toggle switch -->
@@ -819,11 +945,11 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
               <div class="px-4 pb-4 border-t border-amber-200 pt-3">
                 <div class="flex items-center gap-3 p-3 bg-amber-100/70 border border-amber-300/80 rounded-xl text-amber-950">
                   <div class="w-7 h-7 rounded-lg bg-amber-200 flex items-center justify-center flex-shrink-0 text-amber-800">
-                    <i-lucide name="sparkles" class="w-4 h-4"></i-lucide>
+                    <i-lucide aria-hidden="true" name="sparkles" class="w-4 h-4"></i-lucide>
                   </div>
                   <div>
                     <p class="text-xs font-bold text-amber-900">Catálogo Completo de Servicios Especiales Asignado</p>
-                    <p class="text-[11px] text-amber-800 leading-snug">
+                    <p class="text-xs text-amber-800 leading-snug">
                       Esta sucursal queda habilitada con los <strong>{{ serviciosEspeciales.length }} servicios especiales corporativos</strong> (pulido fino/medio/corte, vitrificados cerámicos, sellados acrílicos y detallado). No requiere selección individual.
                     </p>
                   </div>
@@ -838,15 +964,15 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
               <label class="block text-xs font-bold text-slate-700 uppercase">Servicios Generales de esta Sucursal</label>
               <div class="flex items-center gap-2">
                 <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-easydry-blue/10 text-easydry-blue border border-easydry-blue/20">
-                  <i-lucide name="check" class="w-3 h-3"></i-lucide>
+                  <i-lucide aria-hidden="true" name="check" class="w-3 h-3"></i-lucide>
                   {{ cantidadGeneralesSeleccionados }} de {{ serviciosGenerales.length }} seleccionados
                 </span>
-                <button type="button" (click)="seleccionarTodosGenerales()" class="text-[10px] text-easydry-blue font-bold hover:underline cursor-pointer">Todos</button>
-                <span class="text-slate-300 text-xs">|</span>
-                <button type="button" (click)="deseleccionarTodosGenerales()" class="text-[10px] text-slate-500 font-bold hover:underline cursor-pointer">Ninguno</button>
+                <button type="button" (click)="seleccionarTodosGenerales()" class="text-xs text-easydry-blue font-bold hover:underline cursor-pointer">Todos</button>
+                <span class="text-slate-500 text-xs">|</span>
+                <button type="button" (click)="deseleccionarTodosGenerales()" class="text-xs text-slate-500 font-bold hover:underline cursor-pointer">Ninguno</button>
               </div>
             </div>
-            <p class="text-[11px] text-slate-500 mb-2">Del catálogo corporativo. Márquelos ahora; podrá editarlos después.</p>
+            <p class="text-xs text-slate-500 mb-2">Del catálogo corporativo. Márquelos ahora; podrá editarlos después.</p>
             <div class="border border-slate-200 rounded-xl p-3 bg-slate-50/80 max-h-48 overflow-y-auto">
               @for (s of serviciosGenerales; track s.id) {
                 <label class="flex items-start gap-2 py-1.5 cursor-pointer hover:bg-slate-100/80 px-2 rounded-lg transition-colors">
@@ -859,7 +985,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
             <!-- Resumen de servicios visibles dentro del formulario -->
             <div class="mt-2.5 p-2.5 rounded-xl bg-slate-100/80 border border-slate-200 flex items-center justify-between text-xs">
               <div class="flex items-center gap-1.5 text-slate-700 font-bold">
-                <i-lucide name="sparkles" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide>
+                <i-lucide aria-hidden="true" name="sparkles" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide>
                 <span>Total asignados a la sucursal:</span>
               </div>
               <span class="font-extrabold text-easydry-blue bg-white px-2.5 py-0.5 rounded-lg border border-slate-200 shadow-xs">
@@ -873,17 +999,17 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
         <div modal-footer class="w-full flex flex-col sm:flex-row items-center justify-between gap-3">
           <div class="flex items-center gap-2">
             <div class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-easydry-blue/10 text-easydry-blue border border-easydry-blue/20">
-              <i-lucide name="sparkles" class="w-4 h-4 text-easydry-blue"></i-lucide>
+              <i-lucide aria-hidden="true" name="sparkles" class="w-4 h-4 text-easydry-blue"></i-lucide>
               <span class="text-xs font-extrabold">{{ totalServiciosSeleccionados }} servicios seleccionados</span>
             </div>
-            <span class="text-[11px] text-slate-500 font-semibold hidden md:inline">
+            <span class="text-xs text-slate-500 font-semibold hidden md:inline">
               ({{ cantidadGeneralesSeleccionados }} generales + {{ cantidadEspecialesSeleccionados }} especiales)
             </span>
           </div>
 
           <div class="flex items-center gap-2 self-end sm:self-auto">
-            <button type="button" (click)="cerrarModal()" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl text-xs transition-colors cursor-pointer">Cancelar</button>
-            <button type="button" (click)="guardarSucursal()" class="px-4 py-2 bg-easydry-blue hover:bg-easydry-blue-dark text-white font-bold rounded-xl text-xs transition-colors cursor-pointer shadow-sm">
+            <button type="button" (click)="cerrarModal()" class="btn btn-secondary w-full sm:w-auto">Cancelar</button>
+            <button type="button" (click)="guardarSucursal()" [disabled]="guardando" class="btn btn-primary w-full sm:w-auto">
               {{ editandoSucursal ? 'Guardar Cambios' : 'Guardar Sucursal' }}
             </button>
           </div>
@@ -891,29 +1017,29 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
       </app-modal>
 
       <!-- Modal Región -->
-      <app-modal [isOpen]="modalRegionOpen" [title]="editandoRegion ? 'Editar Región' : 'Nueva Región'" icon="map-pin" (close)="modalRegionOpen = false">
+      <app-modal [isOpen]="modalRegionOpen" size="md" [title]="editandoRegion ? 'Editar Región' : 'Nueva Región'" icon="map-pin" (close)="modalRegionOpen = false">
         <form class="space-y-4">
           <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Nombre</label>
-            <input type="text" [(ngModel)]="formRegion.nombre" name="regionNombre" class="w-full p-2.5 border rounded-xl text-sm" placeholder="ej. Amazonía">
+            <label for="sucursales-f10" class="block text-xs font-bold text-slate-700 uppercase mb-1">Nombre</label>
+            <input id="sucursales-f10" type="text" [(ngModel)]="formRegion.nombre" name="regionNombre" class="w-full p-2.5 border rounded-xl text-sm" placeholder="ej. Amazonía">
           </div>
           <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Descripción</label>
-            <input type="text" [(ngModel)]="formRegion.descripcion" name="regionDesc" class="w-full p-2.5 border rounded-xl text-sm">
+            <label for="sucursales-f11" class="block text-xs font-bold text-slate-700 uppercase mb-1">Descripción</label>
+            <input id="sucursales-f11" type="text" [(ngModel)]="formRegion.descripcion" name="regionDesc" class="w-full p-2.5 border rounded-xl text-sm">
           </div>
           <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1 flex items-center justify-between">
+            <label for="sucursales-f12" class="block text-xs font-bold text-slate-700 uppercase mb-1 flex items-center justify-between">
               <span>
-                <i-lucide name="user-check" class="w-3.5 h-3.5 inline mr-1 text-easydry-blue"></i-lucide>
+                <i-lucide aria-hidden="true" name="user-check" class="w-3.5 h-3.5 inline mr-1 text-easydry-blue"></i-lucide>
                 Responsable (Supervisor Regional)
               </span>
               @if (formRegion.responsable) {
-                <span class="text-[10px] font-semibold text-emerald-600 normal-case bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                <span class="text-xs font-semibold text-emerald-600 normal-case bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
                   Asignado: {{ formRegion.responsable }}
                 </span>
               }
             </label>
-            <select
+            <select id="sucursales-f12"
               [(ngModel)]="formRegion.supervisorId"
               (ngModelChange)="alCambiarSupervisorRegion($event)"
               name="regionRespSelect"
@@ -921,54 +1047,54 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
               <option value="">— Seleccione un Supervisor Regional —</option>
               @for (sup of supervisoresUsuarios; track sup.id) {
                 <option [value]="sup.id">
-                  {{ sup.nombre }} {{ sup.apellido }} · {{ sup.email }}
+                  {{ sup.nombre }} {{ sup.apellido }}@if (sup.email) { · {{ sup.email }} }
                 </option>
               }
             </select>
             @if (!supervisoresUsuarios.length) {
-              <p class="text-[11px] text-amber-600 mt-1.5 flex items-center gap-1">
-                <i-lucide name="alert-triangle" class="w-3 h-3"></i-lucide>
+              <p class="text-xs text-amber-600 mt-1.5 flex items-center gap-1">
+                <i-lucide aria-hidden="true" name="alert-triangle" class="w-3 h-3"></i-lucide>
                 No hay usuarios con rol Supervisor registrados aún en el sistema.
               </p>
             } @else {
-              <p class="text-[11px] text-slate-400 mt-1">
+              <p class="text-xs text-slate-500 mt-1">
                 Seleccione el supervisor que estará a cargo de esta región operativa.
               </p>
             }
           </div>
           <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Estado</label>
-            <select [(ngModel)]="formRegion.estado" name="regionEstado" class="w-full p-2.5 border rounded-xl text-sm font-semibold">
+            <label for="sucursales-f13" class="block text-xs font-bold text-slate-700 uppercase mb-1">Estado</label>
+            <select id="sucursales-f13" [(ngModel)]="formRegion.estado" name="regionEstado" class="w-full p-2.5 border rounded-xl text-sm font-semibold">
               <option value="Activa">Activa</option>
               <option value="Inactiva">Inactiva</option>
             </select>
           </div>
         </form>
         <div modal-footer>
-          <button (click)="modalRegionOpen = false" class="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs">Cancelar</button>
-          <button (click)="guardarRegion()" class="px-4 py-2 bg-easydry-blue text-white font-bold rounded-xl text-xs">Guardar Región</button>
+          <button (click)="modalRegionOpen = false" class="btn btn-secondary w-full sm:w-auto">Cancelar</button>
+          <button (click)="guardarRegion()" class="btn btn-primary w-full sm:w-auto">Guardar Región</button>
         </div>
       </app-modal>
 
       <!-- Modal Cliente -->
-      <app-modal [isOpen]="modalMarcaOpen" [title]="editandoMarca ? 'Editar Cliente de Agencia' : 'Nuevo Cliente de Agencia'" icon="briefcase" (close)="modalMarcaOpen = false">
+      <app-modal [isOpen]="modalMarcaOpen" size="md" [title]="editandoMarca ? 'Editar Cliente de Agencia' : 'Nuevo Cliente de Agencia'" icon="briefcase" (close)="modalMarcaOpen = false">
         <form class="space-y-4">
           <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Nombre comercial del cliente</label>
-            <input type="text" [(ngModel)]="formMarca.nombre" name="marcaNombre" class="w-full p-2.5 border rounded-xl text-sm" placeholder="ej. Casabaca, Toyota, EasyDry">
+            <label for="sucursales-f14" class="block text-xs font-bold text-slate-700 uppercase mb-1">Nombre comercial del cliente</label>
+            <input id="sucursales-f14" type="text" [(ngModel)]="formMarca.nombre" name="marcaNombre" class="w-full p-2.5 border rounded-xl text-sm" placeholder="ej. Casabaca, Toyota, EasyDry">
           </div>
           <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Descripción</label>
-            <textarea [(ngModel)]="formMarca.descripcion" name="marcaDescripcion" rows="2" class="w-full p-2.5 border rounded-xl text-sm" placeholder="Detalles o notas del cliente corporativo..."></textarea>
+            <label for="sucursales-f15" class="block text-xs font-bold text-slate-700 uppercase mb-1">Descripción</label>
+            <textarea id="sucursales-f15" [(ngModel)]="formMarca.descripcion" name="marcaDescripcion" rows="2" class="w-full p-2.5 border rounded-xl text-sm" placeholder="Detalles o notas del cliente corporativo..."></textarea>
           </div>
           <div class="grid grid-cols-2 gap-4">
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Color distintivo</label>
-              <input type="color" [(ngModel)]="formMarca.color" name="marcaColor" class="w-full h-10 border rounded-xl p-1 cursor-pointer">
+              <label for="sucursales-f16" class="block text-xs font-bold text-slate-700 uppercase mb-1">Color distintivo</label>
+              <input id="sucursales-f16" type="color" [(ngModel)]="formMarca.color" name="marcaColor" class="w-full h-10 border rounded-xl p-1 cursor-pointer">
             </div>
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Estado</label>
-              <select [(ngModel)]="formMarca.estado" name="marcaEstado" class="w-full p-2.5 border rounded-xl text-sm">
+              <label for="sucursales-f17" class="block text-xs font-bold text-slate-700 uppercase mb-1">Estado</label>
+              <select id="sucursales-f17" [(ngModel)]="formMarca.estado" name="marcaEstado" class="w-full p-2.5 border rounded-xl text-sm">
                 <option value="Activa">Activa</option>
                 <option value="Inactiva">Inactiva</option>
               </select>
@@ -976,55 +1102,76 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
           </div>
         </form>
         <div modal-footer>
-          <button (click)="modalMarcaOpen = false" class="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs">Cancelar</button>
-          <button (click)="guardarMarca()" class="px-4 py-2 bg-easydry-blue text-white font-bold rounded-xl text-xs">Guardar Cliente</button>
+          <button (click)="modalMarcaOpen = false" class="btn btn-secondary w-full sm:w-auto">Cancelar</button>
+          <button (click)="guardarMarca()" class="btn btn-primary w-full sm:w-auto">Guardar Cliente</button>
         </div>
       </app-modal>
 
       <!-- Modal Transferir -->
-      <app-modal [isOpen]="modalTransferirOpen" title="Transferir sucursal" icon="refresh-cw" (close)="modalTransferirOpen = false">
+      <app-modal [isOpen]="modalTransferirOpen" size="md" title="Transferir sucursal" icon="refresh-cw" (close)="modalTransferirOpen = false">
         <form class="space-y-4">
           <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Sucursal</label>
-            <select [(ngModel)]="formTransfer.sucursalId" name="transfSucursal" class="w-full p-2.5 border rounded-xl text-sm font-semibold">
+            <label for="sucursales-f18" class="block text-xs font-bold text-slate-700 uppercase mb-1">Sucursal</label>
+            <select id="sucursales-f18" [(ngModel)]="formTransfer.sucursalId" name="transfSucursal" class="w-full p-2.5 border rounded-xl text-sm font-semibold">
               @for (s of sucursales; track s.id) {
                 <option [ngValue]="s.id">{{ s.nombre }} ({{ s.regionNombre }} · {{ s.marcaNombre }})</option>
               }
             </select>
           </div>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="space-y-4">
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Nueva región</label>
-              <select [(ngModel)]="formTransfer.regionId" name="transfRegion" class="w-full p-2.5 border rounded-xl text-sm font-semibold">
-                @for (r of regionesActivas; track r.id) {
-                  <option [ngValue]="r.id">{{ r.nombre }}</option>
-                }
-              </select>
+              <label for="sucursales-f19" class="block text-xs font-bold text-slate-700 uppercase mb-1">Nueva región</label>
+              <app-select-search
+                [cargar]="opcRegiones"
+                [value]="formTransfer.regionId ? '' + formTransfer.regionId : null"
+                [valueLabel]="nombreRegion(formTransfer.regionId)"
+                [todasLabel]="null"
+                [clearable]="false"
+                placeholder="Seleccione región"
+                buscadorPlaceholder="Buscar…"
+                ariaLabel="Nueva región"
+                (valueChange)="formTransfer.regionId = $event || 0"
+                (seleccion)="null">
+              </app-select-search>
             </div>
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Nuevo cliente</label>
-              <select [(ngModel)]="formTransfer.marcaId" name="transfMarca" class="w-full p-2.5 border rounded-xl text-sm font-semibold">
-                @for (m of marcasActivas; track m.id) {
-                  <option [ngValue]="m.id">{{ m.nombre }}</option>
-                }
-              </select>
+              <label for="sucursales-f20" class="block text-xs font-bold text-slate-700 uppercase mb-1">Nuevo cliente</label>
+              <app-select-search
+                [cargar]="opcClientes"
+                [value]="formTransfer.marcaId ? '' + formTransfer.marcaId : null"
+                [valueLabel]="nombreCliente(formTransfer.marcaId)"
+                [todasLabel]="null"
+                [clearable]="false"
+                placeholder="Seleccione cliente"
+                buscadorPlaceholder="Buscar…"
+                ariaLabel="Nuevo cliente"
+                (valueChange)="formTransfer.marcaId = $event || 0"
+                (seleccion)="null">
+              </app-select-search>
             </div>
           </div>
           <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Motivo del cambio</label>
-            <textarea [(ngModel)]="formTransfer.motivo" name="transfMotivo" rows="2" class="w-full p-2.5 border rounded-xl text-sm" placeholder="ej. Reorganización territorial / cambio de banner comercial"></textarea>
+            <label for="sucursales-f21" class="block text-xs font-bold text-slate-700 uppercase mb-1">Motivo del cambio</label>
+            <textarea id="sucursales-f21" [(ngModel)]="formTransfer.motivo" name="transfMotivo" rows="2" class="w-full p-2.5 border rounded-xl text-sm" placeholder="ej. Reorganización territorial / cambio de banner comercial"></textarea>
           </div>
         </form>
         <div modal-footer>
-          <button (click)="modalTransferirOpen = false" class="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs">Cancelar</button>
-          <button (click)="guardarTransferencia()" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl text-xs">Confirmar transferencia</button>
+          <button (click)="modalTransferirOpen = false" class="btn btn-secondary w-full sm:w-auto">Cancelar</button>
+          <button (click)="guardarTransferencia()" class="btn bg-amber-600 hover:bg-amber-700 text-white w-full sm:w-auto">Confirmar transferencia</button>
         </div>
       </app-modal>
 
     </div>
   `
 })
-export class SucursalesComponent implements OnInit {
+export class SucursalesComponent implements OnInit, OnDestroy {
+  ngOnDestroy(): void {
+    this.busquedaSub?.unsubscribe();
+    this.agenciasLista.destruir();
+    this.regionesTabla.destruir();
+    this.clientesTabla.destruir();
+  }
+
   sucursales: Sucursal[] = [];
   regiones: RegionOperativa[] = [];
   marcas: MarcaSucursal[] = [];
@@ -1044,6 +1191,19 @@ export class SucursalesComponent implements OnInit {
   filtroMarcaId: number | string = 0;
   filtrosGlobales: FilterState = { sucursal: 'Todas', region: 'Todas', marca: 'Todas', operador: 'Todos', bahia: 'Todas', estado: 'Todos', fecha: 'Mes' };
   filtroSucursalMapaId: number | string = 0;
+  /** Listas de regiones y clientes con páginas numeradas, búsqueda y orden en el servidor (los arreglos completos siguen para los desplegables). */
+  readonly columnasRegiones: TableColumn[] = [
+    { key: 'nombre', label: 'Región', sortable: true, defaultSort: 'asc' },
+    { key: 'estado', label: 'Estado', sortable: true, defaultSort: 'asc' },
+  ];
+  readonly columnasClientes: TableColumn[] = [
+    { key: 'nombre', label: 'Cliente', sortable: true, defaultSort: 'asc' },
+    { key: 'estado', label: 'Estado', sortable: true, defaultSort: 'asc' },
+  ];
+  readonly regionesTabla = new TablaServidor<RegionOperativa>((c) => this.regionService.getRegionesPagina(c), { sortField: 'nombre', sortOrder: 'asc' });
+  readonly clientesTabla = new TablaServidor<MarcaSucursal>((c) => this.marcaService.getMarcasPagina(c), { sortField: 'nombre', sortOrder: 'asc' });
+  readonly claseFilaRegion = (r: RegionOperativa): string => (this.regionSeleccionada?.id === r.id ? 'bg-easydry-blue/5' : '');
+  readonly claseFilaCliente = (m: MarcaSucursal): string => (this.marcaSeleccionada?.id === m.id ? 'bg-easydry-blue/5' : '');
   regionSeleccionada: RegionOperativa | null = null;
   marcaSeleccionada: MarcaSucursal | null = null;
   bahiasTodas: Bahia[] = [];
@@ -1106,6 +1266,41 @@ export class SucursalesComponent implements OnInit {
   public auth = inject(AuthService);
   private route = inject(ActivatedRoute);
 
+  // Permisos: son los mismos que el servidor exige en cada endpoint. Sin ellos la pantalla queda en solo lectura.
+  get puedeCrearAgencia(): boolean { return this.auth.puede('agencias.crear'); }
+  get puedeEditarAgencia(): boolean { return this.auth.puede('agencias.editar'); }
+  get puedeCambiarEstadoAgencia(): boolean { return this.auth.puede('agencias.estado'); }
+  get puedeGestionarRegiones(): boolean { return this.auth.puede('regiones.gestionar'); }
+  get puedeGestionarClientes(): boolean { return this.auth.puede('clientes.gestionar'); }
+  get puedeAsignarPersonas(): boolean { return this.auth.puede('usuarios.gestionar'); }
+  get puedeVerUsuarios(): boolean { return this.auth.puede('usuarios.ver'); }
+  /** Al crear una agencia se define el número de bahías; al editar, aumentarlo crea bahías nuevas y exige 'bahias.crear'. */
+  get puedeCrearBahias(): boolean { return !this.editandoSucursal || this.auth.puede('bahias.crear'); }
+  guardando = false;
+
+  get tabsVisibles() {
+    return this.tabs.filter(t => t.id !== 'gerentes' || this.puedeVerUsuarios);
+  }
+
+  /** Mensaje del servidor (viene en español); si no hay, el de respaldo. */
+  private mensajeError(err: any, respaldo: string): string {
+    const m = err?.error?.message;
+    if (Array.isArray(m)) return m.join(' ');
+    return (typeof m === 'string' && m) ? m : respaldo;
+  }
+  private opciones = inject(OpcionesService);
+  /** Desplegables con buscador y scroll infinito: regiones y clientes activos (el servidor busca y pagina). */
+  readonly opcRegiones = this.opciones.regiones({ estado: 1 });
+  readonly opcClientes = this.opciones.clientes({ estado: 1 });
+
+  /** Etiqueta de un valor ya elegido (los arreglos completos solo sirven para rotular; la lista la trae el servidor). */
+  nombreRegion(id: number | string | undefined): string {
+    return this.regiones.find(r => String(r.id) === String(id))?.nombre || '';
+  }
+  nombreCliente(id: number | string | undefined): string {
+    return this.marcas.find(m => String(m.id) === String(id))?.nombre || '';
+  }
+
   get regionesActivas(): RegionOperativa[] {
     const list = this.regiones.filter(r => r.estado === 'Activa' || (r as any).estado === 1 || (r as any).estado === 'Activo' || !r.estado);
     return list.length ? list : this.regiones;
@@ -1134,29 +1329,64 @@ export class SucursalesComponent implements OnInit {
     );
   }
 
-  get sucursalesFiltradas(): Sucursal[] {
-    const isGer = this.auth.isGerente();
-    const userScope = this.auth.getSucursalScope();
+  /** Tarjetas de agencias con scroll infinito de 30 en 30: búsqueda, estado, región y cliente los resuelve el servidor, que también aplica el alcance por rol. */
+  readonly agenciasLista = new ListaInfinita<Sucursal>(
+    (page, size) => this.sucursalService.getSucursalesPagina({ ...this.consultaAgencias(), page, pageSize: size }),
+    PAGE_SIZE_INFINITO,
+    (s) => s.id,
+  );
+  private busquedaAgencias = '';
+  private readonly busqueda$ = new Subject<string>();
+  private busquedaSub?: Subscription;
 
-    return this.sucursales.filter(s => {
-      if (isGer && userScope) {
-        const matches = s.nombre.toLowerCase().includes(userScope.toLowerCase()) ||
-                        userScope.toLowerCase().includes(s.nombre.toLowerCase());
-        if (!matches) return false;
-      }
-      const okRegion = this.filtrosGlobales.region === 'Todas' || s.regionNombre === this.filtrosGlobales.region;
-      const fCliente = this.filtrosGlobales.cliente || this.filtrosGlobales.marca;
-      const okMarca = !fCliente || fCliente === 'Todas' || fCliente === 'Todos' || s.clienteNombre === fCliente || s.marcaNombre === fCliente;
-      const okEstado = this.filtrosGlobales.estado === 'Todos' || s.estado === this.filtrosGlobales.estado;
-      return okRegion && okMarca && okEstado;
-    });
+  private neutro(v: string | undefined | null, ...neutros: string[]): string {
+    const t = (v ?? '').trim();
+    return !t || neutros.includes(t) ? '' : t;
+  }
+
+  private consultaAgencias(): ConsultaAgencias {
+    const f = this.filtrosGlobales;
+    const estados: Record<string, number> = { Activo: 1, Inactivo: 0, Mantenimiento: 2 };
+    const estado = estados[this.neutro(f.estado, 'Todos')];
+    return {
+      search: this.busquedaAgencias,
+      regionNombre: this.neutro(f.region, 'Todas') || undefined,
+      clienteNombre: this.neutro(f.cliente || f.marca, 'Todas', 'Todos') || undefined,
+      estado,
+    };
+  }
+
+  private huellaFiltros(f: FilterState): string {
+    const { busqueda, ...resto } = f;
+    return JSON.stringify(resto);
+  }
+
+  /** Cantidad de servicios que ofrece la sede según lo guardado en la agencia (ids o, si faltan, nombres). */
+  cantidadServicios(suc: Sucursal): number {
+    return Math.max((suc.servicioIds || []).length, (suc.serviciosNombres || []).length);
   }
 
   aplicarNuevosFiltros(filtros: FilterState): void {
+    const previo = this.huellaFiltros(this.filtrosGlobales);
     this.filtrosGlobales = filtros;
+    const texto = (filtros.busqueda ?? '').trim();
+    if (previo !== this.huellaFiltros(filtros)) {
+      // Cambió un filtro (no el texto): se consulta ya.
+      if (texto.length === 0 || texto.length >= BUSQUEDA_MIN_CARACTERES) this.busquedaAgencias = texto;
+      this.agenciasLista.reiniciar();
+      return;
+    }
+    // Solo cambió el texto: espera 300 ms tras la última tecla y exige 2 letras (o vacío para quitar el filtro).
+    if (texto.length === 0 || texto.length >= BUSQUEDA_MIN_CARACTERES) this.busqueda$.next(texto);
   }
 
   ngOnInit(): void {
+    this.busquedaSub = this.busqueda$
+      .pipe(debounceTime(BUSQUEDA_DEBOUNCE_MS), distinctUntilChanged())
+      .subscribe((texto) => {
+        this.busquedaAgencias = texto;
+        this.agenciasLista.reiniciar();
+      });
     this.route.queryParams.subscribe(params => {
       if (params['tab'] && ['mapa', 'agencias', 'sucursales', 'regiones', 'marcas', 'clientes', 'gerentes'].includes(params['tab'])) {
         this.tabActiva = params['tab'] === 'sucursales' ? 'agencias' : (params['tab'] === 'marcas' ? 'clientes' : params['tab'] as any);
@@ -1164,11 +1394,13 @@ export class SucursalesComponent implements OnInit {
       if (params['sucursalId']) {
         this.filtroSucursalMapaId = Number(params['sucursalId']);
       }
+      if (this.tabActiva === 'gerentes' && !this.puedeVerUsuarios) this.tabActiva = 'agencias';
     });
     this.cargarTodo();
   }
 
   abrirModalAsignarGerente(): void {
+    if (!this.puedeAsignarPersonas) return;
     this.formAsignarGerente = {
       gerenteId: this.gerentesUsuarios[0]?.id || 0,
       sucursalId: this.sucursales[0]?.id || 0
@@ -1177,6 +1409,7 @@ export class SucursalesComponent implements OnInit {
   }
 
   abrirModalReasignar(ger: Usuario): void {
+    if (!this.puedeAsignarPersonas) return;
     const suc = this.sucursales.find(s => s.nombre === ger.agencia);
     this.formAsignarGerente = {
       gerenteId: ger.id,
@@ -1185,46 +1418,66 @@ export class SucursalesComponent implements OnInit {
     this.modalAsignarGerenteOpen = true;
   }
 
+  /**
+   * Designa al aprobador de una agencia. Se guarda en el servidor (la agencia queda con ese aprobador) y solo se avisa del
+   * éxito cuando el servidor responde; si rechaza, se muestra su mensaje. Se reenvía el líder actual para que no se pierda.
+   */
   guardarAsignacionGerente(): void {
     const ger = this.gerentesUsuarios.find(g => String(g.id) === String(this.formAsignarGerente.gerenteId));
     const suc = this.sucursales.find(s => s.id === this.formAsignarGerente.sucursalId);
     if (!ger || !suc) {
-      this.toastService.warning('Campos requeridos', 'Selecciona un usuario gerente y una agencia.');
+      this.toastService.warning('Campos requeridos', 'Selecciona un aprobador y una agencia.');
       return;
     }
-
-    const rolLower = (ger.rol || ger.rolNombre || '').toLowerCase();
-    if (!rolLower.includes('gerente') && !rolLower.includes('aprobador')) {
-      this.toastService.error('Violación RBAC', 'Solo usuarios con rol GERENTE o Aprobador de Sucursal pueden ser designados como responsables.');
-      return;
-    }
-
-    ger.agencia = suc.nombre;
-    suc.responsable = `${ger.nombre} ${ger.apellido}`;
-
-    this.usuarioService.actualizarUsuario(ger).subscribe();
-    this.sucursalService.actualizarSucursal(suc).subscribe();
-
-    this.modalAsignarGerenteOpen = false;
-    this.toastService.success('Agencia Asignada', `Se asignó ${suc.nombre} a ${ger.nombre} ${ger.apellido}.`);
+    const nombreGer = (ger.nombre + ' ' + (ger.apellido || '')).trim();
+    const cambio: Sucursal = { ...suc, gerenteId: ger.id, gerenteNombre: nombreGer, responsable: nombreGer, requiereAprobacion: true };
+    this.sucursalService.actualizarSucursal(cambio, { motivo: 'Aprobador designado', realizadoPor: this.nombreUsuarioActual() }, { personas: true }).subscribe({
+      next: () => {
+        this.modalAsignarGerenteOpen = false;
+        this.toastService.success('Aprobador designado', nombreGer + ' es ahora el aprobador de ' + suc.nombre + '.');
+        this.cargarTodo();
+      },
+      error: (err) => this.toastService.error('No se pudo asignar', this.mensajeError(err, 'El servidor no aceptó la asignación.'))
+    });
   }
 
   desasignarGerente(ger: Usuario): void {
-    const anteriorAgencia = ger.agencia;
-    ger.agencia = '';
-    this.usuarioService.actualizarUsuario(ger).subscribe();
-
-    if (anteriorAgencia) {
-      const suc = this.sucursales.find(s => s.nombre === anteriorAgencia);
-      if (suc) {
-        suc.responsable = 'Sin Asignar';
-        this.sucursalService.actualizarSucursal(suc).subscribe();
-      }
+    const suc = this.sucursales.find(s => s.nombre === ger.agencia);
+    if (!suc) {
+      this.toastService.warning('Sin agencia', 'Este aprobador no tiene una agencia asignada.');
+      return;
     }
-    this.toastService.info('Asignación Removida', `El gerente ${ger.nombre} ${ger.apellido} ha sido desvinculado.`);
+    const cambio: Sucursal = { ...suc, gerenteId: undefined, gerenteNombre: undefined, responsable: 'Sin Asignar', requiereAprobacion: false };
+    this.sucursalService.actualizarSucursal(cambio, { motivo: 'Aprobador removido', realizadoPor: this.nombreUsuarioActual() }, { personas: true }).subscribe({
+      next: () => {
+        this.toastService.info('Asignación removida', (ger.nombre + ' ' + (ger.apellido || '')).trim() + ' ya no es aprobador de ' + suc.nombre + '.');
+        this.cargarTodo();
+      },
+      error: (err) => this.toastService.error('No se pudo remover', this.mensajeError(err, 'El servidor no aceptó el cambio.'))
+    });
+  }
+
+  private nombreUsuarioActual(): string {
+    const u = this.auth.getCurrentUser();
+    return ((u?.nombre || '') + ' ' + (u?.apellido || '')).trim() || 'Sistema';
+  }
+
+  alternarEstadoAgencia(suc: Sucursal): void {
+    if (!this.puedeCambiarEstadoAgencia) return;
+    const activar = suc.estado === 'Inactivo';
+    const pregunta = activar ? ('¿Activar la agencia ' + suc.nombre + '?') : ('¿Desactivar la agencia ' + suc.nombre + '? Dejará de operar hasta que se active de nuevo.');
+    if (!window.confirm(pregunta)) return;
+    this.sucursalService.cambiarEstadoAgencia(suc.id, activar).subscribe({
+      next: () => {
+        this.toastService.success(activar ? 'Agencia activada' : 'Agencia desactivada', suc.nombre);
+        this.agenciasLista.reiniciar();
+      },
+      error: (err) => this.toastService.error('No se pudo cambiar el estado', this.mensajeError(err, 'El servidor no aceptó el cambio.'))
+    });
   }
 
   cargarTodo(): void {
+    this.agenciasLista.reiniciar();
     this.regionService.getRegiones().subscribe(list => {
       this.regiones = list;
       this.regionSeleccionada = this.regionSeleccionada
@@ -1240,9 +1493,11 @@ export class SucursalesComponent implements OnInit {
     this.sucursalService.getSucursales().subscribe(list => {
       this.sucursales = list;
     });
-    this.catalogoService.getServiciosActivos().subscribe(list => {
-      this.catalogoServicios = list;
-    });
+    if (this.auth.puede('catalogo.ver')) {
+      this.catalogoService.getServiciosActivos().subscribe(list => {
+        this.catalogoServicios = list;
+      });
+    }
     this.sucursalService.getMovimientos().subscribe(list => {
       this.movimientos = list;
     });
@@ -1263,7 +1518,7 @@ export class SucursalesComponent implements OnInit {
         );
       }
     });
-    this.usuarioService.getUsuarios().subscribe(list => {
+    if (this.puedeVerUsuarios) this.usuarioService.getUsuarios().subscribe(list => {
       if (list && list.length) {
         this.todosLosUsuarios = list;
         this.gerentesUsuarios = list.filter(u => {
@@ -1339,6 +1594,7 @@ export class SucursalesComponent implements OnInit {
   }
 
   abrirModalCrearSucursal(): void {
+    if (!this.puedeCrearAgencia) return;
     this.editandoSucursal = false;
     this.nuevaSucursal = this.sucursalVacia();
     // Cargar catálogo actualizado desde la BD
@@ -1353,12 +1609,15 @@ export class SucursalesComponent implements OnInit {
   }
 
   abrirModalEditar(suc: Sucursal): void {
+    if (!this.puedeEditarAgencia) return;
     this.editandoSucursal = true;
 
     // Asegurarse de tener el catálogo actualizado desde la BD
-    this.catalogoService.getServiciosActivos().subscribe(list => {
-      this.catalogoServicios = list;
-    });
+    if (this.auth.puede('catalogo.ver')) {
+      this.catalogoService.getServiciosActivos().subscribe(list => {
+        this.catalogoServicios = list;
+      });
+    }
 
     const catalogoIds = new Set(this.catalogoServicios.map(s => Number(s.id)));
     const idsEspeciales = new Set(this.serviciosEspeciales.map(s => Number(s.id)));
@@ -1402,9 +1661,9 @@ export class SucursalesComponent implements OnInit {
 
     this.nuevaSucursal = {
       ...suc,
-      ciudad: suc.ciudad || suc.regionNombre || 'Quito',
+      ciudad: suc.ciudad || suc.regionNombre || '',
       direccion: suc.direccion || '',
-      cantidadBahias: suc.cantidadBahias || 4,
+      cantidadBahias: suc.cantidadBahias || 1,
       maxLavadoresPorBahia: suc.maxLavadoresPorBahia || 1,
       servicioIds: sIds,
       serviciosNombres: this.catalogoServicios.filter(s => sIds.includes(Number(s.id))).map(s => s.nombre),
@@ -1489,18 +1748,21 @@ export class SucursalesComponent implements OnInit {
       descripcion: '',
       responsable: '',
       estado: 'Activa'
-    }).subscribe(creada => {
-      this.regiones = [...this.regiones, creada];
-      this.nuevaSucursal.regionId = creada.id;
-      this.altaRapidaRegion = '';
-      this.mostrarAltaRegion = false;
-      this.toastService.success('Región creada', `${creada.nombre} lista para asignar.`);
+    }).subscribe({
+      next: (creada) => {
+        this.regiones = [...this.regiones, creada];
+        this.nuevaSucursal.regionId = creada.id;
+        this.altaRapidaRegion = '';
+        this.mostrarAltaRegion = false;
+        this.toastService.success('Región creada', creada.nombre + ' lista para asignar.');
+      },
+      error: (err) => this.toastService.error('No se pudo crear la región', this.mensajeError(err, 'El servidor no aceptó la región.'))
     });
   }
 
   crearMarcaRapida(): void {
     if (!this.altaRapidaMarca.trim()) {
-      this.toastService.warning('Nombre requerido', 'Ingrese el nombre de la marca.');
+      this.toastService.warning('Nombre requerido', 'Ingrese el nombre del cliente.');
       return;
     }
     this.marcaService.crear({
@@ -1508,12 +1770,16 @@ export class SucursalesComponent implements OnInit {
       descripcion: '',
       color: '#004282',
       estado: 'Activa'
-    }).subscribe(creada => {
-      this.marcas = [...this.marcas, creada];
-      this.nuevaSucursal.marcaId = creada.id;
-      this.altaRapidaMarca = '';
-      this.mostrarAltaMarca = false;
-      this.toastService.success('Marca creada', `${creada.nombre} lista para asignar.`);
+    }).subscribe({
+      next: (creada) => {
+        this.marcas = [...this.marcas, creada];
+        this.nuevaSucursal.marcaId = creada.id;
+        this.nuevaSucursal.clienteId = creada.id;
+        this.altaRapidaMarca = '';
+        this.mostrarAltaMarca = false;
+        this.toastService.success('Cliente creado', creada.nombre + ' listo para asignar.');
+      },
+      error: (err) => this.toastService.error('No se pudo crear el cliente', this.mensajeError(err, 'El servidor no aceptó el cliente.'))
     });
   }
 
@@ -1523,19 +1789,15 @@ export class SucursalesComponent implements OnInit {
       return;
     }
 
-    // Auto-asignar primera región si no está definida
-    if (!this.nuevaSucursal.regionId || this.nuevaSucursal.regionId === 0 || this.nuevaSucursal.regionId === '0') {
-      const defaultReg = this.regionesActivas[0]?.id || this.regiones[0]?.id;
-      if (defaultReg) {
-        this.nuevaSucursal.regionId = defaultReg;
+    // Quien crea la agencia debe elegir región y cliente (no se asignan por su cuenta).
+    if (this.puedeCrearAgencia) {
+      if (!this.nuevaSucursal.regionId || this.nuevaSucursal.regionId === 0 || this.nuevaSucursal.regionId === '0') {
+        this.toastService.warning('Región requerida', 'Seleccione la región de la agencia.');
+        return;
       }
-    }
-
-    // Auto-asignar primera marca si no está definida
-    if (!this.nuevaSucursal.marcaId || this.nuevaSucursal.marcaId === 0 || this.nuevaSucursal.marcaId === '0') {
-      const defaultMarca = this.marcasActivas[0]?.id || this.marcas[0]?.id;
-      if (defaultMarca) {
-        this.nuevaSucursal.marcaId = defaultMarca;
+      if (!this.nuevaSucursal.marcaId || this.nuevaSucursal.marcaId === 0 || this.nuevaSucursal.marcaId === '0') {
+        this.toastService.warning('Cliente requerido', 'Seleccione el cliente de la agencia.');
+        return;
       }
     }
 
@@ -1566,76 +1828,88 @@ export class SucursalesComponent implements OnInit {
       .filter(s => this.nuevaSucursal.servicioIds!.includes(Number(s.id)))
       .map(s => s.nombre);
 
-    // Caso 1 y 2: Manejo de Gerente Aprobador (con o sin gerente)
-    if (this.nuevaSucursal.requiereAprobacion && this.nuevaSucursal.gerenteId) {
-      const ger = this.gerentesUsuarios.find(g => String(g.id) === String(this.nuevaSucursal.gerenteId));
-      this.nuevaSucursal.gerenteNombre = ger ? `${ger.nombre} ${ger.apellido ?? ''}`.trim() : (this.nuevaSucursal.gerenteNombre || 'Gerente Asignado');
-      this.nuevaSucursal.responsable = this.nuevaSucursal.gerenteNombre;
-    } else if (this.nuevaSucursal.requiereAprobacion) {
-      this.nuevaSucursal.gerenteId = undefined;
-      this.nuevaSucursal.gerenteNombre = undefined;
-      this.nuevaSucursal.responsable = 'Por Asignar';
-    } else {
-      this.nuevaSucursal.gerenteId = undefined;
-      this.nuevaSucursal.gerenteNombre = undefined;
-      this.nuevaSucursal.responsable = 'Sin Asignar';
+    // Aprobador y líder: solo los define quien puede gestionar usuarios (los demás no los envían ni los cambian).
+    if (this.puedeAsignarPersonas) {
+      if (this.nuevaSucursal.requiereAprobacion && this.nuevaSucursal.gerenteId) {
+        const ger = this.gerentesUsuarios.find(g => String(g.id) === String(this.nuevaSucursal.gerenteId));
+        this.nuevaSucursal.gerenteNombre = ger ? (ger.nombre + ' ' + (ger.apellido ?? '')).trim() : this.nuevaSucursal.gerenteNombre;
+        this.nuevaSucursal.responsable = this.nuevaSucursal.gerenteNombre || 'Por Asignar';
+      } else if (this.nuevaSucursal.requiereAprobacion) {
+        this.nuevaSucursal.gerenteId = undefined;
+        this.nuevaSucursal.gerenteNombre = undefined;
+        this.nuevaSucursal.responsable = 'Por Asignar';
+      } else {
+        this.nuevaSucursal.gerenteId = undefined;
+        this.nuevaSucursal.gerenteNombre = undefined;
+        this.nuevaSucursal.responsable = 'Sin Asignar';
+      }
+
+      if (this.nuevaSucursal.liderOperadorId) {
+        const lid = this.lideresOperadoresUsuarios.find(u => String(u.id) === String(this.nuevaSucursal.liderOperadorId));
+        this.nuevaSucursal.liderOperador = lid ? (lid.nombre + ' ' + (lid.apellido ?? '')).trim() : (this.nuevaSucursal.liderOperador || 'Sin Asignar');
+        this.nuevaSucursal.liderOperadorNombre = this.nuevaSucursal.liderOperador;
+      } else {
+        this.nuevaSucursal.liderOperador = undefined;
+        this.nuevaSucursal.liderOperadorNombre = undefined;
+      }
     }
 
-    // Resolver líder operador seleccionado
-    if (this.nuevaSucursal.liderOperadorId) {
-      const lid = this.lideresOperadoresUsuarios.find(u => String(u.id) === String(this.nuevaSucursal.liderOperadorId));
-      this.nuevaSucursal.liderOperador = lid ? `${lid.nombre} ${lid.apellido ?? ''}`.trim() : (this.nuevaSucursal.liderOperador || 'Sin Asignar');
-      this.nuevaSucursal.liderOperadorNombre = this.nuevaSucursal.liderOperador;
-    } else {
-      this.nuevaSucursal.liderOperador = undefined;
-      this.nuevaSucursal.liderOperadorNombre = undefined;
-    }
-
-    if (!this.nuevaSucursal.ciudad?.trim()) {
-      this.nuevaSucursal.ciudad = 'Quito';
+    if (this.puedeCrearAgencia && !this.nuevaSucursal.ciudad?.trim()) {
+      this.nuevaSucursal.ciudad = this.nuevaSucursal.regionNombre || '';
     }
     if (!this.nuevaSucursal.direccion?.trim()) {
-      this.nuevaSucursal.direccion = 'Sede Principal';
+      this.toastService.warning('Dirección requerida', 'Ingrese la dirección de la agencia.');
+      return;
     }
-    if (!this.nuevaSucursal.cantidadBahias || this.nuevaSucursal.cantidadBahias <= 0) {
-      this.nuevaSucursal.cantidadBahias = 4;
+    if (this.puedeCrearBahias && (!this.nuevaSucursal.cantidadBahias || this.nuevaSucursal.cantidadBahias <= 0)) {
+      this.toastService.warning('Bahías requeridas', 'Indique cuántas bahías tiene la agencia.');
+      return;
     }
     if (!this.nuevaSucursal.maxLavadoresPorBahia || this.nuevaSucursal.maxLavadoresPorBahia <= 0) {
       this.nuevaSucursal.maxLavadoresPorBahia = 1;
     }
 
+    this.guardando = true;
     if (this.editandoSucursal) {
-      const user = this.auth.getCurrentUser();
       this.sucursalService.actualizarSucursal(this.nuevaSucursal, {
         motivo: 'Actualización desde ficha de agencia',
-        realizadoPor: `${user?.nombre || ''} ${user?.apellido || ''}`.trim() || 'Sistema'
+        realizadoPor: this.nombreUsuarioActual()
+      }, {
+        region: this.puedeCrearAgencia,
+        bahias: this.puedeCrearBahias,
+        personas: this.puedeAsignarPersonas
       }).subscribe({
         next: (actualizada) => {
+          this.guardando = false;
           this.bahiaService.sincronizarBahias(actualizada.id, actualizada.nombre, actualizada.cantidadBahias);
-          this.toastService.success('Agencia Actualizada', `Se guardaron los cambios para ${actualizada.nombre}.`);
+          this.toastService.success('Agencia Actualizada', 'Se guardaron los cambios de ' + actualizada.nombre + '.');
           this.cerrarModal();
           this.cargarTodo();
         },
-        error: () => {
-          this.toastService.error('Error', 'No se pudo actualizar la agencia.');
+        error: (err) => {
+          this.guardando = false;
+          this.toastService.error('No se pudo actualizar la agencia', this.mensajeError(err, 'El servidor no aceptó los cambios.'));
         }
       });
     } else {
       this.sucursalService.crearSucursal(this.nuevaSucursal).subscribe({
         next: (creada) => {
+          this.guardando = false;
           this.bahiaService.sincronizarBahias(creada.id, creada.nombre, creada.cantidadBahias);
-          this.toastService.success('Agencia Registrada', `Se configuró ${creada.nombre} correctamente.`);
+          this.toastService.success('Agencia Registrada', 'Se configuró ' + creada.nombre + ' correctamente.');
           this.cerrarModal();
           this.cargarTodo();
         },
-        error: () => {
-          this.toastService.error('Error', 'No se pudo registrar la agencia.');
+        error: (err) => {
+          this.guardando = false;
+          this.toastService.error('No se pudo registrar la agencia', this.mensajeError(err, 'El servidor no aceptó la agencia.'));
         }
       });
     }
   }
 
   abrirModalRegion(region?: RegionOperativa): void {
+    if (!this.puedeGestionarRegiones) return;
     this.editandoRegion = !!region;
     let supId: string | number = '';
     if (region) {
@@ -1674,25 +1948,34 @@ export class SucursalesComponent implements OnInit {
       return;
     }
     if (this.editandoRegion && this.formRegion.id) {
-      this.regionService.actualizar(this.formRegion as RegionOperativa).subscribe(actualizada => {
-        this.sucursalService.sincronizarNombresCatalogo();
-        this.toastService.success('Región actualizada', actualizada.nombre);
-        this.modalRegionOpen = false;
-        this.regionSeleccionada = actualizada;
-        this.cargarTodo();
+      this.regionService.actualizar(this.formRegion as RegionOperativa).subscribe({
+        next: (actualizada) => {
+          this.sucursalService.sincronizarNombresCatalogo();
+          this.toastService.success('Región actualizada', actualizada.nombre);
+          this.modalRegionOpen = false;
+          this.regionSeleccionada = actualizada;
+          this.regionesTabla.refrescar();
+          this.cargarTodo();
+        },
+        error: (err) => this.toastService.error('No se pudo guardar la región', this.mensajeError(err, 'El servidor no aceptó los cambios.'))
       });
     } else {
-      this.regionService.crear(this.formRegion).subscribe(creada => {
-        this.toastService.success('Región creada', `${creada.nombre} lista para recibir sucursales.`);
-        this.modalRegionOpen = false;
-        this.regionSeleccionada = creada;
-        this.tabActiva = 'regiones';
-        this.cargarTodo();
+      this.regionService.crear(this.formRegion).subscribe({
+        next: (creada) => {
+          this.toastService.success('Región creada', creada.nombre + ' lista para recibir agencias.');
+          this.modalRegionOpen = false;
+          this.regionSeleccionada = creada;
+          this.tabActiva = 'regiones';
+          this.regionesTabla.refrescar();
+          this.cargarTodo();
+        },
+        error: (err) => this.toastService.error('No se pudo crear la región', this.mensajeError(err, 'El servidor no aceptó la región.'))
       });
     }
   }
 
   abrirModalMarca(marca?: MarcaSucursal): void {
+    if (!this.puedeGestionarClientes) return;
     this.editandoMarca = !!marca;
     this.formMarca = marca
       ? { ...marca }
@@ -1702,29 +1985,38 @@ export class SucursalesComponent implements OnInit {
 
   guardarMarca(): void {
     if (!this.formMarca.nombre?.trim()) {
-      this.toastService.warning('Nombre requerido', 'Ingrese el nombre de la marca.');
+      this.toastService.warning('Nombre requerido', 'Ingrese el nombre del cliente.');
       return;
     }
     if (this.editandoMarca && this.formMarca.id) {
-      this.marcaService.actualizar(this.formMarca as MarcaSucursal).subscribe(actualizada => {
-        this.sucursalService.sincronizarNombresCatalogo();
-        this.toastService.success('Marca actualizada', actualizada.nombre);
-        this.modalMarcaOpen = false;
-        this.marcaSeleccionada = actualizada;
-        this.cargarTodo();
+      this.marcaService.actualizar(this.formMarca as MarcaSucursal).subscribe({
+        next: (actualizada) => {
+          this.sucursalService.sincronizarNombresCatalogo();
+          this.toastService.success('Cliente actualizado', actualizada.nombre);
+          this.modalMarcaOpen = false;
+          this.marcaSeleccionada = actualizada;
+          this.clientesTabla.refrescar();
+          this.cargarTodo();
+        },
+        error: (err) => this.toastService.error('No se pudo guardar el cliente', this.mensajeError(err, 'El servidor no aceptó los cambios.'))
       });
     } else {
-      this.marcaService.crear(this.formMarca).subscribe(creada => {
-        this.toastService.success('Marca creada', `${creada.nombre} lista para asignar.`);
-        this.modalMarcaOpen = false;
-        this.marcaSeleccionada = creada;
-        this.tabActiva = 'marcas';
-        this.cargarTodo();
+      this.marcaService.crear(this.formMarca).subscribe({
+        next: (creada) => {
+          this.toastService.success('Cliente creado', creada.nombre + ' listo para asignar.');
+          this.modalMarcaOpen = false;
+          this.marcaSeleccionada = creada;
+          this.tabActiva = 'clientes';
+          this.clientesTabla.refrescar();
+          this.cargarTodo();
+        },
+        error: (err) => this.toastService.error('No se pudo crear el cliente', this.mensajeError(err, 'El servidor no aceptó el cliente.'))
       });
     }
   }
 
   abrirModalTransferir(suc: Sucursal): void {
+    if (!this.puedeCrearAgencia) return;
     this.formTransfer = {
       sucursalId: suc.id,
       regionId: suc.regionId || 0,
@@ -1735,6 +2027,7 @@ export class SucursalesComponent implements OnInit {
   }
 
   abrirAsignarARegion(region: RegionOperativa): void {
+    if (!this.puedeCrearAgencia) return;
     const candidata = this.sucursales.find(s => String(s.regionId) !== String(region.id)) || this.sucursales[0];
     this.formTransfer = {
       sucursalId: candidata?.id || 0,
@@ -1746,6 +2039,7 @@ export class SucursalesComponent implements OnInit {
   }
 
   abrirAsignarAMarca(marca: MarcaSucursal): void {
+    if (!this.puedeCrearAgencia) return;
     const candidata = this.sucursales.find(s => String(s.marcaId) !== String(marca.id)) || this.sucursales[0];
     this.formTransfer = {
       sucursalId: candidata?.id || 0,
@@ -1771,21 +2065,24 @@ export class SucursalesComponent implements OnInit {
       return;
     }
 
-    const user = this.auth.getCurrentUser();
     this.sucursalService.transferirSucursal({
       sucursalId: suc.id,
       regionId: this.formTransfer.regionId,
       marcaId: this.formTransfer.marcaId,
       motivo: this.formTransfer.motivo.trim(),
-      realizadoPor: `${user?.nombre || ''} ${user?.apellido || ''}`.trim() || 'Sistema'
-    }).subscribe(actualizada => {
-      if (!actualizada) return;
-      this.toastService.success(
-        'Transferencia aplicada',
-        `${actualizada.nombre} quedó en ${actualizada.regionNombre} · ${actualizada.marcaNombre}.`
-      );
-      this.modalTransferirOpen = false;
-      this.cargarTodo();
+      realizadoPor: this.nombreUsuarioActual()
+    }).subscribe({
+      next: (actualizada) => {
+        if (!actualizada) return;
+        this.toastService.success(
+          'Transferencia aplicada',
+          actualizada.nombre + ' quedó en ' + actualizada.regionNombre + ' · ' + actualizada.marcaNombre + '.'
+        );
+        this.modalTransferirOpen = false;
+        this.agenciasLista.reiniciar();
+        this.cargarTodo();
+      },
+      error: (err) => this.toastService.error('No se pudo transferir', this.mensajeError(err, 'El servidor no aceptó la transferencia.'))
     });
   }
 
@@ -1889,12 +2186,12 @@ export class SucursalesComponent implements OnInit {
     return {
       id: 0,
       nombre: '',
-      ciudad: 'Quito',
+      ciudad: '',
       direccion: '',
-      cantidadBahias: 4,
+      cantidadBahias: 1,
       maxLavadoresPorBahia: 1,
       estado: 'Activo',
-      responsable: 'Operación Directa',
+      responsable: 'Sin Asignar',
       regionId: defaultReg,
       regionNombre: this.regionesActivas[0]?.nombre || '',
       marcaId: defaultMarca,

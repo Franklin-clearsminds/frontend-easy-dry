@@ -5,6 +5,16 @@ import { map, tap, catchError, switchMap } from 'rxjs/operators';
 import { CatalogoServicio, RecetaInsumoServicio } from '../models';
 import { apiUrl } from '../config/env';
 import { AuthService } from './auth.service';
+import { ConsultaTabla } from '../models/paginacion.model';
+import { PaginaConResumen, cuerpoConsulta } from '../utils/tabla-servidor';
+import { normalizarPagina } from '../models/paginacion.model';
+
+/** Sede a la que el servidor acotó el catálogo (solo llega cuando el usuario no es Admin ni Súper Admin y tiene sede). */
+export interface AgenciaCatalogoCtx {
+  tieneServiciosEspeciales: boolean;
+  servicioIds: number[];
+  nombre?: string;
+}
 
 @Injectable({
   providedIn: 'root'
@@ -39,7 +49,7 @@ export class CatalogoServiciosService {
       nombre: s.nombre || '',
       categoria: s.categoria || 'GENERAL',
       descripcion: s.descripcion || '',
-      estado: 'Activo',
+      estado: s.estado === 'Inactivo' ? 'Inactivo' : 'Activo',
       precio: Number(s.precio || 0),
       tiempoEstimadoMin: s.tiempoEstimadoMin != null ? Number(s.tiempoEstimadoMin) : 0,
       requiereFoto: s.categoria === 'ESPECIAL',
@@ -50,16 +60,10 @@ export class CatalogoServiciosService {
   }
 
   getServicios(agenciaId?: string): Observable<CatalogoServicio[]> {
-    const user = this.auth.getCurrentUser();
-    const role = String(user?.role || '').toUpperCase();
-    const esLider =
-      role.includes('LIDER') || role === 'APROBADOR' || role === 'LIDER_OPERADOR';
-    const agenciaEfectiva =
-      agenciaId ||
-      (esLider && user?.agenciaId ? String(user.agenciaId) : undefined);
-
+    // El alcance por sede lo resuelve el servidor; solo se envía la agencia si quien llama la pide.
+    if (!this.auth.puede('catalogo.ver')) return of([]);
     const body: any = {};
-    if (agenciaEfectiva) body.agenciaId = agenciaEfectiva;
+    if (agenciaId) body.agenciaId = agenciaId;
 
     return this.http.post<any>(apiUrl('/catalogos/servicios/list'), body).pipe(
       map(res => {
@@ -75,6 +79,31 @@ export class CatalogoServiciosService {
       }),
       tap(mapped => this.serviciosSubject.next(mapped)),
       catchError(() => of(this.serviciosSubject.value))
+    );
+  }
+
+  /**
+   * Una página del catálogo: búsqueda por código o nombre, categoría (una o varias separadas por coma) y orden
+   * (codigo, nombre, categoria, precio, tiempo, fecha) en el servidor. El alcance por sede lo aplica el servidor y, si
+   * acota, viene en `resumen` (la sede). No toca el estado compartido de `servicios$`.
+   */
+  getServiciosPagina(c: Partial<ConsultaTabla> & { categoria?: string }): Observable<PaginaConResumen<CatalogoServicio, AgenciaCatalogoCtx>> {
+    const body = cuerpoConsulta(c, ['categoria']);
+    return this.http.post<any>(apiUrl('/catalogos/servicios/list'), body).pipe(
+      map(res => {
+        const pagina = normalizarPagina<any>(res, body['page'] as number, body['pageSize'] as number);
+        return {
+          pagina: { ...pagina, items: pagina.items.map(s => this.mapBackendServicio(s)) },
+          resumen: (res?.agencia ?? undefined) as AgenciaCatalogoCtx | undefined,
+        };
+      })
+    );
+  }
+
+  /** Siguiente código libre (SER-### o ESP-###) calculado por el servidor. */
+  getSiguienteCodigo(categoria: string): Observable<string> {
+    return this.http.post<{ codigo: string }>(apiUrl('/catalogos/servicios/siguiente-codigo'), { categoria }).pipe(
+      map(r => r.codigo)
     );
   }
 
@@ -104,6 +133,7 @@ export class CatalogoServiciosService {
       descripcion: (servicio.descripcion || '').trim(),
       precio: Number(servicio.precio || 0),
       tiempoEstimadoMin: Math.max(1, Math.round(Number(servicio.tiempoEstimadoMin ?? 30))),
+      estado: servicio.estado === 'Inactivo' ? 'Inactivo' : 'Activo',
     };
 
     return this.http.post<any>(apiUrl('/catalogos/servicios/create'), payload).pipe(
@@ -150,6 +180,7 @@ export class CatalogoServiciosService {
         1,
         Math.round(Number(cambios.tiempoEstimadoMin ?? 30)),
       ),
+      estado: cambios.estado,
     };
 
     return this.http.post<any>(apiUrl('/catalogos/servicios/update'), payload).pipe(
@@ -202,13 +233,13 @@ export class CatalogoServiciosService {
   }
 
   cambiarEstado(id: number, estado: 'Activo' | 'Inactivo'): Observable<boolean> {
-    const current = this.serviciosSubject.value;
-    const item = current.find(s => s.id === id);
-    if (item) {
-      item.estado = estado;
-      this.serviciosSubject.next([...current]);
-    }
-    return of(true);
+    return this.actualizarServicio(id, { estado }).pipe(
+      map(() => true),
+      catchError(err => {
+        console.error('Error al cambiar el estado del servicio de catálogo:', err);
+        throw err;
+      })
+    );
   }
 
   guardarRecetasServicio(catalogoServicioId: number, recetas: RecetaInsumoServicio[]): Observable<any> {

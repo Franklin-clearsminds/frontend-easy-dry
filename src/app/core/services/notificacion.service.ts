@@ -4,14 +4,23 @@ import { BehaviorSubject, Observable, forkJoin, of } from 'rxjs';
 import { map, catchError, tap } from 'rxjs/operators';
 import { Notificacion, NotificacionTipo } from '../models/notificacion.model';
 import { apiUrl } from '../config/env';
+import { AuthService } from './auth.service';
+import { ToastService } from '../../shared/services/toast.service';
 
 @Injectable({
   providedIn: 'root'
 })
 export class NotificacionService {
   private http = inject(HttpClient);
+  private auth = inject(AuthService);
+  private toastService = inject(ToastService);
   private notificacionesSubject = new BehaviorSubject<Notificacion[]>([]);
   public notificaciones$ = this.notificacionesSubject.asObservable();
+
+  private avisarErrorCarga(mensaje: string, err: any): void {
+    console.error(mensaje, err);
+    this.toastService.error('No se pudo cargar', `${mensaje}. Reintentar.`);
+  }
 
   private readonly STORAGE_KEY = 'easydry_notificaciones_leidas_ids';
 
@@ -39,25 +48,33 @@ export class NotificacionService {
   getNotificaciones(): Observable<Notificacion[]> {
     const leidas = this.getLeidasIds();
 
-    const alertasStock$ = this.http.post<any[]>(apiUrl('/inventario/alertas/list'), {}).pipe(
-      catchError(() => of([]))
+    const alertasStock$ = !this.auth.puede('alertas.ver') ? of([] as any[]) : this.http.post<any[]>(apiUrl('/inventario/alertas/list'), {}).pipe(
+      catchError((err) => {
+        this.avisarErrorCarga('No se pudieron cargar las alertas de stock', err);
+        return of([]);
+      })
     );
 
-    const incidentes$ = this.http.post<any>(apiUrl('/maquinaria/incidentes/list'), {}).pipe(
+    const incidentes$ = !this.auth.puede('incidentes.ver') ? of([] as any[]) : this.http.post<any>(apiUrl('/maquinaria/incidentes/list'), {}).pipe(
       map(res => Array.isArray(res) ? res : (res?.data || [])),
-      catchError(() => of([]))
+      catchError((err) => {
+        this.avisarErrorCarga('No se pudieron cargar los incidentes', err);
+        return of([]);
+      })
     );
 
-    const aprobaciones$ = this.http.post<any[]>(apiUrl('/aprobaciones/list'), {}).pipe(
-      catchError(() => of([]))
+    const aprobaciones$ = !this.auth.puede('solicitudes.ver') ? of([] as any[]) : this.http.post<any[]>(apiUrl('/aprobaciones/list'), {}).pipe(
+      catchError((err) => {
+        this.avisarErrorCarga('No se pudieron cargar las aprobaciones', err);
+        return of([]);
+      })
     );
 
-    const despachos$ = this.http.post<any[]>(apiUrl('/inventario/despachos/pendientes'), {}).pipe(
-      catchError(() =>
-        this.http.post<any[]>(apiUrl('/inventario/despachos/list'), { estadoDespacho: 'EN_TRANSITO' }).pipe(
-          catchError(() => of([]))
-        )
-      )
+    const despachos$ = !this.auth.puede('despachos.ver') ? of([] as any[]) : this.http.post<any[]>(apiUrl('/inventario/despachos/pendientes'), {}).pipe(
+      catchError((err) => {
+        this.avisarErrorCarga('No se pudieron cargar los despachos pendientes', err);
+        return of([] as any[]);
+      })
     );
 
     return forkJoin([alertasStock$, incidentes$, aprobaciones$, despachos$]).pipe(

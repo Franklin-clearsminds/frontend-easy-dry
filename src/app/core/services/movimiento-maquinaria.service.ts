@@ -2,7 +2,9 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { BehaviorSubject, Observable, of } from 'rxjs';
 import { map, tap, catchError } from 'rxjs/operators';
-import { MovimientoMaquinaria, PaginaResultado } from '../models';
+import { MovimientoMaquinaria } from '../models';
+import { PaginaServidor, normalizarPagina } from '../models/paginacion.model';
+import { PAGE_SIZE_MAX } from '../config/paginacion';
 import { apiUrl } from '../config/env';
 
 @Injectable({
@@ -28,9 +30,9 @@ export class MovimientoMaquinariaService {
     };
   }
 
-  /** Movimientos (ADMIN, SUPER_ADMIN, COORD_MANTENIMIENTO). Acepta paginación { page, pageSize (máx 200) }. */
+  /** Movimientos (ADMIN, SUPER_ADMIN, COORD_MANTENIMIENTO). Acepta paginación { page, pageSize (máx 100) }. */
   getMovimientos(filtro: { maquinariaId?: string; page?: number; pageSize?: number } = {}): Observable<MovimientoMaquinaria[]> {
-    return this.http.post<any>(apiUrl('/maquinaria/movimientos/list'), filtro).pipe(
+    return this.http.post<any>(apiUrl('/maquinaria/movimientos/list'), { ...filtro, pageSize: Math.min(filtro.pageSize || PAGE_SIZE_MAX, PAGE_SIZE_MAX) }).pipe(
       map(res => {
         const items = Array.isArray(res) ? res : (res?.data || []);
         return items.map((m: any) => this.mapItem(m));
@@ -40,15 +42,17 @@ export class MovimientoMaquinariaService {
     );
   }
 
-  /** Movimientos de una máquina con el total paginado (para el modal de detalle). */
-  getMovimientosPagina(maquinariaId: string | number, page = 1, pageSize = 200): Observable<PaginaResultado<MovimientoMaquinaria>> {
-    return this.http.post<any>(apiUrl('/maquinaria/movimientos/list'), { maquinariaId: String(maquinariaId), page, pageSize }).pipe(
-      map(res => ({
-        data: (Array.isArray(res) ? res : (res?.data || [])).map((m: any) => this.mapItem(m)),
-        total: Number(res?.total ?? 0),
-        page: Number(res?.page ?? page),
-        pageSize: Number(res?.pageSize ?? pageSize),
-      }))
+  /**
+   * Una página de movimientos de una máquina (para el modal de detalle, con scroll infinito).
+   * Propaga los errores para que la lista muestre "Reintentar".
+   */
+  getMovimientosPagina(maquinariaId: string | number, page = 1, pageSize = 30): Observable<PaginaServidor<MovimientoMaquinaria>> {
+    const size = Math.min(pageSize, PAGE_SIZE_MAX);
+    return this.http.post<any>(apiUrl('/maquinaria/movimientos/list'), { maquinariaId: String(maquinariaId), page, pageSize: size }).pipe(
+      map(res => {
+        const p = normalizarPagina<any>(res, page, size);
+        return { ...p, items: p.items.map((m: any) => this.mapItem(m)) };
+      }),
     );
   }
 
