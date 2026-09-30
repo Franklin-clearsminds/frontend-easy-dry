@@ -9,6 +9,7 @@ import { IncidenteService } from '../../../core/services/incidente.service';
 import { MantenimientoService } from '../../../core/services/mantenimiento.service';
 import { MaquinariaService } from '../../../core/services/maquinaria.service';
 import { UsuarioService } from '../../../core/services/usuario.service';
+import { OpcionesService } from '../../../core/services/opciones.service';
 import { AuthService } from '../../../core/services/auth.service';
 import { ModalComponent } from '../../../shared/components/modal/modal.component';
 import { TecnicoSearchSelectComponent, TecnicoOpcion } from '../../../shared/components/tecnico-search-select/tecnico-search-select.component';
@@ -102,7 +103,7 @@ const TIPOS_FALLA = [
           @if (asg.actualNombre) {
             <div class="p-3 bg-violet-50 border border-violet-200 rounded-xl text-xs text-violet-800">Asignado actualmente a: <strong>{{ asg.actualNombre }}</strong></div>
           }
-          <p class="text-xs text-slate-500">Solo aparecen técnicos y coordinadores de mantenimiento de la región de la máquina.</p>
+          <p class="text-xs text-slate-500">Solo aparecen técnicos de la región de la máquina.</p>
 
           @if (esCoordinador) {
             <button type="button" (click)="confirmarAsignacion(undefined)" [disabled]="enviando"
@@ -112,8 +113,8 @@ const TIPOS_FALLA = [
             </button>
           }
 
-          <p class="text-[11px] font-bold text-slate-500 uppercase">Asignar a técnico o coordinador de la región</p>
-          <app-tecnico-search-select [tecnicos]="asg.opciones" placeholder="Buscar por nombre, rol o correo..." (selected)="onElegirTecnico($event)"></app-tecnico-search-select>
+          <p class="text-[11px] font-bold text-slate-500 uppercase">Asignar a técnico de la región</p>
+          <app-tecnico-search-select [tecnicos]="asg.opciones" placeholder="Buscar técnico por nombre..." vacioTexto="No hay técnicos en la región de esta máquina." (selected)="onElegirTecnico($event)"></app-tecnico-search-select>
 
           @if (asg.tipo === 'INCIDENTE' && talleres.length > 0) {
             <div>
@@ -254,7 +255,7 @@ const TIPOS_FALLA = [
 
           <div>
             <span class="field-label">Técnico (opcional; de la región de la máquina)</span>
-            <app-tecnico-search-select [tecnicos]="prog.opciones" [selectedId]="prog.tecnicoId" (selected)="prog.tecnicoId = $event?.id ? '' + $event!.id : ''"></app-tecnico-search-select>
+            <app-tecnico-search-select [tecnicos]="prog.opciones" [selectedId]="prog.tecnicoId" vacioTexto="No hay técnicos en la región de esta máquina." (selected)="prog.tecnicoId = $event?.id ? '' + $event!.id : ''"></app-tecnico-search-select>
             @if (esCoordinador) {
               <button type="button" (click)="prog.tecnicoId = miId" class="btn btn-ghost btn-sm mt-1 text-violet-700">Asignármelo a mí</button>
             }
@@ -412,6 +413,7 @@ export class TrabajoAccionesComponent {
   private mantenimientoService = inject(MantenimientoService);
   private maquinariaService = inject(MaquinariaService);
   private usuarioService = inject(UsuarioService);
+  private opciones = inject(OpcionesService);
   private authService = inject(AuthService);
   private toast = inject(ToastService);
 
@@ -429,8 +431,6 @@ export class TrabajoAccionesComponent {
   enviando = false;
   error = '';
 
-  private usuarios: { id: string; nombre: string; email: string; rolNombre: string; regionId?: string }[] = [];
-  private usuariosCargados = false;
 
   rep = { open: false, maquinaId: '', maquinaCodigo: '', maquinaNombre: '', titulo: TIPOS_FALLA[0], gravedad: 'MEDIA', descripcion: '', destinoTallerId: '', clientUuid: '' };
   asg = { open: false, tipo: 'INCIDENTE' as 'INCIDENTE' | 'MANTENIMIENTO', id: '', titulo: '', actualNombre: '', tecnicoId: '', destinoTallerId: '', opciones: [] as TecnicoOpcion[] };
@@ -456,35 +456,25 @@ export class TrabajoAccionesComponent {
   // Datos auxiliares
   // ----------------------------------------------------------------
 
-  private async cargarUsuarios(): Promise<void> {
-    if (this.usuariosCargados) return;
-    try {
-      const list = await firstValueFrom(this.usuarioService.getUsuarios(true, true));
-      this.usuarios = (list || []).map(u => ({
-        id: String(u.id),
-        nombre: `${u.nombre} ${u.apellido}`.trim(),
-        email: u.email,
-        rolNombre: String(u.rolNombre || '').toUpperCase(),
-        regionId: u.regionId ? String(u.regionId) : undefined,
-      }));
-      this.usuariosCargados = true;
-    } catch {
-      this.usuarios = [];
-    }
-  }
-
   private async cargarTalleres(): Promise<void> {
     if (this.talleres.length) return;
     this.talleres = await firstValueFrom(this.maquinariaService.getTalleres());
   }
 
-  /** Técnicos y coordinadores de mantenimiento de la región de la máquina (incluye al propio coordinador). */
-  private opcionesTecnicos(regionId?: string): TecnicoOpcion[] {
-    const yo = this.miId;
-    return this.usuarios
-      .filter(u => u.rolNombre === 'TECNICO' || u.rolNombre === 'COORD_MANTENIMIENTO')
-      .filter(u => !regionId || u.regionId === String(regionId) || (u.id === yo && this.esCoordinador))
-      .map(u => ({ id: u.id, nombre: u.nombre, email: u.email, rolLabel: ROLE_LABELS[u.rolNombre] || u.rolNombre }));
+  /**
+   * Técnicos de la región de la máquina (el servidor filtra por rol y región: ya no se baja el
+   * directorio completo de usuarios para descartar en cliente). El coordinador se auto-asigna con
+   * el botón "Asignármelo a mí", no eligiéndose a sí mismo de esta lista.
+   */
+  private async opcionesTecnicos(regionId?: string): Promise<TecnicoOpcion[]> {
+    if (!regionId) return [];
+    try {
+      const cargador = this.opciones.usuarios({ rolNombre: 'TECNICO', regionId, estado: 1 });
+      const pagina = await firstValueFrom(cargador('', 1, 200));
+      return pagina.items.map(o => ({ id: o.value, nombre: o.label, rolLabel: ROLE_LABELS['TECNICO'] || 'Técnico' }));
+    } catch {
+      return [];
+    }
   }
 
   private reset(): void {
@@ -543,23 +533,23 @@ export class TrabajoAccionesComponent {
 
   async asignarIncidente(inc: Incidente): Promise<void> {
     this.reset();
-    await Promise.all([this.cargarUsuarios(), this.cargarTalleres()]);
+    const [opciones] = await Promise.all([this.opcionesTecnicos(inc.regionId), this.cargarTalleres()]);
     this.asg = {
       open: true, tipo: 'INCIDENTE', id: String(inc.id),
       titulo: `${inc.codigoIncidente} · ${inc.maquina} · ${inc.tipo}`,
       actualNombre: inc.tecnicoAsignadoNombre || '', tecnicoId: '', destinoTallerId: '',
-      opciones: this.opcionesTecnicos(inc.regionId),
+      opciones,
     };
   }
 
   async asignarMantenimiento(m: Mantenimiento): Promise<void> {
     this.reset();
-    await this.cargarUsuarios();
+    const opciones = await this.opcionesTecnicos(m.regionId);
     this.asg = {
       open: true, tipo: 'MANTENIMIENTO', id: String(m.id),
       titulo: `${m.maquina} · ${m.tipo} · ${m.fecha}`,
       actualNombre: m.tecnicoAsignadoId ? (m.tecnicoAsignadoNombre || '') : '', tecnicoId: '', destinoTallerId: '',
-      opciones: this.opcionesTecnicos(m.regionId),
+      opciones,
     };
   }
 
@@ -662,21 +652,21 @@ export class TrabajoAccionesComponent {
   /** Con `maq` la máquina queda fija; sin ella se elige de `maquinas`. */
   async programarMantenimiento(maq: Maquinaria | null, maquinas: Maquinaria[] = []): Promise<void> {
     this.reset();
-    await this.cargarUsuarios();
     const lista = maq ? [maq] : maquinas;
     if (!lista.length) { this.toast.warning('Sin máquinas', 'No hay máquinas disponibles para programar.'); return; }
     const primera = lista[0];
+    const opciones = await this.opcionesTecnicos(primera.regionId);
     this.prog = {
       open: true, fija: !!maq, maquinas: lista, maquinaId: String(primera.id),
       tipo: 'PREVENTIVO', fecha: new Date().toISOString().substring(0, 10), frecuenciaDias: 30, tecnicoId: '',
-      observaciones: '', opciones: this.opcionesTecnicos(primera.regionId),
+      observaciones: '', opciones,
     };
   }
 
-  onCambioMaquinaProgramacion(): void {
+  async onCambioMaquinaProgramacion(): Promise<void> {
     const m = this.prog.maquinas.find(x => String(x.id) === this.prog.maquinaId);
-    this.prog.opciones = this.opcionesTecnicos(m?.regionId);
     this.prog.tecnicoId = '';
+    this.prog.opciones = await this.opcionesTecnicos(m?.regionId);
   }
 
   async confirmarProgramacion(): Promise<void> {

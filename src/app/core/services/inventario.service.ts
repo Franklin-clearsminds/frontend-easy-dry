@@ -21,6 +21,7 @@ import { BUSQUEDA_MIN_CARACTERES, PAGE_SIZE_MAX, PAGE_SIZE_TABLA } from '../conf
 import { ConsultaTabla, PaginaServidor, normalizarPagina } from '../models/paginacion.model';
 import { PaginaConResumen, cuerpoConsulta, postPagina } from '../utils/tabla-servidor';
 import { ToastService } from '../../shared/services/toast.service';
+import { AuthService } from './auth.service';
 
 /** Lo que pide la tabla de Productos: la de la tabla más sus filtros. */
 export interface ConsultaProductos extends Partial<ConsultaTabla> {
@@ -147,6 +148,7 @@ export interface RespuestaDespachosPagina {
 export class InventarioService {
   private http = inject(HttpClient);
   private toastService = inject(ToastService);
+  private authService = inject(AuthService);
 
   /** true cuando la última carga de un listado falló por un error real del backend (no "sin datos"). */
   private errorCargaSubject = new BehaviorSubject<boolean>(false);
@@ -186,7 +188,14 @@ export class InventarioService {
     this.cargarCatalogosIniciales();
   }
 
+  /**
+   * Catálogos que comparten todas las pantallas de inventario. Solo se piden si el rol tiene
+   * `inventario.ver`: este servicio es de raíz y lo inyectan pantallas que no son de inventario
+   * (p. ej. la barra de filtros), así que sin este chequeo un rol sin inventario —mantenimiento,
+   * comercial— disparaba cuatro llamadas que el servidor rechaza con 403 nada más abrir la página.
+   */
   public cargarCatalogosIniciales(): void {
+    if (!this.authService.puede('inventario.ver')) return;
     this.cargarTiposDesdeBackend();
     this.cargarUnidadesDesdeBackend();
     this.cargarBodegasDesdeBackend();

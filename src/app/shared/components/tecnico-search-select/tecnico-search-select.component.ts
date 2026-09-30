@@ -55,7 +55,7 @@ export interface TecnicoOpcion {
             </button>
           }
           @if (filtrados.length === 0) {
-            <p class="px-3 py-3 text-xs text-slate-500 font-semibold" role="status">No hay técnicos o coordinadores que coincidan.</p>
+            <p class="px-3 py-3 text-xs text-slate-500 font-semibold" role="status">{{ vacioTexto }}</p>
           }
         </div>
       }
@@ -64,7 +64,9 @@ export interface TecnicoOpcion {
 })
 export class TecnicoSearchSelectComponent {
   @Input() tecnicos: TecnicoOpcion[] = [];
-  @Input() placeholder = 'Buscar coordinador o técnico...';
+  @Input() placeholder = 'Buscar técnico...';
+  /** Mensaje cuando no hay resultados. Cada pantalla lo ajusta a lo que realmente está listando (técnicos, agencias, pulidores...). */
+  @Input() vacioTexto = 'No hay técnicos que coincidan.';
   @Input() invalid = false;
   @Input() set selectedId(value: string | number | null | undefined) {
     this._selectedId = value ?? null;

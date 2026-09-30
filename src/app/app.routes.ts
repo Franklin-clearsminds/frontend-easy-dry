@@ -10,12 +10,6 @@ export const routes: Routes = [
     component: LoginComponent
   },
   {
-    path: 'cambiar-password',
-    canActivate: [authGuard],
-    loadComponent: () =>
-      import('./features/cambiar-password/cambiar-password.component').then(m => m.CambiarPasswordComponent)
-  },
-  {
     path: 'sin-acceso',
     canActivate: [authGuard],
     loadComponent: () =>

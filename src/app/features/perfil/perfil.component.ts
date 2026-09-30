@@ -279,72 +279,29 @@ import { ImageCropModalComponent } from '../../shared/components/image-crop-moda
             </form>
           </div>
 
-          <!-- Security / Password Form (cualquier usuario con sesión puede cambiar su contraseña) -->
+          <!-- Seguridad: las contraseñas las asigna únicamente un administrador -->
           <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry overflow-hidden">
             <div class="p-5 border-b border-slate-100">
               <h3 class="font-bold text-slate-900 flex items-center gap-2 text-sm">
                 <i-lucide aria-hidden="true" name="key" class="w-5 h-5 text-slate-600"></i-lucide>
-                Seguridad & Cambio de Contraseña
+                Seguridad de la Cuenta
               </h3>
             </div>
-            
-            <form (ngSubmit)="cambiarPassword()" class="p-6 space-y-5">
-              <div>
-                <label class="block text-[11px] font-bold text-slate-700 uppercase mb-1.5">Contraseña Actual</label>
-                <div class="relative">
-                  <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-500">
-                    <i-lucide aria-hidden="true" name="lock" class="w-4 h-4"></i-lucide>
-                  </span>
-                  <input 
-                    type="password" 
-                    [(ngModel)]="passwords.actual" 
-                    name="actual" 
-                    class="w-full pl-10 p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-easydry-blue focus:border-transparent transition-all" 
-                    placeholder="Ingresa tu contraseña actual">
-                </div>
-              </div>
 
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                <div>
-                  <label class="block text-[11px] font-bold text-slate-700 uppercase mb-1.5">Nueva Contraseña</label>
-                  <div class="relative">
-                    <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-500">
-                      <i-lucide aria-hidden="true" name="lock" class="w-4 h-4"></i-lucide>
-                    </span>
-                    <input 
-                      type="password" 
-                      [(ngModel)]="passwords.nueva" 
-                      name="nueva" 
-                      class="w-full pl-10 p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-easydry-blue focus:border-transparent transition-all" 
-                      placeholder="Mínimo 6 caracteres">
-                  </div>
+            <div class="p-6">
+              <div class="flex items-start gap-3 p-4 rounded-xl border border-slate-200 bg-slate-50">
+                <div class="w-9 h-9 rounded-lg bg-white border border-slate-200 text-slate-600 flex items-center justify-center shrink-0">
+                  <i-lucide aria-hidden="true" name="lock" class="w-4 h-4"></i-lucide>
                 </div>
-                <div>
-                  <label class="block text-[11px] font-bold text-slate-700 uppercase mb-1.5">Confirmar Nueva Contraseña</label>
-                  <div class="relative">
-                    <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-500">
-                      <i-lucide aria-hidden="true" name="lock" class="w-4 h-4"></i-lucide>
-                    </span>
-                    <input 
-                      type="password" 
-                      [(ngModel)]="passwords.confirmacion" 
-                      name="confirmacion" 
-                      class="w-full pl-10 p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-easydry-blue focus:border-transparent transition-all" 
-                      placeholder="Repite la nueva contraseña">
-                  </div>
+                <div class="space-y-1">
+                  <p class="text-xs font-bold text-slate-900">La contraseña la gestiona el administrador</p>
+                  <p class="text-xs text-slate-600 leading-relaxed">
+                    Por política de la plataforma, las contraseñas de acceso solo las asignan el Administrador y el
+                    Super Administrador desde el módulo de Usuarios. Si necesitas una contraseña nueva, solicítala a tu administrador.
+                  </p>
                 </div>
               </div>
-
-              <div class="pt-2 flex justify-end">
-                <button 
-                  type="submit" 
-                  [disabled]="isChangingPass"
-                  class="px-5 py-2.5 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl text-xs transition-colors flex items-center gap-2 shadow-xs cursor-pointer disabled:opacity-50">
-                  <i-lucide aria-hidden="true" name="shield" class="w-4 h-4"></i-lucide>
-                  <span>{{ isChangingPass ? 'Actualizando...' : 'Actualizar Contraseña' }}</span>
-                </button>
-              </div>
-            </form>
+            </div>
           </div>
 
         </div>
@@ -474,7 +431,6 @@ export class PerfilComponent implements OnInit {
   isAdmin = false;
   modoEdicion = false;
   isSaving = false;
-  isChangingPass = false;
 
   // Modals state
   showConfirmGuardarModal = false;
@@ -506,12 +462,6 @@ export class PerfilComponent implements OnInit {
     apellido: '',
     email: '',
     avatar: ''
-  };
-
-  passwords = {
-    actual: '',
-    nueva: '',
-    confirmacion: ''
   };
 
   ngOnInit(): void {
@@ -688,37 +638,4 @@ export class PerfilComponent implements OnInit {
     this.showExitoModal = false;
   }
 
-  cambiarPassword(): void {
-    if (!this.passwords.actual || !this.passwords.nueva || !this.passwords.confirmacion) {
-      this.toastService.warning('Campos Requeridos', 'Por favor completa todos los campos de contraseña.');
-      return;
-    }
-
-    if (this.passwords.nueva.length < 6) {
-      this.toastService.warning('Contraseña Corta', 'La nueva contraseña debe tener al menos 6 caracteres.');
-      return;
-    }
-    
-    if (this.passwords.nueva !== this.passwords.confirmacion) {
-      this.toastService.error('Error de Coincidencia', 'La confirmación no coincide con la nueva contraseña.');
-      return;
-    }
-
-    this.isChangingPass = true;
-    this.authService.changePassword(this.passwords.actual, this.passwords.nueva).subscribe({
-      next: (res) => {
-        this.isChangingPass = false;
-        if (res.success) {
-          this.toastService.success('Seguridad Actualizada', 'Tu contraseña ha sido cambiada exitosamente.');
-          this.passwords = { actual: '', nueva: '', confirmacion: '' };
-        } else {
-          this.toastService.error('Error', res.message || 'No se pudo actualizar la contraseña.');
-        }
-      },
-      error: () => {
-        this.isChangingPass = false;
-        this.toastService.error('Error', 'Ocurrió un error al cambiar la contraseña.');
-      }
-    });
-  }
 }

@@ -134,8 +134,6 @@ export interface UsuarioAuth {
   capacidades?: string[];
   /** Sobre qué datos actúa el rol: GLOBAL, REGION, AGENCIA o PROPIO. */
   ambito?: string;
-  /** true = tiene una contraseña temporal: debe cambiarla antes de usar el sistema. */
-  debeCambiarPassword?: boolean;
   sucursalId?: number;
   sucursal?: string;
   sucursalNombre?: string;

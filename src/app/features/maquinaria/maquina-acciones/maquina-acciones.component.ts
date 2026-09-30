@@ -155,6 +155,7 @@ interface DestinoOpcion {
               <div>
                 <label class="field-label">Agencia o taller destino</label>
                 <app-tecnico-search-select [tecnicos]="destinosBuscables" placeholder="Buscar agencia o taller..."
+                  vacioTexto="No hay agencias o talleres que coincidan."
                   [selectedId]="tra.destino" (selected)="onSeleccionAgencia($event)"></app-tecnico-search-select>
               </div>
               <div>
@@ -178,6 +179,7 @@ interface DestinoOpcion {
               }
               <label class="field-label">Pulidor responsable (fijo o móvil)</label>
               <app-tecnico-search-select [tecnicos]="tra.pulidores" placeholder="Buscar pulidor..."
+                vacioTexto="No hay pulidores que coincidan."
                 [selectedId]="tra.destino" (selected)="onSeleccionPulidor($event)"></app-tecnico-search-select>
               @if (tra.pulidores.length === 0) {
                 <p class="text-xs text-slate-500 mt-1">No hay pulidores disponibles para la agencia o región de esta máquina.</p>

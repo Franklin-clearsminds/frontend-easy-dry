@@ -440,7 +440,9 @@ export class FilterBarComponent implements OnInit {
   ngOnInit(): void {
     this.fijarSegunRol();
     if (!this.customEstados) this.cargarEstados();
-    if (!this.customBodegas) this.cargarBodegas();
+    // Solo cuando el desplegable de bodegas está visible: si no, se pedía el listado (y el rol sin
+    // `inventario.ver` recibía un 403) en toda pantalla que use la barra de filtros.
+    if (this.showBodega && !this.customBodegas) this.cargarBodegas();
   }
 
   /**

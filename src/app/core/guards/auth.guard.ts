@@ -16,7 +16,6 @@ export const moduloGuard = (moduloCodigo: string): CanActivateFn => {
     const router = inject(Router);
 
     if (!authService.isLoggedIn()) return router.createUrlTree(['/login']);
-    if (authService.currentUserValue?.debeCambiarPassword) return router.createUrlTree(['/cambiar-password']);
     if (authService.sinAcceso()) return router.createUrlTree(['/sin-acceso']);
     if (authService.isSuperAdmin() || authService.hasModuleAccess(moduloCodigo)) return true;
     return router.createUrlTree(['/unauthorized']);
@@ -31,10 +30,6 @@ export const authGuard: CanActivateFn = (route, state) => {
   const router = inject(Router);
 
   if (authService.isLoggedIn()) {
-    // Con una contraseña temporal solo se puede cambiar la contraseña.
-    if (authService.currentUserValue?.debeCambiarPassword && !state.url.startsWith('/cambiar-password')) {
-      return router.createUrlTree(['/cambiar-password']);
-    }
     // Sin permisos (p. ej. un lavador) no se usa la plataforma: solo ve la pantalla de «sin acceso».
     if (authService.sinAcceso() && !state.url.startsWith('/sin-acceso')) {
       return router.createUrlTree(['/sin-acceso']);

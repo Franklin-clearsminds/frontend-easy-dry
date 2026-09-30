@@ -1764,7 +1764,7 @@ export class UsuariosComponent implements OnInit, OnDestroy {
     if (!u) return '';
     const actual = this.authService.getCurrentUser();
     if (actual && String(actual.id) === String(u.id)) {
-      return 'Para cambiar tu propia contraseña usa tu perfil.';
+      return 'No puedes cambiar tu propia contraseña: debe asignártela otro administrador.';
     }
     if (String(u.rolNombre || '').toUpperCase() === 'ADMIN' && !this.authService.isSuperAdmin()) {
       return 'Solo el Super Administrador puede reiniciar la contraseña de un Administrador.';

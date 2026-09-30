@@ -288,7 +288,6 @@ export class AuthService {
         acciones?: PermisosRol | null;
         capacidades?: string[];
         ambito?: string;
-        debeCambiarPassword?: boolean;
         agenciaId: string | number;
         agencia: { id: string | number; codigo: string; nombre: string };
         sucursal: string;
@@ -327,7 +326,6 @@ export class AuthService {
           modulosPermitidos,
           capacidades: Array.isArray(res.user.capacidades) ? res.user.capacidades : [],
           ambito: res.user.ambito,
-          debeCambiarPassword: !!res.user.debeCambiarPassword,
           sucursal: (isGlobalAdmin || isSupervisor || isAsistente || (isPulidor && modalidadPulidor === 'MOVIL')) ? undefined : (res.user.sucursal || res.user.agencia?.nombre),
           sucursalNombre: (isGlobalAdmin || isSupervisor || isAsistente || (isPulidor && modalidadPulidor === 'MOVIL')) ? undefined : (res.user.sucursalNombre || res.user.agencia?.nombre),
           region: res.user.regionNombre || res.user.region?.nombre || (isGlobalAdmin ? 'Nacional' : undefined),
@@ -396,38 +394,6 @@ export class AuthService {
     );
   }
 
-  changePassword(actual: string, nueva: string): Observable<{ success: boolean; message?: string }> {
-    if (!actual || !nueva) {
-      return of({ success: false, message: 'Todos los campos son obligatorios.' });
-    }
-    if (nueva.length < 8) {
-      return of({ success: false, message: 'La nueva contraseña debe tener al menos 8 caracteres.' });
-    }
-    if (nueva === actual) {
-      return of({ success: false, message: 'La nueva contraseña debe ser distinta de la actual.' });
-    }
-    return this.http
-      .post<{ ok: boolean; message?: string }>(apiUrl('/auth/change-password'), {
-        currentPassword: actual,
-        newPassword: nueva,
-      })
-      .pipe(
-        map(res => {
-          const actual = this.currentUserSubject.value;
-          if (actual?.debeCambiarPassword) {
-            const actualizado: UsuarioAuth = { ...actual, debeCambiarPassword: false };
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(actualizado));
-            this.currentUserSubject.next(actualizado);
-          }
-          return { success: true, message: res?.message || 'Contraseña actualizada correctamente.' };
-        }),
-        catchError(err => {
-          const raw = err?.error?.message;
-          const message = Array.isArray(raw) ? raw.join(' ') : raw;
-          return of({ success: false, message: message || 'No se pudo actualizar la contraseña.' });
-        })
-      );
-  }
 
   logout(): void {
     this.clearRefreshTimer();
@@ -533,13 +499,10 @@ export class AuthService {
           capacidades: Array.isArray(me.capacidades) ? me.capacidades : [],
           ambito: me.ambito || this.currentUserSubject.value.ambito,
           permisos: this.normalizeAcciones(me.acciones),
-          debeCambiarPassword: !!me.debeCambiarPassword,
         };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(actualizado));
         this.currentUserSubject.next(actualizado);
-        if (actualizado.debeCambiarPassword && !this.router.url.startsWith('/cambiar-password')) {
-          void this.router.navigate(['/cambiar-password']);
-        } else if (this.sinAcceso() && !this.router.url.startsWith('/sin-acceso')) {
+        if (this.sinAcceso() && !this.router.url.startsWith('/sin-acceso')) {
           void this.router.navigate(['/sin-acceso']);
         }
       },
@@ -571,7 +534,6 @@ export class AuthService {
 
   /** A dónde va el usuario al entrar: sin permisos, a «sin acceso»; si no, la ruta de su rol o el primer módulo permitido. */
   rutaInicial(): string {
-    if (this.currentUserSubject.value?.debeCambiarPassword) return '/cambiar-password';
     if (this.sinAcceso()) return '/sin-acceso';
     const user = this.currentUserSubject.value;
     const deRol = DEFAULT_ROUTE_POR_ROL[String(user?.role)];
