@@ -365,10 +365,10 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
               <div class="p-3 bg-amber-50 rounded-xl border border-amber-300 text-amber-900 text-xs flex items-start gap-2.5 mt-2 animate-fade-in">
                 <i-lucide aria-hidden="true" name="alert-triangle" class="w-4 h-4 text-amber-600 shrink-0 mt-0.5"></i-lucide>
                 <div>
-                  <p class="font-bold">¡Atención! Bahía actualmente ocupada</p>
+                  <p class="font-bold">Bahía sin cupo disponible</p>
                   <p class="text-xs text-amber-800 mt-0.5">
-                    La <strong>{{ conflictoAsignacion.bahiaNombre }}</strong> está asignada a <strong>{{ conflictoAsignacion.operadorActualNombre }}</strong>.
-                    Al asignarla a este lavador, <strong>{{ conflictoAsignacion.operadorActualNombre }}</strong> se quedará <strong>sin bahía asignada</strong>.
+                    La <strong>{{ conflictoAsignacion.bahiaNombre }}</strong> ya tiene el máximo de <strong>{{ conflictoAsignacion.maxLavadoresPorBahia }}</strong> lavador(es) permitidos ({{ conflictoAsignacion.operadoresActualesNombres }}).
+                    Quita a alguno de esa bahía o elige otra para poder asignar a este lavador.
                   </p>
                 </div>
               </div>
@@ -438,10 +438,10 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                 <div class="p-3 bg-amber-50 rounded-xl border border-amber-300 text-amber-900 text-xs flex items-start gap-2.5 mt-2 animate-fade-in">
                   <i-lucide aria-hidden="true" name="alert-triangle" class="w-4 h-4 text-amber-600 shrink-0 mt-0.5"></i-lucide>
                   <div>
-                    <p class="font-bold">¡Atención! Bahía actualmente ocupada</p>
+                    <p class="font-bold">Bahía sin cupo disponible</p>
                     <p class="text-xs text-amber-800 mt-0.5">
-                      La <strong>{{ conflictoAsignacion.bahiaNombre }}</strong> está asignada a <strong>{{ conflictoAsignacion.operadorActualNombre }}</strong>.
-                      Si reasigna aquí a <strong>{{ conflictoAsignacion.nuevoOperadorNombre }}</strong>, el lavador <strong>{{ conflictoAsignacion.operadorActualNombre }}</strong> se quedará <strong>sin bahía asignada</strong>.
+                      La <strong>{{ conflictoAsignacion.bahiaNombre }}</strong> ya tiene el máximo de <strong>{{ conflictoAsignacion.maxLavadoresPorBahia }}</strong> lavador(es) permitidos ({{ conflictoAsignacion.operadoresActualesNombres }}).
+                      Quita a alguno de esa bahía o elige otra para poder asignar a <strong>{{ conflictoAsignacion.nuevoOperadorNombre }}</strong>.
                     </p>
                   </div>
                 </div>
@@ -586,23 +586,28 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
         </div>
       </app-modal>
 
-      <!-- Modal Alerta de Confirmación de Conflicto de Bahía Ocupada -->
+      <!-- Modal de bloqueo: la bahía ya llegó a su máximo de lavadores configurado en la agencia.
+           Antes esto prometía "reasignar" (el lavador que ya estaba quedaba desvinculado), pero el
+           backend no reemplaza a nadie: si ya está al máximo, simplemente RECHAZA la asignación. Por
+           eso ya no hay botón de "continuar de todos modos" — solo se puede cerrar y elegir otra
+           bahía o liberar un cupo primero. Ver conversación con el usuario del 2026-09-30. -->
       <app-modal
         [isOpen]="modalConfirmarConflictoOpen" size="sm"
-        title="Alerta: Reasignación de Bahía Ocupada"
+        title="Bahía sin cupo disponible"
         icon="alert-triangle"
         (close)="modalConfirmarConflictoOpen = false">
-        
+
         <div class="space-y-4 py-1">
           <div class="p-3.5 bg-amber-50 border border-amber-300 rounded-2xl flex items-start gap-3">
             <div class="w-9 h-9 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0 mt-0.5">
               <i-lucide aria-hidden="true" name="alert-triangle" class="w-5 h-5"></i-lucide>
             </div>
             <div>
-              <h4 class="text-sm font-bold text-slate-900">¿Desea cambiar de bahía sabiendo que el otro lavador se quedará sin bahía?</h4>
+              <h4 class="text-sm font-bold text-slate-900">Esta bahía ya llegó a su máximo de lavadores</h4>
               <p class="text-xs text-amber-900 mt-1 leading-relaxed">
-                La <strong>{{ conflictoAsignacion?.bahiaNombre }}</strong> está ocupada actualmente por <strong>{{ conflictoAsignacion?.operadorActualNombre }}</strong>.
-                Al continuar con la asignación, <strong>{{ conflictoAsignacion?.operadorActualNombre }}</strong> se quedará <strong>sin bahía asignada</strong> (pasará a reserva/disponible).
+                La agencia permite hasta <strong>{{ conflictoAsignacion?.maxLavadoresPorBahia }}</strong> lavador(es) simultáneos en
+                <strong>{{ conflictoAsignacion?.bahiaNombre }}</strong>, y ya están asignados: <strong>{{ conflictoAsignacion?.operadoresActualesNombres }}</strong>.
+                Para asignar a <strong>{{ conflictoAsignacion?.nuevoOperadorNombre }}</strong> ahí, primero quita a uno de los actuales o elige otra bahía con cupo.
               </p>
             </div>
           </div>
@@ -613,30 +618,23 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
               <span class="font-bold text-slate-900">{{ conflictoAsignacion?.bahiaNombre }}</span>
             </div>
             <div class="flex items-center justify-between">
-              <span class="text-slate-500 font-bold uppercase">Nuevo Lavador en Bahía:</span>
-              <span class="font-bold text-easydry-blue">{{ conflictoAsignacion?.nuevoOperadorNombre }}</span>
+              <span class="text-slate-500 font-bold uppercase">Máximo permitido:</span>
+              <span class="font-bold text-slate-900">{{ conflictoAsignacion?.maxLavadoresPorBahia }} lavador(es)</span>
             </div>
             <div class="flex items-center justify-between">
-              <span class="text-slate-500 font-bold uppercase">Lavador que queda sin bahía:</span>
-              <span class="font-bold text-rose-600">{{ conflictoAsignacion?.operadorActualNombre }} (Desvinculado a Reserva)</span>
+              <span class="text-slate-500 font-bold uppercase">Ya asignados:</span>
+              <span class="font-bold text-rose-600">{{ conflictoAsignacion?.operadoresActualesNombres }}</span>
             </div>
           </div>
         </div>
 
-        <div modal-footer class="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2.5 w-full">
+        <div modal-footer class="flex items-stretch sm:items-center justify-end w-full">
           <button
             type="button"
             (click)="modalConfirmarConflictoOpen = false"
             class="btn btn-secondary w-full sm:w-auto">
             <i-lucide aria-hidden="true" name="x" class="w-4 h-4"></i-lucide>
-            <span>Cancelar</span>
-          </button>
-          <button
-            type="button"
-            (click)="ejecutarGuardadoConConflicto()"
-            class="btn bg-amber-600 hover:bg-amber-700 text-white w-full sm:w-auto">
-            <i-lucide aria-hidden="true" name="check" class="w-4 h-4"></i-lucide>
-            <span>Sí, Reasignar Bahía</span>
+            <span>Entendido, elegir otra bahía</span>
           </button>
         </div>
       </app-modal>
@@ -724,11 +722,19 @@ export class OperadoresComponent implements OnInit, OnDestroy {
   esEdicion = false;
   operadorEnEdicionId?: number | string;
 
+  /**
+   * Antes esto representaba "reemplazar al único operador de la bahía" (capacidad=1 fija). Desde que
+   * se respeta `maxLavadoresPorBahia` (una bahía puede tener varios lavadores activos a la vez), ya
+   * no hay ningún "reemplazo": si hay cupo, el nuevo lavador simplemente se agrega junto a los que ya
+   * estaban — sin conflicto ni modal. Esto solo se usa para el caso real de bloqueo: la bahía ya
+   * llegó a su máximo configurado y no hay a quién "desalojar" (el backend tampoco lo hace: rechaza
+   * la asignación). Ver conversación con el usuario del 2026-09-30.
+   */
   conflictoAsignacion: {
     bahiaId: string;
     bahiaNombre: string;
-    operadorActualId: string | number | null;
-    operadorActualNombre: string;
+    operadoresActualesNombres: string;
+    maxLavadoresPorBahia: number;
     nuevoOperadorNombre: string;
     contexto: 'asignar' | 'crear';
   } | null = null;
@@ -769,7 +775,7 @@ export class OperadoresComponent implements OnInit, OnDestroy {
     bahiaId: '',
     estado: 'Activo'
   };
-  listaBahiasOperador: { id: string; nombre: string; operadorAsignado?: string | null; operadorId?: string | number | null }[] = [];
+  listaBahiasOperador: { id: string; nombre: string; operadorAsignado?: string | null; operadorId?: string | number | null; maxLavadoresPorBahia?: number; operadoresActivos?: { id: string; nombre: string }[] }[] = [];
 
   formAsignarBahia = {
     operadorId: '' as number | string,
@@ -779,7 +785,7 @@ export class OperadoresComponent implements OnInit, OnDestroy {
     bahiaNombre: '',
     motivo: ''
   };
-  listaBahiasDisponibles: { id: string; nombre: string; operadorAsignado?: string | null; operadorId?: string | number | null }[] = [];
+  listaBahiasDisponibles: { id: string; nombre: string; operadorAsignado?: string | null; operadorId?: string | number | null; maxLavadoresPorBahia?: number; operadoresActivos?: { id: string; nombre: string }[] }[] = [];
 
   private operadorService = inject(OperadorService);
   private sucursalService = inject(SucursalService);
@@ -964,7 +970,9 @@ export class OperadoresComponent implements OnInit, OnDestroy {
         id: String(b.id),
         nombre: b.nombre,
         operadorAsignado: b.operadorAsignado && b.operadorAsignado !== 'Sin Asignar' ? b.operadorAsignado : null,
-        operadorId: b.operadorId || null
+        operadorId: b.operadorId || null,
+        maxLavadoresPorBahia: b.maxLavadoresPorBahia ?? 1,
+        operadoresActivos: b.operadoresActivos ?? [],
       }));
       this.onBahiaCrearSelectChange();
     });
@@ -978,19 +986,27 @@ export class OperadoresComponent implements OnInit, OnDestroy {
       return;
     }
     const b = this.listaBahiasOperador.find(x => x.id === this.formOperador.bahiaId);
-    if (b && b.operadorAsignado && b.operadorId && (!this.esEdicion || String(b.operadorId) !== String(this.operadorEnEdicionId))) {
+    if (!b) {
+      if (this.conflictoAsignacion?.contexto === 'crear') this.conflictoAsignacion = null;
+      return;
+    }
+    const max = b.maxLavadoresPorBahia ?? 1;
+    // Al editar, si el operador en edición YA es uno de los activos de esta bahía, no cuenta contra
+    // el cupo (se está guardando a sí mismo, no sumando uno nuevo).
+    const activos = (b.operadoresActivos ?? []).filter(
+      op => !this.esEdicion || String(op.id) !== String(this.operadorEnEdicionId)
+    );
+    if (activos.length >= max) {
       this.conflictoAsignacion = {
         bahiaId: b.id,
         bahiaNombre: b.nombre,
-        operadorActualId: b.operadorId,
-        operadorActualNombre: b.operadorAsignado,
+        operadoresActualesNombres: activos.map(op => op.nombre).join(', ') || (b.operadorAsignado ?? ''),
+        maxLavadoresPorBahia: max,
         nuevoOperadorNombre: this.formOperador.nombre?.trim() || 'Nuevo Lavador',
         contexto: 'crear'
       };
-    } else {
-      if (this.conflictoAsignacion?.contexto === 'crear') {
-        this.conflictoAsignacion = null;
-      }
+    } else if (this.conflictoAsignacion?.contexto === 'crear') {
+      this.conflictoAsignacion = null;
     }
   }
 
@@ -1125,7 +1141,9 @@ export class OperadoresComponent implements OnInit, OnDestroy {
         id: String(b.id),
         nombre: b.nombre,
         operadorAsignado: b.operadorAsignado && b.operadorAsignado !== 'Sin Asignar' ? b.operadorAsignado : null,
-        operadorId: b.operadorId || null
+        operadorId: b.operadorId || null,
+        maxLavadoresPorBahia: b.maxLavadoresPorBahia ?? 1,
+        operadoresActivos: b.operadoresActivos ?? [],
       }));
       this.onBahiaAsignarSelectChange();
     });
@@ -1139,19 +1157,25 @@ export class OperadoresComponent implements OnInit, OnDestroy {
       return;
     }
     const b = this.listaBahiasDisponibles.find(x => x.id === this.formAsignarBahia.bahiaId);
-    if (b && b.operadorAsignado && b.operadorId && (!this.operadorSeleccionado || String(b.operadorId) !== String(this.operadorSeleccionado.id))) {
+    if (!b) {
+      if (this.conflictoAsignacion?.contexto === 'asignar') this.conflictoAsignacion = null;
+      return;
+    }
+    const max = b.maxLavadoresPorBahia ?? 1;
+    const activos = (b.operadoresActivos ?? []).filter(
+      op => !this.operadorSeleccionado || String(op.id) !== String(this.operadorSeleccionado.id)
+    );
+    if (activos.length >= max) {
       this.conflictoAsignacion = {
         bahiaId: b.id,
         bahiaNombre: b.nombre,
-        operadorActualId: b.operadorId,
-        operadorActualNombre: b.operadorAsignado,
+        operadoresActualesNombres: activos.map(op => op.nombre).join(', ') || (b.operadorAsignado ?? ''),
+        maxLavadoresPorBahia: max,
         nuevoOperadorNombre: this.operadorSeleccionado?.nombre || 'Nuevo Lavador',
         contexto: 'asignar'
       };
-    } else {
-      if (this.conflictoAsignacion?.contexto === 'asignar') {
-        this.conflictoAsignacion = null;
-      }
+    } else if (this.conflictoAsignacion?.contexto === 'asignar') {
+      this.conflictoAsignacion = null;
     }
   }
 
@@ -1198,15 +1222,6 @@ export class OperadoresComponent implements OnInit, OnDestroy {
       },
       error: (err) => this.toastService.error('No se pudo asignar', this.mensajeError(err, 'El servidor no aceptó la asignación.'))
     });
-  }
-
-  ejecutarGuardadoConConflicto(): void {
-    this.modalConfirmarConflictoOpen = false;
-    if (this.conflictoAsignacion?.contexto === 'asignar') {
-      this.procederGuardarAsignacion();
-    } else if (this.conflictoAsignacion?.contexto === 'crear') {
-      this.procederGuardarOperador();
-    }
   }
 
   desactivarAsignacion(op: Operador): void {

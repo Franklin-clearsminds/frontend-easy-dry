@@ -4205,7 +4205,16 @@ export class ServiciosComponent implements OnInit, OnDestroy {
     if (b) {
       this.nuevoRegistro.bahia = b.nombre;
       this.nuevoRegistro.bahiaId = String(b.id);
-      if (b.operadorAsignado && b.operadorAsignado !== 'Sin Asignar') {
+      // `operadoresActivos` es la relación real (BahiaOperador, activo=true) y puede traer
+      // varios lavadores si la agencia permite turnos/rotación por bahía (maxLavadoresPorBahia > 1).
+      // Con exactamente uno, se autocarga sin ambigüedad. Con varios, se deja en blanco para que
+      // el líder elija explícitamente (mismo criterio que operadores.component.ts y NuevaOTModal.tsx).
+      const activos = b.operadoresActivos || [];
+      if (activos.length === 1) {
+        this.nuevoRegistro.empleado = activos[0].nombre;
+      } else if (activos.length > 1) {
+        this.nuevoRegistro.empleado = '';
+      } else if (b.operadorAsignado && b.operadorAsignado !== 'Sin Asignar') {
         this.nuevoRegistro.empleado = b.operadorAsignado;
       }
     } else if (this.nuevoRegistro.bahiaId === '') {

@@ -128,6 +128,10 @@ export interface Bahia {
    * null = bahía disponible. No calcular esto en el cliente a partir de otras listas.
    */
   ocupada?: { placa: string; ordenTrabajoOT: string | null } | null;
+  /** Máximo de lavadores simultáneos que la agencia permite por bahía (Agencia.maxLavadoresPorBahia). */
+  maxLavadoresPorBahia?: number;
+  /** Todos los lavadores con asignación ACTIVA a esta bahía (puede haber más de uno si el máximo > 1). */
+  operadoresActivos?: Array<{ id: string; nombre: string }>;
 }
 
 

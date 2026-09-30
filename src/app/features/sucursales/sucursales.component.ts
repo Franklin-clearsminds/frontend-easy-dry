@@ -1478,6 +1478,14 @@ export class SucursalesComponent implements OnInit, OnDestroy {
 
   cargarTodo(): void {
     this.agenciasLista.reiniciar();
+    // `regionesTabla`/`clientesTabla` (las listas con buscador de las pestañas "Regiones" y
+    // "Clientes") no se cargan solas: a diferencia de `agenciasLista`, nadie las inicializaba acá,
+    // así que se quedaban en 0 registros hasta que el usuario escribía algo en su buscador (eso sí
+    // dispara `queryChange` → `cargar()`). El panel derecho no dependía de esto (usa getRegiones()/
+    // getMarcas() sin paginar), por eso mostraba datos reales mientras la lista de la izquierda
+    // parecía vacía.
+    this.regionesTabla.reiniciar();
+    this.clientesTabla.reiniciar();
     this.regionService.getRegiones().subscribe(list => {
       this.regiones = list;
       this.regionSeleccionada = this.regionSeleccionada
