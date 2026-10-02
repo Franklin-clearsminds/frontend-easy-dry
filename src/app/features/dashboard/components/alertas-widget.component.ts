@@ -12,7 +12,7 @@ import { LucideAngularModule } from 'lucide-angular';
         <i-lucide aria-hidden="true" name="bell" class="w-5 h-5 text-easydry-blue"></i-lucide>
         Alertas Operativas
       </h4>
-      <div class="space-y-3">
+      <div class="space-y-3 max-h-[400px] overflow-y-auto pr-2">
         @for (alerta of alertas; track alerta.mensaje) {
           <div class="p-3 rounded-xl border flex items-start gap-3"
                [ngClass]="{

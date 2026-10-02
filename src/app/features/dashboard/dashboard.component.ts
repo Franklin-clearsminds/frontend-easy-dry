@@ -1,6 +1,7 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { RouterModule } from '@angular/router';
+import { FormsModule } from '@angular/forms';
 import { LucideAngularModule } from 'lucide-angular';
 import { StatCardComponent } from '../../shared/components/stat-card/stat-card.component';
 import { ChartCardComponent } from '../../shared/components/chart-card/chart-card.component';
@@ -9,6 +10,8 @@ import { AuthService } from '../../core/services/auth.service';
 import { ROLE_LABELS } from '../../core/models/roles.model';
 import { AlertasWidgetComponent } from './components/alertas-widget.component';
 import { RankingOperadoresWidgetComponent } from './components/ranking-operadores-widget.component';
+import { SelectSearchComponent } from '../../shared/components/select-search/select-search.component';
+import { OpcionesService } from '../../core/services/opciones.service';
 import { CHART_COLORS } from '../../shared/theme/colors';
 
 /** Qué panel ve el usuario. Se decide por los permisos del rol (los mismos que exige el servidor), no por su nombre. */
@@ -20,18 +23,21 @@ export type VistaDashboard = 'taller' | 'especiales' | 'bodega' | 'ejecutivo' | 
   imports: [
     CommonModule,
     RouterModule,
+    FormsModule,
     LucideAngularModule,
     StatCardComponent,
     ChartCardComponent,
     AlertasWidgetComponent,
     RankingOperadoresWidgetComponent,
-    DatePipe
+    DatePipe,
+    SelectSearchComponent
   ],
   templateUrl: './dashboard.component.html'
 })
 export class DashboardComponent implements OnInit {
   private dashboardService = inject(DashboardOperativoService);
   public auth = inject(AuthService);
+  public opciones = inject(OpcionesService);
 
   produccion: any;
   operadores: any;
@@ -43,11 +49,39 @@ export class DashboardComponent implements OnInit {
   resumenEjecutivo: any;
 
   fechaActual = new Date();
+  fechaFiltro = this.fechaActual.toISOString().split('T')[0];
+  regionFiltro: string | null = null;
+  agenciaFiltro: string | null = null;
+  
+  cargarRegiones = this.opciones.regiones();
+  cargarAgencias = this.opciones.agencias();
+
   rolLabel = '';
   contextLabel = '';
   userName = '';
 
   activeExecutiveTab: 'analitica' | 'auditoria' | 'inventario' = 'analitica';
+
+  get filtroActual() {
+    return { 
+      fecha: this.fechaFiltro, fechaDesde: this.fechaFiltro, fechaHasta: this.fechaFiltro,
+      regionId: this.regionFiltro || undefined,
+      agenciaId: this.agenciaFiltro || undefined
+    };
+  }
+
+  onFechaChange(newVal: string): void {
+    if (newVal) {
+      this.fechaFiltro = newVal;
+      this.fechaActual = new Date(newVal + 'T12:00:00');
+      this.onFiltroChange();
+    }
+  }
+
+  onFiltroChange(): void {
+    this.produccion = null; // reset para mostrar skeleton/loader
+    this.cargarEjecutivo();
+  }
 
   /**
    * taller: mantenimiento y técnicos (ven maquinaria y ejecutan mantenimientos, pero no las OT).
@@ -92,15 +126,16 @@ export class DashboardComponent implements OnInit {
 
   /** Solo se llama a los endpoints para los que el rol tiene permiso (evita errores 403 de fondo). */
   private cargarEjecutivo(): void {
-    this.dashboardService.getProduccion().subscribe(d => this.produccion = this.normalizeProduccion(d));
-    this.dashboardService.getServiciosData().subscribe(d => this.serviciosData = d);
-    this.dashboardService.getResumenEjecutivo().subscribe(d => this.resumenEjecutivo = d);
+    const filtro = this.filtroActual;
+    this.dashboardService.getProduccion(filtro).subscribe(d => this.produccion = this.normalizeProduccion(d));
+    this.dashboardService.getServiciosData(filtro).subscribe(d => this.serviciosData = d);
+    this.dashboardService.getResumenEjecutivo(filtro).subscribe(d => this.resumenEjecutivo = d);
 
     if (this.puedeVerUsuarios) {
-      this.dashboardService.getOperadores().subscribe(d => this.operadores = d);
+      this.dashboardService.getOperadores(filtro).subscribe(d => this.operadores = d);
     }
     if (this.puedeVerMaquinaria) {
-      this.dashboardService.getMaquinaria().subscribe(d => {
+      this.dashboardService.getMaquinaria(filtro).subscribe(d => {
         this.maquinaria = {
           ...d,
           distribucionEstado: {
@@ -114,8 +149,8 @@ export class DashboardComponent implements OnInit {
       });
     }
     if (this.puedeVerAlertas) {
-      this.dashboardService.getAlertas().subscribe(d => this.alertas = d);
-      this.dashboardService.getDashboardDistribuidor().subscribe(d => this.distribuidorData = d);
+      this.dashboardService.getAlertas(filtro).subscribe(d => this.alertas = d);
+      this.dashboardService.getDashboardDistribuidor(filtro).subscribe(d => this.distribuidorData = d);
     }
   }
 
@@ -140,8 +175,11 @@ export class DashboardComponent implements OnInit {
     return {
       ...d,
       totalVehiculos: d.vehiculosHoy ?? null,
-      flujoHorario: d.produccionPorHora ?? null,
-      distribucionModelos: d.productividadBahias ?? null
+      flujoHorario: d.flujoHorario ?? null,
+      distribucionModelos: d.distribucionModelos ?? null,
+      tiemposBahias: d.tiemposBahias ?? null,
+      topMaquinas: d.topMaquinas ?? null,
+      topAgencias: d.topAgencias ?? null
     };
   }
 }

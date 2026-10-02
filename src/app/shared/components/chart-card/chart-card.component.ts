@@ -82,7 +82,7 @@ export class ChartCardComponent implements AfterViewInit, OnChanges, OnDestroy {
       plugins: {
         legend: {
           display: true,
-          position: 'bottom',
+          position: this.type === 'pie' || this.type === 'doughnut' ? 'right' : 'bottom',
           labels: {
             usePointStyle: true,
             font: { family: 'Inter', size: 12 },

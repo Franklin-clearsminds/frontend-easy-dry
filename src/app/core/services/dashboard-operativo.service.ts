@@ -8,7 +8,7 @@ import {
   DashboardDistribuidorData,
   ResumenEjecutivoData
 } from '../models/dashboard.model';
-import { CHART_COLORS } from '../../shared/theme/colors';
+import { CHART_COLORS, CHART_SERIES } from '../../shared/theme/colors';
 import { ToastService } from '../../shared/services/toast.service';
 
 /**
@@ -29,19 +29,81 @@ export class DashboardOperativoService {
   }
 
   /**
-   * Producción del día (POST /analytics/dashboard). El servidor solo entrega los totales de hoy (`kpis`); no calcula
-   * serie por hora ni productividad por bahía, así que esos gráficos quedan en null.
+   * Producción del día (POST /analytics/dashboard).
    */
-  getProduccion(): Observable<any> {
-    return this.http.post<any>(apiUrl('/analytics/dashboard'), {}).pipe(
+  getProduccion(filtro: any = {}): Observable<any> {
+    return this.http.post<any>(apiUrl('/analytics/dashboard'), filtro).pipe(
       map(data => ({
         vehiculosHoy: data?.kpis?.totalLavadosHoy ?? null,
-        produccionPorHora: null,
-        productividadBahias: null
+        flujoHorario: data?.flujoHorario ? {
+          labels: data.flujoHorario.map((f: any) => f.hora),
+          datasets: [{
+            label: 'Vehículos',
+            data: data.flujoHorario.map((f: any) => f.cantidad),
+            borderColor: CHART_COLORS.green,
+            backgroundColor: CHART_COLORS.green + '33', // 20% opacity
+            tension: 0.4,
+            fill: true
+          }]
+        } : null,
+        distribucionModelos: data?.distribucionBahias && data.distribucionBahias.length > 0 ? {
+          labels: data.distribucionBahias.map((b: any) => b.nombre),
+          datasets: [{
+            label: 'Lavados',
+            data: data.distribucionBahias.map((b: any) => b.total),
+            backgroundColor: [CHART_COLORS.green, CHART_COLORS.blue, CHART_COLORS.amber, CHART_COLORS.rose, CHART_COLORS.slate]
+          }]
+        } : null,
+        tiemposBahias: data?.tiemposBahias && data.tiemposBahias.length > 0 ? {
+          labels: data.tiemposBahias.map((b: any) => b.nombre),
+          datasets: [{
+            label: 'Minutos',
+            data: data.tiemposBahias.map((b: any) => b.promedio),
+            backgroundColor: [...CHART_SERIES]
+          }]
+        } : null,
+        topMaquinas: data?.topMaquinasDañadas && data.topMaquinasDañadas.length > 0 ? {
+          labels: data.topMaquinasDañadas.map((m: any) => m.nombre.split('-')[0].trim()),
+          datasets: [{
+            label: 'Incidentes',
+            data: data.topMaquinasDañadas.map((m: any) => m.total),
+            backgroundColor: [...CHART_SERIES].reverse()
+          }]
+        } : null,
+        topAgencias: data?.topAgenciasIncidentes && data.topAgenciasIncidentes.length > 0 ? {
+          labels: data.topAgenciasIncidentes.map((a: any) => a.nombre),
+          datasets: [{
+            label: 'Incidentes',
+            data: data.topAgenciasIncidentes.map((a: any) => a.total),
+            backgroundColor: [...CHART_SERIES]
+          }]
+        } : null,
+        mixServicios: data?.mixServicios && data.mixServicios.length > 0 ? {
+          labels: data.mixServicios.map((m: any) => m.nombre),
+          datasets: [{
+            data: data.mixServicios.map((m: any) => m.cantidad),
+            backgroundColor: [...CHART_SERIES]
+          }]
+        } : null,
+        topMarcas: data?.topMarcas && data.topMarcas.length > 0 ? {
+          labels: data.topMarcas.map((m: any) => m.nombre),
+          datasets: [{
+            label: 'Vehículos',
+            data: data.topMarcas.map((m: any) => m.cantidad),
+            backgroundColor: [...CHART_SERIES]
+          }]
+        } : null,
+        incidentesPorTipo: data?.incidentesPorTipo && data.incidentesPorTipo.length > 0 ? {
+          labels: data.incidentesPorTipo.map((t: any) => t.nombre),
+          datasets: [{
+            data: data.incidentesPorTipo.map((t: any) => t.cantidad),
+            backgroundColor: [...CHART_SERIES].reverse()
+          }]
+        } : null
       })),
       catchError((err) => {
         this.avisarErrorCarga('No se pudo cargar la producción del día', err);
-        return of({ vehiculosHoy: null, produccionPorHora: null, productividadBahias: null });
+        return of({ vehiculosHoy: null, flujoHorario: null, distribucionModelos: null, tiemposBahias: null, topMaquinas: null, topAgencias: null });
       })
     );
   }
@@ -49,8 +111,8 @@ export class DashboardOperativoService {
   /**
    * Ranking de operadores por servicios atendidos (POST /agencias/operadores/list).
    */
-  getOperadores(): Observable<any> {
-    return this.http.post<any[]>(apiUrl('/agencias/operadores/list'), {}).pipe(
+  getOperadores(filtro: any = {}): Observable<any> {
+    return this.http.post<any[]>(apiUrl('/agencias/operadores/list'), filtro).pipe(
       map(list => {
         const raw = Array.isArray(list) ? list : [];
         const activos = raw.filter(o => o.estado === 'Activo' || o.estado === 1).length;
@@ -89,11 +151,10 @@ export class DashboardOperativoService {
   }
 
   /**
-   * Servicios de hoy por estado (POST /analytics/dashboard -> distribucionEstados). El servidor no separa generales de
-   * especiales ni entrega aprobaciones pendientes en este endpoint, por eso no se exponen.
+   * Servicios de hoy por estado (POST /analytics/dashboard -> distribucionEstados).
    */
-  getServiciosData(): Observable<any> {
-    return this.http.post<any>(apiUrl('/analytics/dashboard'), {}).pipe(
+  getServiciosData(filtro: any = {}): Observable<any> {
+    return this.http.post<any>(apiUrl('/analytics/dashboard'), filtro).pipe(
       map(data => {
         const e = data?.distribucionEstados;
         if (!e) return { estados: null };
@@ -124,13 +185,14 @@ export class DashboardOperativoService {
   /**
    * Estado y disponibilidad del parque de maquinaria (POST /maquinaria/list)
    */
-  getMaquinaria(): Observable<any> {
-    return this.http.post<any[]>(apiUrl('/maquinaria/list'), {}).pipe(
-      map(list => {
-        const raw = Array.isArray(list) ? list : [];
+  getMaquinaria(filtro: any = {}): Observable<any> {
+    const payload = { ...filtro, pageSize: 200 };
+    return this.http.post<any>(apiUrl('/maquinaria/list'), payload).pipe(
+      map(res => {
+        const raw = Array.isArray(res) ? res : (res?.data || res?.items || res?.rows || []);
         const total = raw.length;
-        const operativas = raw.filter(m => (m.estadoOperativo || m.estado) === 'OPERATIVA' || (m.estadoOperativo || m.estado) === 'Operativa').length;
-        const mantenimiento = raw.filter(m => (m.estadoOperativo || m.estado) === 'EN_MANTENIMIENTO' || (m.estadoOperativo || m.estado) === 'Mantenimiento').length;
+        const operativas = raw.filter((m: any) => (m.estadoOperativo || m.estado) === 'OPERATIVA' || (m.estadoOperativo || m.estado) === 'Operativa').length;
+        const mantenimiento = raw.filter((m: any) => (m.estadoOperativo || m.estado) === 'EN_MANTENIMIENTO' || (m.estadoOperativo || m.estado) === 'Mantenimiento').length;
         const danadas = Math.max(0, total - operativas - mantenimiento);
         return { total, operativas, mantenimiento, danadas };
       }),
@@ -144,8 +206,8 @@ export class DashboardOperativoService {
   /**
    * Alertas de stock bajo en tiempo real (POST /inventario/alertas/list)
    */
-  getAlertas(): Observable<any[]> {
-    return this.http.post<any[]>(apiUrl('/inventario/alertas/list'), {}).pipe(
+  getAlertas(filtro: any = {}): Observable<any[]> {
+    return this.http.post<any[]>(apiUrl('/inventario/alertas/list'), filtro).pipe(
       map(items => {
         if (!items || items.length === 0) return [];
         return items.map(a => {
@@ -218,15 +280,15 @@ export class DashboardOperativoService {
    * KPIs y tableros para Distribuidor / Bodega: alertas de stock y consumo real de insumos
    * (POST /analytics/consumo-quimicos -> insumos, ordenados por costo).
    */
-  getDashboardDistribuidor(): Observable<DashboardDistribuidorData> {
+  getDashboardDistribuidor(filtro: any = {}): Observable<DashboardDistribuidorData> {
     return forkJoin([
-      this.http.post<any[]>(apiUrl('/inventario/alertas/list'), {}).pipe(
+      this.http.post<any[]>(apiUrl('/inventario/alertas/list'), filtro).pipe(
         catchError((err) => {
           this.avisarErrorCarga('No se pudieron cargar las alertas de stock', err);
           return of([]);
         })
       ),
-      this.http.post<any>(apiUrl('/analytics/consumo-quimicos'), {}).pipe(
+      this.http.post<any>(apiUrl('/analytics/consumo-quimicos'), filtro).pipe(
         catchError((err) => {
           this.avisarErrorCarga('No se pudo cargar el consumo de insumos', err);
           return of(null);
@@ -235,18 +297,45 @@ export class DashboardOperativoService {
     ]).pipe(
       map(([alertas, consumo]) => {
         const criticos = (alertas || []).filter((a: any) => (a.nivel || '').toUpperCase() === 'CRITICO').length;
-        const insumos: any[] = Array.isArray(consumo?.insumos) ? consumo.insumos.slice(0, 5) : [];
+        const insumosList = Array.isArray(consumo?.insumos) ? consumo.insumos : [];
+        const topInsumos = [...insumosList].sort((a, b) => b.cantidadTotal - a.cantidadTotal).slice(0, 5);
+        const bottomInsumos = [...insumosList].sort((a, b) => a.cantidadTotal - b.cantidadTotal).filter(i => i.cantidadTotal > 0).slice(0, 5);
 
+        const truncate = (str: string, len: number) => str.length > len ? str.substring(0, len) + '...' : str;
+        
         return {
           skusCriticos: criticos,
           chartConsumoInsumos: {
-            labels: insumos.map(c => c.nombre),
+            labels: topInsumos.map(c => truncate(c.nombre, 15)),
             datasets: [{
-              label: 'Consumo del mes',
-              data: insumos.map(c => Number(c.cantidadTotal || 0)),
-              backgroundColor: CHART_COLORS.blue
+              label: 'Más Consumidos',
+              data: topInsumos.map(c => Number(c.cantidadTotal || 0)),
+              backgroundColor: [...CHART_SERIES]
             }]
-          }
+          },
+          chartInsumosMenosConsumidos: bottomInsumos.length > 0 ? {
+            labels: bottomInsumos.map(c => truncate(c.nombre, 15)),
+            datasets: [{
+              label: 'Menos Consumidos',
+              data: bottomInsumos.map(c => Number(c.cantidadTotal || 0)),
+              backgroundColor: [...CHART_SERIES].reverse()
+            }]
+          } : null,
+          chartConsumoPorAgencia: consumo?.consumoPorAgencia && consumo.consumoPorAgencia.length > 0 ? {
+            labels: consumo.consumoPorAgencia.map((a: any) => truncate(a.nombre, 15)),
+            datasets: [{
+              label: 'Cantidad (Unidades)',
+              data: consumo.consumoPorAgencia.map((a: any) => a.costo),
+              backgroundColor: [...CHART_SERIES]
+            }]
+          } : null,
+          chartConsumoPorCategoria: consumo?.consumoPorCategoria && consumo.consumoPorCategoria.length > 0 ? {
+            labels: consumo.consumoPorCategoria.map((c: any) => c.nombre),
+            datasets: [{
+              data: consumo.consumoPorCategoria.map((c: any) => c.cantidad),
+              backgroundColor: [...CHART_SERIES]
+            }]
+          } : null
         };
       })
     );
@@ -255,8 +344,8 @@ export class DashboardOperativoService {
   /**
    * Resumen ejecutivo del día (POST /analytics/dashboard -> kpis). Solo se listan los indicadores que el servidor calcula.
    */
-  getResumenEjecutivo(): Observable<ResumenEjecutivoData> {
-    return this.http.post<any>(apiUrl('/analytics/dashboard'), {}).pipe(
+  getResumenEjecutivo(filtro: any = {}): Observable<ResumenEjecutivoData> {
+    return this.http.post<any>(apiUrl('/analytics/dashboard'), filtro).pipe(
       map(data => {
         const k = data?.kpis;
         if (!k) return { kpis: [] };

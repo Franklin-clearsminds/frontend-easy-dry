@@ -16,7 +16,7 @@ import { LucideAngularModule } from 'lucide-angular';
         <span class="text-xs font-semibold bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full">Hoy</span>
       </div>
 
-      <div class="space-y-3">
+      <div class="space-y-3 max-h-[350px] overflow-y-auto pr-2">
         @for (op of ranking; track op.posicion) {
           <div class="p-3 bg-slate-50 border border-slate-100 hover:border-easydry-blue/30 hover:bg-easydry-blue/5 transition-colors rounded-xl flex items-center justify-between group">
             <div class="flex items-center gap-3">

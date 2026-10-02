@@ -22,7 +22,44 @@
         <i-lucide aria-hidden="true" name="calendar" class="w-4 h-4 text-easydry-blue"></i-lucide> {{ fechaActual | date:'fullDate' }}
       </p>
     </div>
-    <div class="relative z-10 flex gap-3 flex-wrap">
+    <div class="relative z-10 flex gap-3 flex-wrap items-center">
+      @if (vista === 'ejecutivo') {
+        
+        <!-- Filtro: Región (solo si el usuario tiene permiso GLOBAL) -->
+        @if (auth.getCurrentUser()?.ambito === 'GLOBAL' || auth.getCurrentUser()?.role === 'SUPER_ADMIN') {
+          <div class="w-40 xl:w-48">
+            <app-select-search
+              placeholder="Región"
+              todasLabel="Todas las regiones"
+              [cargar]="cargarRegiones"
+              [value]="regionFiltro"
+              (valueChange)="regionFiltro = $event; onFiltroChange()">
+            </app-select-search>
+          </div>
+        }
+
+        <!-- Filtro: Agencia (si el usuario tiene permiso GLOBAL o REGION) -->
+        @if (auth.getCurrentUser()?.ambito === 'GLOBAL' || auth.getCurrentUser()?.role === 'SUPER_ADMIN' || auth.getCurrentUser()?.ambito === 'REGION') {
+          <div class="w-40 xl:w-48">
+            <app-select-search
+              placeholder="Agencia"
+              todasLabel="Todas las agencias"
+              [cargar]="cargarAgencias"
+              [value]="agenciaFiltro"
+              (valueChange)="agenciaFiltro = $event; onFiltroChange()">
+            </app-select-search>
+          </div>
+        }
+
+        <!-- Filtro: Fecha -->
+        <div class="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-slate-200 shadow-sm text-sm h-9">
+          <i-lucide aria-hidden="true" name="calendar" class="w-4 h-4 text-easydry-blue"></i-lucide>
+          <input type="date"
+                 class="font-semibold text-slate-700 outline-none bg-transparent cursor-pointer"
+                 [ngModel]="fechaFiltro" 
+                 (ngModelChange)="onFechaChange($event)" />
+        </div>
+      }
       @if (vista === 'ejecutivo' && puedeVerMapa) {
         <a routerLink="/agencias" [queryParams]="{ tab: 'mapa' }" class="px-4 py-2.5 bg-easydry-green hover:bg-easydry-green-dark text-slate-900 font-bold rounded-xl text-sm flex items-center gap-2">
           <i-lucide aria-hidden="true" name="map" class="w-4 h-4"></i-lucide> Mapa en Vivo
@@ -58,40 +95,40 @@
   <!-- El servidor filtra los datos por el alcance del usuario: país, región o agencia. -->
   @if (vista === 'ejecutivo') {
 
-    <!-- Tabs Navigation -->
-    <div class="flex flex-wrap items-center gap-4 lg:gap-6 mt-2 mb-6 pt-2 border-b border-slate-200" role="tablist" aria-label="Secciones del dashboard">
-      <button
-        type="button" role="tab" id="tab-analitica" aria-controls="panel-analitica" [attr.aria-selected]="activeExecutiveTab === 'analitica'"
-        (click)="activeExecutiveTab = 'analitica'"
-        class="pb-3 text-sm font-bold border-b-2 transition-colors flex items-center gap-2"
-        [ngClass]="activeExecutiveTab === 'analitica' ? 'border-easydry-blue text-easydry-blue' : 'border-transparent text-slate-500 hover:text-slate-700'">
-        <i-lucide aria-hidden="true" name="bar-chart-2" class="w-4 h-4"></i-lucide>
-        Analítica y Productividad
-      </button>
-      <button
-        type="button" role="tab" id="tab-auditoria" aria-controls="panel-auditoria" [attr.aria-selected]="activeExecutiveTab === 'auditoria'"
-        (click)="activeExecutiveTab = 'auditoria'"
-        class="pb-3 text-sm font-bold border-b-2 transition-colors flex items-center gap-2"
-        [ngClass]="activeExecutiveTab === 'auditoria' ? 'border-easydry-blue text-easydry-blue' : 'border-transparent text-slate-500 hover:text-slate-700'">
-        <i-lucide aria-hidden="true" name="shield-check" class="w-4 h-4"></i-lucide>
-        Servicios y Calidad
-      </button>
-      @if (puedeVerAlertas) {
+    <!-- Premium Segmented Control Navigation -->
+    <div class="flex items-center justify-center mb-8 animate-fade-in-up">
+      <div class="inline-flex bg-slate-100/80 backdrop-blur-md p-1.5 rounded-2xl border border-slate-200/50 shadow-inner" role="tablist" aria-label="Secciones del dashboard">
         <button
-          type="button" role="tab" id="tab-inventario" aria-controls="panel-inventario" [attr.aria-selected]="activeExecutiveTab === 'inventario'"
-          (click)="activeExecutiveTab = 'inventario'"
-          class="pb-3 text-sm font-bold border-b-2 transition-colors flex items-center gap-2"
-          [ngClass]="activeExecutiveTab === 'inventario' ? 'border-easydry-blue text-easydry-blue' : 'border-transparent text-slate-500 hover:text-slate-700'">
-          <i-lucide aria-hidden="true" name="package" class="w-4 h-4"></i-lucide>
-          Consumo e Inventario
+          type="button" role="tab" id="tab-analitica" aria-controls="panel-analitica" [attr.aria-selected]="activeExecutiveTab === 'analitica'"
+          (click)="activeExecutiveTab = 'analitica'"
+          class="px-6 py-2.5 text-sm font-bold rounded-xl transition-all duration-300 flex items-center gap-2"
+          [ngClass]="activeExecutiveTab === 'analitica' ? 'bg-white text-easydry-blue shadow-sm ring-1 ring-slate-900/5' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'">
+          <i-lucide aria-hidden="true" name="bar-chart-2" class="w-4 h-4"></i-lucide>
+          Productividad
         </button>
-      }
+        <button
+          type="button" role="tab" id="tab-auditoria" aria-controls="panel-auditoria" [attr.aria-selected]="activeExecutiveTab === 'auditoria'"
+          (click)="activeExecutiveTab = 'auditoria'"
+          class="px-6 py-2.5 text-sm font-bold rounded-xl transition-all duration-300 flex items-center gap-2"
+          [ngClass]="activeExecutiveTab === 'auditoria' ? 'bg-white text-easydry-blue shadow-sm ring-1 ring-slate-900/5' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'">
+          <i-lucide aria-hidden="true" name="shield-check" class="w-4 h-4"></i-lucide>
+          Auditoría y Equipos
+        </button>
+        @if (puedeVerAlertas) {
+          <button
+            type="button" role="tab" id="tab-inventario" aria-controls="panel-inventario" [attr.aria-selected]="activeExecutiveTab === 'inventario'"
+            (click)="activeExecutiveTab = 'inventario'"
+            class="px-6 py-2.5 text-sm font-bold rounded-xl transition-all duration-300 flex items-center gap-2"
+            [ngClass]="activeExecutiveTab === 'inventario' ? 'bg-white text-easydry-blue shadow-sm ring-1 ring-slate-900/5' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'">
+            <i-lucide aria-hidden="true" name="package" class="w-4 h-4"></i-lucide>
+            Inventario
+          </button>
+        }
+      </div>
     </div>
 
     <!-- Sección: Analítica y Productividad -->
-    <div class="mb-4" role="tabpanel" id="panel-analitica" aria-labelledby="tab-analitica" [class.hidden]="activeExecutiveTab !== 'analitica'">
-      <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2 mb-1"><i-lucide aria-hidden="true" name="bar-chart-2" class="w-5 h-5 text-easydry-green"></i-lucide> Analítica y Productividad</h2>
-      <p class="text-sm text-slate-500 mb-6">Métricas de eficiencia y tiempos de atención dentro de tu alcance</p>
+    <div class="mb-4 animate-fade-in" role="tabpanel" id="panel-analitica" aria-labelledby="tab-analitica" [class.hidden]="activeExecutiveTab !== 'analitica'">
 
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 mb-8">
         @for (k of resumenEjecutivo?.kpis || []; track k.label) {
@@ -99,23 +136,39 @@
         }
       </div>
 
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        @if (produccion?.flujoHorario) {
-          <app-chart-card class="lg:col-span-2" title="Flujo Horario de Atención" subtitle="Vehículos procesados hoy" type="line" [data]="produccion.flujoHorario"></app-chart-card>
-        } @else {
-          <div class="lg:col-span-2 bg-white rounded-2xl p-6 border border-slate-100 shadow-easydry text-sm text-slate-500">
-            <h4 class="font-bold text-slate-900 text-base font-outfit mb-1">Flujo Horario de Atención</h4>
-            Sin datos: el servidor aún no entrega la serie horaria.
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+        <div class="lg:col-span-2 flex flex-col gap-8">
+          @if (produccion?.flujoHorario) {
+            <app-chart-card title="Flujo Horario de Atención" subtitle="Vehículos procesados en el día" type="line" [data]="produccion.flujoHorario"></app-chart-card>
+          } @else {
+            <div class="bg-white rounded-2xl p-6 border border-slate-100 shadow-easydry text-sm text-slate-500">
+              <h4 class="font-bold text-slate-900 text-base font-outfit mb-1">Flujo Horario de Atención</h4>
+              Sin datos: el servidor aún no entrega la serie horaria.
+            </div>
+          }
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            @if (produccion?.mixServicios) {
+              <app-chart-card title="Mix de Servicios" subtitle="Distribución por categoría de lavado" type="doughnut" [data]="produccion.mixServicios"></app-chart-card>
+            }
+            @if (produccion?.tiemposBahias) {
+              <app-chart-card title="Tiempo por Bahía" subtitle="Promedio en minutos (más bajo es mejor)" type="bar" [data]="produccion.tiemposBahias"></app-chart-card>
+            }
           </div>
-        }
-        @if (produccion?.distribucionModelos) {
-          <app-chart-card title="Distribución por Bahía" subtitle="Productividad por bahía" type="bar" [data]="produccion.distribucionModelos"></app-chart-card>
-        } @else {
-          <div class="bg-white rounded-2xl p-6 border border-slate-100 shadow-easydry text-sm text-slate-500">
-            <h4 class="font-bold text-slate-900 text-base font-outfit mb-1">Distribución por Bahía</h4>
-            Sin datos: el servidor aún no entrega la productividad por bahía.
-          </div>
-        }
+        </div>
+        <div class="flex flex-col gap-8">
+          @if (produccion?.distribucionModelos) {
+            <app-chart-card title="Lavados por Bahía" subtitle="Productividad en cantidad" type="bar" [data]="produccion.distribucionModelos"></app-chart-card>
+          } @else {
+            <div class="bg-white rounded-2xl p-6 border border-slate-100 shadow-easydry text-sm text-slate-500">
+              <h4 class="font-bold text-slate-900 text-base font-outfit mb-1">Lavados por Bahía</h4>
+              Sin datos: el servidor aún no entrega la productividad por bahía.
+            </div>
+          }
+          @if (produccion?.topMarcas) {
+            <app-chart-card title="Top Marcas" subtitle="Vehículos más frecuentes" type="bar" [data]="produccion.topMarcas"></app-chart-card>
+          }
+        </div>
         @if (puedeVerUsuarios) {
           <div class="lg:col-span-3">
             <app-ranking-operadores-widget [ranking]="operadores?.ranking || []"></app-ranking-operadores-widget>
@@ -125,9 +178,7 @@
     </div>
 
     <!-- Sección: Servicios y Calidad -->
-    <div class="mb-4" role="tabpanel" id="panel-auditoria" aria-labelledby="tab-auditoria" [class.hidden]="activeExecutiveTab !== 'auditoria'">
-      <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2 mb-1"><i-lucide aria-hidden="true" name="shield-check" class="w-5 h-5 text-easydry-green"></i-lucide> Servicios y Calidad</h2>
-      <p class="text-sm text-slate-500 mb-6">Estado de los servicios de hoy y de los equipos</p>
+    <div class="mb-4 animate-fade-in" role="tabpanel" id="panel-auditoria" aria-labelledby="tab-auditoria" [class.hidden]="activeExecutiveTab !== 'auditoria'">
 
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 mb-8">
         @if (serviciosData?.estados; as est) {
@@ -141,13 +192,8 @@
       </div>
 
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
-        @if (puedeVerAlertas) {
-          <div class="lg:col-span-3">
-            <app-alertas-widget [alertas]="alertas"></app-alertas-widget>
-          </div>
-        }
         @if (puedeVerMaquinaria) {
-          <app-chart-card title="Disponibilidad de Equipos" subtitle="Estado de maquinaria" type="doughnut" [data]="maquinaria?.distribucionEstado"></app-chart-card>
+          <app-chart-card title="Disponibilidad Equipos" subtitle="Estado de maquinaria" type="doughnut" [data]="maquinaria?.distribucionEstado"></app-chart-card>
         }
         @if (serviciosData?.estados) {
           <app-chart-card title="Servicios de Hoy" subtitle="Distribución por estado" type="doughnut" [data]="serviciosData.estados.chart"></app-chart-card>
@@ -157,14 +203,28 @@
             Sin datos disponibles.
           </div>
         }
+        @if (produccion?.topMaquinas) {
+          <app-chart-card title="Equipos Vulnerables" subtitle="Top 5 con más daños" type="bar" [data]="produccion.topMaquinas"></app-chart-card>
+        }
+        
+        @if (produccion?.topAgencias) {
+          <app-chart-card class="lg:col-span-2" title="Incidentes por Agencia" subtitle="Fallas en los últimos 30 días" type="bar" [data]="produccion.topAgencias"></app-chart-card>
+        }
+        @if (produccion?.incidentesPorTipo) {
+          <app-chart-card title="Daños por Tipo" subtitle="Distribución por categoría de máquina" type="doughnut" [data]="produccion.incidentesPorTipo"></app-chart-card>
+        }
+
+        @if (puedeVerAlertas) {
+          <div class="lg:col-span-3 mt-4">
+            <app-alertas-widget [alertas]="alertas"></app-alertas-widget>
+          </div>
+        }
       </div>
     </div>
 
     <!-- Sección: Consumo e Inventario -->
     @if (puedeVerAlertas) {
-      <div class="mb-4" role="tabpanel" id="panel-inventario" aria-labelledby="tab-inventario" [class.hidden]="activeExecutiveTab !== 'inventario'">
-        <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2 mb-1"><i-lucide aria-hidden="true" name="package" class="w-5 h-5 text-easydry-green"></i-lucide> Consumo e Inventario</h2>
-        <p class="text-sm text-slate-500 mb-6">Insumos consumidos y alertas de stock dentro de tu alcance</p>
+      <div class="mb-4 animate-fade-in" role="tabpanel" id="panel-inventario" aria-labelledby="tab-inventario" [class.hidden]="activeExecutiveTab !== 'inventario'">
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-8 mb-8">
           <app-stat-card title="Alertas de Stock" [value]="alertas.length" icon="package-minus" subtitle="Alertas registradas" variant="warning"></app-stat-card>
@@ -173,7 +233,33 @@
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <app-chart-card class="lg:col-span-2" title="Consumo de Insumos" subtitle="Insumos más consumidos" type="bar" [data]="distribuidorData?.chartConsumoInsumos"></app-chart-card>
-          <app-alertas-widget [alertas]="alertas"></app-alertas-widget>
+          
+          @if (distribuidorData?.chartInsumosMenosConsumidos) {
+            <app-chart-card title="Menos Consumidos" subtitle="Poco movimiento" type="bar" [data]="distribuidorData.chartInsumosMenosConsumidos"></app-chart-card>
+          }
+          @if (distribuidorData?.chartConsumoPorAgencia) {
+            <app-chart-card class="lg:col-span-2" title="Consumo por Agencia" subtitle="Agencias con mayor uso de insumos (unidades)" type="bar" [data]="distribuidorData.chartConsumoPorAgencia"></app-chart-card>
+          }
+          @if (distribuidorData?.chartConsumoPorCategoria) {
+            <app-chart-card title="Consumo por Categoría" subtitle="Distribución de uso de inventario" type="doughnut" [data]="distribuidorData.chartConsumoPorCategoria"></app-chart-card>
+          }
+          
+          <div class="lg:col-span-2 mt-4">
+            <app-alertas-widget [alertas]="alertas"></app-alertas-widget>
+          </div>
+          <div class="mt-4">
+            <app-chart-card title="Alertas Críticas" subtitle="Por tipo de stock" type="doughnut" [data]="{
+              labels: ['Críticas', 'Advertencias', 'Informativas'],
+              datasets: [{
+                data: [
+                  alertasCriticas,
+                  alertas.length - alertasCriticas,
+                  0
+                ],
+                backgroundColor: ['#e11d48', '#f59e0b', '#3b82f6']
+              }]
+            }"></app-chart-card>
+          </div>
         </div>
       </div>
     }
