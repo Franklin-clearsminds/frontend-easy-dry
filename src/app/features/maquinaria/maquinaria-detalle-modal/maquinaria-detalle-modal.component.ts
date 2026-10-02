@@ -28,7 +28,7 @@ import { badgeClase, BADGE_NO_ATENDIDO } from '../../../core/utils/badges';
 import {
   puedeEditarMaquina, puedeActivarMaquina, puedeGestionarMaquina, puedeReportarIncidente,
   puedeVerTrazabilidad, puedeVerMantenimientos, puedeVerIncidentes, puedeResolverIncidentes,
-  puedeEjecutarMantenimientos, puedeAgregarEvidenciaMaquinaria,
+  puedeEjecutarMantenimientos, puedeAgregarEvidenciaMaquinaria, puedeVerLimpiezas,
 } from '../../../core/utils/maquinaria-permisos';
 
 export type PestanaMaquina = 'resumen' | 'incidencias' | 'movimientos' | 'mantenimientos' | 'limpieza' | 'timeline';
@@ -728,6 +728,7 @@ export class MaquinariaDetalleModalComponent implements OnChanges, OnDestroy {
   get puedeVerLinea(): boolean { return puedeVerTrazabilidad(this.authService); }
   get puedeVerMant(): boolean { return puedeVerMantenimientos(this.authService); }
   get puedeVerInc(): boolean { return puedeVerIncidentes(this.authService); }
+  get puedeVerLimp(): boolean { return puedeVerLimpiezas(this.authService); }
   get puedeAgregarEvidencia(): boolean { return puedeAgregarEvidenciaMaquinaria(this.authService); }
   /**
    * Reportar: con el permiso, sobre máquinas activas. El líder puede reportar cualquier máquina de su agencia
@@ -745,7 +746,7 @@ export class MaquinariaDetalleModalComponent implements OnChanges, OnDestroy {
     if (this.puedeVerInc) lista.push({ id: 'incidencias', label: 'Incidencias', icono: 'alert-triangle' });
     if (this.puedeVerLinea) lista.push({ id: 'movimientos', label: 'Movimientos', icono: 'refresh-cw' });
     if (this.puedeVerMant) lista.push({ id: 'mantenimientos', label: 'Mantenimientos', icono: 'calendar-clock' });
-    if (this.ficha?.limpieza.regla) lista.push({ id: 'limpieza', label: 'Limpieza', icono: 'sparkles' });
+    if (this.puedeVerLimp && this.ficha?.limpieza.regla) lista.push({ id: 'limpieza', label: 'Limpieza', icono: 'sparkles' });
     if (this.puedeVerLinea) lista.push({ id: 'timeline', label: 'Línea de tiempo', icono: 'history' });
     return lista;
   }

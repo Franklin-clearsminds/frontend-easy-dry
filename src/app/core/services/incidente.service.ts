@@ -135,6 +135,7 @@ export class IncidenteService {
       fechaSolucion: item.fechaSolucion ? fechaLocal(item.fechaSolucion) : undefined,
       solucionadoPor: resNombre,
       observacionSolucion: item.solucion || item.observacionSolucion,
+      costoTotal: item.costoTotal != null ? Number(item.costoTotal) : undefined,
       // --- Trazabilidad ---
       noAtendida: item.noAtendida === true,
       maquinariaId: item.maquinariaId || item.maquinaria?.id,
@@ -231,6 +232,8 @@ export class IncidenteService {
     solucion: string;
     estado?: 'RESUELTO' | 'CANCELADO';
     repuestosUtilizados?: string;
+    /** Costo de la reparación: obligatorio cuando estado es RESUELTO (el backend lo exige). */
+    costoTotal?: number;
     evidencias: EvidenciaInput[];
   }): Observable<Incidente> {
     return this.http.post<any>(apiUrl('/maquinaria/incidentes/resolver'), {
@@ -247,6 +250,8 @@ export class IncidenteService {
     descripcion?: string;
     gravedad?: GravedadIncidente | string;
     solucion?: string;
+    /** Corrección del costo de la reparación: solo ADMIN, SUPER_ADMIN o COORD_MANTENIMIENTO (el backend lo exige). */
+    costoTotal?: number;
   }): Observable<Incidente> {
     return this.http.post<any>(apiUrl('/maquinaria/incidentes/editar'), {
       ...payload,

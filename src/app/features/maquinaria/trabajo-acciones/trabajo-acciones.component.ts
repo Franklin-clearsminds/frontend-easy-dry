@@ -16,6 +16,7 @@ import { TecnicoSearchSelectComponent, TecnicoOpcion } from '../../../shared/com
 import { EvidenciaSelectorComponent } from '../../../shared/components/evidencia-selector/evidencia-selector.component';
 import { ToastService } from '../../../shared/services/toast.service';
 import { ChecklistOrdenComponent, EstadoChecklist } from '../../mantenimiento/checklist-orden/checklist-orden.component';
+import { puedeCorregirCostoMaquinaria } from '../../../core/utils/maquinaria-permisos';
 
 /** Mensaje de error del backend tal cual (400/403...) o el del propio cliente. */
 export function mensajeError(err: any): string {
@@ -164,6 +165,13 @@ const TIPOS_FALLA = [
             <input id="ta-res-rep" type="text" [(ngModel)]="res.repuestos" name="res-rep" class="field" placeholder="Ej: Empaques O-Ring, acoples M22">
           </div>
 
+          @if (res.estado === 'RESUELTO') {
+            <div>
+              <label for="ta-res-costo" class="field-label">Costo de la reparación (USD) *</label>
+              <input id="ta-res-costo" type="number" min="0" step="0.01" [(ngModel)]="res.costoTotal" name="res-costo" class="field" placeholder="0.00">
+            </div>
+          }
+
           <app-evidencia-selector #selResolver
             contexto="INCIDENTE" fase="reparacion"
             [maquinariaCodigo]="res.maquinaCodigo" [maquinariaId]="res.maquinaId" [entidadId]="res.id"
@@ -208,6 +216,14 @@ const TIPOS_FALLA = [
               <label for="ta-edi-sol" class="field-label">Solución</label>
               <textarea id="ta-edi-sol" [(ngModel)]="edi.solucion" name="edi-sol" rows="3" class="field font-medium"></textarea>
             </div>
+            @if (puedeCorregirCosto) {
+              <div>
+                <label for="ta-edi-costo" class="field-label">Costo de la reparación (USD)</label>
+                <input id="ta-edi-costo" type="number" min="0" step="0.01" [(ngModel)]="edi.costoTotal" name="edi-costo" class="field">
+              </div>
+            } @else if (edi.costoTotal != null) {
+              <p class="text-xs text-slate-500">Costo registrado: <strong>\${{ edi.costoTotal }}</strong> (solo admin o coordinador de mantenimiento puede corregirlo).</p>
+            }
           }
           @if (error) { <div class="estado-error" role="alert">{{ error }}</div> }
         </div>
@@ -291,6 +307,11 @@ const TIPOS_FALLA = [
               placeholder="Tareas ejecutadas, repuestos cambiados, pruebas..."></textarea>
           </div>
 
+          <div>
+            <label for="ta-eje-costo" class="field-label">Costo del mantenimiento (USD) *</label>
+            <input id="ta-eje-costo" type="number" min="0" step="0.01" [(ngModel)]="eje.costoTotal" name="eje-costo" class="field" placeholder="0.00">
+          </div>
+
           <app-checklist-orden [mantenimientoId]="eje.id" [editable]="eje.puedeMarcar"
             soloLecturaMotivo="solo el técnico asignado o un administrador puede marcar los pasos"
             (estado)="estadoChecklist = $event"></app-checklist-orden>
@@ -309,7 +330,7 @@ const TIPOS_FALLA = [
         @if (estadoChecklist.requerido && estadoChecklist.obligatoriosPendientes > 0) {
           <span class="text-xs font-semibold text-amber-700 sm:mr-auto" role="status">Faltan {{ estadoChecklist.obligatoriosPendientes }} pasos obligatorios del checklist.</span>
         }
-        <button type="button" (click)="confirmarEjecucion()" [disabled]="enviando || (estadoChecklist.requerido && estadoChecklist.obligatoriosPendientes > 0)" class="btn btn-primary w-full sm:w-auto">
+        <button type="button" (click)="confirmarEjecucion()" [disabled]="enviando || eje.costoTotal == null || (estadoChecklist.requerido && estadoChecklist.obligatoriosPendientes > 0)" class="btn btn-primary w-full sm:w-auto">
           {{ enviando ? 'Guardando...' : 'Confirmar ejecución' }}
         </button>
       </div>
@@ -343,7 +364,11 @@ const TIPOS_FALLA = [
             </div>
             <div>
               <label for="ta-emt-costo" class="field-label">Costo total (USD)</label>
-              <input id="ta-emt-costo" type="number" min="0" step="0.01" [(ngModel)]="emt.costoTotal" name="emt-costo" class="field">
+              @if (puedeCorregirCosto) {
+                <input id="ta-emt-costo" type="number" min="0" step="0.01" [(ngModel)]="emt.costoTotal" name="emt-costo" class="field">
+              } @else {
+                <input id="ta-emt-costo" type="number" [ngModel]="emt.costoTotal" name="emt-costo" class="field" disabled title="Solo admin o coordinador de mantenimiento puede corregirlo">
+              }
             </div>
           </div>
           <div>
@@ -434,10 +459,10 @@ export class TrabajoAccionesComponent {
 
   rep = { open: false, maquinaId: '', maquinaCodigo: '', maquinaNombre: '', titulo: TIPOS_FALLA[0], gravedad: 'MEDIA', descripcion: '', destinoTallerId: '', clientUuid: '' };
   asg = { open: false, tipo: 'INCIDENTE' as 'INCIDENTE' | 'MANTENIMIENTO', id: '', titulo: '', actualNombre: '', tecnicoId: '', destinoTallerId: '', opciones: [] as TecnicoOpcion[] };
-  res = { open: false, id: '', maquinaId: '', maquinaCodigo: '', titulo: '', descripcion: '', estado: 'RESUELTO' as 'RESUELTO' | 'CANCELADO', solucion: '', repuestos: '' };
-  edi = { open: false, id: '', titulo: '', descripcion: '', gravedad: 'MEDIA', solucion: '', tieneSolucion: false };
+  res = { open: false, id: '', maquinaId: '', maquinaCodigo: '', titulo: '', descripcion: '', estado: 'RESUELTO' as 'RESUELTO' | 'CANCELADO', solucion: '', repuestos: '', costoTotal: null as number | null };
+  edi = { open: false, id: '', titulo: '', descripcion: '', gravedad: 'MEDIA', solucion: '', tieneSolucion: false, costoTotal: null as number | null };
   prog = { open: false, fija: false, maquinas: [] as Maquinaria[], maquinaId: '', tipo: 'PREVENTIVO' as 'PREVENTIVO' | 'CORRECTIVO', fecha: '', frecuenciaDias: 30, tecnicoId: '', observaciones: '', opciones: [] as TecnicoOpcion[] };
-  eje = { open: false, id: '', maquinaId: '', maquinaCodigo: '', titulo: '', fechaProgramada: '', observaciones: '', puedeMarcar: false };
+  eje = { open: false, id: '', maquinaId: '', maquinaCodigo: '', titulo: '', fechaProgramada: '', observaciones: '', costoTotal: null as number | null, puedeMarcar: false };
   /** Resumen del checklist de la orden que se está ejecutando (lo emite el componente del checklist). */
   estadoChecklist: EstadoChecklist = { cargado: false, requerido: false, obligatoriosPendientes: 0 };
   emt = { open: false, id: '', tipo: 'PREVENTIVO' as 'PREVENTIVO' | 'CORRECTIVO', fecha: '', frecuenciaDias: 0, costoTotal: null as number | null, repuestos: '', observaciones: '', finalizado: false };
@@ -450,6 +475,10 @@ export class TrabajoAccionesComponent {
   /** Solo el COORD_MANTENIMIENTO puede auto-asignarse (omitiendo tecnicoId). */
   get esCoordinador(): boolean {
     return this.authService.hasRole('COORD_MANTENIMIENTO');
+  }
+
+  get puedeCorregirCosto(): boolean {
+    return puedeCorregirCostoMaquinaria(this.authService);
   }
 
   // ----------------------------------------------------------------
@@ -586,13 +615,17 @@ export class TrabajoAccionesComponent {
     this.res = {
       open: true, id: String(inc.id), maquinaId: String(inc.maquinariaId || ''), maquinaCodigo: inc.maquinariaCodigo || '',
       titulo: `${inc.codigoIncidente} · ${inc.maquina} · ${inc.tipo}`, descripcion: inc.descripcion,
-      estado: 'RESUELTO', solucion: '', repuestos: '',
+      estado: 'RESUELTO', solucion: '', repuestos: '', costoTotal: null,
     };
   }
 
   async confirmarResolucion(): Promise<void> {
     this.error = '';
     if (!this.res.solucion.trim()) { this.error = 'Escribe el informe de la solución aplicada.'; return; }
+    if (this.res.estado === 'RESUELTO' && this.res.costoTotal == null) {
+      this.error = 'El costo de la reparación es obligatorio para resolver la incidencia.';
+      return;
+    }
     const pendiente = this.selResolver?.validar();
     if (pendiente) { this.error = pendiente; return; }
     this.enviando = true;
@@ -603,6 +636,7 @@ export class TrabajoAccionesComponent {
         solucion: this.res.solucion.trim(),
         estado: this.res.estado,
         repuestosUtilizados: this.res.repuestos.trim() || undefined,
+        costoTotal: this.res.estado === 'RESUELTO' ? this.res.costoTotal! : undefined,
         evidencias,
       }));
       this.res.open = false;
@@ -621,6 +655,7 @@ export class TrabajoAccionesComponent {
       open: true, id: String(inc.id), titulo: inc.titulo || inc.tipo, descripcion: inc.descripcion,
       gravedad: inc.gravedadRaw || 'MEDIA', solucion: inc.observacionSolucion || '',
       tieneSolucion: inc.estadoRaw === 'RESUELTO' || !!inc.observacionSolucion,
+      costoTotal: inc.costoTotal ?? null,
     };
   }
 
@@ -635,6 +670,7 @@ export class TrabajoAccionesComponent {
         descripcion: this.edi.descripcion.trim(),
         gravedad: this.edi.gravedad,
         solucion: this.edi.tieneSolucion ? this.edi.solucion.trim() : undefined,
+        costoTotal: this.puedeCorregirCosto && this.edi.costoTotal != null ? this.edi.costoTotal : undefined,
       }));
       this.edi.open = false;
       this.ok('Incidencia actualizada', 'El cambio quedó en la línea de tiempo.', 'INCIDENTE_EDITADO');
@@ -700,12 +736,13 @@ export class TrabajoAccionesComponent {
       && (this.authService.puede('maquinaria.gestionar') || String(m.tecnicoAsignadoId || '') === this.miId);
     this.eje = {
       open: true, id: String(m.id), maquinaId: String(m.maquinariaId || ''), maquinaCodigo: m.maquinariaCodigo || '',
-      titulo: `${m.maquina} · ${m.tipo}`, fechaProgramada: m.fecha, observaciones: '', puedeMarcar,
+      titulo: `${m.maquina} · ${m.tipo}`, fechaProgramada: m.fecha, observaciones: '', costoTotal: null, puedeMarcar,
     };
   }
 
   async confirmarEjecucion(): Promise<void> {
     this.error = '';
+    if (this.eje.costoTotal == null) { this.error = 'El costo del mantenimiento es obligatorio para ejecutarlo.'; return; }
     const pendiente = this.selEjecutar?.validar();
     if (pendiente) { this.error = pendiente; return; }
     this.enviando = true;
@@ -713,6 +750,7 @@ export class TrabajoAccionesComponent {
       const evidencias = await this.selEjecutar!.subir();
       await firstValueFrom(this.mantenimientoService.ejecutarMantenimiento(this.eje.id, {
         observaciones: this.eje.observaciones,
+        costoTotal: this.eje.costoTotal,
         evidencias,
       }));
       this.eje.open = false;
@@ -745,7 +783,7 @@ export class TrabajoAccionesComponent {
         tipo: this.emt.tipo,
         observaciones: this.emt.observaciones.trim() || undefined,
         repuestosUsados: repuestos.length ? repuestos : undefined,
-        costoTotal: this.emt.costoTotal != null && this.emt.costoTotal !== ('' as any) ? Number(this.emt.costoTotal) : undefined,
+        costoTotal: this.puedeCorregirCosto && this.emt.costoTotal != null && this.emt.costoTotal !== ('' as any) ? Number(this.emt.costoTotal) : undefined,
         fechaProgramada: this.emt.finalizado ? undefined : (this.emt.fecha || undefined),
         frecuenciaDias: Number(this.emt.frecuenciaDias || 0),
       }));

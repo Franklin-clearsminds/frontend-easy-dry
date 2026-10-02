@@ -2376,6 +2376,11 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
                 class="w-full p-2.5 border rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-amber-500"
                 required>
             }
+            @if (servicioEspecialCatalogo?.precio != null) {
+              <p class="text-xs text-slate-500 mt-1">
+                Precio del catálogo: <span class="font-bold text-slate-700">\${{ servicioEspecialCatalogo?.precio }}</span>
+              </p>
+            }
           </div>
 
           <!-- Insumos Requeridos por el Servicio Especial -->
@@ -3445,6 +3450,8 @@ export class ServiciosComponent implements OnInit, OnDestroy {
   stockPulidor: any[] = [];
   faltantesInsumosOT: string[] = [];
   serviciosEspecialesOpciones: CatalogoServicio[] = [];
+  /** Servicio del catálogo resuelto para `extraForm.servicioNombre`: de ahí se congela el precio de la OT. */
+  servicioEspecialCatalogo: CatalogoServicio | null = null;
   pulidoresDisponiblesRegion: any[] = [];
   modalFinalizarServicioOpen = false;
   servicioAFinalizar: VehiculoServicio | null = null;
@@ -4797,6 +4804,7 @@ export class ServiciosComponent implements OnInit, OnDestroy {
   onServicioEspecialFormChange(nombre: string): void {
     const serv = this.serviciosEspecialesOpciones.find(s => s.nombre === nombre)
       || this.catalogoCompleto.find(s => s.nombre === nombre);
+    this.servicioEspecialCatalogo = serv || null;
     this.extraForm.servicioDescripcion = serv?.descripcion || '';
     this.extraForm.insumosReceta = serv?.insumosReceta
       ? JSON.parse(JSON.stringify(serv.insumosReceta))
@@ -4904,6 +4912,7 @@ export class ServiciosComponent implements OnInit, OnDestroy {
       }
     }
 
+    this.servicioEspecialCatalogo = primerServicio || null;
     this.extraForm = {
       servicioNombre: primerServicio?.nombre || '',
       servicioDescripcion: primerServicio?.descripcion || '',
@@ -5024,6 +5033,7 @@ export class ServiciosComponent implements OnInit, OnDestroy {
       ordenTrabajoOT: otUpper,
       servicioNombre: this.extraForm.servicioNombre.trim(),
       tipoServicio: this.extraForm.servicioNombre.trim(),
+      servicioCatalogoId: this.servicioEspecialCatalogo?.id,
       servicioDescripcion: this.extraForm.servicioDescripcion.trim(),
       operadorId: this.extraForm.operadorId ? String(this.extraForm.operadorId) : undefined,
       operadorNombre: this.extraForm.operadorNombre,

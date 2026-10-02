@@ -183,11 +183,12 @@ export class MantenimientoService {
    */
   ejecutarMantenimiento(
     mantenimientoId: string | number,
-    payload: { observaciones?: string; evidencias: EvidenciaInput[] },
+    payload: { observaciones?: string; costoTotal: number; evidencias: EvidenciaInput[] },
   ): Observable<Mantenimiento> {
     return this.http.post<any>(apiUrl('/maquinaria/mantenimientos/ejecutar'), {
       mantenimientoId: String(mantenimientoId),
       observaciones: payload.observaciones?.trim() || undefined,
+      costoTotal: payload.costoTotal,
       evidencias: payload.evidencias,
     }).pipe(map(res => this.mapBackendMantenimiento(res?.data || res)));
   }

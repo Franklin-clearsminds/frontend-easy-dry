@@ -266,6 +266,7 @@ import { badgeClase, BADGE_NO_ATENDIDO } from '../../core/utils/badges';
                 </h4>
                 <p class="text-slate-800 font-medium break-words">{{ d.observacionSolucion }}</p>
                 @if (d.solucionadoPor) { <p class="text-slate-500">Por {{ d.solucionadoPor }} ({{ d.fechaSolucion }})</p> }
+                @if (d.costoTotal != null) { <p class="text-slate-800 font-bold">Costo: \${{ d.costoTotal | number:'1.2-2' }}</p> }
               </div>
             }
 

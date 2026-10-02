@@ -186,6 +186,25 @@ describe('MaquinariaDetalleModalComponent — registrar limpieza', () => {
     expect(component.pestanas.some((p) => p.id === 'limpieza')).toBe(false);
   });
 
+  it('la pestaña "Limpieza" no aparece sin el permiso limpiezas.ver, aunque la máquina tenga regla vigente (ej. TECNICO)', () => {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: MaquinariaService, useValue: maquinariaService },
+        { provide: IncidenteService, useValue: jasmine.createSpyObj('IncidenteService', ['list']) },
+        { provide: MantenimientoService, useValue: jasmine.createSpyObj('MantenimientoService', ['list']) },
+        { provide: MovimientoMaquinariaService, useValue: jasmine.createSpyObj('MovimientoMaquinariaService', ['list']) },
+        { provide: StorageUploadService, useValue: storage },
+        { provide: AuthService, useValue: { puede: (c: string) => c !== 'limpiezas.ver', hasRole: () => false } },
+      ],
+    });
+    const sinPermiso = TestBed.runInInjectionContext(() => new MaquinariaDetalleModalComponent());
+    sinPermiso.maquinariaId = null;
+    sinPermiso.ficha = ficha({ limpieza: { regla: 'PULIDOR', ultimaFecha: null, ultimasFotos: [], atrasada: false } });
+
+    expect(sinPermiso.pestanas.some((p) => p.id === 'limpieza')).toBe(false);
+  });
+
   it('registrar una limpieza recarga el historial de la pestaña "Limpieza" si ya estaba abierta', async () => {
     storage.uploadMedia.and.returnValue(Promise.resolve('maquinaria/mq-01/limpiezas/foto1.jpg'));
     maquinariaService.registrarLimpieza.and.returnValue(of({ success: true }));

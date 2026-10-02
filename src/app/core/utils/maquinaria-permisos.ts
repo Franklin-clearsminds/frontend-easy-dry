@@ -25,3 +25,10 @@ export const puedeAgregarEvidenciaMaquinaria = (auth: AuthService) => auth.puede
 export const puedeVerLimpiezas = (auth: AuthService) => auth.puede('limpiezas.ver');
 /** Corregir observaciones o eliminar un registro de limpieza (el servidor acota además a su región). */
 export const puedeEditarLimpiezas = (auth: AuthService) => auth.puede('limpiezas.editar');
+
+/**
+ * Corregir el costo de un mantenimiento/incidencia ya cerrado (el técnico lo ingresa al cerrar, pero no
+ * puede tocarlo después — el servidor aplica exactamente esta misma regla por rol, no por permiso).
+ */
+export const puedeCorregirCostoMaquinaria = (auth: AuthService) =>
+  auth.hasRole('ADMIN') || auth.hasRole('SUPER_ADMIN') || auth.hasRole('COORD_MANTENIMIENTO');
