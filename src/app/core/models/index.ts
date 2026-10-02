@@ -438,6 +438,7 @@ export interface Incidente {
   solucionadoPor?: string;
   observacionSolucion?: string;
   repuestosUtilizados?: string;
+  costoTotal?: number;
   fotosReparacion?: string[];
   videosReparacion?: string[];
   documentosReparacion?: ArchivoAdjunto[];

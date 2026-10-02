@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule, ActivatedRoute } from '@angular/router';
 import { LucideAngularModule } from 'lucide-angular';
-import { SucursalService } from '../../core/services/sucursal.service';
+import { SucursalService, PrecioServicioAgencia } from '../../core/services/sucursal.service';
 import { RegionService } from '../../core/services/region.service';
 import { MarcaSucursalService } from '../../core/services/marca-sucursal.service';
 import { BahiaService } from '../../core/services/bahia.service';
@@ -975,13 +975,34 @@ import { ConsultaAgencias } from '../../core/services/sucursal.service';
             <p class="text-xs text-slate-500 mb-2">Del catálogo corporativo. Márquelos ahora; podrá editarlos después.</p>
             <div class="border border-slate-200 rounded-xl p-3 bg-slate-50/80 max-h-48 overflow-y-auto">
               @for (s of serviciosGenerales; track s.id) {
-                <label class="flex items-start gap-2 py-1.5 cursor-pointer hover:bg-slate-100/80 px-2 rounded-lg transition-colors">
-                  <input type="checkbox" class="mt-0.5 rounded border-slate-300 text-easydry-blue focus:ring-easydry-blue" [checked]="servicioSeleccionado(s.id)" (change)="toggleServicio(s.id, s.nombre)">
-                  <span class="text-xs font-semibold text-slate-800">{{ s.nombre }}</span>
-                </label>
+                <div class="flex items-center gap-2 py-1.5 hover:bg-slate-100/80 px-2 rounded-lg transition-colors">
+                  <label class="flex items-start gap-2 cursor-pointer flex-1 min-w-0">
+                    <input type="checkbox" class="mt-0.5 rounded border-slate-300 text-easydry-blue focus:ring-easydry-blue" [checked]="servicioSeleccionado(s.id)" (change)="toggleServicio(s.id, s.nombre)">
+                    <span class="text-xs font-semibold text-slate-800">{{ s.nombre }}</span>
+                  </label>
+                  @if (editandoSucursal && puedeGestionarPrecios && servicioSeleccionado(s.id)) {
+                    <div class="flex items-center gap-1 shrink-0" title="Precio para esta agencia">
+                      <span class="text-xs text-slate-500">$</span>
+                      <input type="number" min="0" step="0.01"
+                        class="w-20 text-xs rounded-lg border border-slate-200 px-2 py-1"
+                        [value]="precioMostrado(s.id)"
+                        (change)="onPrecioServicioChange(s.id, $any($event.target).value)"
+                        [placeholder]="precioServicio(s.id)?.precioCatalogo?.toString() || '0.00'">
+                    </div>
+                  }
+                </div>
               }
             </div>
-            
+            @if (editandoSucursal && puedeGestionarPrecios) {
+              <div class="mt-2 flex items-center justify-between gap-2">
+                <p class="text-xs text-slate-500">Precio por agencia para servicios generales (si no se fija, rige el precio del catálogo).</p>
+                <button type="button" (click)="guardarPreciosServicios()" [disabled]="!hayPreciosPendientes || guardandoPrecios"
+                  class="btn btn-secondary btn-sm shrink-0">
+                  {{ guardandoPrecios ? 'Guardando...' : 'Guardar precios' }}
+                </button>
+              </div>
+            }
+
             <!-- Resumen de servicios visibles dentro del formulario -->
             <div class="mt-2.5 p-2.5 rounded-xl bg-slate-100/80 border border-slate-200 flex items-center justify-between text-xs">
               <div class="flex items-center gap-1.5 text-slate-700 font-bold">
@@ -1221,6 +1242,9 @@ export class SucursalesComponent implements OnInit, OnDestroy {
 
   modalCrearOpen = false;
   editandoSucursal = false;
+  preciosServicios: PrecioServicioAgencia[] = [];
+  preciosEditados: Record<number, number> = {};
+  guardandoPrecios = false;
   mostrarAltaRegion = false;
   mostrarAltaMarca = false;
   altaRapidaRegion = '';
@@ -1270,6 +1294,7 @@ export class SucursalesComponent implements OnInit, OnDestroy {
   get puedeCrearAgencia(): boolean { return this.auth.puede('agencias.crear'); }
   get puedeEditarAgencia(): boolean { return this.auth.puede('agencias.editar'); }
   get puedeCambiarEstadoAgencia(): boolean { return this.auth.puede('agencias.estado'); }
+  get puedeGestionarPrecios(): boolean { return this.auth.puede('agencias.precios.gestionar'); }
   get puedeGestionarRegiones(): boolean { return this.auth.puede('regiones.gestionar'); }
   get puedeGestionarClientes(): boolean { return this.auth.puede('clientes.gestionar'); }
   get puedeAsignarPersonas(): boolean { return this.auth.puede('usuarios.gestionar'); }
@@ -1619,6 +1644,13 @@ export class SucursalesComponent implements OnInit, OnDestroy {
   abrirModalEditar(suc: Sucursal): void {
     if (!this.puedeEditarAgencia) return;
     this.editandoSucursal = true;
+    this.preciosServicios = [];
+    this.preciosEditados = {};
+    if (this.puedeGestionarPrecios) {
+      this.sucursalService.getPreciosServicios(suc.id).subscribe(lista => {
+        this.preciosServicios = lista;
+      });
+    }
 
     // Asegurarse de tener el catálogo actualizado desde la BD
     if (this.auth.puede('catalogo.ver')) {
@@ -2114,6 +2146,51 @@ export class SucursalesComponent implements OnInit, OnDestroy {
 
   get totalServiciosSeleccionados(): number {
     return this.cantidadGeneralesSeleccionados + this.cantidadEspecialesSeleccionados;
+  }
+
+  precioServicio(id: number | string): PrecioServicioAgencia | undefined {
+    return this.preciosServicios.find(p => p.catalogoServicioId === Number(id));
+  }
+
+  precioMostrado(id: number | string): number | null {
+    const numId = Number(id);
+    if (this.preciosEditados[numId] !== undefined) return this.preciosEditados[numId];
+    return this.precioServicio(numId)?.precioEfectivo ?? null;
+  }
+
+  onPrecioServicioChange(id: number | string, valor: string): void {
+    const numId = Number(id);
+    const num = Number(valor);
+    if (valor === '' || Number.isNaN(num)) {
+      delete this.preciosEditados[numId];
+    } else {
+      this.preciosEditados[numId] = num;
+    }
+  }
+
+  get hayPreciosPendientes(): boolean {
+    return Object.keys(this.preciosEditados).length > 0;
+  }
+
+  guardarPreciosServicios(): void {
+    if (!this.hayPreciosPendientes || !this.nuevaSucursal.id) return;
+    const precios = Object.entries(this.preciosEditados).map(([catalogoServicioId, precio]) => ({
+      catalogoServicioId: Number(catalogoServicioId),
+      precio,
+    }));
+    this.guardandoPrecios = true;
+    this.sucursalService.setPreciosServicios(this.nuevaSucursal.id, precios).subscribe({
+      next: (lista) => {
+        this.guardandoPrecios = false;
+        this.preciosServicios = lista;
+        this.preciosEditados = {};
+        this.toastService.success('Precios actualizados', 'Los precios de la agencia se guardaron correctamente.');
+      },
+      error: (err) => {
+        this.guardandoPrecios = false;
+        this.toastService.error('No se pudo guardar', this.mensajeError(err, 'El servidor no aceptó los precios.'));
+      }
+    });
   }
 
   get cantidadGeneralesSeleccionados(): number {

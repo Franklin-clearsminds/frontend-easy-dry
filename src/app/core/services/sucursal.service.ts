@@ -15,6 +15,16 @@ export interface ConsultaAgencias extends Partial<ConsultaTabla> {
   incluirProductividad?: boolean;
 }
 import { MovimientoRedSucursal, Sucursal } from '../models';
+
+export interface PrecioServicioAgencia {
+  catalogoServicioId: number;
+  codigo: string;
+  nombre: string;
+  estado: string;
+  precioCatalogo: number;
+  precioAgencia: number | null;
+  precioEfectivo: number;
+}
 import { RegionService } from './region.service';
 import { MarcaSucursalService } from './marca-sucursal.service';
 import { apiUrl } from '../config/env';
@@ -281,6 +291,16 @@ export class SucursalService {
     return this.http.post<any>(apiUrl('/agencias/toggle-estado'), { id: String(id), estado: activo ? 1 : 0 }).pipe(
       map(res => this.mapBackendAgencia(res))
     );
+  }
+
+  /** Precio de cada servicio general activo de esta agencia (override propio o precio del catálogo). */
+  getPreciosServicios(agenciaId: string | number): Observable<PrecioServicioAgencia[]> {
+    return this.http.post<PrecioServicioAgencia[]>(apiUrl('/agencias/precios/list'), { agenciaId: String(agenciaId) });
+  }
+
+  /** Fija el precio por agencia de uno o varios servicios generales (permiso 'agencias.precios.gestionar', solo admin). El error del servidor se propaga. */
+  setPreciosServicios(agenciaId: string | number, precios: { catalogoServicioId: number; precio: number }[]): Observable<PrecioServicioAgencia[]> {
+    return this.http.post<PrecioServicioAgencia[]>(apiUrl('/agencias/precios/set'), { agenciaId: String(agenciaId), precios });
   }
 
   transferirSucursal(params: {
