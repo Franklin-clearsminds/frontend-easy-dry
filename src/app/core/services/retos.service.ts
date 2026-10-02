@@ -58,6 +58,12 @@ export class RetosService {
     );
   }
 
+  cerrarReto(id: string, datos: { ganadorNombre?: string; resultado?: string }): Observable<Reto> {
+    return this.http.post<any>(apiUrl('/retos/cerrar'), { id, ...datos }).pipe(
+      map((item) => this.mapReto(item)),
+    );
+  }
+
   private list(body: { incluirTodos?: boolean; soloActivos?: boolean }): Observable<Reto[]> {
     return this.http.post<any>(apiUrl('/retos/list'), body).pipe(
       map((response) => (Array.isArray(response) ? response : response?.items || []).map((item: any) => this.mapReto(item))),
@@ -81,6 +87,10 @@ export class RetosService {
       creadorRol: String(item.creadorRol || ''),
       estado: item.estado || 'ACTIVO',
       criterios: Array.isArray(item.criterios) ? item.criterios.map(String) : [],
+      ganadorNombre: item.ganadorNombre ? String(item.ganadorNombre) : undefined,
+      resultado: item.resultado ? String(item.resultado) : undefined,
+      cerradoPorId: item.cerradoPorId ? String(item.cerradoPorId) : undefined,
+      cerradoEn: item.cerradoEn ? String(item.cerradoEn) : undefined,
     };
   }
 }

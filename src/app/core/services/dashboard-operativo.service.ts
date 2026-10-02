@@ -76,6 +76,19 @@ export class DashboardOperativoService {
   }
 
   /**
+   * Ranking de lavadores por cantidad de servicios y tiempo promedio (POST /analytics/ranking-lavadores).
+   */
+  getRankingLavadores(filtro: { agenciaId?: string; regionId?: string; fechaDesde?: string; fechaHasta?: string } = {}): Observable<any[]> {
+    return this.http.post<any>(apiUrl('/analytics/ranking-lavadores'), filtro).pipe(
+      map(data => Array.isArray(data?.ranking) ? data.ranking : []),
+      catchError((err) => {
+        this.avisarErrorCarga('No se pudo cargar el ranking de lavadores', err);
+        return of([]);
+      })
+    );
+  }
+
+  /**
    * Servicios de hoy por estado (POST /analytics/dashboard -> distribucionEstados). El servidor no separa generales de
    * especiales ni entrega aprobaciones pendientes en este endpoint, por eso no se exponen.
    */

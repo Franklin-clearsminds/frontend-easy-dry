@@ -53,6 +53,25 @@ export interface MaquinariaEdicion {
   ventanaAdelantoDias?: number;
 }
 
+export interface ConsultaLimpiezas {
+  page?: number;
+  pageSize?: number;
+  maquinariaId?: string;
+}
+
+export interface LimpiezaMaquinaria {
+  id: string;
+  maquinariaId: string;
+  fecha: string;
+  tipo: 'AGENCIA' | 'PULIDOR' | string;
+  fotos: string[];
+  observaciones?: string | null;
+  registradoPorId: string;
+  maquinaria?: { id: string; codigo: string; nombre: string };
+  registradoPor?: { id: string; name: string; lastname: string };
+  createdAt?: string;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -60,6 +79,15 @@ export class MaquinariaService {
   private http = inject(HttpClient);
   private maquinariaSubject = new BehaviorSubject<Maquinaria[]>([]);
   public maquinaria$ = this.maquinariaSubject.asObservable();
+
+  /**
+   * Vacía el caché en memoria. Se llama al cerrar sesión: sin esto, el `BehaviorSubject` (singleton
+   * de toda la SPA) sobrevive a un logout→login y, si la próxima carga falla, `getMaquinaria()` cae
+   * en su `catchError` y sirve la lista de la sesión anterior (de otro usuario, con otro alcance).
+   */
+  limpiarCache(): void {
+    this.maquinariaSubject.next([]);
+  }
 
   private mapBackendMaquinaria(m: any): Maquinaria {
     const activa = m.activa !== false;
@@ -144,6 +172,12 @@ export class MaquinariaService {
         incidentes: Number(m.totales?.incidentes ?? 0),
         mantenimientos: Number(m.totales?.mantenimientos ?? 0),
         movimientos: Number(m.totales?.movimientos ?? 0),
+      },
+      limpieza: {
+        regla: m.limpieza?.regla ?? null,
+        ultimaFecha: m.limpieza?.ultimaFecha ?? null,
+        ultimasFotos: Array.isArray(m.limpieza?.ultimasFotos) ? m.limpieza.ultimasFotos : [],
+        atrasada: !!m.limpieza?.atrasada,
       },
     };
   }
@@ -319,5 +353,52 @@ export class MaquinariaService {
     motivo: string;
   }): Observable<any> {
     return this.http.post<any>(apiUrl('/maquinaria/transferir'), payload);
+  }
+
+  // ==============================================================
+  // LIMPIEZA (2x/semana para la de agencia, diaria para la de un pulidor)
+  // ==============================================================
+
+  /** Registra que se limpió la máquina (hoy, si no se indica otra fecha). Una o varias fotos. */
+  registrarLimpieza(payload: {
+    maquinariaId: string;
+    fotos: { url: string }[];
+    observaciones?: string;
+    fecha?: string;
+  }): Observable<any> {
+    return this.http.post<any>(apiUrl('/maquinaria/limpiezas/registrar'), payload);
+  }
+
+  /** Historial de limpiezas (de una máquina o de todas dentro del alcance de quien consulta). */
+  getLimpiezasPagina(c: ConsultaLimpiezas = {}): Observable<PaginaServidor<LimpiezaMaquinaria>> {
+    const body = cuerpoConsulta(c, ['maquinariaId']);
+    return this.http.post<any>(apiUrl('/maquinaria/limpiezas/list'), body).pipe(
+      map((res) => normalizarPagina<LimpiezaMaquinaria>(res, body['page'] as number, body['pageSize'] as number)),
+    );
+  }
+
+  /** Cuántas máquinas dentro del alcance de quien consulta están atrasadas de limpieza (badge de alerta). */
+  getResumenLimpiezas(): Observable<{ pendientes: number }> {
+    return this.http.post<any>(apiUrl('/maquinaria/limpiezas/resumen'), {}).pipe(
+      map((res) => ({ pendientes: Number(res?.pendientes || 0) })),
+      catchError(() => of({ pendientes: 0 })),
+    );
+  }
+
+  /** Historial completo (hasta 5000 filas) dentro del alcance de quien consulta, para exportar a CSV. */
+  exportarLimpiezas(maquinariaId?: string): Observable<LimpiezaMaquinaria[]> {
+    return this.http.post<any>(apiUrl('/maquinaria/limpiezas/exportar'), { maquinariaId: maquinariaId || undefined }).pipe(
+      map((res) => (res?.data || []) as LimpiezaMaquinaria[]),
+    );
+  }
+
+  /** Corrige las observaciones de un registro ya creado (fotos, fecha y tipo no se pueden editar). */
+  editarLimpieza(limpiezaId: string, observaciones: string): Observable<any> {
+    return this.http.post<any>(apiUrl('/maquinaria/limpiezas/editar'), { limpiezaId, observaciones });
+  }
+
+  /** Elimina un registro de limpieza (admin, supervisor y coordinador de mantenimiento de su región). */
+  eliminarLimpieza(limpiezaId: string, motivo?: string): Observable<any> {
+    return this.http.post<any>(apiUrl('/maquinaria/limpiezas/eliminar'), { limpiezaId, motivo: motivo?.trim() || undefined });
   }
 }

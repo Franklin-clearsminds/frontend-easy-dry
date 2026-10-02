@@ -308,12 +308,12 @@ export class MaquinaAccionesComponent {
 
   // ---- Operador ----
   /**
-   * Todos los pulidores del país (fijos y móviles), nunca líderes: el líder ya ve y reporta toda la
-   * maquinaria de su agencia por ser líder, no necesita asignación individual. No se filtra por la
-   * agencia/región de la máquina: quien asigna (admin o coordinador de mantenimiento) puede asignar
-   * un pulidor de cualquier sede a propósito. El filtro por región es para OTRO flujo — a qué
-   * técnico le llega la alerta de una incidencia (`trabajo-acciones.component.ts`), no para elegir
-   * pulidor responsable. Con etiqueta clara (Fijo/Móvil · agencia o región) para no confundirlos.
+   * Pulidores (fijos o móviles), nunca líderes: el líder ya ve y reporta toda la maquinaria de su
+   * agencia por ser líder, no necesita asignación individual. `getUsuarios()` ya llega filtrada por
+   * el alcance del usuario que pide el listado (`usuarios.ver`): el admin ve pulidores de todo el
+   * país; el coordinador de mantenimiento, solo los de su región — y el backend de
+   * `asignar-operador` rechaza igual cualquier intento de asignar fuera de esa región. Con etiqueta
+   * clara (Fijo/Móvil · agencia o región) para no confundirlos.
    */
   private async cargarOpcionesOperador(): Promise<TecnicoOpcion[]> {
     try {

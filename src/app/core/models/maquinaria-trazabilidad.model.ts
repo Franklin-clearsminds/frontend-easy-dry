@@ -146,6 +146,8 @@ export interface MaquinaFicha {
   incidentesNoAtendidos: number;
   mantenimientosVencidos: number;
   totales: { incidentes: number; mantenimientos: number; movimientos: number };
+  /** Agencia: miércoles y sábado. Pulidor: diaria. `regla` es null si la máquina no tiene ni agencia ni operador. */
+  limpieza: { regla: 'AGENCIA' | 'PULIDOR' | null; ultimaFecha: string | null; ultimasFotos: string[]; atrasada: boolean };
 }
 
 /** Agencia con tipoUbicacion TALLER_* (destino válido de transferencia). */

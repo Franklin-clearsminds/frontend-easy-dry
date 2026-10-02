@@ -77,3 +77,21 @@ export function fechaProgramadaLocal(iso?: string | null): string {
   const [y, m, dd] = d.split('-');
   return `${dd}/${m}/${y}`;
 }
+
+/**
+ * Valida que cada archivo sea una imagen y no supere el tamaño máximo (por defecto 15 MB, bien por
+ * debajo del límite genérico de 100 MB de `StorageUploadService`, pensado para fotos de evidencia).
+ * Devuelve el primer mensaje de error, o `null` si todos los archivos son válidos.
+ */
+export function validarFotos(archivos: File[], maxMB = 15): string | null {
+  const maxBytes = maxMB * 1024 * 1024;
+  for (const archivo of archivos) {
+    if (!archivo.type.startsWith('image/')) {
+      return `"${archivo.name}" no es una imagen válida.`;
+    }
+    if (archivo.size > maxBytes) {
+      return `"${archivo.name}" supera el límite de ${maxMB} MB.`;
+    }
+  }
+  return null;
+}

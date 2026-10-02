@@ -10,6 +10,7 @@ import { AuthService } from '../../core/services/auth.service';
 import { Agencia } from '../../core/models';
 import { SucursalService } from '../../core/services/sucursal.service';
 import { RetosService } from '../../core/services/retos.service';
+import { DashboardOperativoService } from '../../core/services/dashboard-operativo.service';
 import { ToastService } from '../../shared/services/toast.service';
 import { FormsModule } from '@angular/forms';
 import { DataTableCellDirective, DataTableComponent, TableColumn } from '../../shared/components/data-table/data-table.component';
@@ -213,6 +214,48 @@ import { Reto } from '../../core/models/reto.model';
         </div>
       }
 
+      <!-- Modal de Cierre de Reto -->
+      @if (showCerrarModal) {
+        <div appModalPortal role="dialog" aria-modal="true" aria-labelledby="reto-cerrar-title" class="fixed inset-0 z-[10050] flex items-center justify-center animate-fade-in">
+          <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" (click)="showCerrarModal = false"></div>
+
+          <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden max-h-[90dvh] flex flex-col transform transition-all scale-100 border border-slate-100">
+            <div class="shrink-0 bg-emerald-50 border-b border-emerald-100 px-6 py-4 flex items-center justify-between">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center shadow-sm border border-emerald-200">
+                  <i-lucide aria-hidden="true" name="flag" class="w-5 h-5 text-emerald-600"></i-lucide>
+                </div>
+                <h3 id="reto-cerrar-title" class="font-extrabold text-emerald-900 text-lg">Cerrar Reto</h3>
+              </div>
+              <button type="button" aria-label="Cerrar" (click)="showCerrarModal = false" class="p-1.5 min-w-9 min-h-9 inline-flex items-center justify-center hover:bg-emerald-100 rounded-full transition-colors text-emerald-400 hover:text-emerald-600">
+                <i-lucide aria-hidden="true" name="x" class="w-5 h-5"></i-lucide>
+              </button>
+            </div>
+
+            <div class="flex-1 min-h-0 overflow-y-auto p-6 space-y-4">
+              <p class="text-sm text-slate-600">Vas a cerrar el reto <span class="font-bold text-slate-800">"{{ retoToCerrar?.titulo }}"</span>. Esta acción no se puede deshacer.</p>
+              <div>
+                <label class="block text-xs font-bold text-slate-600 mb-1.5">Ganador</label>
+                <input type="text" [(ngModel)]="cierreGanadorNombre" placeholder="Nombre del ganador (opcional)" class="w-full px-3.5 py-2.5 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-easydry-blue focus:border-easydry-blue" />
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-600 mb-1.5">Resultado / Nota de cierre</label>
+                <textarea [(ngModel)]="cierreResultado" rows="3" placeholder="Detalle del resultado (opcional)" class="w-full px-3.5 py-2.5 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-easydry-blue focus:border-easydry-blue resize-none"></textarea>
+              </div>
+            </div>
+
+            <div class="shrink-0 px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
+              <button (click)="showCerrarModal = false" class="btn btn-secondary">
+                Cancelar
+              </button>
+              <button (click)="confirmarCerrarReto()" class="px-5 py-2 font-bold text-sm text-white bg-emerald-500 hover:bg-emerald-600 rounded-xl transition-colors shadow-sm flex items-center gap-2">
+                <i-lucide aria-hidden="true" name="flag" class="w-4 h-4"></i-lucide> Cerrar reto
+              </button>
+            </div>
+          </div>
+        </div>
+      }
+
       @if (puedeVerProductividad) {
       <!-- Filtros Completos (Punto 15: Agencia, Servicio, Operador, Fechas) -->
       <app-filter-bar 
@@ -279,9 +322,39 @@ import { Reto } from '../../core/models/reto.model';
             <span class="text-xs text-slate-500 font-semibold">Destacados</span>
           </div>
 
-          <div class="px-6 py-8 text-center text-sm text-slate-500">
-            El ranking de personal se calculará con los servicios registrados en base de datos.
-          </div>
+          @if (rankingLavadores.length === 0) {
+            <div class="px-6 py-8 text-center text-sm text-slate-500">
+              No hay servicios finalizados en el período para calcular el ranking.
+            </div>
+          } @else {
+            <div class="space-y-4">
+              @for (lavador of rankingLavadores; track lavador.operadorId) {
+                <div class="p-4 border border-slate-100 rounded-xl hover:border-easydry-blue/40 transition-all flex items-center justify-between">
+                  <div class="flex items-center gap-4">
+                    <div
+                      class="w-10 h-10 rounded-xl font-extrabold text-sm flex items-center justify-center"
+                      [ngClass]="{
+                        'bg-amber-400 text-slate-950 font-outfit shadow-xs': $index === 0,
+                        'bg-slate-200 text-slate-800': $index === 1,
+                        'bg-amber-700/20 text-amber-800': $index === 2,
+                        'bg-slate-100 text-slate-600': $index > 2
+                      }">
+                      #{{ $index + 1 }}
+                    </div>
+                    <div>
+                      <h4 class="font-bold text-slate-900 text-sm">{{ lavador.nombre }}</h4>
+                      <p class="text-xs text-slate-500">{{ lavador.cantidadServicios }} servicios</p>
+                    </div>
+                  </div>
+
+                  <div class="text-right">
+                    <span class="text-base font-extrabold text-easydry-blue font-outfit">{{ formatearTiempo(lavador.tiempoPromedioMin) }}</span>
+                    <p class="text-xs text-slate-500">Tiempo promedio</p>
+                  </div>
+                </div>
+              }
+            </div>
+          }
         </div>
 
       </div>
@@ -369,10 +442,22 @@ import { Reto } from '../../core/models/reto.model';
               }">
               {{ reto.estado || 'ACTIVO' }}
             </span>
+            @if (reto.ganadorNombre) {
+              <div class="text-xs text-slate-500 font-medium mt-1">Ganó: {{ reto.ganadorNombre }}</div>
+            }
           </ng-template>
 
           <ng-template appCell="acciones" let-reto>
             <div class="flex items-center justify-end gap-1">
+              @if (canDeleteReto(reto) && (reto.estado || 'ACTIVO').toUpperCase() === 'ACTIVO') {
+                <button
+                  type="button"
+                  (click)="iniciarCerrarReto(reto)"
+                  title="Cerrar Reto"
+                  class="p-1.5 min-w-9 min-h-9 inline-flex items-center justify-center text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer" aria-label="Cerrar Reto">
+                  <i-lucide aria-hidden="true" name="flag" class="w-4 h-4"></i-lucide>
+                </button>
+              }
               @if (canDeleteReto(reto)) {
                 <button
                   type="button"
@@ -430,7 +515,12 @@ export class ProductividadComponent implements OnInit, OnDestroy {
   showCrearRetoModal = false;
   showDeleteConfirmModal = false;
   retoToDelete: Reto | null = null;
+  showCerrarModal = false;
+  retoToCerrar: Reto | null = null;
+  cierreGanadorNombre = '';
+  cierreResultado = '';
   carouselInterval: any;
+  rankingLavadores: any[] = [];
 
   comparativaChartData = {
     labels: [] as string[],
@@ -441,6 +531,7 @@ export class ProductividadComponent implements OnInit, OnDestroy {
   public authService = inject(AuthService);
   private sucursalService = inject(SucursalService);
   private retosService = inject(RetosService);
+  private dashboardOperativoService = inject(DashboardOperativoService);
   private toast = inject(ToastService);
 
   // Permisos: los mismos que exige el servidor en cada endpoint.
@@ -459,6 +550,23 @@ export class ProductividadComponent implements OnInit, OnDestroy {
         this.actualizarGraficaProductividad();
       });
     }
+
+    if (this.puedeVerProductividad) {
+      this.cargarRankingLavadores();
+    }
+  }
+
+  cargarRankingLavadores(filtro: { agenciaId?: string; regionId?: string; fechaDesde?: string; fechaHasta?: string } = {}): void {
+    this.dashboardOperativoService.getRankingLavadores(filtro).subscribe(ranking => {
+      this.rankingLavadores = ranking;
+    });
+  }
+
+  formatearTiempo(minutos: number): string {
+    if (!minutos || minutos <= 0) return 'Sin datos';
+    const h = Math.floor(minutos / 60);
+    const m = minutos % 60;
+    return h > 0 ? `${h}h ${m}m` : `${m}m`;
   }
 
   ngOnDestroy(): void {
@@ -546,6 +654,32 @@ export class ProductividadComponent implements OnInit, OnDestroy {
     }
   }
 
+  iniciarCerrarReto(reto: Reto) {
+    this.retoToCerrar = reto;
+    this.cierreGanadorNombre = '';
+    this.cierreResultado = '';
+    this.showCerrarModal = true;
+  }
+
+  confirmarCerrarReto() {
+    if (!this.retoToCerrar) return;
+    this.retosService.cerrarReto(this.retoToCerrar.id, {
+      ganadorNombre: this.cierreGanadorNombre.trim() || undefined,
+      resultado: this.cierreResultado.trim() || undefined,
+    }).subscribe({
+      next: () => {
+        this.showCerrarModal = false;
+        this.retoToCerrar = null;
+        this.toast.success('Reto cerrado', 'El reto se cerró correctamente.');
+        this.cargarRetos();
+      },
+      error: (err) => {
+        const m = err?.error?.message;
+        this.toast.error('No se pudo cerrar el reto', Array.isArray(m) ? m.join(' ') : (typeof m === 'string' && m ? m : 'El servidor no aceptó el cierre.'));
+      }
+    });
+  }
+
   getRankingParaReto(): Agencia[] {
     if (!this.agencias.length) return [];
     
@@ -577,6 +711,15 @@ export class ProductividadComponent implements OnInit, OnDestroy {
     }
     this.agencias = res.sort((a, b) => b.productividad - a.productividad);
     this.actualizarGraficaProductividad();
+
+    const agenciaFiltrada = filtros.sucursal && filtros.sucursal !== 'Todas'
+      ? this.todasLasAgencias.find(a => a.nombre.toLowerCase() === filtros.sucursal.toLowerCase())
+      : undefined;
+    this.cargarRankingLavadores({
+      agenciaId: agenciaFiltrada ? String(agenciaFiltrada.id) : undefined,
+      fechaDesde: filtros.fechaInicio,
+      fechaHasta: filtros.fechaFin,
+    });
   }
 
   private actualizarGraficaProductividad(): void {

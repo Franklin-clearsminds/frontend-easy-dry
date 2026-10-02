@@ -92,9 +92,9 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
 
         <!-- Barra de Submenús Principales (orden por prioridad operativa) -->
         <div class="flex items-center gap-2 sm:gap-4 mt-5 pt-3 border-t border-slate-100 overflow-x-auto">
-          <!-- 1. Productos — catálogo de insumos -->
+          <!-- 1. Productos — catálogo de insumos (para el líder: los insumos de su propia agencia) -->
           <button
-            *ngIf="puedeVerInventario && puedeOperarBodega"
+            *ngIf="puedeVerInventario && (puedeOperarBodega || operaDesdeAgencia)"
             (click)="activeTab = 'productos'; abrirProductos()"
             class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
             [ngClass]="activeTab === 'productos' ? 'bg-blue-50 text-easydry-blue font-extrabold shadow-2xs' : 'text-slate-600 hover:bg-slate-50'">
@@ -113,9 +113,10 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
             <span>Bodegas</span>
           </button>
 
-          <!-- 3. Agencias — stock / monitoreo de sedes -->
+          <!-- 3. Agencias — stock / monitoreo de sedes (no para el líder: solo ve su propia agencia,
+               para elegir destino de despacho ya usa el botón "Despachar", que no depende de esta pestaña) -->
           <button
-            *ngIf="puedeVerInventario"
+            *ngIf="puedeVerInventario && !operaDesdeAgencia"
             (click)="activeTab = 'agencias'"
             class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
             [ngClass]="activeTab === 'agencias' ? 'bg-purple-50 text-purple-700 font-extrabold border border-purple-200 shadow-2xs' : 'text-slate-600 hover:bg-slate-50'">
@@ -126,9 +127,10 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
             </span>
           </button>
 
-          <!-- 4. Pulidores — kits de pulidores móviles y fijos -->
+          <!-- 4. Pulidores — kits de pulidores móviles y fijos (no para el líder: ver el stock de los
+               pulidores de otras sedes/región no es suyo; el botón "Despachar" ya permite enviarles insumos) -->
           <button
-            *ngIf="puedeVerInventario"
+            *ngIf="puedeVerInventario && !operaDesdeAgencia"
             (click)="activeTab = 'pulidores'; cargarStockPulidoresResumen()"
             class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
             [ngClass]="activeTab === 'pulidores' ? 'bg-cyan-50 text-cyan-800 font-extrabold border border-cyan-200 shadow-2xs' : 'text-slate-600 hover:bg-slate-50'">
@@ -139,9 +141,10 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
             </span>
           </button>
 
-          <!-- 5. Stock Bajo — déficit y reposición -->
+          <!-- 5. Stock Bajo — déficit del catálogo de Bodega Central (no es por agencia: no aplica al
+               líder, que ya tiene "Alertas de Reabastecimiento" filtrado a su propia sede) -->
           <button
-            *ngIf="puedeVerStockBajoBodegaCentral || operaDesdeAgencia"
+            *ngIf="puedeVerStockBajoBodegaCentral"
             (click)="activeTab = 'stock_bajo'"
             class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
             [ngClass]="activeTab === 'stock_bajo' ? 'bg-rose-50 text-rose-700 font-extrabold border border-rose-200 shadow-2xs' : 'text-slate-600 hover:bg-slate-50'">
@@ -667,8 +670,14 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
         <!-- Filtros de Productos -->
         <div class="bg-white p-4 rounded-xl border border-slate-100 shadow-xs flex flex-col md:flex-row items-center gap-3 justify-between">
           <div class="flex items-center gap-3 w-full md:w-auto flex-1 flex-wrap">
-            <!-- Selector de Sede para Productos -->
-            <div *ngIf="sucursalesActivas.length > 0" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white shadow-2xs">
+            <!-- Selector de Sede para Productos: el líder solo tiene la suya, nunca una lista para
+                 elegir otra agencia (no debe poder ampliar su alcance ni por accidente). -->
+            <div *ngIf="operaDesdeAgencia" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50">
+              <i-lucide aria-hidden="true" name="store" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide>
+              <span class="text-xs font-bold text-slate-600">Sede:</span>
+              <span class="text-xs text-slate-800 font-semibold">{{ miAgenciaNombre }}</span>
+            </div>
+            <div *ngIf="!operaDesdeAgencia && sucursalesActivas.length > 0" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white shadow-2xs">
               <i-lucide aria-hidden="true" name="store" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide>
               <label for="inv-f2" class="text-xs font-bold text-slate-600 whitespace-nowrap">Sede:</label>
               <select id="inv-f2"
@@ -2661,18 +2670,24 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
               </div>
             </div>
 
-            <div class="flex justify-end">
+            <div class="flex justify-end gap-2">
+              <button
+                *ngIf="presEditandoId"
+                (click)="cancelarEdicionPresentacion()"
+                class="px-4 py-1.5 rounded-lg border border-slate-200 text-slate-600 font-bold hover:bg-slate-100 transition cursor-pointer">
+                Cancelar
+              </button>
               <button
                 (click)="guardarNuevaPresentacion()"
                 class="px-4 py-1.5 rounded-lg bg-easydry-blue text-white font-bold hover:bg-blue-700 transition cursor-pointer">
-                Guardar Presentación
+                {{ presEditandoId ? 'Actualizar Presentación' : 'Guardar Presentación' }}
               </button>
             </div>
           </div>
 
           <!-- Listado de Presentaciones Existentes -->
           <div class="space-y-2">
-            <h4 class="text-xs font-bold uppercase text-slate-500">Presentaciones Activas</h4>
+            <h4 class="text-xs font-bold uppercase text-slate-500">Presentaciones Registradas</h4>
             <div *ngIf="presentacionesProductoActual.length === 0" class="text-center py-4 text-xs text-slate-500">
               No hay presentaciones registradas para este producto.
             </div>
@@ -2688,6 +2703,18 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
                 <span class="px-2 py-0.5 rounded-full text-xs font-bold" [ngClass]="pres.estado === 1 ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'">
                   {{ pres.estado === 1 ? 'Activa' : 'Inactiva' }}
                 </span>
+                <button
+                  (click)="iniciarEdicionPresentacion(pres)"
+                  title="Editar"
+                  class="p-1.5 min-w-8 min-h-8 inline-flex items-center justify-center text-slate-500 hover:text-easydry-blue hover:bg-blue-50 rounded-lg transition-colors cursor-pointer" aria-label="Editar presentación">
+                  <i-lucide aria-hidden="true" name="pencil" class="w-3.5 h-3.5"></i-lucide>
+                </button>
+                <button
+                  (click)="toggleEstadoPresentacion(pres)"
+                  [title]="pres.estado === 1 ? 'Desactivar' : 'Activar'"
+                  class="p-1.5 min-w-8 min-h-8 inline-flex items-center justify-center text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer" [attr.aria-label]="pres.estado === 1 ? 'Desactivar presentación' : 'Activar presentación'">
+                  <i-lucide aria-hidden="true" [name]="pres.estado === 1 ? 'toggle-right' : 'toggle-left'" class="w-3.5 h-3.5"></i-lucide>
+                </button>
               </div>
             </div>
           </div>
@@ -2733,6 +2760,18 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
                   placeholder="ej. Alcohol Industrial 70%"
                   class="w-full p-2.5 rounded-xl border border-slate-200" />
               </div>
+            </div>
+
+            <!-- Categoría del Insumo -->
+            <div>
+              <label for="inv-f-categoria" class="block font-bold text-slate-700 mb-1">Categoría *</label>
+              <select id="inv-f-categoria"
+                [(ngModel)]="formProducto.categoria"
+                name="categoria"
+                class="w-full p-2.5 rounded-xl border border-slate-200 bg-white">
+                <option value="">Seleccione categoría...</option>
+                <option *ngFor="let c of CATEGORIAS_INSUMO" [value]="c.valor">{{ c.etiqueta }}</option>
+              </select>
             </div>
 
             <!-- Tipo de Producto & Unidad Base -->
@@ -4067,12 +4106,23 @@ export class InventarioComponent implements OnInit, OnDestroy {
   productoEntradaFijo: any = null;
   previewEntradaCantidadBase = 0;
 
+  readonly CATEGORIAS_INSUMO = [
+    { valor: 'QUIMICOS_LAVADO', etiqueta: 'Químicos de Lavado' },
+    { valor: 'CERAS_SELLADORES', etiqueta: 'Ceras y Selladores' },
+    { valor: 'PULIMENTOS', etiqueta: 'Pulimentos' },
+    { valor: 'DESENGRASANTES', etiqueta: 'Desengrasantes' },
+    { valor: 'TEXTILES', etiqueta: 'Textiles' },
+    { valor: 'EPP', etiqueta: 'EPP (Equipo de Protección Personal)' },
+    { valor: 'ACCESORIOS', etiqueta: 'Accesorios' },
+  ];
+
   // Formulario Producto
   editandoProducto = false;
   formProducto: any = {
     id: '',
     codigoSKU: '',
     nombre: '',
+    categoria: '',
     tipoProductoId: '',
     unidadMedidaId: '',
     contenidoNeto: 1,
@@ -4087,6 +4137,7 @@ export class InventarioComponent implements OnInit, OnDestroy {
   // Formulario Presentaciones
   productoPresentacionesSeleccionado: ProductoInsumo | null = null;
   presentacionesProductoActual: PresentacionInsumoCatalog[] = [];
+  presEditandoId: string | null = null;
   nuevaPres = {
     nombre: '',
     unidadId: '',
@@ -4157,9 +4208,10 @@ export class InventarioComponent implements OnInit, OnDestroy {
 
     if (this.isPulidor) {
       this.activeTab = 'pulidores';
-    } else if (this.isOperador) {
-      this.activeTab = 'agencias';
     } else {
+      // El líder aterriza en "Productos" (su propia agencia): la pestaña "Agencias" es para elegir
+      // destino de despacho y excluye a propósito la agencia propia (`excluirAgenciaId`), así que
+      // dejarla como pestaña inicial escondía el stock del líder por defecto.
       this.activeTab = 'productos';
     }
 
@@ -6314,6 +6366,7 @@ export class InventarioComponent implements OnInit, OnDestroy {
 
   public abrirModalPresentaciones(p: ProductoInsumo): void {
     this.productoPresentacionesSeleccionado = p;
+    this.presEditandoId = null;
     this.nuevaPres = {
       nombre: '',
       unidadId: this.unidadesMedida[0]?.id || '',
@@ -6326,6 +6379,39 @@ export class InventarioComponent implements OnInit, OnDestroy {
     });
   }
 
+  public iniciarEdicionPresentacion(pres: PresentacionInsumoCatalog): void {
+    this.presEditandoId = pres.id;
+    this.nuevaPres = {
+      nombre: pres.nombre,
+      unidadId: pres.unidadId,
+      cantidad: pres.cantidad,
+      factorAUnidadBase: pres.factorAUnidadBase,
+    };
+  }
+
+  public cancelarEdicionPresentacion(): void {
+    this.presEditandoId = null;
+    this.nuevaPres = {
+      nombre: '',
+      unidadId: this.unidadesMedida[0]?.id || '',
+      cantidad: 1,
+      factorAUnidadBase: 1,
+    };
+  }
+
+  public toggleEstadoPresentacion(pres: PresentacionInsumoCatalog): void {
+    this.inventarioService.actualizarPresentacion({ id: pres.id, estado: pres.estado === 1 ? 0 : 1 }).subscribe({
+      next: () => {
+        this.toast.success('Éxito', pres.estado === 1 ? 'Presentación desactivada' : 'Presentación activada');
+        this.abrirModalPresentaciones(this.productoPresentacionesSeleccionado!);
+        this.cargarProductos();
+      },
+      error: (err) => {
+        this.toast.error('Error', err?.error?.message || 'Error al actualizar el estado de la presentación');
+      },
+    });
+  }
+
   public guardarNuevaPresentacion(): void {
     if (!this.productoPresentacionesSeleccionado) return;
     if (!this.nuevaPres.nombre.trim()) {
@@ -6334,6 +6420,28 @@ export class InventarioComponent implements OnInit, OnDestroy {
     }
     if (!this.nuevaPres.factorAUnidadBase || this.nuevaPres.factorAUnidadBase <= 0) {
       this.toast.warning('Advertencia', 'El factor de equivalencia a unidad base debe ser mayor a cero');
+      return;
+    }
+
+    if (this.presEditandoId) {
+      const payload = {
+        id: this.presEditandoId,
+        nombre: this.nuevaPres.nombre.trim(),
+        unidadId: this.nuevaPres.unidadId,
+        cantidad: Number(this.nuevaPres.cantidad) || 1,
+        factorAUnidadBase: Number(this.nuevaPres.factorAUnidadBase),
+      };
+      this.inventarioService.actualizarPresentacion(payload).subscribe({
+        next: () => {
+          this.toast.success('Éxito', 'Presentación actualizada con éxito');
+          this.presEditandoId = null;
+          this.abrirModalPresentaciones(this.productoPresentacionesSeleccionado!);
+          this.cargarProductos();
+        },
+        error: (err) => {
+          this.toast.error('Error', err?.error?.message || 'Error al actualizar presentación');
+        },
+      });
       return;
     }
 
@@ -6415,6 +6523,7 @@ export class InventarioComponent implements OnInit, OnDestroy {
       id: '',
       codigoSKU: `INS-${Date.now().toString().slice(-4)}`,
       nombre: '',
+      categoria: '',
       tipoProductoId: this.tiposProducto[0]?.id || '',
       unidadMedidaId: this.unidadesMedida[0]?.id || '',
       contenidoNeto: 1,
@@ -6441,6 +6550,7 @@ export class InventarioComponent implements OnInit, OnDestroy {
       id: p.id.toString(),
       codigoSKU: p.codigoSKU,
       nombre: p.nombre,
+      categoria: (p as any).categoria || '',
       tipoProductoId: p.tipoProductoId || '',
       unidadMedidaId: p.unidadMedidaId || this.unidadesMedida[0]?.id || '',
       contenidoNeto: cNeto,
@@ -6470,6 +6580,10 @@ export class InventarioComponent implements OnInit, OnDestroy {
   public async guardarProducto(): Promise<void> {
     if (!this.formProducto.codigoSKU.trim() || !this.formProducto.nombre.trim()) {
       this.toast.warning('Advertencia', 'El código SKU y el nombre del producto son obligatorios');
+      return;
+    }
+    if (!this.formProducto.categoria) {
+      this.toast.warning('Advertencia', 'Seleccione la categoría del insumo');
       return;
     }
     if (!this.formProducto.tipoProductoId) {
@@ -6543,6 +6657,7 @@ export class InventarioComponent implements OnInit, OnDestroy {
         id: this.formProducto.id,
         codigoSKU: this.formProducto.codigoSKU,
         nombre: this.formProducto.nombre,
+        categoria: this.formProducto.categoria,
         tipoProductoId: this.formProducto.tipoProductoId,
         unidadMedidaId: this.formProducto.unidadMedidaId,
         contenidoNeto: Number(this.formProducto.contenidoNeto),
@@ -6583,7 +6698,7 @@ export class InventarioComponent implements OnInit, OnDestroy {
         descripcion: this.formProducto.descripcion,
         imagenUrl: this.formProducto.imagenUrl || this.formProducto.imagen || undefined,
         imagen: this.formProducto.imagen || this.formProducto.imagenUrl || undefined,
-        categoria: 'GENERAL',
+        categoria: this.formProducto.categoria,
       };
       this.inventarioService.crearProducto(payload).subscribe({
         next: () => {

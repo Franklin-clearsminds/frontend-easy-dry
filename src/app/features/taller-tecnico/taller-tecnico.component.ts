@@ -6,11 +6,12 @@ import { AuthService } from '../../core/services/auth.service';
 import { puedeVerIncidentes, puedeVerMantenimientos } from '../../core/utils/maquinaria-permisos';
 import { MantenimientoComponent } from '../mantenimiento/mantenimiento.component';
 import { ChecklistPlantillasComponent } from './checklist-plantillas/checklist-plantillas.component';
+import { LimpiezasComponent } from '../limpiezas/limpiezas.component';
 
 @Component({
   selector: 'app-taller-tecnico',
   standalone: true,
-  imports: [CommonModule, LucideAngularModule, IncidentesComponent, MantenimientoComponent, ChecklistPlantillasComponent],
+  imports: [CommonModule, LucideAngularModule, IncidentesComponent, MantenimientoComponent, ChecklistPlantillasComponent, LimpiezasComponent],
   template: `
     <div class="space-y-6 animate-fade-in">
       
@@ -83,6 +84,21 @@ import { ChecklistPlantillasComponent } from './checklist-plantillas/checklist-p
             Checklist
           </button>
           }
+
+          @if (verLimpiezas) {
+          <button
+            type="button"
+            role="tab"
+            id="tab-taller-limpiezas"
+            aria-controls="panel-taller-limpiezas"
+            [attr.aria-selected]="activeTab === 'limpiezas'"
+            (click)="activeTab = 'limpiezas'"
+            class="pb-3 min-h-10 text-sm font-bold border-b-2 transition-colors flex items-center gap-2"
+            [ngClass]="activeTab === 'limpiezas' ? 'border-cyan-500 text-cyan-700' : 'border-transparent text-slate-500 hover:text-slate-700'">
+            <i-lucide name="sparkles" class="w-4 h-4" aria-hidden="true"></i-lucide>
+            Limpiezas
+          </button>
+          }
         </div>
       </div>
 
@@ -103,6 +119,11 @@ import { ChecklistPlantillasComponent } from './checklist-plantillas/checklist-p
             <app-checklist-plantillas></app-checklist-plantillas>
           </div>
         }
+        @if (activeTab === 'limpiezas' && verLimpiezas) {
+          <div role="tabpanel" id="panel-taller-limpiezas" aria-labelledby="tab-taller-limpiezas">
+            <app-limpiezas [hideHeader]="true"></app-limpiezas>
+          </div>
+        }
       </div>
 
     </div>
@@ -114,5 +135,9 @@ export class TallerTecnicoComponent {
   verIncidentes = puedeVerIncidentes(this.auth);
   // Editar las plantillas del checklist es del coordinador de mantenimiento y los administradores.
   verChecklist = this.auth.puede('checklist.gestionar');
-  activeTab: 'mantenimiento' | 'incidentes' | 'checklist' = this.verMantenimientos ? 'mantenimiento' : (this.verIncidentes ? 'incidentes' : 'checklist');
+  // Auditoría de limpiezas: admin/super admin (todo el país), supervisor y coord. mantenimiento (su
+  // región), coord. de servicios especiales (sus pulidores) — el backend resuelve el alcance.
+  verLimpiezas = this.auth.puede('limpiezas.ver');
+  activeTab: 'mantenimiento' | 'incidentes' | 'checklist' | 'limpiezas' =
+    this.verMantenimientos ? 'mantenimiento' : (this.verIncidentes ? 'incidentes' : (this.verChecklist ? 'checklist' : 'limpiezas'));
 }

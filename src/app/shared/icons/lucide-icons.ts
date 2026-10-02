@@ -123,7 +123,10 @@ import {
   ImagePlus,
   Move,
   PanelLeftOpen,
-  PanelLeftClose
+  PanelLeftClose,
+  Flag,
+  ToggleRight,
+  ToggleLeft
 } from 'lucide-angular';
 
 export const EASYDRY_ICONS = {
@@ -253,8 +256,14 @@ export const EASYDRY_ICONS = {
   Move,
   PanelLeftOpen,
   PanelLeftClose,
+  Flag,
+  ToggleRight,
+  ToggleLeft,
 
   // Kebab-case mappings
+  'flag': Flag,
+  'toggle-right': ToggleRight,
+  'toggle-left': ToggleLeft,
   'external-link': ExternalLink,
   'crop': Crop,
   'image-plus': ImagePlus,

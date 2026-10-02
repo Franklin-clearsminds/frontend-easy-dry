@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, OnChanges, OnDestroy, Output, SimpleChanges, ViewChild, inject } from '@angular/core';
+import { Component, ElementRef, EventEmitter, Input, OnChanges, OnDestroy, Output, SimpleChanges, ViewChild, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LucideAngularModule } from 'lucide-angular';
@@ -7,7 +7,7 @@ import {
   Incidente, Mantenimiento, MaquinaFicha, MaquinariaEvento, MovimientoMaquinaria,
   TIPOS_EVENTO_MAQUINARIA, etiquetaEventoMaquinaria, colorEventoMaquinaria,
 } from '../../../core/models';
-import { MaquinariaService } from '../../../core/services/maquinaria.service';
+import { LimpiezaMaquinaria, MaquinariaService } from '../../../core/services/maquinaria.service';
 import { IncidenteService } from '../../../core/services/incidente.service';
 import { MantenimientoService } from '../../../core/services/mantenimiento.service';
 import { MovimientoMaquinariaService } from '../../../core/services/movimiento-maquinaria.service';
@@ -23,7 +23,7 @@ import { ThumbSrcDirective } from '../../../shared/directives/thumb-src.directiv
 import { TrabajoAccionesComponent, mensajeError } from '../trabajo-acciones/trabajo-acciones.component';
 import { ChecklistOrdenComponent } from '../../mantenimiento/checklist-orden/checklist-orden.component';
 import { MaquinaAccionesComponent } from '../maquina-acciones/maquina-acciones.component';
-import { fechaHoraLocal, fechaProgramadaLocal } from '../../../core/utils/evidencia-maquinaria';
+import { fechaHoraLocal, fechaProgramadaLocal, validarFotos } from '../../../core/utils/evidencia-maquinaria';
 import { badgeClase, BADGE_NO_ATENDIDO } from '../../../core/utils/badges';
 import {
   puedeEditarMaquina, puedeActivarMaquina, puedeGestionarMaquina, puedeReportarIncidente,
@@ -31,7 +31,7 @@ import {
   puedeEjecutarMantenimientos, puedeAgregarEvidenciaMaquinaria,
 } from '../../../core/utils/maquinaria-permisos';
 
-export type PestanaMaquina = 'resumen' | 'incidencias' | 'movimientos' | 'mantenimientos' | 'timeline';
+export type PestanaMaquina = 'resumen' | 'incidencias' | 'movimientos' | 'mantenimientos' | 'limpieza' | 'timeline';
 
 /** Línea resumida de un evento para la línea de tiempo. */
 interface EventoVista {
@@ -214,6 +214,7 @@ interface EventoVista {
                   </button>
                 }
               </div>
+
             </div>
           }
 
@@ -402,6 +403,85 @@ interface EventoVista {
             }
           }
 
+          <!-- ================= LIMPIEZA ================= -->
+          @if (pestana === 'limpieza' && ficha.limpieza.regla) {
+            <div class="p-4 rounded-2xl border space-y-3 text-xs"
+              [ngClass]="ficha.limpieza.atrasada ? 'border-rose-200 bg-rose-50/60' : 'border-slate-200 bg-slate-50/60'">
+              <h4 class="font-bold uppercase text-xs border-b pb-2 flex items-center justify-between"
+                [ngClass]="ficha.limpieza.atrasada ? 'text-rose-900 border-rose-200' : 'text-slate-900 border-slate-200'">
+                <span class="flex items-center gap-1.5"><i-lucide name="sparkles" class="w-3.5 h-3.5" aria-hidden="true"></i-lucide> Estado actual</span>
+                @if (ficha.limpieza.atrasada) { <span class="text-rose-700">Atrasada</span> }
+              </h4>
+              <div class="grid grid-cols-2 gap-3">
+                <div><span class="block text-[11px] text-slate-500 font-bold uppercase">Regla</span>
+                  <span class="font-bold text-slate-800">{{ ficha.limpieza.regla === 'AGENCIA' ? 'Miércoles y sábado' : 'Diaria' }}</span></div>
+                <div><span class="block text-[11px] text-slate-500 font-bold uppercase">Última limpieza</span>
+                  <span class="font-bold text-slate-800">{{ ficha.limpieza.ultimaFecha ? fechaProg(ficha.limpieza.ultimaFecha) : 'Nunca registrada' }}</span></div>
+              </div>
+              @if (ficha.limpieza.ultimasFotos.length) {
+                <div class="flex items-center gap-1.5 flex-wrap">
+                  @for (foto of ficha.limpieza.ultimasFotos; track foto) {
+                    <img [appThumb]="foto" class="w-10 h-10 rounded-lg object-cover border border-slate-200" alt="Foto de la última limpieza">
+                  }
+                </div>
+              }
+              @if (puedeRegistrarLimpieza) {
+                <button type="button" (click)="abrirRegistrarLimpieza()" class="btn btn-primary btn-sm w-full">
+                  <i-lucide name="camera" class="w-3.5 h-3.5" aria-hidden="true"></i-lucide> Registrar limpieza de hoy
+                </button>
+              }
+            </div>
+
+            @if (listaLimp.error && listaLimp.items.length === 0) {
+              <div role="alert" class="flex flex-col items-center gap-3 text-center py-4">
+                <div class="estado-error">{{ listaLimp.error }}</div>
+                <button type="button" class="btn btn-secondary btn-sm" (click)="listaLimp.reiniciar()">Reintentar</button>
+              </div>
+            } @else if (!listaLimp.inicializada) {
+              <p class="text-xs text-slate-500 font-semibold" role="status" aria-live="polite">Cargando historial de limpieza...</p>
+            } @else if (listaLimp.items.length === 0) {
+              <p class="estado-vacio">Esta máquina no tiene limpiezas registradas.</p>
+            }
+            <div class="space-y-3">
+              @for (l of listaLimp.items; track l.id) {
+                <div class="rounded-2xl border border-slate-200 bg-white p-4 space-y-2">
+                  <div class="flex items-start justify-between gap-2 flex-wrap">
+                    <div class="min-w-0">
+                      <div class="flex items-center gap-2 flex-wrap">
+                        <span class="px-2 py-0.5 rounded-full text-[11px] font-extrabold uppercase tracking-wide"
+                          [ngClass]="l.tipo === 'AGENCIA' ? 'bg-purple-100 text-purple-700' : 'bg-cyan-100 text-cyan-700'">
+                          {{ l.tipo === 'AGENCIA' ? 'Agencia' : 'Pulidor' }}
+                        </span>
+                      </div>
+                      <p class="font-bold text-sm mt-1 text-slate-900">{{ fechaProg(l.fecha) }}</p>
+                      <p class="text-xs text-slate-500">Registró: {{ (l.registradoPor?.name || '') + ' ' + (l.registradoPor?.lastname || '') }}</p>
+                    </div>
+                  </div>
+                  @if (l.observaciones) {
+                    <p class="text-xs text-slate-700 break-words">{{ l.observaciones }}</p>
+                  }
+                  @if (l.fotos.length) {
+                    <div class="flex items-center gap-1.5 flex-wrap">
+                      @for (foto of l.fotos; track foto) {
+                        <img [appThumb]="foto" class="w-12 h-12 rounded-lg object-cover border border-slate-200" alt="Foto de limpieza">
+                      }
+                    </div>
+                  }
+                </div>
+              }
+            </div>
+            @if (listaLimp.items.length > 0) {
+              <app-infinite-scroll
+                [hasMore]="listaLimp.hasMore"
+                [loading]="listaLimp.cargando"
+                [error]="listaLimp.error"
+                [total]="listaLimp.total"
+                (cargarMas)="listaLimp.siguiente()"
+                (reintentar)="listaLimp.reintentar()">
+              </app-infinite-scroll>
+            }
+          }
+
           <!-- ================= LÍNEA DE TIEMPO ================= -->
           @if (pestana === 'timeline') {
             <div class="p-4 rounded-2xl border border-slate-200 bg-slate-50/60 space-y-3">
@@ -501,6 +581,71 @@ interface EventoVista {
       (cerrar)="fichaModalOpen = false">
     </app-visor-archivo>
 
+    <!-- Registrar limpieza: fotos tomadas con la cámara (nunca de archivos guardados), hoy por defecto -->
+    <app-modal [isOpen]="limpiezaModalOpen" title="Registrar limpieza" icon="sparkles" size="md" (close)="cerrarRegistrarLimpieza()">
+      <div class="space-y-4">
+        <div>
+          <span class="field-label">Fotos (con la cámara)</span>
+          <div class="relative w-full rounded-2xl overflow-hidden border border-slate-200 bg-slate-950 min-h-56 flex flex-col items-center justify-center text-white">
+            @if (limpiezaCameraLoading) {
+              <div class="p-6 text-center space-y-2" role="status" aria-live="polite">
+                <i-lucide name="loader" class="w-7 h-7 text-easydry-blue animate-spin mx-auto" aria-hidden="true"></i-lucide>
+                <p class="text-xs font-bold text-slate-300">Iniciando cámara del dispositivo...</p>
+              </div>
+            }
+            @if (limpiezaCameraError) {
+              <div class="p-5 text-center space-y-3" role="alert">
+                <i-lucide name="alert-circle" class="w-7 h-7 text-rose-400 mx-auto" aria-hidden="true"></i-lucide>
+                <p class="text-xs font-bold text-rose-300">{{ limpiezaCameraError }}</p>
+                <button type="button" (click)="iniciarCamaraLimpieza()" class="px-4 py-2 bg-white text-slate-900 rounded-xl text-xs font-bold hover:bg-slate-100 transition cursor-pointer">
+                  Reintentar acceso a cámara
+                </button>
+              </div>
+            }
+            <video #limpiezaVideo autoplay playsinline [class.hidden]="limpiezaCameraLoading || limpiezaCameraError" class="w-full max-h-64 object-contain"></video>
+            @if (!limpiezaCameraLoading && !limpiezaCameraError) {
+              <div class="absolute bottom-3 inset-x-0 flex items-center justify-center gap-3 px-4">
+                <button type="button" (click)="cambiarCamaraLimpieza()" title="Cambiar cámara" aria-label="Cambiar cámara"
+                  class="p-2.5 rounded-full bg-white/20 hover:bg-white/30 backdrop-blur-md text-white transition cursor-pointer">
+                  <i-lucide name="refresh-cw" class="w-4 h-4" aria-hidden="true"></i-lucide>
+                </button>
+                <button type="button" (click)="capturarFotoLimpieza()"
+                  class="px-5 py-2.5 rounded-full bg-easydry-blue hover:bg-blue-600 text-white font-bold text-xs flex items-center gap-2 shadow-lg transition transform active:scale-95 cursor-pointer">
+                  <i-lucide name="camera" class="w-4 h-4" aria-hidden="true"></i-lucide>
+                  <span>Capturar foto</span>
+                </button>
+              </div>
+            }
+          </div>
+          @if (limpiezaPreviews.length) {
+            <div class="mt-2 flex items-center gap-1.5 flex-wrap">
+              @for (foto of limpiezaPreviews; track $index) {
+                <div class="relative w-14 h-14 rounded-lg overflow-hidden border border-slate-200">
+                  <img [src]="foto" class="w-full h-full object-cover" alt="Foto capturada">
+                  <button type="button" (click)="quitarFotoLimpieza($index)" title="Quitar foto" aria-label="Quitar foto"
+                    class="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-black/70 text-white flex items-center justify-center text-[10px] leading-none cursor-pointer">
+                    <i-lucide name="x" class="w-2.5 h-2.5" aria-hidden="true"></i-lucide>
+                  </button>
+                </div>
+              }
+            </div>
+            <p class="text-xs text-slate-500 mt-1">{{ limpiezaPreviews.length }} foto(s) capturada(s).</p>
+          }
+        </div>
+        <div>
+          <label for="maq-limpieza-obs" class="field-label">Observaciones (opcional)</label>
+          <textarea id="maq-limpieza-obs" [(ngModel)]="limpiezaObservaciones" name="limpieza-obs" rows="2" class="field"></textarea>
+        </div>
+        @if (limpiezaError) { <div class="estado-error" role="alert">{{ limpiezaError }}</div> }
+      </div>
+      <div modal-footer>
+        <button type="button" (click)="cerrarRegistrarLimpieza()" class="btn btn-secondary w-full sm:w-auto">Cancelar</button>
+        <button type="button" (click)="confirmarRegistrarLimpieza()" [disabled]="subiendoLimpieza || !limpiezaArchivos.length" class="btn btn-primary w-full sm:w-auto">
+          {{ subiendoLimpieza ? 'Subiendo…' : 'Registrar' }}
+        </button>
+      </div>
+    </app-modal>
+
     <app-maquina-acciones #maquinaAcc (hecho)="onAccionHecha($event)"></app-maquina-acciones>
     <app-trabajo-acciones #trabajoAcc (hecho)="onAccionHecha($event)"></app-trabajo-acciones>
   `,
@@ -549,6 +694,11 @@ export class MaquinariaDetalleModalComponent implements OnChanges, OnDestroy {
     PAGE_SIZE_INFINITO,
     (m) => m.id,
   );
+  readonly listaLimp = new ListaInfinita<LimpiezaMaquinaria>(
+    (page, size) => this.maquinariaService.getLimpiezasPagina({ maquinariaId: this.idMaquina(), page, pageSize: size }),
+    PAGE_SIZE_INFINITO,
+    (l) => l.id,
+  );
   readonly listaLinea = new ListaInfinita<EventoVista>(
     (page, size) => this.maquinariaService
       .getHistorial({ maquinariaId: this.idMaquina(), ...this.filtrosLineaAplicados, page, pageSize: size })
@@ -595,6 +745,7 @@ export class MaquinariaDetalleModalComponent implements OnChanges, OnDestroy {
     if (this.puedeVerInc) lista.push({ id: 'incidencias', label: 'Incidencias', icono: 'alert-triangle' });
     if (this.puedeVerLinea) lista.push({ id: 'movimientos', label: 'Movimientos', icono: 'refresh-cw' });
     if (this.puedeVerMant) lista.push({ id: 'mantenimientos', label: 'Mantenimientos', icono: 'calendar-clock' });
+    if (this.ficha?.limpieza.regla) lista.push({ id: 'limpieza', label: 'Limpieza', icono: 'sparkles' });
     if (this.puedeVerLinea) lista.push({ id: 'timeline', label: 'Línea de tiempo', icono: 'history' });
     return lista;
   }
@@ -669,6 +820,7 @@ export class MaquinariaDetalleModalComponent implements OnChanges, OnDestroy {
       case 'incidencias': return this.listaInc;
       case 'mantenimientos': return this.listaMant;
       case 'movimientos': return this.listaMov;
+      case 'limpieza': return this.listaLimp;
       case 'timeline': return this.listaLinea;
       default: return null;
     }
@@ -686,12 +838,14 @@ export class MaquinariaDetalleModalComponent implements OnChanges, OnDestroy {
     this.listaInc.destruir();
     this.listaMant.destruir();
     this.listaMov.destruir();
+    this.listaLimp.destruir();
     this.listaLinea.destruir();
     this.cargadas.clear();
   }
 
   ngOnDestroy(): void {
     this.destruirListas();
+    this.detenerCamaraLimpieza();
   }
 
   /** Tras una acción: recarga la ficha y la pestaña visible (las demás se piden de nuevo al abrirlas), y avisa al host. */
@@ -825,6 +979,137 @@ export class MaquinariaDetalleModalComponent implements OnChanges, OnDestroy {
       this.fichaError = 'No se pudo cargar la ficha técnica.';
     } finally {
       this.fichaCargando = false;
+    }
+  }
+
+  // ---- Registrar limpieza (líder de su agencia, pulidor de la suya; el backend valida de nuevo) ----
+  // Las fotos se toman con la cámara del dispositivo (nunca se eligen de archivos ya guardados): así
+  // la evidencia es del momento, igual que el resto de evidencias obligatorias del sistema.
+  // Solo líder y pulidor (fijo o móvil) registran: quien de verdad limpia la máquina. Admin/super
+  // admin tienen el permiso genérico 'maquinaria.evidencias' (lo usan para incidentes/mantenimientos),
+  // pero el backend ya no les deja registrar limpiezas, así que tampoco se les muestra el botón.
+  get puedeRegistrarLimpieza(): boolean {
+    return puedeAgregarEvidenciaMaquinaria(this.authService)
+      && (this.authService.hasRole('LIDER') || this.authService.hasRole('PULIDOR'));
+  }
+
+  @ViewChild('limpiezaVideo') limpiezaVideoEl?: ElementRef<HTMLVideoElement>;
+
+  limpiezaModalOpen = false;
+  limpiezaArchivos: File[] = [];
+  limpiezaPreviews: string[] = [];
+  limpiezaObservaciones = '';
+  limpiezaError = '';
+  subiendoLimpieza = false;
+
+  limpiezaCameraLoading = false;
+  limpiezaCameraError: string | null = null;
+  private limpiezaStream: MediaStream | null = null;
+  private limpiezaFacingMode: 'environment' | 'user' = 'environment';
+
+  abrirRegistrarLimpieza(): void {
+    this.limpiezaArchivos = [];
+    this.limpiezaPreviews = [];
+    this.limpiezaObservaciones = '';
+    this.limpiezaError = '';
+    this.limpiezaModalOpen = true;
+    void this.iniciarCamaraLimpieza();
+  }
+
+  cerrarRegistrarLimpieza(): void {
+    this.detenerCamaraLimpieza();
+    this.limpiezaModalOpen = false;
+  }
+
+  async iniciarCamaraLimpieza(): Promise<void> {
+    this.detenerCamaraLimpieza();
+    this.limpiezaCameraLoading = true;
+    this.limpiezaCameraError = null;
+    try {
+      this.limpiezaStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: this.limpiezaFacingMode, width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: false,
+      });
+      this.limpiezaCameraLoading = false;
+      setTimeout(() => {
+        if (this.limpiezaVideoEl && this.limpiezaStream) {
+          this.limpiezaVideoEl.nativeElement.srcObject = this.limpiezaStream;
+        }
+      }, 100);
+    } catch {
+      this.limpiezaCameraLoading = false;
+      this.limpiezaCameraError = 'No se pudo acceder a la cámara. Revisa los permisos de tu navegador.';
+    }
+  }
+
+  detenerCamaraLimpieza(): void {
+    this.limpiezaStream?.getTracks().forEach((track) => track.stop());
+    this.limpiezaStream = null;
+  }
+
+  cambiarCamaraLimpieza(): void {
+    this.limpiezaFacingMode = this.limpiezaFacingMode === 'environment' ? 'user' : 'environment';
+    void this.iniciarCamaraLimpieza();
+  }
+
+  async capturarFotoLimpieza(): Promise<void> {
+    const video = this.limpiezaVideoEl?.nativeElement;
+    if (!video || !this.limpiezaStream) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth || 1280;
+    canvas.height = video.videoHeight || 720;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.85));
+    if (!blob) return;
+    const archivo = new File([blob], `limpieza_${Date.now()}.jpg`, { type: 'image/jpeg' });
+    this.limpiezaArchivos = [...this.limpiezaArchivos, archivo];
+    this.limpiezaPreviews = [...this.limpiezaPreviews, canvas.toDataURL('image/jpeg', 0.85)];
+    this.limpiezaError = '';
+  }
+
+  quitarFotoLimpieza(indice: number): void {
+    this.limpiezaArchivos = this.limpiezaArchivos.filter((_, i) => i !== indice);
+    this.limpiezaPreviews = this.limpiezaPreviews.filter((_, i) => i !== indice);
+  }
+
+  async confirmarRegistrarLimpieza(): Promise<void> {
+    if (!this.limpiezaArchivos.length) {
+      this.limpiezaError = 'Captura al menos una foto con la cámara.';
+      return;
+    }
+    const errorArchivos = validarFotos(this.limpiezaArchivos);
+    if (errorArchivos) {
+      this.limpiezaError = errorArchivos;
+      return;
+    }
+    this.limpiezaError = '';
+    const f = this.ficha!;
+    this.subiendoLimpieza = true;
+    try {
+      const urls = await Promise.all(this.limpiezaArchivos.map((archivo) => this.storage.uploadMedia(archivo, {
+        category: 'MAQUINARIA_LIMPIEZA',
+        type: 'FOTO_LIMPIEZA',
+        maquinariaId: f.id,
+        maquinariaNombre: f.nombre,
+        maquinariaCodigo: f.codigo,
+        fileName: archivo.name,
+        contentType: archivo.type || 'image/jpeg',
+      })));
+      await firstValueFrom(this.maquinariaService.registrarLimpieza({
+        maquinariaId: f.id,
+        fotos: urls.map((url) => ({ url })),
+        observaciones: this.limpiezaObservaciones.trim() || undefined,
+      }));
+      this.cerrarRegistrarLimpieza();
+      void this.cargarFicha(false);
+      if (this.cargadas.has('limpieza')) this.listaLimp.reiniciar();
+      this.cambio.emit();
+    } catch (err) {
+      this.limpiezaError = mensajeError(err);
+    } finally {
+      this.subiendoLimpieza = false;
     }
   }
 

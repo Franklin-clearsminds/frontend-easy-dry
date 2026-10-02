@@ -12,6 +12,8 @@ import {
   ACCIONES_VACIAS
 } from '../models/roles.model';
 import { RolService } from './rol.service';
+import { MaquinariaService } from './maquinaria.service';
+import { NotificationSocketService } from './notification-socket.service';
 import { apiUrl, isRealProfilePhoto } from '../config/env';
 
 const STORAGE_KEY = 'easydry_auth_user_v5';
@@ -26,6 +28,8 @@ export class AuthService {
   private router = inject(Router);
   private http = inject(HttpClient);
   private rolService = inject(RolService);
+  private maquinariaService = inject(MaquinariaService);
+  private notificationSocket = inject(NotificationSocketService);
 
   private currentUserSubject = new BehaviorSubject<UsuarioAuth | null>(this.getStoredUser());
   public currentUser$ = this.currentUserSubject.asObservable();
@@ -39,6 +43,7 @@ export class AuthService {
       this.cargarCatalogoDeRoles();
       this.scheduleProactiveRefresh();
       this.refrescarPermisos();
+      this.notificationSocket.connect(user.token);
     }
   }
 
@@ -260,6 +265,63 @@ export class AuthService {
   /**
    * Autenticación formal con Correo Electrónico + Contraseña (siempre vía API)
    */
+  /**
+   * Arma el `UsuarioAuth` completo a partir de la respuesta del backend (login o `/auth/me`): ambos
+   * comparten el mismo shape de campos (role, rolNombre, agencia, región, bodega, capacidades...).
+   * Centralizar esto evita que `refrescarPermisos()` tenga que duplicar la lógica de `login()` (qué
+   * campos se ocultan según el rol, cómo se arma `rolNombre`/`modalidadPulidor`, etc.) y quedar
+   * desincronizada si esa lógica cambia en un solo lado.
+   *
+   * `base`: usuario ya cacheado, para los pocos campos que `/auth/me` no devuelve (hoy: `servicioIds`)
+   * y así no perderlos al refrescar — `login()` no tiene base (usuario nuevo, arranca en blanco).
+   */
+  private construirUsuarioDesdeDatos(
+    userData: any,
+    token: string,
+    refreshToken: string,
+    base: UsuarioAuth | null = null,
+  ): UsuarioAuth {
+    const role = this.mapBackendRole(userData.role);
+    const modulosPermitidos = [...(userData.permisos || userData.modulos || [])];
+    const permisos = this.normalizeAcciones(userData.acciones);
+
+    const isGlobalAdmin = role === Role.SUPER_ADMIN || role === Role.ADMIN || role === Role.COORD_BODEGA;
+    const isSupervisor = role === Role.SUPERVISOR;
+    const isAsistente = role === Role.ASISTENTE_BODEGA;
+    const isPulidor = role === Role.PULIDOR;
+    const modalidadPulidor = isPulidor
+      ? (userData.agenciaId || userData.agencia?.id ? 'FIJO' : 'MOVIL')
+      : undefined;
+    const ocultaUbicacion = isGlobalAdmin || isSupervisor || isAsistente || (isPulidor && modalidadPulidor === 'MOVIL');
+
+    return {
+      id: userData.id,
+      nombre: userData.name,
+      apellido: userData.lastname,
+      email: userData.email,
+      role,
+      rolNombre: ROLE_LABELS[role] || userData.rolNombre || userData.role,
+      modulosPermitidos,
+      capacidades: Array.isArray(userData.capacidades) ? userData.capacidades : [],
+      ambito: userData.ambito,
+      sucursal: ocultaUbicacion ? undefined : (userData.sucursal || userData.agencia?.nombre),
+      sucursalNombre: ocultaUbicacion ? undefined : (userData.sucursalNombre || userData.agencia?.nombre),
+      region: userData.regionNombre || userData.region?.nombre || (isGlobalAdmin ? 'Nacional' : undefined),
+      agenciaId: ocultaUbicacion ? undefined : userData.agenciaId,
+      regionId: isGlobalAdmin ? undefined : userData.regionId,
+      bodegaId: userData.bodegaId,
+      modalidadPulidor,
+      servicioIds: Array.isArray(userData.servicioIds)
+        ? userData.servicioIds.map((n: any) => Number(n)).filter((n: number) => !isNaN(n) && n > 0)
+        : (base?.servicioIds ?? []),
+      estado: userData.estado === 1 ? 'Activo' : 'Inactivo',
+      token,
+      refreshToken,
+      permisos,
+      avatar: this.sanitizeAvatar(userData.avatar || userData.avatarUrl || ''),
+    };
+  }
+
   login(email: string, pass: string): Observable<{ success: boolean; user?: UsuarioAuth; message?: string }> {
     const normalizedEmail = (email || '').trim().toLowerCase();
     const normalizedPass = (pass || '').trim();
@@ -304,44 +366,7 @@ export class AuthService {
       map(res => {
         if (!res.success) return { success: false, message: 'Credenciales incorrectas.' };
 
-        const role = this.mapBackendRole(res.user.role);
-        const modulosPermitidos = [...(res.user.permisos || res.user.modulos || [])];
-        const permisos = this.normalizeAcciones(res.user.acciones);
-
-        const isGlobalAdmin = role === Role.SUPER_ADMIN || role === Role.ADMIN || role === Role.COORD_BODEGA;
-        const isSupervisor = role === Role.SUPERVISOR;
-        const isAsistente = role === Role.ASISTENTE_BODEGA;
-        const isPulidor = role === Role.PULIDOR;
-        const modalidadPulidor = isPulidor
-          ? (res.user.agenciaId || res.user.agencia?.id ? 'FIJO' : 'MOVIL')
-          : undefined;
-
-        const authenticatedUser: UsuarioAuth = {
-          id: res.user.id,
-          nombre: res.user.name,
-          apellido: res.user.lastname,
-          email: res.user.email,
-          role,
-          rolNombre: ROLE_LABELS[role] || res.user.rolNombre || res.user.role,
-          modulosPermitidos,
-          capacidades: Array.isArray(res.user.capacidades) ? res.user.capacidades : [],
-          ambito: res.user.ambito,
-          sucursal: (isGlobalAdmin || isSupervisor || isAsistente || (isPulidor && modalidadPulidor === 'MOVIL')) ? undefined : (res.user.sucursal || res.user.agencia?.nombre),
-          sucursalNombre: (isGlobalAdmin || isSupervisor || isAsistente || (isPulidor && modalidadPulidor === 'MOVIL')) ? undefined : (res.user.sucursalNombre || res.user.agencia?.nombre),
-          region: res.user.regionNombre || res.user.region?.nombre || (isGlobalAdmin ? 'Nacional' : undefined),
-          agenciaId: (isGlobalAdmin || isSupervisor || isAsistente || (isPulidor && modalidadPulidor === 'MOVIL')) ? undefined : res.user.agenciaId,
-          regionId: isGlobalAdmin ? undefined : res.user.regionId,
-          bodegaId: (res.user as any).bodegaId,
-          modalidadPulidor,
-          servicioIds: Array.isArray((res.user as any).servicioIds)
-            ? (res.user as any).servicioIds.map((n: any) => Number(n)).filter((n: number) => !isNaN(n) && n > 0)
-            : [],
-          estado: res.user.estado === 1 ? 'Activo' : 'Inactivo',
-          token: res.accessToken,
-          refreshToken: res.refreshToken,
-          permisos,
-          avatar: this.sanitizeAvatar(res.user.avatar || res.user.avatarUrl || ''),
-        };
+        const authenticatedUser = this.construirUsuarioDesdeDatos(res.user, res.accessToken, res.refreshToken);
 
         localStorage.setItem('easydry_access_token', res.accessToken);
         localStorage.setItem('easydry_refresh_token', res.refreshToken);
@@ -362,6 +387,7 @@ export class AuthService {
     if (user?.token) {
       this.cargarCatalogoDeRoles();
       this.scheduleProactiveRefresh();
+      this.notificationSocket.connect(user.token);
     }
   }
 
@@ -397,10 +423,14 @@ export class AuthService {
 
   logout(): void {
     this.clearRefreshTimer();
+    this.notificationSocket.disconnect();
     localStorage.removeItem(STORAGE_KEY);
     localStorage.removeItem('easydry_access_token');
     localStorage.removeItem('easydry_refresh_token');
     this.currentUserSubject.next(null);
+    // Sin esto, un logout→login en la misma pestaña deja el caché en memoria de la sesión anterior:
+    // si la próxima carga falla, el servicio puede servir la lista del usuario/rol de antes.
+    this.maquinariaService.limpiarCache();
     this.router.navigate(['/login']);
   }
 
@@ -486,20 +516,19 @@ export class AuthService {
    * Vuelve a leer del servidor los permisos y módulos del rol: si un administrador los cambió, se reflejan sin cerrar sesión.
    * Si el rol quedó sin permisos, el usuario pasa a la pantalla de «sin acceso».
    */
+  /**
+   * Repuebla TODO el usuario cacheado desde `/auth/me` (rol, agencia, región, bodega, permisos...),
+   * no solo capacidades/módulos: si a alguien le cambian de rol (o de agencia/región junto con el
+   * rol), esto es lo que hace que se refleje sin necesitar logout — hoy solo se llama al arrancar la
+   * app (F5 incluido), así que el cambio se ve recién en la próxima carga, no en caliente.
+   */
   refrescarPermisos(): void {
     const actual = this.currentUserSubject.value;
     if (!actual?.token) return;
     this.http.post<any>(apiUrl('/auth/me'), {}, { headers: { 'X-Silent-Fallback': '1' } }).subscribe({
       next: (me) => {
         if (!me || !this.currentUserSubject.value) return;
-        const modulos = [...(me.modulos || me.permisos || [])];
-        const actualizado: UsuarioAuth = {
-          ...this.currentUserSubject.value,
-          modulosPermitidos: modulos,
-          capacidades: Array.isArray(me.capacidades) ? me.capacidades : [],
-          ambito: me.ambito || this.currentUserSubject.value.ambito,
-          permisos: this.normalizeAcciones(me.acciones),
-        };
+        const actualizado = this.construirUsuarioDesdeDatos(me, actual.token!, actual.refreshToken!, actual);
         localStorage.setItem(STORAGE_KEY, JSON.stringify(actualizado));
         this.currentUserSubject.next(actualizado);
         if (this.sinAcceso() && !this.router.url.startsWith('/sin-acceso')) {

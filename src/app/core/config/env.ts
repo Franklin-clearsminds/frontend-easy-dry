@@ -10,6 +10,14 @@ export function apiUrl(path: string): string {
   return `${base}${suffix}`;
 }
 
+/**
+ * Origen para el WebSocket de notificaciones: el mismo host que `apiBaseUrl`, sin el prefijo de la
+ * API (`/api/v1`) — los namespaces de un gateway de Socket.IO no pasan por ese prefijo HTTP.
+ */
+export function wsUrl(): string {
+  return environment.apiBaseUrl.replace(/\/api\/v\d+\/?$/i, '').replace(/\/$/, '');
+}
+
 /** Solo acepta foto real (S3/local). Ignora Unsplash y URLs de demo. */
 export function isRealProfilePhoto(value?: string | null): boolean {
   const v = String(value || '').trim();

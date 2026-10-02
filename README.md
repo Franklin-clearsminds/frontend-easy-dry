@@ -43,6 +43,8 @@ Ejecuta el siguiente comando en la raíz de `frontend-easy-dry`:
 pnpm install
 ```
 
+> ⚠️ **Usa siempre `pnpm`**, nunca `npm install`. Este monorepo usa `pnpm-workspace.yaml`; mezclar gestores de paquetes corrompe el árbol de `node_modules`.
+
 ---
 
 ## 🚀 Comandos de Ejecución
@@ -78,7 +80,12 @@ El frontend está estructurado bajo **Clean Architecture** y principios de dise�
 7. **Sucursales & Bahías (`/sucursales`)**:
    - Directorio de sedes nacionales (Quito Norte, Quito Sur, Cumbayá, Guayaquil) con asignación de servicios y bahías.
 8. **Usuarios & Control de Acceso RBAC (`/usuarios`)**:
-   - Administración de credenciales corporativas, 13 roles oficiales y auditoría de permisos.
+   - Administración de credenciales corporativas, 13 roles oficiales y auditoría de permisos. Los permisos se refrescan al instante tras un cambio de rol (sin requerir cierre de sesión).
+9. **Productividad & Retos (`/productividad`)**:
+   - Ranking de agencias y ranking de lavadores (cantidad de servicios + tiempo promedio) calculados en el servidor.
+   - Directorio de retos comerciales/operativos: creación, carrusel de retos activos y cierre manual con registro de ganador y resultado.
+10. **Notificaciones en Tiempo Real**:
+    - Centro de notificaciones conectado por WebSocket (`socket.io-client`) al backend; cubre limpiezas de maquinaria pendientes/atrasadas, mantenimientos vencidos y otros eventos operativos, con persistencia real (no sintéticas en el cliente).
 
 ---
 
@@ -95,6 +102,16 @@ Todos los usuarios de prueba utilizan la contraseña estándar: `Admin123*`.
 | Supervisor Regional | `supervisor.costa@easydry.com` |
 | Coordinador Comercial | `comercial@easydry.com` |
 | Jefe Servicios Especiales | `especiales@easydry.com` |
+
+---
+
+## 🧪 Pruebas Automatizadas
+
+Suite de pruebas unitarias con Karma + Jasmine (servicios core y componentes críticos: autenticación, notificaciones, limpieza de maquinaria):
+
+```bash
+pnpm test
+```
 
 ---
 

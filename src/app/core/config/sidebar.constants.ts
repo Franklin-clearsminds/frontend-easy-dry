@@ -6,7 +6,7 @@
 /** Ancho del sidebar fijado y expandido (empuja el contenido). */
 export const SIDEBAR_WIDTH_EXPANDED = 260;
 /** Ancho del sidebar en modo mini (empuja el contenido, solo íconos). */
-export const SIDEBAR_WIDTH_MINI = 60;
+export const SIDEBAR_WIDTH_MINI = 68;
 /** Ancho de la vista previa flotante al pasar el cursor sobre el sidebar en modo mini. */
 export const SIDEBAR_WIDTH_HOVER_PREVIEW = 260;
 

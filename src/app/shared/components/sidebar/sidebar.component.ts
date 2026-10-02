@@ -51,7 +51,7 @@ interface MenuGroup {
       <div class="fixed inset-0 z-[38]" (click)="uiState.setHoverPreview(false)" aria-hidden="true"></div>
     }
 
-    <!-- Envoltura exterior: única responsable de animar el ancho (60/260px) y de recortar el contenido. -->
+    <!-- Envoltura exterior: única responsable de animar el ancho (68/260px) y de recortar el contenido. -->
     <div
       class="fixed top-0 left-0 h-dvh overflow-hidden transition-[width] duration-200 ease-out
              [contain:layout_style_size] [will-change:width]"
@@ -72,7 +72,7 @@ interface MenuGroup {
           <!-- Isotipo centrado: solo visible en modo mini sin vista previa -->
           <a
             [routerLink]="['/dashboard']"
-            class="absolute left-0 top-0 bottom-0 w-[60px] flex items-center justify-center transition-opacity duration-200 ease-out"
+            class="absolute left-0 top-0 bottom-0 w-[68px] flex items-center justify-center transition-opacity duration-200 ease-out"
             [style.opacity]="showLabels() ? '0' : '0.92'"
             [class.pointer-events-none]="showLabels()"
             [attr.tabindex]="showLabels() ? -1 : 0"
@@ -93,28 +93,15 @@ interface MenuGroup {
           </a>
         </div>
 
-        <!-- Aviso de vista previa: solo aparece al pasar el cursor sobre el modo mini. Sin esto, la vista
-             previa se ve idéntica al fijado aunque el modo de fondo siga siendo mini (confuso). -->
-        @if (isHoverOverlay()) {
-          <div class="flex-shrink-0 flex items-center justify-between gap-2 px-3.5 py-1.5 bg-black/25 border-b border-white/10">
-            <span class="text-[10px] font-bold text-slate-300 uppercase tracking-wider">Vista previa</span>
-            <button type="button" (click)="uiState.setCollapsed(false)"
-              class="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold text-easydry-lime hover:bg-white/10 transition-colors cursor-pointer">
-              <i-lucide name="panel-left-open" class="w-3 h-3" aria-hidden="true"></i-lucide>
-              Fijar
-            </button>
-          </div>
-        }
-
         <!-- Menú de navegación -->
-        <nav aria-label="Navegación principal" class="flex-1 overflow-y-auto overflow-x-hidden py-3 sidebar-nav-scroll space-y-1">
+        <nav aria-label="Navegación principal" class="flex-1 min-h-0 overflow-y-auto overflow-x-hidden py-3 sidebar-nav-scroll space-y-1">
           @for (group of menuGroups; track group.title) {
             @if (group.items.length > 0) {
               <div>
                 <!-- Cabecera de grupo: título + chevron de acordeón (solo si hay etiquetas visibles) -->
                 <div class="h-6 flex items-center overflow-hidden">
                   @if (!showLabels()) {
-                    <div class="w-[60px] flex items-center justify-center">
+                    <div class="w-[68px] flex items-center justify-center">
                       <div class="w-8 h-px bg-white/15 rounded-full" aria-hidden="true"></div>
                     </div>
                   } @else {
@@ -146,12 +133,10 @@ interface MenuGroup {
                         [attr.title]="!showLabels() ? item.label : null"
                         #rla="routerLinkActive"
                         [routerLinkActiveOptions]="{ exact: item.route === '/dashboard' }"
-                        class="flex items-center h-10 rounded-xl transition-[background-color,color,width,margin,padding] duration-200 ease-out group text-xs relative cursor-pointer"
+                        class="flex items-center h-10 rounded-xl ml-2.5 transition-[background-color,color,width,margin,padding] duration-200 ease-out group text-xs relative cursor-pointer"
                         [class.w-12]="!showLabels()"
-                        [class.ml-3.5]="!showLabels()"
                         [class.justify-center]="!showLabels()"
                         [class.w-[calc(100%-1.25rem)]]="showLabels()"
-                        [class.ml-2.5]="showLabels()"
                         [class.px-3]="showLabels()"
                         [ngClass]="rla.isActive
                           ? 'bg-white/15 text-white shadow-md font-bold ring-1 ring-white/15'
@@ -171,8 +156,10 @@ interface MenuGroup {
                           }
                         </div>
 
-                        <span class="flex-1 whitespace-nowrap font-medium text-xs pr-1 truncate transition-opacity duration-200 ease-out ml-3"
-                          [class.opacity-100]="showLabels()" [class.opacity-0]="!showLabels()">
+                        <span class="whitespace-nowrap font-medium text-xs pr-1 truncate transition-opacity duration-200 ease-out"
+                          [class.opacity-100]="showLabels()" [class.opacity-0]="!showLabels()"
+                          [class.flex-1]="showLabels()" [class.ml-3]="showLabels()"
+                          [class.w-0]="!showLabels()">
                           {{ item.label }}
                         </span>
 
@@ -204,44 +191,54 @@ interface MenuGroup {
           }
         </nav>
 
-        <!-- Banda inferior: doble switch en píldora -->
-        <div class="px-3 py-2.5 border-t border-white/10 bg-black/10 flex-shrink-0">
-          <div class="flex items-center gap-1 bg-black/20 rounded-xl p-1 transition-[justify-content] duration-200 ease-out" [class.justify-center]="!showLabels()">
+        <!-- Banda inferior: doble switch en píldora (fijado/expandido) o un solo botón centrado en
+             68px para volver a fijar (mini puro): con el sidebar en mini, "Mini" ya está activo y
+             sobra; los dos botones lado a lado no caben en la ventana visible de 68px. -->
+        @if (showLabels()) {
+          <div class="px-3 py-2.5 border-t border-white/10 bg-black/10 flex-shrink-0">
+            <div class="flex items-center gap-1 bg-black/20 rounded-xl p-1">
+              <button
+                type="button"
+                (click)="uiState.setCollapsed(false)"
+                [attr.aria-pressed]="!uiState.collapsed()"
+                title="Fijar expandido"
+                class="flex items-center justify-center h-8 flex-1 rounded-lg transition-colors duration-200 ease-out cursor-pointer"
+                [ngClass]="!uiState.collapsed() ? 'bg-white/15 text-white shadow-xs' : 'text-slate-400 hover:text-white'">
+                <i-lucide name="panel-left-open" class="w-4 h-4 flex-shrink-0" aria-hidden="true"></i-lucide>
+                <span class="ml-1.5 text-[11px] font-bold whitespace-nowrap">Fijado</span>
+              </button>
+              <button
+                type="button"
+                (click)="uiState.setCollapsed(true)"
+                [attr.aria-pressed]="uiState.collapsed()"
+                title="Modo mini"
+                class="flex items-center justify-center h-8 flex-1 rounded-lg transition-colors duration-200 ease-out cursor-pointer"
+                [ngClass]="uiState.collapsed() ? 'bg-white/15 text-white shadow-xs' : 'text-slate-400 hover:text-white'">
+                <i-lucide name="panel-left-close" class="w-4 h-4 flex-shrink-0" aria-hidden="true"></i-lucide>
+                <span class="ml-1.5 text-[11px] font-bold whitespace-nowrap">Mini</span>
+              </button>
+            </div>
+          </div>
+        } @else {
+          <div class="py-2.5 border-t border-white/10 bg-black/10 flex-shrink-0 w-[68px] flex items-center justify-center">
             <button
               type="button"
               (click)="uiState.setCollapsed(false)"
-              [attr.aria-pressed]="!uiState.collapsed()"
-              [title]="showLabels() ? 'Fijar expandido' : null"
-              class="flex items-center justify-center h-8 rounded-lg transition-[background-color,color,width,flex] duration-200 ease-out cursor-pointer"
-              [class.w-8]="!showLabels()" [class.flex-1]="showLabels()"
-              [ngClass]="!uiState.collapsed() ? 'bg-white/15 text-white shadow-xs' : 'text-slate-400 hover:text-white'">
+              title="Fijar expandido"
+              class="flex items-center justify-center w-8 h-8 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors duration-200 ease-out cursor-pointer">
               <i-lucide name="panel-left-open" class="w-4 h-4 flex-shrink-0" aria-hidden="true"></i-lucide>
-              @if (showLabels()) {
-                <span class="ml-1.5 text-[11px] font-bold whitespace-nowrap">Fijado</span>
-              }
-            </button>
-            <button
-              type="button"
-              (click)="uiState.setCollapsed(true)"
-              [attr.aria-pressed]="uiState.collapsed()"
-              [title]="showLabels() ? 'Modo mini' : null"
-              class="flex items-center justify-center h-8 rounded-lg transition-[background-color,color,width,flex] duration-200 ease-out cursor-pointer"
-              [class.w-8]="!showLabels()" [class.flex-1]="showLabels()"
-              [ngClass]="uiState.collapsed() ? 'bg-white/15 text-white shadow-xs' : 'text-slate-400 hover:text-white'">
-              <i-lucide name="panel-left-close" class="w-4 h-4 flex-shrink-0" aria-hidden="true"></i-lucide>
-              @if (showLabels()) {
-                <span class="ml-1.5 text-[11px] font-bold whitespace-nowrap">Mini</span>
-              }
             </button>
           </div>
-        </div>
+        }
 
-        <!-- Tarjeta de usuario -->
-        <div class="border-t border-white/10 bg-black/20 flex-shrink-0 p-2.5 space-y-1.5">
+        <!-- Tarjeta de usuario: sin padding horizontal en modo mini (el nav de arriba tampoco lo
+             tiene); si no, el p-2.5 se suma al ml-2.5 de cada fila y corre todo el bloque hacia la
+             derecha, desalineándolo de la columna de íconos del menú. -->
+        <div class="border-t border-white/10 bg-black/20 flex-shrink-0 py-2.5 space-y-1.5" [class.px-2.5]="showLabels()">
           @if (user; as u) {
-            <div class="flex items-center rounded-xl py-1 transition-[width,margin,padding] duration-200 ease-out"
-              [class.w-12]="!showLabels()" [class.ml-3.5]="!showLabels()" [class.justify-center]="!showLabels()"
-              [class.w-[calc(100%-1.25rem)]]="showLabels()" [class.ml-2.5]="showLabels()" [class.px-1.5]="showLabels()" [class.gap-2.5]="showLabels()">
+            <div class="flex items-center rounded-xl py-1 ml-2.5 transition-[width,margin,padding] duration-200 ease-out"
+              [class.w-12]="!showLabels()" [class.justify-center]="!showLabels()"
+              [class.w-[calc(100%-1.25rem)]]="showLabels()" [class.px-1.5]="showLabels()" [class.gap-2.5]="showLabels()">
               @if (avatarUrl(u.avatar) && !avatarFailed) {
                 <img [src]="avatarUrl(u.avatar)" [alt]="'Foto de ' + u.nombre" (error)="avatarFailed = true"
                   class="w-9 h-9 rounded-full object-cover ring-2 ring-white/20 flex-shrink-0">
@@ -265,16 +262,17 @@ interface MenuGroup {
           <a routerLink="/perfil" routerLinkActive="active-menu-item" ariaCurrentWhenActive="page"
             aria-label="Configuración de Perfil" #rlaPerfil="routerLinkActive"
             [title]="!showLabels() ? 'Configuración de Perfil' : ''"
-            class="flex items-center h-9 rounded-xl transition-[background-color,color,width,margin,padding] duration-200 ease-out text-xs font-medium relative cursor-pointer"
-            [class.w-12]="!showLabels()" [class.ml-3.5]="!showLabels()" [class.justify-center]="!showLabels()"
-            [class.w-[calc(100%-1.25rem)]]="showLabels()" [class.ml-2.5]="showLabels()" [class.px-3]="showLabels()"
+            class="flex items-center h-9 rounded-xl ml-2.5 transition-[background-color,color,width,margin,padding] duration-200 ease-out text-xs font-medium relative cursor-pointer"
+            [class.w-12]="!showLabels()" [class.justify-center]="!showLabels()"
+            [class.w-[calc(100%-1.25rem)]]="showLabels()" [class.px-3]="showLabels()"
             [ngClass]="rlaPerfil.isActive ? 'bg-white/15 text-white shadow-md font-bold ring-1 ring-white/15' : 'text-slate-300 hover:text-white hover:bg-white/10'"
             (click)="onItemClick()">
             <div class="flex items-center justify-center flex-shrink-0">
               <i-lucide name="user" class="w-[18px] h-[18px] text-easydry-lime" aria-hidden="true"></i-lucide>
             </div>
-            <span class="whitespace-nowrap transition-opacity duration-200 ease-out ml-3"
-              [class.opacity-100]="showLabels()" [class.opacity-0]="!showLabels()">
+            <span class="whitespace-nowrap transition-opacity duration-200 ease-out"
+              [class.opacity-100]="showLabels()" [class.opacity-0]="!showLabels()"
+              [class.ml-3]="showLabels()" [class.w-0]="!showLabels()" [class.overflow-hidden]="!showLabels()">
               Configuración de Perfil
             </span>
           </a>
@@ -282,14 +280,15 @@ interface MenuGroup {
           <!-- Cerrar sesión -->
           <button type="button" (click)="authService.logout()" aria-label="Cerrar Sesión"
             [title]="!showLabels() ? 'Cerrar Sesión' : ''"
-            class="flex items-center h-9 rounded-xl text-rose-300 hover:text-rose-200 hover:bg-rose-400/10 transition-[background-color,color,width,margin,padding] duration-200 ease-out text-xs font-medium cursor-pointer"
-            [class.w-12]="!showLabels()" [class.ml-3.5]="!showLabels()" [class.justify-center]="!showLabels()"
-            [class.w-[calc(100%-1.25rem)]]="showLabels()" [class.ml-2.5]="showLabels()" [class.px-3]="showLabels()">
+            class="flex items-center h-9 rounded-xl ml-2.5 text-rose-300 hover:text-rose-200 hover:bg-rose-400/10 transition-[background-color,color,width,margin,padding] duration-200 ease-out text-xs font-medium cursor-pointer"
+            [class.w-12]="!showLabels()" [class.justify-center]="!showLabels()"
+            [class.w-[calc(100%-1.25rem)]]="showLabels()" [class.px-3]="showLabels()">
             <div class="flex items-center justify-center flex-shrink-0">
               <i-lucide name="log-out" class="w-[18px] h-[18px]" aria-hidden="true"></i-lucide>
             </div>
-            <span class="whitespace-nowrap transition-opacity duration-200 ease-out text-left ml-3"
-              [class.opacity-100]="showLabels()" [class.opacity-0]="!showLabels()">
+            <span class="whitespace-nowrap transition-opacity duration-200 ease-out text-left"
+              [class.opacity-100]="showLabels()" [class.opacity-0]="!showLabels()"
+              [class.ml-3]="showLabels()" [class.w-0]="!showLabels()" [class.overflow-hidden]="!showLabels()">
               Cerrar Sesión
             </span>
           </button>
@@ -299,7 +298,7 @@ interface MenuGroup {
   `,
   styles: [`
     /* El menú sigue siendo desplazable (rueda, touch, teclado); solo se oculta el riel para que no
-       se vea una línea junto al borde del sidebar, sobre todo en el modo mini de 60px. */
+       se vea una línea junto al borde del sidebar, sobre todo en el modo mini de 68px. */
     .sidebar-nav-scroll {
       scrollbar-width: none;
       -ms-overflow-style: none;

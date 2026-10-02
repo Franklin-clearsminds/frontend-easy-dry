@@ -12,7 +12,7 @@ import { UiStateService } from '../../core/services/ui-state.service';
   imports: [CommonModule, RouterOutlet, SidebarComponent, HeaderComponent, ToastComponent],
   template: `
     <div class="h-dvh bg-slate-50">
-      <!-- Sidebar: fijado expandido (260px) o mini (60px) empujan el contenido; la vista previa flotante
+      <!-- Sidebar: fijado expandido (260px) o mini (68px) empujan el contenido; la vista previa flotante
            en modo mini y el cajón móvil flotan encima sin mover el margen. -->
       <app-sidebar></app-sidebar>
 

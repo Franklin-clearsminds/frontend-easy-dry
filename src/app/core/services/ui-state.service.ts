@@ -36,7 +36,7 @@ function leerGruposPlegadosGuardados(): Set<string> {
  */
 @Injectable({ providedIn: 'root' })
 export class UiStateService {
-  /** true = modo mini (60px); false = fijado expandido (260px). Se recuerda entre sesiones. */
+  /** true = modo mini (68px); false = fijado expandido (260px). Se recuerda entre sesiones. */
   readonly collapsed: WritableSignal<boolean> = signal(leerColapsadoGuardado());
 
   /** true si el ancho de pantalla permite que el sidebar empuje el contenido (>= 1024px). */
