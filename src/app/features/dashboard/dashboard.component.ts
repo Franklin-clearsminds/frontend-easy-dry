@@ -59,8 +59,78 @@ export class DashboardComponent implements OnInit {
   rolLabel = '';
   contextLabel = '';
   userName = '';
+  isAdminView = false;
+  isSupervisorView = false;
+  isComercialView = false;
+  isAprobadorView = false;
 
   activeExecutiveTab: 'analitica' | 'auditoria' | 'inventario' = 'analitica';
+
+  get tabAnaliticaTitle(): string {
+    if (this.isAdminView) return 'Flujo de Usuarios';
+    if (this.isAprobadorView) return 'Aprobaciones';
+    if (this.isComercialView) return 'Ventas y Flujo';
+    if (this.isSupervisorView) return 'Operación Regional';
+    return 'Productividad';
+  }
+
+  get tabAuditoriaTitle(): string {
+    if (this.isAdminView) return 'Auditoría y Roles';
+    if (this.isAprobadorView) return 'Revisión (N/A)'; // Usualmente oculto
+    if (this.isComercialView) return 'Autorizaciones';
+    if (this.isSupervisorView) return 'Salud Regional';
+    return 'Auditoría y Equipos';
+  }
+
+  get tabInventarioTitle(): string {
+    if (this.isAdminView) return 'Catálogos';
+    if (this.isAprobadorView || this.isComercialView) return 'Catálogo Comercial';
+    if (this.isSupervisorView) return 'Abastecimiento';
+    return 'Inventario';
+  }
+
+  get chart1Title(): string {
+    if (this.isAdminView) return 'Nuevos Usuarios (7d)';
+    if (this.isAprobadorView) return 'Cola de Solicitudes (7d)';
+    if (this.isComercialView) return 'Solicitudes Comerciales';
+    return 'Flujo Horario de Atención';
+  }
+
+  get chart1Subtitle(): string {
+    if (this.isAdminView) return 'Usuarios creados por fecha';
+    if (this.isAprobadorView) return 'Volumen de solicitudes pendientes/aprobadas';
+    if (this.isComercialView) return 'Clientes solicitando beneficios';
+    return 'Vehículos procesados en el día';
+  }
+
+  get chart2Title(): string {
+    if (this.isAdminView) return 'Distribución de Roles';
+    if (this.isAprobadorView) return 'Tipos de Solicitud';
+    if (this.isComercialView) return 'Mix Comercial de Servicios';
+    return 'Mix de Servicios';
+  }
+
+  get chart3Title(): string {
+    if (this.isAdminView) return 'Servicios por Categoría';
+    if (this.isAprobadorView) return 'Estados de Solicitud';
+    if (this.isComercialView) return 'Proporción de Catálogo';
+    if (this.isSupervisorView) return 'Cuellos de Botella (Tiempos)';
+    return 'Tiempo por Bahía';
+  }
+
+  get chart4Title(): string {
+    if (this.isAdminView) return 'Auditoría Reciente';
+    if (this.isAprobadorView) return 'Desempeño';
+    if (this.isComercialView) return 'Top Marcas Atendidas';
+    if (this.isSupervisorView) return 'Ranking de Agencias';
+    return 'Lavados por Bahía';
+  }
+
+  get chart4Subtitle(): string {
+    if (this.isAdminView) return 'Acciones realizadas';
+    if (this.isSupervisorView) return 'Agencias con mayor productividad';
+    return 'Productividad en cantidad';
+  }
 
   get filtroActual() {
     return { 
@@ -127,7 +197,13 @@ export class DashboardComponent implements OnInit {
   /** Solo se llama a los endpoints para los que el rol tiene permiso (evita errores 403 de fondo). */
   private cargarEjecutivo(): void {
     const filtro = this.filtroActual;
-    this.dashboardService.getProduccion(filtro).subscribe(d => this.produccion = this.normalizeProduccion(d));
+    this.dashboardService.getProduccion(filtro).subscribe(d => {
+      this.isAdminView = d?.isAdminView || false;
+      this.isSupervisorView = d?.isSupervisorView || false;
+      this.isComercialView = d?.isComercialView || false;
+      this.isAprobadorView = d?.isAprobadorView || false;
+      this.produccion = this.normalizeProduccion(d);
+    });
     this.dashboardService.getServiciosData(filtro).subscribe(d => this.serviciosData = d);
     this.dashboardService.getResumenEjecutivo(filtro).subscribe(d => this.resumenEjecutivo = d);
 

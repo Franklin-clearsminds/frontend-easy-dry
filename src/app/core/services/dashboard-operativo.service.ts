@@ -33,82 +33,62 @@ export class DashboardOperativoService {
    */
   getProduccion(filtro: any = {}): Observable<any> {
     return this.http.post<any>(apiUrl('/analytics/dashboard'), filtro).pipe(
-      map(data => ({
-        vehiculosHoy: data?.kpis?.totalLavadosHoy ?? null,
-        flujoHorario: data?.flujoHorario ? {
+      map(data => {
+        const isAdmin = data?.isAdminView || false;
+        const isSupervisor = data?.isSupervisorView || false;
+        const isComercial = data?.isComercialView || false;
+        const isAprobador = data?.isAprobadorView || false;
+
+        const toBarChart = (arr: any[], labelField: string, valueField: string, label: string) =>
+          arr && arr.length > 0 ? { labels: arr.map((x: any) => x[labelField]), datasets: [{ label, data: arr.map((x: any) => x[valueField] ?? 0), backgroundColor: [...CHART_SERIES] }] } : null;
+
+        const toDonutChart = (arr: any[], labelField: string, valueField: string) =>
+          arr && arr.length > 0 ? { labels: arr.map((x: any) => x[labelField]), datasets: [{ data: arr.map((x: any) => x[valueField] ?? 0), backgroundColor: [...CHART_SERIES] }] } : null;
+
+        const flujoLabel = isAdmin ? 'Usuarios creados' : (isAprobador ? 'Solicitudes' : (isComercial ? 'Lavados diarios' : 'Vehiculos'));
+        const flujoHorario = data?.flujoHorario && data.flujoHorario.length > 0 ? {
           labels: data.flujoHorario.map((f: any) => f.hora),
-          datasets: [{
-            label: 'Vehículos',
-            data: data.flujoHorario.map((f: any) => f.cantidad),
-            borderColor: CHART_COLORS.green,
-            backgroundColor: CHART_COLORS.green + '33', // 20% opacity
-            tension: 0.4,
-            fill: true
-          }]
-        } : null,
-        distribucionModelos: data?.distribucionBahias && data.distribucionBahias.length > 0 ? {
-          labels: data.distribucionBahias.map((b: any) => b.nombre),
-          datasets: [{
-            label: 'Lavados',
-            data: data.distribucionBahias.map((b: any) => b.total),
-            backgroundColor: [CHART_COLORS.green, CHART_COLORS.blue, CHART_COLORS.amber, CHART_COLORS.rose, CHART_COLORS.slate]
-          }]
-        } : null,
-        tiemposBahias: data?.tiemposBahias && data.tiemposBahias.length > 0 ? {
-          labels: data.tiemposBahias.map((b: any) => b.nombre),
-          datasets: [{
-            label: 'Minutos',
-            data: data.tiemposBahias.map((b: any) => b.promedio),
-            backgroundColor: [...CHART_SERIES]
-          }]
-        } : null,
-        topMaquinas: data?.topMaquinasDañadas && data.topMaquinasDañadas.length > 0 ? {
-          labels: data.topMaquinasDañadas.map((m: any) => m.nombre.split('-')[0].trim()),
-          datasets: [{
-            label: 'Incidentes',
-            data: data.topMaquinasDañadas.map((m: any) => m.total),
-            backgroundColor: [...CHART_SERIES].reverse()
-          }]
-        } : null,
-        topAgencias: data?.topAgenciasIncidentes && data.topAgenciasIncidentes.length > 0 ? {
-          labels: data.topAgenciasIncidentes.map((a: any) => a.nombre),
-          datasets: [{
-            label: 'Incidentes',
-            data: data.topAgenciasIncidentes.map((a: any) => a.total),
-            backgroundColor: [...CHART_SERIES]
-          }]
-        } : null,
-        mixServicios: data?.mixServicios && data.mixServicios.length > 0 ? {
-          labels: data.mixServicios.map((m: any) => m.nombre),
-          datasets: [{
-            data: data.mixServicios.map((m: any) => m.cantidad),
-            backgroundColor: [...CHART_SERIES]
-          }]
-        } : null,
-        topMarcas: data?.topMarcas && data.topMarcas.length > 0 ? {
-          labels: data.topMarcas.map((m: any) => m.nombre),
-          datasets: [{
-            label: 'Vehículos',
-            data: data.topMarcas.map((m: any) => m.cantidad),
-            backgroundColor: [...CHART_SERIES]
-          }]
-        } : null,
-        incidentesPorTipo: data?.incidentesPorTipo && data.incidentesPorTipo.length > 0 ? {
-          labels: data.incidentesPorTipo.map((t: any) => t.nombre),
-          datasets: [{
-            data: data.incidentesPorTipo.map((t: any) => t.cantidad),
-            backgroundColor: [...CHART_SERIES].reverse()
-          }]
-        } : null
-      })),
+          datasets: [{ label: flujoLabel, data: data.flujoHorario.map((f: any) => f.cantidad), borderColor: CHART_COLORS.green, backgroundColor: CHART_COLORS.green + '33', tension: 0.4, fill: true }]
+        } : null;
+
+        const donaSrc = isAdmin ? data?.distribucionRoles : (isAprobador ? data?.distribucionEstados : data?.mixServicios);
+        const mixServicios = toDonutChart(donaSrc, 'nombre', 'cantidad');
+
+        const barSrc = isAdmin ? data?.distribucionDecisiones : (isAprobador ? data?.distribucionTipos : (isComercial ? data?.solicitudesComerciales : data?.distribucionBahias));
+        const barLabel = isAdmin ? 'Veces' : (isAprobador ? 'Solicitudes' : (isComercial ? 'Cantidad' : 'Lavados'));
+        const barValueField = isComercial ? 'cantidad' : 'total';
+        const distribucionModelos = toBarChart(barSrc, 'nombre', barValueField, barLabel);
+
+        const tiemposSrc = isAdmin ? data?.distribucionCategorias : (isComercial ? null : data?.tiemposBahias);
+        const tiemposBahias = tiemposSrc && tiemposSrc.length > 0 ? {
+          labels: tiemposSrc.map((b: any) => b.nombre),
+          datasets: [{ label: isAdmin ? 'Servicios' : 'Minutos', data: tiemposSrc.map((b: any) => b.promedio ?? b.total), backgroundColor: [...CHART_SERIES] }]
+        } : null;
+
+        const donaSecSrc = isAdmin ? data?.distribucionCategorias : (isAprobador ? data?.distribucionTipos : (isComercial ? data?.solicitudesComerciales : data?.incidentesPorTipo));
+        const incidentesPorTipo = toDonutChart(donaSecSrc, 'nombre', isAdmin ? 'total' : 'cantidad');
+
+        return {
+          isAdminView: isAdmin, isSupervisorView: isSupervisor, isComercialView: isComercial, isAprobadorView: isAprobador,
+          vehiculosHoy: data?.kpis?.totalLavadosHoy ?? data?.kpis?.serviciosHoy ?? null,
+          flujoHorario,
+          distribucionModelos,
+          tiemposBahias,
+          mixServicios,
+          incidentesPorTipo,
+          topMarcas: toBarChart(data?.topMarcas, 'nombre', 'cantidad', 'Frecuencia'),
+          topMaquinas: data?.topMaquinasDañadas && data.topMaquinasDañadas.length > 0 ? { labels: data.topMaquinasDañadas.map((m: any) => m.nombre.split('-')[0].trim()), datasets: [{ label: 'Incidentes', data: data.topMaquinasDañadas.map((m: any) => m.total), backgroundColor: [...CHART_SERIES].reverse() }] } : null,
+          topAgencias: toBarChart(data?.topAgenciasIncidentes, 'nombre', 'total', 'Incidentes'),
+        };
+      }),
       catchError((err) => {
-        this.avisarErrorCarga('No se pudo cargar la producción del día', err);
-        return of({ vehiculosHoy: null, flujoHorario: null, distribucionModelos: null, tiemposBahias: null, topMaquinas: null, topAgencias: null });
+        this.avisarErrorCarga('No se pudo cargar la produccion del dia', err);
+        return of({ vehiculosHoy: null, flujoHorario: null, distribucionModelos: null, tiemposBahias: null, topMaquinas: null, topAgencias: null, mixServicios: null, topMarcas: null, incidentesPorTipo: null });
       })
     );
-  }
-
-  /**
+  }
+
+    /**
    * Ranking de operadores por servicios atendidos (POST /agencias/operadores/list).
    */
   getOperadores(filtro: any = {}): Observable<any> {
@@ -349,14 +329,49 @@ export class DashboardOperativoService {
       map(data => {
         const k = data?.kpis;
         if (!k) return { kpis: [] };
-        return {
-          kpis: [
-            { label: 'Lavados de Hoy', value: String(k.totalLavadosHoy ?? 0), icon: 'check-circle', variant: 'success' },
+
+        if (data.isAdminView) {
+          return { kpis: [
+            { label: 'Total Usuarios', value: String(k.totalUsuarios ?? 0), icon: 'users', variant: 'primary' },
+            { label: 'Usuarios Activos', value: String(k.usuariosActivos ?? 0), icon: 'check-circle', variant: 'success' },
+            { label: 'Agencias Operativas', value: String(k.agenciasOperativas ?? 0), icon: 'building', variant: 'primary' },
+            { label: 'Decisiones Hoy', value: String(k.decisionesHoy ?? 0), icon: 'shield-check', variant: 'warning' },
+          ]};
+        }
+
+        if (data.isAprobadorView) {
+          return { kpis: [
+            { label: 'Solicitudes Hoy', value: String(k.totalHoy ?? 0), icon: 'inbox', variant: 'primary' },
+            { label: 'Pendientes', value: String(k.pendientesHoy ?? 0), icon: 'clock', variant: 'warning' },
+            { label: 'Aprobadas', value: String(k.aprobadasHoy ?? 0), icon: 'check-circle', variant: 'success' },
+            { label: 'Rechazadas', value: String(k.rechazadasHoy ?? 0), icon: 'x-circle', variant: 'danger' },
+          ]};
+        }
+
+        if (data.isComercialView) {
+          return { kpis: [
+            { label: 'Lavados Hoy', value: String(k.serviciosHoy ?? 0), icon: 'car', variant: 'primary' },
+            { label: 'Lavados 30 días', value: String(k.servicios30Dias ?? 0), icon: 'bar-chart-2', variant: 'success' },
+            { label: 'Descuentos Pendientes', value: String(k.descuentosPendientes ?? 0), icon: 'clock', variant: 'warning' },
+            { label: 'Costo Químicos (30d)', value: k.costoQuimicos30d > 0 ? `$${k.costoQuimicos30d}` : '$0', icon: 'dollar-sign', variant: 'primary' },
+          ]};
+        }
+
+        if (data.isSupervisorView) {
+          return { kpis: [
+            { label: 'Lavados Hoy (Región)', value: String(k.totalLavadosHoy ?? 0), icon: 'check-circle', variant: 'success' },
             { label: 'Finalizados', value: String(k.lavadosFinalizados ?? 0), icon: 'shield-check', variant: 'primary' },
             { label: 'Incidentes Abiertos', value: String(k.incidentesAbiertos ?? 0), icon: 'alert-triangle', variant: 'warning' },
-            { label: 'Tiempo Promedio', value: k.tiempoPromedioMin > 0 ? `${k.tiempoPromedioMin} min` : 'Sin datos', icon: 'clock', variant: 'warning' }
-          ]
-        };
+            { label: 'Tiempo Promedio', value: k.tiempoPromedioMin > 0 ? `${k.tiempoPromedioMin} min` : 'Sin datos', icon: 'clock', variant: 'warning' },
+          ]};
+        }
+
+        return { kpis: [
+          { label: 'Lavados de Hoy', value: String(k.totalLavadosHoy ?? 0), icon: 'check-circle', variant: 'success' },
+          { label: 'Finalizados', value: String(k.lavadosFinalizados ?? 0), icon: 'shield-check', variant: 'primary' },
+          { label: 'Incidentes Abiertos', value: String(k.incidentesAbiertos ?? 0), icon: 'alert-triangle', variant: 'warning' },
+          { label: 'Tiempo Promedio', value: k.tiempoPromedioMin > 0 ? `${k.tiempoPromedioMin} min` : 'Sin datos', icon: 'clock', variant: 'warning' },
+        ]};
       }),
       catchError((err) => {
         this.avisarErrorCarga('No se pudo cargar el resumen ejecutivo', err);

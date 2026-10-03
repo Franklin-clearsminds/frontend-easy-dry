@@ -104,24 +104,24 @@
           class="px-6 py-2.5 text-sm font-bold rounded-xl transition-all duration-300 flex items-center gap-2"
           [ngClass]="activeExecutiveTab === 'analitica' ? 'bg-white text-easydry-blue shadow-sm ring-1 ring-slate-900/5' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'">
           <i-lucide aria-hidden="true" name="bar-chart-2" class="w-4 h-4"></i-lucide>
-          Productividad
+          {{ tabAnaliticaTitle }}
         </button>
-        <button
+        <button *ngIf="!isAprobadorView"
           type="button" role="tab" id="tab-auditoria" aria-controls="panel-auditoria" [attr.aria-selected]="activeExecutiveTab === 'auditoria'"
           (click)="activeExecutiveTab = 'auditoria'"
           class="px-6 py-2.5 text-sm font-bold rounded-xl transition-all duration-300 flex items-center gap-2"
           [ngClass]="activeExecutiveTab === 'auditoria' ? 'bg-white text-easydry-blue shadow-sm ring-1 ring-slate-900/5' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'">
           <i-lucide aria-hidden="true" name="shield-check" class="w-4 h-4"></i-lucide>
-          Auditoría y Equipos
+          {{ tabAuditoriaTitle }}
         </button>
-        @if (puedeVerAlertas) {
+        @if (puedeVerAlertas && !isAprobadorView) {
           <button
             type="button" role="tab" id="tab-inventario" aria-controls="panel-inventario" [attr.aria-selected]="activeExecutiveTab === 'inventario'"
             (click)="activeExecutiveTab = 'inventario'"
             class="px-6 py-2.5 text-sm font-bold rounded-xl transition-all duration-300 flex items-center gap-2"
             [ngClass]="activeExecutiveTab === 'inventario' ? 'bg-white text-easydry-blue shadow-sm ring-1 ring-slate-900/5' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'">
             <i-lucide aria-hidden="true" name="package" class="w-4 h-4"></i-lucide>
-            Inventario
+            {{ tabInventarioTitle }}
           </button>
         }
       </div>
@@ -139,30 +139,31 @@
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
         <div class="lg:col-span-2 flex flex-col gap-8">
           @if (produccion?.flujoHorario) {
-            <app-chart-card title="Flujo Horario de Atención" subtitle="Vehículos procesados en el día" type="line" [data]="produccion.flujoHorario"></app-chart-card>
+            <app-chart-card [title]="chart1Title" [subtitle]="chart1Subtitle" type="line" [data]="produccion.flujoHorario"></app-chart-card>
           } @else {
             <div class="bg-white rounded-2xl p-6 border border-slate-100 shadow-easydry text-sm text-slate-500">
-              <h4 class="font-bold text-slate-900 text-base font-outfit mb-1">Flujo Horario de Atención</h4>
+              <h4 class="font-bold text-slate-900 text-base font-outfit mb-1">{{ chart1Title }}</h4>
               Sin datos: el servidor aún no entrega la serie horaria.
             </div>
           }
           
           <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
             @if (produccion?.mixServicios) {
-              <app-chart-card title="Mix de Servicios" subtitle="Distribución por categoría de lavado" type="doughnut" [data]="produccion.mixServicios"></app-chart-card>
+              <app-chart-card [title]="chart2Title" [subtitle]="isAprobadorView ? 'Distribución' : 'Distribución por categoría'" type="doughnut" [data]="produccion.mixServicios"></app-chart-card>
             }
             @if (produccion?.tiemposBahias) {
-              <app-chart-card title="Tiempo por Bahía" subtitle="Promedio en minutos (más bajo es mejor)" type="bar" [data]="produccion.tiemposBahias"></app-chart-card>
+              <app-chart-card [title]="chart3Title" subtitle="Métricas relativas" type="bar" [data]="produccion.tiemposBahias"></app-chart-card>
             }
           </div>
         </div>
+
         <div class="flex flex-col gap-8">
           @if (produccion?.distribucionModelos) {
-            <app-chart-card title="Lavados por Bahía" subtitle="Productividad en cantidad" type="bar" [data]="produccion.distribucionModelos"></app-chart-card>
+            <app-chart-card [title]="chart4Title" [subtitle]="chart4Subtitle" type="bar" [data]="produccion.distribucionModelos" class="flex-grow"></app-chart-card>
           } @else {
-            <div class="bg-white rounded-2xl p-6 border border-slate-100 shadow-easydry text-sm text-slate-500">
-              <h4 class="font-bold text-slate-900 text-base font-outfit mb-1">Lavados por Bahía</h4>
-              Sin datos: el servidor aún no entrega la productividad por bahía.
+            <div class="bg-white rounded-2xl p-6 border border-slate-100 shadow-easydry text-sm text-slate-500 flex-grow">
+              <h4 class="font-bold text-slate-900 text-base font-outfit mb-1">{{ chart4Title }}</h4>
+              Sin datos: el servidor aún no entrega la productividad.
             </div>
           }
           @if (produccion?.topMarcas) {
@@ -178,18 +179,19 @@
     </div>
 
     <!-- Sección: Servicios y Calidad -->
-    <div class="mb-4 animate-fade-in" role="tabpanel" id="panel-auditoria" aria-labelledby="tab-auditoria" [class.hidden]="activeExecutiveTab !== 'auditoria'">
+    @if (!isAprobadorView) {
+      <div class="mb-4 animate-fade-in" role="tabpanel" id="panel-auditoria" aria-labelledby="tab-auditoria" [class.hidden]="activeExecutiveTab !== 'auditoria'">
 
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 mb-8">
-        @if (serviciosData?.estados; as est) {
-          <app-stat-card title="En Espera" [value]="est.enEspera" icon="clock" variant="warning"></app-stat-card>
-          <app-stat-card title="En Proceso" [value]="est.enProceso" icon="car" variant="primary"></app-stat-card>
-          <app-stat-card title="Finalizados" [value]="est.finalizados" icon="check-circle" variant="success"></app-stat-card>
-        }
-        @if (puedeVerAlertas) {
-          <app-stat-card title="Alertas Activas" [value]="alertas.length" icon="bell-ring" [subtitle]="alertasCriticas + ' críticas'" variant="warning"></app-stat-card>
-        }
-      </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 mb-8">
+          @if (serviciosData?.estados; as est) {
+            <app-stat-card title="En Espera" [value]="est.enEspera" icon="clock" variant="warning"></app-stat-card>
+            <app-stat-card title="En Proceso" [value]="est.enProceso" icon="car" variant="primary"></app-stat-card>
+            <app-stat-card title="Finalizados" [value]="est.finalizados" icon="check-circle" variant="success"></app-stat-card>
+          }
+          @if (puedeVerAlertas) {
+            <app-stat-card title="Alertas Activas" [value]="alertas.length" icon="bell-ring" [subtitle]="alertasCriticas + ' críticas'" variant="warning"></app-stat-card>
+          }
+        </div>
 
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
         @if (puedeVerMaquinaria) {
@@ -221,9 +223,10 @@
         }
       </div>
     </div>
+    }
 
     <!-- Sección: Consumo e Inventario -->
-    @if (puedeVerAlertas) {
+    @if (puedeVerAlertas && !isAprobadorView) {
       <div class="mb-4 animate-fade-in" role="tabpanel" id="panel-inventario" aria-labelledby="tab-inventario" [class.hidden]="activeExecutiveTab !== 'inventario'">
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-8 mb-8">
