@@ -64,6 +64,9 @@ export class DashboardComponent implements OnInit {
   isComercialView = false;
   isAprobadorView = false;
 
+  bodegaData: any = null;
+  especialesData: any = null;
+
   activeExecutiveTab: 'analitica' | 'auditoria' | 'inventario' = 'analitica';
 
   get tabAnaliticaTitle(): string {
@@ -190,6 +193,7 @@ export class DashboardComponent implements OnInit {
       case 'ejecutivo': this.cargarEjecutivo(); break;
       case 'taller': this.dashboardService.getDashboardTecnico().subscribe(d => this.tecnicoData = d); break;
       case 'bodega': this.cargarBodega(); break;
+      case 'especiales': this.dashboardService.getDashboardEspeciales().subscribe(d => this.especialesData = d); break;
       default: break;
     }
   }
@@ -231,9 +235,11 @@ export class DashboardComponent implements OnInit {
   }
 
   private cargarBodega(): void {
+    this.dashboardService.getDashboardBodegaDedicado().subscribe(d => this.bodegaData = d);
     if (this.puedeVerAlertas) {
       this.dashboardService.getAlertas().subscribe(d => this.alertas = d);
     }
+    // getDashboardDistribuidor sigue cargando para la pestaña inventario del ejecutivo cuando aplica
     this.dashboardService.getDashboardDistribuidor().subscribe(d => this.distribuidorData = d);
   }
 
@@ -242,7 +248,8 @@ export class DashboardComponent implements OnInit {
     switch (this.vista) {
       case 'ejecutivo': return !this.produccion;
       case 'taller': return !this.tecnicoData;
-      case 'bodega': return !this.distribuidorData;
+      case 'bodega': return !this.bodegaData;
+      case 'especiales': return !this.especialesData;
       default: return false;
     }
   }

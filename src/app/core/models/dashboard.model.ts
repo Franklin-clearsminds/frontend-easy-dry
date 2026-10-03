@@ -23,12 +23,26 @@ export interface DashboardTecnicoData {
   mantenimientosPendientes: number;
   equiposOperativos: number;
   equiposEnReparacion: number;
-  chartIncidentesPorEstado: DashboardChartData;
+  // Nuevos campos del endpoint dedicado
+  maquinariaFueraServicio?: number;
+  costoTotalReparaciones?: number;
+  tiempoPromedioResolucionHoras?: number;
+  mantenimientosEjecutados30d?: number;
+  // Gráficos - todos opcionales para compatibilidad
+  chartIncidentesPorEstado?: DashboardChartData | null;
+  chartEstadoParque?: DashboardChartData | null;
+  chartGravedadIncidentes?: DashboardChartData | null;
+  chartEstadoIncidentes?: DashboardChartData | null;
+  chartTopMaquinas?: DashboardChartData | null;
+  chartCostoMaquinas?: DashboardChartData | null;
+  chartTipoMantenimiento?: DashboardChartData | null;
+  chartTipoMaquinaria?: DashboardChartData | null;
+  proxMantenimientos?: any[];
 }
 
 export interface DashboardDistribuidorData {
-  skusCriticos: number;
-  chartConsumoInsumos: DashboardChartData;
+  skusCriticos?: number;
+  chartConsumoInsumos?: DashboardChartData | null;
 }
 
 export interface ResumenEjecutivoKPI {

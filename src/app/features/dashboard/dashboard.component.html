@@ -268,39 +268,223 @@
     }
   }
 
-  <!-- ═══ DASHBOARD TÉCNICO ═══ -->
+  <!-- ═══ DASHBOARD TÉCNICO / TALLER ═══ -->
   @if (vista === 'taller' && tecnicoData) {
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-      <app-stat-card title="Incidentes Abiertos" [value]="tecnicoData.incidentesAbiertos" icon="alert-triangle" variant="warning"></app-stat-card>
-      <app-stat-card title="Equipos en Mantenimiento" [value]="tecnicoData.mantenimientosPendientes" icon="calendar-clock" variant="primary"></app-stat-card>
-      <app-stat-card title="Equipos Operativos" [value]="tecnicoData.equiposOperativos" icon="shield-check" variant="success"></app-stat-card>
+
+    <!-- KPIs superiores -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <app-stat-card title="Incidentes Activos" [value]="tecnicoData.incidentesAbiertos" icon="alert-triangle" variant="warning" subtitle="Abiertos + en proceso"></app-stat-card>
+      <app-stat-card title="Equipos Operativos" [value]="tecnicoData.equiposOperativos" icon="shield-check" variant="success" subtitle="Parque disponible"></app-stat-card>
+      <app-stat-card title="En Mantenimiento" [value]="tecnicoData.mantenimientosPendientes" icon="calendar-clock" variant="primary" subtitle="Máquinas intervenidas"></app-stat-card>
+      <app-stat-card title="Fuera de Servicio" [value]="tecnicoData.maquinariaFueraServicio" icon="ban" variant="danger" subtitle="Baja o fuera de servicio"></app-stat-card>
     </div>
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-      <app-chart-card title="Incidentes por Estado" type="doughnut" [data]="tecnicoData.chartIncidentesPorEstado"></app-chart-card>
+
+    <!-- Segunda fila: KPIs de eficiencia -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+      <app-stat-card title="Costo Reparaciones (30d)" [value]="'$' + tecnicoData.costoTotalReparaciones" icon="dollar-sign" variant="warning" subtitle="Total en insumos y mano de obra"></app-stat-card>
+      <app-stat-card title="Tiempo Promedio Resolución" [value]="tecnicoData.tiempoPromedioResolucionHoras + ' h'" icon="clock" variant="primary" subtitle="Por incidente resuelto"></app-stat-card>
+      <app-stat-card title="Mantenimientos (30d)" [value]="tecnicoData.mantenimientosEjecutados30d" icon="wrench" variant="success" subtitle="Preventivos + correctivos"></app-stat-card>
+    </div>
+
+    <!-- Gráficos principales -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+      @if (tecnicoData.chartEstadoParque) {
+        <app-chart-card title="Estado del Parque" subtitle="Distribución actual de maquinaria" type="doughnut" [data]="tecnicoData.chartEstadoParque"></app-chart-card>
+      }
+      @if (tecnicoData.chartGravedadIncidentes) {
+        <app-chart-card title="Incidentes por Gravedad (30d)" subtitle="BAJA · MEDIA · ALTA · CRÍTICA" type="doughnut" [data]="tecnicoData.chartGravedadIncidentes"></app-chart-card>
+      }
+      @if (tecnicoData.chartTopMaquinas) {
+        <app-chart-card title="Máquinas más Problemáticas (30d)" subtitle="Por cantidad de incidentes reportados" type="bar" [data]="tecnicoData.chartTopMaquinas"></app-chart-card>
+      }
+      @if (tecnicoData.chartCostoMaquinas) {
+        <app-chart-card title="Costo por Máquina (30d)" subtitle="USD acumulado en reparaciones" type="bar" [data]="tecnicoData.chartCostoMaquinas"></app-chart-card>
+      }
+    </div>
+
+    <!-- Próximos mantenimientos preventivos programados -->
+    @if (tecnicoData.proxMantenimientos?.length > 0) {
+      <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry p-6 mb-8">
+        <h3 class="text-base font-bold font-outfit text-slate-900 mb-4 flex items-center gap-2">
+          <i-lucide name="calendar-clock" class="w-4 h-4 text-easydry-blue"></i-lucide>
+          Próximos Mantenimientos Preventivos
+        </h3>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="text-left text-slate-500 border-b border-slate-100">
+                <th class="pb-3 font-semibold">Máquina</th>
+                <th class="pb-3 font-semibold">Código</th>
+                <th class="pb-3 font-semibold">Tipo</th>
+                <th class="pb-3 font-semibold">Fecha Programada</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (m of tecnicoData.proxMantenimientos; track m.codigo) {
+                <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+                  <td class="py-3 font-semibold text-slate-800">{{ m.nombre }}</td>
+                  <td class="py-3 text-slate-500 font-mono text-xs">{{ m.codigo }}</td>
+                  <td class="py-3">
+                    <span class="px-2 py-0.5 rounded-full text-xs font-bold" [ngClass]="m.tipo === 'PREVENTIVO' ? 'bg-easydry-blue/10 text-easydry-blue' : 'bg-amber-100 text-amber-700'">{{ m.tipo }}</span>
+                  </td>
+                  <td class="py-3 text-slate-600">{{ m.fechaProgramada | date:'dd MMM yyyy HH:mm' }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    }
+
+    <div class="text-center mt-6">
+      <a routerLink="/taller-tecnico" class="inline-flex items-center gap-2 px-6 py-3 bg-easydry-green hover:bg-easydry-green-dark text-slate-900 font-bold rounded-xl text-sm transition-colors">
+        <i-lucide name="wrench" class="w-4 h-4"></i-lucide> Ir al Módulo de Taller Completo
+      </a>
     </div>
   }
 
   <!-- ═══ DASHBOARD SERVICIOS ESPECIALES ═══ -->
-  @if (vista === 'especiales') {
-    <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-easydry text-sm text-slate-600 space-y-2">
-      <p class="font-bold text-slate-800">Tu trabajo diario está en la cola de servicios especiales.</p>
-      <p>Aquí todavía no hay indicadores calculados para este panel. Usa «Cola de Servicios» para ver, asignar y ejecutar tus servicios.</p>
+  @if (vista === 'especiales' && especialesData) {
+
+    <!-- KPIs del día -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <app-stat-card title="OTs Hoy" [value]="especialesData.kpis.serviciosHoy" icon="sparkles" variant="primary" subtitle="Órdenes de trabajo creadas"></app-stat-card>
+      <app-stat-card title="Completados" [value]="especialesData.kpis.completadosHoy" icon="check-circle" variant="success" subtitle="Finalizados hoy"></app-stat-card>
+      <app-stat-card title="En Proceso" [value]="especialesData.kpis.enProcesoHoy" icon="loader" variant="warning" subtitle="Servicios activos ahora"></app-stat-card>
+      <app-stat-card title="Pendientes" [value]="especialesData.kpis.pendientesHoy" icon="clock" variant="primary" subtitle="En cola para iniciar"></app-stat-card>
+    </div>
+
+    <!-- KPIs de calidad e ingresos -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <app-stat-card title="Ingreso Hoy" [value]="'$' + especialesData.kpis.ingresoHoy" icon="dollar-sign" variant="success" subtitle="Por OTs completadas hoy"></app-stat-card>
+      <app-stat-card title="Ingreso (30d)" [value]="'$' + especialesData.kpis.ingresoTotal30d" icon="bar-chart-2" variant="primary" subtitle="Últimos 30 días"></app-stat-card>
+      <app-stat-card title="Calificación Promedio" [value]="especialesData.kpis.calificacionPromedio + ' / 5'" icon="star" variant="success" subtitle="Calidad del servicio (30d)"></app-stat-card>
+      <app-stat-card title="Tiempo Promedio" [value]="especialesData.kpis.tiempoPromedioMin + ' min'" icon="timer" variant="warning" subtitle="Tiempo efectivo por OT"></app-stat-card>
+    </div>
+
+    <!-- Gráficos -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+      <div class="lg:col-span-2">
+        @if (especialesData.chartFlujoSemanal) {
+          <app-chart-card title="OTs Creadas (últimos 7 días)" subtitle="Tendencia semanal de trabajo" type="line" [data]="especialesData.chartFlujoSemanal"></app-chart-card>
+        }
+      </div>
+      <div class="flex flex-col gap-8">
+        @if (especialesData.chartEstadosHoy) {
+          <app-chart-card title="Estados Hoy" subtitle="Distribución de OTs del día" type="doughnut" [data]="especialesData.chartEstadosHoy"></app-chart-card>
+        }
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+      @if (especialesData.chartTipoServicio) {
+        <app-chart-card title="Mix de Servicios (30d)" subtitle="Tipos más demandados" type="doughnut" [data]="especialesData.chartTipoServicio"></app-chart-card>
+      }
+      @if (especialesData.chartPrioridad) {
+        <app-chart-card title="Por Prioridad (30d)" subtitle="Alta · Media · Baja · Urgente" type="bar" [data]="especialesData.chartPrioridad"></app-chart-card>
+      }
+      @if (especialesData.chartTopOperadores) {
+        <app-chart-card title="Top Pulidores (30d)" subtitle="Por cantidad de OTs completadas" type="bar" [data]="especialesData.chartTopOperadores"></app-chart-card>
+      }
+    </div>
+
+    <!-- Cola activa (OTs pendientes o en proceso, ordenadas por prioridad) -->
+    @if (especialesData.colaActiva?.length > 0) {
+      <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry p-6 mb-8">
+        <h3 class="text-base font-bold font-outfit text-slate-900 mb-4 flex items-center gap-2">
+          <i-lucide name="list-ordered" class="w-4 h-4 text-easydry-blue"></i-lucide>
+          Cola Activa de Servicios Especiales
+        </h3>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="text-left text-slate-500 border-b border-slate-100">
+                <th class="pb-3 font-semibold">Placa</th>
+                <th class="pb-3 font-semibold">Cliente</th>
+                <th class="pb-3 font-semibold">Tipo</th>
+                <th class="pb-3 font-semibold">Estado</th>
+                <th class="pb-3 font-semibold">Prioridad</th>
+                <th class="pb-3 font-semibold">Fecha Prog.</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (ot of especialesData.colaActiva; track ot.placa) {
+                <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+                  <td class="py-3 font-mono font-bold text-slate-900">{{ ot.placa }}</td>
+                  <td class="py-3 text-slate-700">{{ ot.cliente || '—' }}</td>
+                  <td class="py-3 text-slate-600 text-xs">{{ ot.tipo }}</td>
+                  <td class="py-3">
+                    <span class="px-2 py-0.5 rounded-full text-xs font-bold"
+                      [ngClass]="ot.estado === 'En Proceso' ? 'bg-easydry-blue/10 text-easydry-blue' : 'bg-amber-100 text-amber-700'">
+                      {{ ot.estado }}
+                    </span>
+                  </td>
+                  <td class="py-3">
+                    <span class="px-2 py-0.5 rounded-full text-xs font-bold"
+                      [ngClass]="ot.prioridad === 'Alta' || ot.prioridad === 'Urgente' ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 text-slate-700'">
+                      {{ ot.prioridad }}
+                    </span>
+                  </td>
+                  <td class="py-3 text-slate-500">{{ ot.fecha ? (ot.fecha | date:'dd/MM HH:mm') : '—' }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    }
+
+    <div class="text-center mt-6">
+      <a routerLink="/servicios" class="inline-flex items-center gap-2 px-6 py-3 bg-easydry-green hover:bg-easydry-green-dark text-slate-900 font-bold rounded-xl text-sm transition-colors">
+        <i-lucide name="sparkles" class="w-4 h-4"></i-lucide> Ir a la Cola de Servicios Especiales
+      </a>
     </div>
   }
 
   <!-- ═══ DASHBOARD BODEGA ═══ -->
-  @if (vista === 'bodega' && distribuidorData) {
-    <div class="grid grid-cols-1 sm:grid-cols-2 gap-8">
-      <app-stat-card title="Alertas Críticas" [value]="distribuidorData.skusCriticos" icon="alert-triangle" subtitle="Insumos en nivel crítico" variant="warning"></app-stat-card>
-      @if (puedeVerAlertas) {
-        <app-stat-card title="Alertas de Stock" [value]="alertas.length" icon="package-minus" subtitle="Alertas registradas" variant="warning"></app-stat-card>
+  @if (vista === 'bodega' && bodegaData) {
+
+    <!-- KPIs principales -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <app-stat-card title="Alertas Activas" [value]="bodegaData.kpis.totalAlertasActivas" icon="bell-ring" variant="warning" subtitle="Sin resolver"></app-stat-card>
+      <app-stat-card title="Críticas / Agotadas" [value]="bodegaData.kpis.alertasCriticas" icon="alert-triangle" variant="danger" subtitle="Requieren despacho urgente"></app-stat-card>
+      <app-stat-card title="Despachos en Tránsito" [value]="bodegaData.kpis.despachosEnTransito" icon="truck" variant="primary" subtitle="Movimientos activos"></app-stat-card>
+      <app-stat-card title="Despachos Pendientes" [value]="bodegaData.kpis.despachosPendientes" icon="package" variant="warning" subtitle="Por confirmar envío"></app-stat-card>
+    </div>
+
+    <!-- KPIs financieros -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-8">
+      <app-stat-card title="Valor en Tránsito" [value]="'$' + bodegaData.kpis.valorEnTransitoUSD" icon="dollar-sign" variant="warning" subtitle="USD en movimientos no recibidos"></app-stat-card>
+      <app-stat-card title="Valor del Stock Disponible" [value]="'$' + bodegaData.kpis.valorStockUSD" icon="archive" variant="success" subtitle="Basado en costo unitario actual"></app-stat-card>
+    </div>
+
+    <!-- Gráficos -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+      @if (bodegaData.chartNivelAlertas) {
+        <app-chart-card title="Nivel de Alertas de Stock" subtitle="Distribución por criticidad" type="doughnut" [data]="bodegaData.chartNivelAlertas"></app-chart-card>
+      }
+      @if (bodegaData.chartDespachosEstado) {
+        <app-chart-card title="Estado de Despachos (30d)" subtitle="PENDIENTE · EN TRÁNSITO · RECIBIDO" type="doughnut" [data]="bodegaData.chartDespachosEstado"></app-chart-card>
+      }
+      @if (bodegaData.chartTopInsumosCriticos) {
+        <app-chart-card title="Top Insumos con Alertas" subtitle="Insumos con más reportes de stock bajo" type="bar" [data]="bodegaData.chartTopInsumosCriticos"></app-chart-card>
+      }
+      @if (bodegaData.chartConsumoPorCategoria) {
+        <app-chart-card title="Consumo por Categoría (30d)" subtitle="Unidades despachadas por tipo de insumo" type="bar" [data]="bodegaData.chartConsumoPorCategoria"></app-chart-card>
       }
     </div>
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-      <app-chart-card class="lg:col-span-2" title="Consumo de Insumos" type="bar" [data]="distribuidorData.chartConsumoInsumos"></app-chart-card>
-      @if (puedeVerAlertas) {
+
+    <!-- Alertas de stock vigentes -->
+    @if (alertas.length > 0) {
+      <div class="mt-4">
         <app-alertas-widget [alertas]="alertas"></app-alertas-widget>
-      }
+      </div>
+    }
+
+    <div class="text-center mt-6">
+      <a routerLink="/inventario" class="inline-flex items-center gap-2 px-6 py-3 bg-easydry-green hover:bg-easydry-green-dark text-slate-900 font-bold rounded-xl text-sm transition-colors">
+        <i-lucide name="package" class="w-4 h-4"></i-lucide> Ir al Módulo de Inventario
+      </a>
     </div>
   }
 

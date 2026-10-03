@@ -210,48 +210,104 @@ export class DashboardOperativoService {
   }
 
   /**
-   * KPIs y tableros para Técnico de Mantenimiento (maquinaria e incidentes reales).
+   * KPIs y tableros para Técnico / Coordinador de Mantenimiento.
+   * Llama al endpoint dedicado POST /analytics/dashboard-taller que devuelve
+   * estado del parque, incidentes 30d, gravedad, top máquinas problemáticas y próximos mantenimientos.
    */
   getDashboardTecnico(): Observable<DashboardTecnicoData> {
-    const maq$ = this.http.post<any[]>(apiUrl('/maquinaria/list'), {}).pipe(
-      catchError((err) => {
-        this.avisarErrorCarga('No se pudo cargar la maquinaria', err);
-        return of([]);
-      })
-    );
-    const inc$ = this.http.post<any>(apiUrl('/maquinaria/incidentes/list'), {}).pipe(
-      map(res => Array.isArray(res) ? res : (res?.data || [])),
-      catchError((err) => {
-        this.avisarErrorCarga('No se pudieron cargar los incidentes', err);
-        return of([]);
-      })
-    );
-
-    return forkJoin([maq$, inc$]).pipe(
-      map(([maquinarias, incidentes]) => {
-        const maqs = Array.isArray(maquinarias) ? maquinarias : [];
-        const incs = Array.isArray(incidentes) ? incidentes : [];
-        const estadoMaq = (m: any) => m.estadoOperativo || m.estado;
-
-        const sinAtender = incs.filter(i => i.estado === 'ABIERTO' || i.estado === 'Pendiente').length;
-        const enProceso = incs.filter(i => i.estado === 'EN_PROCESO').length;
-        const resueltos = incs.filter(i => i.estado === 'RESUELTO').length;
-        const operativas = maqs.filter(m => estadoMaq(m) === 'OPERATIVA' || estadoMaq(m) === 'Operativa').length;
-        const enReparacion = maqs.filter(m => estadoMaq(m) === 'EN_MANTENIMIENTO' || estadoMaq(m) === 'Mantenimiento').length;
+    return this.http.post<any>(apiUrl('/analytics/dashboard-taller'), {}).pipe(
+      map(d => {
+        const toDonut = (arr: any[], labelField: string, valueField: string) =>
+          arr && arr.length > 0 ? { labels: arr.map((x: any) => x[labelField]), datasets: [{ data: arr.map((x: any) => x[valueField] ?? 0), backgroundColor: [...CHART_SERIES] }] } : null;
+        const toBar = (arr: any[], labelField: string, valueField: string, label: string) =>
+          arr && arr.length > 0 ? { labels: arr.map((x: any) => x[labelField]), datasets: [{ label, data: arr.map((x: any) => x[valueField] ?? 0), backgroundColor: [...CHART_SERIES] }] } : null;
 
         return {
-          incidentesAbiertos: sinAtender + enProceso,
-          mantenimientosPendientes: enReparacion,
-          equiposOperativos: operativas,
-          equiposEnReparacion: enReparacion,
-          chartIncidentesPorEstado: {
-            labels: ['Abiertos', 'En Proceso', 'Resueltos'],
-            datasets: [{
-              data: [sinAtender, enProceso, resueltos],
-              backgroundColor: [CHART_COLORS.rose, CHART_COLORS.amber, CHART_COLORS.green]
-            }]
-          }
+          incidentesAbiertos: d?.kpis?.incidentesActivos ?? 0,
+          mantenimientosPendientes: d?.kpis?.maquinariaEnMantenimiento ?? 0,
+          equiposOperativos: d?.kpis?.maquinariaOperativa ?? 0,
+          equiposEnReparacion: d?.kpis?.maquinariaEnMantenimiento ?? 0,
+          maquinariaFueraServicio: d?.kpis?.maquinariaFueraServicio ?? 0,
+          costoTotalReparaciones: d?.kpis?.costoTotalReparaciones ?? 0,
+          tiempoPromedioResolucionHoras: d?.kpis?.tiempoPromedioResolucionHoras ?? 0,
+          mantenimientosEjecutados30d: d?.kpis?.mantenimientosEjecutados30d ?? 0,
+          // Gráficos
+          chartEstadoParque: toDonut(d?.estadoParque, 'nombre', 'total'),
+          chartGravedadIncidentes: toDonut(d?.gravedadIncidentes, 'nombre', 'cantidad'),
+          chartEstadoIncidentes: toDonut(d?.estadoIncidentes, 'nombre', 'cantidad'),
+          chartTopMaquinas: toBar(d?.topMaquinasProblematicas, 'nombre', 'total', 'Incidentes'),
+          chartCostoMaquinas: d?.topMaquinasProblematicas && d.topMaquinasProblematicas.length > 0 ? {
+            labels: d.topMaquinasProblematicas.map((m: any) => m.nombre),
+            datasets: [{ label: 'Costo USD', data: d.topMaquinasProblematicas.map((m: any) => m.costoTotal), backgroundColor: [CHART_COLORS.rose, CHART_COLORS.amber, CHART_COLORS.blue, CHART_COLORS.green, CHART_COLORS.slate] }]
+          } : null,
+          chartTipoMantenimiento: toDonut(d?.tipoMantenimiento, 'nombre', 'cantidad'),
+          chartTipoMaquinaria: toDonut(d?.distribucionTipoMaquinaria, 'nombre', 'total'),
+          // Tabla próximos mantenimientos
+          proxMantenimientos: d?.proxMantenimientos || [],
         };
+      }),
+      catchError((err) => {
+        this.avisarErrorCarga('No se pudo cargar el dashboard de taller', err);
+        return of({ incidentesAbiertos: 0, mantenimientosPendientes: 0, equiposOperativos: 0, equiposEnReparacion: 0, chartIncidentesPorEstado: null });
+      })
+    );
+  }
+
+  /**
+   * Dashboard dedicado para Bodega: consume el endpoint /analytics/dashboard-bodega.
+   * Retorna alertas activas, despachos en tránsito, consumo por categoría y valor del stock.
+   */
+  getDashboardBodegaDedicado(): Observable<any> {
+    return this.http.post<any>(apiUrl('/analytics/dashboard-bodega'), {}).pipe(
+      map(d => {
+        const toDonut = (arr: any[], labelField: string, valueField: string) =>
+          arr && arr.length > 0 ? { labels: arr.map((x: any) => x[labelField]), datasets: [{ data: arr.map((x: any) => x[valueField] ?? 0), backgroundColor: [...CHART_SERIES] }] } : null;
+        const toBar = (arr: any[], labelField: string, valueField: string, label: string) =>
+          arr && arr.length > 0 ? { labels: arr.map((x: any) => x[labelField]), datasets: [{ label, data: arr.map((x: any) => x[valueField] ?? 0), backgroundColor: [...CHART_SERIES] }] } : null;
+
+        return {
+          kpis: d?.kpis ?? {},
+          chartNivelAlertas: toDonut(d?.nivelAlertas, 'nombre', 'cantidad'),
+          chartTopInsumosCriticos: toBar(d?.topInsumosCriticos, 'nombre', 'alertas', 'Alertas'),
+          chartDespachosEstado: toDonut(d?.despachosEstado, 'nombre', 'cantidad'),
+          chartConsumoPorCategoria: toBar(d?.consumoPorCategoria, 'nombre', 'cantidad', 'Unidades'),
+        };
+      }),
+      catchError((err) => {
+        this.avisarErrorCarga('No se pudo cargar el dashboard de bodega', err);
+        return of({ kpis: {}, chartNivelAlertas: null, chartTopInsumosCriticos: null, chartDespachosEstado: null, chartConsumoPorCategoria: null });
+      })
+    );
+  }
+
+  /**
+   * Dashboard dedicado para Servicios Especiales: consume el endpoint /analytics/dashboard-especiales.
+   * Retorna KPIs de OTs, flujo semanal, mix de tipos, cola activa y top operadores.
+   */
+  getDashboardEspeciales(): Observable<any> {
+    return this.http.post<any>(apiUrl('/analytics/dashboard-especiales'), {}).pipe(
+      map(d => {
+        const toDonut = (arr: any[], labelField: string, valueField: string) =>
+          arr && arr.length > 0 ? { labels: arr.map((x: any) => x[labelField]), datasets: [{ data: arr.map((x: any) => x[valueField] ?? 0), backgroundColor: [...CHART_SERIES] }] } : null;
+        const toBar = (arr: any[], labelField: string, valueField: string, label: string) =>
+          arr && arr.length > 0 ? { labels: arr.map((x: any) => x[labelField]), datasets: [{ label, data: arr.map((x: any) => x[valueField] ?? 0), backgroundColor: [...CHART_SERIES] }] } : null;
+
+        return {
+          kpis: d?.kpis ?? {},
+          chartFlujoSemanal: d?.flujoSemanal && d.flujoSemanal.length > 0 ? {
+            labels: d.flujoSemanal.map((f: any) => f.hora),
+            datasets: [{ label: 'OTs creadas', data: d.flujoSemanal.map((f: any) => f.cantidad), borderColor: CHART_COLORS.green, backgroundColor: CHART_COLORS.green + '33', tension: 0.4, fill: true }]
+          } : null,
+          chartTipoServicio: toDonut(d?.tipoServicio, 'nombre', 'cantidad'),
+          chartEstadosHoy: toDonut(d?.estadosHoy, 'nombre', 'cantidad'),
+          chartPrioridad: toBar(d?.prioridad, 'nombre', 'cantidad', 'OTs'),
+          chartTopOperadores: toBar(d?.topOperadores, 'nombre', 'servicios', 'Servicios'),
+          colaActiva: d?.colaActiva || [],
+        };
+      }),
+      catchError((err) => {
+        this.avisarErrorCarga('No se pudo cargar el dashboard de especiales', err);
+        return of({ kpis: {}, chartFlujoSemanal: null, chartTipoServicio: null, chartEstadosHoy: null, colaActiva: [] });
       })
     );
   }
