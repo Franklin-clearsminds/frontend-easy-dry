@@ -137,7 +137,20 @@ import {
   Archive,
   Building,
   BellRing,
-  ListOrdered
+  ListOrdered,
+  Activity,
+  ArrowUpRight,
+  Ban,
+  Briefcase,
+  Crown,
+  Edit2,
+  Maximize,
+  PackageX,
+  Phone,
+  Power,
+  Square,
+  TriangleAlert,
+  ZoomOut
 } from 'lucide-angular';
 
 export const EASYDRY_ICONS = {
@@ -421,5 +434,18 @@ export const EASYDRY_ICONS = {
   'archive': Archive,
   'building': Building,
   'bell-ring': BellRing,
-  'list-ordered': ListOrdered
+  'list-ordered': ListOrdered,
+  'activity': Activity,
+  'arrow-up-right': ArrowUpRight,
+  'ban': Ban,
+  'briefcase': Briefcase,
+  'crown': Crown,
+  'edit-2': Edit2,
+  'maximize': Maximize,
+  'package-x': PackageX,
+  'phone': Phone,
+  'power': Power,
+  'square': Square,
+  'triangle-alert': TriangleAlert,
+  'zoom-out': ZoomOut
 };

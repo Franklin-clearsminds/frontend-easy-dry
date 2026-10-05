@@ -61,53 +61,92 @@ const ORDEN_SEVERIDAD: Record<AlertaSeveridad, number> = { critica: 0, advertenc
           }
         </div>
 
-        <div class="relative mb-3">
-          <i-lucide aria-hidden="true" name="search" class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"></i-lucide>
-          <input type="search" name="busquedaAlertas" [(ngModel)]="busqueda"
-            placeholder="Buscar por insumo, agencia o región…" aria-label="Buscar alertas"
-            class="w-full h-9 pl-9 pr-3 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-700 outline-none focus:border-easydry-blue focus:bg-white transition-colors" />
+        <div class="flex flex-col sm:flex-row gap-3 mb-3">
+          <div class="relative flex-1">
+            <i-lucide aria-hidden="true" name="search" class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"></i-lucide>
+            <input type="search" name="busquedaAlertas" [(ngModel)]="busqueda"
+              placeholder="Buscar por insumo, agencia o región…" aria-label="Buscar alertas"
+              class="w-full h-9 pl-9 pr-3 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-700 outline-none focus:border-easydry-blue focus:bg-white transition-colors" />
+          </div>
+          <div class="inline-flex bg-slate-100 p-1 rounded-xl shrink-0" role="tablist">
+            <button type="button" role="tab" (click)="agrupacion = 'plana'" [attr.aria-selected]="agrupacion === 'plana'"
+              class="px-3 h-7 text-xs font-bold rounded-lg transition-colors flex items-center gap-1"
+              [ngClass]="agrupacion === 'plana' ? 'bg-white text-easydry-blue shadow-sm' : 'text-slate-500 hover:text-slate-700'">
+              <i-lucide name="list" class="w-3.5 h-3.5"></i-lucide> Lista
+            </button>
+            <button type="button" role="tab" (click)="agrupacion = 'insumo'" [attr.aria-selected]="agrupacion === 'insumo'"
+              class="px-3 h-7 text-xs font-bold rounded-lg transition-colors flex items-center gap-1"
+              [ngClass]="agrupacion === 'insumo' ? 'bg-white text-easydry-blue shadow-sm' : 'text-slate-500 hover:text-slate-700'">
+              <i-lucide name="layers" class="w-3.5 h-3.5"></i-lucide> Agrupar
+            </button>
+          </div>
         </div>
       }
 
       <div class="space-y-3 overflow-y-auto pr-1 flex-1" [class.max-h-[360px]]="alertas.length > 0">
-        @for (a of visibles; track a.id) {
-          <div class="p-3 rounded-xl border flex items-start gap-3" [ngClass]="tarjeta(a.tipo)">
-            <div class="mt-0.5 shrink-0">
-              <i-lucide aria-hidden="true" [name]="icono(a.tipo)" class="w-4 h-4" [ngClass]="iconoColor(a.tipo)"></i-lucide>
+        @if (agrupacion === 'plana') {
+          @for (a of visibles; track a.id) {
+            <div class="p-3 rounded-xl border flex items-start gap-3" [ngClass]="tarjeta(a.tipo)">
+              <div class="mt-0.5 shrink-0">
+                <i-lucide aria-hidden="true" [name]="icono(a.tipo)" class="w-4 h-4" [ngClass]="iconoColor(a.tipo)"></i-lucide>
+              </div>
+              <div class="min-w-0 flex-1">
+                <div class="flex items-start justify-between gap-2">
+                  <p class="text-sm font-bold truncate" [ngClass]="textoColor(a.tipo)">{{ a.titulo || a.insumo }}</p>
+                  <span class="shrink-0 px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase tracking-wide" [ngClass]="etiquetaColor(a.tipo)">
+                    {{ etiquetaNivel(a.nivel) }}
+                  </span>
+                </div>
+                @if (a.titulo && a.detalle) {
+                  <p class="text-xs mt-0.5 truncate font-semibold" [ngClass]="textoColor(a.tipo)">{{ a.detalle }}</p>
+                }
+                <p class="text-xs mt-0.5 truncate" [ngClass]="subTextoColor(a.tipo)">
+                  {{ a.origen || 'Sin ubicación' }}@if (a.region) {<span> · {{ a.region }}</span>}
+                </p>
+                <div class="flex items-center gap-2 mt-1">
+                  <span class="text-[11px] opacity-70" [ngClass]="subTextoColor(a.tipo)">{{ a.fecha }}</span>
+                  <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white/60" [ngClass]="subTextoColor(a.tipo)">{{ a.estado }}</span>
+                  <a routerLink="/inventario" class="text-[11px] font-bold ml-auto text-easydry-blue hover:underline">Atender</a>
+                </div>
+              </div>
             </div>
-            <div class="min-w-0 flex-1">
+          } @empty {
+            <div class="py-8 text-center">
+              <i-lucide aria-hidden="true" name="check-circle-2" class="w-8 h-8 text-emerald-400 mx-auto mb-2"></i-lucide>
+              <p class="text-sm font-bold text-slate-600">{{ alertas.length > 0 ? 'Sin alertas para este filtro' : 'No hay alertas activas' }}</p>
+              <p class="text-xs text-slate-400 mt-0.5">{{ alertas.length > 0 ? 'Prueba otra severidad o limpia la búsqueda.' : 'Todo el stock está en niveles correctos.' }}</p>
+            </div>
+          }
+        } @else {
+          @for (g of visiblesAgrupadas; track g.insumo) {
+            <div class="p-3 rounded-xl border bg-slate-50 border-slate-200 flex flex-col gap-2">
               <div class="flex items-start justify-between gap-2">
-                <p class="text-sm font-bold truncate" [ngClass]="textoColor(a.tipo)">{{ a.titulo || a.insumo }}</p>
-                <span class="shrink-0 px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase tracking-wide" [ngClass]="etiquetaColor(a.tipo)">
-                  {{ etiquetaNivel(a.nivel) }}
+                <p class="text-sm font-bold truncate text-slate-900">{{ g.insumo }}</p>
+                <span class="shrink-0 px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-slate-200 text-slate-700">
+                  {{ g.cantidad }} UBICACIONES
                 </span>
               </div>
-              @if (a.titulo && a.detalle) {
-                <p class="text-xs mt-0.5 truncate font-semibold" [ngClass]="textoColor(a.tipo)">{{ a.detalle }}</p>
-              }
-              <p class="text-xs mt-0.5 truncate" [ngClass]="subTextoColor(a.tipo)">
-                {{ a.origen || 'Sin ubicación' }}@if (a.region) {<span> · {{ a.region }}</span>}
-              </p>
-              <div class="flex items-center gap-2 mt-1">
-                <span class="text-[11px] opacity-70" [ngClass]="subTextoColor(a.tipo)">{{ a.fecha }}</span>
-                <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white/60" [ngClass]="subTextoColor(a.tipo)">{{ a.estado }}</span>
-                <a routerLink="/inventario" class="text-[11px] font-bold ml-auto text-easydry-blue hover:underline">Atender</a>
+              <div class="flex flex-wrap gap-1">
+                @for (loc of g.ubicaciones; track loc.origen) {
+                  <span class="px-2 py-1 rounded-md text-[10px] font-bold" [ngClass]="etiquetaColor(loc.tipo)">
+                    {{ loc.origen }} ({{ etiquetaNivel(loc.nivel) }})
+                  </span>
+                }
               </div>
             </div>
-          </div>
-        } @empty {
-          <div class="py-8 text-center">
-            <i-lucide aria-hidden="true" name="check-circle-2" class="w-8 h-8 text-emerald-400 mx-auto mb-2"></i-lucide>
-            <p class="text-sm font-bold text-slate-600">{{ alertas.length > 0 ? 'Sin alertas para este filtro' : 'No hay alertas activas' }}</p>
-            <p class="text-xs text-slate-400 mt-0.5">{{ alertas.length > 0 ? 'Prueba otra severidad o limpia la búsqueda.' : 'Todo el stock está en niveles correctos.' }}</p>
-          </div>
+          } @empty {
+            <div class="py-8 text-center">
+              <i-lucide aria-hidden="true" name="check-circle-2" class="w-8 h-8 text-emerald-400 mx-auto mb-2"></i-lucide>
+              <p class="text-sm font-bold text-slate-600">Sin alertas para este filtro</p>
+            </div>
+          }
         }
       </div>
 
       @if (hayMas) {
         <button type="button" (click)="mostrarTodas = true"
           class="mt-3 w-full py-2 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-xs font-bold text-slate-700 transition-colors">
-          Ver {{ filtradas.length - visibles.length }} más
+          Ver {{ agrupacion === 'plana' ? filtradas.length - visibles.length : agrupadas.length - visiblesAgrupadas.length }} más
         </button>
       }
     </div>
@@ -121,6 +160,7 @@ export class AlertasWidgetComponent {
   filtroGrupo: 'TODAS' | AlertaGrupo = 'TODAS';
   busqueda = '';
   mostrarTodas = false;
+  agrupacion: 'plana' | 'insumo' = 'plana';
 
   get tieneMantenimiento(): boolean {
     return this.alertas.some((a) => a.grupo === 'mantenimiento');
@@ -169,8 +209,30 @@ export class AlertasWidgetComponent {
     return this.mostrarTodas ? this.filtradas : this.filtradas.slice(0, this.limite);
   }
 
+  get agrupadas(): { insumo: string; cantidad: number; ubicaciones: { origen: string; nivel: string; tipo: AlertaSeveridad }[] }[] {
+    const mapa = new Map<string, { origen: string; nivel: string; tipo: AlertaSeveridad }[]>();
+    for (const a of this.filtradas) {
+      const nom = a.titulo || a.insumo;
+      const arr = mapa.get(nom) || [];
+      // Evitar duplicados visuales en la misma agrupación por origen
+      if (!arr.find(x => x.origen === (a.origen || 'Sin ubicación'))) {
+        arr.push({ origen: a.origen || 'Sin ubicación', nivel: a.nivel, tipo: a.tipo });
+      }
+      mapa.set(nom, arr);
+    }
+    return Array.from(mapa.entries()).map(([insumo, ubicaciones]) => ({
+      insumo,
+      cantidad: ubicaciones.length,
+      ubicaciones
+    })).sort((a, b) => b.cantidad - a.cantidad);
+  }
+
+  get visiblesAgrupadas() {
+    return this.mostrarTodas ? this.agrupadas : this.agrupadas.slice(0, this.limite);
+  }
+
   get hayMas(): boolean {
-    return !this.mostrarTodas && this.filtradas.length > this.limite;
+    return !this.mostrarTodas && (this.agrupacion === 'plana' ? this.filtradas.length > this.limite : this.agrupadas.length > this.limite);
   }
 
   etiquetaNivel(nivel: string): string {

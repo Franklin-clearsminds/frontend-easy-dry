@@ -110,6 +110,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
   pulidoresTab: 'fijos' | 'moviles' = 'fijos';
   /** Pestaña de productividad por bahía (lavados vs tiempo). */
   bahiasTab: 'lavados' | 'tiempo' = 'lavados';
+  /** Pestaña del gráfico unificado de vehículos (marcas vs marca·modelo). */
+  vehiculosTab: 'marcas' | 'modelos' = 'marcas';
 
   activeExecutiveTab: 'analitica' | 'auditoria' | 'inventario' | 'alertas' = 'analitica';
 
@@ -174,6 +176,26 @@ export class DashboardComponent implements OnInit, OnDestroy {
       return { labels, datasets: [this.produccion.chartBahias.datasets[0]] };
     }
     return { labels, datasets: [this.produccion.chartBahias.datasets[1]] };
+  }
+
+  get tieneTopVehiculos(): boolean {
+    return !!(this.produccion?.topMarcas || this.produccion?.topMarcasModelos);
+  }
+
+  /** Datos del gráfico unificado de vehículos; si una serie no existe, usa la otra. */
+  get chartVehiculosActivo(): any {
+    const marcas = this.produccion?.topMarcas;
+    const modelos = this.produccion?.topMarcasModelos;
+    return this.vehiculosTab === 'marcas' ? (marcas ?? modelos) : (modelos ?? marcas);
+  }
+
+  /** Top Agencias ocupa todo el ancho solo si quedaría sola en su fila (evita huecos en la grilla). */
+  get agenciasFullWidth(): boolean {
+    const previos =
+      (this.produccion?.distribucionModelos && (this.isAdminView || this.isAprobadorView || this.isComercialView) ? 1 : 0) +
+      (this.tieneTopVehiculos ? 1 : 0) +
+      (this.coloresItems.length ? 1 : 0);
+    return previos % 2 === 0;
   }
 
   /** Ranking de agencias por ganancia neta (para la lista con barras). */
