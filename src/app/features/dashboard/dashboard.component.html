@@ -85,18 +85,38 @@
                 </app-select-search>
               </div>
             }
-            <label class="flex items-center gap-2 bg-slate-50 px-3 h-10 rounded-xl border border-slate-200 text-sm cursor-pointer">
-              <i-lucide aria-hidden="true" name="calendar" class="w-4 h-4 text-easydry-blue"></i-lucide>
-              <input type="date" aria-label="Fecha del panel"
-                     class="font-semibold text-slate-700 outline-none bg-transparent cursor-pointer"
-                     [ngModel]="fechaFiltro"
-                     (ngModelChange)="onFechaChange($event)" />
-            </label>
-          } @else {
-            <span class="inline-flex items-center gap-2 px-3 h-10 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-600">
-              <i-lucide aria-hidden="true" name="calendar-range" class="w-4 h-4 text-easydry-blue"></i-lucide>
-              Últimos 30 días
-            </span>
+            <div class="w-44">
+              <app-select-search
+                  placeholder="Pulidor"
+                  todasLabel="Todos los pulidores"
+                  ariaLabel="Filtrar por pulidor"
+                  [cargar]="cargarPulidores"
+                  [value]="pulidorFiltro"
+                  [valueLabel]="pulidorLabel"
+                  (valueChange)="onPulidorChange($event)"
+                  (seleccion)="pulidorLabel = $event?.label || ''">
+              </app-select-search>
+            </div>
+          }
+
+          <!-- Filtro de periodo global (compartido por todos los roles, respeta el alcance del servidor) -->
+          <div class="inline-flex flex-wrap bg-slate-100 p-1 rounded-xl" role="group" aria-label="Periodo del dashboard">
+            @for (r of rangos; track r.id) {
+              <button type="button" (click)="onRangoChange(r.id)" [attr.aria-pressed]="rangoFiltro === r.id"
+                class="px-3 h-8 text-xs font-bold rounded-lg transition-colors"
+                [ngClass]="rangoFiltro === r.id ? 'bg-white text-easydry-blue shadow-sm' : 'text-slate-500 hover:text-slate-700'">
+                {{ r.label }}
+              </button>
+            }
+          </div>
+          @if (esRangoPersonalizado) {
+            <div class="flex items-center gap-2">
+              <input type="date" aria-label="Desde" [ngModel]="fechaDesdeFiltro" (ngModelChange)="fechaDesdeFiltro = $event; recargar()"
+                class="h-10 px-2 rounded-xl border border-slate-200 text-sm text-slate-700 outline-none focus:border-easydry-blue" />
+              <span class="text-slate-400 text-xs">→</span>
+              <input type="date" aria-label="Hasta" [ngModel]="fechaHastaFiltro" (ngModelChange)="fechaHastaFiltro = $event; recargar()"
+                class="h-10 px-2 rounded-xl border border-slate-200 text-sm text-slate-700 outline-none focus:border-easydry-blue" />
+            </div>
           }
         </div>
 
@@ -117,7 +137,7 @@
         </div>
       </div>
 
-      @if (vista === 'ejecutivo' && hayFiltrosActivos) {
+      @if (hayFiltrosActivos) {
         <div class="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-slate-100">
           <span class="text-xs font-semibold text-slate-400">Filtros activos:</span>
           @if (regionFiltro) {
@@ -136,10 +156,19 @@
               </button>
             </span>
           }
-          @if (fechaFiltro !== hoyISO) {
+          @if (pulidorFiltro) {
+            <span class="inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-lg bg-violet-100 text-violet-700 text-xs font-bold">
+              {{ pulidorLabel || 'Pulidor' }}
+              <button type="button" (click)="onPulidorChange(null)" aria-label="Quitar filtro de pulidor" class="rounded-md hover:bg-violet-200 p-0.5">
+                <i-lucide aria-hidden="true" name="x" class="w-3 h-3"></i-lucide>
+              </button>
+            </span>
+          }
+          @if (rangoFiltro !== 'HOY') {
             <span class="inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-lg bg-slate-100 text-slate-700 text-xs font-bold">
-              {{ fechaFiltro }}
-              <button type="button" (click)="onFechaChange(hoyISO)" aria-label="Quitar filtro de fecha" class="rounded-md hover:bg-slate-200 p-0.5">
+              <i-lucide aria-hidden="true" name="calendar-range" class="w-3 h-3"></i-lucide>
+              {{ esRangoPersonalizado ? (fechaDesdeFiltro + ' → ' + fechaHastaFiltro) : rangoFiltro }}
+              <button type="button" (click)="onRangoChange('HOY')" aria-label="Quitar filtro de periodo" class="rounded-md hover:bg-slate-200 p-0.5">
                 <i-lucide aria-hidden="true" name="x" class="w-3 h-3"></i-lucide>
               </button>
             </span>
@@ -188,6 +217,14 @@
             <i-lucide aria-hidden="true" name="package" class="w-4 h-4"></i-lucide>
             {{ tabInventarioTitle }}
           </button>
+          <button
+            type="button" role="tab" id="tab-alertas" aria-controls="panel-alertas" [attr.aria-selected]="activeExecutiveTab === 'alertas'"
+            (click)="activeExecutiveTab = 'alertas'"
+            class="px-6 py-2.5 text-sm font-bold rounded-xl transition-all duration-300 flex items-center gap-2"
+            [ngClass]="activeExecutiveTab === 'alertas' ? 'bg-white text-easydry-blue shadow-sm ring-1 ring-slate-900/5' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'">
+            <i-lucide aria-hidden="true" name="bell-ring" class="w-4 h-4"></i-lucide>
+            Alertas
+          </button>
         }
       </div>
     </div>
@@ -195,63 +232,108 @@
     <!-- Sección: Analítica y Productividad -->
     <div class="mb-4 animate-fade-in" role="tabpanel" id="panel-analitica" aria-labelledby="tab-analitica" [class.hidden]="activeExecutiveTab !== 'analitica'">
 
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 mb-8">
+      <!-- Resumen del período consultado + totales clave -->
+      @if (produccion?.kpisResumen) {
+        <app-period-summary class="block mb-8" titulo="Período consultado" [rangoTexto]="periodoTexto" [metricas]="periodoMetricas"></app-period-summary>
+      }
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 mb-8">
         @for (k of resumenEjecutivo?.kpis || []; track k.label) {
-          <app-stat-card [title]="k.label" [value]="k.value" [icon]="k.icon" [variant]="k.variant"></app-stat-card>
+          <app-stat-card [title]="k.label" [value]="k.value" [icon]="k.icon" [variant]="k.variant" [badge]="etiquetaRango" [tooltip]="k.tooltip"></app-stat-card>
         }
       </div>
 
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
-        <div class="lg:col-span-2 flex flex-col gap-8">
-          @if (produccion?.flujoHorario) {
+      <!-- Nota de cálculo y auditoría removida por solicitud -->
+
+      <div class="mt-8 mb-4 border-b border-slate-200 pb-2 flex items-center gap-2">
+        <i-lucide aria-hidden="true" name="activity" class="w-5 h-5 text-easydry-blue"></i-lucide>
+        <h3 class="text-lg font-bold font-outfit text-slate-800">Análisis de Producción</h3>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+        @if (produccion?.flujoHorario) {
+          <div class="lg:col-span-2">
             <app-chart-card [title]="chart1Title" [subtitle]="chart1Subtitle" type="line" [data]="produccion.flujoHorario"></app-chart-card>
-          } @else {
-            <div class="bg-white rounded-2xl p-6 border border-slate-100 shadow-easydry text-sm text-slate-500">
-              <h4 class="font-bold text-slate-900 text-base font-outfit mb-1">{{ chart1Title }}</h4>
-              Sin datos: el servidor aún no entrega la serie horaria.
-            </div>
-          }
-          
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-            @if (produccion?.mixServicios) {
-              <app-chart-card [title]="chart2Title" [subtitle]="isAprobadorView ? 'Distribución' : 'Distribución por categoría'" type="doughnut" [data]="produccion.mixServicios"></app-chart-card>
-            } @else {
-              <div class="bg-white rounded-2xl p-6 border border-slate-100 shadow-easydry min-h-[260px] flex items-center justify-center">
-                <app-empty-state icon="pie-chart" [title]="chart2Title" hint="Aún no hay datos para graficar."></app-empty-state>
-              </div>
-            }
-            @if (produccion?.tiemposBahias) {
-              <app-chart-card [title]="chart3Title" subtitle="Métricas relativas" type="bar" [data]="produccion.tiemposBahias"></app-chart-card>
-            } @else {
-              <div class="bg-white rounded-2xl p-6 border border-slate-100 shadow-easydry min-h-[260px] flex items-center justify-center">
-                <app-empty-state icon="bar-chart-3" [title]="chart3Title" hint="Aún no hay datos para graficar."></app-empty-state>
-              </div>
-            }
           </div>
-        </div>
+        } @else {
+          <div class="lg:col-span-2 bg-white rounded-2xl p-6 border border-slate-100 shadow-easydry text-sm text-slate-500">
+            <h4 class="font-bold text-slate-900 text-base font-outfit mb-1">{{ chart1Title }}</h4>
+            Sin datos: el servidor aún no entrega la serie horaria.
+          </div>
+        }
+        
+        @if (produccion?.chartBahias) {
+          <div class="lg:col-span-2">
+            <app-chart-card title="Productividad por Bahía" [subtitle]="bahiasTab === 'lavados' ? 'Cantidad de lavados' : 'Tiempo promedio (min)'" [type]="bahiasTab === 'lavados' ? 'bar' : 'line'" [data]="chartBahiasActivo">
+              <div chart-actions class="flex bg-slate-100 p-1 rounded-xl">
+                <button class="px-3 py-1 text-xs font-bold rounded-lg transition-colors" [ngClass]="bahiasTab === 'lavados' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'" (click)="bahiasTab = 'lavados'">
+                  Lavados
+                </button>
+                <button class="px-3 py-1 text-xs font-bold rounded-lg transition-colors" [ngClass]="bahiasTab === 'tiempo' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'" (click)="bahiasTab = 'tiempo'">
+                  Tiempo
+                </button>
+              </div>
+            </app-chart-card>
+          </div>
+        }
 
-        <div class="flex flex-col gap-8">
-          @if (produccion?.distribucionModelos) {
-            <app-chart-card [title]="chart4Title" [subtitle]="chart4Subtitle" type="bar" [data]="produccion.distribucionModelos" class="flex-grow"></app-chart-card>
-          } @else {
-            <div class="bg-white rounded-2xl p-6 border border-slate-100 shadow-easydry text-sm text-slate-500 flex-grow">
-              <h4 class="font-bold text-slate-900 text-base font-outfit mb-1">{{ chart4Title }}</h4>
-              Sin datos: el servidor aún no entrega la productividad.
-            </div>
-          }
-          @if (produccion?.topMarcas) {
-            <app-chart-card title="Top Marcas" subtitle="Vehículos más frecuentes" type="bar" [data]="produccion.topMarcas"></app-chart-card>
-          }
-        </div>
-        @if (puedeVerUsuarios) {
-          <div class="lg:col-span-3">
-            <app-ranking-operadores-widget [ranking]="operadores?.ranking || []"></app-ranking-operadores-widget>
+        @if (produccion?.distribucionModelos && (isAdminView || isAprobadorView || isComercialView)) {
+          <app-chart-card [title]="chart4Title" [subtitle]="chart4Subtitle" type="bar" [data]="produccion.distribucionModelos"></app-chart-card>
+        }
+
+        @if (produccion?.topMarcas) {
+          <app-chart-card title="Top Marcas" subtitle="Vehículos más frecuentes" type="bar" [data]="produccion.topMarcas"></app-chart-card>
+        }
+
+        @if (produccion?.topMarcasModelos) {
+          <app-chart-card title="Top Marca · Modelo" subtitle="Combinaciones más frecuentes" type="bar" [data]="produccion.topMarcasModelos"></app-chart-card>
+        }
+
+        @if (coloresItems.length) {
+          <app-distribution-card titulo="Top Colores" subtitulo="Vehículos atendidos por color" etiquetaTotal="Vehículos" [items]="coloresItems"></app-distribution-card>
+        }
+
+        @if ((isAdminView || isSuperAdminView) && produccion?.topAgenciasProductivas) {
+          <div [class.lg:col-span-2]="isAdminView && produccion?.distribucionModelos">
+            <app-chart-card title="Top Agencias Productivas" subtitle="Servicios del periodo por agencia" type="bar" [data]="produccion.topAgenciasProductivas"></app-chart-card>
           </div>
         }
       </div>
 
-      @if (isAdminView && produccion?.topAgenciasProductivas) {
-        <app-chart-card title="Top Agencias Productivas" subtitle="Servicios del mes por agencia" type="bar" [data]="produccion.topAgenciasProductivas"></app-chart-card>
+      <!-- Desgloses estratégicos (solo Admin/Super Admin) -->
+      @if (isAdminView || isSuperAdminView) {
+        <div class="mt-12 mb-4 border-b border-slate-200 pb-2 flex items-center gap-2">
+          <i-lucide aria-hidden="true" name="pie-chart" class="w-5 h-5 text-easydry-blue"></i-lucide>
+          <h3 class="text-lg font-bold font-outfit text-slate-800">Desgloses Estratégicos</h3>
+        </div>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          @if (generalesItems.length) {
+            <app-distribution-card titulo="Mix de Servicios Generales (Top 5)" subtitulo="Servicios más vendidos (categoría general)" etiquetaTotal="Servicios" [items]="generalesItems"></app-distribution-card>
+          }
+          @if (especialesItems.length) {
+            <app-distribution-card titulo="Mix de Servicios Especiales (Top 5)" subtitulo="Servicios premium más vendidos" etiquetaTotal="Servicios" [items]="especialesItems"></app-distribution-card>
+          }
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-8">
+          @if (agenciasGananciaItems.length) {
+            <app-ranking-list titulo="Top Agencias — Ganancia Neta" subtitulo="Ingresos − costo de insumos del periodo" prefijo="$" color="verde" [items]="agenciasGananciaItems"></app-ranking-list>
+          }
+          @if (agenciasReparacionesItems.length) {
+            <app-ranking-list titulo="Top 5 Agencias por Gasto en Reparaciones" subtitulo="USD acumulado en incidentes técnicos del periodo" prefijo="$" color="rojo" [items]="agenciasReparacionesItems"></app-ranking-list>
+          }
+        </div>
+      }
+
+      @if (puedeVerUsuarios) {
+        <div class="mt-12 mb-4 border-b border-slate-200 pb-2 flex items-center gap-2">
+          <i-lucide aria-hidden="true" name="users" class="w-5 h-5 text-easydry-blue"></i-lucide>
+          <h3 class="text-lg font-bold font-outfit text-slate-800">Rendimiento del Personal</h3>
+        </div>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <app-ranking-operadores-widget [ranking]="operadores?.ranking || []"></app-ranking-operadores-widget>
+          <app-ranking-operadores-widget [ranking]="rankingPulidores?.fijos || []" [rankingMoviles]="rankingPulidores?.moviles || []" [showTabs]="true"></app-ranking-operadores-widget>
+        </div>
       }
     </div>
 
@@ -293,11 +375,7 @@
           <app-chart-card title="Daños por Tipo" subtitle="Distribución por categoría de máquina" type="doughnut" [data]="produccion.incidentesPorTipo"></app-chart-card>
         }
 
-        @if (puedeVerAlertas) {
-          <div class="lg:col-span-3 mt-4">
-            <app-alertas-widget [alertas]="alertas"></app-alertas-widget>
-          </div>
-        }
+
       </div>
     </div>
     }
@@ -320,16 +398,19 @@
           @if (distribuidorData?.chartConsumoPorAgencia) {
             <app-chart-card class="lg:col-span-2" title="Consumo por Agencia" subtitle="Agencias con mayor uso de insumos (unidades)" type="bar" [data]="distribuidorData.chartConsumoPorAgencia"></app-chart-card>
           }
-          @if (distribuidorData?.chartConsumoPorCategoria) {
-            <app-chart-card title="Consumo por Categoría" subtitle="Distribución de uso de inventario" type="doughnut" [data]="distribuidorData.chartConsumoPorCategoria"></app-chart-card>
-          }
-          
-          <div class="lg:col-span-2 mt-4">
-            <app-alertas-widget [alertas]="alertas"></app-alertas-widget>
-          </div>
+
           <div class="mt-4">
             <app-chart-card title="Alertas por Severidad" subtitle="Distribución actual de alertas de stock" type="doughnut" [data]="alertasPorSeveridad"></app-chart-card>
           </div>
+        </div>
+      </div>
+    }
+
+    <!-- Sección: Alertas -->
+    @if (puedeVerAlertas && !isAprobadorView) {
+      <div class="mb-4 animate-fade-in" role="tabpanel" id="panel-alertas" aria-labelledby="tab-alertas" [class.hidden]="activeExecutiveTab !== 'alertas'">
+        <div class="w-full">
+          <app-alertas-widget [alertas]="alertasPanel"></app-alertas-widget>
         </div>
       </div>
     }
@@ -455,6 +536,52 @@
       }
     </div>
 
+    <!-- Ranking de pulidores: fijos vs móviles (cantidad de servicios + dinero generado) -->
+    <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry p-6 mb-8">
+      <div class="flex items-center justify-between gap-3 mb-4 flex-wrap">
+        <h3 class="text-base font-bold font-outfit text-slate-900 flex items-center gap-2">
+          <i-lucide name="users" class="w-4 h-4 text-easydry-blue"></i-lucide>
+          Ranking de Pulidores
+        </h3>
+        <div class="inline-flex bg-slate-100 p-1 rounded-xl" role="tablist" aria-label="Tipo de pulidor">
+          <button type="button" role="tab" (click)="pulidoresTab = 'fijos'" [attr.aria-selected]="pulidoresTab === 'fijos'"
+            class="px-4 h-8 text-xs font-bold rounded-lg transition-colors"
+            [ngClass]="pulidoresTab === 'fijos' ? 'bg-white text-easydry-blue shadow-sm' : 'text-slate-500 hover:text-slate-700'">
+            Fijos
+          </button>
+          <button type="button" role="tab" (click)="pulidoresTab = 'moviles'" [attr.aria-selected]="pulidoresTab === 'moviles'"
+            class="px-4 h-8 text-xs font-bold rounded-lg transition-colors"
+            [ngClass]="pulidoresTab === 'moviles' ? 'bg-white text-easydry-blue shadow-sm' : 'text-slate-500 hover:text-slate-700'">
+            Móviles
+          </button>
+        </div>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="text-left text-slate-500 border-b border-slate-100">
+              <th class="pb-3 font-semibold">#</th>
+              <th class="pb-3 font-semibold">Pulidor</th>
+              <th class="pb-3 font-semibold">Servicios</th>
+              <th class="pb-3 font-semibold">Ingresos</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (p of pulidoresActuales; track p.nombre; let i = $index) {
+              <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+                <td class="py-3 font-bold text-slate-400">{{ i + 1 }}</td>
+                <td class="py-3 font-semibold text-slate-800">{{ p.nombre }}</td>
+                <td class="py-3 text-slate-700">{{ p.servicios }}</td>
+                <td class="py-3 font-bold text-easydry-green-text">${{ p.ingresos }}</td>
+              </tr>
+            } @empty {
+              <tr><td colspan="4" class="py-6 text-center text-slate-400">Sin datos en el periodo</td></tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+
     <!-- Cola activa (OTs pendientes o en proceso, ordenadas por prioridad) -->
     @if (especialesData.colaActiva?.length > 0) {
       <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry p-6 mb-8">
@@ -547,7 +674,7 @@
     <!-- Alertas de stock vigentes -->
     @if (alertas.length > 0) {
       <div class="mt-4">
-        <app-alertas-widget [alertas]="alertas"></app-alertas-widget>
+        <app-alertas-widget [alertas]="alertasPanel"></app-alertas-widget>
       </div>
     }
 

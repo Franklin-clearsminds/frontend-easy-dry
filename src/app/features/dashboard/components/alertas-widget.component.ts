@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import { LucideAngularModule } from 'lucide-angular';
-import { AlertaSeveridad, AlertaStockVM } from '../../../core/models/alerta-stock.model';
+import { AlertaGrupo, AlertaSeveridad, AlertaStockVM } from '../../../core/models/alerta-stock.model';
 
 type FiltroSeveridad = 'TODAS' | 'CRITICO' | 'BAJO';
 
@@ -34,6 +34,19 @@ const ORDEN_SEVERIDAD: Record<AlertaSeveridad, number> = { critica: 0, advertenc
       </div>
 
       @if (alertas.length > 0) {
+        <!-- Origen: stock (inventario) vs mantenimiento (incidencias/preventivos) -->
+        @if (tieneMantenimiento) {
+          <div class="flex flex-wrap items-center gap-2 mb-2">
+            @for (g of gruposChips; track g.id) {
+              <button type="button" (click)="filtroGrupo = g.id" [attr.aria-pressed]="filtroGrupo === g.id"
+                class="px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors border"
+                [ngClass]="filtroGrupo === g.id ? 'bg-slate-800 text-white border-slate-800' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'">
+                {{ g.label }} <span class="opacity-70">{{ g.conteo }}</span>
+              </button>
+            }
+          </div>
+        }
+
         <!-- Resumen por severidad: cada chip filtra la lista -->
         <div class="flex flex-wrap items-center gap-2 mb-3">
           @for (f of chips; track f.id) {
@@ -64,11 +77,14 @@ const ORDEN_SEVERIDAD: Record<AlertaSeveridad, number> = { critica: 0, advertenc
             </div>
             <div class="min-w-0 flex-1">
               <div class="flex items-start justify-between gap-2">
-                <p class="text-sm font-bold truncate" [ngClass]="textoColor(a.tipo)">{{ a.insumo }}</p>
+                <p class="text-sm font-bold truncate" [ngClass]="textoColor(a.tipo)">{{ a.titulo || a.insumo }}</p>
                 <span class="shrink-0 px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase tracking-wide" [ngClass]="etiquetaColor(a.tipo)">
                   {{ etiquetaNivel(a.nivel) }}
                 </span>
               </div>
+              @if (a.titulo && a.detalle) {
+                <p class="text-xs mt-0.5 truncate font-semibold" [ngClass]="textoColor(a.tipo)">{{ a.detalle }}</p>
+              }
               <p class="text-xs mt-0.5 truncate" [ngClass]="subTextoColor(a.tipo)">
                 {{ a.origen || 'Sin ubicación' }}@if (a.region) {<span> · {{ a.region }}</span>}
               </p>
@@ -102,8 +118,22 @@ export class AlertasWidgetComponent {
   @Input() limite = 6;
 
   filtroSeveridad: FiltroSeveridad = 'TODAS';
+  filtroGrupo: 'TODAS' | AlertaGrupo = 'TODAS';
   busqueda = '';
   mostrarTodas = false;
+
+  get tieneMantenimiento(): boolean {
+    return this.alertas.some((a) => a.grupo === 'mantenimiento');
+  }
+
+  get gruposChips(): { id: 'TODAS' | AlertaGrupo; label: string; conteo: number }[] {
+    const mant = this.alertas.filter((a) => a.grupo === 'mantenimiento').length;
+    return [
+      { id: 'TODAS', label: 'Todo', conteo: this.alertas.length },
+      { id: 'stock', label: 'Stock', conteo: this.alertas.length - mant },
+      { id: 'mantenimiento', label: 'Mantenimiento', conteo: mant },
+    ];
+  }
 
   get criticas(): number {
     return this.alertas.filter((a) => a.tipo === 'critica').length;
@@ -125,9 +155,11 @@ export class AlertasWidgetComponent {
     const q = this.busqueda.trim().toLowerCase();
     return this.alertas
       .filter((a) => {
+        if (this.filtroGrupo === 'stock' && a.grupo === 'mantenimiento') return false;
+        if (this.filtroGrupo === 'mantenimiento' && a.grupo !== 'mantenimiento') return false;
         if (this.filtroSeveridad === 'CRITICO' && a.tipo !== 'critica') return false;
         if (this.filtroSeveridad === 'BAJO' && a.tipo !== 'advertencia') return false;
-        if (q && !`${a.insumo} ${a.sku ?? ''} ${a.origen ?? ''} ${a.region ?? ''}`.toLowerCase().includes(q)) return false;
+        if (q && !`${a.titulo ?? ''} ${a.insumo} ${a.detalle ?? ''} ${a.sku ?? ''} ${a.origen ?? ''} ${a.region ?? ''}`.toLowerCase().includes(q)) return false;
         return true;
       })
       .sort((a, b) => ORDEN_SEVERIDAD[a.tipo] - ORDEN_SEVERIDAD[b.tipo] || b.timestamp - a.timestamp);
@@ -145,6 +177,8 @@ export class AlertasWidgetComponent {
     if (nivel === 'AGOTADO') return 'Agotado';
     if (nivel === 'CRITICO') return 'Crítico';
     if (nivel === 'BAJO') return 'Bajo';
+    if (nivel === 'INCIDENTE') return 'Incidente';
+    if (nivel === 'VENCIDO') return 'Vencido';
     return nivel || '—';
   }
 

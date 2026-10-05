@@ -12,18 +12,21 @@ Chart.register(...registerables);
   host: { class: 'block' },
   template: `
     <div class="bg-white rounded-2xl p-6 border border-slate-100 shadow-easydry flex flex-col h-full">
-      <div class="flex items-center justify-between mb-4">
-        <div>
-          <h4 class="font-bold text-slate-900 text-base font-outfit">{{ title }}</h4>
+      <div class="flex items-start justify-between gap-3 mb-4">
+        <div class="min-w-0">
+          <h4 class="font-bold text-slate-900 text-base font-outfit truncate">{{ title }}</h4>
           @if (subtitle) {
             <p class="text-xs text-slate-500 mt-0.5">{{ subtitle }}</p>
           }
         </div>
+        <ng-content select="[chart-actions]"></ng-content>
       </div>
 
       <div class="flex-1 relative w-full min-h-[260px] flex items-center justify-center">
         <canvas #chartCanvas></canvas>
       </div>
+
+      <ng-content select="[chart-footer]"></ng-content>
     </div>
   `
 })
@@ -45,6 +48,12 @@ export class ChartCardComponent implements AfterViewInit, OnChanges, OnDestroy {
 
   ngOnChanges(changes: SimpleChanges): void {
     if (!this.viewReady) return;
+    
+    if (changes['type'] && !changes['type'].firstChange) {
+      this.renderChart();
+      return;
+    }
+    
     if (changes['data'] && !changes['data'].firstChange) {
       this.updateChart();
     }
@@ -81,8 +90,8 @@ export class ChartCardComponent implements AfterViewInit, OnChanges, OnDestroy {
       animation: false,
       plugins: {
         legend: {
-          display: true,
-          position: this.type === 'pie' || this.type === 'doughnut' ? 'right' : 'bottom',
+          display: this.data?.datasets?.length > 1,
+          position: 'bottom',
           labels: {
             usePointStyle: true,
             font: { family: 'Inter', size: 12 },

@@ -40,16 +40,30 @@ export class DashboardOperativoService {
         const isComercial = data?.isComercialView || false;
         const isAprobador = data?.isAprobadorView || false;
 
+        const truncateLabel = (text: string) => text; // Disabled truncation so tooltips show full text
+
         const toBarChart = (arr: any[], labelField: string, valueField: string, label: string) =>
-          arr && arr.length > 0 ? { labels: arr.map((x: any) => x[labelField]), datasets: [{ label, data: arr.map((x: any) => x[valueField] ?? 0), backgroundColor: [...CHART_SERIES] }] } : null;
+          arr && arr.length > 0 ? { labels: arr.map((x: any) => truncateLabel(x[labelField])), datasets: [{ label, data: arr.map((x: any) => x[valueField] ?? 0), backgroundColor: [...CHART_SERIES] }] } : null;
 
         const toDonutChart = (arr: any[], labelField: string, valueField: string) =>
-          arr && arr.length > 0 ? { labels: arr.map((x: any) => x[labelField]), datasets: [{ data: arr.map((x: any) => x[valueField] ?? 0), backgroundColor: [...CHART_SERIES] }] } : null;
+          arr && arr.length > 0 ? { labels: arr.map((x: any) => truncateLabel(x[labelField])), datasets: [{ data: arr.map((x: any) => x[valueField] ?? 0), backgroundColor: [...CHART_SERIES] }] } : null;
 
-        const flujoLabel = isAdmin ? 'Usuarios creados' : (isAprobador ? 'Solicitudes' : (isComercial ? 'Lavados diarios' : 'Vehiculos'));
+        const flujoLabel = isAdmin ? 'Usuarios creados' : (isAprobador ? 'Solicitudes' : (isComercial ? 'Lavados diarios' : 'Vehículos'));
         const flujoHorario = data?.flujoHorario && data.flujoHorario.length > 0 ? {
           labels: data.flujoHorario.map((f: any) => f.hora),
-          datasets: [{ label: flujoLabel, data: data.flujoHorario.map((f: any) => f.cantidad), borderColor: CHART_COLORS.green, backgroundColor: CHART_COLORS.green + '33', tension: 0.4, fill: true }]
+          datasets: [{ 
+            label: flujoLabel, 
+            data: data.flujoHorario.map((f: any) => f.cantidad), 
+            borderColor: '#3B82F6', // Blue-500
+            backgroundColor: 'rgba(59, 130, 246, 0.15)', // Light blue fill
+            pointBackgroundColor: '#FFFFFF',
+            pointBorderColor: '#3B82F6',
+            pointBorderWidth: 2,
+            pointRadius: 4,
+            pointHoverRadius: 6,
+            tension: 0.4, 
+            fill: true 
+          }]
         } : null;
 
         const donaSrc = isAdmin ? data?.distribucionRoles : (isAprobador ? data?.distribucionEstados : data?.mixServicios);
@@ -62,15 +76,24 @@ export class DashboardOperativoService {
 
         const tiemposSrc = isAdmin ? data?.distribucionCategorias : (isComercial ? null : data?.tiemposBahias);
         const tiemposBahias = tiemposSrc && tiemposSrc.length > 0 ? {
-          labels: tiemposSrc.map((b: any) => b.nombre),
+          labels: tiemposSrc.map((b: any) => truncateLabel(b.nombre)),
           datasets: [{ label: isAdmin ? 'Servicios' : 'Minutos', data: tiemposSrc.map((b: any) => b.promedio ?? b.total), backgroundColor: [...CHART_SERIES] }]
         } : null;
 
         const donaSecSrc = isAdmin ? data?.distribucionCategorias : (isAprobador ? data?.distribucionTipos : (isComercial ? data?.solicitudesComerciales : data?.incidentesPorTipo));
         const incidentesPorTipo = toDonutChart(donaSecSrc, 'nombre', isAdmin ? 'total' : 'cantidad');
 
+        const bData = data?.bahias || data?.distribucionBahias;
+        const chartBahias = bData && bData.length > 0 ? {
+          labels: bData.map((b: any) => truncateLabel(b.nombre)),
+          datasets: [
+            { label: 'Lavados', data: bData.map((b: any) => b.cantidad ?? b.total ?? 0), backgroundColor: [...CHART_SERIES] },
+            { label: 'Tiempo prom. (min)', data: bData.map((b: any) => b.tiempoPromedioMin ?? 0), borderColor: CHART_COLORS.amber, backgroundColor: CHART_COLORS.amber + '33', tension: 0.4, fill: true, pointBackgroundColor: '#FFFFFF', pointBorderColor: CHART_COLORS.amber, pointBorderWidth: 2, pointRadius: 4, pointHoverRadius: 6 },
+          ],
+        } : null;
+
         return {
-          isAdminView: isAdmin, isSupervisorView: isSupervisor, isComercialView: isComercial, isAprobadorView: isAprobador,
+          isAdminView: isAdmin, isSupervisorView: isSupervisor, isComercialView: isComercial, isAprobadorView: isAprobador, isSuperAdminView: data?.isSuperAdminView ?? false,
           vehiculosHoy: data?.kpis?.totalLavadosHoy ?? data?.kpis?.serviciosHoy ?? null,
           flujoHorario,
           distribucionModelos,
@@ -79,6 +102,27 @@ export class DashboardOperativoService {
           incidentesPorTipo,
           topMarcas: toBarChart(data?.topMarcas, 'nombre', 'cantidad', 'Frecuencia'),
           topAgenciasProductivas: toBarChart(data?.topAgenciasProductivas, 'nombre', 'cantidad', 'Servicios'),
+          // Mix separado: generales vs especiales (top 5 cada uno).
+          mixGenerales: toDonutChart(data?.mixGenerales, 'nombre', 'cantidad'),
+          mixEspeciales: toDonutChart(data?.mixEspeciales, 'nombre', 'cantidad'),
+          // Atributos del vehículo.
+          topColores: toBarChart(data?.topColores, 'nombre', 'cantidad', 'Frecuencia'),
+          topMarcasModelos: toBarChart(data?.topMarcasModelos, 'nombre', 'cantidad', 'Frecuencia'),
+          // Bahías unificadas: cantidad + tiempo promedio en una sola serie (con su agencia de origen).
+          chartBahias,
+          // Agencias: ganancia neta y gasto en reparaciones (datos crudos para el ranking con barras).
+          topAgenciasGanancia: toBarChart(data?.topAgenciasGanancia, 'nombre', 'ganancia', 'Ganancia USD'),
+          topAgenciasReparaciones: toBarChart(data?.topAgenciasReparaciones, 'nombre', 'costo', 'Costo USD'),
+          agenciasGanancia: data?.topAgenciasGanancia ?? [],
+          agenciasReparaciones: data?.topAgenciasReparaciones ?? [],
+          // Datos crudos para las tarjetas de distribución (dona + filas).
+          generales: data?.mixGenerales ?? [],
+          especiales: data?.mixEspeciales ?? [],
+          colores: data?.topColores ?? [],
+          marcasModelos: data?.topMarcasModelos ?? [],
+          kpisResumen: data?.kpis ?? {},
+          // Alertas operativas unificadas (stock + mantenimiento) ya acotadas por el servidor al alcance del rol.
+          alertasOperativas: (data?.alertasOperativas ?? []).map((a: any) => this.aAlertaOperativaVM(a)),
           topMaquinas: data?.topMaquinasDañadas && data.topMaquinasDañadas.length > 0 ? { labels: data.topMaquinasDañadas.map((m: any) => m.nombre.split('-')[0].trim()), datasets: [{ label: 'Incidentes', data: data.topMaquinasDañadas.map((m: any) => m.total), backgroundColor: [...CHART_SERIES].reverse() }] } : null,
           topAgencias: toBarChart(data?.topAgenciasIncidentes, 'nombre', 'total', 'Incidentes'),
         };
@@ -128,6 +172,28 @@ export class DashboardOperativoService {
       catchError((err) => {
         this.avisarErrorCarga('No se pudo cargar el ranking de lavadores', err);
         return of([]);
+      })
+    );
+  }
+
+  getRankingPulidores(filtro: any = {}): Observable<{fijos: any[], moviles: any[]}> {
+    return this.http.post<any>(apiUrl('/analytics/ranking-pulidores'), filtro).pipe(
+      map(res => {
+        const mapOp = (op: any, index: number) => ({
+          posicion: index + 1,
+          nombre: op.nombre,
+          bahia: op.esFijo ? 'Agencia / Bahia' : 'Móvil',
+          vehiculos: op.cantidadServicios,
+          dinero: op.dineroTotal
+        });
+        return {
+          fijos: (res?.rankingFijos || []).map(mapOp),
+          moviles: (res?.rankingMoviles || []).map(mapOp)
+        };
+      }),
+      catchError((err) => {
+        this.avisarErrorCarga('No se pudo cargar el ranking de pulidores', err);
+        return of({ fijos: [], moviles: [] });
       })
     );
   }
@@ -199,6 +265,26 @@ export class DashboardOperativoService {
     );
   }
 
+  /** Normaliza una alerta operativa del dashboard (stock o mantenimiento) al modelo del widget. */
+  private aAlertaOperativaVM(a: any): AlertaStockVM {
+    const fechaObj = a?.fecha ? new Date(a.fecha) : null;
+    return {
+      id: String(a?.id ?? `al-${a?.grupo}-${a?.detalle}-${a?.fecha}`),
+      tipo: (a?.severidad as any) || 'info',
+      grupo: a?.grupo === 'mantenimiento' ? 'mantenimiento' : 'stock',
+      titulo: a?.titulo || 'Alerta',
+      detalle: a?.detalle || '',
+      nivel: String(a?.nivel || ''),
+      estado: String(a?.estado || ''),
+      insumo: a?.detalle || '',
+      origen: a?.origen || null,
+      region: a?.region || null,
+      mensaje: a?.detalle || '',
+      fecha: fechaObj ? fechaObj.toLocaleDateString('es-EC', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '',
+      timestamp: fechaObj ? fechaObj.getTime() : 0,
+    };
+  }
+
   private aAlertaVM(a: any): AlertaStockVM {
     const nivel = String(a?.nivel || '').toUpperCase();
     const tipo = (nivel === 'CRITICO' || nivel === 'AGOTADO') ? 'critica' : (nivel === 'BAJO' ? 'advertencia' : 'info');
@@ -225,8 +311,8 @@ export class DashboardOperativoService {
    * Llama al endpoint dedicado POST /analytics/dashboard-taller que devuelve
    * estado del parque, incidentes 30d, gravedad, top máquinas problemáticas y próximos mantenimientos.
    */
-  getDashboardTecnico(): Observable<DashboardTecnicoData> {
-    return this.http.post<any>(apiUrl('/analytics/dashboard-taller'), {}).pipe(
+  getDashboardTecnico(filtro: any = {}): Observable<DashboardTecnicoData> {
+    return this.http.post<any>(apiUrl('/analytics/dashboard-taller'), filtro).pipe(
       map(d => {
         const toDonut = (arr: any[], labelField: string, valueField: string) =>
           arr && arr.length > 0 ? { labels: arr.map((x: any) => x[labelField]), datasets: [{ data: arr.map((x: any) => x[valueField] ?? 0), backgroundColor: [...CHART_SERIES] }] } : null;
@@ -268,8 +354,8 @@ export class DashboardOperativoService {
    * Dashboard dedicado para Bodega: consume el endpoint /analytics/dashboard-bodega.
    * Retorna alertas activas, despachos en tránsito, consumo por categoría y valor del stock.
    */
-  getDashboardBodegaDedicado(): Observable<any> {
-    return this.http.post<any>(apiUrl('/analytics/dashboard-bodega'), {}).pipe(
+  getDashboardBodegaDedicado(filtro: any = {}): Observable<any> {
+    return this.http.post<any>(apiUrl('/analytics/dashboard-bodega'), filtro).pipe(
       map(d => {
         const toDonut = (arr: any[], labelField: string, valueField: string) =>
           arr && arr.length > 0 ? { labels: arr.map((x: any) => x[labelField]), datasets: [{ data: arr.map((x: any) => x[valueField] ?? 0), backgroundColor: [...CHART_SERIES] }] } : null;
@@ -296,8 +382,8 @@ export class DashboardOperativoService {
    * Dashboard dedicado para Servicios Especiales: consume el endpoint /analytics/dashboard-especiales.
    * Retorna KPIs de OTs, flujo semanal, mix de tipos, cola activa y top operadores.
    */
-  getDashboardEspeciales(): Observable<any> {
-    return this.http.post<any>(apiUrl('/analytics/dashboard-especiales'), {}).pipe(
+  getDashboardEspeciales(filtro: any = {}): Observable<any> {
+    return this.http.post<any>(apiUrl('/analytics/dashboard-especiales'), filtro).pipe(
       map(d => {
         const toDonut = (arr: any[], labelField: string, valueField: string) =>
           arr && arr.length > 0 ? { labels: arr.map((x: any) => x[labelField]), datasets: [{ data: arr.map((x: any) => x[valueField] ?? 0), backgroundColor: [...CHART_SERIES] }] } : null;
@@ -314,6 +400,9 @@ export class DashboardOperativoService {
           chartEstadosHoy: toDonut(d?.estadosHoy, 'nombre', 'cantidad'),
           chartPrioridad: toBar(d?.prioridad, 'nombre', 'cantidad', 'OTs'),
           chartTopOperadores: toBar(d?.topOperadores, 'nombre', 'servicios', 'Servicios'),
+          // Ranking de pulidores fijos vs móviles (cantidad de servicios + dinero generado).
+          pulidoresFijos: (d?.pulidores?.fijos ?? []).map((p: any) => ({ nombre: p.nombre, servicios: p.servicios, ingresos: p.ingresos })),
+          pulidoresMoviles: (d?.pulidores?.moviles ?? []).map((p: any) => ({ nombre: p.nombre, servicios: p.servicios, ingresos: p.ingresos })),
           colaActiva: d?.colaActiva || [],
         };
       }),
@@ -414,8 +503,8 @@ export class DashboardOperativoService {
             // Financieros y de crecimiento
             { label: 'Ingreso Hoy', value: `$${k.ingresoHoy ?? 0}`, icon: 'dollar-sign', variant: 'success' },
             { label: 'Ingreso del Mes', value: `$${k.ingresoMes ?? 0}`, icon: 'trending-up', variant: 'primary' },
-            { label: 'Ticket Promedio', value: `$${k.ticketPromedioHoy ?? 0}`, icon: 'tag', variant: 'primary' },
-            { label: 'Crecimiento vs Mes Ant.', value: crecimientoTexto, icon: 'trending-up', variant: crecimiento != null && crecimiento < 0 ? 'danger' : 'success' },
+            { label: 'Ticket Promedio', value: `$${k.ticketPromedioHoy ?? 0}`, icon: 'tag', variant: 'primary', tooltip: 'Ingreso promedio por cada servicio realizado hoy' },
+            { label: 'Crecimiento vs Mes Ant.', value: crecimientoTexto, icon: 'trending-up', variant: crecimiento != null && crecimiento < 0 ? 'danger' : 'success', tooltip: 'Variación porcentual de ingresos frente al mes anterior' },
             // Productividad de la red
             { label: 'Servicios Completados Hoy', value: String(k.serviciosCompletadosHoy ?? 0), icon: 'check-circle', variant: 'success' },
             { label: 'Servicios del Mes', value: String(k.serviciosCompletadosMes ?? 0), icon: 'bar-chart-2', variant: 'primary' },
@@ -444,9 +533,9 @@ export class DashboardOperativoService {
             { label: 'Lavados 30 días', value: String(k.servicios30Dias ?? 0), icon: 'bar-chart-2', variant: 'success' },
             { label: 'Descuentos Pendientes', value: String(k.descuentosPendientes ?? 0), icon: 'clock', variant: 'warning' },
             { label: 'Costo Químicos (30d)', value: k.costoQuimicos30d > 0 ? `$${k.costoQuimicos30d}` : '$0', icon: 'dollar-sign', variant: 'primary' },
-            { label: 'Cumplimiento SLA (30d)', value: slaTexto, icon: 'shield-check', variant: slaVariant },
-            { label: 'Desviación vs Estimado', value: desviacionTexto, icon: 'clock', variant: 'warning' },
-            { label: '% Premium/Especiales (30d)', value: k.premiumPct === null || k.premiumPct === undefined ? 'Sin datos' : `${k.premiumPct}%`, icon: 'sparkles', variant: 'primary' },
+            { label: 'Cumplimiento SLA (30d)', value: slaTexto, icon: 'shield-check', variant: slaVariant, tooltip: '% de vehículos entregados dentro del tiempo prometido' },
+            { label: 'Desviación vs Estimado', value: desviacionTexto, icon: 'clock', variant: 'warning', tooltip: 'Promedio de minutos de adelanto (-) o retraso (+) vs lo esperado' },
+            { label: '% Premium/Especiales (30d)', value: k.premiumPct === null || k.premiumPct === undefined ? 'Sin datos' : `${k.premiumPct}%`, icon: 'sparkles', variant: 'primary', tooltip: 'Porcentaje de servicios que pertenecen al catálogo Especial/Premium' },
           ]};
         }
 
@@ -456,8 +545,8 @@ export class DashboardOperativoService {
             { label: 'Finalizados', value: String(k.lavadosFinalizados ?? 0), icon: 'shield-check', variant: 'primary' },
             { label: 'Incidentes Abiertos', value: String(k.incidentesAbiertos ?? 0), icon: 'alert-triangle', variant: 'warning' },
             { label: 'Tiempo Promedio', value: k.tiempoPromedioMin > 0 ? `${k.tiempoPromedioMin} min` : 'Sin datos', icon: 'clock', variant: 'warning' },
-            { label: 'Cumplimiento SLA', value: slaTexto, icon: 'shield-check', variant: slaVariant },
-            { label: 'Desviación vs Estimado', value: desviacionTexto, icon: 'clock', variant: 'warning' },
+            { label: 'Cumplimiento SLA', value: slaTexto, icon: 'shield-check', variant: slaVariant, tooltip: '% de vehículos entregados dentro del tiempo prometido' },
+            { label: 'Desviación vs Estimado', value: desviacionTexto, icon: 'clock', variant: 'warning', tooltip: 'Promedio de minutos de adelanto (-) o retraso (+) vs lo esperado' },
           ]};
         }
 
@@ -466,8 +555,8 @@ export class DashboardOperativoService {
           { label: 'Finalizados', value: String(k.lavadosFinalizados ?? 0), icon: 'shield-check', variant: 'primary' },
           { label: 'Incidentes Abiertos', value: String(k.incidentesAbiertos ?? 0), icon: 'alert-triangle', variant: 'warning' },
           { label: 'Tiempo Promedio', value: k.tiempoPromedioMin > 0 ? `${k.tiempoPromedioMin} min` : 'Sin datos', icon: 'clock', variant: 'warning' },
-          { label: 'Cumplimiento SLA', value: slaTexto, icon: 'shield-check', variant: slaVariant },
-          { label: 'Desviación vs Estimado', value: desviacionTexto, icon: 'clock', variant: 'warning' },
+          { label: 'Cumplimiento SLA', value: slaTexto, icon: 'shield-check', variant: slaVariant, tooltip: '% de vehículos entregados dentro del tiempo prometido' },
+          { label: 'Desviación vs Estimado', value: desviacionTexto, icon: 'clock', variant: 'warning', tooltip: 'Promedio de minutos de adelanto (-) o retraso (+) vs lo esperado' },
         ]};
       }),
       catchError((err) => {
