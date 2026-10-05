@@ -54,7 +54,7 @@ const COLUMNAS_USUARIOS: TableColumn[] = [
   { key: 'email', label: 'Correo Electrónico', sortable: true, type: 'custom' },
   { key: 'creado', label: 'Fecha Ingreso', sortable: true, defaultSort: 'desc', type: 'custom' },
   { key: 'estado', label: 'Estado', sortable: true, type: 'custom' },
-  { key: 'acciones', label: 'Acción', align: 'right', type: 'custom' },
+  { key: 'acciones', label: 'Acción', align: 'right', type: 'custom', sticky: true },
 ];
 
 const COLUMNAS_ROLES: TableColumn[] = [
@@ -65,7 +65,7 @@ const COLUMNAS_ROLES: TableColumn[] = [
   { key: 'usuarios', label: 'Usuarios', sortable: true },
   { key: 'estado', label: 'Estado', sortable: true, defaultSort: 'asc' },
   { key: 'fecha', label: 'Fecha Creación', sortable: true, defaultSort: 'desc' },
-  { key: 'acciones', label: 'Acciones', align: 'right' },
+  { key: 'acciones', label: 'Acciones', align: 'right', sticky: true },
 ];
 
 @Component({
@@ -531,7 +531,7 @@ const COLUMNAS_ROLES: TableColumn[] = [
               [sortOrder]="rolesTabla.sortOrder"
               [loading]="rolesTabla.cargando"
               [error]="rolesTabla.error"
-              maxHeight="60vh"
+              maxHeight="none"
               caption="Roles y permisos"
               searchPlaceholder="Buscar rol por nombre o descripción..."
               emptyTitle="No hay roles que coincidan."

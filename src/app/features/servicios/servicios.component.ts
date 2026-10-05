@@ -2766,7 +2766,7 @@ export class ServiciosComponent implements OnInit, OnDestroy {
     { key: 'estado', label: 'Estado Workflow', sortable: true },
     { key: 'evInicio', label: 'Evidencia Inicio', align: 'center' },
     { key: 'evFin', label: 'Evidencia Fin', align: 'center' },
-    { key: 'acciones', label: 'Acciones', align: 'right' },
+    { key: 'acciones', label: 'Acciones', align: 'right', sticky: true },
   ];
   filasG: VehiculoServicio[] = [];
   totalG = 0;
@@ -2800,7 +2800,7 @@ export class ServiciosComponent implements OnInit, OnDestroy {
     { key: 'evPausas', label: 'Evidencias Pausas', align: 'center' },
     { key: 'evFin', label: 'Evidencia Fin', align: 'center' },
     { key: 'estado', label: 'Estado', sortable: true },
-    { key: 'acciones', label: 'Acciones', align: 'right' },
+    { key: 'acciones', label: 'Acciones', align: 'right', sticky: true },
   ];
   filasE: ServicioExtra[] = [];
   totalE = 0;

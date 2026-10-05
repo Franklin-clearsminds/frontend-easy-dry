@@ -158,7 +158,7 @@ import { apiUrl } from '../../core/config/env';
         [error]="errorTabla"
         [rowClass]="claseFila"
         searchPlaceholder="Buscar por guía, destino, responsable o insumo..."
-        maxHeight="70vh"
+        maxHeight="none"
         caption="Envíos de suministros"
         [emptyTitle]="tituloVacio"
         emptyHint="Prueba ajustando los filtros o el texto de búsqueda."
@@ -651,7 +651,7 @@ export class EnviosComponent implements OnInit, OnDestroy {
     { key: 'tiempos', label: 'Tiempos', align: 'center' },
     { key: 'estado', label: 'Estado', sortable: true, defaultSort: 'asc', align: 'center' },
     { key: 'recepcion', label: 'Fecha y Hora Aprobación / Rechazo', sortable: true, defaultSort: 'desc', align: 'center' },
-    { key: 'acciones', label: 'Acciones de Agencia', align: 'right' },
+    { key: 'acciones', label: 'Acciones de Agencia', align: 'right', sticky: true },
   ];
   filas: EnvioSuministro[] = [];
   totalTabla = 0;

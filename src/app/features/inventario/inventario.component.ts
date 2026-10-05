@@ -748,7 +748,7 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
           [sortOrder]="productosTabla.sortOrder"
           [loading]="productosTabla.cargando"
           [error]="productosTabla.error"
-          maxHeight="70vh"
+          maxHeight="none"
           caption="Productos e insumos"
           searchPlaceholder="Buscar por código SKU, nombre o descripción..."
           emptyTitle="No se encontraron productos que coincidan con los filtros aplicados."
@@ -1201,7 +1201,7 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
           [sortOrder]="bodegaTabla.sortOrder"
           [loading]="bodegaTabla.cargando"
           [error]="bodegaTabla.error"
-          maxHeight="70vh"
+          maxHeight="none"
           caption="Insumos en bodega"
           searchPlaceholder="Buscar por SKU, nombre o tipo..."
           emptyTitle="No se encontraron insumos almacenados en la bodega que coincidan con el filtro."
@@ -1905,7 +1905,7 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
             [sortOrder]="alertasTabla.sortOrder"
             [loading]="alertasTabla.cargando"
             [error]="alertasTabla.error"
-            maxHeight="70vh"
+            maxHeight="none"
             caption="Alertas de stock bajo"
             searchPlaceholder="Buscar por sucursal, insumo o detalle..."
             [emptyTitle]="mensajeSinAlertas"
@@ -2050,7 +2050,7 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
             [loading]="stockBajoTabla.cargando"
             [error]="stockBajoTabla.error"
             [rowClass]="claseFilaStockBajo"
-            maxHeight="70vh"
+            maxHeight="none"
             caption="Insumos con stock bajo en bodega"
             searchPlaceholder="Buscar por SKU o nombre..."
             emptyTitle="¡Excelente! Todos los productos cuentan con existencias óptimas en bodega."
@@ -2200,7 +2200,7 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
             [sortOrder]="tiposTabla.sortOrder"
             [loading]="tiposTabla.cargando"
             [error]="tiposTabla.error"
-            maxHeight="65vh"
+            maxHeight="none"
             caption="Tipos de producto"
             searchPlaceholder="Buscar por código, nombre o descripción..."
             emptyTitle="No hay tipos de producto que coincidan."
@@ -2253,7 +2253,7 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
             [sortOrder]="unidadesTabla.sortOrder"
             [loading]="unidadesTabla.cargando"
             [error]="unidadesTabla.error"
-            maxHeight="65vh"
+            maxHeight="none"
             caption="Unidades de medida"
             searchPlaceholder="Buscar por código, nombre o símbolo..."
             emptyTitle="No hay unidades de medida que coincidan."
@@ -3759,7 +3759,7 @@ export class InventarioComponent implements OnInit, OnDestroy {
     { key: 'nombre', label: 'Nombre', sortable: true, defaultSort: 'asc' },
     { key: 'descripcion', label: 'Descripción' },
     { key: 'estado', label: 'Estado', sortable: true, defaultSort: 'asc' },
-    { key: 'acciones', label: 'Acciones', align: 'right' },
+    { key: 'acciones', label: 'Acciones', align: 'right', sticky: true },
   ];
   readonly columnasUnidades: TableColumn[] = [
     { key: 'codigo', label: 'Código', sortable: true, defaultSort: 'asc' },
@@ -3768,7 +3768,7 @@ export class InventarioComponent implements OnInit, OnDestroy {
     { key: 'tipo', label: 'Familia / Tipo', sortable: true, defaultSort: 'asc' },
     { key: 'factorBase', label: 'Factor Base', sortable: true, defaultSort: 'asc' },
     { key: 'estado', label: 'Estado', sortable: true, defaultSort: 'asc' },
-    { key: 'acciones', label: 'Acciones', align: 'right' },
+    { key: 'acciones', label: 'Acciones', align: 'right', sticky: true },
   ];
   readonly tiposTabla = new TablaServidor<TipoProductoCatalog>((c) => this.inventarioService.getTiposPagina(c));
   readonly unidadesTabla = new TablaServidor<UnidadMedidaCatalog>((c) => this.inventarioService.getUnidadesPagina(c));
@@ -5093,7 +5093,7 @@ export class InventarioComponent implements OnInit, OnDestroy {
     { key: 'stockOptimoAgencia', label: 'Stock Óptimo Agencia', sortable: true, defaultSort: 'desc' },
     { key: 'alerta', label: 'Alerta de Stock', sortable: true, defaultSort: 'asc' },
     { key: 'estado', label: 'Estado', sortable: true, defaultSort: 'asc' },
-    { key: 'acciones', label: 'Acciones', align: 'right' },
+    { key: 'acciones', label: 'Acciones', align: 'right', sticky: true },
   ];
   readonly productosTabla = new TablaServidor<ProductoInsumo>((c) =>
     this.inventarioService.getProductosPagina({ ...c, ...this.dtoContextoProductos(), ...this.filtrosProductosServidor() }),
@@ -5340,7 +5340,7 @@ export class InventarioComponent implements OnInit, OnDestroy {
     { key: 'stock', label: 'Stock Contenido', sortable: true, defaultSort: 'asc' },
     { key: 'minimo', label: 'Stock Mínimo', sortable: true, defaultSort: 'desc' },
     { key: 'deficit', label: 'Déficit', sortable: true, defaultSort: 'desc' },
-    { key: 'acciones', label: 'Acción', align: 'right' },
+    { key: 'acciones', label: 'Acción', align: 'right', sticky: true },
   ];
   /** Por defecto el servidor muestra primero el de menor stock. */
   readonly stockBajoTabla = new TablaServidor<ProductoInsumo>((c) => this.inventarioService.getStockBajoPagina(c));
@@ -5359,7 +5359,7 @@ export class InventarioComponent implements OnInit, OnDestroy {
     { key: 'mensaje', label: 'Detalle Reportado' },
     { key: 'fecha', label: 'Fecha Reporte', sortable: true, defaultSort: 'desc' },
     { key: 'estado', label: 'Estado', sortable: true, defaultSort: 'asc' },
-    { key: 'acciones', label: 'Acciones', align: 'right' },
+    { key: 'acciones', label: 'Acciones', align: 'right', sticky: true },
   ];
   readonly alertasTabla = new TablaServidor<any, ResumenAlertas>((c) =>
     this.inventarioService.getAlertasPagina({ ...c, ...this.filtrosAlertasServidor() }),
@@ -5661,7 +5661,7 @@ export class InventarioComponent implements OnInit, OnDestroy {
     { key: 'umbral', label: 'Umbral Alerta (% config)' },
     { key: 'optimo', label: 'Stock Óptimo', sortable: true, defaultSort: 'desc' },
     { key: 'estado', label: 'Estado / Nivel Alerta', sortable: true, defaultSort: 'asc' },
-    { key: 'acciones', label: 'Acciones', align: 'right' },
+    { key: 'acciones', label: 'Acciones', align: 'right', sticky: true },
   ];
   /** Bodega que consulta la tabla (la fija `cargarStockBodega`). */
   private bodegaConsultadaId = '';
