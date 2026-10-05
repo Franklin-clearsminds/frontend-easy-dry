@@ -1,1136 +1,497 @@
-import { Component, OnInit, inject, Input } from '@angular/core';
+import { Component, OnDestroy, OnInit, ViewChild, inject, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LucideAngularModule } from 'lucide-angular';
-import { IncidenteService } from '../../core/services/incidente.service';
+import { Subject, Subscription, debounceTime, distinctUntilChanged, map, tap } from 'rxjs';
+import { ConsultaIncidentes, IncidenteService, ResumenIncidentes } from '../../core/services/incidente.service';
 import { MaquinariaService } from '../../core/services/maquinaria.service';
 import { AuthService } from '../../core/services/auth.service';
-import { Incidente, Maquinaria, ArchivoAdjunto } from '../../core/models';
-import { Role } from '../../core/models/roles.model';
-import { UsuarioService } from '../../core/services/usuario.service';
+import { Incidente, Maquinaria } from '../../core/models';
 import { ModalComponent } from '../../shared/components/modal/modal.component';
 import { ToastService } from '../../shared/services/toast.service';
-import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
+import { InfiniteScrollComponent } from '../../shared/components/infinite-scroll/infinite-scroll.component';
+import { ListaInfinita } from '../../core/utils/lista-infinita';
+import { BUSQUEDA_DEBOUNCE_MS, BUSQUEDA_MIN_CARACTERES, PAGE_SIZE_INFINITO } from '../../core/config/paginacion';
 import { FilterBarComponent, FilterState } from '../../shared/components/filter-bar/filter-bar.component';
-import { resolverRangoFechas, soloFecha } from '../../core/utils/fecha-rango';
-import { ModalPortalDirective } from '../../shared/directives/modal-portal.directive';
+import { EvidenciaGaleriaComponent } from '../../shared/components/evidencia-galeria/evidencia-galeria.component';
+import { resolverRangoFechas } from '../../core/utils/fecha-rango';
 import { SucursalService } from '../../core/services/sucursal.service';
+import { Sucursal } from '../../core/models';
+import { fechaHoraLocal } from '../../core/utils/evidencia-maquinaria';
+import {
+  puedeGestionarMaquina, puedeReportarIncidente, puedeResolverIncidentes, puedeVerMaquinaria,
+} from '../../core/utils/maquinaria-permisos';
+import { TrabajoAccionesComponent } from '../maquinaria/trabajo-acciones/trabajo-acciones.component';
+import { MaquinariaDetalleModalComponent } from '../maquinaria/maquinaria-detalle-modal/maquinaria-detalle-modal.component';
+import { SkeletonLoaderComponent } from '../../shared/components/skeleton-loader/skeleton-loader.component';
+import { badgeClase, BADGE_NO_ATENDIDO } from '../../core/utils/badges';
 
 @Component({
   selector: 'app-incidentes',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, PaginationComponent, FilterBarComponent, ModalPortalDirective],
+  imports: [
+    CommonModule, FormsModule, LucideAngularModule, ModalComponent, InfiniteScrollComponent, FilterBarComponent,
+    EvidenciaGaleriaComponent, TrabajoAccionesComponent, MaquinariaDetalleModalComponent, SkeletonLoaderComponent,
+  ],
   template: `
     <div class="space-y-6 animate-fade-in">
-      
+
       <!-- Header -->
       @if (!hideHeader) {
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-100 shadow-easydry">
           <div>
             <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-rose-100 text-rose-800 text-xs font-bold mb-2">
-              <i-lucide name="alert-triangle" class="w-3.5 h-3.5"></i-lucide>
+              <i-lucide name="alert-triangle" class="w-3.5 h-3.5" aria-hidden="true"></i-lucide>
               <span>Gestión Integral de Desperfectos, Multimedia y Reparaciones</span>
             </div>
             <h1 class="text-2xl font-extrabold text-slate-900 font-outfit">Control de Fallas y Reparaciones Técnicas</h1>
             <p class="text-slate-500 text-xs mt-1">
-              Registro de fallos con fotos/videos de evidencia, y resolución con fotos de reparación, videos de prueba y documentos adjuntos (PDF/facturas).
+              Cada incidencia exige 1 o más fotos/videos y exactamente 1 PDF al reportarse y al repararse. Las no atendidas aparecen primero.
             </p>
           </div>
         </div>
       }
 
       <!-- Global Filter Bar -->
-      <app-filter-bar 
-        [showSucursal]="true" 
+      <app-filter-bar
+        [showSucursal]="true"
         [showOperador]="false"
         [showBahia]="false"
         [showEstado]="true"
         [showBusqueda]="true"
-        [placeholderBusqueda]="'Buscar por máquina, código o prioridad...'"
+        [placeholderBusqueda]="'Buscar por máquina, falla, reportante o técnico...'"
         [showCliente]="true"
         [showFechas]="true"
-        [listaEstados]="['Todos', 'Pendiente', 'En Solución', 'Solucionado']"
+        [listaEstados]="['Todos', 'Pendiente', 'En Solución', 'Solucionado', 'Cancelado']"
         (filterChange)="aplicarNuevosFiltros($event)">
-        <button filter-actions
-          (click)="abrirModalReportar()"
-          class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
-          <i-lucide name="plus" class="w-4 h-4"></i-lucide>
-          <span class="hidden sm:inline">Reportar Nuevo Fallo</span>
-          <span class="sm:hidden">Reportar Fallo</span>
-        </button>
+        <label filter-actions class="inline-flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
+          <input type="checkbox" [(ngModel)]="soloNoAtendidas" (ngModelChange)="reiniciar()" class="w-4 h-4 accent-rose-600">
+          Solo no atendidas
+        </label>
+        @if (puedeReportar) {
+          <button filter-actions
+            (click)="abrirReportar()"
+            class="btn btn-cta">
+            <i-lucide name="plus" class="w-4 h-4" aria-hidden="true"></i-lucide>
+            <span class="hidden sm:inline">Reportar Nuevo Fallo</span>
+            <span class="sm:hidden">Reportar Fallo</span>
+          </button>
+        }
       </app-filter-bar>
+      @if (busquedaCorta) {
+        <p class="-mt-3 px-2 text-[11px] font-semibold text-slate-500" role="status">Escribe al menos {{ minBusqueda }} letras para buscar.</p>
+      }
 
-      <!-- Incident Cards Grid (Optimized for PC/Laptop) -->
+      @if (totalNoAtendidas > 0) {
+        <div class="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs font-bold text-rose-800 flex items-center gap-2">
+          <i-lucide name="alert-circle" class="w-4 h-4" aria-hidden="true"></i-lucide>
+          {{ totalNoAtendidas }} incidencia(s) no atendida(s): aún no tienen técnico asignado.
+        </div>
+      }
+
+      @if (lista.error && lista.items.length === 0) {
+        <div role="alert" class="flex flex-col items-center gap-3 text-center py-6">
+          <div class="estado-error">{{ lista.error }}</div>
+          <button type="button" class="btn btn-secondary btn-sm" (click)="reiniciar()">Reintentar</button>
+        </div>
+      } @else if (!lista.inicializada) {
+        <div role="status" aria-live="polite">
+          <span class="sr-only">Cargando incidencias…</span>
+          <app-skeleton-loader type="cards"></app-skeleton-loader>
+        </div>
+      }
+
+      <!-- Tarjetas de incidencias (orden del backend: no atendidas, en proceso, cerradas) -->
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-stretch">
-        @for (inc of paginatedIncidentes; track inc.id) {
-          <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry p-5 flex flex-col h-full min-h-[280px] hover:shadow-easydry-hover transition-all">
-            
+        @for (inc of lista.items; track inc.id) {
+          <div class="rounded-2xl border shadow-easydry p-5 flex flex-col h-full min-h-[280px] hover:shadow-easydry-hover transition-shadow"
+            [ngClass]="inc.noAtendida ? 'bg-rose-50/70 border-rose-300' : 'bg-white border-slate-100'">
+
             <div class="flex-1 min-w-0">
-              <!-- Top bar: ID and Status badge -->
               <div class="flex items-center justify-between gap-2 mb-3">
                 <span class="font-mono font-extrabold text-xs text-slate-600 bg-slate-100 px-2.5 py-1 rounded-lg truncate">
                   {{ inc.codigoIncidente }}
                 </span>
-                
-                <span 
-                  class="px-2.5 py-1 rounded-full text-[11px] font-extrabold shrink-0"
-                  [ngClass]="{
-                    'bg-rose-100 text-rose-800 border border-rose-300': inc.estado === 'Pendiente',
-                    'bg-amber-100 text-amber-800 border border-amber-300': inc.estado === 'En Solución',
-                    'bg-easydry-green/20 text-easydry-green-dark border border-easydry-green/40': inc.estado === 'Solucionado'
-                  }">
-                  {{ inc.estado }}
-                </span>
+                <div class="flex items-center gap-1.5 shrink-0">
+                  @if (inc.noAtendida) {
+                    <span [class]="badgeNoAtendido">No atendida</span>
+                  }
+                  <span [class]="badgeClase('incidente', inc.estado)">{{ inc.estado }}</span>
+                </div>
               </div>
 
-              <!-- Title & Branch -->
-              <h3 class="font-bold text-slate-900 text-base font-outfit leading-snug line-clamp-2">{{ inc.maquina }}</h3>
-              <p class="text-xs text-slate-500 font-semibold mt-0.5 truncate">{{ inc.agencia }} • {{ inc.fecha }}</p>
+              <h3 class="font-bold text-base font-outfit leading-snug line-clamp-2" [ngClass]="inc.noAtendida ? 'text-rose-800' : 'text-slate-900'">{{ inc.maquina }}</h3>
+              <p class="text-xs font-semibold mt-0.5 truncate" [ngClass]="inc.esPulidorMovil ? 'text-indigo-600' : 'text-slate-500'">
+                @if (inc.esPulidorMovil) {
+                  <i-lucide name="truck" class="w-3 h-3 inline-block align-text-top mr-0.5" aria-hidden="true"></i-lucide>
+                }
+                {{ inc.agencia }} • {{ inc.fecha }}
+              </p>
 
-              <!-- Problem Summary Box -->
-              <div class="mt-3 p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-1.5 text-xs">
-                <div class="flex items-center gap-1.5 text-rose-700 font-bold text-[11px]">
-                  <i-lucide name="alert-circle" class="w-3.5 h-3.5 shrink-0"></i-lucide>
-                  <span class="truncate">Falla: {{ inc.tipo }}</span>
+              <div class="mt-3 p-3 bg-white/70 rounded-xl border border-slate-100 space-y-1.5 text-xs">
+                <div class="flex items-center justify-between gap-1.5">
+                  <div class="flex items-center gap-1.5 text-rose-700 font-bold text-xs min-w-0">
+                    <i-lucide name="alert-circle" class="w-3.5 h-3.5 shrink-0" aria-hidden="true"></i-lucide>
+                    <span class="truncate">Falla: {{ inc.tipo }}</span>
+                  </div>
+                  <span class="shrink-0" [class]="badgeClase('gravedad', inc.gravedadRaw)">{{ inc.prioridad }}</span>
                 </div>
                 <p class="text-slate-700 font-medium line-clamp-2">{{ inc.descripcion }}</p>
-                <p class="text-slate-400 text-[10px] truncate">Reportado por: <strong class="text-slate-600">{{ inc.reportadoPor }}</strong></p>
-                @if (inc.tecnicoAsignadoNombre) {
-                  <p class="text-violet-700 text-[10px] font-bold mt-1 truncate">Asignado a: {{ inc.tecnicoAsignadoNombre }}</p>
-                }
-                @if (!inc.tecnicoAsignadoId && inc.estado === 'Pendiente') {
-                  <p class="text-amber-700 text-[10px] font-bold mt-1">Sin asignar — requiere gestor técnico</p>
+                <p class="text-slate-500 text-xs truncate">Reportado por: <strong class="text-slate-600">{{ inc.reportadoPor }}</strong></p>
+                @if (inc.tecnicoAsignadoId) {
+                  <p class="text-violet-700 text-xs font-bold mt-1 truncate">Asignado a: {{ inc.tecnicoAsignadoNombre }}</p>
+                } @else if (inc.estadoRaw === 'ABIERTO') {
+                  <p class="text-rose-700 text-xs font-bold mt-1">Sin asignar — requiere coordinación de mantenimiento</p>
                 }
               </div>
 
-              <!-- Evidencias del Fallo (Badges / Miniatura) -->
-              @if ((inc.fotosFallo && inc.fotosFallo.length > 0) || (inc.videosFallo && inc.videosFallo.length > 0)) {
+              @if (inc.evidencias && inc.evidencias.length > 0) {
                 <div class="mt-2.5 flex items-center gap-2 flex-wrap">
-                  <span class="text-[10px] font-bold text-slate-400 uppercase">Fallo:</span>
-                  @if (inc.fotosFallo && inc.fotosFallo.length > 0) {
-                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 text-[10px] font-bold border border-rose-200">
-                      <i-lucide name="image" class="w-3 h-3"></i-lucide>
-                      {{ inc.fotosFallo.length }} foto(s)
-                    </span>
-                  }
-                  @if (inc.videosFallo && inc.videosFallo.length > 0) {
-                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 text-[10px] font-bold border border-purple-200">
-                      <i-lucide name="film" class="w-3 h-3"></i-lucide>
-                      {{ inc.videosFallo.length }} video(s)
-                    </span>
-                  }
+                  <span class="text-[11px] font-bold text-slate-500 uppercase">Evidencias:</span>
+                  <span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[11px] font-bold border border-slate-200">{{ inc.evidencias.length }} archivo(s)</span>
                 </div>
               }
 
-              <!-- Solución Resumen (Si está solucionado) -->
               @if (inc.estado === 'Solucionado') {
-                <div class="mt-3 p-3 bg-easydry-green/10 border border-easydry-green/30 rounded-xl text-xs space-y-1.5">
-                  <div class="flex items-center justify-between">
-                    <span class="font-bold text-easydry-green-dark uppercase text-[10px] flex items-center gap-1">
-                      <i-lucide name="check-circle-2" class="w-3.5 h-3.5"></i-lucide>
-                      Equipo Reparado
-                    </span>
-                  </div>
+                <div class="mt-3 p-3 bg-easydry-green/10 border border-easydry-green/30 rounded-xl text-xs space-y-1">
+                  <span class="font-bold text-easydry-green-text uppercase text-[11px] flex items-center gap-1">
+                    <i-lucide name="check-circle-2" class="w-3.5 h-3.5" aria-hidden="true"></i-lucide> Equipo reparado
+                  </span>
                   <p class="text-slate-800 font-medium line-clamp-2">{{ inc.observacionSolucion }}</p>
-                  
-                  <!-- Evidencias de reparación y documentos -->
-                  <div class="flex items-center gap-2 pt-1 border-t border-easydry-green/20 flex-wrap">
-                    @if (inc.fotosReparacion && inc.fotosReparacion.length > 0) {
-                      <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[9px] font-bold">
-                        <i-lucide name="image" class="w-2.5 h-2.5"></i-lucide>
-                        {{ inc.fotosReparacion.length }} foto(s) reparado
-                      </span>
-                    }
-                    @if (inc.videosReparacion && inc.videosReparacion.length > 0) {
-                      <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 text-[9px] font-bold">
-                        <i-lucide name="film" class="w-2.5 h-2.5"></i-lucide>
-                        {{ inc.videosReparacion.length }} video prueba
-                      </span>
-                    }
-                    @if (inc.documentosReparacion && inc.documentosReparacion.length > 0) {
-                      <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-800 text-[9px] font-bold">
-                        <i-lucide name="file-text" class="w-2.5 h-2.5"></i-lucide>
-                        {{ inc.documentosReparacion.length }} doc(s)
-                      </span>
-                    }
-                  </div>
                 </div>
               }
             </div>
 
-            <!-- Action Buttons -->
+            <!-- Acciones (según rol; el backend valida de nuevo) -->
             <div class="pt-3 mt-auto border-t border-slate-100 flex flex-col gap-2">
-              <button 
-                (click)="abrirDetalle(inc)"
-                class="w-full py-2 px-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5">
-                <i-lucide name="eye" class="w-4 h-4 text-easydry-blue shrink-0"></i-lucide>
-                <span>Ver Ficha & Evidencias</span>
+              <button type="button" (click)="abrirDetalle(inc)"
+                class="btn btn-secondary w-full">
+                <i-lucide name="eye" class="w-4 h-4 text-easydry-blue shrink-0" aria-hidden="true"></i-lucide>
+                <span>Ver ficha & evidencias</span>
               </button>
 
-              @if (inc.estado !== 'Solucionado') {
+              @if (inc.estadoRaw !== 'RESUELTO' && inc.estadoRaw !== 'CANCELADO') {
                 @if (puedeAsignar) {
-                  <button 
-                    (click)="openModalAsignar(inc)"
-                    class="w-full py-2 px-2 bg-violet-600 hover:bg-violet-700 text-white font-extrabold rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5 shadow-xs">
-                    <i-lucide name="user-cog" class="w-4 h-4 shrink-0"></i-lucide>
-                    <span>{{ inc.tecnicoAsignadoId ? 'Reasignar o Delegar' : 'Asignar o Ejecutar' }}</span>
+                  <button type="button" (click)="acciones.asignarIncidente(inc)"
+                    class="btn btn-secondary w-full">
+                    <i-lucide name="user-cog" class="w-4 h-4 shrink-0" aria-hidden="true"></i-lucide>
+                    <span>{{ inc.tecnicoAsignadoId ? 'Reasignar' : 'Asignar' }}</span>
                   </button>
-                  @if (inc.tecnicoAsignadoId) {
-                    <button 
-                      (click)="cancelarAsignacionIncidente(inc)"
-                      class="w-full py-2 px-2 bg-rose-50 hover:bg-rose-100 text-rose-800 font-bold rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5 border border-rose-200">
-                      <i-lucide name="x-circle" class="w-4 h-4 shrink-0"></i-lucide>
-                      <span>Cancelar Asignación</span>
-                    </button>
-                  }
                 }
-                @if (puedeSolucionar(inc)) {
-                  <button 
-                    (click)="openModalSolucionar(inc)"
-                    class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
-                    <i-lucide name="wrench" class="w-4 h-4 shrink-0"></i-lucide>
-                    <span>Registrar Reparación</span>
+                @if (puedeResolver(inc)) {
+                  <button type="button" (click)="acciones.resolverIncidente(inc)"
+                    class="btn btn-primary">
+                    <i-lucide name="wrench" class="w-4 h-4 shrink-0" aria-hidden="true"></i-lucide>
+                    <span>Resolver incidencia</span>
                   </button>
                 }
               }
+              <div class="flex gap-2">
+                @if (puedeEditar(inc)) {
+                  <button type="button" (click)="acciones.editarIncidente(inc)"
+                    class="btn btn-secondary btn-sm flex-1">Editar</button>
+                }
+                <button type="button" (click)="acciones.agregarEvidencia('INCIDENTE', inc)"
+                  class="btn btn-secondary btn-sm flex-1">+ Evidencia</button>
+              </div>
             </div>
-
           </div>
         }
       </div>
 
-      <div class="mt-6">
-        <app-pagination 
-          [totalItems]="incidentesFiltrados.length" 
-          [currentPage]="currentPage" 
-          [pageSize]="pageSize"
-          (pageChange)="onPageChange($event)"
-          (pageSizeChange)="onPageSizeChange($event)">
-        </app-pagination>
-      </div>
-
-      <!-- ============================================================== -->
-      <!-- MODAL 1: REPORTAR NUEVO FALLO (CON SUBIDA DE FOTOS Y VIDEOS) -->
-      <!-- ============================================================== -->
-      <app-modal 
-        [isOpen]="modalReportarOpen" 
-        title="Reportar Desperfecto o Falla de Maquinaria" 
-        icon="alert-triangle"
-        (close)="modalReportarOpen = false">
-        
-        <form (ngSubmit)="guardarReporte()" class="space-y-4">
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Equipo Afectado</label>
-              <select [(ngModel)]="nuevoIncidente.maquina" name="maquina" class="w-full p-2.5 border rounded-xl text-xs font-bold" required>
-                @for (m of maquinasDisponibles; track m.id) {
-                  <option [value]="m.nombre">{{ m.codigo }} - {{ m.nombre }} ({{ m.agencia }})</option>
-                }
-              </select>
-            </div>
-
-            <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Tipo de Falla / Desperfecto</label>
-              <select [(ngModel)]="nuevoIncidente.tipo" name="tipo" class="w-full p-2.5 border rounded-xl text-xs font-bold">
-                <option value="Falla eléctrica">Falla eléctrica</option>
-                <option value="Fuga de agua">Fuga de agua</option>
-                <option value="Problema hidráulico">Problema hidráulico</option>
-                <option value="Baja presión">Baja presión</option>
-                <option value="Manguera dañada">Manguera dañada</option>
-                <option value="Desgaste">Desgaste mecánico</option>
-                <option value="Rotura de pieza">Rotura de pieza</option>
-              </select>
-            </div>
-          </div>
-
-          <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Descripción Detallada del Problema</label>
-            <textarea 
-              [(ngModel)]="nuevoIncidente.descripcion" 
-              name="descripcion" 
-              placeholder="Describa el comportamiento anómalo, ruidos, fugas o síntomas observados..." 
-              rows="3" 
-              class="w-full p-3 border rounded-xl text-xs font-medium focus:ring-2 focus:ring-rose-500" 
-              required>
-            </textarea>
-          </div>
-
-          <!-- Zona de Subida de Fotos / Videos del Fallo -->
-          <div class="border-2 border-dashed border-rose-200 bg-rose-50/40 rounded-2xl p-4 space-y-3">
-            <div class="flex items-center justify-between">
-              <label class="text-xs font-bold text-rose-900 uppercase flex items-center gap-1.5">
-                <i-lucide name="camera" class="w-4 h-4 text-rose-600"></i-lucide>
-                Evidencias del Fallo (Fotos / Vídeos)
-              </label>
-              <span class="text-[11px] text-slate-500">JPG, PNG, MP4, MOV</span>
-            </div>
-
-            <div class="flex items-center gap-3">
-              <label class="cursor-pointer px-4 py-2.5 bg-white border border-rose-300 hover:bg-rose-50 text-rose-700 font-bold rounded-xl text-xs transition-colors flex items-center gap-2 shadow-2xs">
-                <i-lucide name="upload-cloud" class="w-4 h-4"></i-lucide>
-                <span>Seleccionar Archivos</span>
-                <input 
-                  type="file" 
-                  multiple 
-                  accept="image/*,video/*" 
-                  (change)="onSubirArchivosFallo($event)" 
-                  class="hidden">
-              </label>
-
-              <button 
-                type="button"
-                (click)="agregarEvidenciaFalloDemo()"
-                class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold">
-                + Cargar Evidencias de Prueba
-              </button>
-            </div>
-
-            <!-- Previsualización de archivos subidos del fallo -->
-            @if (archivosFalloSubidos.length > 0) {
-              <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2">
-                @for (arch of archivosFalloSubidos; track arch.id; let idx = $index) {
-                  <div class="relative group bg-white border rounded-xl p-2 shadow-xs">
-                    @if (arch.tipo === 'imagen') {
-                      <img [src]="arch.url" alt="Fallo" class="w-full h-24 object-cover rounded-lg">
-                    } @else if (arch.tipo === 'video') {
-                      <div class="w-full h-24 bg-slate-900 rounded-lg flex flex-col items-center justify-center text-white relative overflow-hidden">
-                        <i-lucide name="film" class="w-8 h-8 text-purple-400"></i-lucide>
-                        <span class="text-[9px] mt-1 font-mono">Vídeo MP4</span>
-                      </div>
-                    }
-                    <p class="text-[10px] font-semibold text-slate-700 truncate mt-1">{{ arch.nombre }}</p>
-                    <button 
-                      type="button"
-                      (click)="eliminarArchivoFallo(idx)"
-                      class="absolute top-1 right-1 p-1 bg-rose-600 text-white rounded-full opacity-90 hover:opacity-100 shadow-sm">
-                      <i-lucide name="x" class="w-3 h-3"></i-lucide>
-                    </button>
-                  </div>
-                }
-              </div>
-            }
-          </div>
-        </form>
-
-        <div modal-footer>
-          <button (click)="modalReportarOpen = false" class="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs">Cancelar</button>
-          <button (click)="guardarReporte()" class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">Registrar Reporte con Evidencias</button>
-        </div>
-      </app-modal>
-
-      <!-- ========================================================================= -->
-      <!-- MODAL 2: RESOLVER DESPERFECTO (SUBIDA DE FOTOS, VIDEOS Y DOCUMENTOS/PDF) -->
-      <!-- ========================================================================= -->
-      <app-modal 
-        [isOpen]="modalSolucionarOpen" 
-        [title]="'Registrar Reparación: ' + (incidenteSolucionar?.codigoIncidente || '')" 
-        icon="wrench"
-        (close)="modalSolucionarOpen = false">
-        
-        <div class="space-y-5">
-          <!-- Resumen del Fallo -->
-          <div class="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 text-xs space-y-1">
-            <div class="flex items-center justify-between">
-              <span class="font-bold text-slate-800">Equipo: <strong>{{ incidenteSolucionar?.maquina }}</strong></span>
-              <span class="font-mono text-slate-500">{{ incidenteSolucionar?.agencia }}</span>
-            </div>
-            <p class="text-slate-600 mt-1"><strong>Falla Original:</strong> {{ incidenteSolucionar?.descripcion }}</p>
-          </div>
-
-          <!-- Diagnóstico y Reparación -->
-          <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Informe Técnico de la Solución Aplicada</label>
-            <textarea 
-              [(ngModel)]="solucionForm.observacionSolucion" 
-              placeholder="Detalle la reparación realizada (ej. sustitución de bomba, calibración de presostato, sellado de juntas)..." 
-              rows="3" 
-              class="w-full p-3 border rounded-xl text-xs font-semibold focus:ring-2 focus:ring-easydry-green">
-            </textarea>
-          </div>
-
-          <!-- Repuestos -->
-          <div class="mt-4 p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-4">
-            <div class="grid grid-cols-1 gap-4">
-              <div>
-                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Repuestos Utilizados</label>
-                <input type="text" 
-                [(ngModel)]="solucionForm.repuestosUtilizados" 
-                placeholder="Ej: Empaques O-Ring, Acoples M22" 
-                class="w-full p-2.5 border rounded-xl text-sm font-medium">
-              </div>
-            </div>
-          </div>
-
-          <!-- Subida de Fotos y Videos de Reparación -->
-          <div class="border-2 border-dashed border-emerald-200 bg-emerald-50/40 rounded-2xl p-4 space-y-3">
-            <div class="flex items-center justify-between">
-              <label class="text-xs font-bold text-emerald-900 uppercase flex items-center gap-1.5">
-                <i-lucide name="camera" class="w-4 h-4 text-emerald-600"></i-lucide>
-                Evidencias de la Máquina Reparada (Fotos / Vídeos)
-              </label>
-              <span class="text-[11px] text-slate-500">Fotos del trabajo y video de prueba</span>
-            </div>
-
-            <div class="flex items-center gap-3">
-              <label class="cursor-pointer px-4 py-2.5 bg-white border border-emerald-300 hover:bg-emerald-50 text-emerald-700 font-bold rounded-xl text-xs transition-colors flex items-center gap-2 shadow-2xs">
-                <i-lucide name="upload-cloud" class="w-4 h-4"></i-lucide>
-                <span>Subir Fotos / Videos de Reparación</span>
-                <input 
-                  type="file" 
-                  multiple 
-                  accept="image/*,video/*" 
-                  (change)="onSubirMultimediaReparacion($event)" 
-                  class="hidden">
-              </label>
-
-              <button 
-                type="button"
-                (click)="agregarMultimediaReparacionDemo()"
-                class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold">
-                + Cargar Fotos/Video Demo
-              </button>
-            </div>
-
-            @if (solucionForm.multimedia.length > 0) {
-              <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2">
-                @for (m of solucionForm.multimedia; track m.id; let idx = $index) {
-                  <div class="relative group bg-white border rounded-xl p-2 shadow-xs">
-                    @if (m.tipo === 'imagen') {
-                      <img [src]="m.url" alt="Reparado" class="w-full h-24 object-cover rounded-lg">
-                    } @else if (m.tipo === 'video') {
-                      <div class="w-full h-24 bg-slate-900 rounded-lg flex flex-col items-center justify-center text-white relative overflow-hidden">
-                        <i-lucide name="film" class="w-8 h-8 text-emerald-400"></i-lucide>
-                        <span class="text-[9px] mt-1 font-mono">Vídeo Prueba</span>
-                      </div>
-                    }
-                    <p class="text-[10px] font-semibold text-slate-700 truncate mt-1">{{ m.nombre }}</p>
-                    <button 
-                      type="button"
-                      (click)="eliminarMultimediaReparacion(idx)"
-                      class="absolute top-1 right-1 p-1 bg-rose-600 text-white rounded-full opacity-90 hover:opacity-100 shadow-sm">
-                      <i-lucide name="x" class="w-3 h-3"></i-lucide>
-                    </button>
-                  </div>
-                }
-              </div>
-            }
-          </div>
-
-          <!-- Subida de Documentos Técnicos, Facturas y Garantías -->
-          <div class="border-2 border-dashed border-indigo-200 bg-indigo-50/40 rounded-2xl p-4 space-y-3">
-            <div class="flex items-center justify-between">
-              <label class="text-xs font-bold text-indigo-900 uppercase flex items-center gap-1.5">
-                <i-lucide name="file-text" class="w-4 h-4 text-indigo-600"></i-lucide>
-                Documentos Técnicos Adjuntos (PDF / Facturas / Garantía)
-              </label>
-              <span class="text-[11px] text-slate-500">PDF, DOC, XLS</span>
-            </div>
-
-            <div class="flex items-center gap-3">
-              <label class="cursor-pointer px-4 py-2.5 bg-white border border-indigo-300 hover:bg-indigo-50 text-indigo-700 font-bold rounded-xl text-xs transition-colors flex items-center gap-2 shadow-2xs">
-                <i-lucide name="file-plus" class="w-4 h-4"></i-lucide>
-                <span>Adjuntar Documento PDF</span>
-                <input 
-                  type="file" 
-                  multiple 
-                  accept=".pdf,.doc,.docx,.xls,.xlsx,.txt" 
-                  (change)="onSubirDocumentosReparacion($event)" 
-                  class="hidden">
-              </label>
-
-              <button 
-                type="button"
-                (click)="agregarDocumentosReparacionDemo()"
-                class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold">
-                + Adjuntar PDF y Factura Demo
-              </button>
-            </div>
-
-            @if (solucionForm.documentos.length > 0) {
-              <div class="space-y-2 pt-2">
-                @for (doc of solucionForm.documentos; track doc.id; let idx = $index) {
-                  <div class="p-2.5 bg-white border border-indigo-100 rounded-xl flex items-center justify-between shadow-2xs">
-                    <div class="flex items-center gap-2.5 overflow-hidden">
-                      <div class="p-2 rounded-lg bg-indigo-100 text-indigo-700 flex-shrink-0">
-                        <i-lucide name="file-text" class="w-4 h-4"></i-lucide>
-                      </div>
-                      <div class="overflow-hidden">
-                        <p class="text-xs font-bold text-slate-900 truncate">{{ doc.nombre }}</p>
-                        <p class="text-[10px] text-slate-400 font-mono">{{ doc.tamanio || '1.4 MB' }} • {{ doc.extension || 'PDF' }}</p>
-                      </div>
-                    </div>
-
-                    <button 
-                      type="button"
-                      (click)="eliminarDocumentoReparacion(idx)"
-                      class="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors">
-                      <i-lucide name="trash-2" class="w-4 h-4"></i-lucide>
-                    </button>
-                  </div>
-                }
-              </div>
-            }
-          </div>
-        </div>
-
-        <div modal-footer>
-          <button (click)="modalSolucionarOpen = false" class="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs">Cancelar</button>
-          <button (click)="confirmarSolucion()" class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs">Guardar Reparación y Documentos</button>
-        </div>
-      </app-modal>
-
-      <!-- ========================================================================= -->
-      <!-- MODAL 3: AUDITORÍA Y DETALLE COMPLETO (EVIDENCIAS FALLO + REPARACIÓN + DOCS) -->
-      <!-- ========================================================================= -->
-      <app-modal 
-        [isOpen]="modalDetalleOpen" 
-        [title]="'Ficha de Auditoría Técnica: ' + (incidenteDetalle?.codigoIncidente || '')" 
-        icon="clipboard-list"
-        (close)="modalDetalleOpen = false">
-        
-        @if (incidenteDetalle) {
-          <div class="space-y-6">
-            
-            <!-- Resumen Superior -->
-            <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div>
-                <span class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 font-mono">{{ incidenteDetalle.codigoIncidente }}</span>
-                <h3 class="text-lg font-bold text-slate-900">{{ incidenteDetalle.maquina }}</h3>
-                <p class="text-xs text-slate-500">{{ incidenteDetalle.agencia }} • Reportado: {{ incidenteDetalle.fecha }}</p>
-              </div>
-
-              <div class="flex items-center gap-2">
-                <span 
-                  class="px-3 py-1.5 rounded-xl text-xs font-extrabold"
-                  [ngClass]="{
-                    'bg-rose-100 text-rose-800 border border-rose-300': incidenteDetalle.estado === 'Pendiente',
-                    'bg-amber-100 text-amber-800 border border-amber-300': incidenteDetalle.estado === 'En Solución',
-                    'bg-easydry-green/20 text-easydry-green-dark border border-easydry-green/40': incidenteDetalle.estado === 'Solucionado'
-                  }">
-                  {{ incidenteDetalle.estado }}
-                </span>
-              </div>
-            </div>
-
-            <!-- SECCIÓN 1: Evidencias del Fallo (Antes) -->
-            <div class="p-4 rounded-2xl border border-rose-200 bg-rose-50/30 space-y-3">
-              <div class="flex items-center justify-between border-b border-rose-200/60 pb-2">
-                <h4 class="font-bold text-rose-900 text-xs uppercase flex items-center gap-1.5">
-                  <i-lucide name="alert-triangle" class="w-4 h-4 text-rose-600"></i-lucide>
-                  1. Reporte y Evidencias de la Falla
-                </h4>
-                <span class="text-[11px] text-slate-500">Reportado por: <strong>{{ incidenteDetalle.reportadoPor }}</strong></span>
-              </div>
-
-              <p class="text-xs text-slate-800 font-medium">{{ incidenteDetalle.descripcion }}</p>
-
-              <!-- Galería de Fotos del Fallo -->
-              @if (incidenteDetalle.fotosFallo && incidenteDetalle.fotosFallo.length > 0) {
-                <div>
-                  <p class="text-[10px] font-bold text-slate-500 uppercase mb-2">Fotografías del Desperfecto:</p>
-                  <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    @for (foto of incidenteDetalle.fotosFallo; track foto) {
-                      <div class="relative group rounded-xl overflow-hidden border border-rose-200 shadow-xs cursor-pointer" (click)="verMediaZoom(foto, 'imagen')">
-                        <img [src]="foto" alt="Fallo" class="w-full h-24 object-cover group-hover:scale-105 transition-transform duration-200">
-                        <div class="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white">
-                          <i-lucide name="zoom-in" class="w-5 h-5"></i-lucide>
-                        </div>
-                      </div>
-                    }
-                  </div>
-                </div>
-              }
-
-              <!-- Reproductor de Videos del Fallo -->
-              @if (incidenteDetalle.videosFallo && incidenteDetalle.videosFallo.length > 0) {
-                <div>
-                  <p class="text-[10px] font-bold text-slate-500 uppercase mb-2">Vídeo(s) de la Falla en Operación:</p>
-                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    @for (video of incidenteDetalle.videosFallo; track video) {
-                      <div class="rounded-xl overflow-hidden border bg-black shadow-xs">
-                        <video [src]="video" controls class="w-full h-40 object-cover"></video>
-                      </div>
-                    }
-                  </div>
-                </div>
-              }
-            </div>
-
-            <!-- SECCIÓN 2: Evidencias de la Reparación (Después) -->
-            @if (incidenteDetalle.estado === 'Solucionado') {
-              <div class="p-4 rounded-2xl border border-emerald-200 bg-emerald-50/30 space-y-3">
-                <div class="flex items-center justify-between border-b border-emerald-200/60 pb-2">
-                  <h4 class="font-bold text-emerald-900 text-xs uppercase flex items-center gap-1.5">
-                    <i-lucide name="check-circle-2" class="w-4 h-4 text-emerald-600"></i-lucide>
-                    2. Resolución Técnica & Evidencias del Trabajo
-                  </h4>
-                  <span class="text-[11px] text-slate-500">Resuelto por: <strong>{{ incidenteDetalle.solucionadoPor }}</strong> ({{ incidenteDetalle.fechaSolucion }})</span>
-                </div>
-
-                <div class="space-y-1.5 text-xs">
-                  <p class="text-slate-800 font-medium"><strong>Diagnóstico y Reparación:</strong> {{ incidenteDetalle.observacionSolucion }}</p>
-                  @if (incidenteDetalle.repuestosUtilizados) {
-                    <p class="text-slate-700"><strong>Repuestos Utilizados:</strong> {{ incidenteDetalle.repuestosUtilizados }}</p>
-                  }
-                </div>
-
-                <!-- Galería de Fotos del Equipo Reparado -->
-                @if (incidenteDetalle.fotosReparacion && incidenteDetalle.fotosReparacion.length > 0) {
-                  <div>
-                    <p class="text-[10px] font-bold text-emerald-800 uppercase mb-2">Fotografías del Equipo Reparado:</p>
-                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                      @for (foto of incidenteDetalle.fotosReparacion; track foto) {
-                        <div class="relative group rounded-xl overflow-hidden border border-emerald-200 shadow-xs cursor-pointer" (click)="verMediaZoom(foto, 'imagen')">
-                          <img [src]="foto" alt="Reparado" class="w-full h-24 object-cover group-hover:scale-105 transition-transform duration-200">
-                          <div class="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white">
-                            <i-lucide name="zoom-in" class="w-5 h-5"></i-lucide>
-                          </div>
-                        </div>
-                      }
-                    </div>
-                  </div>
-                }
-
-                <!-- Videos de Prueba de Funcionamiento -->
-                @if (incidenteDetalle.videosReparacion && incidenteDetalle.videosReparacion.length > 0) {
-                  <div>
-                    <p class="text-[10px] font-bold text-emerald-800 uppercase mb-2">Vídeo(s) de Prueba Operativa Tras Reparación:</p>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      @for (video of incidenteDetalle.videosReparacion; track video) {
-                        <div class="rounded-xl overflow-hidden border bg-black shadow-xs">
-                          <video [src]="video" controls class="w-full h-40 object-cover"></video>
-                        </div>
-                      }
-                    </div>
-                  </div>
-                }
-
-                <!-- Documentos Técnicos Adjuntos -->
-                @if (incidenteDetalle.documentosReparacion && incidenteDetalle.documentosReparacion.length > 0) {
-                  <div class="pt-2 border-t border-emerald-200/50">
-                    <p class="text-[10px] font-bold text-indigo-900 uppercase mb-2 flex items-center gap-1">
-                      <i-lucide name="file-text" class="w-3.5 h-3.5 text-indigo-600"></i-lucide>
-                      Documentos Adjuntos (Informes / Facturas / Garantías):
-                    </p>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      @for (doc of incidenteDetalle.documentosReparacion; track doc.id) {
-                        <div class="p-2.5 bg-white border border-indigo-100 rounded-xl flex items-center justify-between shadow-2xs">
-                          <div class="flex items-center gap-2 overflow-hidden">
-                            <div class="p-1.5 rounded-lg bg-indigo-100 text-indigo-700">
-                              <i-lucide name="file-text" class="w-4 h-4"></i-lucide>
-                            </div>
-                            <div class="overflow-hidden">
-                              <p class="text-xs font-bold text-slate-800 truncate">{{ doc.nombre }}</p>
-                              <p class="text-[10px] text-slate-400 font-mono">{{ doc.tamanio || '1 MB' }} • {{ doc.fechaSubida }}</p>
-                            </div>
-                          </div>
-
-                          <button 
-                            type="button"
-                            (click)="descargarDocumento(doc)"
-                            class="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-bold transition-colors flex items-center gap-1">
-                            <i-lucide name="download" class="w-3.5 h-3.5"></i-lucide>
-                            <span>Descargar</span>
-                          </button>
-                        </div>
-                      }
-                    </div>
-                  </div>
-                }
-              </div>
-            }
-
-          </div>
-        }
-
-        <div modal-footer>
-          <button (click)="modalDetalleOpen = false" class="px-5 py-2.5 bg-slate-200 text-slate-800 font-bold rounded-xl text-xs">Cerrar Ficha</button>
-        </div>
-      </app-modal>
-
-      <!-- ============================================================== -->
-      <!-- MODAL 4: LIGHTBOX / VISOR DE FOTO O VIDEO EN ALTA RESOLUCIÓN  -->
-      <!-- ============================================================== -->
-      @if (mediaZoomUrl) {
-        <div appModalPortal class="fixed inset-0 z-[9999] bg-black/90 flex items-center justify-center p-6 animate-fade-in" (click)="cerrarMediaZoom()">
-          <div class="relative max-w-4xl w-full max-h-[85vh] flex items-center justify-center" (click)="$event.stopPropagation()">
-            <button 
-              (click)="cerrarMediaZoom()" 
-              class="absolute -top-12 right-0 p-2 bg-white/20 hover:bg-white/40 text-white rounded-full transition-colors">
-              <i-lucide name="x" class="w-6 h-6"></i-lucide>
-            </button>
-            <img [src]="mediaZoomUrl" alt="Zoom Media" class="max-w-full max-h-[80vh] rounded-2xl object-contain shadow-2xl border border-white/20">
-          </div>
-        </div>
+      @if (lista.inicializada && !lista.error && lista.items.length === 0) {
+        <p class="estado-vacio">{{ tituloVacio }}</p>
+      } @else if (lista.items.length > 0) {
+        <app-infinite-scroll
+          [hasMore]="lista.hasMore"
+          [loading]="lista.cargando"
+          [error]="lista.error"
+          [total]="lista.total"
+          (cargarMas)="lista.siguiente()"
+          (reintentar)="lista.reintentar()">
+        </app-infinite-scroll>
       }
 
-      <!-- MODAL: ASIGNAR TÉCNICO (Gestor Técnico / Super Admin) -->
+      <!-- Elegir máquina para reportar (solo operadores, sobre máquinas asignadas a ellos) -->
+      <app-modal [isOpen]="modalElegirOpen" title="Reportar incidencia" icon="alert-triangle" size="sm" size="sm" (close)="modalElegirOpen = false">
+        <div class="space-y-3">
+          <label for="inc-maq-elegida" class="field-label">Equipo afectado (asignado a ti)</label>
+          <select id="inc-maq-elegida" [(ngModel)]="maquinaElegidaId" name="maq-elegida" class="field select-chevron font-bold">
+            @for (m of misMaquinas; track m.id) {
+              <option [value]="m.id">{{ m.codigo }} — {{ m.nombre }} ({{ m.agencia }})</option>
+            }
+          </select>
+        </div>
+        <div modal-footer>
+          <button type="button" (click)="modalElegirOpen = false" class="btn btn-secondary w-full sm:w-auto">Cancelar</button>
+          <button type="button" (click)="continuarReporte()" class="btn btn-primary w-full sm:w-auto">Continuar</button>
+        </div>
+      </app-modal>
+
+      <!-- Ficha de la incidencia con evidencias (fotos, videos y PDF vía URL temporal) -->
       <app-modal
-        [isOpen]="modalAsignarOpen"
-        [title]="incidenteAsignar?.tecnicoAsignadoId ? 'Reasignar Reparación' : 'Asignar Reparación'"
-        icon="user-cog"
-        (close)="modalAsignarOpen = false">
-        @if (incidenteAsignar) {
-          <div class="space-y-4">
-            <p class="text-xs text-slate-600">
-              <strong class="text-slate-900">{{ incidenteAsignar.codigoIncidente }}</strong>
-              · {{ incidenteAsignar.maquina }}
-            </p>
-            <p class="text-xs text-slate-500">
-              Ejecuta la reparación tú mismo o delega a un técnico de campo.
-            </p>
-            @if (incidenteAsignar.tecnicoAsignadoNombre) {
-              <div class="p-3 bg-violet-50 border border-violet-200 rounded-xl text-xs text-violet-800">
-                Asignado actualmente a: <strong>{{ incidenteAsignar.tecnicoAsignadoNombre }}</strong>
+        [isOpen]="modalDetalleOpen"
+        [title]="'Ficha de auditoría técnica: ' + (incidenteDetalle?.codigoIncidente || '')"
+        icon="clipboard-list"
+        size="xl"
+        (close)="modalDetalleOpen = false">
+        @if (incidenteDetalle; as d) {
+          <div class="space-y-5">
+            <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <span class="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 font-mono">{{ d.codigoIncidente }}</span>
+                <h3 class="text-lg font-bold text-slate-900">{{ d.maquina }}</h3>
+                <p class="text-xs" [ngClass]="d.esPulidorMovil ? 'text-indigo-600 font-semibold' : 'text-slate-500'">{{ d.agencia }} • Reportado: {{ hora(d.fechaReporteIso) }}</p>
+              </div>
+              <div class="flex items-center gap-2 flex-wrap">
+                @if (d.noAtendida) { <span [class]="badgeNoAtendido">No atendida</span> }
+                <span [class]="badgeClase('gravedad', d.gravedadRaw)">{{ d.prioridad }}</span>
+                <span [class]="badgeClase('incidente', d.estado)">{{ d.estado }}</span>
+              </div>
+            </div>
+
+            <div class="p-4 rounded-2xl border border-rose-200 bg-rose-50/30 space-y-2 text-xs">
+              <h4 class="font-bold text-rose-900 uppercase flex items-center gap-1.5">
+                <i-lucide name="alert-triangle" class="w-4 h-4 text-rose-600" aria-hidden="true"></i-lucide> {{ d.tipo }}
+              </h4>
+              <p class="text-slate-800 font-medium break-words">{{ d.descripcion }}</p>
+              <p class="text-slate-500">Reportado por <strong>{{ d.reportadoPor }}</strong> · Técnico: <strong>{{ d.tecnicoAsignadoId ? d.tecnicoAsignadoNombre : 'Sin asignar' }}</strong></p>
+              @if (d.destinoTallerNombre) { <p class="text-slate-500">Taller destino: <strong>{{ d.destinoTallerNombre }}</strong></p> }
+            </div>
+
+            @if (d.observacionSolucion) {
+              <div class="p-4 rounded-2xl border border-emerald-200 bg-emerald-50/30 space-y-1 text-xs">
+                <h4 class="font-bold text-emerald-900 uppercase flex items-center gap-1.5">
+                  <i-lucide name="check-circle-2" class="w-4 h-4 text-emerald-600" aria-hidden="true"></i-lucide> Resolución
+                </h4>
+                <p class="text-slate-800 font-medium break-words">{{ d.observacionSolucion }}</p>
+                @if (d.solucionadoPor) { <p class="text-slate-500">Por {{ d.solucionadoPor }} ({{ d.fechaSolucion }})</p> }
+                @if (d.costoTotal != null) { <p class="text-slate-800 font-bold">Costo: \${{ d.costoTotal | number:'1.2-2' }}</p> }
               </div>
             }
 
-            <button
-              type="button"
-              (click)="asignarAEjecutor(gestorActual.id, gestorActual.nombreCompleto)"
-              class="w-full py-3 px-4 bg-violet-600 hover:bg-violet-700 text-white font-extrabold rounded-xl text-xs flex items-center justify-center gap-2">
-              <i-lucide name="wrench" class="w-4 h-4"></i-lucide>
-              {{ etiquetaEjecutarYo }}
-            </button>
-
-            <p class="text-[10px] font-bold text-slate-400 uppercase">Delegar a técnico</p>
-            @for (tec of tecnicosDisponibles; track tec.email) {
-              <button
-                type="button"
-                (click)="asignarAEjecutor(tec.id, tec.nombre)"
-                class="w-full py-3 px-4 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl text-xs flex items-center justify-between">
-                <span>{{ tec.nombre }}</span>
-                <i-lucide name="chevron-right" class="w-4 h-4"></i-lucide>
-              </button>
-            }
-
-            @if (incidenteAsignar.tecnicoAsignadoId) {
-              <button
-                type="button"
-                (click)="cancelarAsignacionIncidente(incidenteAsignar)"
-                class="w-full py-3 px-4 bg-rose-50 hover:bg-rose-100 text-rose-800 font-bold rounded-xl text-xs border border-rose-200">
-                Cancelar asignación
-              </button>
-            }
+            <div>
+              <h4 class="font-bold text-slate-900 text-xs uppercase mb-2">Evidencias</h4>
+              <app-evidencia-galeria [evidencias]="d.evidencias || []" [agruparPorEtapa]="true" vacio="Esta incidencia no tiene evidencias."></app-evidencia-galeria>
+            </div>
           </div>
         }
+        <div modal-footer>
+          @if (incidenteDetalle?.maquinariaId) {
+            <button type="button" (click)="verMaquina(incidenteDetalle!)" class="btn btn-secondary w-full sm:w-auto">Ver máquina y trazabilidad</button>
+          }
+          <button type="button" (click)="modalDetalleOpen = false" class="btn btn-secondary w-full sm:w-auto">Cerrar ficha</button>
+        </div>
       </app-modal>
 
+      <!-- Detalle de máquina reutilizable + diálogos de trabajo -->
+      <app-maquinaria-detalle-modal [maquinariaId]="maquinaDetalleId" pestanaInicial="incidencias"
+        (cerrar)="maquinaDetalleId = null" (cambio)="refrescar()"></app-maquinaria-detalle-modal>
+      <app-trabajo-acciones #acciones (hecho)="onAccion()"></app-trabajo-acciones>
     </div>
   `
 })
-export class IncidentesComponent implements OnInit {
+export class IncidentesComponent implements OnInit, OnDestroy {
   @Input() hideHeader = false;
-  incidentes: Incidente[] = [];
-  maquinasDisponibles: Maquinaria[] = [];
-  
-  incidenteSolucionar?: Incidente;
+  misMaquinas: Maquinaria[] = [];
+
   incidenteDetalle?: Incidente;
-
-  currentPage = 1;
-  pageSize = 6;
-
-  modalReportarOpen = false;
-  modalSolucionarOpen = false;
   modalDetalleOpen = false;
-  modalAsignarOpen = false;
+  modalElegirOpen = false;
+  maquinaElegidaId = '';
+  maquinaDetalleId: string | number | null = null;
 
-  incidenteAsignar?: Incidente;
+  soloNoAtendidas = false;
 
-  tecnicosDisponibles: { id: string | number; nombre: string; email: string }[] = [];
+  // ── Filtros, búsqueda y scroll infinito: todo en el SERVIDOR ──
+  readonly minBusqueda = BUSQUEDA_MIN_CARACTERES;
+  /** true cuando el usuario escribió 1 letra (se pide un mínimo de 2 antes de consultar). */
+  busquedaCorta = false;
+  /** Texto que realmente se envía al servidor (con mínimo de letras y espera de 300 ms). */
+  private busquedaAplicada = '';
+  private readonly busqueda$ = new Subject<string>();
+  private suscripcionBusqueda?: Subscription;
+  /** Contadores de los filtros vigentes (menos el de estado); los da el servidor, no lo cargado. */
+  resumen: ResumenIncidentes | null = null;
 
-  gestorActual: { id: string | number; nombreCompleto: string } = { id: 0, nombreCompleto: '' };
-
-  mediaZoomUrl: string | null = null;
-  mediaZoomTipo: 'imagen' | 'video' = 'imagen';
+  readonly lista = new ListaInfinita<Incidente>(
+    (page, size) => this.incidenteService
+      .getIncidentesPagina({ ...this.consulta(), page, pageSize: size, incluirResumen: page === 1 })
+      .pipe(
+        tap((r) => { if (r.resumen) this.resumen = r.resumen; }),
+        map((r) => r.pagina),
+      ),
+    PAGE_SIZE_INFINITO,
+    (i) => i.id,
+  );
 
   filtrosGlobales: FilterState = { sucursal: 'Todas', operador: 'Todos', bahia: 'Todas', estado: 'Todos', fecha: 'Hoy', marca: 'Todas' };
-
-  nuevoIncidente = {
-    maquina: 'Aspiradora Industrial AS-002',
-    agencia: 'EasyDry Quito Norte',
-    tipo: 'Falla eléctrica' as Incidente['tipo'],
-    prioridad: 'Alta' as Incidente['prioridad'],
-    descripcion: ''
-  };
-
-  archivosFalloSubidos: ArchivoAdjunto[] = [];
-
-  solucionForm = {
-    observacionSolucion: '',
-    repuestosUtilizados: '',
-    multimedia: [] as ArchivoAdjunto[],
-    documentos: [] as ArchivoAdjunto[]
-  };
 
   private incidenteService = inject(IncidenteService);
   private maquinariaService = inject(MaquinariaService);
   private authService = inject(AuthService);
   private toastService = inject(ToastService);
   private sucursalService = inject(SucursalService);
-  private usuarioService = inject(UsuarioService);
+  private sucursales: Sucursal[] = [];
+
+  @ViewChild('acciones') acciones!: TrabajoAccionesComponent;
+
+  private get miId(): string { return String(this.authService.getCurrentUser()?.id || ''); }
 
   ngOnInit(): void {
-    const user = this.authService.getCurrentUser();
-    if (user) {
-      this.gestorActual = {
-        id: user.id,
-        nombreCompleto: `${user.nombre} ${user.apellido}`.trim(),
-      };
+    this.suscripcionBusqueda = this.busqueda$
+      .pipe(debounceTime(BUSQUEDA_DEBOUNCE_MS), distinctUntilChanged())
+      .subscribe((texto) => {
+        this.busquedaAplicada = texto;
+        this.reiniciar();
+      });
+    // El filter-bar entrega nombres de sucursal/marca y el servidor pide ids: se necesitan las sucursales cargadas.
+    this.sucursalService.getSucursales().subscribe((list) => { this.sucursales = list; });
+    this.reiniciar();
+    if (puedeReportarIncidente(this.authService) && puedeVerMaquinaria(this.authService)) {
+      this.maquinariaService.getMaquinaria().subscribe(list => {
+        this.misMaquinas = list.filter(m => m.activa !== false && String(m.operadorAsignadoId || '') === this.miId);
+        this.maquinaElegidaId = this.misMaquinas[0] ? String(this.misMaquinas[0].id) : '';
+      });
     }
+  }
 
-    this.usuarioService.getUsuarios(true, true).subscribe(list => {
-      this.tecnicosDisponibles = (list || [])
-        .filter(u => {
-          const rol = (u.rolNombre || u.rol || '').toUpperCase();
-          return rol === Role.TECNICO || rol.includes('TECNICO') || rol.includes('TÉCNICO');
-        })
-        .map(u => ({
-          id: u.id,
-          nombre: `${u.nombre} ${u.apellido}`.trim(),
-          email: u.email,
-        }));
-    });
+  ngOnDestroy(): void {
+    this.suscripcionBusqueda?.unsubscribe();
+    this.lista.destruir();
+  }
 
-    this.incidenteService.getIncidentes().subscribe();
-    this.incidenteService.incidentes$.subscribe(list => {
-      this.incidentes = list;
-    });
+  /** Vuelve al primer bloque con los filtros vigentes (y vuelve a pedir los contadores). */
+  reiniciar(): void {
+    this.lista.reiniciar();
+  }
 
-    this.maquinariaService.getMaquinaria().subscribe(list => {
-      this.maquinasDisponibles = list;
-      if (this.maquinasDisponibles.length > 0) {
-        this.nuevoIncidente.maquina = this.maquinasDisponibles[0].nombre;
-      }
-    });
+  /** Tras una acción (asignar, resolver, editar, reportar…): reinicia la lista y actualiza los contadores. */
+  refrescar(): void {
+    this.reiniciar();
+  }
+
+  onAccion(): void {
+    this.refrescar();
   }
 
   aplicarNuevosFiltros(filtros: FilterState) {
+    const previo = this.filtrosGlobales;
     this.filtrosGlobales = filtros;
-    this.currentPage = 1;
-  }
+    const busq = (filtros.busqueda ?? '').trim();
+    this.busquedaCorta = busq.length > 0 && busq.length < BUSQUEDA_MIN_CARACTERES;
 
-  get esGestor(): boolean {
-    return this.authService.hasRole(Role.COORD_MANTENIMIENTO);
-  }
-
-  get puedeAsignar(): boolean {
-    return this.esGestor || this.authService.hasRole(Role.SUPER_ADMIN);
-  }
-
-  get etiquetaEjecutarYo(): string {
-    if (this.authService.hasRole(Role.SUPER_ADMIN)) {
-      return 'Ejecutar yo (Super Administrador)';
+    if (this.huellaFiltros(previo) !== this.huellaFiltros(filtros)) {
+      // Cambió un filtro (no el texto): se consulta ya. Si el texto es de una sola letra se conserva la búsqueda anterior.
+      if (!this.busquedaCorta) this.busquedaAplicada = busq;
+      this.reiniciar();
+      return;
     }
-    return 'Ejecutar yo (Gestor Técnico)';
+    // Solo cambió el texto: espera 300 ms tras la última tecla y exige mínimo 2 letras (o vacío para quitar el filtro).
+    if (!this.busquedaCorta) this.busqueda$.next(busq);
   }
 
-  get esTecnico(): boolean {
-    return this.authService.hasRole(Role.TECNICO);
+  private huellaFiltros(f: FilterState | undefined): string {
+    if (!f) return '';
+    const { busqueda, ...resto } = f;
+    return JSON.stringify(resto);
   }
 
-  puedeSolucionar(inc: Incidente): boolean {
-    const user = this.authService.getCurrentUser();
-    if (!user || inc.estado === 'Solucionado') return false;
-    if (this.authService.hasRole(Role.SUPER_ADMIN)) return true;
-    if (this.puedeAsignar || this.esTecnico) {
-      return inc.tecnicoAsignadoId === user.id;
+  private neutro(v: string | undefined | null, ...neutros: string[]): string {
+    const t = (v ?? '').trim();
+    return !t || neutros.includes(t) ? '' : t;
+  }
+
+  /** Estado elegido en el filter-bar → valor del servidor. */
+  private estadoServidor(): string | undefined {
+    switch (this.neutro(this.filtrosGlobales.estado, 'Todos')) {
+      case 'Pendiente': return 'ABIERTO';
+      case 'En Solución': return 'EN_PROCESO';
+      case 'Solucionado': return 'RESUELTO';
+      case 'Cancelado': return 'CANCELADO';
+      default: return undefined;
     }
-    return true;
   }
 
-  openModalAsignar(inc: Incidente) {
-    this.incidenteAsignar = inc;
-    this.modalAsignarOpen = true;
+  /** Id de la sucursal elegida ('' si no hay filtro; un id imposible si el nombre no existe, para no mostrar todo). */
+  private agenciaIdFiltro(): string {
+    const nombre = this.neutro(this.filtrosGlobales.sucursal, 'Todas', 'TODAS');
+    if (!nombre) return '';
+    const n = nombre.toLowerCase();
+    const suc = this.sucursales.find((s) => (s.nombre || '').toLowerCase() === n);
+    return suc ? String(suc.id) : '__sin_coincidencia__';
   }
 
-  asignarAEjecutor(tecnicoId: string | number, tecnicoNombre: string) {
-    const user = this.authService.getCurrentUser();
-    if (!this.incidenteAsignar || !user) return;
-
-    this.incidenteService.asignarIncidente(
-      this.incidenteAsignar.id,
-      tecnicoId,
-      tecnicoNombre,
-      user.id,
-      `${user.nombre} ${user.apellido}`.trim()
-    ).subscribe(updated => {
-      if (updated) {
-        this.toastService.success('Asignación registrada', `Reparación delegada a ${tecnicoNombre}`);
-        this.modalAsignarOpen = false;
-        if (tecnicoId === user.id) {
-          this.openModalSolucionar(updated);
-        }
-      }
-    });
+  private clienteIdFiltro(): string {
+    const f = this.filtrosGlobales;
+    const nombre = this.neutro(f.cliente, 'Todas', 'TODAS') || this.neutro(f.marca, 'Todas', 'TODAS');
+    if (!nombre) return '';
+    const suc = this.sucursales.find((s) => (s.clienteNombre || s.marcaNombre) === nombre && (s.clienteId ?? s.marcaId) !== undefined);
+    const id = suc ? (suc.clienteId ?? suc.marcaId) : undefined;
+    return id !== undefined && id !== null ? String(id) : '__sin_coincidencia__';
   }
 
-  cancelarAsignacionIncidente(inc: Incidente) {
-    this.incidenteService.cancelarAsignacion(inc.id).subscribe(updated => {
-      if (updated) {
-        this.toastService.success('Asignación cancelada', `${updated.codigoIncidente} quedó pendiente de asignación`);
-        this.modalAsignarOpen = false;
-      }
-    });
-  }
-
-  get incidentesFiltrados() {
-    let resultados = this.incidentes;
-    const user = this.authService.getCurrentUser();
-
-    if (this.esTecnico && user) {
-      resultados = resultados.filter(inc => inc.tecnicoAsignadoId === user.id);
-    }
-
-    if (this.filtrosGlobales.estado !== 'Todos') {
-      resultados = resultados.filter(inc => inc.estado === this.filtrosGlobales.estado);
-    }
-    if (this.filtrosGlobales.sucursal !== 'Todas') {
-      resultados = resultados.filter(inc => inc.agencia === this.filtrosGlobales.sucursal);
-    }
-    if (this.filtrosGlobales.marca && this.filtrosGlobales.marca !== 'Todas') {
-      resultados = resultados.filter(item => {
-        const suc = this.sucursalService.getSucursalPorNombre(item.agencia);
-        return suc?.marcaNombre === this.filtrosGlobales.marca;
-      });
-    }
-
+  /** Filtros vigentes para el servidor (sin página ni tamaño). El orden por grupos lo hace el servidor. */
+  private consulta(): ConsultaIncidentes {
     const rango = resolverRangoFechas(this.filtrosGlobales);
-    if (rango) {
-      resultados = resultados.filter(inc => {
-        const d = soloFecha(inc.fecha);
-        return d >= rango.inicio && d <= rango.fin;
-      });
+    return {
+      search: this.busquedaAplicada,
+      estado: this.estadoServidor(),
+      agenciaId: this.agenciaIdFiltro() || undefined,
+      clienteId: this.clienteIdFiltro() || undefined,
+      soloNoAtendidas: this.soloNoAtendidas || undefined,
+      fechaDesde: rango?.inicio,
+      fechaHasta: rango?.fin,
+    };
+  }
+
+  private get hayFiltrosActivos(): boolean {
+    const c = this.consulta();
+    return !!(c.search || c.estado || c.agenciaId || c.clienteId || c.soloNoAtendidas || c.fechaDesde);
+  }
+
+  get tituloVacio(): string {
+    return this.hayFiltrosActivos
+      ? 'No hay incidencias que coincidan con los filtros aplicados.'
+      : 'Aún no hay incidencias registradas.';
+  }
+
+  // ---- Permisos de UI (el backend valida siempre) ----
+  get puedeAsignar(): boolean { return puedeGestionarMaquina(this.authService); }
+
+  /** Reportar: con el permiso y con máquinas asignadas al usuario. */
+  get puedeReportar(): boolean { return puedeReportarIncidente(this.authService) && this.misMaquinas.length > 0; }
+
+  puedeResolver(inc: Incidente): boolean {
+    if (!puedeResolverIncidentes(this.authService)) return false;
+    // El coordinador/admin puede resolver una no asignada (queda auto-asignado); el técnico solo la suya.
+    if (puedeGestionarMaquina(this.authService)) return !inc.tecnicoAsignadoId || String(inc.tecnicoAsignadoId) === this.miId;
+    return String(inc.tecnicoAsignadoId || '') === this.miId;
+  }
+
+  puedeEditar(inc: Incidente): boolean {
+    return puedeResolverIncidentes(this.authService) && (puedeGestionarMaquina(this.authService) || String(inc.tecnicoAsignadoId || '') === this.miId);
+  }
+
+  /** Incidencias sin técnico asignado con los filtros vigentes (dato del servidor). */
+  get totalNoAtendidas(): number { return this.resumen?.noAtendidas ?? 0; }
+
+  abrirReportar(): void {
+    if (this.misMaquinas.length === 1) {
+      void this.acciones.reportarIncidente(this.misMaquinas[0]);
+    } else {
+      this.modalElegirOpen = true;
     }
-    
-    return resultados;
   }
 
-  get paginatedIncidentes() {
-    const start = (this.currentPage - 1) * this.pageSize;
-    return this.incidentesFiltrados.slice(start, start + this.pageSize);
-  }
-
-  onPageChange(page: number) {
-    this.currentPage = page;
-  }
-
-  onPageSizeChange(size: number) {
-    this.pageSize = size;
-    this.currentPage = 1;
-  }
-
-  abrirModalReportar() {
-    this.archivosFalloSubidos = [];
-    this.nuevoIncidente.descripcion = '';
-    this.modalReportarOpen = true;
-  }
-
-  onSubirArchivosFallo(event: Event) {
-    const input = event.target as HTMLInputElement;
-    if (input.files) {
-      Array.from(input.files).forEach(file => {
-        const isVideo = file.type.startsWith('video');
-        const url = URL.createObjectURL(file);
-        this.archivosFalloSubidos.push({
-          id: `arch-${Date.now()}-${Math.random()}`,
-          nombre: file.name,
-          tipo: isVideo ? 'video' : 'imagen',
-          extension: file.name.split('.').pop()?.toUpperCase() || (isVideo ? 'MP4' : 'JPG'),
-          url: url,
-          tamanio: `${(file.size / (1024 * 1024)).toFixed(1)} MB`,
-          fechaSubida: new Date().toLocaleTimeString()
-        });
-      });
-      this.toastService.success('Archivos Cargados', `${input.files.length} archivo(s) de evidencia listos.`);
-    }
-  }
-
-  agregarEvidenciaFalloDemo() {
-    this.archivosFalloSubidos.push({
-      id: `demo-f-${Date.now()}-1`,
-      nombre: 'falla_recalentamiento_motor.jpg',
-      tipo: 'imagen',
-      extension: 'JPG',
-      url: 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=800&auto=format&fit=crop&q=80',
-      tamanio: '2.3 MB',
-      fechaSubida: 'Hoy'
-    });
-    this.archivosFalloSubidos.push({
-      id: `demo-f-${Date.now()}-2`,
-      nombre: 'video_fuga_agua_presion.mp4',
-      tipo: 'video',
-      extension: 'MP4',
-      url: 'https://assets.mixkit.co/videos/preview/mixkit-circuit-board-details-close-up-42289-large.mp4',
-      tamanio: '12.4 MB',
-      fechaSubida: 'Hoy'
-    });
-    this.toastService.info('Demo', 'Se agregaron 1 foto y 1 video de prueba del fallo.');
-  }
-
-  eliminarArchivoFallo(index: number) {
-    this.archivosFalloSubidos.splice(index, 1);
-  }
-
-  guardarReporte() {
-    if (!this.nuevoIncidente.descripcion.trim()) {
-      this.toastService.warning('Descripción Requerida', 'Escriba el fallo presentado por la máquina.');
+  continuarReporte(): void {
+    const m = this.misMaquinas.find(x => String(x.id) === this.maquinaElegidaId);
+    if (!m) {
+      this.toastService.warning('Equipo requerido', 'Selecciona el equipo afectado.');
       return;
     }
-
-    const usuario = this.authService.getCurrentUser()?.nombre || 'Franklin Administrador';
-    
-    const fotos = this.archivosFalloSubidos.filter(a => a.tipo === 'imagen').map(a => a.url);
-    const videos = this.archivosFalloSubidos.filter(a => a.tipo === 'video').map(a => a.url);
-
-    const registro: Omit<Incidente, 'id'> = {
-      codigoIncidente: `INC-2026-${String(this.incidentes.length + 1).padStart(3, '0')}`,
-      maquina: this.nuevoIncidente.maquina,
-      agencia: this.nuevoIncidente.agencia,
-      fecha: new Date().toISOString().replace('T', ' ').substring(0, 16),
-      tipo: this.nuevoIncidente.tipo,
-      prioridad: this.nuevoIncidente.prioridad,
-      estado: 'Pendiente',
-      descripcion: this.nuevoIncidente.descripcion,
-      reportadoPor: usuario,
-      fotosFallo: fotos.length > 0 ? fotos : ['https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=800&auto=format&fit=crop&q=80'],
-      videosFallo: videos.length > 0 ? videos : [],
-      archivosFallo: [...this.archivosFalloSubidos]
-    };
-
-    this.incidenteService.crearIncidente(registro).subscribe((creado: Incidente) => {
-      this.toastService.success('Reporte Creado', `Incidente ${creado.codigoIncidente} registrado con ${this.archivosFalloSubidos.length} evidencia(s).`);
-      this.modalReportarOpen = false;
-    });
-  }
-
-  openModalSolucionar(inc: Incidente) {
-    this.incidenteSolucionar = inc;
-    this.solucionForm = {
-      observacionSolucion: '',
-      repuestosUtilizados: '',
-      multimedia: [],
-      documentos: []
-    };
-    this.modalSolucionarOpen = true;
-  }
-
-  onSubirMultimediaReparacion(event: Event) {
-    const input = event.target as HTMLInputElement;
-    if (input.files) {
-      Array.from(input.files).forEach(file => {
-        const isVideo = file.type.startsWith('video');
-        const url = URL.createObjectURL(file);
-        this.solucionForm.multimedia.push({
-          id: `rep-${Date.now()}-${Math.random()}`,
-          nombre: file.name,
-          tipo: isVideo ? 'video' : 'imagen',
-          extension: file.name.split('.').pop()?.toUpperCase() || (isVideo ? 'MP4' : 'JPG'),
-          url: url,
-          tamanio: `${(file.size / (1024 * 1024)).toFixed(1)} MB`,
-          fechaSubida: 'Hoy'
-        });
-      });
-      this.toastService.success('Evidencias Agregadas', 'Fotos y videos de reparación listos.');
-    }
-  }
-
-  agregarMultimediaReparacionDemo() {
-    this.solucionForm.multimedia.push({
-      id: `rep-demo-1`,
-      nombre: 'equipo_reparado_ensamblado.jpg',
-      tipo: 'imagen',
-      extension: 'JPG',
-      url: 'https://images.unsplash.com/photo-1504917599217-d4dc5ebe6122?w=800&auto=format&fit=crop&q=80',
-      tamanio: '2.8 MB',
-      fechaSubida: 'Hoy'
-    });
-    this.solucionForm.multimedia.push({
-      id: `rep-demo-2`,
-      nombre: 'prueba_operativa_180bar.mp4',
-      tipo: 'video',
-      extension: 'MP4',
-      url: 'https://assets.mixkit.co/videos/preview/mixkit-water-spraying-from-a-hose-close-up-41508-large.mp4',
-      tamanio: '16.5 MB',
-      fechaSubida: 'Hoy'
-    });
-    this.toastService.info('Demo', 'Se añadieron fotos y video de la máquina funcionando.');
-  }
-
-  eliminarMultimediaReparacion(index: number) {
-    this.solucionForm.multimedia.splice(index, 1);
-  }
-
-  onSubirDocumentosReparacion(event: Event) {
-    const input = event.target as HTMLInputElement;
-    if (input.files) {
-      Array.from(input.files).forEach(file => {
-        this.solucionForm.documentos.push({
-          id: `doc-${Date.now()}-${Math.random()}`,
-          nombre: file.name,
-          tipo: 'documento',
-          extension: file.name.split('.').pop()?.toUpperCase() || 'PDF',
-          url: '#',
-          tamanio: `${(file.size / (1024 * 1024)).toFixed(1)} MB`,
-          fechaSubida: new Date().toLocaleDateString()
-        });
-      });
-      this.toastService.success('Documentos Adjuntos', 'Documentos técnicos listos.');
-    }
-  }
-
-  agregarDocumentosReparacionDemo() {
-    this.solucionForm.documentos.push({
-      id: `doc-demo-1`,
-      nombre: 'Informe_Tecnico_Reparacion.pdf',
-      tipo: 'documento',
-      extension: 'PDF',
-      url: '#',
-      tamanio: '1.4 MB',
-      fechaSubida: 'Hoy'
-    });
-    this.solucionForm.documentos.push({
-      id: `doc-demo-2`,
-      nombre: 'Factura_Repuestos_Valvulas.pdf',
-      tipo: 'documento',
-      extension: 'PDF',
-      url: '#',
-      tamanio: '520 KB',
-      fechaSubida: 'Hoy'
-    });
-    this.toastService.info('Demo', 'Se adjuntaron Informe Técnico y Factura en PDF.');
-  }
-
-  eliminarDocumentoReparacion(index: number) {
-    this.solucionForm.documentos.splice(index, 1);
-  }
-
-  confirmarSolucion() {
-    if (!this.incidenteSolucionar || !this.solucionForm.observacionSolucion.trim()) {
-      this.toastService.warning('Informe Requerido', 'Escriba el detalle de la solución técnica aplicada.');
-      return;
-    }
-
-    const usuario = 'Esteban Torres (Taller Central)';
-    const hoy = new Date().toISOString().replace('T', ' ').substring(0, 16);
-
-    const fotos = this.solucionForm.multimedia.filter(m => m.tipo === 'imagen').map(m => m.url);
-    const videos = this.solucionForm.multimedia.filter(m => m.tipo === 'video').map(m => m.url);
-
-    this.incidenteSolucionar.estado = 'Solucionado';
-    this.incidenteSolucionar.solucionadoPor = usuario;
-    this.incidenteSolucionar.fechaSolucion = hoy;
-    this.incidenteSolucionar.observacionSolucion = this.solucionForm.observacionSolucion;
-    this.incidenteSolucionar.repuestosUtilizados = this.solucionForm.repuestosUtilizados || 'Ajustes y calibración general';
-    this.incidenteSolucionar.fotosReparacion = fotos.length > 0 ? fotos : ['https://images.unsplash.com/photo-1504917599217-d4dc5ebe6122?w=800&auto=format&fit=crop&q=80'];
-    this.incidenteSolucionar.videosReparacion = videos;
-    this.incidenteSolucionar.documentosReparacion = [...this.solucionForm.documentos];
-
-    this.toastService.success(
-      'Desperfecto Solucionado', 
-      `Incidente ${this.incidenteSolucionar.codigoIncidente} resuelto con ${fotos.length} foto(s), ${videos.length} video(s) y ${this.solucionForm.documentos.length} documento(s) adjuntos.`
-    );
-    this.modalSolucionarOpen = false;
+    this.modalElegirOpen = false;
+    void this.acciones.reportarIncidente(m);
   }
 
   abrirDetalle(inc: Incidente) {
@@ -1138,16 +499,13 @@ export class IncidentesComponent implements OnInit {
     this.modalDetalleOpen = true;
   }
 
-  verMediaZoom(url: string, tipo: 'imagen' | 'video') {
-    this.mediaZoomUrl = url;
-    this.mediaZoomTipo = tipo;
+  verMaquina(inc: Incidente): void {
+    this.modalDetalleOpen = false;
+    this.maquinaDetalleId = inc.maquinariaId || null;
   }
 
-  cerrarMediaZoom() {
-    this.mediaZoomUrl = null;
-  }
+  hora(iso?: string | null): string { return fechaHoraLocal(iso); }
 
-  descargarDocumento(doc: ArchivoAdjunto) {
-    this.toastService.info('Descargando Documento', `Descargando "${doc.nombre}" (${doc.tamanio || 'PDF'})...`);
-  }
+  readonly badgeClase = badgeClase;
+  readonly badgeNoAtendido = BADGE_NO_ATENDIDO;
 }

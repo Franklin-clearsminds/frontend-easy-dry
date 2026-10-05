@@ -1,8 +1,12 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LucideAngularModule } from 'lucide-angular';
-import { OperadorService } from '../../core/services/operador.service';
+import { OperadorService, ConsultaOperadores } from '../../core/services/operador.service';
+import { Subject, Subscription } from 'rxjs';
+import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
+import { BUSQUEDA_DEBOUNCE_MS, BUSQUEDA_MIN_CARACTERES, PAGE_SIZE_TABLA } from '../../core/config/paginacion';
+import { TablaServidor } from '../../core/utils/tabla-servidor';
 import { SucursalService } from '../../core/services/sucursal.service';
 import { BahiaService } from '../../core/services/bahia.service';
 import { AuthService } from '../../core/services/auth.service';
@@ -24,94 +28,116 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
         <div>
           <div class="flex items-center gap-2.5">
             <span class="p-2 rounded-xl bg-easydry-blue/10 text-easydry-blue">
-              <i-lucide name="user-check" class="w-5 h-5"></i-lucide>
+              <i-lucide aria-hidden="true" [name]="isCoordServiciosEspeciales ? 'sparkles' : 'user-check'" class="w-5 h-5"></i-lucide>
             </span>
-            <h1 class="text-2xl font-extrabold text-slate-900 font-outfit">Gestión de Lavadores</h1>
+            <h1 class="text-2xl font-extrabold text-slate-900 font-outfit">{{ isCoordServiciosEspeciales ? 'Gestión de Pulidores' : 'Gestión de Lavadores' }}</h1>
           </div>
-          <p class="text-slate-500 text-xs mt-1">Directorio de personal de lavado, asignación directa a agencia y bahía, productividad y trazabilidad histórica (100% Base de Datos).</p>
-          <div class="mt-2 inline-flex items-center gap-2 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-900 border border-emerald-200 text-[11px] font-medium">
-            <i-lucide name="shield" class="w-3.5 h-3.5 text-emerald-600 shrink-0"></i-lucide>
-            <span><strong>Rol Lavador:</strong> Registro y constancia técnica en bahía para trazabilidad. El acceso al sistema y registro de OTs lo efectúa el <strong>Líder</strong>.</span>
+          <p class="text-slate-500 text-xs mt-1">{{ isCoordServiciosEspeciales ? 'Directorio de personal de servicios especiales (pulidores fijos y móviles), asignación a bahía y trazabilidad.' : 'Directorio de personal de lavado, asignación directa a agencia y bahía, productividad y trazabilidad histórica (100% Base de Datos).' }}</p>
+          <div class="mt-2 inline-flex items-center gap-2 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-900 border border-emerald-200 text-xs font-medium">
+            <i-lucide aria-hidden="true" name="shield" class="w-3.5 h-3.5 text-emerald-600 shrink-0"></i-lucide>
+            @if (isCoordServiciosEspeciales) {
+              <span><strong>Rol Pulidor:</strong> Especialistas en pulido técnico, corrección de pintura y acabados especiales (Fijos en Agencia o Móviles Multisede).</span>
+            } @else {
+              <span><strong>Rol Lavador:</strong> Registro y constancia técnica en bahía para trazabilidad. El acceso al sistema y registro de OTs lo efectúa el <strong>Líder</strong>.</span>
+            }
           </div>
         </div>
 
-        <button 
-          type="button"
-          (click)="abrirModalCrear()"
-          class="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-easydry-blue hover:bg-easydry-blue-dark text-white rounded-xl text-xs font-bold shadow-sm hover:shadow transition-all cursor-pointer">
-          <i-lucide name="user-plus" class="w-4 h-4"></i-lucide>
-          <span>Registrar Lavador</span>
-        </button>
+        @if (canGestionarOperadores) {
+          <button
+            type="button"
+            (click)="abrirModalCrear()"
+            class="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-easydry-blue hover:bg-easydry-blue-dark text-white rounded-xl text-xs font-bold shadow-sm hover:shadow transition-all cursor-pointer">
+            <i-lucide aria-hidden="true" [name]="isCoordServiciosEspeciales ? 'sparkles' : 'user-plus'" class="w-4 h-4"></i-lucide>
+            <span>{{ isCoordServiciosEspeciales ? 'Registrar Pulidor' : 'Registrar Lavador' }}</span>
+          </button>
+        }
       </div>
 
       <!-- Global Filter Bar (Filtros y Búsqueda Unificados) -->
       <app-filter-bar 
-        [showSucursal]="isSuperAdmin" 
+        [showSucursal]="verTodasLasAgencias" 
         [showOperador]="false"
         [showBahia]="true"
         [showCliente]="true"
         [showEstado]="true"
         [showFechas]="false"
         [showBusqueda]="true"
-        placeholderBusqueda="Buscar por nombre, apellido o cédula..."
+        [placeholderBusqueda]="isCoordServiciosEspeciales ? 'Buscar pulidor por nombre, apellido o cédula...' : 'Buscar por nombre, apellido o cédula...'"
         [listaEstados]="['Todos', 'Activo', 'Inactivo']"
         (filterChange)="aplicarNuevosFiltros($event)">
       </app-filter-bar>
 
       <!-- Loader / Skeleton mientras cargan los datos -->
-      @if (cargando) {
+      @if (tabla.cargando && tabla.filas.length === 0) {
         <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry p-10 flex flex-col items-center justify-center gap-3">
           <div class="w-10 h-10 border-4 border-easydry-blue border-t-transparent rounded-full animate-spin"></div>
-          <p class="text-xs font-bold text-slate-500">Cargando lavadores desde base de datos...</p>
+          <p class="text-xs font-bold text-slate-500">Cargando {{ isCoordServiciosEspeciales ? 'pulidores' : 'lavadores' }} desde base de datos...</p>
         </div>
       }
 
       <!-- Operadores Table -->
       <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry overflow-hidden">
         <div class="overflow-x-auto">
-          <table class="w-full text-left text-xs">
-            <thead class="bg-slate-50 text-slate-500 text-[10px] font-extrabold uppercase tracking-wider border-b border-slate-200">
+          <table class="w-full min-w-[720px] text-left text-xs">
+            <thead class="bg-slate-50 text-slate-500 text-[11px] font-extrabold uppercase tracking-wider border-b border-slate-200">
               <tr>
-                <th class="py-3.5 px-4">Lavador</th>
-                <th class="py-3.5 px-4">Rol Operativo</th>
-                <th class="py-3.5 px-4">Estado</th>
-                <th class="py-3.5 px-4">Agencia Asignada</th>
-                <th class="py-3.5 px-4">Bahía Asignada</th>
-                <th class="py-3.5 px-4">Productividad</th>
-                <th class="py-3.5 px-4 text-right">Acciones</th>
+                <th scope="col" class="py-3.5 px-4">{{ isCoordServiciosEspeciales ? 'Pulidor' : 'Lavador' }}</th>
+                <th scope="col" class="py-3.5 px-4">Rol Operativo</th>
+                <th scope="col" class="py-3.5 px-4">Estado</th>
+                <th scope="col" class="py-3.5 px-4">Agencia Asignada</th>
+                <th scope="col" class="py-3.5 px-4">Bahía Asignada</th>
+                <th scope="col" class="py-3.5 px-4">Productividad</th>
+                <th scope="col" class="py-3.5 px-4 text-right">Acciones</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100 font-medium">
-              @if (!cargando && paginatedOperadores.length === 0) {
+              @if (tabla.error) {
                 <tr>
-                  <td colspan="7" class="py-12 text-center text-slate-400">
-                    <i-lucide name="user-x" class="w-8 h-8 mx-auto text-slate-300 mb-2"></i-lucide>
-                    <p class="font-bold text-sm text-slate-600">No se encontraron lavadores registrados</p>
-                    <p class="text-xs text-slate-400 mt-1">Haga clic en "Registrar Lavador" para dar de alta el primer colaborador en su agencia.</p>
+                  <td colspan="7" class="py-10 px-4">
+                    <div role="alert" class="flex flex-col items-center gap-3 text-center">
+                      <div class="estado-error">{{ tabla.error }}</div>
+                      <button type="button" class="btn btn-secondary btn-sm" (click)="tabla.cargar(true)">Reintentar</button>
+                    </div>
                   </td>
                 </tr>
               }
-              @for (op of paginatedOperadores; track op.id) {
+              @if (tabla.inicializada && !tabla.cargando && !tabla.error && tabla.filas.length === 0) {
+                <tr>
+                  <td colspan="7" class="py-12 text-center text-slate-500">
+                    <i-lucide aria-hidden="true" name="user-x" class="w-8 h-8 mx-auto text-slate-300 mb-2"></i-lucide>
+                    <p class="font-bold text-sm text-slate-600">No se encontraron {{ isCoordServiciosEspeciales ? 'pulidores' : 'lavadores' }} registrados</p>
+                    <p class="text-xs text-slate-500 mt-1">Haga clic en "{{ isCoordServiciosEspeciales ? 'Registrar Pulidor' : 'Registrar Lavador' }}" para dar de alta el primer {{ isCoordServiciosEspeciales ? 'especialista' : 'colaborador' }} en el sistema.</p>
+                  </td>
+                </tr>
+              }
+              @for (op of tabla.filas; track op.id) {
                 <tr class="hover:bg-slate-50/80 transition-colors">
                   <!-- Operador -->
                   <td class="py-3.5 px-4">
                     <div class="flex items-center gap-3">
-                      <img 
-                        [src]="op.avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80'" 
-                        (error)="onAvatarError($event)"
-                        alt="Avatar" 
-                        class="w-9 h-9 rounded-full object-cover border-2 border-easydry-green shrink-0">
+                      @if (op.avatar) {
+                        <img loading="lazy" decoding="async"
+                          [src]="op.avatar"
+                          (error)="onAvatarError($event)"
+                          alt="Foto de operador"
+                          class="w-9 h-9 rounded-full object-cover border-2 border-easydry-green shrink-0">
+                      } @else {
+                        <div class="w-9 h-9 rounded-full bg-slate-100 border-2 border-easydry-green shrink-0 flex items-center justify-center text-xs font-extrabold text-slate-500">
+                          {{ (op.nombre || '?').charAt(0) }}
+                        </div>
+                      }
                       <div>
                         <p class="font-bold text-slate-900 text-xs">{{ op.nombre }}</p>
-                        <p class="text-[10px] text-slate-400 font-mono">CI: {{ op.cedula }}</p>
-                        <p class="text-[9px] text-slate-400 mt-0.5">
+                        <p class="text-xs text-slate-500 font-mono">CI: {{ op.cedula }}</p>
+                        <p class="text-xs text-slate-500 mt-0.5">
                           Alta: <span class="font-mono text-slate-600">{{ op.fechaCreacion ? (op.fechaCreacion | date:'dd/MM/yyyy') : (op.fechaAsignacion || '-') }}</span>
                           @if (op.fechaModificacion && op.fechaModificacion !== op.fechaCreacion) {
                             • Act: <span class="font-mono text-slate-600">{{ op.fechaModificacion | date:'dd/MM/yyyy' }}</span>
                           }
                         </p>
                         @if (op.email && !op.email.includes('local') && !op.email.includes('internal')) {
-                          <p class="text-[10px] text-slate-400">{{ op.email }}</p>
+                          <p class="text-xs text-slate-500">{{ op.email }}</p>
                         }
                       </div>
                     </div>
@@ -125,7 +151,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                   <!-- Estado -->
                   <td class="py-3.5 px-4">
                     <span 
-                      class="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold"
+                      class="px-2.5 py-0.5 rounded-full text-xs font-extrabold"
                       [ngClass]="op.estado === 'Activo' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-slate-100 text-slate-700 border border-slate-200'">
                       {{ op.estado }}
                     </span>
@@ -140,52 +166,56 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                   <td class="py-3.5 px-4">
                     @if (op.bahia && !op.bahia.includes('Sin') && !op.bahia.includes('undefined') && !op.bahia.includes('null')) {
                       <span class="px-2.5 py-1 rounded-lg bg-easydry-blue/10 text-easydry-blue font-bold text-xs inline-flex items-center gap-1">
-                        <i-lucide name="layout-grid" class="w-3 h-3"></i-lucide>
+                        <i-lucide aria-hidden="true" name="layout-grid" class="w-3 h-3"></i-lucide>
                         {{ op.bahia }}
                       </span>
                     } @else {
-                      <span class="text-slate-400 italic text-[11px]">Disponible / En Reserva</span>
+                      <span class="text-slate-500 italic text-xs">Disponible / En Reserva</span>
                     }
                   </td>
 
                   <!-- Productividad -->
                   <td class="py-3.5 px-4">
                     <div class="text-xs">
-                      <span class="font-extrabold text-easydry-green-dark">{{ op.vehiculosAtendidos }} Autos</span>
-                      <p class="text-[10px] text-slate-400">Servicios en BD</p>
+                      <span class="font-extrabold text-easydry-green-text">{{ op.vehiculosAtendidos }} Autos</span>
+                      <p class="text-xs text-slate-500">Servicios en BD</p>
                     </div>
                   </td>
 
                   <!-- Acciones -->
                   <td class="py-3.5 px-4 text-right">
                     <div class="flex items-center justify-end gap-1">
-                      <!-- Editar Operador -->
-                      <button 
-                        type="button"
-                        (click)="abrirModalEditar(op)" 
-                        title="Editar lavador"
-                        class="p-1.5 text-slate-400 hover:text-easydry-blue hover:bg-slate-100 rounded-lg transition-colors cursor-pointer flex items-center justify-center">
-                        <i-lucide name="edit-3" class="w-4 h-4"></i-lucide>
-                      </button>
-
-                      <!-- Asignar o Cambiar Bahía -->
-                      <button 
-                        type="button"
-                        (click)="abrirModalAsignar(op)" 
-                        [title]="op.bahia && !op.bahia.includes('Sin') && op.bahia !== 'undefined' ? 'Cambiar bahía' : 'Asignar a bahía'"
-                        class="p-1.5 text-slate-400 hover:text-easydry-blue hover:bg-slate-100 rounded-lg transition-colors cursor-pointer flex items-center justify-center">
-                        <i-lucide name="refresh-cw" class="w-4 h-4"></i-lucide>
-                      </button>
-
-                      <!-- Desactivar Asignación -->
-                      @if (op.bahia && !op.bahia.includes('Sin') && op.bahia !== 'undefined') {
-                        <button 
+                      @if (canGestionarOperadores) {
+                        <!-- Editar Operador -->
+                        <button
                           type="button"
-                          (click)="desactivarAsignacion(op)" 
-                          title="Desactivar asignación de bahía"
-                          class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer flex items-center justify-center">
-                          <i-lucide name="user-x" class="w-4 h-4"></i-lucide>
+                          (click)="abrirModalEditar(op)"
+                          [title]="isCoordServiciosEspeciales ? 'Editar pulidor' : 'Editar lavador'"
+                          class="p-1.5 min-w-9 min-h-9 inline-flex items-center justify-center text-slate-500 hover:text-easydry-blue hover:bg-slate-100 rounded-lg transition-colors cursor-pointer flex items-center justify-center" [attr.aria-label]="isCoordServiciosEspeciales ? 'Editar pulidor' : 'Editar lavador'">
+                          <i-lucide aria-hidden="true" name="edit-3" class="w-4 h-4"></i-lucide>
                         </button>
+
+                        }
+                      @if (canAsignarBahia) {
+                        <!-- Asignar o Cambiar Bahía -->
+                        <button
+                          type="button"
+                          (click)="abrirModalAsignar(op)"
+                          [title]="op.bahia && !op.bahia.includes('Sin') && op.bahia !== 'undefined' ? 'Cambiar bahía' : 'Asignar a bahía'"
+                          class="p-1.5 min-w-9 min-h-9 inline-flex items-center justify-center text-slate-500 hover:text-easydry-blue hover:bg-slate-100 rounded-lg transition-colors cursor-pointer flex items-center justify-center" [attr.aria-label]="op.bahia && !op.bahia.includes('Sin') && op.bahia !== 'undefined' ? 'Cambiar bahía' : 'Asignar a bahía'">
+                          <i-lucide aria-hidden="true" name="refresh-cw" class="w-4 h-4"></i-lucide>
+                        </button>
+
+                        <!-- Desactivar Asignación -->
+                        @if (op.bahia && !op.bahia.includes('Sin') && op.bahia !== 'undefined') {
+                          <button
+                            type="button"
+                            (click)="desactivarAsignacion(op)"
+                            title="Desactivar asignación de bahía"
+                            class="p-1.5 min-w-9 min-h-9 inline-flex items-center justify-center text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer flex items-center justify-center" aria-label="Desactivar asignación de bahía">
+                            <i-lucide aria-hidden="true" name="user-x" class="w-4 h-4"></i-lucide>
+                          </button>
+                        }
                       }
 
                       <!-- Ver Productividad & Ficha -->
@@ -193,8 +223,8 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                         type="button"
                         (click)="verFichaOperador(op)" 
                         title="Ver productividad y ficha técnica"
-                        class="p-1.5 text-slate-400 hover:text-easydry-blue hover:bg-slate-100 rounded-lg transition-colors cursor-pointer flex items-center justify-center">
-                        <i-lucide name="bar-chart-2" class="w-4 h-4"></i-lucide>
+                        class="p-1.5 min-w-9 min-h-9 inline-flex items-center justify-center text-slate-500 hover:text-easydry-blue hover:bg-slate-100 rounded-lg transition-colors cursor-pointer flex items-center justify-center" aria-label="Ver productividad y ficha técnica">
+                        <i-lucide aria-hidden="true" name="bar-chart-2" class="w-4 h-4"></i-lucide>
                       </button>
                     </div>
                   </td>
@@ -205,9 +235,9 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
         </div>
         
         <app-pagination 
-          [totalItems]="operadoresFiltrados.length" 
-          [currentPage]="currentPage" 
-          [pageSize]="pageSize"
+          [totalItems]="tabla.total" 
+          [currentPage]="tabla.pagina" 
+          [pageSize]="tabla.pageSize" [loading]="tabla.cargando"
           (pageChange)="onPageChange($event)"
           (pageSizeChange)="onPageSizeChange($event)">
         </app-pagination>
@@ -215,81 +245,85 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
 
       <!-- Modal Crear / Registrar Nuevo Operador -->
       <app-modal
-        [isOpen]="modalCrearOpen"
-        [title]="esEdicion ? 'Editar Datos de Lavador' : 'Registrar Nuevo Lavador'"
-        [icon]="esEdicion ? 'pencil' : 'user-plus'"
+        [isOpen]="modalCrearOpen" size="lg"
+        [title]="esEdicion ? (isCoordServiciosEspeciales ? 'Editar Datos de Pulidor' : 'Editar Datos de Lavador') : (isCoordServiciosEspeciales ? 'Registrar Nuevo Pulidor' : 'Registrar Nuevo Lavador')"
+        [icon]="esEdicion ? 'pencil' : (isCoordServiciosEspeciales ? 'sparkles' : 'user-plus')"
         (close)="cerrarModalCrear()">
         
         <div class="space-y-4">
           <!-- Aclaratoria: Personal operativo sólo para constancia, no líder ni usuario de sistema -->
           <div class="p-3 bg-blue-50 rounded-xl border border-blue-200 text-blue-900 text-xs flex items-start gap-2.5">
-            <i-lucide name="info" class="w-4 h-4 text-blue-600 shrink-0 mt-0.5"></i-lucide>
+            <i-lucide aria-hidden="true" name="info" class="w-4 h-4 text-blue-600 shrink-0 mt-0.5"></i-lucide>
             <div>
-              <p class="font-bold">Constancia y Control de Personal Operativo</p>
-              <p class="text-[11px] text-blue-800 mt-0.5">
-                Este registro es para constancia y seguimiento técnico en bahías de lavado. A diferencia del <strong>Líder de Agencia</strong> o administradores de sistema, los lavadores no requieren usuario ni credenciales de acceso.
+              <p class="font-bold">{{ isCoordServiciosEspeciales ? 'Control y Constancia de Pulidores Técnicos' : 'Constancia y Control de Personal Operativo' }}</p>
+              <p class="text-xs text-blue-800 mt-0.5">
+                @if (isCoordServiciosEspeciales) {
+                  Registro de especialistas en servicios de pulido técnico y acabado. Se gestiona su asignación a sedes fijas o disponibilidad móvil.
+                } @else {
+                  Este registro es para constancia y seguimiento técnico en bahías de lavado. A diferencia del <strong>Líder Operador</strong> o administradores de sistema, los lavadores no requieren usuario ni credenciales de acceso.
+                }
               </p>
             </div>
           </div>
 
           <!-- Nombre Completo -->
           <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">
+            <label for="operadores-f1" class="block text-xs font-bold text-slate-700 uppercase mb-1">
               Nombre Completo <span class="text-rose-500">*</span>
             </label>
-            <input
+            <input id="operadores-f1"
               type="text"
               [(ngModel)]="formOperador.nombre"
               placeholder="Ej. Pedro José Ramírez"
-              class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-easydry-blue">
+              class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 placeholder:text-slate-500 outline-none focus:ring-2 focus:ring-easydry-blue">
           </div>
 
           <!-- Cédula y Teléfono -->
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">
+              <label for="operadores-f2" class="block text-xs font-bold text-slate-700 uppercase mb-1">
                 Cédula de Identidad / CI <span class="text-rose-500">*</span>
               </label>
-              <input
+              <input id="operadores-f2"
                 type="text"
                 [(ngModel)]="formOperador.cedula"
                 placeholder="Ej. 1729384756"
                 maxlength="13"
-                class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-easydry-blue">
+                class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 placeholder:text-slate-500 outline-none focus:ring-2 focus:ring-easydry-blue">
             </div>
 
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">
+              <label for="operadores-f3" class="block text-xs font-bold text-slate-700 uppercase mb-1">
                 Teléfono / Celular (Opcional)
               </label>
-              <input
+              <input id="operadores-f3"
                 type="text"
                 [(ngModel)]="formOperador.telefono"
                 placeholder="Ej. 0998765432"
-                class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-easydry-blue">
+                class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 placeholder:text-slate-500 outline-none focus:ring-2 focus:ring-easydry-blue">
             </div>
           </div>
 
           <!-- Rol Operativo y Estado -->
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">
+              <label for="operadores-f4" class="block text-xs font-bold text-slate-700 uppercase mb-1">
                 Rol Operativo
               </label>
-              <select
+              <select id="operadores-f4"
                 [(ngModel)]="formOperador.rol"
                 class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-easydry-blue">
-                @for (r of rolesOperativos; track r) {
+                @for (r of rolesOperativosDisponibles; track r) {
                   <option [value]="r">{{ r }}</option>
                 }
               </select>
             </div>
 
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">
-                Estado del Lavador
+              <label for="operadores-f5" class="block text-xs font-bold text-slate-700 uppercase mb-1">
+                Estado del {{ isCoordServiciosEspeciales ? 'Pulidor' : 'Lavador' }}
               </label>
-              <select
+              <select id="operadores-f5"
                 [(ngModel)]="formOperador.estado"
                 class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-easydry-blue">
                 <option value="Activo">Activo</option>
@@ -300,15 +334,11 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
 
           <!-- Agencia / Sucursal Asignada -->
           <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">
+            <label for="operadores-f6" class="block text-xs font-bold text-slate-700 uppercase mb-1">
               Agencia / Sucursal Asignada <span class="text-rose-500">*</span>
-              @if (isGerente) {
-                <span class="text-purple-600 font-bold ml-1">(Exclusivo tu Agencia)</span>
-              }
             </label>
-            <select
+            <select id="operadores-f6"
               [(ngModel)]="formOperador.sucursalId"
-              [disabled]="isGerente"
               (change)="onSucursalOperadorChange()"
               class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 disabled:opacity-75 disabled:bg-slate-100 outline-none focus:ring-2 focus:ring-easydry-blue">
               @for (s of sucursales; track s.id) {
@@ -319,10 +349,10 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
 
           <!-- Bahía de Asignación -->
           <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">
+            <label for="operadores-f7" class="block text-xs font-bold text-slate-700 uppercase mb-1">
               Bahía de Asignación
             </label>
-            <select
+            <select id="operadores-f7"
               [(ngModel)]="formOperador.bahiaId"
               (change)="onBahiaCrearSelectChange()"
               class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-easydry-blue">
@@ -333,35 +363,35 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
             </select>
             @if (conflictoAsignacion && conflictoAsignacion.contexto === 'crear') {
               <div class="p-3 bg-amber-50 rounded-xl border border-amber-300 text-amber-900 text-xs flex items-start gap-2.5 mt-2 animate-fade-in">
-                <i-lucide name="alert-triangle" class="w-4 h-4 text-amber-600 shrink-0 mt-0.5"></i-lucide>
+                <i-lucide aria-hidden="true" name="alert-triangle" class="w-4 h-4 text-amber-600 shrink-0 mt-0.5"></i-lucide>
                 <div>
-                  <p class="font-bold">¡Atención! Bahía actualmente ocupada</p>
-                  <p class="text-[11px] text-amber-800 mt-0.5">
-                    La <strong>{{ conflictoAsignacion.bahiaNombre }}</strong> está asignada a <strong>{{ conflictoAsignacion.operadorActualNombre }}</strong>.
-                    Al asignarla a este lavador, <strong>{{ conflictoAsignacion.operadorActualNombre }}</strong> se quedará <strong>sin bahía asignada</strong>.
+                  <p class="font-bold">Bahía sin cupo disponible</p>
+                  <p class="text-xs text-amber-800 mt-0.5">
+                    La <strong>{{ conflictoAsignacion.bahiaNombre }}</strong> ya tiene el máximo de <strong>{{ conflictoAsignacion.maxLavadoresPorBahia }}</strong> lavador(es) permitidos ({{ conflictoAsignacion.operadoresActualesNombres }}).
+                    Quita a alguno de esa bahía o elige otra para poder asignar a este lavador.
                   </p>
                 </div>
               </div>
             }
-            <p class="text-[11px] text-slate-400 mt-1">
+            <p class="text-xs text-slate-500 mt-1">
               El lavador quedará vinculado de inmediato en la base de datos a la bahía seleccionada.
             </p>
           </div>
         </div>
 
-        <div modal-footer class="flex items-center justify-end gap-2 w-full">
+        <div modal-footer class="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2 w-full">
           <button
             type="button"
             (click)="cerrarModalCrear()"
-            class="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer inline-flex items-center gap-1.5">
-            <i-lucide name="x" class="w-4 h-4"></i-lucide>
+            class="btn btn-secondary w-full sm:w-auto">
+            <i-lucide aria-hidden="true" name="x" class="w-4 h-4"></i-lucide>
             <span>Cancelar</span>
           </button>
           <button
             type="button"
             (click)="guardarOperador()"
-            class="px-4 py-2 rounded-xl text-xs font-bold bg-easydry-blue hover:bg-easydry-blue-dark text-white transition-colors cursor-pointer inline-flex items-center gap-1.5 shadow-sm shadow-easydry-blue/20">
-            <i-lucide [name]="esEdicion ? 'save' : 'user-plus'" class="w-4 h-4"></i-lucide>
+            class="btn btn-primary w-full sm:w-auto">
+            <i-lucide aria-hidden="true" [name]="esEdicion ? 'save' : 'user-plus'" class="w-4 h-4"></i-lucide>
             <span>{{ esEdicion ? 'Actualizar en Base de Datos' : 'Registrar y Asignar en BD' }}</span>
           </button>
         </div>
@@ -369,7 +399,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
 
       <!-- Modal Asignar / Cambiar Bahía -->
       <app-modal
-        [isOpen]="modalAsignarBahiaOpen"
+        [isOpen]="modalAsignarBahiaOpen" size="md"
         [title]="'Asignar / Cambiar Bahía: ' + (operadorSeleccionado?.nombre || '')"
         icon="layout-grid"
         (close)="modalAsignarBahiaOpen = false">
@@ -380,15 +410,11 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
             </div>
 
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">
+              <label for="operadores-f8" class="block text-xs font-bold text-slate-700 uppercase mb-1">
                 Sucursal / Agencia
-                @if (isGerente) {
-                  <span class="text-purple-600 font-bold ml-1">(Exclusivo tu Agencia)</span>
-                }
               </label>
-              <select
+              <select id="operadores-f8"
                 [(ngModel)]="formAsignarBahia.sucursalId"
-                [disabled]="isGerente"
                 (change)="onSucursalAsignarChange()"
                 class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 disabled:opacity-75 disabled:bg-slate-100">
                 @for (s of sucursales; track s.id) {
@@ -398,8 +424,8 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
             </div>
 
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Bahía de Destino</label>
-              <select
+              <label for="operadores-f9" class="block text-xs font-bold text-slate-700 uppercase mb-1">Bahía de Destino</label>
+              <select id="operadores-f9"
                 [(ngModel)]="formAsignarBahia.bahiaId"
                 (change)="onBahiaAsignarSelectChange()"
                 class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800">
@@ -410,12 +436,12 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
               </select>
               @if (conflictoAsignacion && conflictoAsignacion.contexto === 'asignar') {
                 <div class="p-3 bg-amber-50 rounded-xl border border-amber-300 text-amber-900 text-xs flex items-start gap-2.5 mt-2 animate-fade-in">
-                  <i-lucide name="alert-triangle" class="w-4 h-4 text-amber-600 shrink-0 mt-0.5"></i-lucide>
+                  <i-lucide aria-hidden="true" name="alert-triangle" class="w-4 h-4 text-amber-600 shrink-0 mt-0.5"></i-lucide>
                   <div>
-                    <p class="font-bold">¡Atención! Bahía actualmente ocupada</p>
-                    <p class="text-[11px] text-amber-800 mt-0.5">
-                      La <strong>{{ conflictoAsignacion.bahiaNombre }}</strong> está asignada a <strong>{{ conflictoAsignacion.operadorActualNombre }}</strong>.
-                      Si reasigna aquí a <strong>{{ conflictoAsignacion.nuevoOperadorNombre }}</strong>, el lavador <strong>{{ conflictoAsignacion.operadorActualNombre }}</strong> se quedará <strong>sin bahía asignada</strong>.
+                    <p class="font-bold">Bahía sin cupo disponible</p>
+                    <p class="text-xs text-amber-800 mt-0.5">
+                      La <strong>{{ conflictoAsignacion.bahiaNombre }}</strong> ya tiene el máximo de <strong>{{ conflictoAsignacion.maxLavadoresPorBahia }}</strong> lavador(es) permitidos ({{ conflictoAsignacion.operadoresActualesNombres }}).
+                      Quita a alguno de esa bahía o elige otra para poder asignar a <strong>{{ conflictoAsignacion.nuevoOperadorNombre }}</strong>.
                     </p>
                   </div>
                 </div>
@@ -423,8 +449,8 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
             </div>
 
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Motivo del Movimiento / Reasignación</label>
-              <input
+              <label for="operadores-f10" class="block text-xs font-bold text-slate-700 uppercase mb-1">Motivo del Movimiento / Reasignación</label>
+              <input id="operadores-f10"
                 type="text"
                 [(ngModel)]="formAsignarBahia.motivo"
                 placeholder="Ej. Cobertura por alta demanda, rotación periódica..."
@@ -433,19 +459,19 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
           </div>
         }
 
-        <div modal-footer class="flex items-center justify-end gap-2 w-full">
+        <div modal-footer class="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2 w-full">
           <button
             type="button"
             (click)="modalAsignarBahiaOpen = false"
-            class="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer inline-flex items-center gap-1.5">
-            <i-lucide name="x" class="w-4 h-4"></i-lucide>
+            class="btn btn-secondary w-full sm:w-auto">
+            <i-lucide aria-hidden="true" name="x" class="w-4 h-4"></i-lucide>
             <span>Cancelar</span>
           </button>
           <button
             type="button"
             (click)="guardarAsignacionBahia()"
-            class="px-4 py-2 rounded-xl text-xs font-bold bg-easydry-blue hover:bg-easydry-blue-dark text-white transition-colors cursor-pointer inline-flex items-center gap-1.5 shadow-sm shadow-easydry-blue/20">
-            <i-lucide name="check" class="w-4 h-4"></i-lucide>
+            class="btn btn-primary w-full sm:w-auto">
+            <i-lucide aria-hidden="true" name="check" class="w-4 h-4"></i-lucide>
             <span>Confirmar en Base de Datos</span>
           </button>
         </div>
@@ -453,7 +479,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
 
       <!-- Modal Ficha de Operador & Productividad -->
       <app-modal 
-        [isOpen]="modalFichaOpen" 
+        [isOpen]="modalFichaOpen" size="xl" 
         [title]="'Ficha de Lavador & Productividad: ' + (operadorSeleccionado?.nombre || '')" 
         icon="trophy"
         (close)="modalFichaOpen = false">
@@ -464,11 +490,11 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
             <!-- Operator Profile Banner -->
             <div class="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-3">
               <div class="flex items-center gap-4">
-                <img [src]="operadorSeleccionado.avatar" alt="Avatar" class="w-14 h-14 rounded-full object-cover border-2 border-easydry-green shrink-0">
+                <img loading="lazy" decoding="async" [src]="operadorSeleccionado.avatar" alt="Foto de operador" class="w-14 h-14 rounded-full object-cover border-2 border-easydry-green shrink-0">
                 <div class="flex-1">
                   <div class="flex items-center justify-between">
                     <h3 class="font-extrabold text-slate-900 text-lg font-outfit">{{ operadorSeleccionado.nombre }}</h3>
-                    <span class="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold" [ngClass]="operadorSeleccionado.estado === 'Activo' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-slate-200 text-slate-700'">
+                    <span class="px-2.5 py-0.5 rounded-full text-xs font-extrabold" [ngClass]="operadorSeleccionado.estado === 'Activo' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-slate-200 text-slate-700'">
                       {{ operadorSeleccionado.estado }}
                     </span>
                   </div>
@@ -478,14 +504,14 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
               </div>
 
               <!-- Metadata de Creación & Modificación en BD -->
-              <div class="flex flex-wrap items-center gap-x-5 gap-y-2 text-[11px] text-slate-600 font-mono bg-white p-2.5 rounded-xl border border-slate-200/80">
+              <div class="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-slate-600 font-mono bg-white p-2.5 rounded-xl border border-slate-200/80">
                 <div>
-                  <span class="text-slate-400 block text-[9px] uppercase font-bold">Fecha de Alta / Creación (BD):</span>
+                  <span class="text-slate-500 block text-[11px] uppercase font-bold">Fecha de Alta / Creación (BD):</span>
                   <b class="text-slate-800">{{ operadorSeleccionado.fechaCreacion ? (operadorSeleccionado.fechaCreacion | date:'dd/MM/yyyy HH:mm') : (operadorSeleccionado.fechaAsignacion || '-') }}</b>
                 </div>
                 @if (operadorSeleccionado.fechaModificacion) {
                   <div>
-                    <span class="text-slate-400 block text-[9px] uppercase font-bold">Última Modificación (BD):</span>
+                    <span class="text-slate-500 block text-[11px] uppercase font-bold">Última Modificación (BD):</span>
                     <b class="text-slate-800">{{ operadorSeleccionado.fechaModificacion | date:'dd/MM/yyyy HH:mm' }}</b>
                   </div>
                 }
@@ -495,15 +521,15 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
             <!-- Productivity Stats Grid -->
             <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 text-center">
               <div class="p-3 bg-slate-50 rounded-xl border">
-                <span class="text-[10px] text-slate-400 uppercase font-bold block">Vehículos Atendidos</span>
+                <span class="text-[11px] text-slate-500 uppercase font-bold block">Vehículos Atendidos</span>
                 <span class="font-extrabold text-slate-900 text-base mt-0.5 block">{{ operadorSeleccionado.vehiculosAtendidos }}</span>
               </div>
               <div class="p-3 bg-slate-50 rounded-xl border">
-                <span class="text-[10px] text-slate-400 uppercase font-bold block">Servicios Registrados</span>
+                <span class="text-[11px] text-slate-500 uppercase font-bold block">Servicios Registrados</span>
                 <span class="font-extrabold text-easydry-blue text-base mt-0.5 block">{{ operadorSeleccionado.serviciosRealizados }}</span>
               </div>
               <div class="p-3 bg-slate-50 rounded-xl border">
-                <span class="text-[10px] text-slate-400 uppercase font-bold block">Estado Actual</span>
+                <span class="text-[11px] text-slate-500 uppercase font-bold block">Estado Actual</span>
                 <span class="font-extrabold text-emerald-600 text-base mt-0.5 block">{{ operadorSeleccionado.estado }}</span>
               </div>
             </div>
@@ -514,7 +540,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
               
               <div class="space-y-2">
                 @if (historialOperador.length === 0) {
-                  <p class="text-xs text-slate-400 italic py-3 text-center">No hay registros históricos de asignación para este lavador.</p>
+                  <p class="text-xs text-slate-500 italic py-3 text-center">No hay registros históricos de asignación para este lavador.</p>
                 }
                 @for (h of historialOperador; track h.id) {
                   <div class="p-3 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between text-xs hover:border-easydry-blue/30 transition-colors">
@@ -522,23 +548,23 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                       <div class="flex items-center gap-2">
                         <span class="font-bold text-slate-900">{{ h.sucursal }} — {{ h.bahia }}</span>
                         @if (!h.fechaFin) {
-                          <span class="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                          <span class="px-2 py-0.5 rounded-full text-xs font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-200">
                             Bahía Actual
                           </span>
                         } @else {
-                          <span class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-slate-200 text-slate-600">
+                          <span class="px-2 py-0.5 rounded-full text-xs font-bold bg-slate-200 text-slate-600">
                             Bahía Previa
                           </span>
                         }
                       </div>
-                      <p class="text-[11px] text-slate-500 mt-0.5">Motivo: <strong>{{ h.motivo }}</strong> • Registrado por: <strong>{{ h.realizadoPor }}</strong></p>
+                      <p class="text-xs text-slate-500 mt-0.5">Motivo: <strong>{{ h.motivo }}</strong> • Registrado por: <strong>{{ h.realizadoPor }}</strong></p>
                     </div>
-                    <div class="text-right font-mono text-[11px] font-semibold text-slate-600">
+                    <div class="text-right font-mono text-xs font-semibold text-slate-600">
                       <span class="text-slate-800">{{ h.fechaInicio }}</span>
                       @if (h.fechaFin) {
                         <span> &rarr; <span class="text-slate-500">{{ h.fechaFin }}</span></span>
                       } @else {
-                        <span class="text-easydry-green-dark font-bold block text-[10px]">&bull; En funciones</span>
+                        <span class="text-easydry-green-text font-bold block text-xs">&bull; En funciones</span>
                       }
                     </div>
                   </div>
@@ -549,34 +575,39 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
           </div>
         }
 
-        <div modal-footer class="flex items-center justify-end w-full">
+        <div modal-footer class="flex flex-col sm:flex-row items-stretch sm:items-center justify-end w-full">
           <button 
             type="button"
             (click)="modalFichaOpen = false" 
-            class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors cursor-pointer inline-flex items-center gap-1.5">
-            <i-lucide name="x" class="w-4 h-4"></i-lucide>
+            class="btn btn-secondary w-full sm:w-auto">
+            <i-lucide aria-hidden="true" name="x" class="w-4 h-4"></i-lucide>
             <span>Cerrar Ficha</span>
           </button>
         </div>
       </app-modal>
 
-      <!-- Modal Alerta de Confirmación de Conflicto de Bahía Ocupada -->
+      <!-- Modal de bloqueo: la bahía ya llegó a su máximo de lavadores configurado en la agencia.
+           Antes esto prometía "reasignar" (el lavador que ya estaba quedaba desvinculado), pero el
+           backend no reemplaza a nadie: si ya está al máximo, simplemente RECHAZA la asignación. Por
+           eso ya no hay botón de "continuar de todos modos" — solo se puede cerrar y elegir otra
+           bahía o liberar un cupo primero. Ver conversación con el usuario del 2026-09-30. -->
       <app-modal
-        [isOpen]="modalConfirmarConflictoOpen"
-        title="Alerta: Reasignación de Bahía Ocupada"
+        [isOpen]="modalConfirmarConflictoOpen" size="sm"
+        title="Bahía sin cupo disponible"
         icon="alert-triangle"
         (close)="modalConfirmarConflictoOpen = false">
-        
+
         <div class="space-y-4 py-1">
           <div class="p-3.5 bg-amber-50 border border-amber-300 rounded-2xl flex items-start gap-3">
             <div class="w-9 h-9 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0 mt-0.5">
-              <i-lucide name="alert-triangle" class="w-5 h-5"></i-lucide>
+              <i-lucide aria-hidden="true" name="alert-triangle" class="w-5 h-5"></i-lucide>
             </div>
             <div>
-              <h4 class="text-sm font-bold text-slate-900">¿Desea cambiar de bahía sabiendo que el otro lavador se quedará sin bahía?</h4>
+              <h4 class="text-sm font-bold text-slate-900">Esta bahía ya llegó a su máximo de lavadores</h4>
               <p class="text-xs text-amber-900 mt-1 leading-relaxed">
-                La <strong>{{ conflictoAsignacion?.bahiaNombre }}</strong> está ocupada actualmente por <strong>{{ conflictoAsignacion?.operadorActualNombre }}</strong>.
-                Al continuar con la asignación, <strong>{{ conflictoAsignacion?.operadorActualNombre }}</strong> se quedará <strong>sin bahía asignada</strong> (pasará a reserva/disponible).
+                La agencia permite hasta <strong>{{ conflictoAsignacion?.maxLavadoresPorBahia }}</strong> lavador(es) simultáneos en
+                <strong>{{ conflictoAsignacion?.bahiaNombre }}</strong>, y ya están asignados: <strong>{{ conflictoAsignacion?.operadoresActualesNombres }}</strong>.
+                Para asignar a <strong>{{ conflictoAsignacion?.nuevoOperadorNombre }}</strong> ahí, primero quita a uno de los actuales o elige otra bahía con cupo.
               </p>
             </div>
           </div>
@@ -587,30 +618,23 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
               <span class="font-bold text-slate-900">{{ conflictoAsignacion?.bahiaNombre }}</span>
             </div>
             <div class="flex items-center justify-between">
-              <span class="text-slate-500 font-bold uppercase">Nuevo Lavador en Bahía:</span>
-              <span class="font-bold text-easydry-blue">{{ conflictoAsignacion?.nuevoOperadorNombre }}</span>
+              <span class="text-slate-500 font-bold uppercase">Máximo permitido:</span>
+              <span class="font-bold text-slate-900">{{ conflictoAsignacion?.maxLavadoresPorBahia }} lavador(es)</span>
             </div>
             <div class="flex items-center justify-between">
-              <span class="text-slate-500 font-bold uppercase">Lavador que queda sin bahía:</span>
-              <span class="font-bold text-rose-600">{{ conflictoAsignacion?.operadorActualNombre }} (Desvinculado a Reserva)</span>
+              <span class="text-slate-500 font-bold uppercase">Ya asignados:</span>
+              <span class="font-bold text-rose-600">{{ conflictoAsignacion?.operadoresActualesNombres }}</span>
             </div>
           </div>
         </div>
 
-        <div modal-footer class="flex items-center justify-end gap-2.5 w-full">
+        <div modal-footer class="flex items-stretch sm:items-center justify-end w-full">
           <button
             type="button"
             (click)="modalConfirmarConflictoOpen = false"
-            class="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer inline-flex items-center gap-1.5">
-            <i-lucide name="x" class="w-4 h-4"></i-lucide>
-            <span>Cancelar</span>
-          </button>
-          <button
-            type="button"
-            (click)="ejecutarGuardadoConConflicto()"
-            class="px-4 py-2 rounded-xl text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white transition-colors cursor-pointer inline-flex items-center gap-1.5 shadow-sm shadow-amber-600/20">
-            <i-lucide name="check" class="w-4 h-4"></i-lucide>
-            <span>Sí, Reasignar Bahía</span>
+            class="btn btn-secondary w-full sm:w-auto">
+            <i-lucide aria-hidden="true" name="x" class="w-4 h-4"></i-lucide>
+            <span>Entendido, elegir otra bahía</span>
           </button>
         </div>
       </app-modal>
@@ -618,7 +642,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
     </div>
   `
 })
-export class OperadoresComponent implements OnInit {
+export class OperadoresComponent implements OnInit, OnDestroy {
   operadores: Operador[] = [];
   sucursales: Sucursal[] = [];
   operadorSeleccionado?: Operador;
@@ -627,20 +651,67 @@ export class OperadoresComponent implements OnInit {
   filtroTexto = '';
   filtrosGlobales: FilterState = { sucursal: 'Todas', region: 'Todas', marca: 'Todas', operador: 'Todos', bahia: 'Todas', estado: 'Todos', fecha: 'Hoy' };
 
+  /** Tabla con páginas numeradas: alcance por rol, búsqueda y filtros se resuelven en el servidor. */
+  readonly tabla = new TablaServidor<Operador>((c) => this.operadorService.getOperadoresPagina({ ...this.consultaBase(), ...c, search: this.busquedaAplicada }), {
+    pageSize: PAGE_SIZE_TABLA,
+  });
+  private busquedaAplicada = '';
+  private readonly busqueda$ = new Subject<string>();
+  private busquedaSub?: Subscription;
+
   aplicarNuevosFiltros(filtros: FilterState) {
+    const previo = this.huellaFiltros(this.filtrosGlobales);
     this.filtrosGlobales = filtros;
-    if (filtros.busqueda !== undefined) {
-      this.filtroTexto = filtros.busqueda;
+    const texto = (filtros.busqueda ?? '').trim();
+    this.filtroTexto = texto;
+    if (previo !== this.huellaFiltros(filtros)) {
+      if (texto.length === 0 || texto.length >= BUSQUEDA_MIN_CARACTERES) this.busquedaAplicada = texto;
+      this.tabla.reiniciar();
+      return;
     }
-    this.aplicarFiltros();
+    // Solo cambió el texto: espera 300 ms tras la última tecla y exige 2 letras (o vacío para quitar el filtro).
+    if (texto.length === 0 || texto.length >= BUSQUEDA_MIN_CARACTERES) this.busqueda$.next(texto);
   }
 
-  aplicarFiltros() {
-    this.currentPage = 1;
+  private huellaFiltros(f: FilterState): string {
+    const { busqueda, ...resto } = f;
+    return JSON.stringify(resto);
   }
 
-  currentPage = 1;
-  pageSize = 5;
+  private neutro(v: string | undefined | null, ...neutros: string[]): string {
+    const t = (v ?? '').trim();
+    return !t || neutros.includes(t) ? '' : t;
+  }
+
+  /**
+   * Filtros del servidor según el rol y la barra de filtros. Un coordinador de servicios especiales solo ve pulidores; un
+   * líder solo lavadores de su agencia; gerente y demás roles de sede quedan en su sede. (El servidor vuelve a aplicar
+   * el alcance del líder.)
+   */
+  private consultaBase(): ConsultaOperadores {
+    const u = this.authService.getCurrentUser();
+    const f = this.filtrosGlobales;
+    const c: ConsultaOperadores = {};
+
+    // Quien atiende servicios especiales ve pulidores; quien trabaja con una sola agencia ve los lavadores de su agencia.
+    if (this.isCoordServiciosEspeciales) c.categoriaRol = 'PULIDOR';
+    else if (u?.ambito === 'AGENCIA') c.categoriaRol = 'LAVADOR';
+
+    // Con alcance de agencia la consulta queda en la agencia propia (el servidor lo vuelve a aplicar).
+    const idUsuario = u?.agenciaId || u?.sucursalId;
+    if (u?.ambito === 'AGENCIA' && (idUsuario || this.userSucursal)) {
+      c.agenciaId = idUsuario ? String(idUsuario) : this.userSucursal;
+    } else {
+      c.agenciaId = this.neutro(f.sucursal, 'Todas') || undefined;
+    }
+
+    const estado = this.neutro(f.estado, 'Todos');
+    if (estado === 'Activo') c.estado = 1;
+    else if (estado === 'Inactivo') c.estado = 0;
+    c.bahiaNombre = this.neutro(f.bahia, 'Todas') || undefined;
+    c.clienteNombre = this.neutro(f.marca || f.cliente, 'Todas', 'Todos') || undefined;
+    return c;
+  }
 
   modalFichaOpen = false;
   modalAsignarBahiaOpen = false;
@@ -651,24 +722,47 @@ export class OperadoresComponent implements OnInit {
   esEdicion = false;
   operadorEnEdicionId?: number | string;
 
+  /**
+   * Antes esto representaba "reemplazar al único operador de la bahía" (capacidad=1 fija). Desde que
+   * se respeta `maxLavadoresPorBahia` (una bahía puede tener varios lavadores activos a la vez), ya
+   * no hay ningún "reemplazo": si hay cupo, el nuevo lavador simplemente se agrega junto a los que ya
+   * estaban — sin conflicto ni modal. Esto solo se usa para el caso real de bloqueo: la bahía ya
+   * llegó a su máximo configurado y no hay a quién "desalojar" (el backend tampoco lo hace: rechaza
+   * la asignación). Ver conversación con el usuario del 2026-09-30.
+   */
   conflictoAsignacion: {
     bahiaId: string;
     bahiaNombre: string;
-    operadorActualId: string | number | null;
-    operadorActualNombre: string;
+    operadoresActualesNombres: string;
+    maxLavadoresPorBahia: number;
     nuevoOperadorNombre: string;
     contexto: 'asignar' | 'crear';
   } | null = null;
 
-  rolesOperativos: string[] = [
+  rolesOperativosLavador: string[] = [
     'LAVADOR',
     'Lavador de Bahía',
     'Lavador de Lavado Ecológico',
-    'Lavador de Detallado & Pulido',
     'Lavador de Secado & Acabado',
     'Lavador de Lavado Integral',
     'Lavador Auxiliar / Móvil'
   ];
+
+  rolesOperativosPulidor: string[] = [
+    'PULIDOR',
+    'PULIDOR_FIJO',
+    'PULIDOR_MOVIL',
+    'Pulidor de Detallado & Acabado',
+    'Pulidor Técnico Especialista'
+  ];
+
+  get rolesOperativosDisponibles(): string[] {
+    return this.isCoordServiciosEspeciales ? this.rolesOperativosPulidor : this.rolesOperativosLavador;
+  }
+
+  get rolesOperativos(): string[] {
+    return this.rolesOperativosDisponibles;
+  }
 
   formOperador = {
     nombre: '',
@@ -681,7 +775,7 @@ export class OperadoresComponent implements OnInit {
     bahiaId: '',
     estado: 'Activo'
   };
-  listaBahiasOperador: { id: string; nombre: string; operadorAsignado?: string | null; operadorId?: string | number | null }[] = [];
+  listaBahiasOperador: { id: string; nombre: string; operadorAsignado?: string | null; operadorId?: string | number | null; maxLavadoresPorBahia?: number; operadoresActivos?: { id: string; nombre: string }[] }[] = [];
 
   formAsignarBahia = {
     operadorId: '' as number | string,
@@ -691,7 +785,7 @@ export class OperadoresComponent implements OnInit {
     bahiaNombre: '',
     motivo: ''
   };
-  listaBahiasDisponibles: { id: string; nombre: string; operadorAsignado?: string | null; operadorId?: string | number | null }[] = [];
+  listaBahiasDisponibles: { id: string; nombre: string; operadorAsignado?: string | null; operadorId?: string | number | null; maxLavadoresPorBahia?: number; operadoresActivos?: { id: string; nombre: string }[] }[] = [];
 
   private operadorService = inject(OperadorService);
   private sucursalService = inject(SucursalService);
@@ -700,12 +794,41 @@ export class OperadoresComponent implements OnInit {
   public authService = inject(AuthService);
 
   ngOnInit(): void {
+    this.busquedaSub = this.busqueda$
+      .pipe(debounceTime(BUSQUEDA_DEBOUNCE_MS), distinctUntilChanged())
+      .subscribe((texto) => {
+        this.busquedaAplicada = texto;
+        this.tabla.reiniciar();
+      });
     this.cargarDatos();
+    this.tabla.reiniciar();
+  }
+
+  ngOnDestroy(): void {
+    this.busquedaSub?.unsubscribe();
+    this.tabla.destruir();
+  }
+
+  /** Modo pulidores: quien ve servicios especiales pero no los servicios generales (el coordinador de servicios especiales). */
+  get isCoordServiciosEspeciales(): boolean {
+    return this.authService.puede('especiales.ver') && !this.authService.puede('servicios.ver');
+  }
+
+  /** Solo quien opera toda la red o una región elige la agencia en los filtros. */
+  get verTodasLasAgencias(): boolean {
+    const ambito = this.authService.getCurrentUser()?.ambito;
+    return ambito !== 'AGENCIA' && ambito !== 'PROPIO';
   }
 
   cargarDatos(): void {
     this.cargando = true;
-    this.operadorService.getOperadores().subscribe({
+    const currentUser = this.authService.getCurrentUser();
+    const esAgencia = currentUser?.ambito === 'AGENCIA';
+    const categoriaRol = this.isCoordServiciosEspeciales ? 'PULIDOR' : (esAgencia ? 'LAVADOR' : undefined);
+    const rawAgenciaId = currentUser?.agenciaId || currentUser?.sucursalId;
+    const agenciaId = esAgencia && rawAgenciaId ? String(rawAgenciaId) : undefined;
+
+    this.operadorService.getOperadores(agenciaId, categoriaRol).subscribe({
       next: (list) => {
         this.operadores = list;
         this.cargando = false;
@@ -725,102 +848,63 @@ export class OperadoresComponent implements OnInit {
     });
   }
 
-  get isSuperAdmin(): boolean {
-    return this.authService.isSuperAdmin() || this.authService.hasRole('ADMIN');
+  /** Registrar y editar personal operativo: mismo permiso que exige el servidor. */
+  get canGestionarOperadores(): boolean {
+    return this.authService.puede('operadores.gestionar');
   }
 
-  get isGerente(): boolean {
-    return this.authService.isGerente();
+  /** Asignar o quitar a un operador de una bahía (el servidor lo permite dentro del alcance del usuario). */
+  get canAsignarBahia(): boolean {
+    return this.authService.puede('bahias.asignar');
+  }
+
+  private mensajeError(err: any, respaldo: string): string {
+    const m = err?.error?.message;
+    if (Array.isArray(m)) return m.join(' ');
+    return (typeof m === 'string' && m) ? m : respaldo;
   }
 
   get userSucursal(): string | undefined {
     return this.authService.getCurrentUser()?.sucursalNombre || this.authService.getCurrentUser()?.sucursal;
   }
 
-  get operadoresFiltrados(): Operador[] {
-    let resultados = this.operadores.filter(op => {
-      let matchScope = true;
-      const currentUser = this.authService.getCurrentUser();
-      if (this.isGerente && this.userSucursal) {
-        matchScope = (op.sucursal || '').toLowerCase().includes(this.userSucursal.toLowerCase()) ||
-                     this.userSucursal.toLowerCase().includes((op.sucursal || '').toLowerCase());
-      } else if (!this.isSuperAdmin && (this.userSucursal || currentUser?.agenciaId)) {
-        const suc = (this.userSucursal || '').toLowerCase();
-        matchScope = Boolean(
-          (currentUser?.agenciaId && String(op.sucursalId) === String(currentUser.agenciaId)) ||
-          (suc && ((op.sucursal || '').toLowerCase().includes(suc) || suc.includes((op.sucursal || '').toLowerCase())))
-        );
-      }
-      
-      const term = (this.filtroTexto || '').trim().toLowerCase();
-      const matchTexto = !term ||
-                         (op.nombre || '').toLowerCase().includes(term) ||
-                         (op.cedula || '').toLowerCase().includes(term) ||
-                         (op.email || '').toLowerCase().includes(term);
-
-      return matchScope && matchTexto;
-    });
-
-    if (this.filtrosGlobales.estado && this.filtrosGlobales.estado !== 'Todos') {
-      resultados = resultados.filter(op => op.estado === this.filtrosGlobales.estado);
-    }
-    if (this.filtrosGlobales.sucursal && this.filtrosGlobales.sucursal !== 'Todas') {
-      const suc = this.filtrosGlobales.sucursal.toLowerCase();
-      resultados = resultados.filter(op => (op.sucursal || '').toLowerCase().includes(suc) || suc.includes((op.sucursal || '').toLowerCase()));
-    }
-    if (this.filtrosGlobales.bahia && this.filtrosGlobales.bahia !== 'Todas') {
-      const bah = this.filtrosGlobales.bahia.toLowerCase();
-      resultados = resultados.filter(op => (op.bahia || '').toLowerCase().includes(bah) || bah.includes((op.bahia || '').toLowerCase()));
-    }
-    if (this.filtrosGlobales.marca && this.filtrosGlobales.marca !== 'Todas') {
-      resultados = resultados.filter(op => {
-        const suc = this.sucursalService.getSucursalPorNombre(op.sucursal);
-        return suc?.marcaNombre === this.filtrosGlobales.marca;
-      });
-    }
-
-    return resultados;
-  }
-
   onAvatarError(event: Event): void {
     const img = event.target as HTMLImageElement;
     if (img) {
-      img.src = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80';
+      img.style.display = 'none';
     }
   }
 
-  get paginatedOperadores(): Operador[] {
-    const start = (this.currentPage - 1) * this.pageSize;
-    const end = start + this.pageSize;
-    return this.operadoresFiltrados.slice(start, end);
-  }
-
   onPageChange(page: number): void {
-    this.currentPage = page;
+    this.tabla.pagina = page;
+    this.tabla.cargar();
   }
 
   onPageSizeChange(size: number): void {
-    this.pageSize = size;
-    this.currentPage = 1;
+    this.tabla.pageSize = size;
+    this.tabla.pagina = 1;
+    this.tabla.cargar();
   }
 
   abrirModalCrear(): void {
+    if (!this.canGestionarOperadores) {
+      this.toastService.warning('Sin permiso', 'Tu rol no puede registrar personal operativo.');
+      return;
+    }
     this.esEdicion = false;
     this.operadorEnEdicionId = undefined;
     this.conflictoAsignacion = null;
     this.modalConfirmarConflictoOpen = false;
     
-    let defaultSucursal = this.sucursales[0];
-    if (this.isGerente && this.userSucursal) {
-      const found = this.sucursales.find(s => s.nombre.toLowerCase().includes(this.userSucursal!.toLowerCase()));
-      if (found) defaultSucursal = found;
-    }
+    const defaultSucursal = this.sucursales[0];
+
+    const defaultRol = this.isCoordServiciosEspeciales ? 'PULIDOR' : 'LAVADOR';
 
     this.formOperador = {
       nombre: '',
       cedula: '',
       telefono: '',
-      rol: 'OPERADOR',
+      rol: defaultRol,
       sucursalNombre: defaultSucursal?.nombre || '',
       sucursalId: defaultSucursal ? String(defaultSucursal.id) : '',
       bahiaNombre: 'Sin Bahía Asignada',
@@ -835,6 +919,10 @@ export class OperadoresComponent implements OnInit {
   }
 
   abrirModalEditar(op: Operador): void {
+    if (!this.canGestionarOperadores) {
+      this.toastService.warning('Sin permiso', 'Tu rol no puede editar personal operativo.');
+      return;
+    }
     this.esEdicion = true;
     this.operadorEnEdicionId = op.id;
     this.conflictoAsignacion = null;
@@ -882,7 +970,9 @@ export class OperadoresComponent implements OnInit {
         id: String(b.id),
         nombre: b.nombre,
         operadorAsignado: b.operadorAsignado && b.operadorAsignado !== 'Sin Asignar' ? b.operadorAsignado : null,
-        operadorId: b.operadorId || null
+        operadorId: b.operadorId || null,
+        maxLavadoresPorBahia: b.maxLavadoresPorBahia ?? 1,
+        operadoresActivos: b.operadoresActivos ?? [],
       }));
       this.onBahiaCrearSelectChange();
     });
@@ -896,19 +986,27 @@ export class OperadoresComponent implements OnInit {
       return;
     }
     const b = this.listaBahiasOperador.find(x => x.id === this.formOperador.bahiaId);
-    if (b && b.operadorAsignado && b.operadorId && (!this.esEdicion || String(b.operadorId) !== String(this.operadorEnEdicionId))) {
+    if (!b) {
+      if (this.conflictoAsignacion?.contexto === 'crear') this.conflictoAsignacion = null;
+      return;
+    }
+    const max = b.maxLavadoresPorBahia ?? 1;
+    // Al editar, si el operador en edición YA es uno de los activos de esta bahía, no cuenta contra
+    // el cupo (se está guardando a sí mismo, no sumando uno nuevo).
+    const activos = (b.operadoresActivos ?? []).filter(
+      op => !this.esEdicion || String(op.id) !== String(this.operadorEnEdicionId)
+    );
+    if (activos.length >= max) {
       this.conflictoAsignacion = {
         bahiaId: b.id,
         bahiaNombre: b.nombre,
-        operadorActualId: b.operadorId,
-        operadorActualNombre: b.operadorAsignado,
+        operadoresActualesNombres: activos.map(op => op.nombre).join(', ') || (b.operadorAsignado ?? ''),
+        maxLavadoresPorBahia: max,
         nuevoOperadorNombre: this.formOperador.nombre?.trim() || 'Nuevo Lavador',
         contexto: 'crear'
       };
-    } else {
-      if (this.conflictoAsignacion?.contexto === 'crear') {
-        this.conflictoAsignacion = null;
-      }
+    } else if (this.conflictoAsignacion?.contexto === 'crear') {
+      this.conflictoAsignacion = null;
     }
   }
 
@@ -963,9 +1061,10 @@ export class OperadoresComponent implements OnInit {
           this.toastService.success('Operador Actualizado', `Datos de ${act.nombre} actualizados en base de datos.`);
           this.cerrarModalCrear();
           this.operadorService.getOperadores().subscribe();
+      this.tabla.refrescar();
         },
         error: (err) => {
-          this.toastService.error('Error al Actualizar', err?.error?.message || 'Error al actualizar en base de datos.');
+          this.toastService.error('Error al actualizar', this.mensajeError(err, 'El servidor no aceptó los cambios.'));
         }
       });
     } else {
@@ -982,20 +1081,27 @@ export class OperadoresComponent implements OnInit {
       }).subscribe({
         next: (nuevo) => {
           this.toastService.success(
-            'Lavador Registrado en BD',
+            this.isCoordServiciosEspeciales ? 'Pulidor Registrado en BD' : 'Lavador Registrado en BD',
             `Se registró a ${nuevo.nombre} asignado a ${nuevo.sucursal} (${nuevo.bahia}).`
           );
           this.cerrarModalCrear();
-          this.operadorService.getOperadores().subscribe();
+          this.cargarDatos();
         },
         error: (err) => {
-          this.toastService.error('Error al Registrar', err?.error?.message || 'No se pudo guardar el lavador en la base de datos.');
+          this.toastService.error(
+            'Error al Registrar', 
+            this.mensajeError(err, this.isCoordServiciosEspeciales ? 'No se pudo guardar el pulidor.' : 'No se pudo guardar el lavador.')
+          );
         }
       });
     }
   }
 
   abrirModalAsignar(op: Operador): void {
+    if (!this.canAsignarBahia) {
+      this.toastService.warning('Sin permiso', 'Tu rol no puede asignar bahías.');
+      return;
+    }
     if (op.estado === 'Inactivo') {
       this.toastService.warning('Lavador Inactivo', 'No se puede asignar bahías a un colaborador inactivo. Debe activarlo primero.');
       return;
@@ -1035,7 +1141,9 @@ export class OperadoresComponent implements OnInit {
         id: String(b.id),
         nombre: b.nombre,
         operadorAsignado: b.operadorAsignado && b.operadorAsignado !== 'Sin Asignar' ? b.operadorAsignado : null,
-        operadorId: b.operadorId || null
+        operadorId: b.operadorId || null,
+        maxLavadoresPorBahia: b.maxLavadoresPorBahia ?? 1,
+        operadoresActivos: b.operadoresActivos ?? [],
       }));
       this.onBahiaAsignarSelectChange();
     });
@@ -1049,19 +1157,25 @@ export class OperadoresComponent implements OnInit {
       return;
     }
     const b = this.listaBahiasDisponibles.find(x => x.id === this.formAsignarBahia.bahiaId);
-    if (b && b.operadorAsignado && b.operadorId && (!this.operadorSeleccionado || String(b.operadorId) !== String(this.operadorSeleccionado.id))) {
+    if (!b) {
+      if (this.conflictoAsignacion?.contexto === 'asignar') this.conflictoAsignacion = null;
+      return;
+    }
+    const max = b.maxLavadoresPorBahia ?? 1;
+    const activos = (b.operadoresActivos ?? []).filter(
+      op => !this.operadorSeleccionado || String(op.id) !== String(this.operadorSeleccionado.id)
+    );
+    if (activos.length >= max) {
       this.conflictoAsignacion = {
         bahiaId: b.id,
         bahiaNombre: b.nombre,
-        operadorActualId: b.operadorId,
-        operadorActualNombre: b.operadorAsignado,
+        operadoresActualesNombres: activos.map(op => op.nombre).join(', ') || (b.operadorAsignado ?? ''),
+        maxLavadoresPorBahia: max,
         nuevoOperadorNombre: this.operadorSeleccionado?.nombre || 'Nuevo Lavador',
         contexto: 'asignar'
       };
-    } else {
-      if (this.conflictoAsignacion?.contexto === 'asignar') {
-        this.conflictoAsignacion = null;
-      }
+    } else if (this.conflictoAsignacion?.contexto === 'asignar') {
+      this.conflictoAsignacion = null;
     }
   }
 
@@ -1080,10 +1194,14 @@ export class OperadoresComponent implements OnInit {
 
   procederGuardarAsignacion(): void {
     if (!this.operadorSeleccionado) return;
+    if (!this.formAsignarBahia.bahiaId) {
+      this.toastService.warning('Bahía requerida', 'Selecciona la bahía a la que se asignará.');
+      return;
+    }
 
     const op = this.operadorSeleccionado;
     const motivo = this.formAsignarBahia.motivo?.trim() || 'Reasignación operativa de bahía';
-    const usuarioAccion = this.authService.getCurrentUser()?.nombre || 'Supervisor';
+    const usuarioAccion = this.authService.getCurrentUser()?.nombre || '';
     const bahiaSelected = this.listaBahiasDisponibles.find(b => b.id === this.formAsignarBahia.bahiaId);
     const bahiaNombre = bahiaSelected ? bahiaSelected.nombre : 'Sin Bahía Asignada';
 
@@ -1094,41 +1212,35 @@ export class OperadoresComponent implements OnInit {
       motivo,
       usuarioAccion,
       this.formAsignarBahia.bahiaId || undefined
-    ).subscribe(actualizado => {
-      this.toastService.success(
-        'Asignación Guardada en BD',
-        `Lavador ${op.nombre} asignado a ${bahiaNombre} en la base de datos.`
-      );
-      this.modalAsignarBahiaOpen = false;
-      this.conflictoAsignacion = null;
-      this.operadorService.getOperadores().subscribe();
+    ).subscribe({
+      next: () => {
+        this.toastService.success('Asignación guardada', op.nombre + ' quedó asignado a ' + bahiaNombre + '.');
+        this.modalAsignarBahiaOpen = false;
+        this.conflictoAsignacion = null;
+        this.operadorService.getOperadores().subscribe();
+        this.tabla.refrescar();
+      },
+      error: (err) => this.toastService.error('No se pudo asignar', this.mensajeError(err, 'El servidor no aceptó la asignación.'))
     });
   }
 
-  ejecutarGuardadoConConflicto(): void {
-    this.modalConfirmarConflictoOpen = false;
-    if (this.conflictoAsignacion?.contexto === 'asignar') {
-      this.procederGuardarAsignacion();
-    } else if (this.conflictoAsignacion?.contexto === 'crear') {
-      this.procederGuardarOperador();
-    }
-  }
-
   desactivarAsignacion(op: Operador): void {
+    if (!this.canAsignarBahia) {
+      this.toastService.warning('Sin permiso', 'Tu rol no puede desasignar bahías.');
+      return;
+    }
     const anteriorBahia = op.bahia;
-    const usuarioAccion = this.authService.getCurrentUser()?.nombre || 'Supervisor';
-    this.operadorService.reasignarOperador(
-      op.id,
-      op.sucursal,
-      'Sin Bahía Asignada',
-      `Desvinculación voluntaria de ${anteriorBahia}`,
-      usuarioAccion
-    ).subscribe(() => {
-      this.toastService.warning(
-        'Asignación Desactivada',
-        `Se desvinculó a ${op.nombre} de ${anteriorBahia} en la base de datos.`
-      );
-      this.operadorService.getOperadores().subscribe();
+    if (!op.bahiaId) {
+      this.toastService.warning('Sin bahía', op.nombre + ' no tiene una bahía asignada.');
+      return;
+    }
+    this.operadorService.desasignarOperadorDeBahia(op.bahiaId, op.id, 'Desvinculación de ' + anteriorBahia).subscribe({
+      next: () => {
+        this.toastService.success('Asignación quitada', 'Se desvinculó a ' + op.nombre + ' de ' + anteriorBahia + '.');
+        this.operadorService.getOperadores().subscribe();
+        this.tabla.refrescar();
+      },
+      error: (err) => this.toastService.error('No se pudo desasignar', this.mensajeError(err, 'El servidor no aceptó el cambio.'))
     });
   }
 

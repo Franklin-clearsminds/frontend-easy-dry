@@ -8,11 +8,11 @@ import { LucideAngularModule } from 'lucide-angular';
   imports: [CommonModule, LucideAngularModule],
   host: { class: 'block h-full' },
   template: `
-    <div class="h-full flex flex-col justify-between bg-white rounded-2xl p-5 border border-slate-100 shadow-easydry hover:shadow-easydry-hover transition-all duration-300 relative overflow-hidden group">
-      
+    <div class="h-full flex flex-col justify-between bg-white rounded-2xl p-5 border border-slate-100 shadow-easydry hover:shadow-easydry-hover transition-shadow duration-300 relative overflow-hidden group">
+
       <!-- Top Accent Bar -->
-      <div 
-        class="absolute top-0 left-0 right-0 h-1 transition-all group-hover:h-1.5"
+      <div
+        class="absolute top-0 left-0 right-0 h-1 transition-[height] group-hover:h-1.5"
         [ngClass]="{
           'bg-easydry-green': variant === 'success' || !variant,
           'bg-easydry-blue': variant === 'primary',
@@ -27,15 +27,15 @@ import { LucideAngularModule } from 'lucide-angular';
           <h3 class="text-2xl font-extrabold text-slate-900 mt-1 font-outfit tracking-tight">{{ value }}</h3>
         </div>
 
-        <div 
+        <div
           class="w-12 h-12 rounded-xl flex items-center justify-center transition-transform group-hover:scale-110"
           [ngClass]="{
-            'bg-easydry-green/15 text-easydry-green-dark': variant === 'success' || !variant,
+            'bg-easydry-green/15 text-easydry-green-text': variant === 'success' || !variant,
             'bg-easydry-blue/10 text-easydry-blue': variant === 'primary',
             'bg-amber-100 text-amber-700': variant === 'warning',
             'bg-rose-100 text-rose-700': variant === 'danger'
           }">
-          <i-lucide [name]="icon" class="w-6 h-6"></i-lucide>
+          <i-lucide [name]="icon" class="w-6 h-6" aria-hidden="true"></i-lucide>
         </div>
       </div>
     </div>

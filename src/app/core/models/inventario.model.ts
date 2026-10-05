@@ -5,6 +5,9 @@
 /** Identificador inmutable de la Bodega Central (siempre existe, no se elimina). */
 export const BODEGA_CENTRAL_ID = 'bod_central';
 
+/** Tipo canónico de bodega (además del flag legacy esCentral). */
+export type TipoBodega = 'CENTRAL' | 'REGIONAL';
+
 /** Bodega de almacenamiento de insumos (HUB nacional o satélite). */
 export interface BodegaInventario {
   id: string;
@@ -15,7 +18,9 @@ export interface BodegaInventario {
   telefono?: string;
   region?: string;
   regionId?: string;
-  /** Solo Bodega Central. No se puede eliminar ni desactivar. */
+  /** CENTRAL = única nacional; REGIONAL = satélite por región */
+  tipo?: TipoBodega;
+  /** Solo Bodega Central. No se puede eliminar ni desactivar. Legacy sync con tipo === CENTRAL. */
   esCentral: boolean;
   activa: boolean;
   porcentajeAlerta?: number;
@@ -63,6 +68,7 @@ export interface ProductoInsumo {
   stockMinimoBodega?: number;
   stockMinimoAgencia?: number;
   stockOptimoBodega?: number;
+  stockOptimoAgencia?: number;
   porcentajeAlerta?: number;
   umbralAlerta?: number;
   descripcion?: string;
@@ -78,6 +84,7 @@ export interface ProductoInsumo {
   estado?: number;
   fechaCreacion?: string;
   presentaciones?: PresentacionInsumoCatalog[];
+  stocks?: any[];
   serviciosAsociados?: Array<{
     id: number;
     codigo: string;
@@ -166,12 +173,15 @@ export interface MovimientoInventarioGlobalItem {
   presentacionId?: string;
   presentacion?: { id: string; nombre: string; factorAUnidadBase: number };
   ubicacionId?: string;
+  origenUbicacion?: string;
+  destinoUbicacion?: string;
   responsableId?: string;
   responsable?: { id: string; name: string; lastname: string; email: string };
   motivoId?: string;
   motivo?: { id: string; nombre: string; codigo: string };
   referencia?: string;
   observaciones?: string;
+  evidenciasUrls?: string[];
   fechaMovimiento: string;
   createdAt?: string;
 }
@@ -195,8 +205,10 @@ export interface RegistrarMovimientoPayload {
   presentacionId?: string;
   motivoId?: string;
   ubicacionId?: string;
+  bodegaId?: string;
   referencia?: string;
   observaciones?: string;
+  evidenciasUrls?: string[];
 }
 
 /** Estado de existencias de un insumo en una sucursal específica */
@@ -280,5 +292,9 @@ export interface RecetaInsumoServicio {
   unidadMedida: string;
   unidadMedidaId?: string;
   cantidadSugerida: number;
+  insumoId?: string | number;
+  codigoSKU?: string;
+  insumoNombre?: string;
+  cantidad?: number;
 }
 

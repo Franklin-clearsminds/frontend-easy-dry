@@ -1,20 +1,26 @@
-import { Component, OnInit, OnDestroy, inject } from '@angular/core';
+import { Component, HostListener, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { LucideAngularModule } from 'lucide-angular';
 import { ChartCardComponent } from '../../shared/components/chart-card/chart-card.component';
 import { FilterBarComponent, FilterState } from '../../shared/components/filter-bar/filter-bar.component';
 import { CrearRetoModalComponent } from './components/crear-reto-modal.component';
+import { ModalPortalDirective } from '../../shared/directives/modal-portal.directive';
 import { AgenciaService } from '../../core/services/agencia.service';
 import { AuthService } from '../../core/services/auth.service';
 import { Agencia } from '../../core/models';
 import { SucursalService } from '../../core/services/sucursal.service';
 import { RetosService } from '../../core/services/retos.service';
+import { DashboardOperativoService } from '../../core/services/dashboard-operativo.service';
+import { ToastService } from '../../shared/services/toast.service';
+import { FormsModule } from '@angular/forms';
+import { DataTableCellDirective, DataTableComponent, TableColumn } from '../../shared/components/data-table/data-table.component';
+import { TablaServidor } from '../../core/utils/tabla-servidor';
 import { Reto } from '../../core/models/reto.model';
 
 @Component({
   selector: 'app-productividad',
   standalone: true,
-  imports: [CommonModule, LucideAngularModule, ChartCardComponent, FilterBarComponent, CrearRetoModalComponent],
+  imports: [CommonModule, FormsModule, LucideAngularModule, ChartCardComponent, FilterBarComponent, CrearRetoModalComponent, ModalPortalDirective, DataTableComponent, DataTableCellDirective],
   template: `
     <div class="space-y-6 animate-fade-in">
       
@@ -25,13 +31,15 @@ import { Reto } from '../../core/models/reto.model';
           <p class="text-slate-500 text-xs mt-1">Monitoreo comparativo de agencias, ranking de personal y desempeño operativo.</p>
         </div>
         <div class="flex flex-col sm:flex-row sm:items-center gap-3 self-start sm:self-auto">
-          <span class="px-3.5 py-1.5 bg-amber-100 text-amber-900 border border-amber-300 font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-xs">
-            <i-lucide name="trophy" class="w-4 h-4 text-amber-600"></i-lucide>
-            <span>Reto EasyDry Activo: Edición Julio 2026</span>
-          </span>
+          @if (retosActivos.length > 0) {
+            <span class="px-3.5 py-1.5 bg-amber-100 text-amber-900 border border-amber-300 font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-xs">
+              <i-lucide aria-hidden="true" name="trophy" class="w-4 h-4 text-amber-600"></i-lucide>
+              <span>Reto activo: {{ retosActivos[currentRetoIndex].titulo }}</span>
+            </span>
+          }
           @if (canCreateReto && retosActivos.length > 0) {
-            <button (click)="showCrearRetoModal = true" class="px-5 py-1.5 bg-easydry-green hover:bg-easydry-green-dark text-slate-900 font-bold rounded-xl text-sm flex items-center gap-2 transition-colors shadow-sm">
-              <i-lucide name="plus-circle" class="w-4 h-4"></i-lucide> Crear Nuevo Reto
+            <button (click)="showCrearRetoModal = true" class="btn btn-cta">
+              <i-lucide aria-hidden="true" name="plus-circle" class="w-4 h-4"></i-lucide> Crear Nuevo Reto
             </button>
           }
         </div>
@@ -39,14 +47,14 @@ import { Reto } from '../../core/models/reto.model';
 
       <!-- RETO EASYDRY SPECIAL GAMIFIED SECTION -->
       @if (retosActivos.length > 0) {
-        <div class="w-full bg-gradient-to-br from-slate-900 via-slate-900 to-zinc-900 rounded-3xl p-6 md:p-8 pb-12 md:pb-14 border border-slate-700/60 shadow-xl relative overflow-hidden flex flex-col mb-8 text-white">
+        <div class="w-full bg-gradient-to-br from-slate-900 via-slate-900 to-zinc-900 rounded-2xl p-6 md:p-8 pb-12 md:pb-14 border border-slate-700/60 shadow-xl relative overflow-hidden flex flex-col mb-8 text-white">
             
             @if (retosActivos.length > 1) {
               <!-- Controles del Carrusel (Flechas + Viñetas) -->
-              <div class="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-3 bg-slate-950/80 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-slate-700/80 shadow-md">
+              <div class="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-3 bg-slate-950/80 backdrop-blur-sm px-3.5 py-1.5 rounded-full border border-slate-700/80 shadow-md">
                 <!-- Flecha Izquierda -->
-                <button (click)="prevReto()" class="p-1 rounded-full hover:bg-slate-800 text-slate-300 hover:text-white transition-colors cursor-pointer" title="Anterior">
-                  <i-lucide name="chevron-left" class="w-4 h-4"></i-lucide>
+                <button (click)="prevReto()" class="p-1.5 min-w-9 min-h-9 inline-flex items-center justify-center rounded-full hover:bg-slate-800 text-slate-500 hover:text-white transition-colors cursor-pointer" title="Anterior" aria-label="Anterior">
+                  <i-lucide aria-hidden="true" name="chevron-left" class="w-4 h-4"></i-lucide>
                 </button>
 
                 <!-- Indicador de Puntos (Dots) -->
@@ -60,8 +68,8 @@ import { Reto } from '../../core/models/reto.model';
                 </div>
 
                 <!-- Flecha Derecha -->
-                <button (click)="nextReto()" class="p-1 rounded-full hover:bg-slate-800 text-slate-300 hover:text-white transition-colors cursor-pointer" title="Siguiente">
-                  <i-lucide name="chevron-right" class="w-4 h-4"></i-lucide>
+                <button (click)="nextReto()" class="p-1.5 min-w-9 min-h-9 inline-flex items-center justify-center rounded-full hover:bg-slate-800 text-slate-500 hover:text-white transition-colors cursor-pointer" title="Siguiente" aria-label="Siguiente">
+                  <i-lucide aria-hidden="true" name="chevron-right" class="w-4 h-4"></i-lucide>
                 </button>
               </div>
             }
@@ -69,7 +77,7 @@ import { Reto } from '../../core/models/reto.model';
             <div class="flex items-center gap-3.5 mb-6 relative z-10 mt-1 px-2 md:px-4">
               <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500 to-amber-300 p-0.5 shadow-md shrink-0">
                 <div class="w-full h-full bg-slate-950 rounded-[14px] flex items-center justify-center">
-                  <i-lucide name="trophy" class="w-6 h-6 text-amber-400"></i-lucide>
+                  <i-lucide aria-hidden="true" name="trophy" class="w-6 h-6 text-amber-400"></i-lucide>
                 </div>
               </div>
               <div class="flex-1">
@@ -83,39 +91,39 @@ import { Reto } from '../../core/models/reto.model';
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 relative z-10 flex-1 px-2 md:px-4">
               
               <!-- Detalles del Premio -->
-              <div class="bg-gradient-to-b from-slate-800/80 via-slate-800/60 to-slate-900/70 backdrop-blur-md rounded-2xl p-5 border border-amber-500/30 shadow-md flex flex-col justify-start items-center text-center">
-                <i-lucide name="gift" class="w-7 h-7 text-amber-400 mb-2"></i-lucide>
-                <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">El Premio</h3>
+              <div class="bg-gradient-to-b from-slate-800/80 via-slate-800/60 to-slate-900/70 backdrop-blur-sm rounded-2xl p-5 border border-amber-500/30 shadow-md flex flex-col justify-start items-center text-center">
+                <i-lucide aria-hidden="true" name="gift" class="w-7 h-7 text-amber-400 mb-2"></i-lucide>
+                <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">El Premio</h3>
                 <p class="text-base font-extrabold text-amber-300 font-outfit">{{ retosActivos[currentRetoIndex].premio }}</p>
                 <div class="w-full h-px bg-slate-700/70 my-3"></div>
-                <p class="text-[11px] text-slate-300 font-medium flex items-center justify-center gap-1.5 w-full">
-                  <i-lucide name="calendar" class="w-3.5 h-3.5 text-amber-400"></i-lucide>
+                <p class="text-xs text-slate-500 font-medium flex items-center justify-center gap-1.5 w-full">
+                  <i-lucide aria-hidden="true" name="calendar" class="w-3.5 h-3.5 text-amber-400"></i-lucide>
                   <span>{{ retosActivos[currentRetoIndex].fechaInicio }} a {{ retosActivos[currentRetoIndex].fechaFin }}</span>
                 </p>
-                <p class="text-[11px] text-slate-300 font-medium flex items-center justify-center gap-1.5 w-full mt-1.5">
-                  <i-lucide name="user" class="w-3.5 h-3.5 text-amber-400"></i-lucide>
+                <p class="text-xs text-slate-500 font-medium flex items-center justify-center gap-1.5 w-full mt-1.5">
+                  <i-lucide aria-hidden="true" name="user" class="w-3.5 h-3.5 text-amber-400"></i-lucide>
                   <span>Reto por: <strong class="text-white">{{ retosActivos[currentRetoIndex].creadorNombre || 'Administración' }}</strong></span>
                 </p>
               </div>
 
               <!-- Criterios -->
-              <div class="bg-gradient-to-b from-slate-800/80 via-slate-800/60 to-slate-900/70 backdrop-blur-md rounded-2xl p-5 border border-slate-700/80 shadow-md">
-                <span class="text-[10px] font-extrabold uppercase tracking-wider text-easydry-lime">Criterios de Evaluación</span>
+              <div class="bg-gradient-to-b from-slate-800/80 via-slate-800/60 to-slate-900/70 backdrop-blur-sm rounded-2xl p-5 border border-slate-700/80 shadow-md">
+                <span class="text-[11px] font-extrabold uppercase tracking-wider text-easydry-lime">Criterios de Evaluación</span>
                 <ul class="mt-2.5 space-y-2 text-xs text-slate-200 font-medium">
                   @for (crit of retosActivos[currentRetoIndex].criterios; track crit) {
                     <li class="flex items-center gap-2">
-                      <i-lucide name="check-circle" class="w-3.5 h-3.5 text-easydry-lime shrink-0"></i-lucide>
+                      <i-lucide aria-hidden="true" name="check-circle" class="w-3.5 h-3.5 text-easydry-lime shrink-0"></i-lucide>
                       <span class="line-clamp-2 text-slate-200">{{ crit }}</span>
                     </li>
                   }
                   @if (retosActivos[currentRetoIndex].sucursalesIds && retosActivos[currentRetoIndex].sucursalesIds.length > 0) {
                     <li class="flex items-center gap-2 mt-3 text-amber-300 font-bold border-t border-slate-700/70 pt-2">
-                      <i-lucide name="map-pin" class="w-3.5 h-3.5 shrink-0 text-amber-400"></i-lucide>
+                      <i-lucide aria-hidden="true" name="map-pin" class="w-3.5 h-3.5 shrink-0 text-amber-400"></i-lucide>
                       <span>Aplica a agencias seleccionadas.</span>
                     </li>
                   } @else {
                     <li class="flex items-center gap-2 mt-3 text-sky-300 font-bold border-t border-slate-700/70 pt-2">
-                      <i-lucide name="globe" class="w-3.5 h-3.5 shrink-0 text-sky-400"></i-lucide>
+                      <i-lucide aria-hidden="true" name="globe" class="w-3.5 h-3.5 shrink-0 text-sky-400"></i-lucide>
                       <span>Reto Global para toda la Red.</span>
                     </li>
                   }
@@ -123,19 +131,19 @@ import { Reto } from '../../core/models/reto.model';
               </div>
 
               <!-- Ranking Posiciones (Top 3) integrado -->
-              <div class="bg-gradient-to-b from-slate-800/80 via-slate-800/60 to-slate-900/70 backdrop-blur-md rounded-2xl p-4 border border-slate-700/80 shadow-md flex flex-col">
-                <h3 class="font-extrabold text-slate-300 text-xs uppercase tracking-wider mb-3 flex items-center gap-2 font-outfit">
-                  <i-lucide name="bar-chart-2" class="w-4 h-4 text-easydry-lime"></i-lucide> Posiciones Actuales
+              <div class="bg-gradient-to-b from-slate-800/80 via-slate-800/60 to-slate-900/70 backdrop-blur-sm rounded-2xl p-4 border border-slate-700/80 shadow-md flex flex-col">
+                <h3 class="font-extrabold text-slate-500 text-xs uppercase tracking-wider mb-3 flex items-center gap-2 font-outfit">
+                  <i-lucide aria-hidden="true" name="bar-chart-2" class="w-4 h-4 text-easydry-lime"></i-lucide> Posiciones Actuales
                 </h3>
                 
                 <ul class="space-y-2 overflow-y-auto flex-1">
                   @for (agencia of getRankingParaReto(); track agencia.nombre; let i = $index) {
                     <li class="flex items-center justify-between p-2.5 rounded-xl transition-all" [ngClass]="i === 0 ? 'bg-amber-500/20 border border-amber-400/40 shadow-2xs' : 'bg-slate-900/50 border border-slate-700/50'">
                       <div class="flex items-center gap-2.5">
-                        <span class="font-extrabold text-xs font-mono" [ngClass]="i === 0 ? 'text-amber-300' : 'text-slate-400'">#{{i + 1}}</span>
+                        <span class="font-extrabold text-xs font-mono" [ngClass]="i === 0 ? 'text-amber-300' : 'text-slate-500'">#{{i + 1}}</span>
                         <div>
                           <p class="text-xs font-bold text-white line-clamp-1" [title]="agencia.nombre">{{ agencia.nombre }}</p>
-                          <p class="text-[10px] font-medium text-slate-400">{{ agencia.empleados }} empleados</p>
+                          <p class="text-xs font-medium text-slate-500">{{ agencia.empleados }} empleados</p>
                         </div>
                       </div>
                       <div class="text-right shrink-0">
@@ -148,17 +156,17 @@ import { Reto } from '../../core/models/reto.model';
             </div>
 
         </div>
-      } @else {
+      } @else if (puedeVerRetos) {
         <!-- Estado Vacío -->
-        <div class="bg-slate-50 border-2 border-dashed border-slate-200 rounded-3xl p-10 flex flex-col items-center justify-center text-center mb-8">
+        <div class="bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl p-10 flex flex-col items-center justify-center text-center mb-8">
           <div class="w-20 h-20 bg-white rounded-full flex items-center justify-center shadow-sm mb-4 border border-slate-100">
-             <i-lucide name="trophy" class="w-10 h-10 text-slate-300"></i-lucide>
+             <i-lucide aria-hidden="true" name="trophy" class="w-10 h-10 text-slate-300"></i-lucide>
           </div>
           <h3 class="text-xl font-bold font-outfit text-slate-900 mb-2">No hay retos comerciales activos</h3>
           <p class="text-slate-500 text-sm max-w-md mb-6">Crea un nuevo reto para motivar a tu equipo, medir la productividad y recompensar a los mejores.</p>
           @if (canCreateReto) {
-            <button (click)="showCrearRetoModal = true" class="px-6 py-3 bg-easydry-green hover:bg-easydry-green-dark text-slate-900 font-bold rounded-xl text-sm flex items-center gap-2 transition-colors shadow-sm">
-              <i-lucide name="plus-circle" class="w-5 h-5"></i-lucide> Crear el Primer Reto
+            <button (click)="showCrearRetoModal = true" class="btn btn-cta">
+              <i-lucide aria-hidden="true" name="plus-circle" class="w-5 h-5"></i-lucide> Crear el Primer Reto
             </button>
           }
         </div>
@@ -170,42 +178,85 @@ import { Reto } from '../../core/models/reto.model';
 
       <!-- Modal de Confirmación de Eliminación -->
       @if (showDeleteConfirmModal) {
-        <div class="fixed inset-0 z-50 flex items-center justify-center animate-fade-in">
+        <div appModalPortal role="dialog" aria-modal="true" aria-labelledby="reto-eliminar-title" class="fixed inset-0 z-[10050] flex items-center justify-center animate-fade-in">
           <!-- Backdrop -->
           <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" (click)="showDeleteConfirmModal = false"></div>
           
           <!-- Modal Panel -->
-          <div class="relative bg-white rounded-3xl shadow-2xl w-full max-w-md mx-4 overflow-hidden transform transition-all scale-100 border border-slate-100">
+          <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden max-h-[90dvh] flex flex-col transform transition-all scale-100 border border-slate-100">
             <!-- Header Rojo para eliminar -->
-            <div class="bg-red-50 border-b border-red-100 px-6 py-4 flex items-center justify-between">
+            <div class="shrink-0 bg-red-50 border-b border-red-100 px-6 py-4 flex items-center justify-between">
               <div class="flex items-center gap-3">
                 <div class="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center shadow-sm border border-red-200">
-                  <i-lucide name="alert-triangle" class="w-5 h-5 text-red-600"></i-lucide>
+                  <i-lucide aria-hidden="true" name="alert-triangle" class="w-5 h-5 text-red-600"></i-lucide>
                 </div>
-                <h3 class="font-extrabold text-red-900 text-lg">Eliminar Reto</h3>
+                <h3 id="reto-eliminar-title" class="font-extrabold text-red-900 text-lg">Eliminar Reto</h3>
               </div>
-              <button (click)="showDeleteConfirmModal = false" class="p-2 hover:bg-red-100 rounded-full transition-colors text-red-400 hover:text-red-600">
-                <i-lucide name="x" class="w-5 h-5"></i-lucide>
+              <button type="button" aria-label="Cerrar" (click)="showDeleteConfirmModal = false" class="p-1.5 min-w-9 min-h-9 inline-flex items-center justify-center hover:bg-red-100 rounded-full transition-colors text-red-400 hover:text-red-600">
+                <i-lucide aria-hidden="true" name="x" class="w-5 h-5"></i-lucide>
               </button>
             </div>
             
-            <div class="p-6">
+            <div class="flex-1 min-h-0 overflow-y-auto p-6">
               <p class="text-sm text-slate-600 mb-2">¿Estás seguro que deseas eliminar el reto <span class="font-bold text-slate-800">"{{ retoToDelete?.titulo }}"</span>?</p>
               <p class="text-xs text-red-500 font-medium">Esta acción no se puede deshacer y borrará permanentemente este reto de la plataforma.</p>
             </div>
             
-            <div class="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
-              <button (click)="showDeleteConfirmModal = false" class="px-4 py-2 font-bold text-sm text-slate-600 bg-white border border-slate-200 hover:bg-slate-100 rounded-xl transition-colors">
+            <div class="shrink-0 px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
+              <button (click)="showDeleteConfirmModal = false" class="btn btn-secondary">
                 Cancelar
               </button>
               <button (click)="confirmarEliminarReto()" class="px-5 py-2 font-bold text-sm text-white bg-red-500 hover:bg-red-600 rounded-xl transition-colors shadow-sm flex items-center gap-2">
-                <i-lucide name="trash-2" class="w-4 h-4"></i-lucide> Eliminar
+                <i-lucide aria-hidden="true" name="trash-2" class="w-4 h-4"></i-lucide> Eliminar
               </button>
             </div>
           </div>
         </div>
       }
 
+      <!-- Modal de Cierre de Reto -->
+      @if (showCerrarModal) {
+        <div appModalPortal role="dialog" aria-modal="true" aria-labelledby="reto-cerrar-title" class="fixed inset-0 z-[10050] flex items-center justify-center animate-fade-in">
+          <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" (click)="showCerrarModal = false"></div>
+
+          <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden max-h-[90dvh] flex flex-col transform transition-all scale-100 border border-slate-100">
+            <div class="shrink-0 bg-emerald-50 border-b border-emerald-100 px-6 py-4 flex items-center justify-between">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center shadow-sm border border-emerald-200">
+                  <i-lucide aria-hidden="true" name="flag" class="w-5 h-5 text-emerald-600"></i-lucide>
+                </div>
+                <h3 id="reto-cerrar-title" class="font-extrabold text-emerald-900 text-lg">Cerrar Reto</h3>
+              </div>
+              <button type="button" aria-label="Cerrar" (click)="showCerrarModal = false" class="p-1.5 min-w-9 min-h-9 inline-flex items-center justify-center hover:bg-emerald-100 rounded-full transition-colors text-emerald-400 hover:text-emerald-600">
+                <i-lucide aria-hidden="true" name="x" class="w-5 h-5"></i-lucide>
+              </button>
+            </div>
+
+            <div class="flex-1 min-h-0 overflow-y-auto p-6 space-y-4">
+              <p class="text-sm text-slate-600">Vas a cerrar el reto <span class="font-bold text-slate-800">"{{ retoToCerrar?.titulo }}"</span>. Esta acción no se puede deshacer.</p>
+              <div>
+                <label class="block text-xs font-bold text-slate-600 mb-1.5">Ganador</label>
+                <input type="text" [(ngModel)]="cierreGanadorNombre" placeholder="Nombre del ganador (opcional)" class="w-full px-3.5 py-2.5 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-easydry-blue focus:border-easydry-blue" />
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-600 mb-1.5">Resultado / Nota de cierre</label>
+                <textarea [(ngModel)]="cierreResultado" rows="3" placeholder="Detalle del resultado (opcional)" class="w-full px-3.5 py-2.5 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-easydry-blue focus:border-easydry-blue resize-none"></textarea>
+              </div>
+            </div>
+
+            <div class="shrink-0 px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
+              <button (click)="showCerrarModal = false" class="btn btn-secondary">
+                Cancelar
+              </button>
+              <button (click)="confirmarCerrarReto()" class="px-5 py-2 font-bold text-sm text-white bg-emerald-500 hover:bg-emerald-600 rounded-xl transition-colors shadow-sm flex items-center gap-2">
+                <i-lucide aria-hidden="true" name="flag" class="w-4 h-4"></i-lucide> Cerrar reto
+              </button>
+            </div>
+          </div>
+        </div>
+      }
+
+      @if (puedeVerProductividad) {
       <!-- Filtros Completos (Punto 15: Agencia, Servicio, Operador, Fechas) -->
       <app-filter-bar 
         [showRegion]="true"
@@ -226,10 +277,10 @@ import { Reto } from '../../core/models/reto.model';
         <div class="bg-white rounded-2xl p-6 border border-slate-100 shadow-easydry">
           <div class="flex items-center justify-between mb-5 px-6">
             <h3 class="font-bold text-slate-900 text-lg font-outfit flex items-center gap-2">
-              <i-lucide name="building-2" class="w-5 h-5 text-easydry-blue"></i-lucide>
+              <i-lucide aria-hidden="true" name="building-2" class="w-5 h-5 text-easydry-blue"></i-lucide>
               <span>Ranking de Agencias por Productividad</span>
             </h3>
-            <span class="text-xs text-slate-400 font-semibold">Julio 2026</span>
+            <span class="text-xs text-slate-500 font-semibold">{{ periodoActual }}</span>
           </div>
 
           <div class="space-y-4">
@@ -254,7 +305,7 @@ import { Reto } from '../../core/models/reto.model';
 
                 <div class="text-right">
                   <span class="text-base font-extrabold text-easydry-blue font-outfit">{{ agencia.productividad }}%</span>
-                  <p class="text-[10px] text-slate-400">Eficiencia Operativa</p>
+                  <p class="text-xs text-slate-500">Eficiencia Operativa</p>
                 </div>
               </div>
             }
@@ -265,202 +316,267 @@ import { Reto } from '../../core/models/reto.model';
         <div class="bg-white rounded-2xl p-6 border border-slate-100 shadow-easydry">
           <div class="flex items-center justify-between mb-5 px-6">
             <h3 class="font-bold text-slate-900 text-lg font-outfit flex items-center gap-2">
-              <i-lucide name="users" class="w-5 h-5 text-easydry-blue"></i-lucide>
+              <i-lucide aria-hidden="true" name="users" class="w-5 h-5 text-easydry-blue"></i-lucide>
               <span>Ranking de Personal Operativo</span>
             </h3>
-            <span class="text-xs text-slate-400 font-semibold">Destacados</span>
+            <span class="text-xs text-slate-500 font-semibold">Destacados</span>
           </div>
 
-          <div class="space-y-4">
-            
-            <div class="p-4 border border-slate-100 rounded-xl flex items-center justify-between bg-gradient-to-r from-easydry-blue/5 to-white">
-              <div class="flex items-center gap-3">
-                <img src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80" alt="Avatar" class="w-10 h-10 rounded-full object-cover border-2 border-easydry-blue">
-                <div>
-                  <h4 class="font-bold text-slate-900 text-sm">Esteban Torres</h4>
-                  <p class="text-xs text-slate-500">Técnico • EasyDry Quito Norte</p>
-                </div>
-              </div>
-              <div class="text-right">
-                <span class="text-sm font-extrabold text-easydry-blue">68 Lavados</span>
-                <p class="text-[10px] text-easydry-blue font-bold">100% Calificación</p>
-              </div>
+          @if (rankingLavadores.length === 0) {
+            <div class="px-6 py-8 text-center text-sm text-slate-500">
+              No hay servicios finalizados en el período para calcular el ranking.
             </div>
+          } @else {
+            <div class="space-y-4">
+              @for (lavador of rankingLavadores; track lavador.operadorId) {
+                <div class="p-4 border border-slate-100 rounded-xl hover:border-easydry-blue/40 transition-all flex items-center justify-between">
+                  <div class="flex items-center gap-4">
+                    <div
+                      class="w-10 h-10 rounded-xl font-extrabold text-sm flex items-center justify-center"
+                      [ngClass]="{
+                        'bg-amber-400 text-slate-950 font-outfit shadow-xs': $index === 0,
+                        'bg-slate-200 text-slate-800': $index === 1,
+                        'bg-amber-700/20 text-amber-800': $index === 2,
+                        'bg-slate-100 text-slate-600': $index > 2
+                      }">
+                      #{{ $index + 1 }}
+                    </div>
+                    <div>
+                      <h4 class="font-bold text-slate-900 text-sm">{{ lavador.nombre }}</h4>
+                      <p class="text-xs text-slate-500">{{ lavador.cantidadServicios }} servicios</p>
+                    </div>
+                  </div>
 
-            <div class="p-4 border border-slate-100 rounded-xl flex items-center justify-between">
-              <div class="flex items-center gap-3">
-                <img src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80" alt="Avatar" class="w-10 h-10 rounded-full object-cover border-2 border-slate-300">
-                <div>
-                  <h4 class="font-bold text-slate-900 text-sm">Valeria Paredes</h4>
-                  <p class="text-xs text-slate-500">Técnico Detallado • Guayaquil</p>
+                  <div class="text-right">
+                    <span class="text-base font-extrabold text-easydry-blue font-outfit">{{ formatearTiempo(lavador.tiempoPromedioMin) }}</span>
+                    <p class="text-xs text-slate-500">Tiempo promedio</p>
+                  </div>
                 </div>
-              </div>
-              <div class="text-right">
-                <span class="text-sm font-extrabold text-easydry-blue">62 Lavados</span>
-                <p class="text-[10px] text-easydry-blue font-bold">99.2% Calificación</p>
-              </div>
+              }
             </div>
-
-            <div class="p-4 border border-slate-100 rounded-xl flex items-center justify-between">
-              <div class="flex items-center gap-3">
-                <img src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80" alt="Avatar" class="w-10 h-10 rounded-full object-cover border-2 border-slate-300">
-                <div>
-                  <h4 class="font-bold text-slate-900 text-sm">Mateo Guerrero</h4>
-                  <p class="text-xs text-slate-500">Supervisor • Cumbayá</p>
-                </div>
-              </div>
-              <div class="text-right">
-                <span class="text-sm font-extrabold text-easydry-blue">54 Lavados</span>
-                <p class="text-[10px] text-easydry-blue font-bold">98.5% Calificación</p>
-              </div>
-            </div>
-
-          </div>
+          }
         </div>
 
       </div>
 
+      }
+
+      @if (puedeVerRetos) {
       <!-- Tabla de Retos Comercial & Operativo (Todos los Retos) -->
       <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry overflow-hidden flex flex-col">
         <div class="p-6 pb-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h3 class="font-bold text-slate-900 text-lg font-outfit flex items-center gap-2">
-              <i-lucide name="trophy" class="w-5 h-5 text-amber-500"></i-lucide>
+              <i-lucide aria-hidden="true" name="trophy" class="w-5 h-5 text-amber-500"></i-lucide>
               <span>Directorio de Retos Empresariales</span>
             </h3>
             <p class="text-slate-500 text-xs mt-0.5">Listado completo de retos activos, inactivos y finalizados en la plataforma.</p>
           </div>
           <span class="text-xs font-semibold text-slate-600 bg-slate-100 px-3 py-1 rounded-full border border-slate-200 self-start sm:self-auto">
-            Total: <strong class="text-easydry-blue font-extrabold">{{ todosLosRetos.length }}</strong> retos registrados
+            Total: <strong class="text-easydry-blue font-extrabold">{{ retosTabla.total }}</strong> retos
           </span>
+          <label class="text-xs font-bold text-slate-600 flex items-center gap-2 self-start sm:self-auto">
+            <span>Mostrar</span>
+            <select
+              [(ngModel)]="vigenciaRetos"
+              (ngModelChange)="retosTabla.reiniciar()"
+              aria-label="Filtrar retos por vigencia"
+              class="bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-xl px-3 py-1.5 font-semibold cursor-pointer focus:ring-2 focus:ring-easydry-blue">
+              <option value="ACTIVOS">Activos</option>
+              <option value="VENCIDOS">Vencidos</option>
+              <option value="TODOS">Todos</option>
+            </select>
+          </label>
         </div>
 
-        <div class="overflow-x-auto flex-1">
-          <table class="w-full text-left text-sm">
-            <thead class="bg-slate-50 text-slate-500 text-xs font-bold uppercase tracking-wider border-b border-slate-200">
-              <tr>
-                <th class="py-3.5 px-4">Reto & Descripción</th>
-                <th class="py-3.5 px-4">Premio</th>
-                <th class="py-3.5 px-4">Vigencia</th>
-                <th class="py-3.5 px-4">Región / Sucursal</th>
-                <th class="py-3.5 px-4">Estado</th>
-                <th class="py-3.5 px-4 text-right">Acciones</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-slate-100">
-              @for (reto of todosLosRetos; track reto.id) {
-                <tr class="hover:bg-slate-50/80 transition-colors">
-                  <td class="py-3.5 px-4">
-                    <div class="font-bold text-slate-900 text-xs">{{ reto.titulo }}</div>
-                    <div class="text-[11px] text-slate-500 font-medium line-clamp-1">{{ reto.descripcion }}</div>
-                  </td>
-                  <td class="py-3.5 px-4">
-                    <span class="font-extrabold text-xs text-amber-600 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200 inline-block">
-                      🏆 {{ reto.premio }}
-                    </span>
-                  </td>
-                  <td class="py-3.5 px-4 text-xs font-mono text-slate-600">
-                    <div>{{ reto.fechaInicio }}</div>
-                    <div class="text-slate-400 text-[10px]">hasta {{ reto.fechaFin }}</div>
-                  </td>
-                  <td class="py-3.5 px-4 text-xs font-semibold text-slate-700">
-                    <span>{{ reto.regiones && reto.regiones.length ? reto.regiones.join(', ') : 'Todas' }}</span>
-                  </td>
-                  <td class="py-3.5 px-4">
-                    <span 
-                      class="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold inline-block border uppercase"
-                      [ngClass]="{
-                        'bg-emerald-50 text-emerald-700 border-emerald-200': (reto.estado || 'ACTIVO').toUpperCase() === 'ACTIVO',
-                        'bg-slate-100 text-slate-600 border-slate-200': (reto.estado || '').toUpperCase() === 'INACTIVO',
-                        'bg-amber-50 text-amber-700 border-amber-200': (reto.estado || '').toUpperCase() === 'FINALIZADO'
-                      }">
-                      {{ reto.estado || 'ACTIVO' }}
-                    </span>
-                  </td>
-                  <td class="py-3.5 px-4 text-right">
-                    <div class="flex items-center justify-end gap-1">
-                      @if (canDeleteReto(reto)) {
-                        <button 
-                          type="button"
-                          (click)="iniciarEliminarReto(reto)" 
-                          title="Eliminar Reto"
-                          class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer flex items-center justify-center">
-                          <i-lucide name="trash-2" class="w-4 h-4"></i-lucide>
-                        </button>
-                      }
-                    </div>
-                  </td>
-                </tr>
+        <app-data-table
+          [serverSide]="true"
+          [embebida]="true"
+          [columns]="columnasRetos"
+          [data]="retosTabla.filas"
+          [total]="retosTabla.total"
+          [page]="retosTabla.pagina"
+          [pageSize]="retosTabla.pageSize"
+          [sortField]="retosTabla.sortField"
+          [sortOrder]="retosTabla.sortOrder"
+          [loading]="retosTabla.cargando"
+          [error]="retosTabla.error"
+          maxHeight="none"
+          caption="Directorio de retos"
+          searchPlaceholder="Buscar reto por título..."
+          emptyTitle="No hay retos que coincidan."
+          emptyHint="Prueba con otra vigencia o con otro texto de búsqueda."
+          (queryChange)="retosTabla.alCambiar($event)"
+          (reintentar)="retosTabla.cargar(true)">
+
+          <ng-template appCell="titulo" let-reto>
+            <div class="font-bold text-slate-900 text-xs">{{ reto.titulo }}</div>
+            <div class="text-xs text-slate-500 font-medium line-clamp-1">{{ reto.descripcion }}</div>
+          </ng-template>
+
+          <ng-template appCell="premio" let-reto>
+            <span class="inline-flex items-center gap-1.5 font-extrabold text-xs text-amber-600 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200">
+              <i-lucide aria-hidden="true" name="trophy" class="w-3.5 h-3.5 text-amber-500"></i-lucide>
+              <span>{{ reto.premio }}</span>
+            </span>
+          </ng-template>
+
+          <ng-template appCell="inicio" let-reto>
+            <div class="text-xs font-mono text-slate-600">
+              <div>{{ reto.fechaInicio }}</div>
+              <div class="text-slate-500 text-xs">hasta {{ reto.fechaFin }}</div>
+            </div>
+          </ng-template>
+
+          <ng-template appCell="regiones" let-reto>
+            <span class="text-xs font-semibold text-slate-700">{{ reto.regiones && reto.regiones.length ? reto.regiones.join(', ') : 'Todas' }}</span>
+          </ng-template>
+
+          <ng-template appCell="estado" let-reto>
+            <span
+              class="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold inline-block border uppercase"
+              [ngClass]="{
+                'bg-emerald-50 text-emerald-700 border-emerald-200': (reto.estado || 'ACTIVO').toUpperCase() === 'ACTIVO',
+                'bg-slate-100 text-slate-600 border-slate-200': (reto.estado || '').toUpperCase() === 'INACTIVO',
+                'bg-amber-50 text-amber-700 border-amber-200': (reto.estado || '').toUpperCase() === 'FINALIZADO'
+              }">
+              {{ reto.estado || 'ACTIVO' }}
+            </span>
+            @if (reto.ganadorNombre) {
+              <div class="text-xs text-slate-500 font-medium mt-1">Ganó: {{ reto.ganadorNombre }}</div>
+            }
+          </ng-template>
+
+          <ng-template appCell="acciones" let-reto>
+            <div class="flex items-center justify-end gap-1">
+              @if (canDeleteReto(reto) && (reto.estado || 'ACTIVO').toUpperCase() === 'ACTIVO') {
+                <button
+                  type="button"
+                  (click)="iniciarCerrarReto(reto)"
+                  title="Cerrar Reto"
+                  class="p-1.5 min-w-9 min-h-9 inline-flex items-center justify-center text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer" aria-label="Cerrar Reto">
+                  <i-lucide aria-hidden="true" name="flag" class="w-4 h-4"></i-lucide>
+                </button>
               }
-            </tbody>
-          </table>
-        </div>
+              @if (canDeleteReto(reto)) {
+                <button
+                  type="button"
+                  (click)="iniciarEliminarReto(reto)"
+                  title="Eliminar Reto"
+                  class="p-1.5 min-w-9 min-h-9 inline-flex items-center justify-center text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer" aria-label="Eliminar Reto">
+                  <i-lucide aria-hidden="true" name="trash-2" class="w-4 h-4"></i-lucide>
+                </button>
+              }
+            </div>
+          </ng-template>
+        </app-data-table>
       </div>
 
+      }
+
+      @if (puedeVerProductividad) {
       <!-- Performance Comparison Chart -->
       <app-chart-card 
-        title="Comparativa de Crecimiento en Productividad" 
-        subtitle="Evolución trimestral por sucursal" 
+        title="Productividad por Sucursal"
+        subtitle="Indicadores actuales registrados en el sistema"
         type="bar" 
         [data]="comparativaChartData">
       </app-chart-card>
+
+      }
 
     </div>
   `
 })
 export class ProductividadComponent implements OnInit, OnDestroy {
+  @HostListener('document:keydown.escape')
+  cerrarModalEliminarConEsc(): void {
+    if (this.showDeleteConfirmModal) this.showDeleteConfirmModal = false;
+  }
+
+
+  readonly periodoActual = new Intl.DateTimeFormat('es-EC', { month: 'long', year: 'numeric' }).format(new Date());
   agencias: Agencia[] = [];
   todasLasAgencias: Agencia[] = [];
   
-  todosLosRetos: Reto[] = [];
+  /** Directorio de retos: páginas numeradas, búsqueda por título, vigencia y orden en el servidor. */
+  vigenciaRetos: 'ACTIVOS' | 'VENCIDOS' | 'TODOS' = 'ACTIVOS';
+  readonly columnasRetos: TableColumn[] = [
+    { key: 'titulo', label: 'Reto & Descripción', sortable: true, defaultSort: 'asc' },
+    { key: 'premio', label: 'Premio' },
+    { key: 'inicio', label: 'Vigencia', sortable: true, defaultSort: 'desc' },
+    { key: 'regiones', label: 'Región / Sucursal' },
+    { key: 'estado', label: 'Estado', sortable: true, defaultSort: 'asc' },
+    { key: 'acciones', label: 'Acciones', align: 'right', sticky: true },
+  ];
+  readonly retosTabla = new TablaServidor<Reto>((c) => this.retosService.getRetosPagina({ ...c, vigencia: this.vigenciaRetos }));
   retosActivos: Reto[] = [];
   currentRetoIndex = 0;
   showCrearRetoModal = false;
   showDeleteConfirmModal = false;
   retoToDelete: Reto | null = null;
-  canCreateReto = false;
+  showCerrarModal = false;
+  retoToCerrar: Reto | null = null;
+  cierreGanadorNombre = '';
+  cierreResultado = '';
   carouselInterval: any;
+  rankingLavadores: any[] = [];
 
   comparativaChartData = {
-    labels: ['Mayo 2026', 'Junio 2026', 'Julio 2026'],
-    datasets: [
-      { label: 'EasyDry Cumbayá', data: [94, 96, 98.2], backgroundColor: '#9BCB3B' },
-      { label: 'EasyDry Quito Norte', data: [92, 94, 96.4], backgroundColor: '#004282' },
-      { label: 'EasyDry Guayaquil', data: [90, 92, 94.0], backgroundColor: '#36699B' },
-      { label: 'EasyDry Quito Sur', data: [88, 90, 91.8], backgroundColor: '#B2E040' }
-    ]
+    labels: [] as string[],
+    datasets: [{ label: 'Productividad actual', data: [] as number[], backgroundColor: '#004282' }]
   };
 
   private agenciaService = inject(AgenciaService);
   public authService = inject(AuthService);
   private sucursalService = inject(SucursalService);
   private retosService = inject(RetosService);
+  private dashboardOperativoService = inject(DashboardOperativoService);
+  private toast = inject(ToastService);
+
+  // Permisos: los mismos que exige el servidor en cada endpoint.
+  get canCreateReto(): boolean { return this.authService.puede('retos.crear'); }
+  get puedeVerRetos(): boolean { return this.authService.puede('retos.ver'); }
+  get puedeVerProductividad(): boolean { return this.authService.puede('productividad.ver'); }
 
   ngOnInit(): void {
-    const user = this.authService.getCurrentUser();
-    // Solo Admins y Gerentes pueden crear retos. Coord. Comercial solo visualiza.
-    this.canCreateReto = ['SUPER_ADMIN', 'ADMIN', 'GERENTE'].includes(user?.role || '');
+    if (this.puedeVerRetos) this.cargarRetos();
 
-    this.cargarRetos();
+    // El ranking de agencias lo calcula y filtra por alcance el servidor.
+    if (this.puedeVerProductividad && this.authService.puede('agencias.ver')) {
+      this.agenciaService.getAgencias().subscribe(list => {
+        this.todasLasAgencias = [...list];
+        this.agencias = [...list].sort((a, b) => b.productividad - a.productividad);
+        this.actualizarGraficaProductividad();
+      });
+    }
 
-    this.agenciaService.getAgencias().subscribe(list => {
-      let filtered = list;
-      if (user && user.role !== 'SUPER_ADMIN' && user.sucursalNombre) {
-        filtered = list.filter(a => a.nombre.toLowerCase() === user.sucursalNombre!.toLowerCase());
-      }
-      this.todasLasAgencias = [...filtered];
-      this.agencias = filtered.sort((a, b) => b.productividad - a.productividad);
+    if (this.puedeVerProductividad) {
+      this.cargarRankingLavadores();
+    }
+  }
+
+  cargarRankingLavadores(filtro: { agenciaId?: string; regionId?: string; fechaDesde?: string; fechaHasta?: string } = {}): void {
+    this.dashboardOperativoService.getRankingLavadores(filtro).subscribe(ranking => {
+      this.rankingLavadores = ranking;
     });
+  }
+
+  formatearTiempo(minutos: number): string {
+    if (!minutos || minutos <= 0) return 'Sin datos';
+    const h = Math.floor(minutos / 60);
+    const m = minutos % 60;
+    return h > 0 ? `${h}h ${m}m` : `${m}m`;
   }
 
   ngOnDestroy(): void {
     this.stopCarousel();
+    this.retosTabla.destruir();
   }
 
   cargarRetos() {
-    this.retosService.getAllRetos().subscribe(todos => {
-      this.todosLosRetos = todos;
-    });
+    if (!this.puedeVerRetos) return;
+    this.retosTabla.refrescar();
 
     this.retosService.getRetosVisibles().subscribe(retos => {
       this.retosActivos = retos;
@@ -502,11 +618,14 @@ export class ProductividadComponent implements OnInit, OnDestroy {
     }
   }
 
+  /**
+   * Eliminar exige el permiso 'retos.eliminar' y, además, ser el creador del reto o un administrador (el servidor lo valida).
+   * Como administrador se toma a quien gestiona usuarios.
+   */
   canDeleteReto(reto: Reto): boolean {
     const user = this.authService.getCurrentUser();
-    if (!user) return false;
-    if (user.role === 'SUPER_ADMIN' || user.role === 'ADMIN') return true;
-    return reto.creadoPorId === user.id;
+    if (!user || !this.authService.puede('retos.eliminar')) return false;
+    return String(reto.creadoPorId) === String(user.id) || this.authService.puede('usuarios.gestionar');
   }
 
   iniciarEliminarReto(reto: Reto) {
@@ -516,38 +635,57 @@ export class ProductividadComponent implements OnInit, OnDestroy {
 
   confirmarEliminarReto() {
     if (this.retoToDelete) {
-      this.retosService.eliminarReto(this.retoToDelete.id).subscribe(exito => {
-        if (exito) {
+      this.retosService.eliminarReto(this.retoToDelete.id).subscribe({
+        next: (exito) => {
+          if (!exito) {
+            this.toast.error('No se pudo eliminar el reto', 'El servidor no confirmó la eliminación.');
+            return;
+          }
           this.showDeleteConfirmModal = false;
           this.retoToDelete = null;
+          this.toast.success('Reto eliminado', 'El reto se eliminó correctamente.');
           this.cargarRetos();
+        },
+        error: (err) => {
+          const m = err?.error?.message;
+          this.toast.error('No se pudo eliminar el reto', Array.isArray(m) ? m.join(' ') : (typeof m === 'string' && m ? m : 'El servidor no aceptó la eliminación.'));
         }
       });
     }
   }
 
+  iniciarCerrarReto(reto: Reto) {
+    this.retoToCerrar = reto;
+    this.cierreGanadorNombre = '';
+    this.cierreResultado = '';
+    this.showCerrarModal = true;
+  }
+
+  confirmarCerrarReto() {
+    if (!this.retoToCerrar) return;
+    this.retosService.cerrarReto(this.retoToCerrar.id, {
+      ganadorNombre: this.cierreGanadorNombre.trim() || undefined,
+      resultado: this.cierreResultado.trim() || undefined,
+    }).subscribe({
+      next: () => {
+        this.showCerrarModal = false;
+        this.retoToCerrar = null;
+        this.toast.success('Reto cerrado', 'El reto se cerró correctamente.');
+        this.cargarRetos();
+      },
+      error: (err) => {
+        const m = err?.error?.message;
+        this.toast.error('No se pudo cerrar el reto', Array.isArray(m) ? m.join(' ') : (typeof m === 'string' && m ? m : 'El servidor no aceptó el cierre.'));
+      }
+    });
+  }
+
   getRankingParaReto(): Agencia[] {
     if (!this.agencias.length) return [];
     
-    // Variar determinísticamente las posiciones y porcentajes según el índice del reto
-    const offset = this.currentRetoIndex % this.agencias.length;
-    let ranking = [...this.agencias];
-    
-    // Rotar posiciones
-    ranking = ranking.slice(offset).concat(ranking.slice(0, offset));
-    
-    // Variar la productividad un poco para cada reto
-    ranking = ranking.map((ag, index) => {
-      const modifier = (this.currentRetoIndex * 3.5) - (index * 1.5);
-      return {
-        ...ag,
-        productividad: Math.min(100, Math.max(50, ag.productividad + modifier))
-      };
-    });
-
-    // Reordenar
-    ranking.sort((a, b) => b.productividad - a.productividad);
-    return ranking.slice(0, 3);
+    return [...this.agencias]
+      .sort((a, b) => b.productividad - a.productividad)
+      .slice(0, 3);
   }
 
   onRetoCreado(reto: Reto) {
@@ -562,7 +700,7 @@ export class ProductividadComponent implements OnInit, OnDestroy {
                             filtros.sucursal.toLowerCase().includes(a.nombre.toLowerCase()));
     }
     if (filtros.region && filtros.region !== 'Todas') {
-      res = res.filter(a => this.regionDeCiudad(a.ciudad) === filtros.region);
+      res = res.filter(a => String(a.ciudad || '').trim().toLowerCase() === (filtros.region || '').trim().toLowerCase());
     }
     const fCliente = filtros.cliente || filtros.marca;
     if (fCliente && fCliente !== 'Todas' && fCliente !== 'Todos') {
@@ -572,14 +710,27 @@ export class ProductividadComponent implements OnInit, OnDestroy {
       });
     }
     this.agencias = res.sort((a, b) => b.productividad - a.productividad);
+    this.actualizarGraficaProductividad();
+
+    const agenciaFiltrada = filtros.sucursal && filtros.sucursal !== 'Todas'
+      ? this.todasLasAgencias.find(a => a.nombre.toLowerCase() === filtros.sucursal.toLowerCase())
+      : undefined;
+    this.cargarRankingLavadores({
+      agenciaId: agenciaFiltrada ? String(agenciaFiltrada.id) : undefined,
+      fechaDesde: filtros.fechaInicio,
+      fechaHasta: filtros.fechaFin,
+    });
   }
 
-  /** Deriva la región a partir de la ciudad de la agencia. */
-  private regionDeCiudad(ciudad: string): string {
-    const c = (ciudad || '').toLowerCase();
-    if (c.includes('quito') || c.includes('cumbaya') || c.includes('cumbayá') || c.includes('sierra')) return 'Sierra';
-    if (c.includes('guayaquil') || c.includes('manta') || c.includes('costa') || c.includes('esmeraldas')) return 'Costa';
-    if (c.includes('cuenca') || c.includes('austro') || c.includes('loja') || c.includes('ambio')) return 'Austro';
-    return 'Costa';
+  private actualizarGraficaProductividad(): void {
+    this.comparativaChartData = {
+      labels: this.agencias.map(agencia => agencia.nombre),
+      datasets: [{
+        label: 'Productividad actual',
+        data: this.agencias.map(agencia => Number(agencia.productividad || 0)),
+        backgroundColor: '#004282'
+      }]
+    };
   }
+
 }

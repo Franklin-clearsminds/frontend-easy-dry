@@ -2,6 +2,8 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { ClienteSucursal, MarcaSucursal } from '../models';
 import { ClienteService } from './cliente.service';
+import { ConsultaTabla } from '../models/paginacion.model';
+import { PaginaConResumen, cuerpoConsulta, postPagina } from '../utils/tabla-servidor';
 
 @Injectable({
   providedIn: 'root'
@@ -12,6 +14,10 @@ export class MarcaSucursalService {
 
   getMarcas(): Observable<MarcaSucursal[]> {
     return this.clienteService.getClientes();
+  }
+
+  getMarcasPagina(c: Partial<ConsultaTabla>): Observable<PaginaConResumen<MarcaSucursal>> {
+    return this.clienteService.getClientesPagina(c);
   }
 
   getActivas(): MarcaSucursal[] {

@@ -4,6 +4,8 @@ import { BehaviorSubject, Observable, of } from 'rxjs';
 import { map, tap, catchError } from 'rxjs/operators';
 import { RegionOperativa } from '../models';
 import { apiUrl } from '../config/env';
+import { ConsultaTabla } from '../models/paginacion.model';
+import { PaginaConResumen, cuerpoConsulta, postPagina } from '../utils/tabla-servidor';
 
 @Injectable({
   providedIn: 'root'
@@ -34,6 +36,11 @@ export class RegionService {
       tap(mapped => this.regionesSubject.next(mapped)),
       catchError(() => of(this.regionesSubject.value))
     );
+  }
+
+  /** Una página de regiones para la tabla (búsqueda y orden en el servidor: codigo, nombre, estado, agencias, usuarios, fecha). */
+  getRegionesPagina(c: Partial<ConsultaTabla>): Observable<PaginaConResumen<RegionOperativa>> {
+    return postPagina<RegionOperativa>(this.http, apiUrl('/agencias/regiones/list'), cuerpoConsulta(c), (r) => this.mapBackendRegion(r));
   }
 
   getActivas(): RegionOperativa[] {
@@ -85,8 +92,7 @@ export class RegionService {
           current[index] = { ...act };
           this.regionesSubject.next([...current]);
         }
-      }),
-      catchError(() => of(region))
+      })
     );
   }
 }

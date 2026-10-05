@@ -1,144 +1,130 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { BehaviorSubject, Observable, forkJoin, of } from 'rxjs';
-import { map, catchError, tap } from 'rxjs/operators';
+import { BehaviorSubject, Observable, firstValueFrom } from 'rxjs';
+import { map, tap, catchError } from 'rxjs/operators';
+import { of } from 'rxjs';
 import { Notificacion, NotificacionTipo } from '../models/notificacion.model';
 import { apiUrl } from '../config/env';
+import { NotificationSocketService, NotificationPayload } from './notification-socket.service';
+
+const TIPO_A_NOTIFICACION_TIPO: Record<string, NotificacionTipo> = {
+  INCIDENTE_NUEVO: 'alerta',
+  MANTENIMIENTO_VENCIDO: 'alerta',
+  STOCK_CRITICO: 'alerta',
+  LIMPIEZA_ATRASADA: 'alerta',
+  DESPACHO_PENDIENTE: 'alerta',
+  MAQUINA_DADA_DE_BAJA: 'alerta',
+  INCIDENCIA_RESUELTA: 'exito',
+  APROBACION_PENDIENTE: 'sistema',
+  RETO_CERRADO: 'sistema',
+  USUARIO_ACTUALIZADO: 'sistema',
+  INCIDENCIA_ASIGNADA: 'info',
+  MANTENIMIENTO_ASIGNADO: 'info',
+  LIMPIEZA_RECORDATORIO: 'info',
+  SERVICIO_DECIDIDO: 'info',
+  SERVICIO_ESPECIAL_ASIGNADO: 'info',
+  SERVICIO_ESPECIAL_CERRADO: 'info',
+  DESPACHO_CONFIRMADO: 'info',
+};
+
+const ENLACE_POR_ENTIDAD: Record<string, { enlace: string; enlaceLabel: string }> = {
+  MAQUINARIA: { enlace: '/maquinaria', enlaceLabel: 'Ir al Taller' },
+  INSUMO: { enlace: '/inventario', enlaceLabel: 'Ver Inventario' },
+  SOLICITUD_APROBACION: { enlace: '/aprobaciones', enlaceLabel: 'Revisar Solicitud' },
+  MOVIMIENTO_INVENTARIO: { enlace: '/envios', enlaceLabel: 'Confirmar Recepción' },
+  SERVICIO_LAVADO: { enlace: '/servicios', enlaceLabel: 'Ver Servicio' },
+  SERVICIO_ESPECIAL: { enlace: '/servicios', enlaceLabel: 'Ver Servicio Especial' },
+  RETO: { enlace: '/productividad', enlaceLabel: 'Ver Retos' },
+  USUARIO: { enlace: '/usuarios', enlaceLabel: 'Ver Usuario' },
+  AGENCIA: { enlace: '/sucursales', enlaceLabel: 'Ver Agencia' },
+};
 
 @Injectable({
   providedIn: 'root'
 })
 export class NotificacionService {
   private http = inject(HttpClient);
+  private socket = inject(NotificationSocketService);
   private notificacionesSubject = new BehaviorSubject<Notificacion[]>([]);
   public notificaciones$ = this.notificacionesSubject.asObservable();
 
-  private readonly STORAGE_KEY = 'easydry_notificaciones_leidas_ids';
-
-  private getLeidasIds(): Set<string> {
-    try {
-      const raw = localStorage.getItem(this.STORAGE_KEY);
-      return new Set(raw ? JSON.parse(raw) : []);
-    } catch {
-      return new Set();
-    }
+  constructor() {
+    // Mientras el socket esté conectado (AuthService lo arma en login/arranque de sesión), cada
+    // notificación nueva se antepone a la lista en memoria, sin volver a pedir todo el historial.
+    this.socket.onNuevaNotificacion.subscribe((payload) => {
+      const actuales = this.notificacionesSubject.value;
+      this.notificacionesSubject.next([this.mapearPayload(payload), ...actuales]);
+    });
   }
 
-  private saveLeidasIds(ids: Set<string>): void {
-    try {
-      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(Array.from(ids)));
-    } catch {}
+  private mapear(n: any): Notificacion {
+    const fechaObj = n.createdAt ? new Date(n.createdAt) : new Date();
+    const enlaceInfo = n.entidadTipo ? ENLACE_POR_ENTIDAD[n.entidadTipo] : undefined;
+    return {
+      id: n.id,
+      titulo: n.titulo,
+      mensaje: n.mensaje,
+      tipo: TIPO_A_NOTIFICACION_TIPO[n.tipo] || 'info',
+      fecha: fechaObj.toISOString().split('T')[0],
+      hora: fechaObj.toTimeString().substring(0, 5),
+      leida: !!n.leida,
+      enlace: enlaceInfo?.enlace,
+      enlaceLabel: enlaceInfo?.enlaceLabel,
+    };
   }
 
-  /**
-   * Consulta las fuentes de verdad en base de datos PostgreSQL:
-   * 1. Alertas de stock bajo (/inventario/alertas/list)
-   * 2. Incidentes técnicos de maquinaria (/maquinaria/incidentes/list)
-   * 3. Solicitudes de aprobación pendientes (/aprobaciones/list)
-   */
+  /** La notificación recién llegada por WebSocket todavía no tiene `id` real de BD: se arma una temporal. */
+  private mapearPayload(n: NotificationPayload): Notificacion {
+    return this.mapear({ ...n, id: `live-${Date.now()}-${Math.random().toString(36).slice(2)}` });
+  }
+
+  /** Historial real del usuario (hasta 100 más recientes), desde la tabla de notificaciones. */
   getNotificaciones(): Observable<Notificacion[]> {
-    const leidas = this.getLeidasIds();
-
-    const alertasStock$ = this.http.post<any[]>(apiUrl('/inventario/alertas/list'), {}).pipe(
-      catchError(() => of([]))
-    );
-
-    const incidentes$ = this.http.post<any>(apiUrl('/maquinaria/incidentes/list'), {}).pipe(
-      map(res => Array.isArray(res) ? res : (res?.data || [])),
-      catchError(() => of([]))
-    );
-
-    const aprobaciones$ = this.http.post<any[]>(apiUrl('/aprobaciones/list'), {}).pipe(
-      catchError(() => of([]))
-    );
-
-    return forkJoin([alertasStock$, incidentes$, aprobaciones$]).pipe(
-      map(([alertasStock, incidentes, aprobaciones]) => {
-        const notifs: Notificacion[] = [];
-
-        // 1. Alertas de Stock
-        (alertasStock || []).forEach((a: any) => {
-          const idStr = `stock-${a.id}`;
-          const isLeida = leidas.has(idStr) || a.estado === 'RESUELTO' || a.estado === 'DESPACHADO';
-          const fechaObj = a.createdAt ? new Date(a.createdAt) : new Date();
-          notifs.push({
-            id: idStr,
-            titulo: `Stock Crítico: ${a.insumo?.nombre || 'Insumo'}`,
-            mensaje: `Nivel ${a.nivel || 'BAJO'}. Stock actual: ${a.stockActual} (Mín: ${a.stockMinimo}). Sucursal: ${a.agencia?.nombre || 'Bodega Central'}`,
-            tipo: 'alerta',
-            fecha: fechaObj.toISOString().split('T')[0],
-            hora: fechaObj.toTimeString().substring(0, 5),
-            leida: isLeida,
-            sucursal: a.agencia?.nombre || 'Bodega Central',
-            enlace: '/inventario',
-            enlaceLabel: 'Ver Inventario'
-          });
-        });
-
-        // 2. Incidentes Técnicos
-        (incidentes || []).forEach((inc: any) => {
-          const idStr = `inc-${inc.id}`;
-          const isLeida = leidas.has(idStr) || inc.estado === 'RESUELTO' || inc.estado === 'CANCELADO';
-          const fechaObj = inc.createdAt ? new Date(inc.createdAt) : new Date();
-          notifs.push({
-            id: idStr,
-            titulo: `Incidente: ${inc.maquinaria?.nombre || inc.maquinaria?.codigo || 'Equipo'}`,
-            mensaje: `${inc.titulo || 'Fallo detectado'}: ${inc.descripcion || 'Requiere revisión técnica'}. Estado: ${inc.estado}`,
-            tipo: inc.gravedad === 'CRITICA' || inc.gravedad === 'ALTA' ? 'alerta' : 'info',
-            fecha: fechaObj.toISOString().split('T')[0],
-            hora: fechaObj.toTimeString().substring(0, 5),
-            leida: isLeida,
-            sucursal: inc.maquinaria?.agencia?.nombre || 'Taller',
-            enlace: '/maquinaria',
-            enlaceLabel: 'Ir al Taller'
-          });
-        });
-
-        // 3. Aprobaciones
-        (aprobaciones || []).filter((ap: any) => ap.estado === 'PENDIENTE').forEach((ap: any) => {
-          const idStr = `aprob-${ap.id}`;
-          const isLeida = leidas.has(idStr);
-          const fechaObj = ap.createdAt ? new Date(ap.createdAt) : new Date();
-          notifs.push({
-            id: idStr,
-            titulo: `Aprobación Pendiente: OT ${ap.codigoOT || ap.vehiculoServicioId || ''}`,
-            mensaje: `Servicio ${ap.tipoServicio || 'Especial'} en ${ap.agencia?.nombre || 'Sucursal'} requiere validación para cierre diario.`,
-            tipo: 'sistema',
-            fecha: fechaObj.toISOString().split('T')[0],
-            hora: fechaObj.toTimeString().substring(0, 5),
-            leida: isLeida,
-            sucursal: ap.agencia?.nombre || 'Sucursal',
-            enlace: '/aprobaciones',
-            enlaceLabel: 'Revisar Solicitud'
-          });
-        });
-
-        return notifs;
+    return this.http.post<any>(apiUrl('/notifications/list'), { pageSize: 100 }).pipe(
+      map((res) => {
+        const items = Array.isArray(res) ? res : (res?.items || res?.data || []);
+        return items.map((n: any) => this.mapear(n));
       }),
-      tap(items => this.notificacionesSubject.next(items))
+      tap((items) => this.notificacionesSubject.next(items)),
+      catchError(() => of(this.notificacionesSubject.value)),
     );
   }
 
-  marcarComoLeida(id: string | number): void {
-    const leidas = this.getLeidasIds();
-    leidas.add(String(id));
-    this.saveLeidasIds(leidas);
+  /** Cuántas notificaciones sin leer tiene el usuario (para el badge de la campanita). */
+  getResumen(): Observable<{ pendientes: number }> {
+    return this.http.post<any>(apiUrl('/notifications/resumen'), {}).pipe(
+      map((res) => ({ pendientes: Number(res?.pendientes || 0) })),
+      catchError(() => of({ pendientes: 0 })),
+    );
+  }
 
+  recargar(): void {
+    this.getNotificaciones().subscribe();
+  }
+
+  async marcarComoLeida(id: string | number): Promise<void> {
     const current = this.notificacionesSubject.value;
-    const idx = current.findIndex(n => String(n.id) === String(id));
+    const idx = current.findIndex((n) => String(n.id) === String(id));
     if (idx !== -1) {
-      current[idx] = { ...current[idx], leida: true };
-      this.notificacionesSubject.next([...current]);
+      const actualizado = [...current];
+      actualizado[idx] = { ...actualizado[idx], leida: true };
+      this.notificacionesSubject.next(actualizado);
+    }
+    // Las que llegaron por WS ("live-...") todavía no tienen id real de BD: nada que marcar en el servidor.
+    if (String(id).startsWith('live-')) return;
+    try {
+      await firstValueFrom(this.http.post(apiUrl('/notifications/marcar-leida'), { notificacionId: id }));
+    } catch {
+      // Sin red: queda marcada localmente, se reconcilia en la próxima carga.
     }
   }
 
-  marcarTodasComoLeidas(): void {
-    const leidas = this.getLeidasIds();
-    const current = this.notificacionesSubject.value;
-    current.forEach(n => leidas.add(String(n.id)));
-    this.saveLeidasIds(leidas);
-
-    const updated = current.map(n => ({ ...n, leida: true }));
-    this.notificacionesSubject.next(updated);
+  async marcarTodasComoLeidas(): Promise<void> {
+    this.notificacionesSubject.next(this.notificacionesSubject.value.map((n) => ({ ...n, leida: true })));
+    try {
+      await firstValueFrom(this.http.post(apiUrl('/notifications/marcar-todas-leidas'), {}));
+    } catch {
+      // Sin red: queda marcado localmente, se reconcilia en la próxima carga.
+    }
   }
 }

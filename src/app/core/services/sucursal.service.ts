@@ -1,8 +1,30 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { BehaviorSubject, Observable, of } from 'rxjs';
-import { map, tap, catchError } from 'rxjs/operators';
+import { map, tap, catchError, expand, reduce } from 'rxjs/operators';
+import { EMPTY } from 'rxjs';
+import { ConsultaTabla, PaginaServidor, normalizarPagina } from '../models/paginacion.model';
+import { cuerpoConsulta } from '../utils/tabla-servidor';
+
+/** Lo que pide la lista de agencias: la de la tabla más los filtros que entiende el servidor. */
+export interface ConsultaAgencias extends Partial<ConsultaTabla> {
+  /** 1 activo, 0 inactivo, 2 mantenimiento. */
+  estado?: number;
+  regionNombre?: string;
+  clienteNombre?: string;
+  incluirProductividad?: boolean;
+}
 import { MovimientoRedSucursal, Sucursal } from '../models';
+
+export interface PrecioServicioAgencia {
+  catalogoServicioId: number;
+  codigo: string;
+  nombre: string;
+  estado: string;
+  precioCatalogo: number;
+  precioAgencia: number | null;
+  precioEfectivo: number;
+}
 import { RegionService } from './region.service';
 import { MarcaSucursalService } from './marca-sucursal.service';
 import { apiUrl } from '../config/env';
@@ -22,61 +44,28 @@ export class SucursalService {
   private movimientosSubject = new BehaviorSubject<MovimientoRedSucursal[]>([]);
   public movimientos$ = this.movimientosSubject.asObservable();
 
-  private readonly CONFIG_STORAGE_KEY = 'easydry_sucursal_config_map_v1';
-
   constructor() {
     try {
       localStorage.removeItem(this.STORAGE_KEY);
-    } catch {}
-  }
-
-  private getBranchConfigMap(): Record<string, any> {
-    try {
-      const raw = localStorage.getItem(this.CONFIG_STORAGE_KEY);
-      return raw ? JSON.parse(raw) : {};
-    } catch {
-      return {};
-    }
-  }
-
-  private saveBranchConfig(id: string | number, config: any): void {
-    try {
-      const map = this.getBranchConfigMap();
-      map[String(id)] = {
-        ...(map[String(id)] || {}),
-        ...config
-      };
-      localStorage.setItem(this.CONFIG_STORAGE_KEY, JSON.stringify(map));
+      localStorage.removeItem('easydry_sucursal_config_map_v1'); // config local antigua: el servidor es la fuente de verdad
     } catch {}
   }
 
   private mapBackendAgencia(a: any): Sucursal {
-    const configMap = this.getBranchConfigMap();
-    let stored = configMap[String(a.id)] || {};
-
-    // Respaldo por nombre: si tras un reseed cambió el id de la agencia, la config
-    // guardada por id anterior se recupera igualmente por el nombre.
-    if (!stored || (stored && Object.keys(stored).length === 0)) {
-      const nombreA = (a.nombre || '').trim().toLowerCase();
-      const porNombre = Object.values(configMap).find((cfg: any) =>
-        cfg && cfg.nombre && String(cfg.nombre).trim().toLowerCase() === nombreA
-      );
-      if (porNombre) stored = porNombre;
-    }
 
     const ger = a.usuarios?.find((u: any) => {
       const r = (u.role?.namerol || u.role || '').toUpperCase();
-      return r === 'GERENTE' || r === 'APROBADOR' || r.includes('GERENTE') || r.includes('APROBADOR') || r === 'LIDER_AGENCIA';
+      return r === 'GERENTE' || r === 'APROBADOR' || r.includes('GERENTE') || r.includes('APROBADOR') || r === 'LIDER' || r === 'LIDER_AGENCIA';
     });
 
     const responsable = ger
       ? `${ger.name || ''} ${ger.lastname || ''}`.trim()
-      : (a.responsable && a.responsable !== 'Sin Asignar' ? a.responsable : (stored.responsable || 'Sin Asignar'));
+      : (a.responsable && a.responsable !== 'Sin Asignar' ? a.responsable : 'Sin Asignar');
 
-    const gerenteId = ger?.id || a.gerenteId || stored.gerenteId || undefined;
+    const gerenteId = ger?.id || a.gerenteId || undefined;
     const gerenteNombre = ger
       ? `${ger.name || ''} ${ger.lastname || ''}`.trim()
-      : (a.gerenteNombre || stored.gerenteNombre || (responsable !== 'Sin Asignar' ? responsable : undefined));
+      : (a.gerenteNombre || (responsable !== 'Sin Asignar' ? responsable : undefined));
 
     const lider = (a.usuarios || []).find((u: any) => String(u.id) === String(a.liderOperadorId))
       || a.usuarios?.find((u: any) => {
@@ -86,23 +75,15 @@ export class SucursalService {
 
     const liderOperador = lider
       ? `${lider.name || ''} ${lider.lastname || ''}`.trim()
-      : (a.liderOperador && a.liderOperador !== 'Sin Asignar' ? a.liderOperador : (stored.liderOperador || 'Sin Asignar'));
+      : (a.liderOperador && a.liderOperador !== 'Sin Asignar' ? a.liderOperador : 'Sin Asignar');
 
-    const tieneServiciosEspeciales = a.tieneServiciosEspeciales !== undefined && a.tieneServiciosEspeciales !== null
-      ? Boolean(a.tieneServiciosEspeciales)
-      : (stored.tieneServiciosEspeciales !== undefined ? Boolean(stored.tieneServiciosEspeciales) : false);
+    const tieneServiciosEspeciales = Boolean(a.tieneServiciosEspeciales);
 
-    // Origen de verdad: base de datos (agencia.servicioIds)
-    let servicioIds: number[] = [];
-    if (Array.isArray(a.servicioIds)) {
-      servicioIds = Array.from(new Set(a.servicioIds.map((id: any) => Number(id)).filter((n: number) => !isNaN(n) && n > 0)));
-    } else if (Array.isArray(stored.servicioIds) && stored.servicioIds.length > 0) {
-      servicioIds = Array.from(new Set(stored.servicioIds.map((id: any) => Number(id)).filter((n: number) => !isNaN(n) && n > 0)));
-    }
+    const servicioIds: number[] = Array.isArray(a.servicioIds)
+      ? Array.from(new Set(a.servicioIds.map((id: any) => Number(id)).filter((n: number) => !isNaN(n) && n > 0)))
+      : [];
 
-    const serviciosNombres: string[] = Array.isArray(a.serviciosNombres)
-      ? a.serviciosNombres
-      : (Array.isArray(stored.serviciosNombres) ? stored.serviciosNombres : []);
+    const serviciosNombres: string[] = Array.isArray(a.serviciosNombres) ? a.serviciosNombres : [];
 
     // Filtrar operadores estrictos (excluyendo roles directivos / gerenciales)
     const operadores = (a.usuarios || []).filter((u: any) => {
@@ -113,15 +94,17 @@ export class SucursalService {
 
     return {
       id: a.id,
+      codigo: a.codigo || undefined,
+      productividad: a.productividad != null ? Number(a.productividad) : undefined,
       nombre: a.nombre,
-      ciudad: a.regionRel?.nombre || a.region || 'Quito',
+      ciudad: a.regionRel?.nombre || a.region || '',
       direccion: a.direccion || '',
       estado: a.estado === 1 ? 'Activo' : (a.estado === 0 ? 'Inactivo' : 'Mantenimiento'),
       cantidadBahias: a.numeroBahias || (a.bahias?.length ?? a._count?.bahias ?? 0),
       maxLavadoresPorBahia: a.maxLavadoresPorBahia || 1,
       responsable,
       liderOperador,
-      liderOperadorId: lider?.id || a.liderOperadorId || stored.liderOperadorId || undefined,
+      liderOperadorId: lider?.id || a.liderOperadorId || undefined,
       liderOperadorNombre: liderOperador !== 'Sin Asignar' ? liderOperador : undefined,
       operadoresActivos: operadores.length,
       maquinasAsignadasCount: a._count?.maquinarias || 0,
@@ -135,7 +118,8 @@ export class SucursalService {
       servicioIds,
       serviciosNombres,
       telefono: a.telefono || '',
-      requiereAprobacion: stored.requiereAprobacion !== undefined ? stored.requiereAprobacion : (!!gerenteId || responsable !== 'Sin Asignar'),
+      // Hay aprobador designado cuando el servidor devuelve uno para la agencia (no depende de datos locales).
+      requiereAprobacion: !!gerenteId,
       gerenteId,
       gerenteNombre,
       tieneServiciosEspeciales
@@ -150,38 +134,37 @@ export class SucursalService {
     );
   }
 
-  getSucursalConfig(id: string | number): Record<string, any> | null {
-    try {
-      const cfg = this.getBranchConfigMap()[String(id)];
-      return cfg ? { ...cfg } : null;
-    } catch {
-      return null;
-    }
-  }
-
-  private getSucursalConfigPorNombre(nombre?: string): Record<string, any> | null {
-    if (!nombre) return null;
-    const n = String(nombre).trim().toLowerCase();
-    try {
-      const cfg = Object.values(this.getBranchConfigMap()).find(
-        (c: any) => c && c.nombre && String(c.nombre).trim().toLowerCase() === n
-      );
-      return cfg ? { ...cfg } : null;
-    } catch {
-      return null;
-    }
-  }
-
+  /**
+   * Si la agencia tiene servicios especiales, según lo que devolvió el servidor (lista ya cargada). Sin la agencia
+   * cargada no se puede saber, y se responde false.
+   */
   hasServiciosEspecialesActivos(id: string | number, nombre?: string): boolean {
-    const cfg = this.getSucursalConfig(id) || this.getSucursalConfigPorNombre(nombre);
-    if (!cfg) return false;
-    if (cfg['tieneServiciosEspeciales'] !== undefined) return Boolean(cfg['tieneServiciosEspeciales']);
-    // Ya no hay IDs hardcodeados — la fuente de verdad es la BD
-    return false;
+    const lista = this.sucursalesSubject.value;
+    const n = String(nombre || '').trim().toLowerCase();
+    const suc = lista.find(s => String(s.id) === String(id)) || (n ? lista.find(s => s.nombre.trim().toLowerCase() === n) : undefined);
+    return suc?.tieneServiciosEspeciales === true;
   }
 
+  /** Una página de agencias para las tarjetas (scroll infinito): búsqueda, estado, región, cliente y orden en el servidor. */
+  getSucursalesPagina(c: ConsultaAgencias): Observable<PaginaServidor<Sucursal>> {
+    const body = cuerpoConsulta(c, ['estado', 'regionNombre', 'clienteNombre', 'incluirProductividad']);
+    return this.http.post<any>(apiUrl('/agencias/list'), body).pipe(
+      map(res => {
+        const pagina = normalizarPagina<any>(res, body['page'] as number, body['pageSize'] as number);
+        return { ...pagina, items: pagina.items.map(a => this.mapBackendAgencia(a)) };
+      })
+    );
+  }
+
+  /**
+   * Todas las agencias, sin productividad (selectores y mapa, que necesitan la red completa): pide páginas de 100 hasta
+   * agotarlas, así no se corta en 100 aunque la red crezca. El alcance por rol lo aplica el servidor.
+   */
   getSucursales(): Observable<Sucursal[]> {
-    return this.http.post<any[]>(apiUrl('/agencias/list'), {}).pipe(
+    const pedir = (page: number) => this.http.post<any>(apiUrl('/agencias/list'), { incluirProductividad: false, page, pageSize: 100 });
+    return pedir(1).pipe(
+      expand(res => (res && res.hasNextPage ? pedir(Number(res.page || 1) + 1) : EMPTY)),
+      reduce((acc: any[], res: any) => acc.concat(normalizarPagina<any>(res, 1, 100).items), [] as any[]),
       map(items => (items || []).map(a => this.mapBackendAgencia(a))),
       tap(mapped => this.sucursalesSubject.next(mapped)),
       catchError(() => of(this.sucursalesSubject.value))
@@ -219,7 +202,7 @@ export class SucursalService {
     const payload = {
       codigo,
       nombre: suc.nombre?.trim(),
-      region: suc.ciudad || 'Quito',
+      region: suc.ciudad || suc.regionNombre || '',
       regionId: regionIdStr,
       direccion: suc.direccion || '',
       telefono: suc.telefono || '',
@@ -237,30 +220,7 @@ export class SucursalService {
 
     return this.http.post<any>(apiUrl('/agencias/create'), payload).pipe(
       map(res => {
-        this.saveBranchConfig(res.id, {
-          nombre: suc.nombre,
-          servicioIds: suc.servicioIds,
-          serviciosNombres: suc.serviciosNombres,
-          tieneServiciosEspeciales: suc.tieneServiciosEspeciales,
-          gerenteId: suc.gerenteId,
-          gerenteNombre: suc.gerenteNombre,
-          responsable: suc.responsable,
-          requiereAprobacion: suc.requiereAprobacion,
-          liderOperadorId: suc.liderOperadorId,
-          liderOperador: suc.liderOperador,
-          liderOperadorNombre: suc.liderOperadorNombre
-        });
-
         const backendMapped = this.mapBackendAgencia(res);
-        if (suc.gerenteNombre) backendMapped.gerenteNombre = suc.gerenteNombre;
-        if (suc.gerenteId) backendMapped.gerenteId = suc.gerenteId;
-        if (suc.responsable) backendMapped.responsable = suc.responsable;
-        if (suc.requiereAprobacion !== undefined) backendMapped.requiereAprobacion = suc.requiereAprobacion;
-        if (suc.tieneServiciosEspeciales !== undefined) backendMapped.tieneServiciosEspeciales = suc.tieneServiciosEspeciales;
-        if (suc.servicioIds) backendMapped.servicioIds = suc.servicioIds;
-        if (suc.serviciosNombres) backendMapped.serviciosNombres = suc.serviciosNombres;
-        if (suc.liderOperadorId) backendMapped.liderOperadorId = suc.liderOperadorId;
-        if (suc.liderOperador && suc.liderOperador !== 'Sin Asignar') backendMapped.liderOperador = suc.liderOperador;
 
         const current = this.sucursalesSubject.value;
         this.sucursalesSubject.next([...current, backendMapped]);
@@ -270,58 +230,47 @@ export class SucursalService {
     );
   }
 
-  actualizarSucursal(suc: Sucursal, auditoria?: { motivo?: string; realizadoPor?: string }): Observable<Sucursal> {
+  /**
+   * Guarda los cambios de una agencia. Cada bloque solo se envía si quien llama tiene el permiso que el servidor exige:
+   * región y cliente ('agencias.crear'), estado ('agencias.estado'), bahías ('bahias.crear') y personas ('usuarios.gestionar').
+   * Si el servidor rechaza, el error se propaga para que la pantalla lo muestre.
+   */
+  actualizarSucursal(
+    suc: Sucursal,
+    auditoria?: { motivo?: string; realizadoPor?: string },
+    incluir: { region?: boolean; estado?: boolean; bahias?: boolean; personas?: boolean } = {}
+  ): Observable<Sucursal> {
     const regionIdStr = (suc.regionId && suc.regionId !== 0 && suc.regionId !== '0') ? String(suc.regionId) : undefined;
     const rawClienteId = suc.clienteId || suc.marcaId;
     const clienteIdStr = (rawClienteId && rawClienteId !== 0 && rawClienteId !== '0') ? String(rawClienteId) : undefined;
-    const marcaIdStr = clienteIdStr;
     const gerenteIdStr = suc.gerenteId ? String(suc.gerenteId) : (suc.requiereAprobacion === false ? '' : undefined);
 
-    const payload = {
+    const payload: any = {
       id: String(suc.id),
       nombre: suc.nombre,
-      region: suc.ciudad,
-      regionId: regionIdStr,
       direccion: suc.direccion,
       telefono: suc.telefono,
-      numeroBahias: Number(suc.cantidadBahias),
       maxLavadoresPorBahia: Number(suc.maxLavadoresPorBahia) || 1,
-      clienteId: clienteIdStr,
-      marcaId: marcaIdStr,
-      estado: suc.estado === 'Inactivo' ? 0 : 1,
-      gerenteId: gerenteIdStr,
-      liderOperadorId: suc.liderOperadorId ? String(suc.liderOperadorId) : '',
       servicioIds: Array.isArray(suc.servicioIds) ? suc.servicioIds.map(Number).filter(n => !isNaN(n) && n > 0) : [],
       serviciosNombres: Array.isArray(suc.serviciosNombres) ? suc.serviciosNombres : [],
       tieneServiciosEspeciales: suc.tieneServiciosEspeciales === true
     };
-
-    this.saveBranchConfig(suc.id, {
-      nombre: suc.nombre,
-      servicioIds: suc.servicioIds,
-      serviciosNombres: suc.serviciosNombres,
-      tieneServiciosEspeciales: suc.tieneServiciosEspeciales,
-      gerenteId: suc.gerenteId,
-      gerenteNombre: suc.gerenteNombre,
-      responsable: suc.responsable,
-      requiereAprobacion: suc.requiereAprobacion,
-      liderOperadorId: suc.liderOperadorId,
-      liderOperador: suc.liderOperador,
-      liderOperadorNombre: suc.liderOperadorNombre
-    });
+    if (incluir.region) {
+      payload.region = suc.ciudad;
+      payload.regionId = regionIdStr;
+      payload.clienteId = clienteIdStr;
+      payload.marcaId = clienteIdStr;
+    }
+    if (incluir.estado) payload.estado = suc.estado === 'Inactivo' ? 0 : 1;
+    if (incluir.bahias) payload.numeroBahias = Number(suc.cantidadBahias);
+    if (incluir.personas) {
+      payload.gerenteId = gerenteIdStr;
+      payload.liderOperadorId = suc.liderOperadorId ? String(suc.liderOperadorId) : '';
+    }
 
     return this.http.post<any>(apiUrl('/agencias/update'), payload).pipe(
       map(res => {
         const backendMapped = this.mapBackendAgencia(res);
-        if (suc.gerenteNombre) backendMapped.gerenteNombre = suc.gerenteNombre;
-        if (suc.gerenteId) backendMapped.gerenteId = suc.gerenteId;
-        if (suc.responsable) backendMapped.responsable = suc.responsable;
-        if (suc.requiereAprobacion !== undefined) backendMapped.requiereAprobacion = suc.requiereAprobacion;
-        if (suc.tieneServiciosEspeciales !== undefined) backendMapped.tieneServiciosEspeciales = suc.tieneServiciosEspeciales;
-        if (suc.servicioIds) backendMapped.servicioIds = suc.servicioIds;
-        if (suc.serviciosNombres) backendMapped.serviciosNombres = suc.serviciosNombres;
-        if (suc.liderOperadorId) backendMapped.liderOperadorId = suc.liderOperadorId;
-        if (suc.liderOperador && suc.liderOperador !== 'Sin Asignar') backendMapped.liderOperador = suc.liderOperador;
 
         const current = this.sucursalesSubject.value;
         const index = current.findIndex(s => String(s.id) === String(suc.id));
@@ -333,9 +282,25 @@ export class SucursalService {
         }
 
         return backendMapped;
-      }),
-      catchError(() => of(suc))
+      })
     );
+  }
+
+  /** Activa o desactiva una agencia (permiso 'agencias.estado'). El error del servidor se propaga. */
+  cambiarEstadoAgencia(id: string | number, activo: boolean): Observable<Sucursal> {
+    return this.http.post<any>(apiUrl('/agencias/toggle-estado'), { id: String(id), estado: activo ? 1 : 0 }).pipe(
+      map(res => this.mapBackendAgencia(res))
+    );
+  }
+
+  /** Precio de cada servicio general activo de esta agencia (override propio o precio del catálogo). */
+  getPreciosServicios(agenciaId: string | number): Observable<PrecioServicioAgencia[]> {
+    return this.http.post<PrecioServicioAgencia[]>(apiUrl('/agencias/precios/list'), { agenciaId: String(agenciaId) });
+  }
+
+  /** Fija el precio por agencia de uno o varios servicios generales (permiso 'agencias.precios.gestionar', solo admin). El error del servidor se propaga. */
+  setPreciosServicios(agenciaId: string | number, precios: { catalogoServicioId: number; precio: number }[]): Observable<PrecioServicioAgencia[]> {
+    return this.http.post<PrecioServicioAgencia[]>(apiUrl('/agencias/precios/set'), { agenciaId: String(agenciaId), precios });
   }
 
   transferirSucursal(params: {
@@ -351,7 +316,6 @@ export class SucursalService {
     if (index === -1) return of(null);
 
     const original = current[index];
-    const next: Sucursal = { ...original };
     const ahora = new Date().toISOString().replace('T', ' ').substring(0, 16);
 
     const payload: any = { id: String(params.sucursalId) };
@@ -383,7 +347,6 @@ export class SucursalService {
           ...this.movimientosSubject.value
         ]);
       }),
-      catchError(() => of(next))
     );
   }
 

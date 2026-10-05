@@ -57,18 +57,10 @@ const fileEnv = parseEnvFile(
 const env = { ...fileEnv, ...pickNgApp(process.env) };
 
 const production = isProd || bool(env.NG_APP_PRODUCTION, false);
-const useMocks = bool(env.NG_APP_USE_MOCKS, false);
 const apiDefault = production ? 'https://www.api.easydry.com' : 'https://www.testapi.easydry.com';
 const apiBaseUrl = str(env.NG_APP_API_BASE_URL, apiDefault);
 const appName = str(env.NG_APP_NAME, 'EasyDry®');
 const environmentName = str(env.NG_APP_ENV, production ? 'production' : 'test');
-const cognitoRegion = str(env.NG_APP_COGNITO_REGION, 'us-east-2');
-const cognitoUserPoolId = str(env.NG_APP_COGNITO_USER_POOL_ID, '');
-const cognitoClientId = str(
-  env.NG_APP_COGNITO_USER_POOL_CLIENT_ID || env.NG_APP_COGNITO_CLIENT_ID,
-  ''
-);
-
 const targetRel = isProd
   ? 'src/environments/environment.prod.ts'
   : 'src/environments/environment.ts';
@@ -78,15 +70,9 @@ const contents = `import { AppEnvironment } from './environment.model';
 /** Generado desde \`.env${isProd ? '.production' : ''}\` / CI. Edita el \`.env*\`, no este archivo. */
 export const environment: AppEnvironment = {
   production: ${production},
-  useMocks: ${useMocks},
   apiBaseUrl: ${JSON.stringify(apiBaseUrl)},
   appName: ${JSON.stringify(appName)},
-  environmentName: ${JSON.stringify(environmentName)},
-  cognito: {
-    region: ${JSON.stringify(cognitoRegion)},
-    userPoolId: ${JSON.stringify(cognitoUserPoolId)},
-    clientId: ${JSON.stringify(cognitoClientId)}
-  }
+  environmentName: ${JSON.stringify(environmentName)}
 };
 `;
 

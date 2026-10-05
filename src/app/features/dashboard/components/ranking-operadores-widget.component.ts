@@ -10,7 +10,7 @@ import { LucideAngularModule } from 'lucide-angular';
     <div class="bg-white rounded-2xl p-6 border border-slate-100 shadow-easydry h-full">
       <div class="flex items-center justify-between mb-4">
         <h4 class="font-bold text-slate-900 text-lg font-outfit flex items-center gap-2">
-          <i-lucide name="trophy" class="w-5 h-5 text-amber-500"></i-lucide>
+          <i-lucide aria-hidden="true" name="trophy" class="w-5 h-5 text-amber-500"></i-lucide>
           Top Operadores
         </h4>
         <span class="text-xs font-semibold bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full">Hoy</span>
@@ -31,12 +31,12 @@ import { LucideAngularModule } from 'lucide-angular';
               </span>
               <div>
                 <p class="text-sm font-bold text-slate-900 group-hover:text-easydry-blue transition-colors">{{ op.nombre }}</p>
-                <p class="text-[11px] text-slate-500">{{ op.bahia }}</p>
+                <p class="text-xs text-slate-500">{{ op.bahia }}</p>
               </div>
             </div>
             <div class="text-right flex flex-col items-end">
               <span class="text-sm font-extrabold text-slate-800">{{ op.vehiculos }}</span>
-              <span class="text-[9px] font-bold uppercase tracking-widest text-slate-400">VEH.</span>
+              <span class="text-[11px] font-bold uppercase tracking-widest text-slate-500">VEH.</span>
             </div>
           </div>
         }

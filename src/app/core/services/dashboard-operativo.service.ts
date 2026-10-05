@@ -5,95 +5,49 @@ import { map, catchError } from 'rxjs/operators';
 import { apiUrl } from '../config/env';
 import {
   DashboardTecnicoData,
-  DashboardOperadorData,
-  DashboardOperadorEspecialesData,
   DashboardDistribuidorData,
-  DashboardComercialData,
   ResumenEjecutivoData
 } from '../models/dashboard.model';
+import { CHART_COLORS } from '../../shared/theme/colors';
+import { ToastService } from '../../shared/services/toast.service';
 
+/**
+ * Todo lo que se muestra sale de lo que devuelve el servidor. Cuando el servidor no entrega un dato, el servicio
+ * devuelve null o una lista vacía y la pantalla muestra "sin datos"; nunca se rellena con valores inventados.
+ * Cuando la falta de datos se debe a un error real del backend (no a que no haya registros), se avisa con un toast.
+ */
 @Injectable({
   providedIn: 'root'
 })
 export class DashboardOperativoService {
   private http = inject(HttpClient);
+  private toastService = inject(ToastService);
+
+  private avisarErrorCarga(mensaje: string, err: any): void {
+    console.error(mensaje, err);
+    this.toastService.error('No se pudo cargar', `${mensaje}. Reintentar.`);
+  }
 
   /**
-   * Métricas generales de producción calculadas en servidor (POST /analytics/dashboard)
+   * Producción del día (POST /analytics/dashboard). El servidor solo entrega los totales de hoy (`kpis`); no calcula
+   * serie por hora ni productividad por bahía, así que esos gráficos quedan en null.
    */
   getProduccion(): Observable<any> {
     return this.http.post<any>(apiUrl('/analytics/dashboard'), {}).pipe(
-      map(data => {
-        const total = data?.totalLavadosHoy ?? 0;
-        const porHora = data?.serviciosPorHora || [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-        const bahiasLabels = data?.productividadBahias?.labels || [];
-        const bahiasData = data?.productividadBahias?.data || [];
-
-        return {
-          vehiculosHoy: total,
-          variacionVehiculos: data?.variacionSemanal != null ? `${data.variacionSemanal}%` : '0%',
-          tendenciaVehiculos: (data?.variacionSemanal ?? 0) >= 0 ? 'up' : 'down',
-          historicoComparativo: {
-            semanaAnterior: data?.semanaAnterior ?? 0,
-            semanaActual: data?.semanaActual ?? 0,
-            crecimientoPct: data?.crecimientoPct ?? 0
-          },
-          produccionPorHora: {
-            labels: ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00'],
-            datasets: [
-              {
-                label: 'Vehículos',
-                data: porHora,
-                borderColor: '#004282',
-                backgroundColor: 'rgba(0, 66, 130, 0.15)',
-                tension: 0.4,
-                fill: true,
-                pointBackgroundColor: '#9BCB3B',
-                pointBorderColor: '#004282',
-              }
-            ]
-          },
-          productividadBahias: {
-            labels: bahiasLabels,
-            datasets: [
-              {
-                label: 'Vehículos Procesados',
-                data: bahiasData,
-                backgroundColor: '#9BCB3B',
-                borderRadius: 4
-              }
-            ]
-          }
-        };
-      }),
-      catchError(() => of({
-        vehiculosHoy: 0,
-        variacionVehiculos: '0%',
-        tendenciaVehiculos: 'up',
-        historicoComparativo: { semanaAnterior: 0, semanaActual: 0, crecimientoPct: 0 },
-        produccionPorHora: {
-          labels: ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00'],
-          datasets: [{
-            label: 'Vehículos',
-            data: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            borderColor: '#004282',
-            backgroundColor: 'rgba(0, 66, 130, 0.15)',
-            tension: 0.4,
-            fill: true,
-            pointBackgroundColor: '#9BCB3B',
-            pointBorderColor: '#004282',
-          }]
-        },
-        productividadBahias: {
-          labels: [],
-          datasets: [{ label: 'Vehículos Procesados', data: [], backgroundColor: '#9BCB3B', borderRadius: 4 }]
-        }
-      }))
+      map(data => ({
+        vehiculosHoy: data?.kpis?.totalLavadosHoy ?? null,
+        produccionPorHora: null,
+        productividadBahias: null
+      })),
+      catchError((err) => {
+        this.avisarErrorCarga('No se pudo cargar la producción del día', err);
+        return of({ vehiculosHoy: null, produccionPorHora: null, productividadBahias: null });
+      })
     );
   }
 
   /**
-   * Productividad y ranking de operadores de bahía desde PostgreSQL (POST /agencias/operadores/list)
+   * Ranking de operadores por servicios atendidos (POST /agencias/operadores/list).
    */
   getOperadores(): Observable<any> {
     return this.http.post<any[]>(apiUrl('/agencias/operadores/list'), {}).pipe(
@@ -101,86 +55,69 @@ export class DashboardOperativoService {
         const raw = Array.isArray(list) ? list : [];
         const activos = raw.filter(o => o.estado === 'Activo' || o.estado === 1).length;
         const total = raw.length;
-        const ranking = raw.slice(0, 5).map((op, i) => ({
-          posicion: i + 1,
-          nombre: op.nombre || `${op.name || ''} ${op.lastname || ''}`.trim() || 'Operador',
-          bahia: op.bahia || op.sucursal || 'Bahía Principal',
-          vehiculos: op.vehiculosAtendidos || op.serviciosRealizados || 0,
-          tendencia: i % 2 === 0 ? 'up' : 'same'
-        }));
+        const ranking = raw
+          .map(op => ({
+            nombre: op.nombre || `${op.name || ''} ${op.lastname || ''}`.trim(),
+            bahia: op.bahia || op.sucursal || '',
+            vehiculos: Number(op.vehiculosAtendidos ?? op.serviciosRealizados ?? 0)
+          }))
+          .filter(op => op.nombre)
+          .sort((a, b) => b.vehiculos - a.vehiculos)
+          .slice(0, 5)
+          .map((op, i) => ({ posicion: i + 1, ...op }));
 
-        return {
-          activos,
-          total,
-          ausentes: Math.max(0, total - activos),
-          disponibles: activos,
-          ranking,
-          bahiasActivas: 0,
-          bahiasTotal: 0,
-          bahiasMantenimiento: 0
-        };
+        return { activos, total, ausentes: Math.max(0, total - activos), disponibles: activos, ranking };
       }),
-      catchError(() => of({
-        activos: 0,
-        total: 0,
-        ausentes: 0,
-        disponibles: 0,
-        ranking: [],
-        bahiasActivas: 0,
-        bahiasTotal: 0,
-        bahiasMantenimiento: 0
-      }))
+      catchError((err) => {
+        this.avisarErrorCarga('No se pudo cargar el ranking de operadores', err);
+        return of({ activos: 0, total: 0, ausentes: 0, disponibles: 0, ranking: [] });
+      })
     );
   }
 
   /**
-   * Mix de servicios y solicitudes de aprobación (POST /analytics/dashboard)
+   * Ranking de lavadores por cantidad de servicios y tiempo promedio (POST /analytics/ranking-lavadores).
+   */
+  getRankingLavadores(filtro: { agenciaId?: string; regionId?: string; fechaDesde?: string; fechaHasta?: string } = {}): Observable<any[]> {
+    return this.http.post<any>(apiUrl('/analytics/ranking-lavadores'), filtro).pipe(
+      map(data => Array.isArray(data?.ranking) ? data.ranking : []),
+      catchError((err) => {
+        this.avisarErrorCarga('No se pudo cargar el ranking de lavadores', err);
+        return of([]);
+      })
+    );
+  }
+
+  /**
+   * Servicios de hoy por estado (POST /analytics/dashboard -> distribucionEstados). El servidor no separa generales de
+   * especiales ni entrega aprobaciones pendientes en este endpoint, por eso no se exponen.
    */
   getServiciosData(): Observable<any> {
     return this.http.post<any>(apiUrl('/analytics/dashboard'), {}).pipe(
       map(data => {
-        const generales = data?.serviciosGeneralesCount ?? 0;
-        const especiales = data?.serviciosEspecialesCount ?? 0;
-        const total = generales + especiales;
-        const pendientes = data?.pendientesAprobacionCount ?? 0;
-
+        const e = data?.distribucionEstados;
+        if (!e) return { estados: null };
+        const enEspera = Number(e.EN_ESPERA ?? 0);
+        const enProceso = Number(e.EN_PROCESO ?? 0);
+        const finalizados = Number(e.FINALIZADO ?? 0);
+        const cancelados = Number(e.CANCELADO ?? 0);
         return {
-          total,
-          generales,
-          especiales,
-          pendientesAprobacion: pendientes,
-          distribucionGenerales: {
-            labels: ['Express', 'Completo', 'Deluxe'],
-            datasets: [{
-              data: data?.distribucionGenerales || [0, 0, 0],
-              backgroundColor: ['#004282', '#9BCB3B', '#F59E0B']
-            }]
-          },
-          distribucionEspeciales: {
-            labels: ['Pulido', 'Cerámico', 'Lavado Motor'],
-            datasets: [{
-              data: data?.distribucionEspeciales || [0, 0, 0],
-              backgroundColor: ['#EF4444', '#8B5CF6', '#14B8A6']
-            }]
-          },
-          aprobacionesPendientes: data?.aprobacionesPendientes || []
+          estados: {
+            enEspera, enProceso, finalizados, cancelados,
+            chart: {
+              labels: ['En espera', 'En proceso', 'Finalizados', 'Cancelados'],
+              datasets: [{
+                data: [enEspera, enProceso, finalizados, cancelados],
+                backgroundColor: [CHART_COLORS.amber, CHART_COLORS.blue, CHART_COLORS.green, CHART_COLORS.rose]
+              }]
+            }
+          }
         };
       }),
-      catchError(() => of({
-        total: 0,
-        generales: 0,
-        especiales: 0,
-        pendientesAprobacion: 0,
-        distribucionGenerales: {
-          labels: ['Express', 'Completo', 'Deluxe'],
-          datasets: [{ data: [0, 0, 0], backgroundColor: ['#004282', '#9BCB3B', '#F59E0B'] }]
-        },
-        distribucionEspeciales: {
-          labels: ['Pulido', 'Cerámico', 'Lavado Motor'],
-          datasets: [{ data: [0, 0, 0], backgroundColor: ['#EF4444', '#8B5CF6', '#14B8A6'] }]
-        },
-        aprobacionesPendientes: []
-      }))
+      catchError((err) => {
+        this.avisarErrorCarga('No se pudieron cargar los servicios de hoy', err);
+        return of({ estados: null });
+      })
     );
   }
 
@@ -195,31 +132,12 @@ export class DashboardOperativoService {
         const operativas = raw.filter(m => (m.estadoOperativo || m.estado) === 'OPERATIVA' || (m.estadoOperativo || m.estado) === 'Operativa').length;
         const mantenimiento = raw.filter(m => (m.estadoOperativo || m.estado) === 'EN_MANTENIMIENTO' || (m.estadoOperativo || m.estado) === 'Mantenimiento').length;
         const danadas = Math.max(0, total - operativas - mantenimiento);
-
-        return {
-          total,
-          operativas,
-          mantenimiento,
-          danadas,
-          fallasPorTipo: {
-            labels: ['Hidrolavadoras', 'Aspiradoras', 'Secadoras', 'Pulidoras'],
-            datasets: [{
-              data: [danadas, mantenimiento, 0, 0],
-              backgroundColor: ['#004282', '#9BCB3B', '#F59E0B', '#EF4444']
-            }]
-          }
-        };
+        return { total, operativas, mantenimiento, danadas };
       }),
-      catchError(() => of({
-        total: 0,
-        operativas: 0,
-        mantenimiento: 0,
-        danadas: 0,
-        fallasPorTipo: {
-          labels: ['Hidrolavadoras', 'Aspiradoras', 'Secadoras', 'Pulidoras'],
-          datasets: [{ data: [0, 0, 0, 0], backgroundColor: ['#004282', '#9BCB3B', '#F59E0B', '#EF4444'] }]
-        }
-      }))
+      catchError((err) => {
+        this.avisarErrorCarga('No se pudo cargar el estado de maquinaria', err);
+        return of({ total: 0, operativas: 0, mantenimiento: 0, danadas: 0 });
+      })
     );
   }
 
@@ -234,7 +152,7 @@ export class DashboardOperativoService {
           const nivel = (a.nivel || '').toUpperCase();
           const tipo = (nivel === 'CRITICO' || nivel.includes('AGOTADO')) ? 'critica' : ((nivel === 'BAJO') ? 'advertencia' : 'info');
           const agenciaInfo = a.agencia ? ` [${a.agencia.nombre}${a.agencia.region ? ' · ' + a.agencia.region : ''}]` : '';
-          const fechaStr = a.createdAt ? new Date(a.createdAt).toLocaleDateString('es-EC', { hour: '2-digit', minute: '2-digit' }) : 'Reciente';
+          const fechaStr = a.createdAt ? new Date(a.createdAt).toLocaleDateString('es-EC', { hour: '2-digit', minute: '2-digit' }) : '';
           return {
             tipo,
             mensaje: `${a.mensaje || ('Stock bajo: ' + (a.insumo?.nombre || 'Insumo'))}${agenciaInfo}`,
@@ -242,56 +160,53 @@ export class DashboardOperativoService {
           };
         });
       }),
-      catchError(() => of([]))
+      catchError((err) => {
+        this.avisarErrorCarga('No se pudieron cargar las alertas de stock', err);
+        return of([]);
+      })
     );
   }
 
   /**
-   * KPIs y tableros para Técnico de Mantenimiento
+   * KPIs y tableros para Técnico de Mantenimiento (maquinaria e incidentes reales).
    */
   getDashboardTecnico(): Observable<DashboardTecnicoData> {
-    const maq$ = this.http.post<any[]>(apiUrl('/maquinaria/list'), {}).pipe(catchError(() => of([])));
+    const maq$ = this.http.post<any[]>(apiUrl('/maquinaria/list'), {}).pipe(
+      catchError((err) => {
+        this.avisarErrorCarga('No se pudo cargar la maquinaria', err);
+        return of([]);
+      })
+    );
     const inc$ = this.http.post<any>(apiUrl('/maquinaria/incidentes/list'), {}).pipe(
       map(res => Array.isArray(res) ? res : (res?.data || [])),
-      catchError(() => of([]))
+      catchError((err) => {
+        this.avisarErrorCarga('No se pudieron cargar los incidentes', err);
+        return of([]);
+      })
     );
 
     return forkJoin([maq$, inc$]).pipe(
       map(([maquinarias, incidentes]) => {
         const maqs = Array.isArray(maquinarias) ? maquinarias : [];
         const incs = Array.isArray(incidentes) ? incidentes : [];
+        const estadoMaq = (m: any) => m.estadoOperativo || m.estado;
 
-        const abiertos = incs.filter(i => i.estado === 'ABIERTO' || i.estado === 'EN_PROCESO' || i.estado === 'Pendiente').length;
-        const operativas = maqs.filter(m => (m.estadoOperativo || m.estado) === 'OPERATIVA' || (m.estadoOperativo || m.estado) === 'Operativa').length;
-        const enReparacion = maqs.filter(m => (m.estadoOperativo || m.estado) === 'EN_MANTENIMIENTO' || (m.estadoOperativo || m.estado) === 'Mantenimiento').length;
+        const sinAtender = incs.filter(i => i.estado === 'ABIERTO' || i.estado === 'Pendiente').length;
+        const enProceso = incs.filter(i => i.estado === 'EN_PROCESO').length;
         const resueltos = incs.filter(i => i.estado === 'RESUELTO').length;
+        const operativas = maqs.filter(m => estadoMaq(m) === 'OPERATIVA' || estadoMaq(m) === 'Operativa').length;
+        const enReparacion = maqs.filter(m => estadoMaq(m) === 'EN_MANTENIMIENTO' || estadoMaq(m) === 'Mantenimiento').length;
 
         return {
-          incidentesAbiertos: abiertos,
+          incidentesAbiertos: sinAtender + enProceso,
           mantenimientosPendientes: enReparacion,
           equiposOperativos: operativas,
           equiposEnReparacion: enReparacion,
-          tiempoMedioReparacionHrs: 0,
           chartIncidentesPorEstado: {
             labels: ['Abiertos', 'En Proceso', 'Resueltos'],
             datasets: [{
-              data: [abiertos, Math.max(0, incs.length - abiertos - resueltos), resueltos],
-              backgroundColor: ['#E11D48', '#F59E0B', '#9BCB3B']
-            }]
-          },
-          chartMantenimientosSemana: {
-            labels: ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'],
-            datasets: [{
-              label: 'Mantenimientos',
-              data: [0, 0, 0, 0, 0, 0],
-              backgroundColor: '#004282'
-            }]
-          },
-          chartFallosPorTipo: {
-            labels: ['Manguera', 'Bomba Hidráulica', 'Eléctrico', 'Boquilla'],
-            datasets: [{
-              data: [0, 0, 0, 0],
-              backgroundColor: ['#004282', '#9BCB3B', '#F59E0B', '#E11D48']
+              data: [sinAtender, enProceso, resueltos],
+              backgroundColor: [CHART_COLORS.rose, CHART_COLORS.amber, CHART_COLORS.green]
             }]
           }
         };
@@ -300,120 +215,36 @@ export class DashboardOperativoService {
   }
 
   /**
-   * KPIs y tableros para Operador de Bahía
-   */
-  getDashboardOperador(): Observable<DashboardOperadorData> {
-    return this.http.post<any>(apiUrl('/analytics/dashboard'), {}).pipe(
-      map(data => ({
-        otsHoy: data?.totalLavadosHoy ?? 0,
-        enProceso: data?.estadosCount?.EN_PROCESO ?? 0,
-        finalizados: data?.estadosCount?.FINALIZADO ?? 0,
-        aprobados: data?.estadosCount?.FINALIZADO ?? 0,
-        tiempoPromedioMin: data?.tiempoPromedioMinutos ?? 0,
-        metaDiaria: data?.metaDiaria ?? 0,
-        chartOtsPorHora: {
-          labels: ['08:00', '10:00', '12:00', '14:00', '16:00'],
-          datasets: [{
-            label: 'OTs',
-            data: data?.otsPorHora || [0, 0, 0, 0, 0],
-            borderColor: '#004282',
-            backgroundColor: 'rgba(0, 66, 130, 0.1)',
-            fill: true
-          }]
-        },
-        chartServiciosTipo: {
-          labels: ['Express', 'Completo', 'Deluxe'],
-          datasets: [{
-            data: data?.distribucionGenerales || [0, 0, 0],
-            backgroundColor: ['#004282', '#9BCB3B', '#F59E0B']
-          }]
-        }
-      })),
-      catchError(() => of({
-        otsHoy: 0,
-        enProceso: 0,
-        finalizados: 0,
-        aprobados: 0,
-        tiempoPromedioMin: 0,
-        metaDiaria: 0,
-        chartOtsPorHora: {
-          labels: ['08:00', '10:00', '12:00', '14:00', '16:00'],
-          datasets: [{ label: 'OTs', data: [0, 0, 0, 0, 0], borderColor: '#004282', fill: true }]
-        },
-        chartServiciosTipo: {
-          labels: ['Express', 'Completo', 'Deluxe'],
-          datasets: [{ data: [0, 0, 0], backgroundColor: ['#004282', '#9BCB3B', '#F59E0B'] }]
-        }
-      }))
-    );
-  }
-
-  /**
-   * KPIs para Operador de Servicios Especiales / Pulidor (sin mock inventado)
-   */
-  getDashboardOperadorEspeciales(): Observable<DashboardOperadorEspecialesData> {
-    return of({
-      asignacionesPendientes: 0,
-      enProceso: 0,
-      completadasSemana: 0,
-      calificacionPromedio: 0,
-      sucursalesActivas: 0,
-      chartColaPorPrioridad: {
-        labels: ['Alta', 'Media', 'Normal'],
-        datasets: [{
-          data: [0, 0, 0],
-          backgroundColor: ['#E11D48', '#F59E0B', '#9BCB3B']
-        }]
-      },
-      chartCompletadosSemana: {
-        labels: ['Lun', 'Mar', 'Mié', 'Jue', 'Vie'],
-        datasets: [{
-          label: 'Especiales',
-          data: [0, 0, 0, 0, 0],
-          backgroundColor: '#8B5CF6'
-        }]
-      }
-    });
-  }
-
-  getDashboardExtras(): Observable<DashboardOperadorEspecialesData> {
-    return this.getDashboardOperadorEspeciales();
-  }
-
-  /**
-   * KPIs y tableros para Distribuidor / Bodega
+   * KPIs y tableros para Distribuidor / Bodega: alertas de stock y consumo real de insumos
+   * (POST /analytics/consumo-quimicos -> insumos, ordenados por costo).
    */
   getDashboardDistribuidor(): Observable<DashboardDistribuidorData> {
     return forkJoin([
-      this.http.post<any[]>(apiUrl('/inventario/alertas/list'), {}).pipe(catchError(() => of([]))),
-      this.http.post<any>(apiUrl('/analytics/consumo-quimicos'), {}).pipe(catchError(() => of([])))
+      this.http.post<any[]>(apiUrl('/inventario/alertas/list'), {}).pipe(
+        catchError((err) => {
+          this.avisarErrorCarga('No se pudieron cargar las alertas de stock', err);
+          return of([]);
+        })
+      ),
+      this.http.post<any>(apiUrl('/analytics/consumo-quimicos'), {}).pipe(
+        catchError((err) => {
+          this.avisarErrorCarga('No se pudo cargar el consumo de insumos', err);
+          return of(null);
+        })
+      )
     ]).pipe(
-      map(([alertas, consumos]) => {
+      map(([alertas, consumo]) => {
         const criticos = (alertas || []).filter((a: any) => (a.nivel || '').toUpperCase() === 'CRITICO').length;
-        const labelsConsumo = Array.isArray(consumos) && consumos.length > 0
-          ? consumos.slice(0, 5).map((c: any) => c.insumoNombre || 'Insumo')
-          : [];
-        const dataConsumo = Array.isArray(consumos) && consumos.length > 0
-          ? consumos.slice(0, 5).map((c: any) => Number(c.totalConsumido || 0))
-          : [];
+        const insumos: any[] = Array.isArray(consumo?.insumos) ? consumo.insumos.slice(0, 5) : [];
 
         return {
           skusCriticos: criticos,
-          pedidosPendientes: 0,
-          entregasSemana: 0,
           chartConsumoInsumos: {
-            labels: labelsConsumo,
+            labels: insumos.map(c => c.nombre),
             datasets: [{
-              label: 'Consumo (Unidades/Litros)',
-              data: dataConsumo,
-              backgroundColor: '#004282'
-            }]
-          },
-          chartStockEstado: {
-            labels: ['Óptimo', 'Alerta', 'Crítico'],
-            datasets: [{
-              data: [0, 0, criticos],
-              backgroundColor: ['#9BCB3B', '#F59E0B', '#E11D48']
+              label: 'Consumo del mes',
+              data: insumos.map(c => Number(c.cantidadTotal || 0)),
+              backgroundColor: CHART_COLORS.blue
             }]
           }
         };
@@ -422,89 +253,26 @@ export class DashboardOperativoService {
   }
 
   /**
-   * KPIs y tableros para Coordinador Comercial
-   */
-  getDashboardComercial(): Observable<DashboardComercialData> {
-    return this.http.post<any>(apiUrl('/analytics/dashboard'), {}).pipe(
-      map(data => ({
-        serviciosMes: data?.totalLavadosMes ?? 0,
-        tasaAprobacion: data?.tasaAprobacion ?? 0,
-        especialesVendidos: data?.serviciosEspecialesCount ?? 0,
-        chartMixServicios: {
-          labels: ['Express', 'Completo', 'Cerámico', 'Pulido'],
-          datasets: [{
-            data: data?.mixServicios || [0, 0, 0, 0],
-            backgroundColor: ['#004282', '#9BCB3B', '#8B5CF6', '#F59E0B']
-          }]
-        }
-      })),
-      catchError(() => of({
-        serviciosMes: 0,
-        tasaAprobacion: 0,
-        especialesVendidos: 0,
-        chartMixServicios: {
-          labels: ['Express', 'Completo', 'Cerámico', 'Pulido'],
-          datasets: [{ data: [0, 0, 0, 0], backgroundColor: ['#004282', '#9BCB3B', '#8B5CF6', '#F59E0B'] }]
-        }
-      }))
-    );
-  }
-
-  /**
-   * Resumen Ejecutivo para Gerencia / SuperAdmin
+   * Resumen ejecutivo del día (POST /analytics/dashboard -> kpis). Solo se listan los indicadores que el servidor calcula.
    */
   getResumenEjecutivo(): Observable<ResumenEjecutivoData> {
     return this.http.post<any>(apiUrl('/analytics/dashboard'), {}).pipe(
       map(data => {
-        const total = data?.totalLavadosHoy ?? 0;
-        const tiempoProm = data?.tiempoPromedioMinutos != null ? `${data.tiempoPromedioMinutos} min` : '0 min';
-
+        const k = data?.kpis;
+        if (!k) return { kpis: [] };
         return {
           kpis: [
-            { label: 'Cumplimiento Operativo', value: data?.cumplimientoOperativo != null ? `${data.cumplimientoOperativo}%` : '0%', icon: 'shield-check', trend: '0%', trendPositive: true, variant: 'success' },
-            { label: 'Eficiencia de Red', value: data?.eficienciaRed != null ? `${data.eficienciaRed}%` : '0%', icon: 'trending-up', trend: '0%', trendPositive: true, variant: 'primary' },
-            { label: 'OTs Realizadas', value: String(total), icon: 'check-circle', trend: '0', trendPositive: true, variant: 'success' },
-            { label: 'Tiempo Promedio', value: tiempoProm, icon: 'clock', trend: '0', trendPositive: true, variant: 'warning' }
-          ],
-          tendencia: {
-            labels: data?.tendencia?.labels || ['08:00', '10:00', '12:00', '14:00', '16:00', '18:00'],
-            datasets: data?.tendencia?.datasets || [
-              {
-                label: 'OTs Ejecutadas',
-                data: [0, 0, 0, 0, 0, 0],
-                borderColor: '#004282',
-                backgroundColor: 'rgba(0, 66, 130, 0.1)',
-                fill: true
-              },
-              {
-                label: 'Meta Programada',
-                data: [0, 0, 0, 0, 0, 0],
-                borderColor: '#9BCB3B',
-                borderDash: [5, 5],
-                backgroundColor: 'transparent',
-                fill: false
-              }
-            ]
-          },
-          sugerencias: data?.sugerencias || []
+            { label: 'Lavados de Hoy', value: String(k.totalLavadosHoy ?? 0), icon: 'check-circle', variant: 'success' },
+            { label: 'Finalizados', value: String(k.lavadosFinalizados ?? 0), icon: 'shield-check', variant: 'primary' },
+            { label: 'Incidentes Abiertos', value: String(k.incidentesAbiertos ?? 0), icon: 'alert-triangle', variant: 'warning' },
+            { label: 'Tiempo Promedio', value: k.tiempoPromedioMin > 0 ? `${k.tiempoPromedioMin} min` : 'Sin datos', icon: 'clock', variant: 'warning' }
+          ]
         };
       }),
-      catchError(() => of({
-        kpis: [
-          { label: 'Cumplimiento Operativo', value: '0%', icon: 'shield-check', trend: '0%', trendPositive: true, variant: 'success' },
-          { label: 'Eficiencia de Red', value: '0%', icon: 'trending-up', trend: '0%', trendPositive: true, variant: 'primary' },
-          { label: 'OTs Realizadas', value: '0', icon: 'check-circle', trend: '0', trendPositive: true, variant: 'success' },
-          { label: 'Tiempo Promedio', value: '0 min', icon: 'clock', trend: '0', trendPositive: true, variant: 'warning' }
-        ],
-        tendencia: {
-          labels: ['08:00', '10:00', '12:00', '14:00', '16:00', '18:00'],
-          datasets: [
-            { label: 'OTs', data: [0, 0, 0, 0, 0, 0], borderColor: '#004282', fill: true },
-            { label: 'Meta', data: [0, 0, 0, 0, 0, 0], borderColor: '#9BCB3B', borderDash: [5, 5], fill: false }
-          ]
-        },
-        sugerencias: []
-      }))
+      catchError((err) => {
+        this.avisarErrorCarga('No se pudo cargar el resumen ejecutivo', err);
+        return of({ kpis: [] });
+      })
     );
   }
 }

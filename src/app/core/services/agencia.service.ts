@@ -17,10 +17,10 @@ export class AgenciaService {
     return {
       id: a.id,
       nombre: a.nombre,
-      ciudad: a.regionRel?.nombre || a.region || 'Quito',
+      ciudad: a.regionRel?.nombre || a.region || '',
       numeroBahias: a.numeroBahias || (a.bahias?.length ?? a._count?.bahias ?? 0),
       empleados: a.usuarios?.length ?? a._count?.usuarios ?? 0,
-      productividad: 100,
+      productividad: Number(a.productividad ?? a.porcentajeProductividad ?? a.metricas?.productividad ?? 0),
       estado: a.estado === 1 ? 'Operativa' : 'Inactiva',
       direccion: a.direccion || '',
       gerenteAsignado: a.usuarios?.[0] ? `${a.usuarios[0].name} ${a.usuarios[0].lastname}`.trim() : 'Sin Asignar',
@@ -55,7 +55,7 @@ export class AgenciaService {
       nombre: agencia.nombre,
       region: agencia.ciudad,
       direccion: agencia.direccion,
-      numeroBahias: agencia.numeroBahias || 2,
+      numeroBahias: agencia.numeroBahias ?? 0,
       estado: agencia.estado === 'Inactiva' ? 0 : 1
     }).pipe(
       map(res => this.mapBackendAgencia(res)),

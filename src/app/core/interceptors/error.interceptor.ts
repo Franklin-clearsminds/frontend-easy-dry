@@ -2,7 +2,9 @@ import { HttpInterceptorFn, HttpErrorResponse } from '@angular/common/http';
 import { inject } from '@angular/core';
 import { catchError, throwError } from 'rxjs';
 import { ToastService } from '../../shared/services/toast.service';
-import { AuthService } from '../services/auth.service';
+
+let lastToastAt = 0;
+let lastToastKey = '';
 
 /**
  * EasyDry® Web — Interceptor Unificado de Errores HTTP
@@ -10,7 +12,6 @@ import { AuthService } from '../services/auth.service';
  */
 export const errorInterceptor: HttpInterceptorFn = (req, next) => {
   const toastService = inject(ToastService);
-  const authService = inject(AuthService);
 
   const isSilent = req.headers.has('X-Silent-Fallback') || req.headers.has('x-silent');
 
@@ -18,12 +19,15 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
     catchError((error: HttpErrorResponse) => {
       let userMessage = 'Ha ocurrido un inconveniente al procesar la solicitud.';
 
-      if (error.status === 401) {
+      if (error.status === 0) {
+        userMessage = 'No se pudo conectar con el servidor. Verifica que el backend esté encendido.';
+      } else if (error.status === 401) {
+        // El jwtInterceptor ya intentó refresh; solo informar si no es silencioso.
         userMessage = 'Sesión expirada o no autorizada. Inicie sesión nuevamente.';
-        authService.logout();
-      } else if (error.status === 403) {
+      } else if (error.status === 403 && !error.error?.message) {
         userMessage = 'No tiene permisos suficientes para ejecutar esta acción.';
       } else if (error.error?.message) {
+        // Los mensajes del servidor (403 incluidos) son claros y en español: se muestran tal cual.
         userMessage = Array.isArray(error.error.message)
           ? error.error.message.join(', ')
           : String(error.error.message);
@@ -36,7 +40,13 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
       }
 
       if (!isSilent) {
-        toastService.error('Error de Comunicación', userMessage);
+        const key = `${error.status}:${userMessage}`;
+        const now = Date.now();
+        if (key !== lastToastKey || now - lastToastAt > 2500) {
+          lastToastKey = key;
+          lastToastAt = now;
+          toastService.error('Error de Comunicación', userMessage);
+        }
       }
       return throwError(() => error);
     })

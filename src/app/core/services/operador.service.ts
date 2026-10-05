@@ -4,6 +4,19 @@ import { BehaviorSubject, Observable, of } from 'rxjs';
 import { tap, catchError, map } from 'rxjs/operators';
 import { Operador, HistorialAsignacionOperador } from '../models';
 import { apiUrl } from '../config/env';
+import { ConsultaTabla } from '../models/paginacion.model';
+import { PaginaConResumen, cuerpoConsulta, postPagina } from '../utils/tabla-servidor';
+
+/** Lo que pide la tabla de operadores: la de la tabla más sus filtros. `agenciaId` acepta el id o el nombre de la agencia. */
+export interface ConsultaOperadores extends Partial<ConsultaTabla> {
+  agenciaId?: string;
+  /** PULIDOR | LAVADOR */
+  categoriaRol?: string;
+  /** 1 activo, 0 inactivo */
+  estado?: number;
+  bahiaNombre?: string;
+  clienteNombre?: string;
+}
 
 @Injectable({
   providedIn: 'root'
@@ -16,14 +29,28 @@ export class OperadorService {
   private historialSubject = new BehaviorSubject<HistorialAsignacionOperador[]>([]);
   public historial$ = this.historialSubject.asObservable();
 
-  getOperadores(agenciaId?: string): Observable<Operador[]> {
-    const payload = agenciaId && agenciaId !== 'Todas' ? { agenciaId } : {};
+  getOperadores(agenciaId?: string | number, categoriaRol?: string): Observable<Operador[]> {
+    const payload: any = {};
+    if (agenciaId && agenciaId !== 'Todas') payload.agenciaId = String(agenciaId);
+    if (categoriaRol) payload.categoriaRol = categoriaRol;
     return this.http.post<Operador[]>(apiUrl('/agencias/operadores/list'), payload).pipe(
       tap(list => this.operadoresSubject.next(list || [])),
       catchError(err => {
         console.warn('Error al cargar operadores de BD:', err);
         return of(this.operadoresSubject.value);
       })
+    );
+  }
+
+  /**
+   * Una página de operadores con búsqueda y filtros en el servidor (orden: nombre, agencia, rol, estado, fecha).
+   * No toca la caché ni captura errores: la tabla muestra el suyo.
+   */
+  getOperadoresPagina(c: ConsultaOperadores): Observable<PaginaConResumen<Operador>> {
+    return postPagina<Operador>(
+      this.http,
+      apiUrl('/agencias/operadores/list'),
+      cuerpoConsulta(c, ['agenciaId', 'categoriaRol', 'estado', 'bahiaNombre', 'clienteNombre']),
     );
   }
 
@@ -121,9 +148,19 @@ export class OperadorService {
         }
         return op || null;
       }),
-      catchError(err => {
-        console.error('Error al reasignar operador:', err);
-        return of(null);
+    );
+  }
+
+  /** Quita al operador de su bahía (permiso 'bahias.asignar'). El error del servidor se propaga. */
+  desasignarOperadorDeBahia(bahiaId: string | number, operadorId: string | number, motivo: string): Observable<any> {
+    return this.http.post<any>(apiUrl('/agencias/bahias/desasignar-operador'), {
+      bahiaId: String(bahiaId),
+      operadorId: String(operadorId),
+      motivo: motivo || undefined
+    }).pipe(
+      tap(() => {
+        this.getOperadores().subscribe();
+        this.getHistorialGeneral().subscribe();
       })
     );
   }
@@ -136,7 +173,7 @@ export class OperadorService {
       telefono: op.telefono,
       rol: op.rol,
       agenciaId: op.sucursalId ? String(op.sucursalId) : op.sucursal,
-      bahiaId: op.bahiaId || op.bahia,
+      bahiaId: op.bahiaId || undefined,
       estado: op.estado === 'Inactivo' ? 0 : 1
     };
 
@@ -148,8 +185,7 @@ export class OperadorService {
           current[idx] = actualizado;
           this.operadoresSubject.next([...current]);
         }
-      }),
-      catchError(() => of(op))
+      })
     );
   }
 }

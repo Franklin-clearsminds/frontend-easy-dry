@@ -1,6 +1,7 @@
 import { Component, Input, OnChanges, SimpleChanges, ElementRef, ViewChild, AfterViewInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Chart, registerables, ChartType } from 'chart.js';
+import { CHART_COLORS } from '../../theme/colors';
 
 Chart.register(...registerables);
 
@@ -89,7 +90,7 @@ export class ChartCardComponent implements AfterViewInit, OnChanges, OnDestroy {
           }
         },
         tooltip: {
-          backgroundColor: '#003A7C',
+          backgroundColor: CHART_COLORS.blueDark,
           titleFont: { family: 'Outfit', size: 13, weight: 'bold' },
           bodyFont: { family: 'Inter', size: 12 },
           padding: 12,
@@ -99,11 +100,11 @@ export class ChartCardComponent implements AfterViewInit, OnChanges, OnDestroy {
       scales: this.type === 'pie' || this.type === 'doughnut' ? {} : {
         x: {
           grid: { display: false },
-          ticks: { font: { family: 'Inter', size: 11 }, color: '#64748B' }
+          ticks: { font: { family: 'Inter', size: 11 }, color: CHART_COLORS.slate }
         },
         y: {
-          grid: { color: '#F1F5F9' },
-          ticks: { font: { family: 'Inter', size: 11 }, color: '#64748B' }
+          grid: { color: CHART_COLORS.slateLight },
+          ticks: { font: { family: 'Inter', size: 11 }, color: CHART_COLORS.slate }
         }
       }
     };

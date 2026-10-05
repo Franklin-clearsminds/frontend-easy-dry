@@ -8,7 +8,6 @@ import {
   MovimientoStock,
   AlertaReabastecimiento,
   BodegaInventario,
-  BODEGA_CENTRAL_ID,
   TipoProductoCatalog,
   UnidadMedidaCatalog,
   PresentacionInsumoCatalog,
@@ -18,77 +17,155 @@ import {
   RegistrarMovimientoPayload,
 } from '../models/inventario.model';
 import { apiUrl } from '../config/env';
+import { BUSQUEDA_MIN_CARACTERES, PAGE_SIZE_MAX, PAGE_SIZE_TABLA } from '../config/paginacion';
+import { ConsultaTabla, PaginaServidor, normalizarPagina } from '../models/paginacion.model';
+import { PaginaConResumen, cuerpoConsulta, postPagina } from '../utils/tabla-servidor';
+import { ToastService } from '../../shared/services/toast.service';
+import { AuthService } from './auth.service';
 
-export const BODEGA_CENTRAL: BodegaInventario = {
-  id: BODEGA_CENTRAL_ID,
-  codigo: 'BOD-CENTRAL',
-  nombre: 'Bodega Central Nacional',
-  ciudad: 'Quito',
-  region: 'Nacional',
-  esCentral: true,
-  activa: true,
-  fechaCreacion: '2026-01-01',
-};
+/** Lo que pide la tabla de Productos: la de la tabla más sus filtros. */
+export interface ConsultaProductos extends Partial<ConsultaTabla> {
+  tipoProductoId?: string;
+  /** 1 activo, 0 inactivo. */
+  estado?: number;
+  /** agotado | bajo_minimo | moderado | optimo | alerta_total */
+  nivelStock?: string;
+  /** Contexto del stock: una sede (si es de sede) o una bodega. */
+  agenciaId?: string;
+  bodegaId?: string;
+  incluirResumen?: boolean;
+}
 
-export const BODEGAS_INICIALES: BodegaInventario[] = [
-  BODEGA_CENTRAL,
-  {
-    id: 'bod_gye',
-    codigo: 'BOD-GYE',
-    nombre: 'Bodega Regional Guayaquil',
-    ciudad: 'Guayaquil',
-    region: 'Costa',
-    esCentral: false,
-    activa: true,
-    fechaCreacion: '2026-01-15',
-  },
-  {
-    id: 'bod_uio_sur',
-    codigo: 'BOD-UIO-SUR',
-    nombre: 'Bodega Regional Quito Sur',
-    ciudad: 'Quito',
-    region: 'Sierra',
-    esCentral: false,
-    activa: true,
-    fechaCreacion: '2026-02-01',
-  },
-  {
-    id: 'bod_cue',
-    codigo: 'BOD-CUE',
-    nombre: 'Bodega Regional Cuenca',
-    ciudad: 'Cuenca',
-    region: 'Austro',
-    esCentral: false,
-    activa: true,
-    fechaCreacion: '2026-02-10',
-  },
-  {
-    id: 'bod_mta',
-    codigo: 'BOD-MTA',
-    nombre: 'Bodega Regional Manta',
-    ciudad: 'Manta',
-    region: 'Manabí',
-    esCentral: false,
-    activa: true,
-    fechaCreacion: '2026-02-15',
-  },
-  {
-    id: 'bod_std',
-    codigo: 'BOD-STD',
-    nombre: 'Bodega Regional Santo Domingo',
-    ciudad: 'Santo Domingo',
-    region: 'Santo Domingo',
-    esCentral: false,
-    activa: true,
-    fechaCreacion: '2026-02-20',
-  },
-];
+/** Lo que pide la bandeja de alertas de stock: la de la tabla más sus filtros. */
+export interface ConsultaAlertas extends Partial<ConsultaTabla> {
+  /** CRITICO (crítico y agotado) | BAJO */
+  grupoNivel?: string;
+  /** PENDIENTE | EN_PROCESO | DESPACHADO | RESUELTO */
+  estado?: string;
+  soloActivas?: boolean;
+  agenciaId?: string;
+  sucursalId?: string;
+  incluirResumen?: boolean;
+}
+
+/** Contadores de la bandeja con el alcance y la búsqueda vigentes (sin los filtros de nivel ni de estado). */
+export interface ResumenAlertas {
+  total: number;
+  resueltas: number;
+  activas: number;
+  criticas: number;
+}
+
+/** Consulta de los insumos de una bodega (estado: Óptimo, Bajo, Crítico, Agotado, No necesario). */
+export interface ConsultaInsumosBodega extends Partial<ConsultaTabla> {
+  bodegaId?: string;
+  estado?: string;
+}
+
+/** Datos de la bodega y métricas de TODOS sus insumos, que acompañan a cada página de `bodegas-resumen`. */
+export interface MetaBodega {
+  bodega: any | null;
+  bodegas: any[];
+  metricas: { totalInsumos: number; stockTotalUnidades: number; insumosBajoMinimo: number; insumosOptimos: number; insumosNoNecesarios?: number; porcentajeAlertaConfigurado?: number };
+}
+
+/** Fichas de agencias o kits de pulidor (sin insumos): filtros y orden en el servidor. */
+export interface ConsultaFichas extends Partial<ConsultaTabla> {
+  estadoUbicacion?: 'alerta' | 'optimo' | '';
+  /** Solo agencias: quita esta agencia de la lista ("otras agencias"). */
+  excluirAgenciaId?: string;
+  /** Solo pulidores. */
+  tipoPulidor?: string;
+  regionId?: string;
+  pulidorId?: string;
+}
+
+export interface MetricasAgencias { totalAgencias: number; agenciasEnAlerta: number; insumosCriticosTotal: number; }
+export interface MetricasPulidores { totalPulidores: number; pulidoresEnAlerta: number; insumosCriticosTotal: number; }
+
+/** Insumos de una agencia o de un kit (tabla dentro de la ficha). */
+export interface ConsultaInsumosUbicacion extends Partial<ConsultaTabla> {
+  estado?: string;
+}
+
+/** Consulta de un catálogo pequeño (tipos, unidades…): la de la tabla más el estado (1 activo, 0 inactivo). */
+export interface ConsultaCatalogo extends Partial<ConsultaTabla> {
+  estado?: number;
+  incluirResumen?: boolean;
+}
+
+/** Lo que pide la tabla del Kardex: página, orden, búsqueda y filtros, todo resuelto en el servidor. */
+export interface ConsultaMovimientos extends Partial<ConsultaTabla> {
+  tipoMovimientoId?: string;
+  insumoId?: string;
+  ubicacionId?: string;
+  /** ISO 8601 (inclusive). */
+  fechaDesde?: string;
+  fechaHasta?: string;
+  incluirResumen?: boolean;
+}
+
+export interface ResumenMovimientos {
+  /** Conteo por id de tipo de movimiento, con los mismos filtros menos el de tipo. */
+  porTipo: Record<string, number>;
+  total: number;
+}
+
+export interface RespuestaMovimientosPagina {
+  pagina: PaginaServidor<MovimientoInventarioGlobalItem>;
+  resumen?: ResumenMovimientos;
+}
+
+/** Lo que pide la tabla de Envíos (despachos): página, orden, búsqueda y filtros, todo resuelto en el servidor. */
+export interface ConsultaDespachos extends Partial<ConsultaTabla> {
+  /** EN_TRANSITO | RECIBIDO | RECHAZADO */
+  estadoDespacho?: string;
+  /** Agencia destino: id, nombre o código. */
+  agenciaId?: string;
+  pulidorId?: string;
+  /** AAAA-MM-DD o ISO (por fecha de salida). */
+  fechaDesde?: string;
+  fechaHasta?: string;
+  incluirResumen?: boolean;
+}
+
+/** Contadores con los mismos filtros de la consulta menos el de estado. */
+export interface ResumenDespachos {
+  enTransito: number;
+  recibidos: number;
+  rechazados: number;
+  total: number;
+}
+
+export interface RespuestaDespachosPagina {
+  pagina: PaginaServidor<any>;
+  resumen?: ResumenDespachos;
+}
 
 @Injectable({
   providedIn: 'root',
 })
 export class InventarioService {
   private http = inject(HttpClient);
+  private toastService = inject(ToastService);
+  private authService = inject(AuthService);
+
+  /** true cuando la última carga de un listado falló por un error real del backend (no "sin datos"). */
+  private errorCargaSubject = new BehaviorSubject<boolean>(false);
+  public errorCarga$ = this.errorCargaSubject.asObservable();
+  public get error(): boolean {
+    return this.errorCargaSubject.value;
+  }
+
+  /**
+   * Muestra un aviso visible cuando un listado falla por un error real del servidor (no simplemente
+   * "sin datos") y marca `error` para que la pantalla pueda ofrecer "Reintentar".
+   */
+  private avisarErrorCarga(mensaje: string, err: any): void {
+    console.error(mensaje, err);
+    this.errorCargaSubject.next(true);
+    this.toastService.error('No se pudo cargar', `${mensaje}. Reintentar.`);
+  }
 
   // Observables para compatibilidad con vistas reactivas
   private tiposSubject = new BehaviorSubject<TipoProductoCatalog[]>([]);
@@ -111,7 +188,14 @@ export class InventarioService {
     this.cargarCatalogosIniciales();
   }
 
+  /**
+   * Catálogos que comparten todas las pantallas de inventario. Solo se piden si el rol tiene
+   * `inventario.ver`: este servicio es de raíz y lo inyectan pantallas que no son de inventario
+   * (p. ej. la barra de filtros), así que sin este chequeo un rol sin inventario —mantenimiento,
+   * comercial— disparaba cuatro llamadas que el servidor rechaza con 403 nada más abrir la página.
+   */
   public cargarCatalogosIniciales(): void {
+    if (!this.authService.puede('inventario.ver')) return;
     this.cargarTiposDesdeBackend();
     this.cargarUnidadesDesdeBackend();
     this.cargarBodegasDesdeBackend();
@@ -138,7 +222,7 @@ export class InventarioService {
         }
       }),
       catchError((err) => {
-        console.error('Error al cargar bodegas desde backend:', err);
+        this.avisarErrorCarga('No se pudieron cargar las bodegas', err);
         return of([]);
       })
     );
@@ -147,7 +231,8 @@ export class InventarioService {
   public crearBodega(dto: {
     nombre: string;
     codigo?: string;
-    regionId: string;
+    regionId?: string;
+    tipo?: 'CENTRAL' | 'REGIONAL';
     ciudad?: string;
     direccion?: string;
     telefono?: string;
@@ -163,6 +248,7 @@ export class InventarioService {
     nombre?: string;
     codigo?: string;
     regionId?: string;
+    tipo?: 'CENTRAL' | 'REGIONAL';
     ciudad?: string;
     direccion?: string;
     telefono?: string;
@@ -200,8 +286,16 @@ export class InventarioService {
     const payload: any = {};
     if (estado !== undefined) payload.estado = estado;
     return this.http.post<TipoProductoCatalog[]>(apiUrl('/inventario/tipos/list'), payload).pipe(
-      catchError(() => of([]))
+      catchError((err) => {
+        this.avisarErrorCarga('No se pudieron cargar los tipos de producto', err);
+        return of([]);
+      })
     );
+  }
+
+  /** Página de tipos de producto (orden: codigo, nombre, estado, insumos, fecha). No captura errores: la tabla muestra el suyo. */
+  public getTiposPagina(c: ConsultaCatalogo): Observable<PaginaConResumen<TipoProductoCatalog>> {
+    return postPagina<TipoProductoCatalog>(this.http, apiUrl('/inventario/tipos/list'), cuerpoConsulta(c, ['estado']));
   }
 
   public crearTipoProducto(dto: { codigo: string; nombre: string; descripcion?: string; estado?: number }): Observable<TipoProductoCatalog> {
@@ -231,8 +325,16 @@ export class InventarioService {
     if (tipo) payload.tipo = tipo;
     if (estado !== undefined) payload.estado = estado;
     return this.http.post<UnidadMedidaCatalog[]>(apiUrl('/inventario/unidades/list'), payload).pipe(
-      catchError(() => of([]))
+      catchError((err) => {
+        this.avisarErrorCarga('No se pudieron cargar las unidades de medida', err);
+        return of([]);
+      })
     );
+  }
+
+  /** Página de unidades de medida (orden: codigo, nombre, simbolo, tipo, factorBase, estado, fecha). */
+  public getUnidadesPagina(c: ConsultaCatalogo & { tipo?: string }): Observable<PaginaConResumen<UnidadMedidaCatalog>> {
+    return postPagina<UnidadMedidaCatalog>(this.http, apiUrl('/inventario/unidades/list'), cuerpoConsulta(c, ['estado', 'tipo']));
   }
 
   public crearUnidadMedida(dto: { codigo: string; nombre: string; simbolo: string; tipo: string; factorBase?: number; estado?: number }): Observable<UnidadMedidaCatalog> {
@@ -255,7 +357,10 @@ export class InventarioService {
     const payload: any = {};
     if (insumoId) payload.insumoId = insumoId;
     return this.http.post<PresentacionInsumoCatalog[]>(apiUrl('/inventario/presentaciones/list'), payload).pipe(
-      catchError(() => of([]))
+      catchError((err) => {
+        this.avisarErrorCarga('No se pudieron cargar las presentaciones', err);
+        return of([]);
+      })
     );
   }
 
@@ -275,7 +380,10 @@ export class InventarioService {
     const payload: any = {};
     if (esEntrada !== undefined) payload.esEntrada = esEntrada;
     return this.http.post<TipoMovimientoCatalog[]>(apiUrl('/inventario/movimiento-tipos/list'), payload).pipe(
-      catchError(() => of([]))
+      catchError((err) => {
+        this.avisarErrorCarga('No se pudieron cargar los tipos de movimiento', err);
+        return of([]);
+      })
     );
   }
 
@@ -291,9 +399,55 @@ export class InventarioService {
     );
   }
 
+  public reajustarStock(payload: {
+    insumoId: string;
+    bodegaId?: string;
+    agenciaId?: string;
+    pulidorId?: string;
+    stockUbicacionId?: string;
+    cantidadContada: number;
+    motivoTexto: string;
+    evidenciaUrl: string;
+  }): Observable<any> {
+    return this.http.post<any>(apiUrl('/inventario/stock/reajuste'), payload).pipe(
+      tap(() => this.cargarItems())
+    );
+  }
+
   public getHistorialMovimientos(dto: any = {}): Observable<{ items: MovimientoInventarioGlobalItem[]; total: number; page: number; pageSize: number; totalPages: number }> {
     return this.http.post<any>(apiUrl('/inventario/movimientos/historial'), dto).pipe(
-      catchError(() => of({ items: [], total: 0, page: 1, pageSize: 20, totalPages: 0 }))
+      catchError((err) => {
+        this.avisarErrorCarga('No se pudo cargar el historial de movimientos', err);
+        return of({ items: [], total: 0, page: 1, pageSize: 20, totalPages: 0 });
+      })
+    );
+  }
+
+  /**
+   * Una página del Kardex con orden, búsqueda y filtros resueltos en el servidor.
+   * A diferencia de `getHistorialMovimientos`, un fallo NO se traga: se propaga para que la tabla muestre el error.
+   */
+  public getMovimientosPagina(consulta: ConsultaMovimientos): Observable<RespuestaMovimientosPagina> {
+    const c = consulta;
+    const body: Record<string, unknown> = {
+      page: c.page || 1,
+      pageSize: Math.min(c.pageSize || 25, PAGE_SIZE_MAX),
+    };
+    if (c.sortField) { body['sortField'] = c.sortField; body['sortOrder'] = c.sortOrder || 'desc'; }
+    const texto = (c.search || '').trim();
+    if (texto.length >= 2) body['search'] = texto;
+    const claves: (keyof ConsultaMovimientos)[] = ['tipoMovimientoId', 'insumoId', 'ubicacionId', 'fechaDesde', 'fechaHasta'];
+    for (const k of claves) {
+      const v = c[k];
+      if (v !== undefined && v !== null && v !== '') body[k] = v;
+    }
+    if (c.incluirResumen) body['incluirResumen'] = true;
+
+    return this.http.post<any>(apiUrl('/inventario/movimientos/historial'), body).pipe(
+      map((res) => ({
+        pagina: normalizarPagina<MovimientoInventarioGlobalItem>(res, body['page'] as number, body['pageSize'] as number),
+        resumen: res?.resumen as ResumenMovimientos | undefined,
+      })),
     );
   }
 
@@ -303,29 +457,74 @@ export class InventarioService {
 
   public getDashboardResumen(): Observable<DashboardInventarioResumen> {
     return this.http.post<DashboardInventarioResumen>(apiUrl('/inventario/dashboard/resumen'), {}).pipe(
-      catchError(() =>
-        of({
+      catchError((err) => {
+        this.avisarErrorCarga('No se pudo cargar el dashboard de inventario', err);
+        return of({
           totalProductos: 0,
           productosStockBajo: 0,
           entradasMes: 0,
           consumosMes: 0,
           totalMovimientosMes: 0,
           ultimosMovimientos: [],
-        })
-      )
+        });
+      })
     );
+  }
+
+  /** Página de insumos bajo el mínimo (orden: sku, nombre, tipo, stock, minimo, deficit, fecha). No captura errores. */
+  public getStockBajoPagina(c: ConsultaCatalogo & { tipoProductoId?: string }): Observable<PaginaConResumen<ProductoInsumo>> {
+    return postPagina<ProductoInsumo>(this.http, apiUrl('/inventario/stock-bajo/list'), cuerpoConsulta(c, ['tipoProductoId']), (i) => this.mapProducto(i));
   }
 
   public getStockBajo(dto: any = {}): Observable<{ items: ProductoInsumo[]; total: number }> {
     return this.http.post<any>(apiUrl('/inventario/stock-bajo/list'), dto).pipe(
-      catchError(() => of({ items: [], total: 0 }))
+      catchError((err) => {
+        this.avisarErrorCarga('No se pudo cargar el stock bajo mínimo', err);
+        return of({ items: [], total: 0 });
+      })
+    );
+  }
+
+  /**
+   * Página de alertas con orden (fecha, nivel, estado, insumo, agencia), búsqueda y filtros en el servidor. Listar ya no
+   * escribe en la base: las alertas de "insumo sin stock" se generan con `sincronizarAlertas`.
+   */
+  public getAlertasPagina(c: ConsultaAlertas): Observable<PaginaConResumen<any, ResumenAlertas>> {
+    return postPagina<any, ResumenAlertas>(
+      this.http,
+      apiUrl('/inventario/alertas/list'),
+      cuerpoConsulta(c, ['grupoNivel', 'estado', 'soloActivas', 'agenciaId', 'sucursalId']),
+    );
+  }
+
+  /** Pide al servidor generar las alertas de insumos requeridos sin stock. Un fallo no es grave: la bandeja se lista igual. */
+  public sincronizarAlertas(forzar = false): Observable<{ sincronizado: boolean }> {
+    return this.http.post<{ sincronizado: boolean }>(apiUrl('/inventario/alertas/sincronizar'), { forzar }).pipe(
+      catchError(() => of({ sincronizado: false })),
     );
   }
 
   public getAlertasStock(dto: any = {}): Observable<any[]> {
     return this.http.post<any[]>(apiUrl('/inventario/alertas/list'), dto).pipe(
-      catchError(() => of([]))
+      catchError((err) => {
+        this.avisarErrorCarga('No se pudieron cargar las alertas de stock', err);
+        return of([]);
+      })
     );
+  }
+
+  public crearAlerta(dto: {
+    insumoId: string;
+    nivel: 'BAJO' | 'CRITICO' | 'AGOTADO';
+    sucursalId?: string;
+    agenciaId?: string;
+    mensaje?: string;
+    stockReportado?: number;
+  }): Observable<any> {
+    return this.http.post<any>(apiUrl('/inventario/alertas/crear'), {
+      ...dto,
+      sucursalId: dto.sucursalId || dto.agenciaId,
+    });
   }
 
   public atenderAlertaStock(dto: { id: string; estado: string; observacion?: string }): Observable<any> {
@@ -342,21 +541,46 @@ export class InventarioService {
     return this.items$;
   }
 
-  public getStockDisponibleSucursal(productoId: number | string, sucursalId?: number | string): number {
-    const item = this.itemsSubject.value.find(i => i.producto.id === productoId || i.producto.codigoSKU === productoId);
+  public getStockDisponibleSucursal(
+    productoId: number | string,
+    sucursalId?: number | string,
+    sucursalNombre?: string,
+    productoSKU?: string
+  ): number {
+    const item = this.itemsSubject.value.find(
+      i =>
+        i.producto.id === productoId ||
+        String(i.producto.id) === String(productoId) ||
+        i.producto.codigoSKU === productoId ||
+        (productoSKU && i.producto.codigoSKU === productoSKU)
+    );
     if (!item) return 0;
-    if (sucursalId && item.stockPorSucursal) {
-      const key = sucursalId.toString();
-      // Buscar por ID exacto primero, luego por nombre
-      if (item.stockPorSucursal[key] != null) {
-        return item.stockPorSucursal[key];
+    if (sucursalId || sucursalNombre) {
+      if (!item.stockPorSucursal) return 0;
+
+      const keysToTry: string[] = [
+        sucursalId ? String(sucursalId).trim() : '',
+        sucursalNombre ? String(sucursalNombre).trim() : ''
+      ].filter(Boolean);
+
+      for (const key of keysToTry) {
+        if (item.stockPorSucursal[key] != null) {
+          return item.stockPorSucursal[key];
+        }
+        const keyLower = key.toLowerCase();
+        if (item.stockPorSucursal[keyLower] != null) {
+          return item.stockPorSucursal[keyLower];
+        }
+        const matchedKey = Object.keys(item.stockPorSucursal).find(k => {
+          const kLower = k.toLowerCase().trim();
+          return kLower === keyLower || kLower.includes(keyLower) || keyLower.includes(kLower);
+        });
+        if (matchedKey != null && item.stockPorSucursal[matchedKey] != null) {
+          return item.stockPorSucursal[matchedKey];
+        }
       }
-      // Búsqueda flexible por nombre (partial match, insensible a mayúsculas)
-      const keyLower = key.toLowerCase();
-      const matchedKey = Object.keys(item.stockPorSucursal).find(k => k.toLowerCase().includes(keyLower) || keyLower.includes(k.toLowerCase()));
-      if (matchedKey != null && item.stockPorSucursal[matchedKey] != null) {
-        return item.stockPorSucursal[matchedKey];
-      }
+      // Si se consulta una sucursal/agencia específica y no tiene existencias en dicha sede, su stock es 0 (no el de bodega central)
+      return 0;
     }
     return item.stockBodegaCentral || item.stockTotalRed || 0;
   }
@@ -402,7 +626,7 @@ export class InventarioService {
               found.stockPorSucursal[agenciaId] = Math.max(0, found.stockPorSucursal[agenciaId] - itemConsumo.cantidad);
             }
             if (found.stockBodegaCentral <= (found.producto.stockMinimoAgencia || 2)) {
-              alertas.push(`⚠️ Stock Bajo: ${found.producto.nombre} en ${agenciaId} (quedan ${found.stockBodegaCentral} ${found.producto.unidadMedida})`);
+              alertas.push(`Stock Bajo: ${found.producto.nombre} en ${agenciaId} (quedan ${found.stockBodegaCentral} ${found.producto.unidadMedida})`);
             }
           }
         });
@@ -419,9 +643,18 @@ export class InventarioService {
     );
   }
 
+  public getInsumosPorServiciosPulidor(pulidorId?: string, servicioIds?: number[]): Observable<any> {
+    return this.http.post<any>(apiUrl('/inventario/pulidor/insumos-servicios'), { pulidorId, servicioIds }).pipe(
+      catchError(() => of(null))
+    );
+  }
+
   public getDespachosPendientesAgencia(agenciaId?: string): Observable<any[]> {
     return this.http.post<any[]>(apiUrl('/inventario/despachos/agencia/pendientes'), { agenciaId }).pipe(
-      catchError(() => of([]))
+      catchError((err) => {
+        this.avisarErrorCarga('No se pudieron cargar los despachos pendientes', err);
+        return of([]);
+      })
     );
   }
 
@@ -431,9 +664,38 @@ export class InventarioService {
     );
   }
 
+  /** Lista plana (hasta 100, el máximo por petición) para pantallas que aún no paginan. */
   public listDespachos(dto: any = {}): Observable<any[]> {
     return this.http.post<any[]>(apiUrl('/inventario/despachos/list'), dto).pipe(
-      catchError(() => of([]))
+      catchError((err) => {
+        this.avisarErrorCarga('No se pudieron cargar los despachos', err);
+        return of([]);
+      })
+    );
+  }
+
+  /** Página de despachos con orden, búsqueda y filtros en el servidor. No captura errores: la pantalla muestra el suyo. */
+  public getDespachosPagina(consulta: ConsultaDespachos): Observable<RespuestaDespachosPagina> {
+    const c = consulta;
+    const body: Record<string, unknown> = {
+      page: c.page || 1,
+      pageSize: Math.min(c.pageSize || PAGE_SIZE_TABLA, PAGE_SIZE_MAX),
+    };
+    if (c.sortField) { body['sortField'] = c.sortField; body['sortOrder'] = c.sortOrder || 'desc'; }
+    const texto = (c.search || '').trim();
+    if (texto.length >= BUSQUEDA_MIN_CARACTERES) body['search'] = texto;
+    const claves: (keyof ConsultaDespachos)[] = ['estadoDespacho', 'agenciaId', 'pulidorId', 'fechaDesde', 'fechaHasta'];
+    for (const k of claves) {
+      const v = c[k];
+      if (v !== undefined && v !== null && v !== '') body[k] = v;
+    }
+    if (c.incluirResumen) body['incluirResumen'] = true;
+
+    return this.http.post<any>(apiUrl('/inventario/despachos/list'), body).pipe(
+      map((res) => ({
+        pagina: normalizarPagina<any>(res, body['page'] as number, body['pageSize'] as number),
+        resumen: res?.resumen as ResumenDespachos | undefined,
+      })),
     );
   }
 
@@ -472,11 +734,15 @@ export class InventarioService {
         const stockPorSucursal: Record<string, number> = {};
         const rawStocks: any[] = (p as any).stocks || [];
         for (const s of rawStocks) {
+          if (s.tipoUbicacion && s.tipoUbicacion !== 'AGENCIA') continue;
           const cant = Number(s.cantidadActual || 0);
           const agId = s.agenciaId || s.agencia?.id;
           const agNombre = s.agencia?.nombre;
           if (agId) stockPorSucursal[agId] = cant;
-          if (agNombre) stockPorSucursal[agNombre] = cant;
+          if (agNombre) {
+            stockPorSucursal[agNombre] = cant;
+            stockPorSucursal[agNombre.trim().toLowerCase()] = cant;
+          }
         }
 
         return {
@@ -492,53 +758,104 @@ export class InventarioService {
         };
       });
       this.itemsSubject.next(items);
+
+      // Sincronización continua y directa con el consolidado multi-sede
+      this.getStockAgenciasResumen().subscribe((res) => {
+        if (res?.agencias && Array.isArray(res.agencias)) {
+          const currentItems = [...this.itemsSubject.value];
+          let modified = false;
+
+          for (const agItem of res.agencias) {
+            const agId = agItem.agencia?.id;
+            const agNom = agItem.agencia?.nombre;
+            const agNomLower = agNom ? agNom.trim().toLowerCase() : '';
+
+            for (const ins of (agItem.insumos || [])) {
+              const matched = currentItems.find(
+                (ci) =>
+                  String(ci.producto.id) === String(ins.insumoId) ||
+                  ci.producto.codigoSKU === ins.codigoSKU
+              );
+              if (matched) {
+                if (!matched.stockPorSucursal) matched.stockPorSucursal = {};
+                const cant = Number(ins.stockActual ?? 0);
+                if (agId) matched.stockPorSucursal[agId] = cant;
+                if (agNom) matched.stockPorSucursal[agNom] = cant;
+                if (agNomLower) matched.stockPorSucursal[agNomLower] = cant;
+                modified = true;
+              }
+            }
+          }
+
+          if (modified) {
+            this.itemsSubject.next(currentItems);
+          }
+        }
+      });
     });
   }
 
   public getProductos(dto: any = {}): Observable<ProductoInsumo[]> {
     return this.http.post<any[]>(apiUrl('/inventario/insumos/list'), dto).pipe(
-      map((items) =>
-        (items || []).map((i) => ({
-          id: i.id,
-          codigoSKU: i.codigoSKU,
-          nombre: i.nombre,
-          categoria: i.categoria,
-          tipoId: i.tipoProductoId || i.categoria,
-          tipoNombre: i.tipoProducto?.nombre || i.categoria,
-          tipoProductoId: i.tipoProductoId,
-          tipoProducto: i.tipoProducto,
-          unidadMedida: i.unidadMedida?.simbolo || i.unidadMedida?.nombre || 'u',
-          unidadMedidaId: i.unidadMedidaId,
-          unidadMedidaObj: i.unidadMedida,
-          contenidoNeto: Number(i.contenidoNeto || 1),
-          stockActual: Number(i.stockActual || 0),
-          stockMinimoBodega: Number(i.stockMinimoBodega || 0),
-          stockMinimoAgencia: Number(i.stockMinimoAgencia || 0),
-          stockOptimoBodega: Number(i.stockOptimoBodega || 0),
-          stockAlertaBodega: Number(i.stockMinimoBodega || 0),
-          stockAlertaSucursal: Number(i.stockMinimoAgencia || 0),
-          stockMinimoGlobal: Number(i.stockMinimoBodega || 0),
-          costoUnitarioUSD: Number(i.costoUnitarioUSD || 0),
-          proveedorPrincipal: i.proveedorPrincipal || '',
-          descripcion: i.descripcion || '',
-          imagen: i.imagenUrl || '',
-          imagenUrl: i.imagenUrl || '',
-          activo: i.estado === 1,
-          estado: i.estado,
-          fechaCreacion: i.createdAt,
-          presentaciones: i.presentaciones || [],
-          serviciosAsociados: (i.recetas || []).map((r: any) => ({
-            id: r.catalogoServicio?.id,
-            codigo: r.catalogoServicio?.codigo,
-            nombre: r.catalogoServicio?.nombre,
-            categoria: r.catalogoServicio?.categoria,
-            cantidadUsada: Number(r.cantidadUsada || 0),
-            unidad: r.unidadConsumo?.simbolo || i.unidadMedida?.simbolo || 'u',
-          })),
-        }))
-      ),
-      catchError(() => of([]))
+      map((items) => (items || []).map((i) => this.mapProducto(i))),
+      catchError((err) => {
+        this.avisarErrorCarga('No se pudieron cargar los productos', err);
+        return of([]);
+      })
     );
+  }
+
+  /**
+   * Página de productos con orden, búsqueda y filtros en el servidor (tipo, estado, nivel de stock). El stock es el de
+   * la sede o la bodega del contexto. Orden: sku, nombre, tipo, contenido, stock, alerta, stockMinimoBodega,
+   * stockOptimoBodega, stockMinimoAgencia, stockOptimoAgencia, estado, fecha. No captura errores: la tabla muestra el suyo.
+   */
+  public getProductosPagina(c: ConsultaProductos): Observable<PaginaConResumen<ProductoInsumo>> {
+    const body = cuerpoConsulta(c, ['tipoProductoId', 'estado', 'nivelStock', 'agenciaId', 'bodegaId']);
+    return postPagina<ProductoInsumo>(this.http, apiUrl('/inventario/insumos/list'), body, (i) => this.mapProducto(i));
+  }
+
+  private mapProducto(i: any): ProductoInsumo {
+    return {
+      id: i.id,
+      codigoSKU: i.codigoSKU,
+      nombre: i.nombre,
+      categoria: i.categoria,
+      tipoId: i.tipoProductoId || i.categoria,
+      tipoNombre: i.tipoProducto?.nombre || i.categoria,
+      tipoProductoId: i.tipoProductoId,
+      tipoProducto: i.tipoProducto,
+      unidadMedida: i.unidadMedida?.simbolo || i.unidadMedida?.nombre || 'u',
+      unidadMedidaId: String(i.unidadMedidaId || i.unidadMedida?.id || ''),
+      unidadMedidaObj: i.unidadMedida,
+      contenidoNeto: Number(i.contenidoNeto || 1),
+      stockActual: Number(i.stockActual || 0),
+      stockMinimoBodega: Number(i.stockMinimoBodega || 0),
+      stockMinimoAgencia: Number(i.stockMinimoAgencia || 0),
+      stockOptimoBodega: Number(i.stockOptimoBodega || 0),
+      stockOptimoAgencia: Number(i.stockOptimoAgencia || 0),
+      stockAlertaBodega: Number(i.stockMinimoBodega || 0),
+      stockAlertaSucursal: Number(i.stockMinimoAgencia || 0),
+      stockMinimoGlobal: Number(i.stockMinimoBodega || 0),
+      costoUnitarioUSD: Number(i.costoUnitarioUSD || 0),
+      proveedorPrincipal: i.proveedorPrincipal || '',
+      descripcion: i.descripcion || '',
+      imagen: i.imagenUrl || '',
+      imagenUrl: i.imagenUrl || '',
+      activo: i.estado === 1,
+      estado: i.estado,
+      fechaCreacion: i.createdAt,
+      presentaciones: i.presentaciones || [],
+      stocks: i.stocks || [],
+      serviciosAsociados: (i.recetas || []).map((r: any) => ({
+        id: r.catalogoServicio?.id,
+        codigo: r.catalogoServicio?.codigo,
+        nombre: r.catalogoServicio?.nombre,
+        categoria: r.catalogoServicio?.categoria,
+        cantidadUsada: Number(r.cantidadUsada || 0),
+        unidad: r.unidadConsumo?.simbolo || i.unidadMedida?.simbolo || 'u',
+      })),
+    };
   }
 
   public crearProducto(dto: any): Observable<any> {
@@ -559,17 +876,78 @@ export class InventarioService {
 
   public getStockBodegasResumen(dto: any = {}): Observable<any> {
     return this.http.post<any>(apiUrl('/inventario/stock/bodegas-resumen'), dto).pipe(
-      catchError(() => of({
-        bodega: { id: 'bod_central', codigo: 'BOD-CENTRAL', nombre: 'Bodega Central Nacional', ciudad: 'Quito', esCentral: true, activa: true },
-        metricas: { totalInsumos: 0, stockTotalUnidades: 0, insumosBajoMinimo: 0, insumosOptimos: 0 },
-        insumos: []
-      }))
+      catchError((err) => {
+        this.avisarErrorCarga('No se pudo cargar el resumen de bodegas', err);
+        return of({
+          bodega: null,
+          metricas: { totalInsumos: 0, stockTotalUnidades: 0, insumosBajoMinimo: 0, insumosOptimos: 0 },
+          insumos: []
+        });
+      })
     );
+  }
+
+  /**
+   * Una página de los insumos de una bodega con búsqueda, estado y orden en el servidor. Cada respuesta trae también la
+   * bodega y las métricas de todos sus insumos (`resumen`). Orden: sku, nombre, tipo, contenido, stock, minimo, optimo, estado.
+   */
+  public getStockBodegaPagina(c: ConsultaInsumosBodega): Observable<PaginaConResumen<any, MetaBodega>> {
+    const body = cuerpoConsulta(c, ['bodegaId', 'estado']);
+    return this.http.post<any>(apiUrl('/inventario/stock/bodegas-resumen'), body).pipe(
+      map((res) => ({
+        pagina: normalizarPagina<any>(res, body['page'] as number, body['pageSize'] as number),
+        resumen: { bodega: res?.bodega ?? null, bodegas: res?.bodegas ?? [], metricas: res?.metricas ?? {} } as MetaBodega,
+      })),
+    );
+  }
+
+  /** Página de fichas de agencia (sin insumos) con las métricas de toda la red. Orden: nombre, codigo, region, criticos, insumos, alerta. */
+  public getAgenciasFichasPagina(c: ConsultaFichas): Observable<{ pagina: PaginaServidor<any>; metricas?: MetricasAgencias }> {
+    const body = cuerpoConsulta(c, ['estadoUbicacion', 'excluirAgenciaId', 'regionId']);
+    return this.http.post<any>(apiUrl('/inventario/stock/agencias-resumen'), body).pipe(
+      map((res) => ({ pagina: normalizarPagina<any>(res, body['page'] as number, body['pageSize'] as number), metricas: res?.metricas })),
+    );
+  }
+
+  /** Página de kits de pulidor (sin insumos) con las métricas. Orden: nombre, tipo, region, sede, criticos, insumos, alerta. */
+  public getPulidoresFichasPagina(c: ConsultaFichas): Observable<{ pagina: PaginaServidor<any>; metricas?: MetricasPulidores }> {
+    const body = cuerpoConsulta(c, ['estadoUbicacion', 'tipoPulidor', 'regionId', 'pulidorId']);
+    return this.http.post<any>(apiUrl('/inventario/stock/pulidores-resumen'), body).pipe(
+      map((res) => ({ pagina: normalizarPagina<any>(res, body['page'] as number, body['pageSize'] as number), metricas: res?.metricas })),
+    );
+  }
+
+  /** Página de los insumos de UNA agencia o de UN kit de pulidor. Orden: sku, nombre, tipo, contenido, stock, minimo, deficit, estado. */
+  public getInsumosUbicacionPagina(tipo: 'agencia' | 'pulidor', id: string, c: ConsultaInsumosUbicacion): Observable<PaginaConResumen<any>> {
+    const body = { ...cuerpoConsulta(c, ['estado']), [tipo === 'agencia' ? 'agenciaId' : 'pulidorId']: id };
+    const url = tipo === 'agencia' ? '/inventario/stock/agencias-resumen' : '/inventario/stock/pulidores-resumen';
+    return postPagina<any>(this.http, apiUrl(url), body);
   }
 
   public getStockAgenciasResumen(dto: any = {}): Observable<any> {
     return this.http.post<any>(apiUrl('/inventario/stock/agencias-resumen'), dto).pipe(
-      catchError(() => of({ totalAgencias: 0, agenciasEnAlerta: 0, insumosCriticosTotal: 0, agencias: [] }))
+      catchError((err) => {
+        this.avisarErrorCarga('No se pudo cargar el resumen de agencias', err);
+        return of({ totalAgencias: 0, agenciasEnAlerta: 0, insumosCriticosTotal: 0, agencias: [] });
+      })
+    );
+  }
+
+  public getStockPulidoresResumen(dto: any = {}): Observable<any> {
+    return this.http.post<any>(apiUrl('/inventario/stock/pulidores-resumen'), dto).pipe(
+      catchError((err) => {
+        this.avisarErrorCarga('No se pudo cargar el resumen de pulidores', err);
+        return of({ totalPulidores: 0, pulidoresEnAlerta: 0, insumosCriticosTotal: 0, pulidores: [] });
+      })
+    );
+  }
+
+  public getDespachosPendientes(): Observable<any[]> {
+    return this.http.post<any[]>(apiUrl('/inventario/despachos/pendientes'), {}).pipe(
+      catchError((err) => {
+        this.avisarErrorCarga('No se pudieron cargar los despachos pendientes', err);
+        return of([]);
+      })
     );
   }
 }

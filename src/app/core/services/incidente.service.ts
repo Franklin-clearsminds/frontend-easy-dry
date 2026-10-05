@@ -2,8 +2,66 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { BehaviorSubject, Observable, of } from 'rxjs';
 import { map, tap, catchError } from 'rxjs/operators';
-import { Incidente } from '../models';
+import { Incidente, ArchivoAdjunto, nombrePersona } from '../models';
+import { PaginaServidor, OrdenDir, normalizarPagina } from '../models/paginacion.model';
+import { PAGE_SIZE_MAX, PAGE_SIZE_TABLA, BUSQUEDA_MIN_CARACTERES } from '../config/paginacion';
 import { apiUrl } from '../config/env';
+import { mapEvidenciasMaquinaria, fechaISOLocal, fechaLocal } from '../utils/evidencia-maquinaria';
+
+export type GravedadIncidente = 'BAJA' | 'MEDIA' | 'ALTA' | 'CRITICA';
+
+/** Evidencia ya subida a S3 (URL pública devuelta por el ticket). */
+export interface EvidenciaInput {
+  tipo?: string;
+  url: string;
+  descripcion?: string;
+}
+
+export interface ReportarIncidentePayload {
+  /** Mismo UUID que se usó en el ticket de subida, para que la carpeta de S3 coincida. */
+  clientUuid?: string;
+  maquinariaId: string;
+  titulo: string;
+  descripcion: string;
+  gravedad: GravedadIncidente | string;
+  destinoTallerId?: string;
+  evidencias: EvidenciaInput[];
+}
+
+/** Consulta paginada de incidencias: todo (orden, búsqueda y filtros) se resuelve en el servidor. */
+export interface ConsultaIncidentes {
+  page?: number;
+  pageSize?: number;
+  /** fecha | solucion | estado | gravedad | titulo | maquina | agencia | reportadoPor | tecnico. Sin él: no atendidas, en proceso, cerradas. */
+  sortField?: string | null;
+  sortOrder?: OrdenDir;
+  search?: string;
+  maquinariaId?: string;
+  /** ABIERTO | EN_PROCESO | RESUELTO | CANCELADO */
+  estado?: string;
+  gravedad?: string;
+  tecnicoId?: string;
+  agenciaId?: string;
+  regionId?: string;
+  clienteId?: string;
+  soloNoAtendidas?: boolean;
+  /** AAAA-MM-DD o ISO (por fecha de reporte). */
+  fechaDesde?: string;
+  fechaHasta?: string;
+  incluirResumen?: boolean;
+}
+
+export interface ResumenIncidentes {
+  noAtendidas: number;
+  enProceso: number;
+  cerradas: number;
+  total: number;
+}
+
+export interface RespuestaIncidentesPagina {
+  pagina: PaginaServidor<Incidente>;
+  resumen?: ResumenIncidentes;
+}
 
 @Injectable({
   providedIn: 'root'
@@ -15,111 +73,203 @@ export class IncidenteService {
 
   private mapBackendIncidente(item: any): Incidente {
     const maqNombre = item.maquinaria?.nombre || item.maquinaria?.codigo || item.maquina || 'Equipo';
-    const agNombre = item.maquinaria?.agencia?.nombre || item.agencia || 'Taller Central';
-    const repNombre = item.reportadoPor ? `${item.reportadoPor.name || ''} ${item.reportadoPor.lastname || ''}`.trim() || item.reportadoPor.email : (item.reportadoPor || 'Operador');
-    const resNombre = item.resueltoPor ? `${item.resueltoPor.name || ''} ${item.resueltoPor.lastname || ''}`.trim() : (item.solucionadoPor || undefined);
+    // El backend ya resuelve la agencia efectiva: si la máquina tiene pulidor asignado, manda su ubicación
+    // (agencia del fijo, o "Pulidor Móvil" si no tiene agencia fija) en vez de la agencia física de la máquina.
+    const esPulidorMovil = item.esPulidorMovil === true;
+    const agNombre = esPulidorMovil
+      ? 'Pulidor Móvil'
+      : (item.agenciaMostrada || item.maquinaria?.agencia?.nombre || item.agencia || 'Taller Central');
+    const repNombre = item.reportadoPor ? (nombrePersona(item.reportadoPor) || item.reportadoPor.email) : (item.reportadoPor || 'Operador');
+    const resNombre = item.resueltoPor ? nombrePersona(item.resueltoPor) : (item.solucionadoPor || undefined);
+    const evidencias = mapEvidenciasMaquinaria(item.evidencias);
+    // Las evidencias sin etapa (datos anteriores) se consideran del reporte.
+    const delReporte = evidencias.filter(e => e.etapa !== 'REPARACION');
+    const deReparacion = evidencias.filter(e => e.etapa === 'REPARACION');
+    const comoAdjunto = (e: (typeof evidencias)[number]): ArchivoAdjunto => ({
+      id: e.id,
+      nombre: e.descripcion || 'Documento',
+      tipo: 'documento',
+      url: e.url,
+      tamanoBytes: e.tamanoBytes,
+    });
 
-    const fechaStr = item.createdAt ? new Date(item.createdAt).toISOString().split('T')[0] : (item.fecha || new Date().toISOString().split('T')[0]);
+    const gravedadRaw = String(item.gravedad || '');
+    const estadoRaw = String(item.estado || '');
+    const estadoUi = estadoRaw === 'ABIERTO'
+      ? 'Pendiente'
+      : estadoRaw === 'EN_PROCESO'
+        ? 'En Solución'
+        : estadoRaw === 'RESUELTO'
+          ? 'Solucionado'
+          : estadoRaw === 'CANCELADO'
+            ? 'Cancelado'
+            : (item.estado || 'Pendiente');
+    const fechaReporte = item.fechaReporte || item.createdAt;
 
     return {
       id: item.id,
       codigoIncidente: item.codigoIncidente || (typeof item.id === 'string' ? `INC-${item.id.substring(0, 6).toUpperCase()}` : `INC-2026-${String(item.id).padStart(3, '0')}`),
       maquina: maqNombre,
       agencia: agNombre,
-      fecha: fechaStr,
+      esPulidorMovil,
+      fecha: fechaReporte ? fechaISOLocal(fechaReporte) : (item.fecha || fechaISOLocal(new Date().toISOString())),
       tipo: item.titulo || item.tipo || 'Falla técnica',
-      prioridad: item.gravedad ? (item.gravedad === 'CRITICA' ? 'Crítica' : item.gravedad === 'ALTA' ? 'Alta' : item.gravedad === 'BAJA' ? 'Baja' : 'Media') : (item.prioridad || 'Media'),
-      estado: item.estado === 'ABIERTO' ? 'Pendiente' : item.estado === 'EN_PROCESO' ? 'En Solución' : item.estado === 'RESUELTO' ? 'Solucionado' : (item.estado || 'Pendiente'),
+      prioridad: gravedadRaw
+        ? (gravedadRaw === 'CRITICA' ? 'Crítica' : gravedadRaw === 'ALTA' ? 'Alta' : gravedadRaw === 'BAJA' ? 'Baja' : 'Media')
+        : (item.prioridad || 'Media'),
+      estado: estadoUi,
       descripcion: item.descripcion || '',
       reportadoPor: repNombre,
-      tecnicoAsignadoId: item.resueltoPorId || item.tecnicoAsignadoId,
-      tecnicoAsignadoNombre: resNombre || item.tecnicoAsignadoNombre,
+      tecnicoAsignadoId: item.tecnicoAsignadoId || item.tecnicoAsignado?.id,
+      tecnicoAsignadoNombre: item.tecnicoAsignado
+        ? nombrePersona(item.tecnicoAsignado)
+        : (resNombre || item.tecnicoAsignadoNombre),
       gestorAsignadorId: item.gestorAsignadorId,
       gestorAsignadorNombre: item.gestorAsignadorNombre,
       fechaAsignacion: item.fechaAsignacion,
-      fotosFallo: item.fotoEvidenciaUrl ? [item.fotoEvidenciaUrl] : (item.fotosFallo || []),
-      fechaSolucion: item.fechaSolucion ? new Date(item.fechaSolucion).toISOString().split('T')[0] : undefined,
+      fotosFallo: delReporte.filter(e => e.kind === 'FOTO').map(e => e.url),
+      videosFallo: delReporte.filter(e => e.kind === 'VIDEO').map(e => e.url),
+      fotosReparacion: deReparacion.filter(e => e.kind === 'FOTO').map(e => e.url),
+      videosReparacion: deReparacion.filter(e => e.kind === 'VIDEO').map(e => e.url),
+      documentosReparacion: deReparacion.filter(e => e.kind === 'DOCUMENTO').map(comoAdjunto),
+      fechaSolucion: item.fechaSolucion ? fechaLocal(item.fechaSolucion) : undefined,
       solucionadoPor: resNombre,
-      observacionSolucion: item.solucion || item.observacionSolucion
+      observacionSolucion: item.solucion || item.observacionSolucion,
+      costoTotal: item.costoTotal != null ? Number(item.costoTotal) : undefined,
+      // --- Trazabilidad ---
+      noAtendida: item.noAtendida === true,
+      maquinariaId: item.maquinariaId || item.maquinaria?.id,
+      maquinariaCodigo: item.maquinaria?.codigo,
+      regionId: item.maquinaria?.agencia?.regionId || undefined,
+      titulo: item.titulo,
+      gravedadRaw,
+      estadoRaw,
+      destinoTallerNombre: item.destinoTaller?.nombre,
+      fechaReporteIso: fechaReporte,
+      evidencias,
     };
   }
 
-  getIncidentes(filtro?: { maquinariaId?: string; estado?: string; gravedad?: string; agenciaId?: string }): Observable<Incidente[]> {
-    const payload = filtro || {};
-    return this.http.post<any>(apiUrl('/maquinaria/incidentes/list'), payload).pipe(
+  /**
+   * Una página de incidencias con orden, búsqueda y filtros en el servidor. El backend ya las devuelve agrupadas
+   * (no atendidas, en proceso, cerradas) cuando no hay `sortField`: NO se reordenan en el cliente.
+   * NO toca `incidentesSubject` y propaga los errores (la pantalla muestra "Reintentar").
+   */
+  getIncidentesPagina(consulta: ConsultaIncidentes = {}): Observable<RespuestaIncidentesPagina> {
+    const body: Record<string, unknown> = {};
+    const c = consulta;
+    body['page'] = c.page || 1;
+    body['pageSize'] = Math.min(c.pageSize || PAGE_SIZE_TABLA, PAGE_SIZE_MAX);
+    if (c.sortField) { body['sortField'] = c.sortField; body['sortOrder'] = c.sortOrder || 'desc'; }
+    const texto = (c.search || '').trim();
+    if (texto.length >= BUSQUEDA_MIN_CARACTERES) body['search'] = texto;
+    const claves: (keyof ConsultaIncidentes)[] = ['maquinariaId', 'estado', 'gravedad', 'tecnicoId', 'agenciaId', 'regionId', 'clienteId', 'fechaDesde', 'fechaHasta'];
+    for (const k of claves) {
+      const v = c[k];
+      if (v !== undefined && v !== null && v !== '') body[k] = v;
+    }
+    if (c.soloNoAtendidas) body['soloNoAtendidas'] = true;
+    if (c.incluirResumen) body['incluirResumen'] = true;
+
+    return this.http.post<any>(apiUrl('/maquinaria/incidentes/list'), body).pipe(
       map(res => {
-        const rawItems = Array.isArray(res) ? res : (res?.data || []);
-        return rawItems.map((item: any) => this.mapBackendIncidente(item));
+        const pagina = normalizarPagina<any>(res, body['page'] as number, body['pageSize'] as number);
+        return {
+          pagina: { ...pagina, items: pagina.items.map((item: any) => this.mapBackendIncidente(item)) as Incidente[] },
+          resumen: res?.resumen as ResumenIncidentes | undefined,
+        };
       }),
+    );
+  }
+
+  /** Lista plana (hasta 100, el máximo por petición) para pantallas que aún no paginan. Ante un error conserva lo último. */
+  getIncidentes(filtro: ConsultaIncidentes = {}): Observable<Incidente[]> {
+    return this.getIncidentesPagina({ ...filtro, pageSize: PAGE_SIZE_MAX }).pipe(
+      map(r => r.pagina.items),
       tap(items => this.incidentesSubject.next(items)),
       catchError(() => of(this.incidentesSubject.value))
     );
   }
 
+  /** Reporta una incidencia (solo pulidores o líderes sobre máquinas asignadas; requiere conexión). */
+  reportarIncidente(payload: ReportarIncidentePayload): Observable<Incidente> {
+    return this.http.post<any>(apiUrl('/maquinaria/incidentes/reportar'), payload).pipe(
+      map(res => this.mapBackendIncidente(res?.data || res)),
+      tap(nuevo => this.incidentesSubject.next([nuevo, ...this.incidentesSubject.value]))
+    );
+  }
+
+  /** Compatibilidad con pantallas antiguas (servicios): arma el payload nuevo desde el modelo de UI. */
   crearIncidente(inc: Omit<Incidente, 'id'>): Observable<Incidente> {
     const gravedad = inc.prioridad === 'Crítica' ? 'CRITICA' : inc.prioridad === 'Alta' ? 'ALTA' : inc.prioridad === 'Baja' ? 'BAJA' : 'MEDIA';
-    const payload = {
-      maquinariaId: String(inc.maquina || (inc as any).maquinariaId || (inc as any).id || ''),
+    const anyInc = inc as any;
+    const evidencias: EvidenciaInput[] = anyInc.evidenciasSubidas || [
+      ...(inc.fotosFallo || []).map(url => ({ tipo: 'FOTO_INCIDENTE', url })),
+      ...(inc.videosFallo || []).map(url => ({ tipo: 'VIDEO_INCIDENTE', url })),
+    ].filter(e => e.url && !e.url.startsWith('blob:'));
+    return this.reportarIncidente({
+      clientUuid: anyInc.clientUuid,
+      maquinariaId: String(anyInc.maquinariaId || inc.maquinariaId || inc.maquina || ''),
       titulo: inc.tipo || 'Falla técnica',
       descripcion: inc.descripcion || '',
       gravedad,
-      fotoEvidenciaUrl: inc.fotosFallo?.[0] || undefined
-    };
-
-    return this.http.post<any>(apiUrl('/maquinaria/incidentes/reportar'), payload).pipe(
-      map(res => this.mapBackendIncidente(res?.data || res)),
-      tap(nuevo => {
-        const current = this.incidentesSubject.value;
-        this.incidentesSubject.next([nuevo, ...current]);
-      }),
-      catchError(err => {
-        console.error('Error al reportar incidente:', err);
-        throw err;
-      })
-    );
+      evidencias,
+    });
   }
 
-  registrarIncidente(inc: Omit<Incidente, 'id' | 'codigoIncidente'>): Observable<Incidente> {
-    return this.crearIncidente(inc as any);
+  /** Asigna la incidencia. Sin tecnicoId se auto-asigna el coordinador que llama. */
+  asignarIncidente(incidenteId: string | number, tecnicoId?: string | number, destinoTallerId?: string): Observable<Incidente> {
+    return this.http.post<any>(apiUrl('/maquinaria/incidentes/asignar'), {
+      incidenteId: String(incidenteId),
+      tecnicoId: tecnicoId != null && tecnicoId !== '' ? String(tecnicoId) : undefined,
+      destinoTallerId: destinoTallerId || undefined,
+    }).pipe(map(res => this.mapBackendIncidente(res?.data || res)));
   }
 
-  actualizarEstado(id: number | string, nuevoEstado: Incidente['estado'], solucion?: string): Observable<Incidente | null> {
-    const estadoBackend = nuevoEstado === 'Solucionado' || nuevoEstado === 'Resuelto' ? 'RESUELTO' : 'EN_PROCESO';
+  /** Resuelve (RESUELTO) o cancela (CANCELADO) la incidencia. RESUELTO exige 1+ foto/video y 1 PDF. */
+  resolverIncidente(payload: {
+    incidenteId: string | number;
+    solucion: string;
+    estado?: 'RESUELTO' | 'CANCELADO';
+    repuestosUtilizados?: string;
+    /** Costo de la reparación: obligatorio cuando estado es RESUELTO (el backend lo exige). */
+    costoTotal?: number;
+    evidencias: EvidenciaInput[];
+  }): Observable<Incidente> {
     return this.http.post<any>(apiUrl('/maquinaria/incidentes/resolver'), {
-      incidenteId: String(id),
-      estado: estadoBackend,
-      solucion: solucion || 'Incidente atendido y resuelto en taller.'
-    }).pipe(
-      map(res => this.mapBackendIncidente(res?.data || res)),
-      tap(actualizado => {
-        const current = this.incidentesSubject.value;
-        const idx = current.findIndex(i => String(i.id) === String(id));
-        if (idx !== -1) {
-          current[idx] = actualizado;
-          this.incidentesSubject.next([...current]);
-        }
-      }),
-      catchError(() => of(null))
-    );
+      ...payload,
+      incidenteId: String(payload.incidenteId),
+      estado: payload.estado || 'RESUELTO',
+    }).pipe(map(res => this.mapBackendIncidente(res?.data || res)));
   }
 
-  asignarIncidente(
-    id: string | number,
-    tecnicoId: string | number,
-    tecnicoNombre: string,
-    gestorId: string | number,
-    gestorNombre: string
-  ): Observable<Incidente | null> {
-    return this.actualizarEstado(id, 'En Solución', `Asignado a técnico ${tecnicoNombre}`);
+  /** Edita la incidencia; el backend deja un evento con antes/después. */
+  editarIncidente(payload: {
+    incidenteId: string | number;
+    titulo?: string;
+    descripcion?: string;
+    gravedad?: GravedadIncidente | string;
+    solucion?: string;
+    /** Corrección del costo de la reparación: solo ADMIN, SUPER_ADMIN o COORD_MANTENIMIENTO (el backend lo exige). */
+    costoTotal?: number;
+  }): Observable<Incidente> {
+    return this.http.post<any>(apiUrl('/maquinaria/incidentes/editar'), {
+      ...payload,
+      incidenteId: String(payload.incidenteId),
+    }).pipe(map(res => this.mapBackendIncidente(res?.data || res)));
   }
 
-  cancelarAsignacion(id: string | number): Observable<Incidente | null> {
-    const current = this.incidentesSubject.value;
-    const idx = current.findIndex(i => String(i.id) === String(id));
-    if (idx === -1) return of(null);
-    const updated = { ...current[idx], estado: 'Pendiente', tecnicoAsignadoId: undefined, tecnicoAsignadoNombre: undefined };
-    current[idx] = updated;
-    this.incidentesSubject.next([...current]);
-    return of(updated);
+  /** Agrega (o reemplaza, ocultando la anterior) evidencias a una incidencia o mantenimiento. Nunca se borra. */
+  agregarEvidencia(payload: {
+    entidad: 'INCIDENTE' | 'MANTENIMIENTO';
+    entidadId: string | number;
+    etapa?: 'REPORTE' | 'REPARACION';
+    evidencias: EvidenciaInput[];
+    reemplazaEvidenciaId?: string;
+  }): Observable<any> {
+    return this.http.post<any>(apiUrl('/maquinaria/evidencias/agregar'), {
+      ...payload,
+      entidadId: String(payload.entidadId),
+    });
   }
 }

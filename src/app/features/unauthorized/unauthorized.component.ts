@@ -15,7 +15,7 @@ import { ROLE_LABELS } from '../../core/models/roles.model';
 
         <!-- Icon -->
         <div class="w-20 h-20 rounded-2xl bg-rose-100 flex items-center justify-center mx-auto mb-6 shadow-md">
-          <i-lucide name="shield-x" class="w-10 h-10 text-rose-500"></i-lucide>
+          <i-lucide aria-hidden="true" name="shield-x" class="w-10 h-10 text-rose-500"></i-lucide>
         </div>
 
         <!-- Title -->
@@ -27,7 +27,7 @@ import { ROLE_LABELS } from '../../core/models/roles.model';
         <!-- Current Role Badge -->
         @if (rolLabel) {
           <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold mb-6">
-            <i-lucide name="user-circle" class="w-4 h-4"></i-lucide>
+            <i-lucide aria-hidden="true" name="user-circle" class="w-4 h-4"></i-lucide>
             <span>Rol actual: {{ rolLabel }}</span>
           </div>
         }
@@ -45,12 +45,12 @@ import { ROLE_LABELS } from '../../core/models/roles.model';
           <button
             (click)="goBack()"
             class="px-5 py-2.5 bg-easydry-blue text-white font-bold rounded-xl text-sm hover:bg-easydry-blue-dark transition-colors flex items-center gap-2">
-            <i-lucide name="arrow-left" class="w-4 h-4"></i-lucide>
+            <i-lucide aria-hidden="true" name="arrow-left" class="w-4 h-4"></i-lucide>
             <span>Volver</span>
           </button>
           <a routerLink="/dashboard"
             class="px-5 py-2.5 bg-white border border-slate-200 text-slate-700 font-bold rounded-xl text-sm hover:bg-slate-50 transition-colors flex items-center gap-2">
-            <i-lucide name="layout-dashboard" class="w-4 h-4"></i-lucide>
+            <i-lucide aria-hidden="true" name="layout-dashboard" class="w-4 h-4"></i-lucide>
             <span>Ir al Dashboard</span>
           </a>
         </div>

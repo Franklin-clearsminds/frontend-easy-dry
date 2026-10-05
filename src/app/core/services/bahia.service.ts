@@ -17,6 +17,17 @@ export class BahiaService {
     const rawLastname = b.operadorActual?.lastname || '';
     const cleanLastname = rawLastname.replace(/\(CI:[^)]+\)/, '').replace(/CI:[^)]+/, '').trim();
     const nombreOp = b.operadorActual ? `${b.operadorActual.name || ''} ${cleanLastname}`.trim() : null;
+    // `b.operadores` es la relación real (BahiaOperador, activo=true): puede traer más de un lavador
+    // si la agencia permite varios por bahía (maxLavadoresPorBahia > 1). `operadorActual`/
+    // `operadorActualId` es un campo legacy 1:1 que se pisa con el último asignado — no sirve para
+    // saber cuántos hay ni para decidir si hay cupo. Ver conversación con el usuario del 2026-09-30.
+    const operadoresActivos = Array.isArray(b.operadores)
+      ? b.operadores.map((rel: any) => {
+          const op = rel.operador || {};
+          const lastnameLimpio = String(op.lastname || '').replace(/\(CI:[^)]+\)/, '').replace(/CI:[^)]+/, '').trim();
+          return { id: String(op.id), nombre: `${op.name || ''} ${lastnameLimpio}`.trim() || 'Lavador' };
+        })
+      : [];
 
     return {
       id: b.id,
@@ -29,7 +40,12 @@ export class BahiaService {
       estado: b.activa ? (b.operadorActual ? 'Ocupada' : 'Disponible') : 'Inactiva',
       operadorAsignado: nombreOp || 'Sin Asignar',
       operadorId: b.operadorActualId || b.operadorActual?.id || undefined,
-      maquinariaAsignada: []
+      maquinariaAsignada: [],
+      ocupada: b.ocupada
+        ? { placa: b.ocupada.placa, ordenTrabajoOT: b.ocupada.ordenTrabajoOT ?? null }
+        : null,
+      maxLavadoresPorBahia: Number(b.agencia?.maxLavadoresPorBahia) || 1,
+      operadoresActivos,
     };
   }
 
@@ -54,6 +70,7 @@ export class BahiaService {
     );
   }
 
+  /** Activa o desactiva la bahía (permiso 'bahias.editar'). Si el servidor rechaza, el error se propaga. */
   actualizarEstadoBahia(id: string | number, nuevoEstado: Bahia['estado']): Observable<Bahia | null> {
     const activa = nuevoEstado !== 'Inactiva';
     return this.http.post<any>(apiUrl('/agencias/bahias/update'), { id: String(id), activa }).pipe(
@@ -65,8 +82,7 @@ export class BahiaService {
           current[idx] = { ...current[idx], ...mapped, estado: nuevoEstado };
           this.bahiasSubject.next([...current]);
         }
-      }),
-      catchError(() => of(null))
+      })
     );
   }
 
@@ -93,8 +109,7 @@ export class BahiaService {
           };
           this.bahiasSubject.next([...current]);
         }
-      }),
-      catchError(() => of(null))
+      })
     );
   }
 
@@ -104,8 +119,7 @@ export class BahiaService {
       tap(mapped => {
         const current = this.bahiasSubject.value;
         this.bahiasSubject.next([...current, mapped]);
-      }),
-      catchError(() => of(null))
+      })
     );
   }
 
