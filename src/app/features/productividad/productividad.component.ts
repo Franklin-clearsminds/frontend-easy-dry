@@ -401,7 +401,7 @@ import { Reto } from '../../core/models/reto.model';
           [sortOrder]="retosTabla.sortOrder"
           [loading]="retosTabla.cargando"
           [error]="retosTabla.error"
-          maxHeight="65vh"
+          maxHeight="none"
           caption="Directorio de retos"
           searchPlaceholder="Buscar reto por título..."
           emptyTitle="No hay retos que coincidan."
@@ -507,7 +507,7 @@ export class ProductividadComponent implements OnInit, OnDestroy {
     { key: 'inicio', label: 'Vigencia', sortable: true, defaultSort: 'desc' },
     { key: 'regiones', label: 'Región / Sucursal' },
     { key: 'estado', label: 'Estado', sortable: true, defaultSort: 'asc' },
-    { key: 'acciones', label: 'Acciones', align: 'right' },
+    { key: 'acciones', label: 'Acciones', align: 'right', sticky: true },
   ];
   readonly retosTabla = new TablaServidor<Reto>((c) => this.retosService.getRetosPagina({ ...c, vigencia: this.vigenciaRetos }));
   retosActivos: Reto[] = [];

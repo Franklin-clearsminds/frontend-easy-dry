@@ -25,6 +25,12 @@ export interface TableColumn {
   width?: string;
   /** Oculta la columna en pantallas angostas (< md). */
   hideOnMobile?: boolean;
+  /**
+   * Fija la columna al borde derecho: no se mueve con el scroll horizontal. Pensada para "Acciones"
+   * en tablas anchas, donde si no, el encabezado y los botones pueden terminar viéndose desalineados
+   * entre sí (cada uno recortado de forma distinta por el borde de la pantalla).
+   */
+  sticky?: boolean;
 }
 
 export interface TableAction {
@@ -91,8 +97,11 @@ export class DataTableCellDirective {
         </div>
       }
 
-      <!-- Tabla con encabezado fijo -->
-      <div class="overflow-auto overscroll-contain" [style.max-height]="maxHeight" [attr.aria-busy]="loading">
+      <!-- Tabla con encabezado fijo. Sin "overscroll-contain": por defecto (maxHeight=none) este div no
+           tiene scroll vertical propio, así que contener el rebote aquí bloqueaba que el gesto de scroll
+           se propagara a la página apenas tocaba el área de la tabla (había que salir de su borde para
+           poder scrollear). Solo se contiene cuando el consumidor sí pide un alto acotado de verdad. -->
+      <div class="overflow-auto" [class.overscroll-contain]="maxHeight !== 'none'" [style.max-height]="maxHeight" [attr.aria-busy]="loading">
         <table class="w-full text-left text-xs border-collapse">
           @if (caption) { <caption class="sr-only">{{ caption }}</caption> }
           <thead class="bg-slate-50 text-slate-500 font-extrabold uppercase tracking-wider text-[11px] border-b border-slate-200 select-none"
@@ -106,7 +115,7 @@ export class DataTableCellDirective {
                   [class.md:table-cell]="col.hideOnMobile"
                   [style.width]="col.width || 'auto'"
                   [attr.aria-sort]="col.sortable ? (sortField === col.key ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none') : null"
-                  [ngClass]="{ 'hidden md:table-cell': col.hideOnMobile, 'text-center': col.align === 'center', 'text-right': col.align === 'right' }">
+                  [ngClass]="{ 'hidden md:table-cell': col.hideOnMobile, 'text-center': col.align === 'center', 'text-right': col.align === 'right', 'sticky right-0 z-20 shadow-[-4px_0_6px_-4px_rgba(0,0,0,0.08)]': col.sticky }">
                   @if (col.sortable) {
                     <button
                       type="button"
@@ -126,7 +135,7 @@ export class DataTableCellDirective {
                 </th>
               }
               @if (actions && actions.length > 0) {
-                <th scope="col" class="py-3 px-4 text-right bg-slate-50">Acciones</th>
+                <th scope="col" class="py-3 px-4 text-right bg-slate-50 sticky right-0 z-20 shadow-[-4px_0_6px_-4px_rgba(0,0,0,0.08)]">Acciones</th>
               }
             </tr>
           </thead>
@@ -170,7 +179,7 @@ export class DataTableCellDirective {
             }
 
             @for (row of filas; track trackByFn(row, $index)) {
-              <tr class="hover:bg-slate-50/80 transition-colors"
+              <tr class="group hover:bg-slate-50/80 transition-colors"
                   [ngClass]="rowClass ? rowClass(row) : ''"
                   [class.cursor-pointer]="rowClickable"
                   [attr.tabindex]="rowClickable ? 0 : null"
@@ -179,7 +188,7 @@ export class DataTableCellDirective {
                   (keydown.space)="abrirFilaConEspacio($event, row)">
                 @for (col of columns; track col.key) {
                   <td class="py-3 px-4"
-                      [ngClass]="{ 'hidden md:table-cell': col.hideOnMobile, 'text-center': col.align === 'center', 'text-right': col.align === 'right' }">
+                      [ngClass]="{ 'hidden md:table-cell': col.hideOnMobile, 'text-center': col.align === 'center', 'text-right': col.align === 'right', 'sticky right-0 z-[5] bg-white group-hover:bg-slate-50 shadow-[-4px_0_6px_-4px_rgba(0,0,0,0.08)]': col.sticky }">
                     @if (plantillaDe(col.key); as tpl) {
                       <ng-container *ngTemplateOutlet="tpl; context: { $implicit: row }"></ng-container>
                     } @else {
@@ -199,7 +208,7 @@ export class DataTableCellDirective {
                 }
 
                 @if (actions && actions.length > 0) {
-                  <td class="py-2 px-4 text-right" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+                  <td class="py-2 px-4 text-right sticky right-0 z-[5] bg-white group-hover:bg-slate-50 shadow-[-4px_0_6px_-4px_rgba(0,0,0,0.08)]" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
                     <div class="flex items-center justify-end gap-1">
                       @for (act of actions; track act.id) {
                         <button
@@ -275,7 +284,13 @@ export class DataTableComponent implements OnInit, OnChanges, OnDestroy {
   @Input() rowClass: ((row: any) => string) | null = null;
   @Input() embebida = false;
   @Input() stickyHeader = true;
-  @Input() maxHeight = '70vh';
+  /**
+   * Por defecto sin tope: la tabla crece con su contenido y la página es la única que scrollea
+   * (vertical). Pásale un valor como '70vh' solo cuando la tabla vive dentro de un contenedor con
+   * altura fija de verdad (p. ej. un panel lateral), para no generar scroll vertical duplicado
+   * (uno en la tabla y otro en la página).
+   */
+  @Input() maxHeight = 'none';
 
   // ---- Búsqueda ----
   @Input() debounceMs = BUSQUEDA_DEBOUNCE_MS;

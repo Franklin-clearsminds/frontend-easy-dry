@@ -27,7 +27,7 @@ import { DataTableCellDirective, DataTableComponent, TableColumn } from '../../.
       [sortOrder]="tabla.sortOrder"
       [loading]="tabla.cargando"
       [error]="tabla.error"
-      maxHeight="55vh"
+      maxHeight="none"
       [caption]="tipo === 'agencia' ? 'Insumos de la agencia' : 'Insumos del kit del pulidor'"
       searchPlaceholder="Buscar insumo o SKU..."
       [emptyTitle]="tipo === 'agencia' ? 'No hay insumos que coincidan en esta agencia.' : 'No hay insumos que coincidan en el kit de este pulidor.'"
@@ -128,7 +128,7 @@ export class StockUbicacionInsumosComponent implements OnInit, OnChanges, OnDest
     { key: 'minimo', label: 'Stock Mínimo', sortable: true, defaultSort: 'desc' },
     { key: 'deficit', label: 'Déficit', sortable: true, defaultSort: 'desc' },
     { key: 'estado', label: 'Estado de Salud', sortable: true, defaultSort: 'asc' },
-    { key: 'acciones', label: 'Acción', align: 'right' },
+    { key: 'acciones', label: 'Acción', align: 'right', sticky: true },
   ];
 
   /** Por defecto el servidor los ordena por nombre. */

@@ -13,11 +13,18 @@ const TIPO_A_NOTIFICACION_TIPO: Record<string, NotificacionTipo> = {
   STOCK_CRITICO: 'alerta',
   LIMPIEZA_ATRASADA: 'alerta',
   DESPACHO_PENDIENTE: 'alerta',
+  MAQUINA_DADA_DE_BAJA: 'alerta',
   INCIDENCIA_RESUELTA: 'exito',
   APROBACION_PENDIENTE: 'sistema',
+  RETO_CERRADO: 'sistema',
+  USUARIO_ACTUALIZADO: 'sistema',
   INCIDENCIA_ASIGNADA: 'info',
   MANTENIMIENTO_ASIGNADO: 'info',
   LIMPIEZA_RECORDATORIO: 'info',
+  SERVICIO_DECIDIDO: 'info',
+  SERVICIO_ESPECIAL_ASIGNADO: 'info',
+  SERVICIO_ESPECIAL_CERRADO: 'info',
+  DESPACHO_CONFIRMADO: 'info',
 };
 
 const ENLACE_POR_ENTIDAD: Record<string, { enlace: string; enlaceLabel: string }> = {
@@ -25,6 +32,11 @@ const ENLACE_POR_ENTIDAD: Record<string, { enlace: string; enlaceLabel: string }
   INSUMO: { enlace: '/inventario', enlaceLabel: 'Ver Inventario' },
   SOLICITUD_APROBACION: { enlace: '/aprobaciones', enlaceLabel: 'Revisar Solicitud' },
   MOVIMIENTO_INVENTARIO: { enlace: '/envios', enlaceLabel: 'Confirmar Recepción' },
+  SERVICIO_LAVADO: { enlace: '/servicios', enlaceLabel: 'Ver Servicio' },
+  SERVICIO_ESPECIAL: { enlace: '/servicios', enlaceLabel: 'Ver Servicio Especial' },
+  RETO: { enlace: '/productividad', enlaceLabel: 'Ver Retos' },
+  USUARIO: { enlace: '/usuarios', enlaceLabel: 'Ver Usuario' },
+  AGENCIA: { enlace: '/sucursales', enlaceLabel: 'Ver Agencia' },
 };
 
 @Injectable({
