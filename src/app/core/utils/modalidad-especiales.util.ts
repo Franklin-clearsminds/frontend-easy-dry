@@ -3,8 +3,9 @@ export type ModalidadPulidor = 'FIJO' | 'MOVIL';
 export function esRolOperadorEspeciales(rol?: string): boolean {
   if (!rol) return false;
   const n = rol.toLowerCase();
-  if (n.includes('jefe')) return false;
+  if (n.includes('jefe') || n.includes('coord')) return false;
   return (
+    n.includes('pulidor') ||
     n === 'operador_servicios_especiales' ||
     n.includes('operador de servicios especiales') ||
     n.includes('operador servicios especiales')

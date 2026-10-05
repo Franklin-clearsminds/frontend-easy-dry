@@ -9,7 +9,7 @@ import { LucideAngularModule } from 'lucide-angular';
   template: `
     <div class="bg-white rounded-2xl p-6 border border-slate-100 shadow-easydry h-full">
       <h4 class="font-bold text-slate-900 text-lg font-outfit mb-4 flex items-center gap-2">
-        <i-lucide name="bell" class="w-5 h-5 text-easydry-blue"></i-lucide>
+        <i-lucide aria-hidden="true" name="bell" class="w-5 h-5 text-easydry-blue"></i-lucide>
         Alertas Operativas
       </h4>
       <div class="space-y-3">
@@ -22,11 +22,11 @@ import { LucideAngularModule } from 'lucide-angular';
                }">
             <div class="mt-0.5">
               @if (alerta.tipo === 'critica') {
-                <i-lucide name="alert-triangle" class="w-4 h-4 text-rose-600"></i-lucide>
+                <i-lucide aria-hidden="true" name="alert-triangle" class="w-4 h-4 text-rose-600"></i-lucide>
               } @else if (alerta.tipo === 'advertencia') {
-                <i-lucide name="alert-circle" class="w-4 h-4 text-amber-600"></i-lucide>
+                <i-lucide aria-hidden="true" name="alert-circle" class="w-4 h-4 text-amber-600"></i-lucide>
               } @else {
-                <i-lucide name="info" class="w-4 h-4 text-easydry-blue"></i-lucide>
+                <i-lucide aria-hidden="true" name="info" class="w-4 h-4 text-easydry-blue"></i-lucide>
               }
             </div>
             <div>
@@ -38,7 +38,7 @@ import { LucideAngularModule } from 'lucide-angular';
                  }">
                 {{ alerta.mensaje }}
               </p>
-              <p class="text-[10px] opacity-70 mt-0.5"
+              <p class="text-xs opacity-70 mt-0.5"
                  [ngClass]="{
                    'text-rose-700': alerta.tipo === 'critica',
                    'text-amber-700': alerta.tipo === 'advertencia',
@@ -49,7 +49,7 @@ import { LucideAngularModule } from 'lucide-angular';
             </div>
           </div>
         } @empty {
-          <div class="p-4 text-center text-slate-400 text-sm italic">
+          <div class="p-4 text-center text-slate-500 text-sm italic">
             No hay alertas activas
           </div>
         }

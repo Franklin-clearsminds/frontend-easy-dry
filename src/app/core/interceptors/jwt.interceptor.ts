@@ -1,25 +1,69 @@
-import { HttpInterceptorFn } from '@angular/common/http';
+import { HttpErrorResponse, HttpInterceptorFn } from '@angular/common/http';
 import { inject } from '@angular/core';
+import { catchError, switchMap, throwError } from 'rxjs';
 import { AuthService } from '../services/auth.service';
 
 /**
- * EasyDry® Web — Interceptor de Autenticación JWT y Trazabilidad
- * Alineado con Arquitectura Enterprise v2.0
+ * EasyDry® Web — Interceptor JWT
+ * Adjunta Bearer, renueva el token antes de vencer y reintenta una vez en 401.
  */
 export const jwtInterceptor: HttpInterceptorFn = (req, next) => {
   const authService = inject(AuthService);
-  const currentUser = authService.currentUserValue;
 
-  // Generar o propagar X-Request-Id para observabilidad
-  const requestId = req.headers.get('X-Request-Id') || `web_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+  const isAuthEndpoint = /\/auth\/(login|refresh)(?:\?|$)/.test(req.url);
+  const skipRefresh =
+    isAuthEndpoint ||
+    req.headers.has('X-Skip-Auth-Refresh') ||
+    req.headers.has('x-skip-auth-refresh');
 
-  let headers = req.headers.set('X-Request-Id', requestId);
+  const attachAuth = (token: string | null) => {
+    const requestId =
+      req.headers.get('X-Request-Id') ||
+      `web_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
 
-  // Agregar Bearer token si el usuario está autenticado y la petición va a la API
-  if (currentUser?.token) {
-    headers = headers.set('Authorization', `Bearer ${currentUser.token}`);
+    let headers = req.headers.set('X-Request-Id', requestId);
+    if (token && !isAuthEndpoint) {
+      headers = headers.set('Authorization', `Bearer ${token}`);
+    }
+    return req.clone({ headers });
+  };
+
+  const sendWithCurrentToken = () =>
+    next(attachAuth(authService.getAccessToken())).pipe(
+      catchError((error: HttpErrorResponse) => {
+        if (skipRefresh || error.status !== 401 || !authService.getRefreshToken()) {
+          return throwError(() => error);
+        }
+
+        return authService.refreshSession().pipe(
+          switchMap(ok => {
+            if (!ok) {
+              authService.logout();
+              return throwError(() => error);
+            }
+            return next(attachAuth(authService.getAccessToken()));
+          })
+        );
+      })
+    );
+
+  if (
+    !skipRefresh &&
+    authService.isLoggedIn() &&
+    authService.isAccessTokenExpiringSoon()
+  ) {
+    return authService.refreshSession().pipe(
+      switchMap(ok => {
+        if (!ok && authService.isAccessTokenExpired()) {
+          authService.logout();
+          return throwError(
+            () => new HttpErrorResponse({ status: 401, statusText: 'Sesión expirada' })
+          );
+        }
+        return sendWithCurrentToken();
+      })
+    );
   }
 
-  const clonedRequest = req.clone({ headers });
-  return next(clonedRequest);
+  return sendWithCurrentToken();
 };

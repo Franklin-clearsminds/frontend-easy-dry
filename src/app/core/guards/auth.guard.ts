@@ -1,46 +1,23 @@
 import { inject } from '@angular/core';
-import { CanActivateFn, Router, ActivatedRouteSnapshot } from '@angular/router';
+import { CanActivateFn, Router } from '@angular/router';
 import { AuthService } from '../services/auth.service';
-import { Role } from '../models/roles.model';
 
 /**
  * Guard que verifica acceso a módulos / roles.
  * SuperAdmin SIEMPRE tiene acceso total e incondicional.
  */
-export const roleGuard = (allowedRoles?: (Role | string)[], moduloCodigo?: string): CanActivateFn => {
-  return (route: ActivatedRouteSnapshot) => {
+/**
+ * Guard de módulo: deja pasar si el rol tiene el módulo en la base de datos (el mismo que arma el menú). Un usuario sin ningún
+ * permiso va a la pantalla de «sin acceso». No hay listas de roles escritas a mano.
+ */
+export const moduloGuard = (moduloCodigo: string): CanActivateFn => {
+  return () => {
     const authService = inject(AuthService);
     const router = inject(Router);
 
-    if (!authService.isLoggedIn()) {
-      return router.createUrlTree(['/login']);
-    }
-
-    // SuperAdmin tiene acceso total a cualquier ruta
-    if (authService.isSuperAdmin()) {
-      return true;
-    }
-
-    // Si se especificó un módulo, validar por módulo
-    if (moduloCodigo && authService.hasModuleAccess(moduloCodigo)) {
-      return true;
-    }
-
-    // O inferir el módulo de la ruta actual si coincide
-    const currentPath = route.routeConfig?.path || '';
-    if (currentPath && authService.hasModuleAccess(currentPath)) {
-      return true;
-    }
-
-    // O validar roles permitidos si se proveyeron
-    if (allowedRoles && allowedRoles.length > 0) {
-      const userRole = authService.getRole();
-      if (userRole && allowedRoles.includes(userRole)) {
-        return true;
-      }
-    }
-
-    // Redirigir a página de acceso denegado
+    if (!authService.isLoggedIn()) return router.createUrlTree(['/login']);
+    if (authService.sinAcceso()) return router.createUrlTree(['/sin-acceso']);
+    if (authService.isSuperAdmin() || authService.hasModuleAccess(moduloCodigo)) return true;
     return router.createUrlTree(['/unauthorized']);
   };
 };
@@ -53,6 +30,10 @@ export const authGuard: CanActivateFn = (route, state) => {
   const router = inject(Router);
 
   if (authService.isLoggedIn()) {
+    // Sin permisos (p. ej. un lavador) no se usa la plataforma: solo ve la pantalla de «sin acceso».
+    if (authService.sinAcceso() && !state.url.startsWith('/sin-acceso')) {
+      return router.createUrlTree(['/sin-acceso']);
+    }
     return true;
   }
 

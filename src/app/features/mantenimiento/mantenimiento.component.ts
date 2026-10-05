@@ -1,1335 +1,646 @@
-import { Component, OnInit, inject, Input } from '@angular/core';
+import { Component, OnDestroy, OnInit, ViewChild, inject, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LucideAngularModule } from 'lucide-angular';
-import { MantenimientoMockService } from '../../core/services/mantenimiento-mock.service';
-import { MaquinariaMockService } from '../../core/services/maquinaria-mock.service';
+import { Subject, Subscription, debounceTime, distinctUntilChanged, map, tap } from 'rxjs';
+import { ConsultaMantenimientos, MantenimientoService, ResumenMantenimientos } from '../../core/services/mantenimiento.service';
+import { MaquinariaService } from '../../core/services/maquinaria.service';
 import { AuthService } from '../../core/services/auth.service';
-import { Mantenimiento, Maquinaria, ArchivoAdjunto } from '../../core/models';
-import { Role } from '../../core/models/roles.model';
-import { DEMO_CREDENTIALS } from '../../core/services/auth.service';
+import { Mantenimiento, Maquinaria, Sucursal, etiquetaFrecuenciaMantenimiento } from '../../core/models';
 import { ModalComponent } from '../../shared/components/modal/modal.component';
-import { ToastService } from '../../shared/services/toast.service';
-import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
+import { DataTableCellDirective, DataTableComponent, TableColumn } from '../../shared/components/data-table/data-table.component';
+import { InfiniteScrollComponent } from '../../shared/components/infinite-scroll/infinite-scroll.component';
+import { ListaInfinita } from '../../core/utils/lista-infinita';
+import { ConsultaTabla, OrdenDir } from '../../core/models/paginacion.model';
+import { BUSQUEDA_DEBOUNCE_MS, BUSQUEDA_MIN_CARACTERES, PAGE_SIZE_INFINITO, PAGE_SIZE_TABLA } from '../../core/config/paginacion';
 import { FilterBarComponent, FilterState } from '../../shared/components/filter-bar/filter-bar.component';
-import { resolverRangoFechas, soloFecha } from '../../core/utils/fecha-rango';
-import { FileUploaderComponent } from '../../shared/components/file-uploader/file-uploader.component';
-import { ModalPortalDirective } from '../../shared/directives/modal-portal.directive';
-import { SucursalMockService } from '../../core/services/sucursal-mock.service';
+import { EvidenciaGaleriaComponent } from '../../shared/components/evidencia-galeria/evidencia-galeria.component';
+import { resolverRangoFechas } from '../../core/utils/fecha-rango';
+import { SucursalService } from '../../core/services/sucursal.service';
+import { fechaHoraLocal, fechaProgramadaLocal } from '../../core/utils/evidencia-maquinaria';
+import { puedeGestionarMaquina, puedeEjecutarMantenimientos, puedeVerMaquinaria } from '../../core/utils/maquinaria-permisos';
+import { TrabajoAccionesComponent } from '../maquinaria/trabajo-acciones/trabajo-acciones.component';
+import { ChecklistOrdenComponent } from './checklist-orden/checklist-orden.component';
+import { MaquinariaDetalleModalComponent } from '../maquinaria/maquinaria-detalle-modal/maquinaria-detalle-modal.component';
+import { SkeletonLoaderComponent } from '../../shared/components/skeleton-loader/skeleton-loader.component';
+import { badgeClase, BADGE_NO_ATENDIDO } from '../../core/utils/badges';
 
 @Component({
   selector: 'app-mantenimiento',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, PaginationComponent, FilterBarComponent, FileUploaderComponent, ModalPortalDirective],
+  imports: [
+    CommonModule, FormsModule, LucideAngularModule, ModalComponent, DataTableComponent, DataTableCellDirective, InfiniteScrollComponent, FilterBarComponent,
+    EvidenciaGaleriaComponent, TrabajoAccionesComponent, MaquinariaDetalleModalComponent, SkeletonLoaderComponent, ChecklistOrdenComponent,
+  ],
   template: `
     <div class="space-y-6 animate-fade-in">
-      
-      <!-- Top Title & Action Bar -->
+
       @if (!hideHeader) {
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-100 shadow-easydry">
           <div>
             <h1 class="text-2xl font-extrabold text-slate-900 font-outfit">Plan de Mantenimiento Preventivo & Correctivo</h1>
-            <p class="text-slate-500 text-xs mt-1">Programación de intervenciones técnicas, calendario de visitas y presupuesto de repuestos.</p>
+            <p class="text-slate-500 text-xs mt-1">Programación de intervenciones técnicas. Los mantenimientos vencidos y sin ejecutar aparecen primero, en rojo.</p>
           </div>
         </div>
       }
 
-      <!-- Calendar / Visual Timeline Banner (Punto 17) -->
-      <div class="bg-white rounded-2xl p-6 border border-slate-100 shadow-easydry space-y-4">
-        <div class="flex items-center justify-between">
-          <h3 class="font-bold text-slate-900 text-base font-outfit flex items-center gap-2">
-            <i-lucide name="calendar-clock" class="w-5 h-5 text-easydry-blue"></i-lucide>
-            <span>Línea de Tiempo de Intervenciones Técnicas (Julio - Agosto 2026)</span>
-          </h3>
-          <span class="text-xs text-slate-400">Haga clic en una fecha para ver la ficha técnica</span>
+      <!-- Resumen real de pendientes -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div class="p-4 rounded-2xl border" [ngClass]="totalNoAtendidos > 0 ? 'bg-rose-50 border-rose-200' : 'bg-white border-slate-100'">
+          <span class="block text-[11px] text-slate-500 font-bold uppercase">No atendidos (vencidos)</span>
+          <span class="text-2xl font-extrabold" [ngClass]="totalNoAtendidos > 0 ? 'text-rose-700' : 'text-slate-800'">{{ totalNoAtendidos }}</span>
         </div>
-
-        <!-- Calendar Days Grid Bar -->
-        <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
-          @for (day of diasCalendario; track day.fecha) {
-            <div 
-              (click)="seleccionarDia(day)"
-              class="p-3.5 rounded-xl border flex flex-col justify-between transition-all cursor-pointer hover:shadow-xs hover:border-easydry-blue"
-              [ngClass]="{
-                'bg-easydry-blue/15 border-easydry-blue text-easydry-blue font-bold ring-2 ring-easydry-blue/30': diaSeleccionado?.fecha === day.fecha,
-                'bg-easydry-blue/10 border-easydry-blue text-easydry-blue font-bold': day.tieneMantenimiento && diaSeleccionado?.fecha !== day.fecha,
-                'bg-slate-50 border-slate-200 text-slate-600': !day.tieneMantenimiento && diaSeleccionado?.fecha !== day.fecha
-              }">
-              <div class="flex items-center justify-between text-xs">
-                <span class="font-mono font-bold">{{ day.dia }}</span>
-                <span class="text-[10px] uppercase font-bold">{{ day.nombreDia }}</span>
-              </div>
-              <p class="text-[11px] font-medium mt-2 truncate">
-                {{ day.evento || 'Sin eventos' }}
-              </p>
-            </div>
-          }
+        <div class="p-4 rounded-2xl border bg-white border-slate-100">
+          <span class="block text-[11px] text-slate-500 font-bold uppercase">Programados</span>
+          <span class="text-2xl font-extrabold text-slate-800">{{ totalProgramados }}</span>
         </div>
-
-        <!-- Ficha de Intervención Técnica Desplegable (Punto 17) -->
-        @if (diaSeleccionado) {
-          <div class="p-5 bg-slate-50 border border-slate-200 rounded-2xl space-y-3 animate-fade-in">
-            <div class="flex items-center justify-between border-b border-slate-200 pb-3">
-              <div class="flex items-center gap-2.5">
-                <span class="p-2 bg-easydry-blue text-white rounded-xl">
-                  <i-lucide name="wrench" class="w-4 h-4"></i-lucide>
-                </span>
-                <div>
-                  <h4 class="font-bold text-slate-900 text-sm">Ficha Técnica de Intervención: {{ diaSeleccionado.fecha }}</h4>
-                  <p class="text-xs text-slate-500">{{ diaSeleccionado.evento || 'Visita preventiva programada' }}</p>
-                </div>
-              </div>
-              <button (click)="diaSeleccionado = null" class="text-slate-400 hover:text-slate-600 text-xs font-bold">Cerrar ✕</button>
-            </div>
-
-            <div class="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs">
-              <div class="p-3 bg-white rounded-xl border border-slate-200">
-                <span class="text-[10px] text-slate-400 font-bold uppercase block">Técnico Asignado</span>
-                <span class="font-bold text-slate-900 block mt-0.5">{{ diaSeleccionado.tecnico || 'Ing. Marco Andrade' }}</span>
-              </div>
-              <div class="p-3 bg-white rounded-xl border border-slate-200">
-                <span class="text-[10px] text-slate-400 font-bold uppercase block">Estado de la Visita</span>
-                <span class="font-bold text-emerald-700 block mt-0.5">{{ diaSeleccionado.estado || 'Programado' }}</span>
-              </div>
-              <div class="p-3 bg-white rounded-xl border border-slate-200">
-                <span class="text-[10px] text-slate-400 font-bold uppercase block">Duración Estimada</span>
-                <span class="font-bold text-easydry-blue block mt-0.5">{{ diaSeleccionado.duracion || '120 min (2 Horas)' }}</span>
-              </div>
-              <div class="p-3 bg-white rounded-xl border border-slate-200">
-                <span class="text-[10px] text-slate-400 font-bold uppercase block">Evidencias Multimedia</span>
-                <span class="font-bold text-purple-700 block mt-0.5">2 Fotos / 1 Video S3</span>
-              </div>
-            </div>
-          </div>
-        }
+        <div class="p-4 rounded-2xl border bg-white border-slate-100">
+          <span class="block text-[11px] text-slate-500 font-bold uppercase">Ejecutados</span>
+          <span class="text-2xl font-extrabold text-slate-800">{{ totalEjecutados }}</span>
+        </div>
       </div>
 
-      <!-- Global Filter Bar -->
-      <app-filter-bar 
-        [showSucursal]="true" 
+      <app-filter-bar
+        [showSucursal]="true"
         [showOperador]="false"
-        [showBahia]="true"
+        [showBahia]="false"
         [showEstado]="true"
         [showFechas]="true"
-        [showMarca]="true"
+        [showCliente]="true"
         [showBusqueda]="true"
+        [placeholderBusqueda]="'Buscar por máquina, técnico o sucursal...'"
         [listaEstados]="['Todos', 'Programado', 'En Proceso', 'Completado']"
         (filterChange)="aplicarNuevosFiltros($event)">
+        <label filter-actions class="inline-flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
+          <input type="checkbox" [(ngModel)]="soloNoAtendidos" (ngModelChange)="reiniciar()" class="w-4 h-4 accent-rose-600">
+          Solo no atendidos
+        </label>
       </app-filter-bar>
+      @if (busquedaCorta) {
+        <p class="-mt-3 px-2 text-[11px] font-semibold text-slate-500" role="status">Escribe al menos {{ minBusqueda }} letras para buscar.</p>
+      }
 
-      <!-- Mantenimientos Table -->
+      <!-- Mantenimientos (orden del backend: vencidos primero) -->
       <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry overflow-hidden">
         <div class="p-6 border-b border-slate-100 flex items-center justify-between">
           <div>
             <h3 class="font-bold text-slate-900 text-base font-outfit">Registro General de Mantenimientos</h3>
-            <span class="text-xs text-slate-500 font-semibold">Total programado: {{ mantenimientosFiltrados.length }}</span>
+            <span class="text-xs text-slate-500 font-semibold">Total: {{ totalMostrado }}</span>
           </div>
-          <button
-            (click)="modalCrearOpen = true"
-            class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
-            <i-lucide name="calendar-clock" class="w-4 h-4"></i-lucide>
-            <span class="hidden sm:inline">Agendar Mantenimiento</span>
-            <span class="sm:hidden">Agendar</span>
-          </button>
-        </div>
-
-        <!-- Desktop Table View -->
-        <div class="hidden lg:block overflow-x-auto">
-          <table class="w-full text-left text-sm">
-            <thead class="bg-slate-50 text-slate-500 text-xs font-bold uppercase tracking-wider border-b border-slate-200">
-              <tr>
-                <th class="py-3.5 px-4">Fecha Programada</th>
-                <th class="py-3.5 px-4">Maquinaria</th>
-                <th class="py-3.5 px-4">Tipo</th>
-                <th class="py-3.5 px-4">Técnico Certificado</th>
-                <th class="py-3.5 px-4">Estado</th>
-                <th class="py-3.5 px-4">Descripción</th>
-                <th class="py-3.5 px-4">Acciones</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-slate-100">
-              @for (m of paginatedMantenimientos; track m.id) {
-                <tr class="hover:bg-slate-50/80 transition-colors cursor-pointer" (click)="abrirDetalle(m)">
-                  <td class="py-3.5 px-4 text-xs font-mono font-bold text-easydry-blue">
-                    {{ m.fecha }}
-                  </td>
-                  <td class="py-3.5 px-4 font-bold text-slate-900 text-xs">
-                    {{ m.maquina }}
-                  </td>
-                  <td class="py-3.5 px-4">
-                    <span 
-                      class="px-2.5 py-1 rounded-lg text-xs font-semibold"
-                      [ngClass]="{
-                        'bg-blue-100 text-blue-800': m.tipo === 'Preventivo',
-                        'bg-rose-100 text-rose-800': m.tipo === 'Correctivo',
-                        'bg-indigo-100 text-indigo-800': m.tipo === 'Calibración'
-                      }">
-                      {{ m.tipo }}
-                    </span>
-                  </td>
-                  <td class="py-3.5 px-4 text-xs text-slate-700 font-medium">
-                    {{ m.tecnico }}
-                  </td>
-                  <td class="py-3.5 px-4">
-                    <span 
-                      class="px-3 py-1 rounded-full text-xs font-bold"
-                      [ngClass]="{
-                        'bg-amber-100 text-amber-800': m.estado === 'Programado',
-                        'bg-easydry-blue/15 text-easydry-blue': m.estado === 'En Proceso',
-                        'bg-easydry-green/20 text-easydry-green-dark': m.estado === 'Completado'
-                      }">
-                      {{ m.estado }}
-                    </span>
-                  </td>
-                  <td class="py-3.5 px-4 text-xs text-slate-500 max-w-xs truncate">
-                    {{ m.descripcion }}
-                  </td>
-                  <td class="py-3.5 px-4">
-                    <div class="flex items-center gap-1.5">
-                      <button
-                        (click)="abrirDetalle(m); $event.stopPropagation()"
-                        title="Ver detalle"
-                        class="p-1.5 bg-easydry-blue/10 hover:bg-easydry-blue hover:text-white text-easydry-blue rounded-lg transition-colors cursor-pointer inline-flex items-center justify-center">
-                        <i-lucide name="eye" class="w-3.5 h-3.5"></i-lucide>
-                      </button>
-                      @if (m.estado !== 'Completado' && m.estado !== 'Cancelado') {
-                        @if (puedeAsignar) {
-                          <button
-                            (click)="openModalAsignar(m); $event.stopPropagation()"
-                            [title]="m.tecnicoAsignadoId ? 'Reasignar técnico' : 'Asignar técnico'"
-                            class="p-1.5 bg-violet-600 hover:bg-violet-700 text-white rounded-lg transition-colors cursor-pointer flex items-center justify-center">
-                            <i-lucide name="user-plus" class="w-3.5 h-3.5"></i-lucide>
-                          </button>
-                          @if (m.tecnicoAsignadoId) {
-                            <button
-                              (click)="cancelarAsignacionMantenimiento(m); $event.stopPropagation()"
-                              title="Cancelar asignación"
-                              class="p-1.5 bg-rose-100 hover:bg-rose-200 text-rose-800 rounded-lg transition-colors cursor-pointer flex items-center justify-center">
-                              <i-lucide name="x-circle" class="w-3.5 h-3.5"></i-lucide>
-                            </button>
-                          }
-                        }
-                        @if (puedeCompletar(m)) {
-                          <button
-                            (click)="abrirModalCompletar(m); $event.stopPropagation()"
-                            title="Marcar completado"
-                            class="p-1.5 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 rounded-lg transition-colors shadow-glow-green flex items-center justify-center cursor-pointer">
-                            <i-lucide name="check-circle-2" class="w-3.5 h-3.5"></i-lucide>
-                          </button>
-                        }
-                      } @else if (m.estado === 'Completado') {
-                        <button
-                          (click)="abrirDetalle(m); $event.stopPropagation()"
-                          title="Ver cierre"
-                          class="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg transition-colors cursor-pointer inline-flex items-center justify-center">
-                          <i-lucide name="eye" class="w-3.5 h-3.5"></i-lucide>
-                        </button>
-                      }
-                    </div>
-                  </td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        </div>
-
-        <!-- Mobile Card View -->
-        <div class="block lg:hidden divide-y divide-slate-100">
-          @for (m of paginatedMantenimientos; track m.id) {
-            <div class="p-4 hover:bg-slate-50 transition-colors cursor-pointer" (click)="abrirDetalle(m)">
-              <div class="flex items-start justify-between mb-2">
-                <div>
-                  <span class="font-mono font-extrabold text-xs text-easydry-blue bg-easydry-blue/10 px-2 py-0.5 rounded-md">
-                    {{ m.fecha }}
-                  </span>
-                  <div class="font-bold text-slate-900 text-sm mt-1.5">{{ m.maquina }}</div>
-                </div>
-                <span class="px-2.5 py-1 rounded-full text-[10px] font-extrabold text-center max-w-[80px]"
-                  [ngClass]="{
-                    'bg-amber-100 text-amber-800': m.estado === 'Programado',
-                    'bg-easydry-blue/15 text-easydry-blue': m.estado === 'En Proceso',
-                    'bg-easydry-green/20 text-easydry-green-dark': m.estado === 'Completado'
-                  }">
-                  {{ m.estado }}
-                </span>
-              </div>
-              
-              <div class="flex items-center justify-between mt-3 text-xs">
-                <span class="px-2 py-0.5 rounded-md font-semibold text-[10px]"
-                  [ngClass]="{
-                    'bg-blue-100 text-blue-800': m.tipo === 'Preventivo',
-                    'bg-rose-100 text-rose-800': m.tipo === 'Correctivo',
-                    'bg-indigo-100 text-indigo-800': m.tipo === 'Calibración'
-                  }">
-                  {{ m.tipo }}
-                </span>
-                <div class="font-semibold text-slate-700 truncate max-w-[150px]">
-                  {{ m.tecnico }}
-                </div>
-              </div>
-              @if (m.estado !== 'Completado' && m.estado !== 'Cancelado') {
-                <div class="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-slate-100" (click)="$event.stopPropagation()">
-                  <button
-                    (click)="abrirDetalle(m)"
-                    class="px-3 py-1.5 bg-easydry-blue/10 hover:bg-easydry-blue hover:text-white text-easydry-blue font-bold rounded-lg text-[10px] inline-flex items-center gap-1">
-                    <i-lucide name="eye" class="w-3 h-3"></i-lucide>
-                    Ver detalle
-                  </button>
-                  @if (puedeAsignar) {
-                    <button
-                      (click)="openModalAsignar(m)"
-                      class="px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-lg text-[10px]">
-                      {{ m.tecnicoAsignadoId ? 'Reasignar' : 'Asignar' }}
-                    </button>
-                    @if (m.tecnicoAsignadoId) {
-                      <button
-                        (click)="cancelarAsignacionMantenimiento(m)"
-                        class="px-3 py-1.5 bg-rose-100 hover:bg-rose-200 text-rose-800 font-bold rounded-lg text-[10px]">
-                        Cancelar
-                      </button>
-                    }
-                  }
-                  @if (puedeCompletar(m)) {
-                    <button
-                      (click)="abrirModalCompletar(m)"
-                      class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
-                      Registrar realización
-                    </button>
-                  }
-                </div>
-              }
-            </div>
+          @if (puedeProgramar) {
+            <button
+              (click)="programar()"
+              type="button"
+              class="btn btn-cta">
+              <i-lucide name="calendar-clock" class="w-4 h-4" aria-hidden="true"></i-lucide>
+              <span class="hidden sm:inline">Programar Mantenimiento</span>
+              <span class="sm:hidden">Programar</span>
+            </button>
           }
         </div>
-        
-        <app-pagination 
-          [totalItems]="mantenimientosFiltrados.length" 
-          [currentPage]="currentPage" 
-          [pageSize]="pageSize"
-          (pageChange)="onPageChange($event)"
-          (pageSizeChange)="onPageSizeChange($event)">
-        </app-pagination>
+
+        @if (esEscritorio) {
+          <!-- Vista de tabla (escritorio): páginas numeradas, orden en el servidor -->
+          <app-data-table
+            [serverSide]="true"
+            [embebida]="true"
+            [showToolbar]="false"
+            [columns]="columnas"
+            [data]="filas"
+            [total]="totalTabla"
+            [page]="pagina"
+            [pageSize]="pageSizeTabla"
+            [sortField]="sortField"
+            [sortOrder]="sortOrder"
+            [loading]="cargandoTabla"
+            [error]="errorTabla"
+            [rowClickable]="true"
+            [rowClass]="claseFila"
+            maxHeight="none"
+            caption="Mantenimientos de maquinaria"
+            [emptyTitle]="tituloVacio"
+            emptyHint="Prueba ajustando los filtros o el texto de búsqueda."
+            (queryChange)="onTablaCambio($event)"
+            (rowClick)="abrirDetalle($event)"
+            (reintentar)="cargarPagina(true)">
+
+            <ng-template appCell="fecha" let-m>
+              <div class="text-xs font-mono font-bold" [ngClass]="m.noAtendido ? 'text-rose-700' : 'text-easydry-blue'">
+                {{ fechaProg(m.fechaProgramada) }}
+                @if (m.noAtendido) {
+                  <span class="block mt-1 w-fit font-sans" [class]="badgeNoAtendido">No atendido</span>
+                }
+                <span class="block text-xs text-slate-500 font-sans font-semibold">{{ etiquetaFrecuencia(m.frecuenciaDias) }}</span>
+              </div>
+            </ng-template>
+
+            <ng-template appCell="maquina" let-m>
+              <span class="font-bold text-xs" [ngClass]="m.noAtendido ? 'text-rose-800' : 'text-slate-900'">{{ m.maquina }}</span>
+            </ng-template>
+
+            <ng-template appCell="tipo" let-m>
+              <span class="px-2.5 py-1 rounded-lg text-xs font-semibold"
+                [ngClass]="m.tipo === 'Correctivo' ? 'bg-rose-100 text-rose-800' : 'bg-blue-100 text-blue-800'">{{ m.tipo }}</span>
+            </ng-template>
+
+            <ng-template appCell="tecnico" let-m>
+              <span class="text-xs text-slate-700 font-medium">{{ m.tecnicoAsignadoNombre || 'Sin asignar' }}</span>
+            </ng-template>
+
+            <ng-template appCell="estado" let-m>
+              <span [class]="badgeClase('mantenimiento', m.estado)">{{ m.estado }}</span>
+            </ng-template>
+
+            <ng-template appCell="ejecucion" let-m>
+              <div class="text-xs text-slate-600">
+                @if (m.fechaEjecucion) {
+                  <span class="font-mono">{{ hora(m.fechaEjecucion) }}</span>
+                  <span class="block text-xs text-slate-500">{{ m.ejecutadoPorNombre }}</span>
+                } @else { <span class="text-slate-500">—</span> }
+              </div>
+            </ng-template>
+
+            <ng-template appCell="acciones" let-m>
+              <div class="flex items-center gap-1.5 flex-wrap" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+                <button type="button" (click)="abrirDetalle(m)" title="Ver detalle" aria-label="Ver detalle del mantenimiento"
+                  class="btn-icon border border-slate-200 bg-white">
+                  <i-lucide name="eye" class="w-4 h-4" aria-hidden="true"></i-lucide>
+                </button>
+                @if (puedeAsignar(m)) {
+                  <button type="button" (click)="acciones.asignarMantenimiento(m)" [title]="m.tecnicoAsignadoId ? 'Reasignar técnico' : 'Asignar técnico'"
+                    [attr.aria-label]="m.tecnicoAsignadoId ? 'Reasignar técnico' : 'Asignar técnico'"
+                    class="btn-icon border border-slate-200 bg-white">
+                    <i-lucide name="user-plus" class="w-4 h-4" aria-hidden="true"></i-lucide>
+                  </button>
+                }
+                @if (puedeEjecutar(m)) {
+                  <button type="button" (click)="acciones.ejecutarMantenimiento(m)" title="Ejecutar mantenimiento" aria-label="Ejecutar mantenimiento"
+                    class="btn-icon bg-easydry-blue text-white hover:bg-easydry-blue-dark hover:text-white">
+                    <i-lucide name="check-circle-2" class="w-4 h-4" aria-hidden="true"></i-lucide>
+                  </button>
+                }
+                @if (puedeEditar(m)) {
+                  <button type="button" (click)="acciones.editarMantenimiento(m)" title="Editar" aria-label="Editar mantenimiento"
+                    class="btn-icon border border-slate-200 bg-white">
+                    <i-lucide name="pencil" class="w-4 h-4" aria-hidden="true"></i-lucide>
+                  </button>
+                }
+                <button type="button" (click)="acciones.agregarEvidencia('MANTENIMIENTO', m)" title="Agregar evidencia" aria-label="Agregar evidencia"
+                  class="btn-icon border border-slate-200 bg-white">
+                  <i-lucide name="camera" class="w-4 h-4" aria-hidden="true"></i-lucide>
+                </button>
+              </div>
+            </ng-template>
+          </app-data-table>
+        } @else {
+          <!-- Vista móvil: tarjetas con scroll infinito -->
+          <div class="divide-y divide-slate-100">
+            @for (m of lista.items; track m.id) {
+              <div class="p-4 transition-colors cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-easydry-blue" [ngClass]="m.noAtendido ? 'bg-rose-50/70' : 'hover:bg-slate-50'"
+                tabindex="0" (click)="abrirDetalle(m)" (keydown.enter)="abrirDetalle(m)" (keydown.space)="$event.preventDefault(); abrirDetalle(m)">
+                <div class="flex items-start justify-between mb-2 gap-2">
+                  <div>
+                    <span class="font-mono font-extrabold text-xs px-2 py-0.5 rounded-md" [ngClass]="m.noAtendido ? 'text-rose-700 bg-rose-100' : 'text-easydry-blue bg-easydry-blue/10'">{{ fechaProg(m.fechaProgramada) }}</span>
+                    @if (m.noAtendido) { <span class="ml-1.5" [class]="badgeNoAtendido">No atendido</span> }
+                    <div class="font-bold text-sm mt-1.5" [ngClass]="m.noAtendido ? 'text-rose-800' : 'text-slate-900'">{{ m.maquina }}</div>
+                    <p class="text-xs text-slate-500 mt-0.5">{{ etiquetaFrecuencia(m.frecuenciaDias) }}</p>
+                  </div>
+                  <span class="text-center" [class]="badgeClase('mantenimiento', m.estado)">{{ m.estado }}</span>
+                </div>
+                <div class="flex items-center justify-between mt-2 text-xs">
+                  <span class="px-2 py-0.5 rounded-md font-semibold text-xs" [ngClass]="m.tipo === 'Correctivo' ? 'bg-rose-100 text-rose-800' : 'bg-blue-100 text-blue-800'">{{ m.tipo }}</span>
+                  <div class="font-semibold text-slate-700 truncate max-w-[150px]">{{ m.tecnicoAsignadoNombre || 'Sin asignar' }}</div>
+                </div>
+                <div class="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-slate-100" (click)="$event.stopPropagation()" (keydown.enter)="$event.stopPropagation()" (keydown.space)="$event.stopPropagation()">
+                  @if (puedeAsignar(m)) {
+                    <button type="button" (click)="acciones.asignarMantenimiento(m)" class="btn btn-secondary btn-sm">{{ m.tecnicoAsignadoId ? 'Reasignar' : 'Asignar' }}</button>
+                  }
+                  @if (puedeEjecutar(m)) {
+                    <button type="button" (click)="acciones.ejecutarMantenimiento(m)" class="btn btn-primary btn-sm">Ejecutar</button>
+                  }
+                  @if (puedeEditar(m)) {
+                    <button type="button" (click)="acciones.editarMantenimiento(m)" class="btn btn-secondary btn-sm">Editar</button>
+                  }
+                  <button type="button" (click)="acciones.agregarEvidencia('MANTENIMIENTO', m)" class="btn btn-secondary btn-sm">+ Evidencia</button>
+                </div>
+              </div>
+            }
+          </div>
+
+          @if (lista.error && lista.items.length === 0) {
+            <div role="alert" class="p-6 flex flex-col items-center gap-3 text-center">
+              <div class="estado-error">{{ lista.error }}</div>
+              <button type="button" class="btn btn-secondary btn-sm" (click)="reiniciar()">Reintentar</button>
+            </div>
+          } @else if (!lista.inicializada) {
+            <div class="p-4" role="status" aria-live="polite">
+              <span class="sr-only">Cargando mantenimientos…</span>
+              <app-skeleton-loader type="table"></app-skeleton-loader>
+            </div>
+          } @else if (lista.items.length === 0) {
+            <p class="estado-vacio">{{ tituloVacio }}</p>
+          } @else {
+            <app-infinite-scroll
+              [hasMore]="lista.hasMore"
+              [loading]="lista.cargando"
+              [error]="lista.error"
+              [total]="lista.total"
+              (cargarMas)="lista.siguiente()"
+              (reintentar)="lista.reintentar()">
+            </app-infinite-scroll>
+          }
+        }
       </div>
 
-      <!-- Modal Detalle Mantenimiento -->
-      <app-modal 
-        [isOpen]="modalDetalleOpen" 
-        [title]="'Ficha Técnica: ' + (mantenimientoDetalleSeleccionado?.maquina || 'Mantenimiento')" 
+      <!-- Ficha del mantenimiento -->
+      <app-modal
+        [isOpen]="modalDetalleOpen"
+        [title]="'Ficha técnica: ' + (detalle?.maquina || 'Mantenimiento')"
         icon="clipboard-list"
+        size="xl"
         (close)="modalDetalleOpen = false">
-        
-        @if (mantenimientoDetalleSeleccionado; as m) {
-          <div class="space-y-5 max-h-[65vh] overflow-y-auto pr-1">
-
-            <!-- Resumen superior -->
+        @if (detalle; as m) {
+          <div class="space-y-5">
             <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
-                <span class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 font-mono">Orden #MNT-{{ m.id }}</span>
+                <span class="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 font-mono">Orden #{{ m.id }}</span>
                 <h3 class="text-lg font-bold text-slate-900">{{ m.maquina }}</h3>
-                <p class="text-xs text-slate-500">{{ m.agencia || 'Sin agencia' }} · Programado: {{ m.fecha }}</p>
+                <p class="text-xs text-slate-500">{{ m.agencia || 'Sin agencia' }}</p>
               </div>
               <div class="flex flex-wrap items-center gap-2">
-                <span class="px-3 py-1.5 rounded-xl text-xs font-extrabold"
-                  [ngClass]="{
-                    'bg-amber-100 text-amber-800 border border-amber-300': m.estado === 'Programado',
-                    'bg-easydry-blue/15 text-easydry-blue border border-easydry-blue/30': m.estado === 'En Proceso',
-                    'bg-easydry-green/20 text-easydry-green-dark border border-easydry-green/40': m.estado === 'Completado',
-                    'bg-rose-100 text-rose-800 border border-rose-300': m.estado === 'Cancelado'
-                  }">
-                  {{ m.estado }}
-                </span>
-                <span class="px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200">
-                  {{ m.tipo }}
-                </span>
+                @if (m.noAtendido) { <span [class]="badgeNoAtendido">No atendido</span> }
+                <span [class]="badgeClase('mantenimiento', m.estado)">{{ m.estado }}</span>
+                <span class="badge badge-neutral">{{ m.tipo }}</span>
               </div>
             </div>
 
-            <!-- Pestañas de Detalle -->
-            <div class="flex items-center gap-2 bg-slate-100 p-1 rounded-xl">
-              <button
-                type="button"
-                (click)="detalleTab = 'resumen'"
-                class="flex-1 py-2 px-3 rounded-lg text-xs font-extrabold transition-all flex items-center justify-center gap-1.5"
-                [ngClass]="detalleTab === 'resumen' ? 'bg-white text-easydry-blue shadow-xs' : 'text-slate-500 hover:text-slate-700'">
-                <i-lucide name="clipboard-list" class="w-4 h-4"></i-lucide>
-                Resumen
-              </button>
-              <button
-                type="button"
-                (click)="detalleTab = 'tiempo'"
-                class="flex-1 py-2 px-3 rounded-lg text-xs font-extrabold transition-all flex items-center justify-center gap-1.5"
-                [ngClass]="detalleTab === 'tiempo' ? 'bg-white text-easydry-blue shadow-xs' : 'text-slate-500 hover:text-slate-700'">
-                <i-lucide name="history" class="w-4 h-4"></i-lucide>
-                Línea de Tiempo
-              </button>
-              <button
-                type="button"
-                (click)="detalleTab = 'evidencias'"
-                class="flex-1 py-2 px-3 rounded-lg text-xs font-extrabold transition-all flex items-center justify-center gap-1.5"
-                [ngClass]="detalleTab === 'evidencias' ? 'bg-white text-easydry-blue shadow-xs' : 'text-slate-500 hover:text-slate-700'">
-                <i-lucide name="camera" class="w-4 h-4"></i-lucide>
-                Evidencias
-                @if (tieneEvidencias(m)) {
-                  <span class="px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700 text-[9px] font-bold">
-                    {{ getFotosMantenimiento(m).length + getVideosMantenimiento(m).length + getDocumentosMantenimiento(m).length }}
-                  </span>
-                }
-              </button>
+            <div class="grid grid-cols-2 lg:grid-cols-3 gap-3 text-xs p-4 rounded-2xl border border-easydry-blue/20 bg-easydry-blue/5">
+              <div><span class="block text-[11px] text-slate-500 font-bold uppercase mb-0.5">Fecha programada</span><span class="font-mono font-bold text-slate-800">{{ fechaProg(m.fechaProgramada) }}</span></div>
+              <div><span class="block text-[11px] text-slate-500 font-bold uppercase mb-0.5">Ejecutado (fecha y hora)</span><span class="font-mono text-slate-800">{{ m.fechaEjecucion ? hora(m.fechaEjecucion) : '—' }}</span></div>
+              <div><span class="block text-[11px] text-slate-500 font-bold uppercase mb-0.5">Frecuencia</span><span class="font-bold text-slate-800">{{ etiquetaFrecuencia(m.frecuenciaDias) }}</span></div>
+              <div><span class="block text-[11px] text-slate-500 font-bold uppercase mb-0.5">Técnico</span><span class="font-bold text-slate-800">{{ m.tecnicoAsignadoNombre || 'Sin asignar' }}</span></div>
+              <div><span class="block text-[11px] text-slate-500 font-bold uppercase mb-0.5">Creado por</span><span class="font-bold text-slate-800">{{ m.creadoPorNombre || '—' }}</span></div>
+              <div><span class="block text-[11px] text-slate-500 font-bold uppercase mb-0.5">Ejecutado por</span><span class="font-bold text-slate-800">{{ m.ejecutadoPorNombre || '—' }}</span></div>
+              @if (m.costoTotal != null) {
+                <div><span class="block text-[11px] text-slate-500 font-bold uppercase mb-0.5">Costo total</span><span class="font-bold text-slate-800">$ {{ m.costoTotal | number:'1.2-2' }}</span></div>
+              }
+              @if (m.repuestosUtilizados?.length) {
+                <div class="col-span-2"><span class="block text-[11px] text-slate-500 font-bold uppercase mb-0.5">Repuestos</span><span class="font-semibold text-slate-800">{{ m.repuestosUtilizados!.join(', ') }}</span></div>
+              }
             </div>
 
-            <!-- Pestaña: Resumen -->
-            @if (detalleTab === 'resumen') {
-              <div class="space-y-4">
-                <!-- Información General -->
-                <div class="p-4 rounded-2xl border border-easydry-blue/20 bg-easydry-blue/5 space-y-3">
-                  <h4 class="font-bold text-easydry-blue text-xs uppercase flex items-center gap-1.5 border-b border-easydry-blue/20 pb-2">
-                    <i-lucide name="info" class="w-4 h-4"></i-lucide>
-                    Información General
-                  </h4>
-                  <div class="grid grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
-                    <div>
-                      <span class="block text-[10px] text-slate-400 font-bold uppercase mb-0.5">Código Mantenimiento</span>
-                      <span class="font-mono font-extrabold text-easydry-blue">MNT-{{ m.id }}</span>
-                    </div>
-                    <div>
-                      <span class="block text-[10px] text-slate-400 font-bold uppercase mb-0.5">Tipo</span>
-                      <span class="font-bold text-slate-800">{{ m.tipo }}</span>
-                    </div>
-                    <div>
-                      <span class="block text-[10px] text-slate-400 font-bold uppercase mb-0.5">Estado</span>
-                      <span class="font-bold text-slate-800">{{ m.estado }}</span>
-                    </div>
-                    <div>
-                      <span class="block text-[10px] text-slate-400 font-bold uppercase mb-0.5">Fecha Creación</span>
-                      <span class="font-mono text-slate-700">{{ m.fechaAsignacion || m.fecha }}</span>
-                    </div>
-                    <div>
-                      <span class="block text-[10px] text-slate-400 font-bold uppercase mb-0.5">Fecha Programación</span>
-                      <span class="font-mono text-slate-700">{{ m.fecha }}</span>
-                    </div>
-                    <div>
-                      <span class="block text-[10px] text-slate-400 font-bold uppercase mb-0.5">Fecha Ejecución</span>
-                      <span class="font-mono text-slate-700">{{ m.fechaInicio || m.fechaAsignacion || '—' }}</span>
-                    </div>
-                    <div>
-                      <span class="block text-[10px] text-slate-400 font-bold uppercase mb-0.5">Fecha Finalización</span>
-                      <span class="font-mono text-slate-700">{{ m.fechaFin || m.fechaCierre || '—' }}</span>
-                    </div>
-                  </div>
-                </div>
+            <div class="p-4 rounded-2xl border border-slate-200 bg-slate-50/60 text-xs">
+              <span class="block text-[11px] text-slate-500 font-bold uppercase mb-1">Observaciones</span>
+              <p class="text-slate-800 leading-relaxed break-words">{{ m.descripcion || 'Sin observaciones.' }}</p>
+            </div>
 
-                <!-- Maquinaria -->
-                <div class="p-4 rounded-2xl border border-purple-200 bg-purple-50/20 space-y-3">
-                  <h4 class="font-bold text-purple-900 text-xs uppercase flex items-center gap-1.5 border-b border-purple-200/60 pb-2">
-                    <i-lucide name="hard-drive" class="w-4 h-4 text-purple-600"></i-lucide>
-                    Maquinaria
-                  </h4>
-                  <div class="grid grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
-                    <div>
-                      <span class="block text-[10px] text-slate-400 font-bold uppercase mb-0.5">Equipo</span>
-                      <span class="font-bold text-slate-800">{{ m.maquina }}</span>
-                    </div>
-                    <div>
-                      <span class="block text-[10px] text-slate-400 font-bold uppercase mb-0.5">Agencia / Sucursal</span>
-                      <span class="font-semibold text-slate-700">{{ m.agencia || '—' }}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Responsables -->
-                <div class="p-4 rounded-2xl border border-emerald-200 bg-emerald-50/20 space-y-3">
-                  <h4 class="font-bold text-emerald-900 text-xs uppercase flex items-center gap-1.5 border-b border-emerald-200/60 pb-2">
-                    <i-lucide name="users" class="w-4 h-4 text-emerald-600"></i-lucide>
-                    Responsables
-                  </h4>
-                  <div class="grid grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
-                    <div>
-                      <span class="block text-[10px] text-slate-400 font-bold uppercase mb-0.5">Coordinador</span>
-                      <span class="font-bold text-slate-800">{{ m.gestorAsignadorNombre || '—' }}</span>
-                    </div>
-                    <div>
-                      <span class="block text-[10px] text-slate-400 font-bold uppercase mb-0.5">Técnico</span>
-                      <span class="font-bold text-slate-800">{{ m.tecnicoAsignadoNombre || m.tecnico }}</span>
-                    </div>
-                    <div>
-                      <span class="block text-[10px] text-slate-400 font-bold uppercase mb-0.5">Usuario Creador</span>
-                      <span class="font-bold text-slate-800">{{ m.gestorAsignadorNombre || m.cerradoPor || '—' }}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Intervención -->
-                <div class="p-4 rounded-2xl border border-slate-200 bg-slate-50/60 space-y-3">
-                  <h4 class="font-bold text-slate-900 text-xs uppercase flex items-center gap-1.5 border-b border-slate-200 pb-2">
-                    <i-lucide name="wrench" class="w-4 h-4 text-slate-600"></i-lucide>
-                    Intervención
-                  </h4>
-                  <div class="space-y-3 text-xs">
-                    <div>
-                      <span class="block text-[10px] text-slate-400 font-bold uppercase mb-1">Problema / Descripción</span>
-                      <p class="text-slate-800 leading-relaxed">{{ m.descripcion || 'Sin descripción.' }}</p>
-                    </div>
-                    @if (m.observacionCierre || m.estado === 'Completado') {
-                      <div>
-                        <span class="block text-[10px] text-slate-400 font-bold uppercase mb-1">Actividades Realizadas</span>
-                        <p class="text-slate-800 leading-relaxed">{{ m.observacionCierre || 'Sin informe de cierre registrado.' }}</p>
-                      </div>
-                    }
-                  </div>
-                </div>
-              </div>
+            @if (m.estadoRaw === 'FINALIZADO') {
+              <app-checklist-orden [mantenimientoId]="'' + m.id" [editable]="false"></app-checklist-orden>
             }
 
-            <!-- Pestaña: Línea de Tiempo -->
-            @if (detalleTab === 'tiempo') {
-              <div class="p-4 rounded-2xl border border-slate-200 bg-white space-y-3">
-                <h4 class="font-bold text-slate-900 text-xs uppercase flex items-center gap-1.5 border-b border-slate-200 pb-2">
-                  <i-lucide name="history" class="w-4 h-4 text-easydry-blue"></i-lucide>
-                  Historial de Estados del Mantenimiento
-                </h4>
-
-                <div class="relative pl-5 space-y-4">
-                  <!-- Evento: Creación -->
-                  <div class="relative">
-                    <span class="absolute -left-[21px] top-1 w-3 h-3 rounded-full bg-easydry-blue ring-4 ring-easydry-blue/20"></span>
-                    <div>
-                      <p class="text-xs font-bold text-slate-900">Mantenimiento creado</p>
-                      <p class="text-[11px] text-slate-500">{{ m.fechaAsignacion || m.fecha }} · {{ m.gestorAsignadorNombre || 'Sistema' }}</p>
-                    </div>
-                  </div>
-
-                  <!-- Evento: Programación -->
-                  <div class="relative">
-                    <span class="absolute -left-[21px] top-1 w-3 h-3 rounded-full bg-amber-500 ring-4 ring-amber-500/20"></span>
-                    <div>
-                      <p class="text-xs font-bold text-slate-900">Programado</p>
-                      <p class="text-[11px] text-slate-500">{{ m.fecha }} · Estado: Programado</p>
-                    </div>
-                  </div>
-
-                  <!-- Evento: Asignación -->
-                  @if (m.gestorAsignadorNombre || m.fechaAsignacion) {
-                    <div class="relative">
-                      <span class="absolute -left-[21px] top-1 w-3 h-3 rounded-full bg-violet-500 ring-4 ring-violet-500/20"></span>
-                      <div>
-                        <p class="text-xs font-bold text-slate-900">Asignado a {{ m.tecnicoAsignadoNombre || m.tecnico }}</p>
-                        <p class="text-[11px] text-slate-500">{{ m.fechaAsignacion || m.fecha }} · {{ m.gestorAsignadorNombre || '—' }}</p>
-                      </div>
-                    </div>
-                  }
-
-                  <!-- Evento: En Proceso / Ejecución -->
-                  @if (m.estado === 'En Proceso' || m.estado === 'Completado') {
-                    <div class="relative">
-                      <span class="absolute -left-[21px] top-1 w-3 h-3 rounded-full bg-easydry-blue/80 ring-4 ring-easydry-blue/20"></span>
-                      <div>
-                        <p class="text-xs font-bold text-slate-900">Ejecución / En Proceso</p>
-                        <p class="text-[11px] text-slate-500">{{ m.fechaInicio || m.fechaAsignacion || '—' }}</p>
-                      </div>
-                    </div>
-                  }
-
-                  <!-- Evento: Finalización -->
-                  @if (m.estado === 'Completado') {
-                    <div class="relative">
-                      <span class="absolute -left-[21px] top-1 w-3 h-3 rounded-full bg-emerald-500 ring-4 ring-emerald-500/20"></span>
-                      <div>
-                        <p class="text-xs font-bold text-slate-900">Completado</p>
-                        <p class="text-[11px] text-slate-500">{{ m.fechaFin || m.fechaCierre || '—' }} {{ m.horaFin || '' }} · {{ m.cerradoPor || m.tecnico }}</p>
-                      </div>
-                    </div>
-                  }
-                </div>
-              </div>
-            }
-
-            <!-- Pestaña: Evidencias -->
-            @if (detalleTab === 'evidencias') {
-              <div class="space-y-4">
-                @if (tieneEvidencias(m)) {
-                  <div class="p-4 rounded-2xl border border-indigo-200 bg-indigo-50/20 space-y-4">
-                    <div class="flex items-center justify-between border-b border-indigo-200/60 pb-2">
-                      <span class="text-[10px] text-slate-500 font-mono">
-                        {{ getFotosMantenimiento(m).length }} foto(s) · {{ getVideosMantenimiento(m).length }} video(s) · {{ getDocumentosMantenimiento(m).length }} doc(s)
-                      </span>
-                    </div>
-
-                    @if (getFotosMantenimiento(m).length > 0) {
-                      <div>
-                        <p class="text-[10px] font-bold text-slate-500 uppercase mb-2">Fotografías:</p>
-                        <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                          @for (foto of getFotosMantenimiento(m); track foto) {
-                            <div class="relative group rounded-xl overflow-hidden border border-emerald-200 shadow-xs cursor-pointer" (click)="verMediaZoom(foto, 'imagen')">
-                              <img [src]="foto" alt="Evidencia mantenimiento" class="w-full h-28 object-cover group-hover:scale-105 transition-transform duration-200">
-                              <div class="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white">
-                                <i-lucide name="zoom-in" class="w-5 h-5"></i-lucide>
-                              </div>
-                            </div>
-                          }
-                        </div>
-                      </div>
-                    }
-
-                    @if (getVideosMantenimiento(m).length > 0) {
-                      <div>
-                        <p class="text-[10px] font-bold text-slate-500 uppercase mb-2">Vídeos de prueba operativa:</p>
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          @for (video of getVideosMantenimiento(m); track video) {
-                            <div class="rounded-xl overflow-hidden border bg-black shadow-xs">
-                              <video [src]="video" controls class="w-full h-40 object-cover"></video>
-                            </div>
-                          }
-                        </div>
-                      </div>
-                    }
-
-                    @if (getDocumentosMantenimiento(m).length > 0) {
-                      <div class="pt-2 border-t border-indigo-200/50">
-                        <p class="text-[10px] font-bold text-indigo-900 uppercase mb-2 flex items-center gap-1">
-                          <i-lucide name="file-text" class="w-3.5 h-3.5 text-indigo-600"></i-lucide>
-                          Documentos (Informes / Facturas):
-                        </p>
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                          @for (doc of getDocumentosMantenimiento(m); track doc.id) {
-                            <div class="p-2.5 bg-white border border-indigo-100 rounded-xl flex items-center justify-between shadow-2xs">
-                              <div class="flex items-center gap-2 overflow-hidden min-w-0">
-                                <div class="p-1.5 rounded-lg bg-indigo-100 text-indigo-700 flex-shrink-0">
-                                  <i-lucide name="file-text" class="w-4 h-4"></i-lucide>
-                                </div>
-                                <div class="overflow-hidden min-w-0">
-                                  <p class="text-xs font-bold text-slate-800 truncate">{{ doc.nombre }}</p>
-                                  <p class="text-[10px] text-slate-400 font-mono">{{ doc.tamanio || '1 MB' }} · {{ doc.extension || 'PDF' }}</p>
-                                </div>
-                              </div>
-                              <button type="button" (click)="descargarDocumento(doc)"
-                                class="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-bold flex items-center gap-1 flex-shrink-0">
-                                <i-lucide name="download" class="w-3.5 h-3.5"></i-lucide>
-                                <span>Descargar</span>
-                              </button>
-                            </div>
-                          }
-                        </div>
-                      </div>
-                    }
-                  </div>
-                } @else {
-                  <div class="p-4 rounded-2xl border border-dashed border-slate-200 bg-slate-50 text-center">
-                    <i-lucide name="image" class="w-8 h-8 text-slate-300 mx-auto mb-2"></i-lucide>
-                    <p class="text-xs text-slate-500">Este mantenimiento no tiene evidencias multimedia adjuntas.</p>
-                  </div>
-                }
-              </div>
-            }
-
+            <div>
+              <h4 class="font-bold text-slate-900 text-xs uppercase mb-2">Evidencias</h4>
+              <app-evidencia-galeria [evidencias]="m.evidencias || []" vacio="Este mantenimiento no tiene evidencias adjuntas."></app-evidencia-galeria>
+            </div>
           </div>
         }
-
-        <div modal-footer class="flex flex-col gap-2 w-full">
-          @if (mantenimientoDetalleSeleccionado && mantenimientoDetalleSeleccionado.estado !== 'Completado' && puedeCompletar(mantenimientoDetalleSeleccionado)) {
-             <button
-                (click)="abrirModalCompletarDesdeDetalle()"
-                class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
-                <i-lucide name="check-circle-2" class="w-4 h-4"></i-lucide> Registrar Mantenimiento Realizado
-             </button>
+        <div modal-footer>
+          @if (detalle && puedeEjecutar(detalle)) {
+            <button type="button" (click)="ejecutarDesdeDetalle()" class="btn btn-primary w-full sm:w-auto">
+              <i-lucide name="check-circle-2" class="w-4 h-4" aria-hidden="true"></i-lucide> Ejecutar mantenimiento
+            </button>
           }
-          <button (click)="modalDetalleOpen = false" class="w-full px-4 py-2.5 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs mt-1">Cerrar Ficha</button>
+          @if (detalle?.maquinariaId) {
+            <button type="button" (click)="verMaquina(detalle!)" class="btn btn-secondary w-full sm:w-auto">Ver máquina y trazabilidad</button>
+          }
+          <button type="button" (click)="modalDetalleOpen = false" class="btn btn-secondary w-full sm:w-auto">Cerrar ficha</button>
         </div>
       </app-modal>
 
-      <!-- Lightbox evidencias -->
-      @if (mediaZoomUrl) {
-        <div appModalPortal class="fixed inset-0 z-[9999] bg-black/90 flex items-center justify-center p-6 animate-fade-in" (click)="cerrarMediaZoom()">
-          <div class="relative max-w-4xl w-full max-h-[85vh] flex items-center justify-center" (click)="$event.stopPropagation()">
-            <button (click)="cerrarMediaZoom()" class="absolute -top-12 right-0 p-2 bg-white/20 hover:bg-white/40 text-white rounded-full transition-colors">
-              <i-lucide name="x" class="w-6 h-6"></i-lucide>
-            </button>
-            <img [src]="mediaZoomUrl" alt="Evidencia ampliada" class="max-w-full max-h-[80vh] rounded-2xl object-contain shadow-2xl border border-white/20">
-          </div>
-        </div>
-      }
-
-      <!-- Modal Agendar Mantenimiento -->
-      <app-modal 
-        [isOpen]="modalCrearOpen" 
-        title="Agendar Mantenimiento Técnico" 
-        icon="calendar-clock"
-        (close)="modalCrearOpen = false">
-        
-        <form (ngSubmit)="guardarMantenimiento()" class="space-y-4">
-          <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Maquinaria a Servir</label>
-            <select [(ngModel)]="nuevoMantenimiento.maquina" name="maquina" class="w-full p-2.5 border rounded-xl text-sm" required>
-              @for (mq of listaMaquinas; track mq.id) {
-                <option [value]="mq.nombre">{{ mq.codigo }} - {{ mq.nombre }}</option>
-              }
-            </select>
-          </div>
-
-          <div class="grid grid-cols-2 gap-4">
-            <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Tipo de Intervención</label>
-              <select [(ngModel)]="nuevoMantenimiento.tipo" name="tipo" class="w-full p-2.5 border rounded-xl text-sm">
-                <option value="Preventivo">Preventivo</option>
-                <option value="Correctivo">Correctivo</option>
-                <option value="Calibración">Calibración</option>
-              </select>
-            </div>
-            <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Fecha Programada</label>
-              <input type="date" [(ngModel)]="nuevoMantenimiento.fecha" name="fecha" class="w-full p-2.5 border rounded-xl text-sm" required>
-            </div>
-          </div>
-
-          <div class="grid grid-cols-2 gap-4">
-            <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Técnico / Especialista</label>
-              <input type="text" [(ngModel)]="nuevoMantenimiento.tecnico" name="tecnico" placeholder="Ing. Marco Andrade" class="w-full p-2.5 border rounded-xl text-sm" required>
-            </div>
-            <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Duración Estimada (Horas)</label>
-              <input type="number" [(ngModel)]="nuevoMantenimiento.duracionHoras" name="duracionHoras" class="w-full p-2.5 border rounded-xl text-sm" min="1" required>
-            </div>
-          </div>
-
-          <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Descripción del Trabajo</label>
-            <textarea [(ngModel)]="nuevoMantenimiento.descripcion" name="descripcion" rows="3" placeholder="Detalle de repuestos y tareas..." class="w-full p-2.5 border rounded-xl text-sm" required></textarea>
-          </div>
-
-          <!-- Subida de Evidencias S3 (Punto 8) -->
-          <div class="pt-2">
-            <app-file-uploader
-              label="Evidencias / Fotos y Videos (Almacenamiento S3)"
-              (archivosChange)="evidenciasSubidas = $event">
-            </app-file-uploader>
-          </div>
-        </form>
-
-        <div modal-footer>
-          <button (click)="modalCrearOpen = false" class="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs">Cancelar</button>
-          <button (click)="guardarMantenimiento()" class="px-4 py-2 bg-easydry-blue hover:bg-easydry-blue-dark text-white font-bold rounded-xl text-xs">Guardar Mantenimiento</button>
-        </div>
-      </app-modal>
-
-      <app-modal
-        [isOpen]="modalAsignarOpen"
-        [title]="mantenimientoAsignar?.tecnicoAsignadoId ? 'Reasignar Mantenimiento' : 'Asignar Mantenimiento'"
-        icon="user-cog"
-        (close)="modalAsignarOpen = false">
-        @if (mantenimientoAsignar) {
-          <div class="space-y-4">
-            <p class="text-xs text-slate-600">
-              <strong class="text-slate-900">{{ mantenimientoAsignar.maquina }}</strong>
-              · {{ mantenimientoAsignar.fecha }}
-            </p>
-            <p class="text-xs text-slate-500">
-              Ejecuta la tarea tú mismo o delega a un técnico de campo.
-            </p>
-            @if (mantenimientoAsignar.tecnicoAsignadoNombre) {
-              <div class="p-3 bg-violet-50 border border-violet-200 rounded-xl text-xs text-violet-800">
-                Asignado actualmente a: <strong>{{ mantenimientoAsignar.tecnicoAsignadoNombre }}</strong>
-              </div>
-            }
-            <button
-              type="button"
-              (click)="asignarMantenimientoAEjecutor(gestorActual.id, gestorActual.nombreCompleto)"
-              class="w-full py-3 px-4 bg-violet-600 hover:bg-violet-700 text-white font-extrabold rounded-xl text-xs">
-              {{ etiquetaEjecutarYo }}
-            </button>
-            <p class="text-[10px] font-bold text-slate-400 uppercase">Delegar a técnico</p>
-            @for (tec of tecnicosDisponibles; track tec.email) {
-              <button
-                type="button"
-                (click)="asignarMantenimientoAEjecutor(tec.id, tec.nombre)"
-                class="w-full py-3 px-4 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl text-xs">
-                {{ tec.nombre }}
-              </button>
-            }
-            @if (mantenimientoAsignar.tecnicoAsignadoId) {
-              <button
-                type="button"
-                (click)="cancelarAsignacionMantenimiento(mantenimientoAsignar)"
-                class="w-full py-3 px-4 bg-rose-50 hover:bg-rose-100 text-rose-800 font-bold rounded-xl text-xs border border-rose-200">
-                Cancelar asignación
-              </button>
-            }
-          </div>
-        }
-      </app-modal>
-
-      <!-- Modal Registrar Mantenimiento Realizado -->
-      <app-modal
-        [isOpen]="modalCompletarOpen"
-        [title]="'Registrar realización: ' + (mantenimientoCompletar?.maquina || '')"
-        icon="check-circle-2"
-        zClass="z-[10050]"
-        (close)="modalCompletarOpen = false">
-
-        @if (mantenimientoCompletar) {
-          <div class="space-y-4">
-            <div class="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 text-xs space-y-1">
-              <div class="flex items-center justify-between gap-2 flex-wrap">
-                <span class="font-bold text-slate-800">{{ mantenimientoCompletar.maquina }}</span>
-                <span class="font-mono text-easydry-blue">{{ mantenimientoCompletar.fecha }}</span>
-              </div>
-              <p class="text-slate-600"><strong>Tipo:</strong> {{ mantenimientoCompletar.tipo }} · <strong>Técnico:</strong> {{ mantenimientoCompletar.tecnico }}</p>
-              <p class="text-slate-500">{{ mantenimientoCompletar.descripcion }}</p>
-            </div>
-
-            <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Informe Técnico del Trabajo Realizado</label>
-              <textarea
-                [(ngModel)]="completarForm.observacionCierre"
-                rows="3"
-                placeholder="Describa las tareas ejecutadas, repuestos cambiados y pruebas de funcionamiento..."
-                class="w-full p-3 border rounded-xl text-xs font-semibold focus:ring-2 focus:ring-easydry-green"></textarea>
-            </div>
-
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Fecha de Finalización</label>
-                <input type="date" [(ngModel)]="completarForm.fechaFin" class="w-full p-2.5 border rounded-xl text-sm">
-              </div>
-            </div>
-
-            <div class="border-2 border-dashed border-emerald-200 bg-emerald-50/40 rounded-2xl p-4 space-y-3">
-              <div class="flex items-center justify-between gap-2 flex-wrap">
-                <label class="text-xs font-bold text-emerald-900 uppercase flex items-center gap-1.5">
-                  <i-lucide name="camera" class="w-4 h-4 text-emerald-600"></i-lucide>
-                  Evidencias del Mantenimiento (Fotos / Vídeos)
-                </label>
-                <span class="text-[11px] text-slate-500">Fotos del trabajo y video de prueba</span>
-              </div>
-              <div class="flex items-center gap-3 flex-wrap">
-                <label class="cursor-pointer px-4 py-2.5 bg-white border border-emerald-300 hover:bg-emerald-50 text-emerald-700 font-bold rounded-xl text-xs flex items-center gap-2">
-                  <i-lucide name="upload-cloud" class="w-4 h-4"></i-lucide>
-                  <span>Subir Fotos / Videos</span>
-                  <input type="file" multiple accept="image/*,video/*" (change)="onSubirMultimediaCompletar($event)" class="hidden">
-                </label>
-                <button type="button" (click)="agregarMultimediaCompletarDemo()"
-                  class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold">
-                  + Cargar Fotos/Video Demo
-                </button>
-              </div>
-              @if (multimediaCompletar.length > 0) {
-                <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2">
-                  @for (m of multimediaCompletar; track m.id; let idx = $index) {
-                    <div class="relative bg-white border rounded-xl p-2 shadow-xs">
-                      @if (m.tipo === 'imagen') {
-                        <img [src]="m.url" alt="Evidencia" class="w-full h-24 object-cover rounded-lg">
-                      } @else {
-                        <div class="w-full h-24 bg-slate-900 rounded-lg flex flex-col items-center justify-center text-white">
-                          <i-lucide name="film" class="w-8 h-8 text-emerald-400"></i-lucide>
-                          <span class="text-[9px] mt-1 font-mono">Vídeo</span>
-                        </div>
-                      }
-                      <p class="text-[10px] font-semibold text-slate-700 truncate mt-1">{{ m.nombre }}</p>
-                      <button type="button" (click)="eliminarMultimediaCompletar(idx)"
-                        class="absolute top-1 right-1 p-1 bg-rose-600 text-white rounded-full">
-                        <i-lucide name="x" class="w-3 h-3"></i-lucide>
-                      </button>
-                    </div>
-                  }
-                </div>
-              }
-            </div>
-
-            <div class="border-2 border-dashed border-indigo-200 bg-indigo-50/40 rounded-2xl p-4 space-y-3">
-              <div class="flex items-center justify-between gap-2 flex-wrap">
-                <label class="text-xs font-bold text-indigo-900 uppercase flex items-center gap-1.5">
-                  <i-lucide name="file-text" class="w-4 h-4 text-indigo-600"></i-lucide>
-                  Documentos (PDF / Factura / Informe)
-                </label>
-                <span class="text-[11px] text-slate-500">PDF, DOC, XLS</span>
-              </div>
-              <div class="flex items-center gap-3 flex-wrap">
-                <label class="cursor-pointer px-4 py-2.5 bg-white border border-indigo-300 hover:bg-indigo-50 text-indigo-700 font-bold rounded-xl text-xs flex items-center gap-2">
-                  <i-lucide name="file-plus" class="w-4 h-4"></i-lucide>
-                  <span>Adjuntar Documento</span>
-                  <input type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.txt" (change)="onSubirDocumentosCompletar($event)" class="hidden">
-                </label>
-                <button type="button" (click)="agregarDocumentosCompletarDemo()"
-                  class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold">
-                  + Adjuntar PDF Demo
-                </button>
-              </div>
-              @if (documentosCompletar.length > 0) {
-                <div class="space-y-2 pt-2">
-                  @for (doc of documentosCompletar; track doc.id; let idx = $index) {
-                    <div class="p-2.5 bg-white border border-indigo-100 rounded-xl flex items-center justify-between">
-                      <div class="flex items-center gap-2.5 min-w-0">
-                        <div class="p-2 rounded-lg bg-indigo-100 text-indigo-700 flex-shrink-0">
-                          <i-lucide name="file-text" class="w-4 h-4"></i-lucide>
-                        </div>
-                        <div class="min-w-0">
-                          <p class="text-xs font-bold text-slate-900 truncate">{{ doc.nombre }}</p>
-                          <p class="text-[10px] text-slate-400 font-mono">{{ doc.tamanio || '1.4 MB' }} · {{ doc.extension || 'PDF' }}</p>
-                        </div>
-                      </div>
-                      <button type="button" (click)="eliminarDocumentoCompletar(idx)"
-                        class="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg">
-                        <i-lucide name="trash-2" class="w-4 h-4"></i-lucide>
-                      </button>
-                    </div>
-                  }
-                </div>
-              }
-            </div>
-          </div>
-        }
-
-        <div modal-footer>
-          <button (click)="modalCompletarOpen = false" class="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs">Cancelar</button>
-          <button (click)="guardarCompletarMantenimiento()" class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs">
-            Confirmar Mantenimiento Realizado
-          </button>
-        </div>
-      </app-modal>
-
+      <!-- Detalle de máquina reutilizable + diálogos de trabajo -->
+      <app-maquinaria-detalle-modal [maquinariaId]="maquinaDetalleId" pestanaInicial="mantenimientos"
+        (cerrar)="maquinaDetalleId = null" (cambio)="refrescar()"></app-maquinaria-detalle-modal>
+      <app-trabajo-acciones #acciones (hecho)="onAccion()"></app-trabajo-acciones>
     </div>
   `
 })
-export class MantenimientoComponent implements OnInit {
+export class MantenimientoComponent implements OnInit, OnDestroy {
   @Input() hideHeader = false;
-  mantenimientos: Mantenimiento[] = [];
   listaMaquinas: Maquinaria[] = [];
-  modalCrearOpen = false;
-  modalAsignarOpen = false;
-  modalCompletarOpen = false;
-  mantenimientoAsignar?: Mantenimiento;
-  mantenimientoCompletar?: Mantenimiento;
-
-  completarForm = {
-    observacionCierre: '',
-    fechaFin: new Date().toISOString().substring(0, 10)
-  };
-  multimediaCompletar: ArchivoAdjunto[] = [];
-  documentosCompletar: ArchivoAdjunto[] = [];
-  mediaZoomUrl: string | null = null;
-
-  gestorActual: { id: string | number; nombreCompleto: string } = { id: 0, nombreCompleto: '' };
-
-  tecnicosDisponibles = DEMO_CREDENTIALS
-    .filter(c => c.role === Role.TECNICO)
-    .map(c => ({
-      id: DEMO_CREDENTIALS.indexOf(c) + 1,
-      nombre: c.nombre,
-      email: c.email,
-    }));
-  
-  filtrosGlobales: FilterState = { sucursal: 'Todas', operador: 'Todos', bahia: 'Todas', estado: 'Todos', fecha: 'Hoy', marca: 'Todas' };
-  filtroTexto = '';
-
-  aplicarNuevosFiltros(filtros: FilterState) {
-    this.filtrosGlobales = filtros;
-    if (filtros.busqueda !== undefined) {
-      this.filtroTexto = filtros.busqueda;
-    }
-    this.currentPage = 1;
-    this.aplicarFiltros();
-  }
-
-  aplicarFiltros() {
-    this.currentPage = 1;
-  }
-
-  get mantenimientosFiltrados() {
-    let resultados = this.mantenimientos;
-    const user = this.authService.getCurrentUser();
-
-    if (this.esTecnico && user) {
-      resultados = resultados.filter(m => m.tecnicoAsignadoId === user.id);
-    }
-
-    if (this.filtrosGlobales.estado !== 'Todos') {
-      resultados = resultados.filter(m => m.estado === this.filtrosGlobales.estado);
-    }
-    if (this.filtrosGlobales.sucursal && this.filtrosGlobales.sucursal !== 'Todas') {
-      resultados = resultados.filter(m =>
-        m.agencia && m.agencia.toLowerCase().includes(this.filtrosGlobales.sucursal.toLowerCase())
-      );
-    }
-    if (this.filtrosGlobales.marca && this.filtrosGlobales.marca !== 'Todas') {
-      resultados = resultados.filter(item => {
-        const suc = this.sucursalService.getSucursalPorNombre(item.agencia);
-        return suc?.marcaNombre === this.filtrosGlobales.marca;
-      });
-    }
-    if (this.filtroTexto.trim()) {
-      const b = this.filtroTexto.trim().toLowerCase();
-      resultados = resultados.filter(m =>
-        (m.maquina || '').toLowerCase().includes(b) ||
-        (m.tecnico || '').toLowerCase().includes(b) ||
-        (m.tecnicoAsignadoNombre || '').toLowerCase().includes(b) ||
-        (m.descripcion || '').toLowerCase().includes(b) ||
-        (m.tipo || '').toLowerCase().includes(b)
-      );
-    }
-
-    const rango = resolverRangoFechas(this.filtrosGlobales);
-    if (rango) {
-      resultados = resultados.filter(m => {
-        const d = soloFecha(m.fecha || m.fechaInicio);
-        return d >= rango.inicio && d <= rango.fin;
-      });
-    }
-    
-    return resultados;
-  }
-
-  get esGestor(): boolean {
-    return this.authService.hasRole(Role.COORD_MANTENIMIENTO);
-  }
-
-  get puedeAsignar(): boolean {
-    return this.esGestor || this.authService.hasRole(Role.SUPER_ADMIN);
-  }
-
-  get etiquetaEjecutarYo(): string {
-    if (this.authService.hasRole(Role.SUPER_ADMIN)) {
-      return 'Ejecutar yo (Super Administrador)';
-    }
-    return 'Ejecutar yo (Gestor Técnico)';
-  }
-
-  get esTecnico(): boolean {
-    return this.authService.hasRole(Role.TECNICO);
-  }
-
-  openModalAsignar(m: Mantenimiento) {
-    this.mantenimientoAsignar = m;
-    this.modalAsignarOpen = true;
-  }
-
-  asignarMantenimientoAEjecutor(tecnicoId: string | number, tecnicoNombre: string) {
-    const user = this.authService.getCurrentUser();
-    if (!this.mantenimientoAsignar || !user) return;
-
-    this.mantenimientoService.asignarMantenimiento(
-      this.mantenimientoAsignar.id,
-      tecnicoId,
-      tecnicoNombre,
-      user.id,
-      `${user.nombre} ${user.apellido}`.trim()
-    ).subscribe(updated => {
-      if (updated) {
-        this.toastService.success('Asignación registrada', `Mantenimiento delegado a ${tecnicoNombre}`);
-        this.modalAsignarOpen = false;
-      }
-    });
-  }
-
-  cancelarAsignacionMantenimiento(m: Mantenimiento) {
-    this.mantenimientoService.cancelarAsignacion(m.id).subscribe(updated => {
-      if (updated) {
-        this.toastService.success('Asignación cancelada', `El mantenimiento de ${updated.maquina} quedó sin asignar`);
-        this.modalAsignarOpen = false;
-      }
-    });
-  }
+  soloNoAtendidos = false;
 
   modalDetalleOpen = false;
-  mantenimientoDetalleSeleccionado?: Mantenimiento;
-  detalleTab: 'resumen' | 'tiempo' | 'evidencias' = 'resumen';
+  detalle?: Mantenimiento;
+  maquinaDetalleId: string | number | null = null;
 
-  currentPage = 1;
-  pageSize = 5;
+  filtrosGlobales: FilterState = { sucursal: 'Todas', operador: 'Todos', bahia: 'Todas', estado: 'Todos', fecha: 'Hoy', marca: 'Todas' };
 
-  diasCalendario = [
-    { fecha: '2026-07-22', dia: '22', nombreDia: 'Mié', tieneMantenimiento: false, evento: '' },
-    { fecha: '2026-07-23', dia: '23', nombreDia: 'Jue', tieneMantenimiento: false, evento: '' },
-    { fecha: '2026-07-24', dia: '24', nombreDia: 'Vie', tieneMantenimiento: true, evento: 'AS-002 Correctivo' },
-    { fecha: '2026-07-25', dia: '25', nombreDia: 'Sáb', tieneMantenimiento: false, evento: '' },
-    { fecha: '2026-07-26', dia: '26', nombreDia: 'Dom', tieneMantenimiento: false, evento: '' },
-    { fecha: '2026-07-27', dia: '27', nombreDia: 'Lun', tieneMantenimiento: false, evento: '' },
-    { fecha: '2026-08-01', dia: '01', nombreDia: 'Sáb', tieneMantenimiento: true, evento: 'HD-001 Preventivo' },
-  ];
+  // ══════════════════════════════════════════════════════════════════════════
+  //  Paginación, orden, búsqueda y filtros en el SERVIDOR
+  //  Tabla (escritorio) → páginas numeradas. Tarjetas (móvil) → scroll infinito de a 30.
+  // ══════════════════════════════════════════════════════════════════════════
 
-  diaSeleccionado: any = null;
-  evidenciasSubidas: ArchivoAdjunto[] = [];
+  readonly minBusqueda = BUSQUEDA_MIN_CARACTERES;
+  /** true cuando el usuario escribió 1 letra (se pide un mínimo de 2 antes de consultar). */
+  busquedaCorta = false;
+  private busquedaAplicada = '';
+  private readonly busqueda$ = new Subject<string>();
+  private suscripcionBusqueda?: Subscription;
 
-  nuevoMantenimiento = {
-    maquina: 'Hidrolavadora Ecológica HD-001',
-    tipo: 'Preventivo' as Mantenimiento['tipo'],
-    fecha: '2026-08-05',
-    tecnico: 'Sin asignar',
-    estado: 'Programado' as Mantenimiento['estado'],
-    duracionHoras: 2,
-    descripcion: ''
+  /** Escritorio (>= 1024 px) = tabla; menos = tarjetas. Solo se carga la vista que se muestra. */
+  esEscritorio = true;
+  private mediaEscritorio?: MediaQueryList;
+  private readonly alCambiarPantalla = (e: MediaQueryListEvent) => {
+    if (e.matches === this.esEscritorio) return;
+    this.esEscritorio = e.matches;
+    this.reiniciar();
   };
 
-  private mantenimientoService = inject(MantenimientoMockService);
-  private maquinariaService = inject(MaquinariaMockService);
-  private toastService = inject(ToastService);
-  public authService = inject(AuthService);
-  private sucursalService = inject(SucursalMockService);
+  private sucursales: Sucursal[] = [];
+  /** Contadores de los filtros vigentes (menos el de estado); los da el servidor, no lo cargado. */
+  resumen: ResumenMantenimientos | null = null;
 
-  /** Roles con alcance de red/taller nacional: no filtrar por agencia exacta. */
-  private debeFiltrarPorSucursal(user: ReturnType<AuthService['getCurrentUser']>): boolean {
-    if (!user?.sucursalNombre || user.role === Role.SUPER_ADMIN) return false;
-    const rolesAlcanceNacional: Role[] = [
-      Role.COORD_MANTENIMIENTO,
-      Role.TECNICO,
-      Role.SUPERVISOR,
-      Role.GERENTE,
-    ];
-    return !rolesAlcanceNacional.includes(user.role as Role);
-  }
+  // ── Tabla ──
+  readonly columnas: TableColumn[] = [
+    { key: 'fecha', label: 'Fecha Programada', sortable: true, defaultSort: 'desc' },
+    { key: 'maquina', label: 'Maquinaria', sortable: true, defaultSort: 'asc' },
+    { key: 'tipo', label: 'Tipo', sortable: true, defaultSort: 'asc' },
+    { key: 'tecnico', label: 'Técnico', sortable: true, defaultSort: 'asc' },
+    { key: 'estado', label: 'Estado', sortable: true, defaultSort: 'asc' },
+    { key: 'ejecucion', label: 'Ejecución', sortable: true, defaultSort: 'desc' },
+    { key: 'acciones', label: 'Acciones' },
+  ];
+  filas: Mantenimiento[] = [];
+  totalTabla = 0;
+  pagina = 1;
+  pageSizeTabla = PAGE_SIZE_TABLA;
+  /** Sin columna elegida el servidor agrupa: vencidos, pendientes, ejecutados. */
+  sortField: string | null = null;
+  sortOrder: OrdenDir = 'desc';
+  cargandoTabla = false;
+  errorTabla: string | null = null;
+  private subTabla?: Subscription;
+  readonly claseFila = (m: Mantenimiento): string => (m.noAtendido ? 'bg-rose-50/70 hover:bg-rose-100/70' : '');
+
+  // ── Tarjetas ──
+  readonly lista = new ListaInfinita<Mantenimiento>(
+    (page, size) => this.mantenimientoService
+      .getMantenimientosPagina({ ...this.consulta(), sortField: null, page, pageSize: size, incluirResumen: page === 1 })
+      .pipe(
+        tap((r) => {
+          if (r.resumen) this.resumen = r.resumen;
+          this.sincronizarDetalle(r.pagina.items);
+        }),
+        map((r) => r.pagina),
+      ),
+    PAGE_SIZE_INFINITO,
+    (m) => m.id,
+  );
+
+  get totalMostrado(): number { return this.esEscritorio ? this.totalTabla : this.lista.total; }
+
+  private mantenimientoService = inject(MantenimientoService);
+  private maquinariaService = inject(MaquinariaService);
+  public authService = inject(AuthService);
+  private sucursalService = inject(SucursalService);
+
+  @ViewChild('acciones') acciones!: TrabajoAccionesComponent;
+
+  private get miId(): string { return String(this.authService.getCurrentUser()?.id || ''); }
 
   ngOnInit(): void {
-    const user = this.authService.getCurrentUser();
-    if (user) {
-      this.gestorActual = {
-        id: user.id,
-        nombreCompleto: `${user.nombre} ${user.apellido}`.trim(),
-      };
+    this.suscripcionBusqueda = this.busqueda$
+      .pipe(debounceTime(BUSQUEDA_DEBOUNCE_MS), distinctUntilChanged())
+      .subscribe((texto) => {
+        this.busquedaAplicada = texto;
+        this.reiniciar();
+      });
+
+    if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+      this.mediaEscritorio = window.matchMedia('(min-width: 1024px)');
+      this.esEscritorio = this.mediaEscritorio.matches;
+      this.mediaEscritorio.addEventListener('change', this.alCambiarPantalla);
     }
-
-    this.mantenimientoService.mantenimientos$.subscribe(list => {
-      if (user && this.debeFiltrarPorSucursal(user)) {
-        this.mantenimientos = list.filter(
-          m => m.agencia && m.agencia.toLowerCase() === user.sucursalNombre!.toLowerCase()
-        );
-      } else {
-        this.mantenimientos = list;
-      }
-    });
-
-    this.maquinariaService.getMaquinaria().subscribe(list => {
-      if (user && this.debeFiltrarPorSucursal(user)) {
-        this.listaMaquinas = list.filter(
-          m => m.agencia.toLowerCase() === user.sucursalNombre!.toLowerCase()
-        );
-      } else {
+    // El filter-bar entrega nombres de sucursal/marca y el servidor pide ids: se necesitan las sucursales cargadas.
+    this.sucursalService.getSucursales().subscribe((list) => { this.sucursales = list; });
+    this.reiniciar();
+    // Máquinas activas para el selector de "Programar" (el backend limita lo que cada rol ve).
+    if (puedeGestionarMaquina(this.authService) && puedeVerMaquinaria(this.authService)) {
+      this.maquinariaService.getMaquinaria({ activa: true }).subscribe(list => {
         this.listaMaquinas = list;
-      }
-    });
-  }
-
-  get paginatedMantenimientos() {
-    const start = (this.currentPage - 1) * this.pageSize;
-    return this.mantenimientosFiltrados.slice(start, start + this.pageSize);
-  }
-
-  onPageChange(page: number) {
-    this.currentPage = page;
-  }
-
-  onPageSizeChange(size: number) {
-    this.pageSize = size;
-    this.currentPage = 1; // Reset to first page
-  }
-
-  seleccionarDia(day: any): void {
-    if (this.diaSeleccionado?.fecha === day.fecha) {
-      this.diaSeleccionado = null;
-    } else {
-      this.diaSeleccionado = day;
+      });
     }
   }
 
-  guardarMantenimiento() {
-    if (!this.nuevoMantenimiento.descripcion) {
-      this.toastService.warning('Campos Requeridos', 'Por favor ingrese la descripción del trabajo.');
+  ngOnDestroy(): void {
+    this.suscripcionBusqueda?.unsubscribe();
+    this.mediaEscritorio?.removeEventListener('change', this.alCambiarPantalla);
+    this.subTabla?.unsubscribe();
+    this.lista.destruir();
+  }
+
+  /** Vuelve a la primera página/bloque de la vista visible con los filtros vigentes (y pide los contadores). */
+  reiniciar(): void {
+    if (this.esEscritorio) {
+      this.pagina = 1;
+      this.cargarPagina(true);
+    } else {
+      this.lista.reiniciar();
+    }
+  }
+
+  /** Tras una acción (asignar, ejecutar, editar, programar…): vuelve a pedir lo que se ve y actualiza los contadores. */
+  refrescar(): void {
+    if (this.esEscritorio) this.cargarPagina(true);
+    else this.lista.reiniciar();
+  }
+
+  onAccion(): void {
+    this.refrescar();
+  }
+
+  onTablaCambio(q: ConsultaTabla): void {
+    this.pagina = q.page;
+    this.pageSizeTabla = q.pageSize;
+    this.sortField = q.sortField;
+    this.sortOrder = q.sortOrder;
+    this.cargarPagina(false);
+  }
+
+  /** Pide la página actual de la tabla. `conResumen`: también recalcula los contadores (cambió un filtro o una acción). */
+  cargarPagina(conResumen = false): void {
+    this.subTabla?.unsubscribe();
+    this.cargandoTabla = true;
+    this.errorTabla = null;
+    this.subTabla = this.mantenimientoService
+      .getMantenimientosPagina({
+        ...this.consulta(),
+        sortField: this.sortField,
+        sortOrder: this.sortOrder,
+        page: this.pagina,
+        pageSize: this.pageSizeTabla,
+        incluirResumen: conResumen || !this.resumen,
+      })
+      .subscribe({
+        next: ({ pagina, resumen }) => {
+          if (resumen) this.resumen = resumen;
+          // Si la página quedó vacía (cambió lo último de la lista) se retrocede a la última que exista.
+          if (pagina.items.length === 0 && this.pagina > 1 && pagina.total > 0) {
+            this.pagina = Math.max(1, pagina.totalPages);
+            this.cargarPagina(false);
+            return;
+          }
+          this.filas = pagina.items;
+          this.totalTabla = pagina.total;
+          this.pagina = pagina.page;
+          this.cargandoTabla = false;
+          this.sincronizarDetalle(pagina.items);
+        },
+        error: (err) => {
+          this.filas = [];
+          this.totalTabla = 0;
+          this.errorTabla = this.mensajeError(err);
+          this.cargandoTabla = false;
+        },
+      });
+  }
+
+  private mensajeError(err: unknown): string {
+    const e = err as { error?: { message?: string | string[] }; message?: string } | undefined;
+    const detalle = e?.error?.message;
+    if (Array.isArray(detalle)) return detalle.join('. ');
+    return detalle || e?.message || 'No se pudieron cargar los mantenimientos.';
+  }
+
+  /** Si la ficha abierta está en lo recién cargado, se actualiza con los datos nuevos. */
+  private sincronizarDetalle(items: Mantenimiento[]): void {
+    if (!this.detalle) return;
+    this.detalle = items.find(x => x.id === this.detalle!.id) || this.detalle;
+  }
+
+  aplicarNuevosFiltros(filtros: FilterState) {
+    const previo = this.filtrosGlobales;
+    this.filtrosGlobales = filtros;
+    const busq = (filtros.busqueda ?? '').trim();
+    this.busquedaCorta = busq.length > 0 && busq.length < BUSQUEDA_MIN_CARACTERES;
+
+    if (this.huellaFiltros(previo) !== this.huellaFiltros(filtros)) {
+      // Cambió un filtro (no el texto): se consulta ya. Si el texto es de una sola letra se conserva la búsqueda anterior.
+      if (!this.busquedaCorta) this.busquedaAplicada = busq;
+      this.reiniciar();
       return;
     }
-
-    const payload: any = {
-      ...this.nuevoMantenimiento,
-      duracionMin: (this.nuevoMantenimiento.duracionHoras || 2) * 60,
-      archivos: this.evidenciasSubidas.length > 0 ? [...this.evidenciasSubidas] : undefined
-    };
-
-    this.mantenimientoService.registrarMantenimiento(payload).subscribe(creado => {
-      this.toastService.success('Mantenimiento Agendado', `Visita agendada para ${creado.maquina} el ${creado.fecha}`);
-      this.modalCrearOpen = false;
-      this.evidenciasSubidas = [];
-    });
+    // Solo cambió el texto: espera 300 ms tras la última tecla y exige mínimo 2 letras (o vacío para quitar el filtro).
+    if (!this.busquedaCorta) this.busqueda$.next(busq);
   }
-  
-  abrirDetalle(mantenimiento: Mantenimiento) {
-    this.mantenimientoDetalleSeleccionado =
-      this.mantenimientos.find(m => m.id === mantenimiento.id) || mantenimiento;
-    this.detalleTab = 'resumen';
+
+  private huellaFiltros(f: FilterState | undefined): string {
+    if (!f) return '';
+    const { busqueda, ...resto } = f;
+    return JSON.stringify(resto);
+  }
+
+  private neutro(v: string | undefined | null, ...neutros: string[]): string {
+    const t = (v ?? '').trim();
+    return !t || neutros.includes(t) ? '' : t;
+  }
+
+  /** Estado elegido en el filter-bar → valor del servidor. */
+  private estadoServidor(): string | undefined {
+    switch (this.neutro(this.filtrosGlobales.estado, 'Todos')) {
+      case 'Programado': return 'PENDIENTE';
+      case 'En Proceso': return 'EN_PROCESO';
+      case 'Completado': return 'FINALIZADO';
+      default: return undefined;
+    }
+  }
+
+  /** Id de la sucursal elegida ('' si no hay filtro; un id imposible si el nombre no existe, para no mostrar todo). */
+  private agenciaIdFiltro(): string {
+    const nombre = this.neutro(this.filtrosGlobales.sucursal, 'Todas', 'TODAS');
+    if (!nombre) return '';
+    const n = nombre.toLowerCase();
+    const suc = this.sucursales.find((x) => (x.nombre || '').toLowerCase() === n);
+    return suc ? String(suc.id) : '__sin_coincidencia__';
+  }
+
+  private clienteIdFiltro(): string {
+    const f = this.filtrosGlobales;
+    const nombre = this.neutro(f.cliente, 'Todas', 'TODAS') || this.neutro(f.marca, 'Todas', 'TODAS');
+    if (!nombre) return '';
+    const suc = this.sucursales.find((x) => (x.clienteNombre || x.marcaNombre) === nombre && (x.clienteId ?? x.marcaId) !== undefined);
+    const id = suc ? (suc.clienteId ?? suc.marcaId) : undefined;
+    return id !== undefined && id !== null ? String(id) : '__sin_coincidencia__';
+  }
+
+  /** Filtros vigentes para el servidor (sin página, tamaño ni orden). */
+  private consulta(): ConsultaMantenimientos {
+    const rango = resolverRangoFechas(this.filtrosGlobales);
+    return {
+      search: this.busquedaAplicada,
+      estado: this.estadoServidor(),
+      agenciaId: this.agenciaIdFiltro() || undefined,
+      clienteId: this.clienteIdFiltro() || undefined,
+      soloNoAtendidos: this.soloNoAtendidos || undefined,
+      fechaDesde: rango?.inicio,
+      fechaHasta: rango?.fin,
+    };
+  }
+
+  private get hayFiltrosActivos(): boolean {
+    const c = this.consulta();
+    return !!(c.search || c.estado || c.agenciaId || c.clienteId || c.soloNoAtendidos || c.fechaDesde);
+  }
+
+  get tituloVacio(): string {
+    return this.hayFiltrosActivos
+      ? 'No hay mantenimientos que coincidan con los filtros aplicados.'
+      : 'Aún no hay mantenimientos programados.';
+  }
+
+  // ---- Permisos de UI (el backend valida siempre) ----
+  get puedeProgramar(): boolean { return puedeGestionarMaquina(this.authService); }
+  puedeAsignar(m: Mantenimiento): boolean { return puedeGestionarMaquina(this.authService) && m.estadoRaw !== 'FINALIZADO'; }
+  /** Solo el técnico asignado ejecuta (el backend además bloquea si falta más que la ventana de adelanto). */
+  puedeEjecutar(m: Mantenimiento): boolean {
+    return m.estadoRaw !== 'FINALIZADO' && puedeEjecutarMantenimientos(this.authService) && String(m.tecnicoAsignadoId || '') === this.miId;
+  }
+  puedeEditar(m: Mantenimiento): boolean {
+    return puedeEjecutarMantenimientos(this.authService) && (puedeGestionarMaquina(this.authService) || String(m.tecnicoAsignadoId || '') === this.miId);
+  }
+
+  programar(): void {
+    void this.acciones.programarMantenimiento(null, this.listaMaquinas);
+  }
+
+  /** Contadores de los filtros vigentes (dato del servidor). */
+  get totalNoAtendidos(): number { return this.resumen?.vencidos ?? 0; }
+  get totalProgramados(): number { return this.resumen?.pendientes ?? 0; }
+  get totalEjecutados(): number { return this.resumen?.ejecutados ?? 0; }
+
+  abrirDetalle(m: Mantenimiento) {
+    this.detalle = m;
     this.modalDetalleOpen = true;
   }
 
-  getFotosMantenimiento(m: Mantenimiento): string[] {
-    const fromArchivos = (m.archivos || []).filter(a => a.tipo === 'imagen').map(a => a.url);
-    const fotos = m.fotos || [];
-    return [...fotos, ...fromArchivos.filter(u => !fotos.includes(u))];
-  }
-
-  getVideosMantenimiento(m: Mantenimiento): string[] {
-    const fromArchivos = (m.archivos || []).filter(a => a.tipo === 'video').map(a => a.url);
-    const videos = m.videos || [];
-    return [...videos, ...fromArchivos.filter(u => !videos.includes(u))];
-  }
-
-  getDocumentosMantenimiento(m: Mantenimiento): ArchivoAdjunto[] {
-    if (m.documentos?.length) return m.documentos;
-    return (m.archivos || []).filter(a => a.tipo === 'documento');
-  }
-
-  tieneEvidencias(m: Mantenimiento): boolean {
-    return this.getFotosMantenimiento(m).length > 0
-      || this.getVideosMantenimiento(m).length > 0
-      || this.getDocumentosMantenimiento(m).length > 0;
-  }
-
-  verMediaZoom(url: string, _tipo: 'imagen' | 'video'): void {
-    this.mediaZoomUrl = url;
-  }
-
-  cerrarMediaZoom(): void {
-    this.mediaZoomUrl = null;
-  }
-
-  descargarDocumento(doc: ArchivoAdjunto): void {
-    if (doc.url && doc.url !== '#') {
-      window.open(doc.url, '_blank');
-    } else {
-      this.toastService.info('Demo', `Descarga simulada: ${doc.nombre}`);
-    }
-  }
-
-  puedeCompletar(m: Mantenimiento): boolean {
-    if (m.estado === 'Completado' || m.estado === 'Cancelado') return false;
-    const user = this.authService.getCurrentUser();
-    if (!user) return false;
-    if (this.authService.hasRole(Role.SUPER_ADMIN) || this.authService.hasRole(Role.COORD_MANTENIMIENTO)) {
-      return true;
-    }
-    return this.esTecnico && m.tecnicoAsignadoId === user.id;
-  }
-
-  abrirModalCompletar(m: Mantenimiento) {
-    this.mantenimientoCompletar = m;
-    this.completarForm = {
-      observacionCierre: '',
-      fechaFin: new Date().toISOString().substring(0, 10)
-    };
-    this.multimediaCompletar = [];
-    this.documentosCompletar = [];
-    this.modalCompletarOpen = true;
-  }
-
-  abrirModalCompletarDesdeDetalle() {
-    if (!this.mantenimientoDetalleSeleccionado) return;
+  ejecutarDesdeDetalle(): void {
+    if (!this.detalle) return;
     this.modalDetalleOpen = false;
-    this.abrirModalCompletar(this.mantenimientoDetalleSeleccionado);
+    this.acciones.ejecutarMantenimiento(this.detalle);
   }
 
-  private archivoDesdeFile(file: File, tipoForzado?: ArchivoAdjunto['tipo']): ArchivoAdjunto {
-    const isVideo = file.type.startsWith('video');
-    const isDoc = !file.type.startsWith('image') && !isVideo;
-    const tipo: ArchivoAdjunto['tipo'] = tipoForzado || (isVideo ? 'video' : isDoc ? 'documento' : 'imagen');
-    return {
-      id: `arch-${Date.now()}-${Math.random()}`,
-      nombre: file.name,
-      tipo,
-      extension: file.name.split('.').pop()?.toUpperCase() || (isVideo ? 'MP4' : isDoc ? 'PDF' : 'JPG'),
-      url: URL.createObjectURL(file),
-      tamanio: `${(file.size / (1024 * 1024)).toFixed(1)} MB`,
-      fechaSubida: new Date().toLocaleTimeString()
-    };
+  verMaquina(m: Mantenimiento): void {
+    this.modalDetalleOpen = false;
+    this.maquinaDetalleId = m.maquinariaId ?? null;
   }
 
-  onSubirMultimediaCompletar(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    if (!input.files?.length) return;
-    Array.from(input.files).forEach(file => {
-      this.multimediaCompletar.push(this.archivoDesdeFile(file));
-    });
-    this.toastService.success('Archivos cargados', `${input.files.length} evidencia(s) lista(s).`);
-    input.value = '';
+  etiquetaFrecuencia(dias?: number | null): string {
+    return etiquetaFrecuenciaMantenimiento(dias);
   }
 
-  agregarMultimediaCompletarDemo(): void {
-    this.multimediaCompletar.push({
-      id: `demo-mc-${Date.now()}-1`,
-      nombre: 'mantenimiento_realizado.jpg',
-      tipo: 'imagen',
-      extension: 'JPG',
-      url: 'https://images.unsplash.com/photo-1581092918056-0c4c3acd3789?w=800&auto=format&fit=crop&q=80',
-      tamanio: '1.8 MB',
-      fechaSubida: 'Hoy'
-    });
-    this.multimediaCompletar.push({
-      id: `demo-mc-${Date.now()}-2`,
-      nombre: 'video_prueba_operacion.mp4',
-      tipo: 'video',
-      extension: 'MP4',
-      url: 'https://assets.mixkit.co/videos/preview/mixkit-circuit-board-details-close-up-42289-large.mp4',
-      tamanio: '8.2 MB',
-      fechaSubida: 'Hoy'
-    });
-  }
+  readonly badgeClase = badgeClase;
+  readonly badgeNoAtendido = BADGE_NO_ATENDIDO;
 
-  eliminarMultimediaCompletar(index: number): void {
-    this.multimediaCompletar.splice(index, 1);
-  }
-
-  onSubirDocumentosCompletar(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    if (!input.files?.length) return;
-    Array.from(input.files).forEach(file => {
-      this.documentosCompletar.push(this.archivoDesdeFile(file, 'documento'));
-    });
-    this.toastService.success('Documentos cargados', `${input.files.length} documento(s) listo(s).`);
-    input.value = '';
-  }
-
-  agregarDocumentosCompletarDemo(): void {
-    this.documentosCompletar.push({
-      id: `demo-dc-${Date.now()}`,
-      nombre: 'informe_mantenimiento.pdf',
-      tipo: 'documento',
-      extension: 'PDF',
-      url: '#',
-      tamanio: '1.4 MB',
-      fechaSubida: 'Hoy'
-    });
-  }
-
-  eliminarDocumentoCompletar(index: number): void {
-    this.documentosCompletar.splice(index, 1);
-  }
-
-  guardarCompletarMantenimiento() {
-    if (!this.mantenimientoCompletar) return;
-    if (!this.completarForm.observacionCierre.trim()) {
-      this.toastService.warning('Informe requerido', 'Describa el trabajo realizado en el mantenimiento.');
-      return;
-    }
-
-    const user = this.authService.getCurrentUser();
-    const fotos = this.multimediaCompletar.filter(a => a.tipo === 'imagen').map(a => a.url);
-    const videos = this.multimediaCompletar.filter(a => a.tipo === 'video').map(a => a.url);
-    const ahora = new Date();
-    const horaFin = `${String(ahora.getHours()).padStart(2, '0')}:${String(ahora.getMinutes()).padStart(2, '0')}`;
-
-    this.mantenimientoService.actualizarMantenimiento(this.mantenimientoCompletar.id, {
-      estado: 'Completado',
-      observacionCierre: this.completarForm.observacionCierre.trim(),
-      fechaCierre: this.completarForm.fechaFin,
-      cerradoPor: user ? `${user.nombre} ${user.apellido}`.trim() : 'Usuario',
-      fechaFin: this.completarForm.fechaFin,
-      horaFin,
-      fotos: fotos.length ? fotos : undefined,
-      videos: videos.length ? videos : undefined,
-      archivos: this.multimediaCompletar.length ? [...this.multimediaCompletar] : undefined,
-      documentos: this.documentosCompletar.length ? [...this.documentosCompletar] : undefined
-    }).subscribe(actualizado => {
-      if (!actualizado) return;
-      if (this.mantenimientoDetalleSeleccionado?.id === actualizado.id) {
-        this.mantenimientoDetalleSeleccionado = actualizado;
-      }
-      this.toastService.success(
-        'Mantenimiento completado',
-        `${actualizado.maquina} registrado como realizado con ${this.multimediaCompletar.length + this.documentosCompletar.length} evidencia(s).`
-      );
-      this.modalCompletarOpen = false;
-    });
-  }
+  hora(iso?: string | null): string { return fechaHoraLocal(iso); }
+  fechaProg(iso?: string | null): string { return fechaProgramadaLocal(iso); }
 }

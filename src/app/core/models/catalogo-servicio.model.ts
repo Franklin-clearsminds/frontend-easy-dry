@@ -12,5 +12,6 @@ export interface CatalogoServicio {
   insumosReceta?: RecetaInsumoServicio[];
   fechaCreacion?: string;
   precio?: number;
-  tiempoEstimadoMin?: number;
+  /** Duración en minutos (BD). Calcula hora de salida en OT. */
+  tiempoEstimadoMin: number;
 }
