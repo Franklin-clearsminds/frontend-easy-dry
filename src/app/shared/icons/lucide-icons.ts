@@ -126,7 +126,18 @@ import {
   PanelLeftClose,
   Flag,
   ToggleRight,
-  ToggleLeft
+  ToggleLeft,
+  CheckCheck,
+  MailOpen,
+  ClipboardCheck,
+  SlidersHorizontal,
+  CalendarRange,
+  PieChart,
+  BarChart3,
+  Archive,
+  Building,
+  BellRing,
+  ListOrdered
 } from 'lucide-angular';
 
 export const EASYDRY_ICONS = {
@@ -259,6 +270,17 @@ export const EASYDRY_ICONS = {
   Flag,
   ToggleRight,
   ToggleLeft,
+  CheckCheck,
+  MailOpen,
+  ClipboardCheck,
+  SlidersHorizontal,
+  CalendarRange,
+  PieChart,
+  BarChart3,
+  Archive,
+  Building,
+  BellRing,
+  ListOrdered,
 
   // Kebab-case mappings
   'flag': Flag,
@@ -388,5 +410,16 @@ export const EASYDRY_ICONS = {
   'pause': Pause,
   'pause-circle': PauseCircle,
   'panel-left-open': PanelLeftOpen,
-  'panel-left-close': PanelLeftClose
+  'panel-left-close': PanelLeftClose,
+  'check-check': CheckCheck,
+  'mail-open': MailOpen,
+  'clipboard-check': ClipboardCheck,
+  'sliders-horizontal': SlidersHorizontal,
+  'calendar-range': CalendarRange,
+  'pie-chart': PieChart,
+  'bar-chart-3': BarChart3,
+  'archive': Archive,
+  'building': Building,
+  'bell-ring': BellRing,
+  'list-ordered': ListOrdered
 };

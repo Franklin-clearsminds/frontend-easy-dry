@@ -10,6 +10,7 @@ import {
 } from '../models/dashboard.model';
 import { CHART_COLORS, CHART_SERIES } from '../../shared/theme/colors';
 import { ToastService } from '../../shared/services/toast.service';
+import { AlertaStockVM } from '../models/alerta-stock.model';
 
 /**
  * Todo lo que se muestra sale de lo que devuelve el servidor. Cuando el servidor no entrega un dato, el servicio
@@ -77,6 +78,7 @@ export class DashboardOperativoService {
           mixServicios,
           incidentesPorTipo,
           topMarcas: toBarChart(data?.topMarcas, 'nombre', 'cantidad', 'Frecuencia'),
+          topAgenciasProductivas: toBarChart(data?.topAgenciasProductivas, 'nombre', 'cantidad', 'Servicios'),
           topMaquinas: data?.topMaquinasDañadas && data.topMaquinasDañadas.length > 0 ? { labels: data.topMaquinasDañadas.map((m: any) => m.nombre.split('-')[0].trim()), datasets: [{ label: 'Incidentes', data: data.topMaquinasDañadas.map((m: any) => m.total), backgroundColor: [...CHART_SERIES].reverse() }] } : null,
           topAgencias: toBarChart(data?.topAgenciasIncidentes, 'nombre', 'total', 'Incidentes'),
         };
@@ -184,29 +186,38 @@ export class DashboardOperativoService {
   }
 
   /**
-   * Alertas de stock bajo en tiempo real (POST /inventario/alertas/list)
+   * Alertas de stock para el dashboard (POST /inventario/alertas/list). El servidor ya aplica el alcance del
+   * rol y, si se envía, el filtro `agenciaId`. Devuelve datos aplanados para poder filtrar/resumir en la UI.
    */
-  getAlertas(filtro: any = {}): Observable<any[]> {
+  getAlertas(filtro: any = {}): Observable<AlertaStockVM[]> {
     return this.http.post<any[]>(apiUrl('/inventario/alertas/list'), filtro).pipe(
-      map(items => {
-        if (!items || items.length === 0) return [];
-        return items.map(a => {
-          const nivel = (a.nivel || '').toUpperCase();
-          const tipo = (nivel === 'CRITICO' || nivel.includes('AGOTADO')) ? 'critica' : ((nivel === 'BAJO') ? 'advertencia' : 'info');
-          const agenciaInfo = a.agencia ? ` [${a.agencia.nombre}${a.agencia.region ? ' · ' + a.agencia.region : ''}]` : '';
-          const fechaStr = a.createdAt ? new Date(a.createdAt).toLocaleDateString('es-EC', { hour: '2-digit', minute: '2-digit' }) : '';
-          return {
-            tipo,
-            mensaje: `${a.mensaje || ('Stock bajo: ' + (a.insumo?.nombre || 'Insumo'))}${agenciaInfo}`,
-            fecha: fechaStr
-          };
-        });
-      }),
+      map(items => (Array.isArray(items) ? items : []).map(a => this.aAlertaVM(a))),
       catchError((err) => {
         this.avisarErrorCarga('No se pudieron cargar las alertas de stock', err);
         return of([]);
       })
     );
+  }
+
+  private aAlertaVM(a: any): AlertaStockVM {
+    const nivel = String(a?.nivel || '').toUpperCase();
+    const tipo = (nivel === 'CRITICO' || nivel === 'AGOTADO') ? 'critica' : (nivel === 'BAJO' ? 'advertencia' : 'info');
+    const fechaObj = a?.createdAt ? new Date(a.createdAt) : null;
+    const pulidor = a?.pulidor ? `${a.pulidor.name ?? ''} ${a.pulidor.lastname ?? ''}`.trim() : null;
+    return {
+      id: String(a?.id ?? `${nivel}-${a?.insumo?.nombre ?? ''}-${a?.createdAt ?? ''}`),
+      tipo,
+      nivel,
+      estado: String(a?.estado || 'PENDIENTE'),
+      insumo: a?.insumo?.nombre || 'Insumo',
+      sku: a?.insumo?.codigoSKU,
+      categoria: a?.insumo?.categoria,
+      origen: a?.agencia?.nombre || pulidor || null,
+      region: a?.agencia?.region || null,
+      mensaje: a?.mensaje || '',
+      fecha: fechaObj ? fechaObj.toLocaleDateString('es-EC', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '',
+      timestamp: fechaObj ? fechaObj.getTime() : 0,
+    };
   }
 
   /**
@@ -269,6 +280,7 @@ export class DashboardOperativoService {
           kpis: d?.kpis ?? {},
           chartNivelAlertas: toDonut(d?.nivelAlertas, 'nombre', 'cantidad'),
           chartTopInsumosCriticos: toBar(d?.topInsumosCriticos, 'nombre', 'alertas', 'Alertas'),
+          chartTopInsumosConsumo: toBar(d?.topInsumosConsumo, 'nombre', 'cantidad', 'Unidades'),
           chartDespachosEstado: toDonut(d?.despachosEstado, 'nombre', 'cantidad'),
           chartConsumoPorCategoria: toBar(d?.consumoPorCategoria, 'nombre', 'cantidad', 'Unidades'),
         };
@@ -386,12 +398,32 @@ export class DashboardOperativoService {
         const k = data?.kpis;
         if (!k) return { kpis: [] };
 
+        // Cumplimiento de tiempos (SLA) y desviación real vs. estimado, comunes a varios roles operativos.
+        const slaTexto = k.cumplimientoSlaPct === null || k.cumplimientoSlaPct === undefined ? 'Sin datos' : `${k.cumplimientoSlaPct}%`;
+        const slaVariant = (k.cumplimientoSlaPct ?? 100) >= 80 ? 'success' : 'danger';
+        const desviacionTexto = k.desviacionPromedioMin === null || k.desviacionPromedioMin === undefined
+          ? 'Sin datos'
+          : `${k.desviacionPromedioMin > 0 ? '+' : ''}${k.desviacionPromedioMin} min`;
+
         if (data.isAdminView) {
+          const crecimiento = k.variacionMesPct;
+          const crecimientoTexto = crecimiento === null || crecimiento === undefined
+            ? 'Sin base'
+            : `${crecimiento > 0 ? '+' : ''}${crecimiento}%`;
           return { kpis: [
-            { label: 'Total Usuarios', value: String(k.totalUsuarios ?? 0), icon: 'users', variant: 'primary' },
-            { label: 'Usuarios Activos', value: String(k.usuariosActivos ?? 0), icon: 'check-circle', variant: 'success' },
-            { label: 'Agencias Operativas', value: String(k.agenciasOperativas ?? 0), icon: 'building', variant: 'primary' },
-            { label: 'Decisiones Hoy', value: String(k.decisionesHoy ?? 0), icon: 'shield-check', variant: 'warning' },
+            // Financieros y de crecimiento
+            { label: 'Ingreso Hoy', value: `$${k.ingresoHoy ?? 0}`, icon: 'dollar-sign', variant: 'success' },
+            { label: 'Ingreso del Mes', value: `$${k.ingresoMes ?? 0}`, icon: 'trending-up', variant: 'primary' },
+            { label: 'Ticket Promedio', value: `$${k.ticketPromedioHoy ?? 0}`, icon: 'tag', variant: 'primary' },
+            { label: 'Crecimiento vs Mes Ant.', value: crecimientoTexto, icon: 'trending-up', variant: crecimiento != null && crecimiento < 0 ? 'danger' : 'success' },
+            // Productividad de la red
+            { label: 'Servicios Completados Hoy', value: String(k.serviciosCompletadosHoy ?? 0), icon: 'check-circle', variant: 'success' },
+            { label: 'Servicios del Mes', value: String(k.serviciosCompletadosMes ?? 0), icon: 'bar-chart-2', variant: 'primary' },
+            { label: 'Tiempo Promedio', value: k.tiempoPromedioServicioMin > 0 ? `${k.tiempoPromedioServicioMin} min` : 'Sin datos', icon: 'clock', variant: 'warning' },
+            // Salud del negocio
+            { label: 'Costo Reparaciones (30d)', value: `$${k.costoReparaciones30d ?? 0}`, icon: 'wrench', variant: 'warning' },
+            { label: 'Valor Inventario', value: `$${k.valorInventarioUSD ?? 0}`, icon: 'package', variant: 'primary' },
+            { label: 'Inventario en Tránsito', value: `$${k.valorEnTransitoUSD ?? 0}`, icon: 'truck', variant: 'warning' },
           ]};
         }
 
@@ -401,6 +433,8 @@ export class DashboardOperativoService {
             { label: 'Pendientes', value: String(k.pendientesHoy ?? 0), icon: 'clock', variant: 'warning' },
             { label: 'Aprobadas', value: String(k.aprobadasHoy ?? 0), icon: 'check-circle', variant: 'success' },
             { label: 'Rechazadas', value: String(k.rechazadasHoy ?? 0), icon: 'x-circle', variant: 'danger' },
+            { label: 'Anuladas Hoy', value: String(k.anuladasHoy ?? 0), icon: 'shield-x', variant: 'danger' },
+            { label: 'Descuentos fuera de rango (30d)', value: String(k.descuentosFueraDeRango ?? 0), icon: 'shield-alert', variant: 'danger' },
           ]};
         }
 
@@ -410,6 +444,9 @@ export class DashboardOperativoService {
             { label: 'Lavados 30 días', value: String(k.servicios30Dias ?? 0), icon: 'bar-chart-2', variant: 'success' },
             { label: 'Descuentos Pendientes', value: String(k.descuentosPendientes ?? 0), icon: 'clock', variant: 'warning' },
             { label: 'Costo Químicos (30d)', value: k.costoQuimicos30d > 0 ? `$${k.costoQuimicos30d}` : '$0', icon: 'dollar-sign', variant: 'primary' },
+            { label: 'Cumplimiento SLA (30d)', value: slaTexto, icon: 'shield-check', variant: slaVariant },
+            { label: 'Desviación vs Estimado', value: desviacionTexto, icon: 'clock', variant: 'warning' },
+            { label: '% Premium/Especiales (30d)', value: k.premiumPct === null || k.premiumPct === undefined ? 'Sin datos' : `${k.premiumPct}%`, icon: 'sparkles', variant: 'primary' },
           ]};
         }
 
@@ -419,6 +456,8 @@ export class DashboardOperativoService {
             { label: 'Finalizados', value: String(k.lavadosFinalizados ?? 0), icon: 'shield-check', variant: 'primary' },
             { label: 'Incidentes Abiertos', value: String(k.incidentesAbiertos ?? 0), icon: 'alert-triangle', variant: 'warning' },
             { label: 'Tiempo Promedio', value: k.tiempoPromedioMin > 0 ? `${k.tiempoPromedioMin} min` : 'Sin datos', icon: 'clock', variant: 'warning' },
+            { label: 'Cumplimiento SLA', value: slaTexto, icon: 'shield-check', variant: slaVariant },
+            { label: 'Desviación vs Estimado', value: desviacionTexto, icon: 'clock', variant: 'warning' },
           ]};
         }
 
@@ -427,6 +466,8 @@ export class DashboardOperativoService {
           { label: 'Finalizados', value: String(k.lavadosFinalizados ?? 0), icon: 'shield-check', variant: 'primary' },
           { label: 'Incidentes Abiertos', value: String(k.incidentesAbiertos ?? 0), icon: 'alert-triangle', variant: 'warning' },
           { label: 'Tiempo Promedio', value: k.tiempoPromedioMin > 0 ? `${k.tiempoPromedioMin} min` : 'Sin datos', icon: 'clock', variant: 'warning' },
+          { label: 'Cumplimiento SLA', value: slaTexto, icon: 'shield-check', variant: slaVariant },
+          { label: 'Desviación vs Estimado', value: desviacionTexto, icon: 'clock', variant: 'warning' },
         ]};
       }),
       catchError((err) => {

@@ -3,7 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { BehaviorSubject, Observable, firstValueFrom } from 'rxjs';
 import { map, tap, catchError } from 'rxjs/operators';
 import { of } from 'rxjs';
-import { Notificacion, NotificacionTipo } from '../models/notificacion.model';
+import { Notificacion, NotificacionCategoria, NotificacionTipo } from '../models/notificacion.model';
 import { apiUrl } from '../config/env';
 import { NotificationSocketService, NotificationPayload } from './notification-socket.service';
 
@@ -18,6 +18,20 @@ const TIPO_A_NOTIFICACION_TIPO: Record<string, NotificacionTipo> = {
   INCIDENCIA_ASIGNADA: 'info',
   MANTENIMIENTO_ASIGNADO: 'info',
   LIMPIEZA_RECORDATORIO: 'info',
+};
+
+/** Módulo funcional de cada tipo de notificación del backend, para agrupar/filtrar por área. */
+const CATEGORIA_POR_TIPO: Record<string, NotificacionCategoria> = {
+  STOCK_CRITICO: 'inventario',
+  DESPACHO_PENDIENTE: 'inventario',
+  INCIDENTE_NUEVO: 'mantenimiento',
+  INCIDENCIA_ASIGNADA: 'mantenimiento',
+  INCIDENCIA_RESUELTA: 'mantenimiento',
+  MANTENIMIENTO_ASIGNADO: 'mantenimiento',
+  MANTENIMIENTO_VENCIDO: 'mantenimiento',
+  APROBACION_PENDIENTE: 'aprobaciones',
+  LIMPIEZA_RECORDATORIO: 'limpieza',
+  LIMPIEZA_ATRASADA: 'limpieza',
 };
 
 const ENLACE_POR_ENTIDAD: Record<string, { enlace: string; enlaceLabel: string }> = {
@@ -48,13 +62,17 @@ export class NotificacionService {
   private mapear(n: any): Notificacion {
     const fechaObj = n.createdAt ? new Date(n.createdAt) : new Date();
     const enlaceInfo = n.entidadTipo ? ENLACE_POR_ENTIDAD[n.entidadTipo] : undefined;
+    const tipoBackend = typeof n.tipo === 'string' ? n.tipo : undefined;
     return {
       id: n.id,
       titulo: n.titulo,
       mensaje: n.mensaje,
       tipo: TIPO_A_NOTIFICACION_TIPO[n.tipo] || 'info',
+      tipoBackend,
+      categoria: (tipoBackend && CATEGORIA_POR_TIPO[tipoBackend]) || 'general',
       fecha: fechaObj.toISOString().split('T')[0],
       hora: fechaObj.toTimeString().substring(0, 5),
+      timestamp: fechaObj.getTime(),
       leida: !!n.leida,
       enlace: enlaceInfo?.enlace,
       enlaceLabel: enlaceInfo?.enlaceLabel,
