@@ -271,7 +271,7 @@
       <div [class.lg:col-span-2]="bahiasFullWidth">
         <app-chart-card title="Productividad por Bahía"
           [subtitle]="bahiasTab === 'lavados' ? 'Cantidad de lavados' : 'Tiempo promedio (min)'"
-          [type]="bahiasTab === 'lavados' ? 'bar' : 'line'" [data]="chartBahiasActivo">
+          [type]="bahiasTab === 'lavados' ? 'bar' : 'line'" [data]="chartBahiasActivo" [horizontal]="true">
           <div chart-actions class="flex bg-slate-100 p-1 rounded-xl">
             <button class="px-3 py-1 text-xs font-bold rounded-lg transition-colors"
               [ngClass]="bahiasTab === 'lavados' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
@@ -319,17 +319,12 @@
       </div>
       }
 
-      @if (puedeVerMaquinaria && maquinaria?.distribucionEstado && !isAdminView && !isAprobadorView && !isComercialView) {
-      <app-chart-card title="Disponibilidad de Equipos" subtitle="Estado operativo de maquinaria en agencia" type="doughnut"
-        [data]="maquinaria.distribucionEstado"></app-chart-card>
-      }
-
-      @if (coloresItems.length) {
+      @if (coloresItems.length && !isSupervisorView) {
       <app-distribution-card titulo="Top Colores" subtitulo="Vehículos atendidos por color" etiquetaTotal="Vehículos"
         [items]="coloresItems"></app-distribution-card>
       }
 
-      @if ((isAdminView || isSuperAdminView) && produccion?.topAgenciasProductivas) {
+      @if ((isAdminView || isSuperAdminView || isSupervisorView) && produccion?.topAgenciasProductivas) {
       <div [class.lg:col-span-2]="agenciasFullWidth">
         <app-chart-card title="Top Agencias Productivas" subtitle="Servicios del periodo por agencia" type="bar"
           [data]="produccion.topAgenciasProductivas"></app-chart-card>
@@ -337,8 +332,8 @@
       }
     </div>
 
-    <!-- Desgloses estratégicos (solo Admin/Super Admin) -->
-    @if (isAdminView || isSuperAdminView) {
+    <!-- Desgloses estratégicos (solo Admin/Super Admin/Supervisor) -->
+    @if (isAdminView || isSuperAdminView || isSupervisorView) {
     <div class="mt-12 mb-4 border-b border-slate-200 pb-2 flex items-center gap-2">
       <i-lucide aria-hidden="true" name="pie-chart" class="w-5 h-5 text-easydry-blue"></i-lucide>
       <h3 class="text-lg font-bold font-outfit text-slate-800">Desgloses Estratégicos</h3>
@@ -356,29 +351,33 @@
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-8">
-      @if (agenciasGananciaItems.length) {
+      @if (agenciasGananciaItems.length && !isSupervisorView) {
       <app-ranking-list titulo="Top Agencias — Ganancia Neta" subtitulo="Ingresos − costo de insumos del periodo"
         prefijo="$" color="verde" [items]="agenciasGananciaItems"></app-ranking-list>
       }
+      @if (agenciasIncidentesItems.length && isSupervisorView) {
+      <app-ranking-list titulo="Top Agencias por Incidentes" subtitulo="Fallas de maquinaria en el periodo"
+        color="azul" [items]="agenciasIncidentesItems"></app-ranking-list>
+      }
       @if (agenciasReparacionesItems.length) {
-      <app-ranking-list titulo="Top 5 Agencias por Gasto en Reparaciones"
+      <app-ranking-list [titulo]="isSupervisorView ? 'Agencias Críticas por Reparaciones' : 'Top 5 Agencias por Gasto en Reparaciones'"
         subtitulo="USD acumulado en incidentes técnicos del periodo" prefijo="$" color="rojo"
         [items]="agenciasReparacionesItems"></app-ranking-list>
       }
     </div>
     }
 
-    @if (puedeVerUsuarios) {
+    @if (puedeVerUsuarios && !isAprobadorView) {
     <div class="mt-12 mb-4 border-b border-slate-200 pb-2 flex items-center gap-2">
       <i-lucide aria-hidden="true" name="users" class="w-5 h-5 text-easydry-blue"></i-lucide>
       <h3 class="text-lg font-bold font-outfit text-slate-800">Rendimiento del Personal</h3>
     </div>
     <div class="grid grid-cols-1" [ngClass]="puedeVerProductividad ? 'lg:grid-cols-2 gap-8' : 'gap-8'">
       <div [class.lg:col-span-2]="!puedeVerProductividad">
-        <app-ranking-operadores-widget [ranking]="operadores?.ranking || []"></app-ranking-operadores-widget>
+        <app-ranking-operadores-widget title="Top 5 Lavadores" [ranking]="rankingLavadores || []"></app-ranking-operadores-widget>
       </div>
       @if (puedeVerProductividad) {
-      <app-ranking-operadores-widget [ranking]="rankingPulidores?.fijos || []"
+      <app-ranking-operadores-widget title="Top Pulidores" [ranking]="rankingPulidores?.fijos || []"
         [rankingMoviles]="rankingPulidores?.moviles || []" [showTabs]="true"></app-ranking-operadores-widget>
       }
     </div>
@@ -498,11 +497,11 @@
 
   <!-- Segunda fila: KPIs de eficiencia -->
   <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-    <app-stat-card title="Costo Reparaciones (30d)" [value]="'$' + tecnicoData.costoTotalReparaciones"
+    <app-stat-card title="Costo Reparaciones" [value]="'$' + tecnicoData.costoTotalReparaciones"
       icon="dollar-sign" variant="warning" subtitle="Total en insumos y mano de obra"></app-stat-card>
     <app-stat-card title="Tiempo Promedio Resolución" [value]="tecnicoData.tiempoPromedioResolucionHoras + ' h'"
       icon="clock" variant="primary" subtitle="Por incidente resuelto"></app-stat-card>
-    <app-stat-card title="Mantenimientos (30d)" [value]="tecnicoData.mantenimientosEjecutados30d" icon="wrench"
+    <app-stat-card title="Mantenimientos" [value]="tecnicoData.mantenimientosEjecutados30d" icon="wrench"
       variant="success" subtitle="Preventivos + correctivos"></app-stat-card>
   </div>
 
@@ -513,15 +512,15 @@
       [data]="tecnicoData.chartEstadoParque"></app-chart-card>
     }
     @if (tecnicoData.chartGravedadIncidentes) {
-    <app-chart-card title="Incidentes por Gravedad (30d)" subtitle="BAJA · MEDIA · ALTA · CRÍTICA" type="doughnut"
+    <app-chart-card title="Incidentes por Gravedad" subtitle="BAJA · MEDIA · ALTA · CRÍTICA" type="doughnut"
       [data]="tecnicoData.chartGravedadIncidentes"></app-chart-card>
     }
     @if (tecnicoData.chartTopMaquinas) {
-    <app-chart-card title="Máquinas más Problemáticas (30d)" subtitle="Por cantidad de incidentes reportados" type="bar"
+    <app-chart-card title="Máquinas más Problemáticas" subtitle="Por cantidad de incidentes reportados" type="bar" [horizontal]="true"
       [data]="tecnicoData.chartTopMaquinas"></app-chart-card>
     }
     @if (tecnicoData.chartCostoMaquinas) {
-    <app-chart-card title="Costo por Máquina (30d)" subtitle="USD acumulado en reparaciones" type="bar"
+    <app-chart-card title="Costo por Máquina" subtitle="USD acumulado en reparaciones" type="bar" [horizontal]="true"
       [data]="tecnicoData.chartCostoMaquinas"></app-chart-card>
     }
   </div>
@@ -562,6 +561,36 @@
   </div>
   }
 
+  <!-- Gráficos de Inventario y Suministros para Taller -->
+  @if (bodegaData) {
+  <div class="mt-8 mb-6 animate-fade-in">
+    <h3 class="text-xl font-bold font-outfit text-slate-900 flex items-center gap-2 border-b border-slate-200 pb-2">
+      <i-lucide name="package" class="w-5 h-5 text-easydry-blue"></i-lucide>
+      Gestión de Inventario y Despachos
+    </h3>
+  </div>
+  
+  <div class="grid grid-cols-1 gap-8 mb-8 animate-fade-in-up"
+    [ngClass]="{
+      'lg:grid-cols-1': tallerBodegaColumns === 1,
+      'lg:grid-cols-2': tallerBodegaColumns === 2,
+      'lg:grid-cols-3': tallerBodegaColumns === 3
+    }">
+    @if (bodegaData.chartTopInsumosCriticos) {
+    <app-chart-card title="Top Insumos con Alerta" subtitle="Agencias con stock crítico" type="bar"
+      [data]="bodegaData.chartTopInsumosCriticos"></app-chart-card>
+    }
+    @if (bodegaData.chartTopInsumosConsumo) {
+    <app-chart-card title="Insumos Más Consumidos" subtitle="Unidades en los últimos 30 días" type="bar"
+      [data]="bodegaData.chartTopInsumosConsumo"></app-chart-card>
+    }
+    @if (bodegaData.chartDespachosEstado) {
+    <app-chart-card title="Estado de Despachos" subtitle="Distribución actual" type="doughnut"
+      [data]="bodegaData.chartDespachosEstado"></app-chart-card>
+    }
+  </div>
+  }
+
   <div class="text-center mt-6">
     <a routerLink="/taller-tecnico"
       class="inline-flex items-center gap-2 px-6 py-3 bg-easydry-green hover:bg-easydry-green-dark text-slate-900 font-bold rounded-xl text-sm transition-colors">
@@ -589,10 +618,10 @@
   <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
     <app-stat-card title="Ingreso Hoy" [value]="'$' + especialesData.kpis.ingresoHoy" icon="dollar-sign"
       variant="success" subtitle="Por OTs completadas hoy"></app-stat-card>
-    <app-stat-card title="Ingreso (30d)" [value]="'$' + especialesData.kpis.ingresoTotal30d" icon="bar-chart-2"
+    <app-stat-card title="Ingreso" [value]="'$' + especialesData.kpis.ingresoTotal30d" icon="bar-chart-2"
       variant="primary" subtitle="Últimos 30 días"></app-stat-card>
     <app-stat-card title="Calificación Promedio" [value]="especialesData.kpis.calificacionPromedio + ' / 5'" icon="star"
-      variant="success" subtitle="Calidad del servicio (30d)"></app-stat-card>
+      variant="success" subtitle="Calidad del servicio"></app-stat-card>
     <app-stat-card title="Tiempo Promedio" [value]="especialesData.kpis.tiempoPromedioMin + ' min'" icon="timer"
       variant="warning" subtitle="Tiempo efectivo por OT"></app-stat-card>
   </div>
@@ -615,15 +644,15 @@
 
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
     @if (especialesData.chartTipoServicio) {
-    <app-chart-card title="Mix de Servicios (30d)" subtitle="Tipos más demandados" type="doughnut"
+    <app-chart-card title="Mix de Servicios" subtitle="Tipos más demandados" type="doughnut"
       [data]="especialesData.chartTipoServicio"></app-chart-card>
     }
     @if (especialesData.chartPrioridad) {
-    <app-chart-card title="Por Prioridad (30d)" subtitle="Alta · Media · Baja · Urgente" type="bar"
+    <app-chart-card title="Por Prioridad" subtitle="Alta · Media · Baja · Urgente" type="bar"
       [data]="especialesData.chartPrioridad"></app-chart-card>
     }
     @if (especialesData.chartTopOperadores) {
-    <app-chart-card title="Top Pulidores (30d)" subtitle="Por cantidad de OTs completadas" type="bar"
+    <app-chart-card title="Top Pulidores" subtitle="Por cantidad de OTs completadas" type="bar"
       [data]="especialesData.chartTopOperadores"></app-chart-card>
     }
   </div>
@@ -756,26 +785,43 @@
   </div>
 
   <!-- Gráficos -->
-  <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+  <div class="grid grid-cols-1 gap-8 mb-8 animate-fade-in-up"
+    [ngClass]="{
+      'lg:grid-cols-1': bodegaMainColumns === 1,
+      'lg:grid-cols-2': bodegaMainColumns === 2,
+      'lg:grid-cols-3': bodegaMainColumns === 3
+    }">
     @if (bodegaData.chartNivelAlertas) {
     <app-chart-card title="Nivel de Alertas de Stock" subtitle="Distribución por criticidad" type="doughnut"
       [data]="bodegaData.chartNivelAlertas"></app-chart-card>
     }
     @if (bodegaData.chartDespachosEstado) {
-    <app-chart-card title="Estado de Despachos (30d)" subtitle="PENDIENTE · EN TRÁNSITO · RECIBIDO" type="doughnut"
+    <app-chart-card title="Estado de Despachos" subtitle="PENDIENTE · EN TRÁNSITO · RECIBIDO" type="doughnut"
       [data]="bodegaData.chartDespachosEstado"></app-chart-card>
     }
     @if (bodegaData.chartTopInsumosCriticos) {
-    <app-chart-card title="Top Insumos con Alertas" subtitle="Insumos con más reportes de stock bajo" type="bar"
+    <app-chart-card title="Top Insumos con Alertas" subtitle="Insumos con más reportes de stock bajo" type="bar" [horizontal]="true"
       [data]="bodegaData.chartTopInsumosCriticos"></app-chart-card>
     }
+    @if (bodegaData.chartTopAgenciasConAlertas) {
+    <app-chart-card title="Top Agencias con Alertas" subtitle="Sucursales con más urgencias de stock" type="bar" [horizontal]="true"
+      [data]="bodegaData.chartTopAgenciasConAlertas"></app-chart-card>
+    }
     @if (bodegaData.chartTopInsumosConsumo) {
-    <app-chart-card title="Top Insumos por Rotación (30d)" subtitle="Insumos con más unidades despachadas" type="bar"
+    <app-chart-card title="Top Insumos por Rotación" subtitle="Insumos con más unidades despachadas" type="bar" [horizontal]="true"
       [data]="bodegaData.chartTopInsumosConsumo"></app-chart-card>
     }
     @if (bodegaData.chartConsumoPorCategoria) {
-    <app-chart-card title="Consumo por Categoría (30d)" subtitle="Unidades despachadas por tipo de insumo" type="bar"
+    <app-chart-card title="Consumo por Categoría" subtitle="Unidades despachadas por tipo de insumo" type="bar" [horizontal]="true"
       [data]="bodegaData.chartConsumoPorCategoria"></app-chart-card>
+    }
+    @if (bodegaData.chartTopAgenciasConsumo) {
+    <app-chart-card title="Top Agencias por Consumo" subtitle="Agencias que solicitaron más insumos" type="bar" [horizontal]="true"
+      [data]="bodegaData.chartTopAgenciasConsumo"></app-chart-card>
+    }
+    @if (bodegaData.chartValorStockPorCategoria) {
+    <app-chart-card title="Valor del Stock por Categoría" subtitle="Capital inmovilizado en insumos" type="bar" [horizontal]="true"
+      [data]="bodegaData.chartValorStockPorCategoria"></app-chart-card>
     }
   </div>
 

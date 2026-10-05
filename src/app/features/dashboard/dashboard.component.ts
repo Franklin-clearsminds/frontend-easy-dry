@@ -55,6 +55,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   produccion: any;
   operadores: any;
   rankingPulidores: {fijos: any[], moviles: any[]} | null = null;
+  rankingLavadores: any[] | null = null;
   serviciosData: any;
   maquinaria: any;
   alertas: any[] = [];
@@ -195,11 +196,17 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   /** Top Agencias ocupa todo el ancho solo si quedaría sola en su fila (evita huecos en la grilla). */
   get agenciasFullWidth(): boolean {
-    const previos =
-      (this.produccion?.distribucionModelos && (this.isAdminView || this.isAprobadorView || this.isComercialView) ? 1 : 0) +
-      (this.tieneTopVehiculos ? 1 : 0) +
-      (this.coloresItems.length ? 1 : 0);
-    return previos % 2 === 0;
+    let slots = 0;
+    if (this.produccion?.distribucionModelos && (this.isAdminView || this.isAprobadorView || this.isComercialView)) {
+      slots += 1;
+    }
+    if (this.tieneTopVehiculos) {
+      slots += this.vehiculosFullWidth ? 2 : 1;
+    }
+    if (this.coloresItems.length && !this.isSupervisorView) {
+      slots += 1;
+    }
+    return slots % 2 === 0;
   }
 
   /** Ranking de agencias por ganancia neta (para la lista con barras). */
@@ -210,6 +217,11 @@ export class DashboardComponent implements OnInit, OnDestroy {
   /** Ranking de agencias por gasto en reparaciones (para la lista con barras). */
   get agenciasReparacionesItems(): RankingItem[] {
     return (this.produccion?.agenciasReparaciones ?? []).map((a: any) => ({ nombre: a.nombre, valor: Number(a.costo) || 0 }));
+  }
+
+  /** Ranking de agencias por cantidad de incidentes (para la lista con barras). */
+  get agenciasIncidentesItems(): RankingItem[] {
+    return (this.produccion?.agenciasIncidentesRaw ?? []).map((a: any) => ({ nombre: a.nombre, valor: Number(a.total) || 0 }));
   }
 
   get pulidoresActuales(): any[] {
@@ -283,13 +295,14 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   get chart4Title(): string {
     if (this.isAdminView) return 'Auditoría Reciente';
-    if (this.isAprobadorView) return 'Desempeño';
+    if (this.isAprobadorView) return 'Tipos de Solicitud';
     if (this.isComercialView) return 'Top Marcas Atendidas';
     return 'Lavados por Bahía';
   }
 
   get chart4Subtitle(): string {
     if (this.isAdminView) return 'Acciones realizadas';
+    if (this.isAprobadorView) return 'Distribución por tipo de requerimiento';
     return 'Productividad en cantidad';
   }
 
@@ -449,6 +462,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     ];
     if (this.puedeVerUsuarios) {
       peticiones.push(this.dashboardService.getOperadores(filtro).pipe(tap((d) => (this.operadores = d))));
+      peticiones.push(this.dashboardService.getRankingLavadores(filtro).pipe(tap((d) => (this.rankingLavadores = d))));
     }
     if (this.puedeVerProductividad) {
       peticiones.push(this.dashboardService.getRankingPulidores(filtro).pipe(tap((d) => (this.rankingPulidores = d))));
@@ -467,8 +481,12 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   private cargarTaller(): void {
-    this.carga.add(this.dashboardService.getDashboardTecnico(this.filtroActual).subscribe({
-      next: (d) => { this.tecnicoData = d; this.recargando = false; },
+    const peticiones: Observable<any>[] = [
+      this.dashboardService.getDashboardTecnico(this.filtroActual).pipe(tap((d) => (this.tecnicoData = d))),
+      this.dashboardService.getDashboardBodegaDedicado(this.filtroActual).pipe(tap((d) => (this.bodegaData = d))),
+    ];
+    this.carga.add(forkJoin(peticiones).subscribe({
+      next: () => (this.recargando = false),
       error: () => (this.recargando = false),
     }));
   }
@@ -492,6 +510,31 @@ export class DashboardComponent implements OnInit, OnDestroy {
       next: () => (this.recargando = false),
       error: () => (this.recargando = false),
     }));
+  }
+
+  get tallerBodegaColumns(): number {
+    let count = 0;
+    if (this.bodegaData?.chartTopInsumosCriticos) count++;
+    if (this.bodegaData?.chartTopInsumosConsumo) count++;
+    if (this.bodegaData?.chartDespachosEstado) count++;
+    return count || 1;
+  }
+
+  get bodegaMainColumns(): number {
+    let count = 0;
+    if (this.bodegaData?.chartNivelAlertas) count++;
+    if (this.bodegaData?.chartDespachosEstado) count++;
+    if (this.bodegaData?.chartTopInsumosCriticos) count++;
+    if (this.bodegaData?.chartTopAgenciasConAlertas) count++;
+    if (this.bodegaData?.chartTopInsumosConsumo) count++;
+    if (this.bodegaData?.chartConsumoPorCategoria) count++;
+    if (this.bodegaData?.chartTopAgenciasConsumo) count++;
+    if (this.bodegaData?.chartValorStockPorCategoria) count++;
+    
+    if (count === 1) return 1;
+    if (count === 2 || count === 4) return 2;
+    if (count === 3) return 3; 
+    return 2; 
   }
 
   /** Distribución del parque de maquinaria como serie de gráfico (operativas / mantenimiento / dañadas). */

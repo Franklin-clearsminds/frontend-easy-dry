@@ -11,7 +11,7 @@ import { LucideAngularModule } from 'lucide-angular';
       <div class="flex items-center justify-between mb-4">
         <h4 class="font-bold text-slate-900 text-lg font-outfit flex items-center gap-2">
           <i-lucide aria-hidden="true" name="trophy" class="w-5 h-5 text-amber-500"></i-lucide>
-          {{ showTabs ? 'Top Pulidores' : 'Top Operadores' }}
+          {{ title || (showTabs ? 'Top Pulidores' : 'Top Operadores') }}
         </h4>
         @if (showTabs) {
           <div class="flex bg-slate-100 p-1 rounded-xl">
@@ -62,6 +62,7 @@ import { LucideAngularModule } from 'lucide-angular';
   `
 })
 export class RankingOperadoresWidgetComponent {
+  @Input() title?: string;
   @Input() ranking: any[] = [];
   @Input() rankingMoviles: any[] = [];
   @Input() showTabs = false;

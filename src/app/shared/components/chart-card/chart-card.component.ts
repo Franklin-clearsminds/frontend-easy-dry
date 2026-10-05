@@ -10,7 +10,7 @@ Chart.register(...registerables);
   standalone: true,
   imports: [CommonModule],
   host: { 
-    class: 'block',
+    class: 'block h-full',
     '[attr.title]': 'null' // Previene que Angular ponga el @Input() title como tooltip nativo del navegador
   },
   template: `
@@ -25,8 +25,10 @@ Chart.register(...registerables);
         <ng-content select="[chart-actions]"></ng-content>
       </div>
 
-      <div class="flex-1 relative w-full min-h-[260px] flex items-center justify-center">
-        <canvas #chartCanvas></canvas>
+      <div class="flex-1 relative w-full min-h-[260px]" [ngClass]="{'overflow-y-auto custom-scrollbar': horizontal}">
+        <div [style.height]="chartContainerHeight" class="relative w-full h-full min-h-[260px] flex items-center justify-center">
+          <canvas #chartCanvas></canvas>
+        </div>
       </div>
 
       <ng-content select="[chart-footer]"></ng-content>
@@ -39,10 +41,20 @@ export class ChartCardComponent implements AfterViewInit, OnChanges, OnDestroy {
   @Input() type: ChartType = 'line';
   @Input() data: any = { labels: [], datasets: [] };
   @Input() options: any = {};
+  @Input() horizontal = false;
 
   @ViewChild('chartCanvas') chartCanvas!: ElementRef<HTMLCanvasElement>;
   private chartInstance?: Chart;
   private viewReady = false;
+
+  get chartContainerHeight(): string {
+    if (this.horizontal && this.type === 'bar' && this.data?.labels?.length) {
+      // 40px per item + 60px for margins/axis
+      const minHeight = this.data.labels.length * 40 + 60;
+      return `max(100%, ${minHeight}px)`;
+    }
+    return '100%';
+  }
 
   ngAfterViewInit(): void {
     this.viewReady = true;
@@ -87,7 +99,10 @@ export class ChartCardComponent implements AfterViewInit, OnChanges, OnDestroy {
 
     this.destroyChart();
 
+    const isHorizontal = this.horizontal && this.type === 'bar';
+
     const defaultOptions: any = {
+      indexAxis: isHorizontal ? 'y' : 'x',
       responsive: true,
       maintainAspectRatio: false,
       animation: false,
@@ -110,11 +125,11 @@ export class ChartCardComponent implements AfterViewInit, OnChanges, OnDestroy {
         }
       },
       scales: this.type === 'pie' || this.type === 'doughnut' ? {} : {
-        x: {
+        [isHorizontal ? 'y' : 'x']: {
           grid: { display: false },
           ticks: { font: { family: 'Inter', size: 11 }, color: CHART_COLORS.slate }
         },
-        y: {
+        [isHorizontal ? 'x' : 'y']: {
           grid: { color: CHART_COLORS.slateLight },
           ticks: { font: { family: 'Inter', size: 11 }, color: CHART_COLORS.slate },
           beginAtZero: true
@@ -126,7 +141,7 @@ export class ChartCardComponent implements AfterViewInit, OnChanges, OnDestroy {
     if (this.type === 'bar') {
       if (this.data?.datasets) {
         this.data.datasets.forEach((ds: any) => {
-          ds.maxBarThickness = 60;
+          ds.maxBarThickness = isHorizontal ? 30 : 60;
         });
       }
     }

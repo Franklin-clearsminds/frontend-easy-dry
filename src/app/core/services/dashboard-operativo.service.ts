@@ -151,6 +151,7 @@ export class DashboardOperativoService {
           alertasOperativas: (data?.alertasOperativas ?? []).map((a: any) => this.aAlertaOperativaVM(a)),
           topMaquinas: data?.topMaquinasDañadas && data.topMaquinasDañadas.length > 0 ? { labels: data.topMaquinasDañadas.map((m: any) => m.nombre.split('-')[0].trim()), datasets: [{ label: 'Incidentes', data: data.topMaquinasDañadas.map((m: any) => m.total), backgroundColor: [...CHART_SERIES].reverse() }] } : null,
           topAgencias: toBarChart(data?.topAgenciasIncidentes, 'nombre', 'total', 'Incidentes'),
+          agenciasIncidentesRaw: data?.topAgenciasIncidentes,
         };
       }),
       catchError((err) => {
@@ -194,7 +195,16 @@ export class DashboardOperativoService {
    */
   getRankingLavadores(filtro: { agenciaId?: string; regionId?: string; fechaDesde?: string; fechaHasta?: string } = {}): Observable<any[]> {
     return this.http.post<any>(apiUrl('/analytics/ranking-lavadores'), filtro).pipe(
-      map(data => Array.isArray(data?.ranking) ? data.ranking : []),
+      map(res => {
+        if (!res?.ranking || !Array.isArray(res.ranking)) return [];
+        return res.ranking.map((r: any, index: number) => ({
+          posicion: index + 1,
+          nombre: r.nombre,
+          bahia: `${r.cantidadServicios} servicios`, // Subtítulo en el widget
+          vehiculos: r.cantidadServicios,
+          tiempoPromedioMin: r.tiempoPromedioMin
+        }));
+      }),
       catchError((err) => {
         this.avisarErrorCarga('No se pudo cargar el ranking de lavadores', err);
         return of([]);
@@ -392,9 +402,12 @@ export class DashboardOperativoService {
           kpis: d?.kpis ?? {},
           chartNivelAlertas: toDonut(d?.nivelAlertas, 'nombre', 'cantidad'),
           chartTopInsumosCriticos: toBar(d?.topInsumosCriticos, 'nombre', 'alertas', 'Alertas'),
+          chartTopAgenciasConAlertas: toBar(d?.topAgenciasConAlertas, 'nombre', 'alertas', 'Alertas'),
           chartTopInsumosConsumo: toBar(d?.topInsumosConsumo, 'nombre', 'cantidad', 'Unidades'),
           chartDespachosEstado: toDonut(d?.despachosEstado, 'nombre', 'cantidad'),
           chartConsumoPorCategoria: toBar(d?.consumoPorCategoria, 'nombre', 'cantidad', 'Unidades'),
+          chartTopAgenciasConsumo: toBar(d?.topAgenciasConsumo, 'nombre', 'cantidad', 'Unidades'),
+          chartValorStockPorCategoria: toBar(d?.valorStockPorCategoria, 'nombre', 'cantidad', 'Valor USD'),
         };
       }),
       catchError((err) => {

@@ -295,6 +295,18 @@ export const EASYDRY_ICONS = {
   BellRing,
   ListOrdered,
   Activity,
+  ArrowUpRight,
+  Ban,
+  Briefcase,
+  Crown,
+  Edit2,
+  Maximize,
+  PackageX,
+  Phone,
+  Power,
+  Square,
+  TriangleAlert,
+  ZoomOut,
 
   // Kebab-case mappings
   'flag': Flag,
