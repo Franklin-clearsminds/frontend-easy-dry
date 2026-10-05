@@ -417,10 +417,21 @@ export class DashboardComponent implements OnInit, OnDestroy {
    */
   get vista(): VistaDashboard {
     const a = this.auth;
+    const user = a.getCurrentUser();
+    const rol = user?.role || user?.rolNombre;
+
+    // 1. Forzar vistas especializadas explícitas para roles técnicos/operativos (evita cruce por permisos mezclados)
+    if (rol === 'COORD_MANTENIMIENTO' || rol === 'TECNICO') return 'taller';
+    if (rol === 'COORD_SERVICIOS_ESPECIALES' || rol === 'PULIDOR') return 'especiales';
+    if (rol === 'COORD_BODEGA' || rol === 'ASISTENTE_BODEGA') return 'bodega';
+
+    // 2. Reglas dinámicas genéricas (fallback por permisos)
     const veServicios = a.puede('servicios.ver');
     if (a.puede('maquinaria.ver') && a.puede('mantenimientos.ejecutar') && !veServicios) return 'taller';
     if (a.puede('especiales.ver') && !veServicios) return 'especiales';
     if (a.puede('inventario.ver') && a.puede('despachos.crear') && !veServicios) return 'bodega';
+    
+    // 3. Vista gerencial / supervisión
     if (a.puede('dashboard.ver')) return 'ejecutivo';
     return 'ninguna';
   }
