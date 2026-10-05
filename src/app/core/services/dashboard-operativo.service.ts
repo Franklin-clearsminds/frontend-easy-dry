@@ -66,12 +66,38 @@ export class DashboardOperativoService {
           }]
         } : null;
 
-        const donaSrc = isAdmin ? data?.distribucionRoles : (isAprobador ? data?.distribucionEstados : data?.mixServicios);
-        const mixServicios = toDonutChart(donaSrc, 'nombre', 'cantidad');
+        let mixServicios: any = null;
+        if (isAdmin) {
+          mixServicios = toDonutChart(data?.distribucionRoles, 'nombre', 'cantidad');
+        } else if (isAprobador) {
+          mixServicios = toDonutChart(data?.distribucionEstados, 'nombre', 'cantidad');
+        } else if (isComercial) {
+          mixServicios = toDonutChart(data?.mixServicios, 'nombre', 'cantidad');
+        } else {
+          // Líder Operador, Supervisor y roles operativos: Estado de las Órdenes de Lavado de hoy
+          const e = data?.distribucionEstados;
+          if (e && typeof e === 'object' && !Array.isArray(e)) {
+            const enEspera = Number(e.EN_ESPERA ?? 0);
+            const enProceso = Number(e.EN_PROCESO ?? 0);
+            const finalizados = Number(e.FINALIZADO ?? 0);
+            const cancelados = Number(e.CANCELADO ?? 0);
+            mixServicios = {
+              labels: ['En espera', 'En proceso', 'Finalizados', 'Cancelados'],
+              datasets: [{
+                data: [enEspera, enProceso, finalizados, cancelados],
+                backgroundColor: [CHART_COLORS.amber, CHART_COLORS.blue, CHART_COLORS.green, CHART_COLORS.rose]
+              }]
+            };
+          } else if (Array.isArray(e) && e.length > 0) {
+            mixServicios = toDonutChart(e, 'nombre', 'cantidad');
+          } else if (data?.mixServicios && data.mixServicios.length > 0) {
+            mixServicios = toDonutChart(data.mixServicios, 'nombre', 'cantidad');
+          }
+        }
 
         const barSrc = isAdmin ? data?.distribucionDecisiones : (isAprobador ? data?.distribucionTipos : (isComercial ? data?.solicitudesComerciales : data?.distribucionBahias));
         const barLabel = isAdmin ? 'Veces' : (isAprobador ? 'Solicitudes' : (isComercial ? 'Cantidad' : 'Lavados'));
-        const barValueField = isComercial ? 'cantidad' : 'total';
+        const barValueField = isComercial || isAprobador ? 'cantidad' : 'total';
         const distribucionModelos = toBarChart(barSrc, 'nombre', barValueField, barLabel);
 
         const tiemposSrc = isAdmin ? data?.distribucionCategorias : (isComercial ? null : data?.tiemposBahias);
@@ -94,7 +120,7 @@ export class DashboardOperativoService {
 
         return {
           isAdminView: isAdmin, isSupervisorView: isSupervisor, isComercialView: isComercial, isAprobadorView: isAprobador, isSuperAdminView: data?.isSuperAdminView ?? false,
-          vehiculosHoy: data?.kpis?.totalLavadosHoy ?? data?.kpis?.serviciosHoy ?? null,
+          vehiculosHoy: data?.kpis?.totalLavadosHoy ?? data?.kpis?.serviciosHoy ?? data?.kpis?.totalHoy ?? null,
           flujoHorario,
           distribucionModelos,
           tiemposBahias,

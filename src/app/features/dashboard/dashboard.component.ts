@@ -178,6 +178,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
     return { labels, datasets: [this.produccion.chartBahias.datasets[1]] };
   }
 
+  get bahiasFullWidth(): boolean {
+    return (this.produccion?.chartBahias?.labels?.length || 0) > 3;
+  }
+
   get tieneTopVehiculos(): boolean {
     return !!(this.produccion?.topMarcas || this.produccion?.topMarcasModelos);
   }
@@ -250,11 +254,23 @@ export class DashboardComponent implements OnInit, OnDestroy {
     return 'Vehículos procesados en el día';
   }
 
+  get vehiculosFullWidth(): boolean {
+    const tieneMaquinaria = this.puedeVerMaquinaria && !!this.maquinaria?.distribucionEstado && !this.isAdminView && !this.isAprobadorView && !this.isComercialView;
+    return !tieneMaquinaria;
+  }
+
   get chart2Title(): string {
     if (this.isAdminView) return 'Distribución de Roles';
-    if (this.isAprobadorView) return 'Tipos de Solicitud';
+    if (this.isAprobadorView) return 'Estados de Solicitud';
     if (this.isComercialView) return 'Mix Comercial de Servicios';
-    return 'Mix de Servicios';
+    return 'Estado de Órdenes de Lavado';
+  }
+
+  get chart2Subtitle(): string {
+    if (this.isAdminView) return 'Roles de los usuarios registrados';
+    if (this.isAprobadorView) return 'Distribución por estado de aprobación';
+    if (this.isComercialView) return 'Categorías de servicios especiales vs lavado';
+    return 'Servicios de hoy por etapa operativa';
   }
 
   get chart3Title(): string {
@@ -400,6 +416,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   get puedeVerMaquinaria(): boolean { return this.auth.puede('maquinaria.ver'); }
   get puedeVerUsuarios(): boolean { return this.auth.puede('usuarios.ver'); }
   get puedeVerMapa(): boolean { return this.auth.puede('agencias.ver'); }
+  get puedeVerProductividad(): boolean { return this.auth.puede('productividad.ver'); }
 
   /** Alertas de nivel crítico entre las que llegaron del servidor. */
   get alertasCriticas(): number {
@@ -432,6 +449,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
     ];
     if (this.puedeVerUsuarios) {
       peticiones.push(this.dashboardService.getOperadores(filtro).pipe(tap((d) => (this.operadores = d))));
+    }
+    if (this.puedeVerProductividad) {
       peticiones.push(this.dashboardService.getRankingPulidores(filtro).pipe(tap((d) => (this.rankingPulidores = d))));
     }
     if (this.puedeVerMaquinaria) {

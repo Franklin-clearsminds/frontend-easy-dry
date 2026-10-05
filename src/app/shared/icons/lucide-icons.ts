@@ -294,6 +294,7 @@ export const EASYDRY_ICONS = {
   Building,
   BellRing,
   ListOrdered,
+  Activity,
 
   // Kebab-case mappings
   'flag': Flag,

@@ -1,4 +1,4 @@
-﻿<div class="space-y-6 animate-fade-in">
+<div class="space-y-6 animate-fade-in">
 
   <!-- Encabezado dinámico según el panel que corresponde al rol -->
   <div
@@ -267,8 +267,8 @@
       </div>
       }
 
-      @if (produccion?.chartBahias) {
-      <div class="lg:col-span-2">
+      @if (chartBahiasActivo) {
+      <div [class.lg:col-span-2]="bahiasFullWidth">
         <app-chart-card title="Productividad por Bahía"
           [subtitle]="bahiasTab === 'lavados' ? 'Cantidad de lavados' : 'Tiempo promedio (min)'"
           [type]="bahiasTab === 'lavados' ? 'bar' : 'line'" [data]="chartBahiasActivo">
@@ -293,23 +293,35 @@
         [data]="produccion.distribucionModelos"></app-chart-card>
       }
 
+      @if (produccion?.mixServicios) {
+      <app-chart-card [title]="chart2Title" [subtitle]="chart2Subtitle" type="doughnut"
+        [data]="produccion.mixServicios"></app-chart-card>
+      }
+
       @if (tieneTopVehiculos) {
-      <app-chart-card title="Top Vehículos"
-        [subtitle]="vehiculosTab === 'marcas' ? 'Marcas más frecuentes' : 'Combinaciones marca · modelo más frecuentes'"
-        type="bar" [data]="chartVehiculosActivo">
-        <div chart-actions class="flex bg-slate-100 p-1 rounded-xl">
-          <button type="button" class="px-3 py-1 text-xs font-bold rounded-lg transition-colors"
-            [ngClass]="vehiculosTab === 'marcas' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
-            [attr.aria-pressed]="vehiculosTab === 'marcas'" (click)="vehiculosTab = 'marcas'">
-            Marca
-          </button>
-          <button type="button" class="px-3 py-1 text-xs font-bold rounded-lg transition-colors"
-            [ngClass]="vehiculosTab === 'modelos' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
-            [attr.aria-pressed]="vehiculosTab === 'modelos'" (click)="vehiculosTab = 'modelos'">
-            Modelo
-          </button>
-        </div>
-      </app-chart-card>
+      <div [class.lg:col-span-2]="vehiculosFullWidth">
+        <app-chart-card title="Top Vehículos"
+          [subtitle]="vehiculosTab === 'marcas' ? 'Marcas más frecuentes' : 'Combinaciones marca · modelo más frecuentes'"
+          type="bar" [data]="chartVehiculosActivo">
+          <div chart-actions class="flex bg-slate-100 p-1 rounded-xl">
+            <button type="button" class="px-3 py-1 text-xs font-bold rounded-lg transition-colors"
+              [ngClass]="vehiculosTab === 'marcas' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+              [attr.aria-pressed]="vehiculosTab === 'marcas'" (click)="vehiculosTab = 'marcas'">
+              Marca
+            </button>
+            <button type="button" class="px-3 py-1 text-xs font-bold rounded-lg transition-colors"
+              [ngClass]="vehiculosTab === 'modelos' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+              [attr.aria-pressed]="vehiculosTab === 'modelos'" (click)="vehiculosTab = 'modelos'">
+              Modelo
+            </button>
+          </div>
+        </app-chart-card>
+      </div>
+      }
+
+      @if (puedeVerMaquinaria && maquinaria?.distribucionEstado && !isAdminView && !isAprobadorView && !isComercialView) {
+      <app-chart-card title="Disponibilidad de Equipos" subtitle="Estado operativo de maquinaria en agencia" type="doughnut"
+        [data]="maquinaria.distribucionEstado"></app-chart-card>
       }
 
       @if (coloresItems.length) {
@@ -361,10 +373,14 @@
       <i-lucide aria-hidden="true" name="users" class="w-5 h-5 text-easydry-blue"></i-lucide>
       <h3 class="text-lg font-bold font-outfit text-slate-800">Rendimiento del Personal</h3>
     </div>
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-      <app-ranking-operadores-widget [ranking]="operadores?.ranking || []"></app-ranking-operadores-widget>
+    <div class="grid grid-cols-1" [ngClass]="puedeVerProductividad ? 'lg:grid-cols-2 gap-8' : 'gap-8'">
+      <div [class.lg:col-span-2]="!puedeVerProductividad">
+        <app-ranking-operadores-widget [ranking]="operadores?.ranking || []"></app-ranking-operadores-widget>
+      </div>
+      @if (puedeVerProductividad) {
       <app-ranking-operadores-widget [ranking]="rankingPulidores?.fijos || []"
         [rankingMoviles]="rankingPulidores?.moviles || []" [showTabs]="true"></app-ranking-operadores-widget>
+      }
     </div>
     }
   </div>
