@@ -273,8 +273,18 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   get vehiculosFullWidth(): boolean {
-    const tieneMaquinaria = this.puedeVerMaquinaria && !!this.maquinaria?.distribucionEstado && !this.isAdminView && !this.isAprobadorView && !this.isComercialView;
-    return !tieneMaquinaria;
+    let slots = 0;
+    if (this.chartBahiasActivo) {
+      slots += this.bahiasFullWidth ? 2 : 1;
+    }
+    if (this.produccion?.distribucionModelos && (this.isAdminView || this.isAprobadorView || this.isComercialView)) {
+      slots += 1;
+    }
+    if (this.produccion?.mixServicios) {
+      slots += 1;
+    }
+    // Ocupa todo el ancho solo si no dejará un hueco en la grilla actual
+    return slots % 2 === 0;
   }
 
   get chart2Title(): string {
