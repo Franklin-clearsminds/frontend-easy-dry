@@ -23,11 +23,6 @@ import { ToastService } from '../../shared/services/toast.service';
 import { FilterBarComponent, FilterState } from '../../shared/components/filter-bar/filter-bar.component';
 import { isRealProfilePhoto } from '../../core/config/env';
 
-interface ModuloGrupo {
-  grupo: string;
-  modulos: ModuloSistema[];
-}
-
 interface GrupoCapacidad {
   grupo: string;
   items: CapacidadCatalogo[];
@@ -286,13 +281,13 @@ const COLUMNAS_ROLES: TableColumn[] = [
                   <i-lucide aria-hidden="true" name="download" class="w-4 h-4 text-slate-600"></i-lucide>
                   <span>Exportar</span>
                 </button>
-                @if (puedeGestionarUsuarios) {
+                @if (puedeCrearUsuarios) {
                   <button
                     type="button"
                     (click)="abrirModalCrearUsuario()"
                     class="btn btn-cta">
                     <i-lucide aria-hidden="true" name="user-plus" class="w-4 h-4"></i-lucide>
-                    <span>Registrar Usuario</span>
+                    <span>{{ puedeGestionarUsuarios ? 'Registrar Usuario' : 'Registrar Backup' }}</span>
                   </button>
                 }
               </div>
@@ -380,6 +375,11 @@ const COLUMNAS_ROLES: TableColumn[] = [
                   } @else {
                     <span class="text-slate-500">{{ u.agencia || 'Sin asignar' }}</span>
                   }
+                  @if (esBackupRol(u.rolNombre || u.rol)) {
+                    <span class="w-fit px-2 py-0.5 rounded-full text-[11px] font-extrabold uppercase tracking-wide bg-violet-50 text-violet-800 border border-violet-200">
+                      {{ u.agenciaId ? 'Backup asignado' : 'Backup disponible' }}
+                    </span>
+                  }
                   @if (esOperadorEspecialesRol(u.rol)) {
                     <span
                       class="w-fit px-2 py-0.5 rounded-full text-[11px] font-extrabold uppercase tracking-wide"
@@ -418,28 +418,34 @@ const COLUMNAS_ROLES: TableColumn[] = [
 
               <ng-template appCell="acciones" let-u>
                 <div class="flex items-center justify-end gap-1">
-                  <button
-                    type="button"
-                    (click)="toggleEstadoUsuario(u)"
-                    [title]="u.estado === 'Activo' ? 'Desactivar usuario' : 'Activar usuario'"
-                    class="p-1.5 min-w-9 min-h-9 inline-flex items-center justify-center rounded-lg transition-colors cursor-pointer"
-                    [ngClass]="u.estado === 'Activo' ? 'text-slate-500 hover:text-amber-600 hover:bg-amber-50' : 'text-slate-500 hover:text-emerald-600 hover:bg-emerald-50'" [attr.aria-label]="u.estado === 'Activo' ? 'Desactivar usuario' : 'Activar usuario'">
-                    <i-lucide aria-hidden="true" [name]="u.estado === 'Activo' ? 'user-x' : 'user-check'" class="w-4 h-4"></i-lucide>
-                  </button>
-                  <button
-                    type="button"
-                    (click)="editarUsuario(u)"
-                    title="Editar Usuario"
-                    class="p-1.5 min-w-9 min-h-9 inline-flex items-center justify-center text-slate-500 hover:text-easydry-blue rounded-lg hover:bg-slate-100 transition-colors cursor-pointer" aria-label="Editar Usuario">
-                    <i-lucide aria-hidden="true" name="edit-3" class="w-4 h-4"></i-lucide>
-                  </button>
-                  <button
-                    type="button"
-                    (click)="abrirModalEliminarUsuario(u)"
-                    title="Eliminar Usuario"
-                    class="p-1.5 min-w-9 min-h-9 inline-flex items-center justify-center text-slate-500 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer" aria-label="Eliminar Usuario">
-                    <i-lucide aria-hidden="true" name="trash-2" class="w-4 h-4"></i-lucide>
-                  </button>
+                  @if (puedeGestionarUsuarios) {
+                    <button
+                      type="button"
+                      (click)="toggleEstadoUsuario(u)"
+                      [title]="u.estado === 'Activo' ? 'Desactivar usuario' : 'Activar usuario'"
+                      class="p-1.5 min-w-9 min-h-9 inline-flex items-center justify-center rounded-lg transition-colors cursor-pointer"
+                      [ngClass]="u.estado === 'Activo' ? 'text-slate-500 hover:text-amber-600 hover:bg-amber-50' : 'text-slate-500 hover:text-emerald-600 hover:bg-emerald-50'" [attr.aria-label]="u.estado === 'Activo' ? 'Desactivar usuario' : 'Activar usuario'">
+                      <i-lucide aria-hidden="true" [name]="u.estado === 'Activo' ? 'user-x' : 'user-check'" class="w-4 h-4"></i-lucide>
+                    </button>
+                  }
+                  @if (puedeGestionarFilaUsuario(u)) {
+                    <button
+                      type="button"
+                      (click)="editarUsuario(u)"
+                      title="Editar Usuario"
+                      class="p-1.5 min-w-9 min-h-9 inline-flex items-center justify-center text-slate-500 hover:text-easydry-blue rounded-lg hover:bg-slate-100 transition-colors cursor-pointer" aria-label="Editar Usuario">
+                      <i-lucide aria-hidden="true" name="edit-3" class="w-4 h-4"></i-lucide>
+                    </button>
+                  }
+                  @if (puedeGestionarUsuarios) {
+                    <button
+                      type="button"
+                      (click)="abrirModalEliminarUsuario(u)"
+                      title="Eliminar Usuario"
+                      class="p-1.5 min-w-9 min-h-9 inline-flex items-center justify-center text-slate-500 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer" aria-label="Eliminar Usuario">
+                      <i-lucide aria-hidden="true" name="trash-2" class="w-4 h-4"></i-lucide>
+                    </button>
+                  }
                 </div>
               </ng-template>
             </app-data-table>
@@ -637,96 +643,6 @@ const COLUMNAS_ROLES: TableColumn[] = [
             </app-data-table>
           </div>
 
-          <!-- Roles Cards Grid -->
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            @for (rol of rolesVisibles; track rol.id) {
-              <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-easydry flex flex-col justify-between space-y-5 hover:border-purple-300 transition-all">
-                <div>
-                  <!-- Card Header -->
-                  <div class="flex items-start justify-between gap-3">
-                    <div class="flex items-center gap-3">
-                      <div
-                        class="w-10 h-10 rounded-xl flex items-center justify-center text-white font-extrabold text-base shadow-xs"
-                        [style.background-color]="rol.color || '#7C3AED'">
-                        <i-lucide aria-hidden="true" name="shield" class="w-5 h-5"></i-lucide>
-                      </div>
-                      <div>
-                        <h3 class="font-extrabold text-slate-900 text-base font-outfit">{{ rol.nombre }}</h3>
-                        <p class="text-[11px] text-slate-500">{{ ambitoInfo(rol.ambito).corto }} · {{ rol.usuariosCount || 0 }} usuarios</p>
-                      </div>
-                    </div>
-
-                    <span
-                      class="text-xs font-bold px-2.5 py-1 rounded-lg border"
-                      [ngClass]="rol.estado === 'Activo' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-600 border-slate-200'">
-                      {{ rol.estado || 'Activo' }}
-                    </span>
-                  </div>
-
-                  <!-- Description -->
-                  <p class="text-xs text-slate-600 mt-3 leading-relaxed">
-                    {{ rol.descripcion || 'Sin descripción registrada en base de datos.' }}
-                  </p>
-
-                  <!-- Permisos count bar -->
-                  <div class="mt-4 pt-3 border-t border-slate-100">
-                    <div class="flex items-center justify-between text-xs mb-1.5">
-                      <span class="font-bold text-slate-700">Permisos de acción:</span>
-                      <span class="font-extrabold" [ngClass]="getCapacidadesCount(rol) ? 'text-purple-700' : 'text-amber-700'">
-                        {{ getCapacidadesCount(rol) ? getCapacidadesCount(rol) + ' de ' + catalogoCapacidades.length : 'Ninguno (sin acceso)' }}
-                      </span>
-                    </div>
-                    <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
-                      <div
-                        class="h-2 rounded-full transition-all duration-500"
-                        [style.background-color]="rol.color || '#7C3AED'"
-                        [style.width.%]="getCapacidadesProgress(rol)">
-                      </div>
-                    </div>
-                    <p class="text-[11px] text-slate-500 mt-1.5">{{ getModulosCount(rol) }} de {{ modulosDisponibles.length }} módulos de navegación</p>
-                  </div>
-
-                  <!-- Mini Badges of Allowed Modules -->
-                  <div class="mt-3 flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
-                    @for (modCodigo of rol.modulos; track modCodigo) {
-                      <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-700">
-                        <i-lucide aria-hidden="true" [name]="getModuloIcon(modCodigo)" class="w-3 h-3 text-easydry-blue"></i-lucide>
-                        <span>{{ getModuloNombre(modCodigo) }}</span>
-                      </span>
-                    }
-                  </div>
-                </div>
-
-                <!-- Footer Actions -->
-                <div class="pt-3 border-t border-slate-100 flex items-center justify-between">
-                  <span class="text-xs text-slate-500 font-mono">Creado: {{ rol.fechaCreacion }}</span>
-
-                  <div class="flex items-center gap-2">
-                    <button
-                      type="button"
-                      (click)="abrirModalEditarRol(rol)"
-                      [title]="puedeGestionarRoles ? 'Editar rol y permisos' : 'Ver permisos del rol'"
-                      class="px-3 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-bold transition-colors flex items-center gap-1.5 border border-purple-200 cursor-pointer">
-                      <i-lucide aria-hidden="true" [name]="puedeGestionarRoles ? 'sliders' : 'eye'" class="w-3.5 h-3.5"></i-lucide>
-                      <span>{{ puedeGestionarRoles ? 'Editar' : 'Ver' }}</span>
-                    </button>
-
-                    @if (puedeGestionarRoles && !rol.esSistema) {
-                      <button
-                        type="button"
-                        (click)="abrirModalEliminarRol(rol)"
-                        title="Eliminar Rol"
-                        class="p-1.5 min-w-9 min-h-9 inline-flex items-center justify-center rounded-xl text-rose-500 hover:bg-rose-50 hover:text-rose-700 transition-colors cursor-pointer border border-slate-200 hover:border-rose-200" aria-label="Eliminar Rol">
-                        <i-lucide aria-hidden="true" name="trash-2" class="w-4 h-4"></i-lucide>
-                      </button>
-                    }
-                  </div>
-                </div>
-
-              </div>
-            }
-          </div>
-
         </div>
       }
 
@@ -849,6 +765,47 @@ const COLUMNAS_ROLES: TableColumn[] = [
                     </p>
                   </div>
                 </div>
+              }
+            </div>
+          } @else if (esBackupRol(usuarioForm.rol)) {
+            <div class="p-4 rounded-2xl border border-violet-200 bg-violet-50/70 space-y-3">
+              <div class="flex items-center gap-2 text-violet-900">
+                <i-lucide aria-hidden="true" name="replace" class="w-4 h-4 text-violet-600 shrink-0"></i-lucide>
+                <span class="text-xs font-extrabold uppercase tracking-wide">Backup regional · Cobertura temporal</span>
+              </div>
+              <p class="text-xs text-violet-800 leading-relaxed">
+                El Backup pertenece a una región. El ámbito seleccionado en Roles y Permisos determina si cubre una sola agencia o todas las agencias de esa región.
+              </p>
+              <div>
+                <label for="usuarios-backup-region" class="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  Región <span class="text-violet-600">*</span>
+                </label>
+                <select id="usuarios-backup-region" [(ngModel)]="usuarioForm.region" name="regionBackup"
+                  (ngModelChange)="onBackupRegionChange($event)"
+                  class="w-full p-2.5 border rounded-xl text-sm font-semibold border-violet-300 focus:border-violet-500 bg-white" required>
+                  <option value="">Selecciona una región...</option>
+                  @for (r of regionesDisponibles; track r.id) {
+                    <option [value]="r.nombre">{{ r.nombre }}</option>
+                  }
+                </select>
+              </div>
+              @if (ambitoForm === 'AGENCIA') {
+                <div>
+                <label for="usuarios-backup-agencia" class="block text-xs font-bold text-slate-700 uppercase mb-1">Agencia asignada (opcional)</label>
+                <select id="usuarios-backup-agencia" [(ngModel)]="usuarioForm.agencia" name="agenciaBackup"
+                  class="w-full p-2.5 border rounded-xl text-sm font-semibold border-violet-300 bg-white"
+                  [disabled]="!usuarioForm.region">
+                  <option value="">Sin agencia · Backup disponible</option>
+                  @for (s of agenciasBackupDisponibles; track s.id) {
+                    <option [value]="s.nombre">{{ s.nombre }} ({{ s.ciudad }})</option>
+                  }
+                </select>
+                <p class="mt-1 text-xs text-violet-700">Sin agencia asignada, el Backup no tendrá alcance operativo hasta asignarlo a una sede.</p>
+                </div>
+              } @else {
+                <p class="rounded-xl border border-violet-200 bg-white p-3 text-xs text-violet-900">
+                  Ámbito regional: el Backup verá y operará en todas las agencias de la región seleccionada; no se asigna a una agencia específica.
+                </p>
               }
             </div>
           } @else if (ambitoForm === 'GLOBAL') {
@@ -1206,14 +1163,19 @@ const COLUMNAS_ROLES: TableColumn[] = [
               <select id="usuarios-rol-ambito"
                 [(ngModel)]="rolForm.ambito"
                 name="rolAmbito"
-                [disabled]="soloLecturaRol"
+                [disabled]="!puedeEditarAmbitoRol"
                 class="w-full sm:w-96 p-2.5 border rounded-xl text-sm font-semibold bg-white disabled:bg-slate-50">
-                @for (a of ambitosLista; track a.codigo) {
+                @for (a of ambitosParaRol; track a.codigo) {
                   <option [value]="a.codigo" [disabled]="!puedeOtorgarAmbito(a.codigo) && a.codigo !== rolForm.ambito">{{ a.corto }}</option>
                 }
               </select>
+              @if (esRolBackupEditado) {
+                <p class="mt-1.5 text-xs text-violet-800">
+                  En BACKUP puedes elegir Agencia para limitarlo a una sede asignada, o Región para darle acceso a todas las agencias de su región. Solo el Super Administrador puede cambiar este ámbito.
+                </p>
+              }
               <ul class="mt-2 space-y-1 text-xs text-slate-600">
-                @for (a of ambitosLista; track a.codigo) {
+                @for (a of ambitosParaRol; track a.codigo) {
                   <li class="flex gap-2 rounded-lg px-2 py-1" [ngClass]="a.codigo === rolForm.ambito ? 'bg-purple-50 border border-purple-200 text-purple-900' : ''">
                     <span class="font-extrabold w-28 shrink-0">{{ a.corto }}</span>
                     <span>{{ a.detalle }}</span>
@@ -1232,64 +1194,33 @@ const COLUMNAS_ROLES: TableColumn[] = [
             </div>
           }
 
-          <!-- Módulos de navegación -->
+          <!-- Pantallas que verá el rol: salen de los permisos -->
           <div class="border-t border-slate-200 pt-4">
-            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-              <div>
-                <h4 class="font-extrabold text-slate-900 text-sm font-outfit">Módulos de navegación</h4>
-                <p class="text-xs text-slate-500">Qué opciones aparecen en el menú. Para hacer algo dentro de cada una se necesita además el permiso de acción correspondiente.</p>
+            <div class="mb-3">
+              <h4 class="font-extrabold text-slate-900 text-sm font-outfit">Pantallas que verá este rol</h4>
+              <p class="text-xs text-slate-500">Salen de los permisos de acción: una pantalla aparece en el menú cuando el rol tiene al menos uno de los permisos que la habilitan.</p>
+            </div>
+            @if (pantallasRolForm.length) {
+              <p class="text-xs text-slate-600 mb-2" aria-live="polite">
+                <b>Desde la app:</b> {{ pantallasAppRolForm.length ? nombresDe(pantallasAppRolForm) : 'ninguna' }}.
+                <b>Solo en la web:</b> {{ pantallasSoloWebRolForm.length ? nombresDe(pantallasSoloWebRolForm) : 'ninguna' }}.
+              </p>
+              <div class="flex flex-wrap gap-2">
+                @for (mod of pantallasRolForm; track mod.codigo) {
+                  <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-purple-200 bg-purple-50/40 text-xs font-bold text-slate-800"
+                    [title]="mod.permisos.length ? 'Habilitada por: ' + mod.permisos.join(', ') : 'La ve todo rol con algún permiso'">
+                    <i-lucide aria-hidden="true" [name]="mod.icono" class="w-3.5 h-3.5 text-purple-600"></i-lucide>
+                    {{ mod.nombre }}
+                    <span class="ml-0.5 px-1.5 py-0.5 rounded-md text-[10px] font-extrabold uppercase tracking-wide"
+                      [ngClass]="mod.disponibleEnApp ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'">
+                      {{ mod.disponibleEnApp ? 'App' : 'Solo web' }}
+                    </span>
+                  </span>
+                }
               </div>
-
-              @if (!soloLecturaRol) {
-                <div class="flex items-center gap-2">
-                  <button
-                    type="button"
-                    (click)="seleccionarTodosModulos()"
-                    class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors">
-                    Seleccionar Todos
-                  </button>
-                  <button
-                    type="button"
-                    (click)="desmarcarTodosModulos()"
-                    class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors">
-                    Desmarcar Todos
-                  </button>
-                </div>
-              }
-            </div>
-
-            <div class="space-y-4">
-              @for (grupo of modulosAgrupados; track grupo.grupo) {
-                <div class="bg-slate-50/80 rounded-2xl p-4 border border-slate-200 space-y-3">
-                  <div class="flex items-center justify-between">
-                    <span class="text-xs font-extrabold text-easydry-blue uppercase tracking-wider">
-                      {{ grupo.grupo }}
-                    </span>
-                    <span class="text-xs font-bold text-slate-500">
-                      {{ getSelectedInGroupCount(grupo) }} / {{ grupo.modulos.length }}
-                    </span>
-                  </div>
-
-                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                    @for (mod of grupo.modulos; track mod.id) {
-                      <label
-                        class="p-3 rounded-xl border bg-white transition-all flex items-center gap-2.5"
-                        [ngClass]="[isModuloSelected(mod.codigo) ? 'border-purple-300 ring-1 ring-purple-200 bg-purple-50/15' : 'border-slate-200', soloLecturaRol ? 'cursor-default' : 'cursor-pointer']">
-                        <input
-                          type="checkbox"
-                          [checked]="isModuloSelected(mod.codigo)"
-                          [disabled]="soloLecturaRol"
-                          (change)="toggleModulo(mod.codigo)"
-                          class="w-4 h-4 rounded text-purple-600 focus:ring-purple-500">
-                        <i-lucide aria-hidden="true" [name]="mod.icono" class="w-4 h-4 text-purple-600 flex-shrink-0"></i-lucide>
-                        <span class="font-bold text-xs text-slate-900">{{ mod.nombre }}</span>
-                        <span class="ml-auto text-[11px] font-mono text-slate-400 hidden sm:inline">{{ mod.rutaPrincipal }}</span>
-                      </label>
-                    }
-                  </div>
-                </div>
-              }
-            </div>
+            } @else {
+              <p class="text-xs text-slate-500" aria-live="polite">Ninguna: marca al menos un permiso para que el rol vea alguna pantalla.</p>
+            }
           </div>
 
           <!-- Permisos de acción -->
@@ -1320,51 +1251,82 @@ const COLUMNAS_ROLES: TableColumn[] = [
               <p class="text-xs text-slate-500 py-4" role="status">Cargando el catálogo de permisos…</p>
             } @else if (errorCatalogo) {
               <p class="text-xs text-rose-600 font-semibold py-4">{{ errorCatalogo }}</p>
+            } @else if (!capacidadesGrupos.length) {
+              <p class="text-xs text-slate-500 py-4">Ningún permiso coincide con «{{ busquedaCapacidad }}».</p>
             } @else {
-              <div class="space-y-4">
-                @for (g of capacidadesGrupos; track g.grupo) {
-                  <div class="bg-slate-50/80 rounded-2xl p-4 border border-slate-200 space-y-3">
-                    <div class="flex items-center justify-between gap-3">
-                      <span class="text-xs font-extrabold text-easydry-blue uppercase tracking-wider">{{ g.grupo }}</span>
-                      <div class="flex items-center gap-3">
-                        <span class="text-xs font-bold text-slate-500">{{ seleccionadasEnGrupo(g) }} / {{ g.items.length }}</span>
-                        @if (!soloLecturaRol) {
-                          <button
-                            type="button"
-                            (click)="toggleGrupo(g)"
-                            class="px-2.5 py-1 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 rounded-lg text-xs font-bold transition-colors">
-                            {{ grupoCompleto(g) ? 'Desmarcar grupo' : 'Marcar grupo' }}
-                          </button>
-                        }
-                      </div>
-                    </div>
+              <div class="grid grid-cols-1 md:grid-cols-[16rem_minmax(0,1fr)] md:items-start border border-slate-200 rounded-2xl overflow-hidden bg-white">
 
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                      @for (c of g.items; track c.codigo) {
-                        <label
-                          class="p-3 rounded-xl border bg-white transition-all flex items-start gap-2.5"
-                          [ngClass]="[capacidadSeleccionada(c.codigo) ? 'border-purple-300 ring-1 ring-purple-200 bg-purple-50/15' : 'border-slate-200', (soloLecturaRol || !puedeOtorgar(c.codigo)) ? 'cursor-default' : 'cursor-pointer']">
-                          <input
-                            type="checkbox"
-                            [checked]="capacidadSeleccionada(c.codigo)"
-                            [disabled]="soloLecturaRol || !puedeOtorgar(c.codigo)"
-                            (change)="toggleCapacidad(c.codigo)"
-                            class="mt-0.5 w-4 h-4 rounded text-purple-600 focus:ring-purple-500">
-                          <span class="min-w-0">
-                            <span class="block font-bold text-xs text-slate-900">{{ c.nombre }}</span>
-                            <span class="block text-[11px] text-slate-500 leading-snug">{{ c.descripcion }}</span>
-                            <span class="block text-[10px] font-mono text-slate-400 mt-0.5">{{ c.codigo }}</span>
-                            @if (!soloLecturaRol && !puedeOtorgar(c.codigo)) {
-                              <span class="block text-[11px] font-semibold text-amber-700 mt-0.5">Tu rol no tiene este permiso: no puedes otorgarlo.</span>
-                            }
-                          </span>
+                <!-- Grupos: se elige uno para ver sus acciones -->
+                <nav aria-label="Grupos de permisos" class="bg-slate-50 border-b md:border-b-0 md:border-r border-slate-200 p-2 space-y-0.5">
+                  @for (g of capacidadesGrupos; track g.grupo) {
+                    <div class="flex items-center gap-2 rounded-xl pl-2 pr-1 transition-colors"
+                      [ngClass]="grupoVisible?.grupo === g.grupo ? 'bg-white shadow-sm ring-1 ring-slate-200' : 'hover:bg-white/70'">
+                      @if (!soloLecturaRol) {
+                        <input type="checkbox"
+                          class="w-4 h-4 rounded text-purple-600 focus:ring-purple-500 shrink-0"
+                          [checked]="grupoCompleto(g)"
+                          [disabled]="!hayOtorgablesEnGrupo(g)"
+                          [attr.aria-label]="'Marcar todo el grupo ' + g.grupo"
+                          (change)="toggleGrupo(g)">
+                      }
+                      <button type="button"
+                        (click)="seleccionarGrupo(g.grupo)"
+                        [attr.aria-pressed]="grupoVisible?.grupo === g.grupo"
+                        class="flex-1 min-h-11 flex items-center justify-between gap-2 py-2 pr-2 text-left rounded-lg">
+                        <span class="text-xs font-bold text-slate-800 truncate">{{ g.grupo }}</span>
+                        <span class="text-[11px] font-bold tabular-nums shrink-0 px-1.5 py-0.5 rounded-md"
+                          [ngClass]="seleccionadasEnGrupo(g) ? 'bg-purple-100 text-purple-800' : 'bg-slate-200 text-slate-600'">
+                          {{ seleccionadasEnGrupo(g) }}/{{ g.items.length }}
+                        </span>
+                      </button>
+                    </div>
+                  }
+                </nav>
+
+                <!-- Acciones del grupo elegido -->
+                <section class="min-w-0 max-h-96 md:max-h-[min(70vh,40rem)] overflow-y-auto" [attr.aria-label]="'Acciones de ' + (grupoVisible?.grupo ?? '')">
+                  @if (grupoVisible; as g) {
+                    <div class="sticky top-0 z-10 flex items-center justify-between gap-3 px-4 py-3 bg-slate-50 border-b border-slate-200">
+                      <h5 class="font-extrabold text-sm text-easydry-blue uppercase tracking-wide truncate">{{ g.grupo }}</h5>
+                      @if (!soloLecturaRol) {
+                        <label class="flex items-center gap-2 min-h-11 text-xs font-bold text-slate-700 cursor-pointer shrink-0"
+                          [class.opacity-50]="!hayOtorgablesEnGrupo(g)">
+                          Marcar todo
+                          <input type="checkbox"
+                            class="w-4 h-4 rounded text-purple-600 focus:ring-purple-500"
+                            [checked]="grupoCompleto(g)"
+                            [disabled]="!hayOtorgablesEnGrupo(g)"
+                            (change)="toggleGrupo(g)">
                         </label>
                       }
                     </div>
-                  </div>
-                } @empty {
-                  <p class="text-xs text-slate-500 py-4">Ningún permiso coincide con «{{ busquedaCapacidad }}».</p>
-                }
+                    <ul class="divide-y divide-slate-100">
+                      @for (c of g.items; track c.codigo) {
+                        <li>
+                          <label class="flex items-start gap-3 px-4 py-3 min-h-11"
+                            [ngClass]="(soloLecturaRol || !puedeOtorgar(c.codigo)) ? 'cursor-default' : 'cursor-pointer hover:bg-slate-50'">
+                            <input type="checkbox"
+                              [checked]="capacidadSeleccionada(c.codigo)"
+                              [disabled]="soloLecturaRol || !puedeOtorgar(c.codigo)"
+                              (change)="toggleCapacidad(c.codigo)"
+                              class="mt-1 w-4 h-4 rounded text-purple-600 focus:ring-purple-500 shrink-0">
+                            <span class="min-w-0 flex-1">
+                              <span class="block font-bold text-xs text-slate-900">{{ c.nombre }}</span>
+                              <span class="block text-[11px] text-slate-500 leading-snug">{{ c.descripcion }}</span>
+                              <span class="block text-[10px] font-mono text-slate-400 mt-0.5">{{ c.codigo }}</span>
+                              @if (pantallasQueAbre(c.codigo); as pantallas) {
+                                <span class="block text-[11px] font-semibold text-purple-700 mt-0.5">Muestra en el menú: {{ pantallas }}</span>
+                              }
+                              @if (!soloLecturaRol && !puedeOtorgar(c.codigo)) {
+                                <span class="block text-[11px] font-semibold text-amber-700 mt-0.5">Tu rol no tiene este permiso: no puedes otorgarlo.</span>
+                              }
+                            </span>
+                          </label>
+                        </li>
+                      }
+                    </ul>
+                  }
+                </section>
               </div>
             }
           </div>
@@ -1507,7 +1469,6 @@ export class UsuariosComponent implements OnInit, OnDestroy {
   roles: RolPersonalizado[] = [];
   sucursales: Sucursal[] = [];
   modulosDisponibles: ModuloSistema[] = [];
-  modulosAgrupados: ModuloGrupo[] = [];
 
   filtrosGlobales: FilterState = { sucursal: 'Todas', region: 'Todas', cliente: 'Todas', marca: 'Todas', operador: 'Todos', bahia: 'Todas', estado: 'Todos', rol: 'Todos', fecha: 'Hoy' };
   filtroTexto = '';
@@ -1626,22 +1587,37 @@ export class UsuariosComponent implements OnInit, OnDestroy {
     nombre: string;
     descripcion: string;
     ambito: string;
-    modulos: string[];
     capacidades: string[];
     esSistema: boolean;
   } = {
     nombre: '',
     descripcion: '',
     ambito: 'AGENCIA',
-    modulos: [],
     capacidades: [],
     esSistema: false,
   };
 
   // Catálogo de permisos de acción y ámbitos (editor de roles)
   readonly ambitosLista = AMBITOS_INFO;
+  get esRolBackupEditado(): boolean {
+    return (this.rolForm.codigo || '').toUpperCase() === 'BACKUP';
+  }
+
+  get ambitosParaRol(): AmbitoInfo[] {
+    return this.esRolBackupEditado
+      ? this.ambitosLista.filter(a => a.codigo === 'AGENCIA' || a.codigo === 'REGION')
+      : this.ambitosLista;
+  }
+
+  get puedeEditarAmbitoRol(): boolean {
+    if (this.soloLecturaRol) return false;
+    return !this.esRolBackupEditado || this.authService.isSuperAdmin();
+  }
+
   catalogoCapacidades: CapacidadCatalogo[] = [];
   capacidadesGrupos: GrupoCapacidad[] = [];
+  /** Grupo que se ve a la derecha del editor de permisos. */
+  grupoActivo: string | null = null;
   busquedaCapacidad = '';
   cargandoCatalogo = false;
   errorCatalogo: string | null = null;
@@ -1674,6 +1650,33 @@ export class UsuariosComponent implements OnInit, OnDestroy {
 
   esOperadorEspecialesRol = esRolOperadorEspeciales;
 
+  esBackupRol(rol?: string): boolean {
+    return (rol || '').toUpperCase().trim() === 'BACKUP';
+  }
+
+  get agenciasBackupDisponibles(): Sucursal[] {
+    const region = this.regionesDisponibles.find(r =>
+      r.nombre.toLowerCase() === (this.usuarioForm.region || '').toLowerCase() ||
+      String(r.id) === String(this.usuarioForm.region || ''),
+    );
+    if (!region) return [];
+    return this.sucursales.filter(s => {
+      const idRegionAgencia = s.regionId || s.region?.id;
+      return idRegionAgencia
+        ? String(idRegionAgencia) === String(region.id)
+        : (s.regionNombre || s.region?.nombre || '').toLowerCase() === region.nombre.toLowerCase();
+    });
+  }
+
+  onBackupRegionChange(region: string): void {
+    const regionValida = this.regionesDisponibles.some(r =>
+      r.nombre.toLowerCase() === region.toLowerCase() || String(r.id) === String(region),
+    );
+    if (!regionValida || !this.agenciasBackupDisponibles.some(a => a.nombre === this.usuarioForm.agencia)) {
+      this.usuarioForm.agencia = '';
+    }
+  }
+
   /** Regla de rol que el backend define por rol: el asistente de bodega se asigna a una bodega regional. */
   esAsistenteBodegaRol(rol?: string): boolean {
     if (!rol) return false;
@@ -1705,13 +1708,16 @@ export class UsuariosComponent implements OnInit, OnDestroy {
 
   /** Un rol de ámbito agencia sin agencia no vería ningún dato: la agencia es obligatoria. */
   get agenciaObligatoria(): boolean {
-    return this.ambitoForm === 'AGENCIA';
+    return this.ambitoForm === 'AGENCIA' && !this.esBackupRol(this.usuarioForm.rol);
   }
 
   /** Roles que se pueden asignar: los activos (más el que el usuario ya tiene al editar). */
   get rolesAsignables(): RolPersonalizado[] {
     const actual = this.usuarioForm.roleId;
-    return this.rolesVisibles.filter(r => r.estado === 'Activo' || r.estado === 1 || r.id === actual);
+    const disponibles = this.rolesVisibles.filter(r => r.estado === 'Activo' || r.estado === 1 || r.id === actual);
+    return this.puedeGestionarUsuarios
+      ? disponibles
+      : disponibles.filter(r => r.codigo.toUpperCase() === 'BACKUP');
   }
 
   onRoleIdChange(roleId: string) {
@@ -1762,6 +1768,9 @@ export class UsuariosComponent implements OnInit, OnDestroy {
   get motivoSinReinicioPassword(): string {
     const u = this.editandoUsuario;
     if (!u) return '';
+    if (!this.puedeGestionarUsuarios) {
+      return 'Solo Admin o Super Admin pueden restablecer contraseñas.';
+    }
     const actual = this.authService.getCurrentUser();
     if (actual && String(actual.id) === String(u.id)) {
       return 'No puedes cambiar tu propia contraseña: debe asignártela otro administrador.';
@@ -1796,7 +1805,7 @@ export class UsuariosComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
-    if (!this.puedeGestionarUsuarios) {
+    if (!this.puedeCrearUsuarios) {
       this.columnasUsuarios = COLUMNAS_USUARIOS.filter(c => c.key !== 'acciones');
     }
     // Catálogo de módulos y permisos: solo con 'roles.ver' (lo exige el servidor).
@@ -1883,16 +1892,28 @@ export class UsuariosComponent implements OnInit, OnDestroy {
     return (this.getModulosCount(rol) / this.modulosDisponibles.length) * 100;
   }
 
-  private agruparModulos() {
-    const grupos: Record<string, ModuloSistema[]> = {};
-    for (const m of this.modulosDisponibles) {
-      if (!grupos[m.grupo]) grupos[m.grupo] = [];
-      grupos[m.grupo].push(m);
-    }
-    this.modulosAgrupados = Object.entries(grupos).map(([grupo, modulos]) => ({
-      grupo,
-      modulos
-    }));
+  /** Pantallas que verá el rol que se está editando: las mismas que calcula el servidor a partir de sus permisos. */
+  get pantallasRolForm(): ModuloSistema[] {
+    const propias = this.rolForm.capacidades;
+    if (!propias.length) return [];
+    return this.modulosDisponibles.filter(m => !m.permisos.length || m.permisos.some(c => propias.includes(c)));
+  }
+
+  get pantallasAppRolForm(): ModuloSistema[] {
+    return this.pantallasRolForm.filter(m => m.disponibleEnApp);
+  }
+
+  get pantallasSoloWebRolForm(): ModuloSistema[] {
+    return this.pantallasRolForm.filter(m => !m.disponibleEnApp);
+  }
+
+  nombresDe(lista: ModuloSistema[]): string {
+    return lista.map(m => m.nombre).join(', ');
+  }
+
+  /** Nombres de las pantallas que habilita un permiso (vacío si no habilita ninguna por sí solo). */
+  pantallasQueAbre(codigo: string): string {
+    return this.modulosDisponibles.filter(m => m.permisos.includes(codigo)).map(m => m.nombre).join(', ');
   }
 
   // -------------------------------------------------------------
@@ -2229,17 +2250,23 @@ export class UsuariosComponent implements OnInit, OnDestroy {
 
   // ── Acciones de Usuario ──
   abrirModalCrearUsuario() {
+    if (!this.puedeCrearUsuarios) return;
     this.editandoUsuario = null;
     this.usuarioFormSubmitted = false;
-    const defaultRol = this.rolesVisibles.find(r => r.codigo === 'APROBADOR') || this.rolesVisibles[0];
+    const defaultRol = this.puedeGestionarUsuarios
+      ? (this.rolesVisibles.find(r => r.codigo === 'APROBADOR') || this.rolesVisibles[0])
+      : this.rolesVisibles.find(r => r.codigo.toUpperCase() === 'BACKUP');
     const primerRol = defaultRol?.nombre || 'Aprobador';
+    const regionActual = this.authService.currentUserValue?.regionId
+      ? this.regionesDisponibles.find(r => String(r.id) === String(this.authService.currentUserValue?.regionId))?.nombre || ''
+      : '';
     this.usuarioForm = {
       nombre: '',
       apellido: '',
       rol: primerRol,
       roleId: defaultRol?.id,
       agencia: '',
-      region: '',
+      region: this.esBackupRol(defaultRol?.codigo) ? regionActual : '',
       bodegaId: '',
       estado: 'Activo',
       email: '',
@@ -2255,6 +2282,7 @@ export class UsuariosComponent implements OnInit, OnDestroy {
   }
 
   editarUsuario(u: Usuario) {
+    if (!this.puedeGestionarFilaUsuario(u)) return;
     this.editandoUsuario = u;
     this.usuarioFormSubmitted = false;
     let agenciaActual = (u.agencia && u.agencia !== 'Sin asignar' && u.agencia !== 'EasyDry Corporativo' && !u.agencia.startsWith('Región') && !u.agencia.startsWith('Móvil') && !u.agencia.startsWith('Bodega Región'))
@@ -2335,6 +2363,7 @@ export class UsuariosComponent implements OnInit, OnDestroy {
   }
 
   toggleEstadoUsuario(u: Usuario) {
+    if (!this.puedeGestionarUsuarios) return;
     const nuevoEstado: 'Activo' | 'Inactivo' = u.estado === 'Activo' ? 'Inactivo' : 'Activo';
     this.usuarioService.toggleEstado(u.id, nuevoEstado).subscribe({
       next: () => {
@@ -2387,6 +2416,14 @@ export class UsuariosComponent implements OnInit, OnDestroy {
   onRolUsuarioChange() {
     if (this.esOperadorEspecialesRol(this.usuarioForm.rol)) {
       this.onPulidorAgenciaChange(this.usuarioForm.agencia || '');
+    } else if (this.esBackupRol(this.usuarioForm.rol)) {
+      this.usuarioForm.bodegaId = '';
+      if (!this.usuarioForm.region && this.authService.currentUserValue?.regionId) {
+        this.usuarioForm.region = this.regionesDisponibles.find(
+          r => String(r.id) === String(this.authService.currentUserValue?.regionId),
+        )?.nombre || '';
+      }
+      this.onBackupRegionChange(this.usuarioForm.region || '');
     } else if (this.esAsistenteBodegaRol(this.usuarioForm.rol)) {
       this.usuarioForm.agencia = '';
       this.usuarioForm.bodegaId = this.usuarioForm.bodegaId || this.bodegasRegionales[0]?.id || '';
@@ -2515,6 +2552,7 @@ export class UsuariosComponent implements OnInit, OnDestroy {
     const ambitoRol = this.ambitoForm;
     const isGlobal = ambitoRol === 'GLOBAL' && !isPulidor && !isAsistente;
     const isRegional = ambitoRol === 'REGION' && !isPulidor && !isAsistente;
+    const isBackup = this.esBackupRol(this.usuarioForm.rol);
 
     if (isRegional && !this.usuarioForm.region) {
       this.toastService.warning('Región requerida', 'Este rol trabaja sobre su región: asigna una región al usuario.');
@@ -2527,7 +2565,7 @@ export class UsuariosComponent implements OnInit, OnDestroy {
     }
 
     let regionMatch: RegionOperativa | undefined = undefined;
-    if ((isAsistente || isRegional || isPulidorMovil) && this.usuarioForm.region) {
+    if ((isAsistente || isRegional || isPulidorMovil || isBackup) && this.usuarioForm.region) {
       regionMatch = this.regionesDisponibles.find(r =>
         r.nombre.toLowerCase() === this.usuarioForm.region?.toLowerCase() ||
         String(r.id) === this.usuarioForm.region
@@ -2535,6 +2573,10 @@ export class UsuariosComponent implements OnInit, OnDestroy {
     }
     if (isAsistente && bodegaMatch?.regionId) {
       regionMatch = this.regionesDisponibles.find(r => String(r.id) === String(bodegaMatch!.regionId)) || regionMatch;
+    }
+    if (isBackup && !regionMatch) {
+      this.toastService.warning('Región requerida', 'Selecciona una región válida para el usuario Backup.');
+      return;
     }
 
     if (this.editandoUsuario) {
@@ -2569,6 +2611,13 @@ export class UsuariosComponent implements OnInit, OnDestroy {
         finalRegionId = regionMatch?.id ? String(regionMatch.id) : this.editandoUsuario.regionId;
         finalAgencia = '';
         finalAgenciaId = undefined;
+      } else if (isBackup) {
+        finalRegion = regionMatch?.nombre || '';
+        finalRegionId = regionMatch?.id ? String(regionMatch.id) : this.editandoUsuario.regionId;
+        if (ambitoRol === 'REGION') {
+          finalAgencia = '';
+          finalAgenciaId = undefined;
+        }
       } else {
         finalRegionId = this.editandoUsuario.regionId;
         finalRegion = this.editandoUsuario.region;
@@ -2648,6 +2697,13 @@ export class UsuariosComponent implements OnInit, OnDestroy {
         finalRegionId = regionMatch?.id ? String(regionMatch.id) : undefined;
         finalAgencia = '';
         finalAgenciaId = undefined;
+      } else if (isBackup) {
+        finalRegion = regionMatch?.nombre || '';
+        finalRegionId = regionMatch?.id ? String(regionMatch.id) : undefined;
+        if (ambitoRol === 'REGION') {
+          finalAgencia = '';
+          finalAgenciaId = undefined;
+        }
       }
 
       const nuevo: Omit<Usuario, 'id'> & { password?: string; roleId?: string; regionId?: string; region?: string; bodegaId?: string } = {
@@ -2721,6 +2777,23 @@ export class UsuariosComponent implements OnInit, OnDestroy {
     return this.authService.puede('usuarios.gestionar');
   }
 
+  get puedeGestionarBackups(): boolean {
+    return this.authService.puede('backup.gestionar');
+  }
+
+  get puedeCrearUsuarios(): boolean {
+    return this.puedeGestionarUsuarios || this.puedeGestionarBackups;
+  }
+
+  puedeGestionarFilaUsuario(usuario: Usuario): boolean {
+    if (this.puedeGestionarUsuarios) return true;
+    const regionActor = this.authService.currentUserValue?.regionId;
+    return this.puedeGestionarBackups &&
+      this.esBackupRol(usuario.rolNombre || usuario.rol) &&
+      !!regionActor &&
+      String(usuario.regionId) === String(regionActor);
+  }
+
   /** Con solo 'roles.ver' el editor se abre en modo lectura. */
   get soloLecturaRol(): boolean {
     return !this.puedeGestionarRoles;
@@ -2767,7 +2840,6 @@ export class UsuariosComponent implements OnInit, OnDestroy {
     this.rolService.getCatalogoPermisos().pipe(finalize(() => { this.cargandoCatalogo = false; })).subscribe({
       next: (cat) => {
         this.modulosDisponibles = cat.modulos;
-        this.agruparModulos();
         this.catalogoCapacidades = cat.capacidades;
         this.filtrarCapacidades();
       },
@@ -2791,6 +2863,20 @@ export class UsuariosComponent implements OnInit, OnDestroy {
       grupos.get(c.grupo)!.push(c);
     }
     this.capacidadesGrupos = Array.from(grupos.entries()).map(([grupo, items]) => ({ grupo, items }));
+  }
+
+  /** Grupo mostrado: el elegido, o el primero si el elegido ya no aparece con el buscador. */
+  get grupoVisible(): GrupoCapacidad | undefined {
+    return this.capacidadesGrupos.find(g => g.grupo === this.grupoActivo) ?? this.capacidadesGrupos[0];
+  }
+
+  seleccionarGrupo(grupo: string): void {
+    this.grupoActivo = grupo;
+  }
+
+  /** ¿Hay algún permiso del grupo que quien edita pueda otorgar? */
+  hayOtorgablesEnGrupo(g: GrupoCapacidad): boolean {
+    return g.items.some(c => this.puedeOtorgar(c.codigo));
   }
 
   capacidadSeleccionada(codigo: string): boolean {
@@ -2843,7 +2929,6 @@ export class UsuariosComponent implements OnInit, OnDestroy {
       nombre: '',
       descripcion: '',
       ambito: 'AGENCIA',
-      modulos: [],
       capacidades: [],
       esSistema: false,
     };
@@ -2861,41 +2946,12 @@ export class UsuariosComponent implements OnInit, OnDestroy {
       nombre: rol.nombre,
       descripcion: rol.descripcion,
       ambito: rol.ambito || 'AGENCIA',
-      modulos: [...(rol.modulos || [])],
       capacidades: [...(rol.capacidades || [])],
       esSistema: rol.esSistema,
     };
     this.filtrarCapacidades();
     if (!this.catalogoCapacidades.length && !this.cargandoCatalogo) this.cargarCatalogoPermisos();
     this.modalRolOpen = true;
-  }
-
-  isModuloSelected(codigo: string): boolean {
-    return this.rolForm.modulos.includes(codigo);
-  }
-
-  toggleModulo(codigo: string) {
-    if (this.soloLecturaRol) return;
-    const idx = this.rolForm.modulos.indexOf(codigo);
-    if (idx !== -1) {
-      this.rolForm.modulos.splice(idx, 1);
-    } else {
-      this.rolForm.modulos.push(codigo);
-    }
-  }
-
-  seleccionarTodosModulos() {
-    if (this.soloLecturaRol) return;
-    this.rolForm.modulos = this.modulosDisponibles.map(m => m.codigo);
-  }
-
-  desmarcarTodosModulos() {
-    if (this.soloLecturaRol) return;
-    this.rolForm.modulos = [];
-  }
-
-  getSelectedInGroupCount(grupo: ModuloGrupo): number {
-    return grupo.modulos.filter(m => this.isModuloSelected(m.codigo)).length;
   }
 
   /** Vuelve a pedir la tabla de roles y la lista completa que usan las tarjetas y los selectores. */
@@ -2926,7 +2982,6 @@ export class UsuariosComponent implements OnInit, OnDestroy {
       this.rolService.actualizarRol(rolId, {
         descripcion: this.rolForm.descripcion,
         ambito: this.rolForm.ambito,
-        modulos: this.rolForm.modulos,
         capacidades: this.rolForm.capacidades,
       }).pipe(finalize(() => { this.guardandoRol = false; })).subscribe({
         next: (res) => {
@@ -2941,7 +2996,6 @@ export class UsuariosComponent implements OnInit, OnDestroy {
         nombre: this.rolForm.nombre,
         descripcion: this.rolForm.descripcion,
         ambito: this.rolForm.ambito,
-        modulos: this.rolForm.modulos,
         capacidades: this.rolForm.capacidades,
       }).pipe(finalize(() => { this.guardandoRol = false; })).subscribe({
         next: (creado) => {

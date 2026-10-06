@@ -75,7 +75,12 @@ export class ServicioLavadoService {
     const servicioNombre = s.servicio || s.servicioNombre || s.catalogo?.nombre || s.catalogoRel?.nombre || '';
     const agenciaNombre = s.agencia || s.agenciaNombre || s.sucursalNombre || s.bahia?.agencia?.nombre || s.bahiaRel?.agencia?.nombre || '';
     const bahiaNombre = s.bahiaNombre || (typeof s.bahia === 'string' ? s.bahia : s.bahia?.nombre) || s.bahiaRel?.nombre || '';
-    const empleadoNombre = s.empleado || s.operadorNombre || (s.operador ? `${s.operador.name || ''} ${s.operador.lastname || ''}`.trim() : (s.operadorRel ? `${s.operadorRel.name || ''} ${s.operadorRel.lastname || ''}`.trim() : ''));
+    const operadoresAsignados = Array.isArray(s.operadoresAsignados)
+      ? s.operadoresAsignados.map((op: any) => ({ id: String(op.id), nombre: op.nombre || '' }))
+      : [];
+    const empleadoNombre = operadoresAsignados.length
+      ? operadoresAsignados.map((op: { nombre: string }) => op.nombre).filter(Boolean).join(', ')
+      : s.empleado || s.operadorNombre || (s.operador ? `${s.operador.name || ''} ${s.operador.lastname || ''}`.trim() : (s.operadorRel ? `${s.operadorRel.name || ''} ${s.operadorRel.lastname || ''}`.trim() : ''));
 
     let duracionMinutos = s.duracionMinutos !== undefined && s.duracionMinutos !== null ? Number(s.duracionMinutos) : null;
     let duracionFormateada = s.duracionFormateada || '';
@@ -121,6 +126,7 @@ export class ServicioLavadoService {
       bahia: bahiaNombre,
       bahiaId: s.bahiaId || s.bahia?.id || s.bahiaRel?.id || undefined,
       empleado: empleadoNombre,
+      operadoresAsignados,
       fecha,
       horaIngreso,
       horaSalida,
@@ -234,7 +240,7 @@ export class ServicioLavadoService {
    * con la misma OT y vehículo; siempre devuelve la lista de filas creadas.
    */
   crearRegistroHojaServicio(
-    nuevo: Partial<VehiculoServicio> & { bahiaId?: string; servicioCatalogoId?: number; servicioCatalogoIds?: number[] },
+    nuevo: Partial<VehiculoServicio> & { bahiaId?: string; servicioCatalogoId?: number; servicioCatalogoIds?: number[]; operadorIds?: string[] },
   ): Observable<VehiculoServicio[]> {
     const videoOIngreso = nuevo.video || nuevo.videoUrl || (nuevo as any).fotoIngresoUrl || nuevo.foto || null;
     const ordenTrabajoOT = nuevo.ordenTrabajoOT ? nuevo.ordenTrabajoOT.trim() : undefined;
@@ -249,6 +255,7 @@ export class ServicioLavadoService {
       bahiaId: nuevo.bahiaId || (nuevo as any).bahia,
       servicioCatalogoId: servicioCatalogoIds[0] || nuevo.servicioCatalogoId || Number(nuevo.servicioId),
       ...(servicioCatalogoIds.length > 1 ? { servicioCatalogoIds } : {}),
+      ...(nuevo.operadorIds?.length ? { operadorIds: nuevo.operadorIds } : {}),
       fotoIngresoUrl: videoOIngreso,
       observaciones: nuevo.notas || '',
       estado: (nuevo.estado as any) || 'EN_PROCESO'

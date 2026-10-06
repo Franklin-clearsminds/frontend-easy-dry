@@ -28,7 +28,7 @@ import { badgeClase, BADGE_NO_ATENDIDO } from '../../../core/utils/badges';
 import {
   puedeEditarMaquina, puedeActivarMaquina, puedeGestionarMaquina, puedeReportarIncidente,
   puedeVerTrazabilidad, puedeVerMantenimientos, puedeVerIncidentes, puedeResolverIncidentes,
-  puedeEjecutarMantenimientos, puedeAgregarEvidenciaMaquinaria, puedeVerLimpiezas,
+  puedeEjecutarMantenimientos, puedeAgregarEvidenciaMaquinaria, puedeSubirEvidenciaLimpieza, puedeVerLimpiezas,
 } from '../../../core/utils/maquinaria-permisos';
 
 export type PestanaMaquina = 'resumen' | 'incidencias' | 'movimientos' | 'mantenimientos' | 'limpieza' | 'timeline';
@@ -730,6 +730,10 @@ export class MaquinariaDetalleModalComponent implements OnChanges, OnDestroy {
   get puedeVerInc(): boolean { return puedeVerIncidentes(this.authService); }
   get puedeVerLimp(): boolean { return puedeVerLimpiezas(this.authService); }
   get puedeAgregarEvidencia(): boolean { return puedeAgregarEvidenciaMaquinaria(this.authService); }
+  get puedeSubirEvidenciaLimpieza(): boolean {
+    return puedeSubirEvidenciaLimpieza(this.authService)
+      && (this.authService.hasRole('LIDER') || this.authService.hasRole('PULIDOR'));
+  }
   /**
    * Reportar: con el permiso, sobre máquinas activas. El líder puede reportar cualquier máquina de su agencia
    * (el servidor ya lo valida así); el resto de roles con el permiso, solo la asignada a él.
@@ -986,12 +990,8 @@ export class MaquinariaDetalleModalComponent implements OnChanges, OnDestroy {
   // ---- Registrar limpieza (líder de su agencia, pulidor de la suya; el backend valida de nuevo) ----
   // Las fotos se toman con la cámara del dispositivo (nunca se eligen de archivos ya guardados): así
   // la evidencia es del momento, igual que el resto de evidencias obligatorias del sistema.
-  // Solo líder y pulidor (fijo o móvil) registran: quien de verdad limpia la máquina. Admin/super
-  // admin tienen el permiso genérico 'maquinaria.evidencias' (lo usan para incidentes/mantenimientos),
-  // pero el backend ya no les deja registrar limpiezas, así que tampoco se les muestra el botón.
   get puedeRegistrarLimpieza(): boolean {
-    return puedeAgregarEvidenciaMaquinaria(this.authService)
-      && (this.authService.hasRole('LIDER') || this.authService.hasRole('PULIDOR'));
+    return this.puedeSubirEvidenciaLimpieza;
   }
 
   @ViewChild('limpiezaVideo') limpiezaVideoEl?: ElementRef<HTMLVideoElement>;

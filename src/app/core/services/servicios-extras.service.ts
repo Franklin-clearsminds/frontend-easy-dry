@@ -58,8 +58,14 @@ export class ServiciosExtrasService {
       ordenTrabajoOT: item.ordenTrabajoOT || item.codigoSE || '',
       servicioNombre: item.tipoServicio || item.servicioNombre || 'Servicio Especial',
       servicioDescripcion: item.observaciones || item.servicioDescripcion || '',
-      operadorId: item.operadorId || item.operador?.id || '',
+      operadorId: item.operadorId || item.operadoresIds?.[0] || item.operador?.id || '',
       operadorNombre: item.operadorNombre || (item.operador ? `${item.operador.name || ''} ${item.operador.lastname || ''}`.trim() : 'Sin asignar'),
+      operadoresIds: Array.isArray(item.operadoresIds)
+        ? item.operadoresIds.map((id: string | number) => String(id))
+        : item.operadorId || item.operador?.id
+          ? [String(item.operadorId || item.operador?.id)]
+          : [],
+      operadoresNombres: Array.isArray(item.operadoresNombres) ? item.operadoresNombres : [],
       regionId: item.regionId || item.region?.id || '',
       regionNombre: item.regionNombre || item.region?.nombre || '',
       agenciaId: item.agenciaId || item.agencia?.id || '',
@@ -197,6 +203,11 @@ export class ServiciosExtrasService {
       tipoServicio: servNombre,
       observaciones: data.notas || data.servicioDescripcion || '',
       operadorId: data.operadorId ? String(data.operadorId) : undefined,
+      operadoresIds: Array.isArray(data.operadoresIds)
+        ? data.operadoresIds.map((id: string | number) => String(id))
+        : data.operadorId
+          ? [String(data.operadorId)]
+          : [],
       agenciaId: data.agenciaId ? String(data.agenciaId) : undefined,
       bahiaId: data.bahiaId ? String(data.bahiaId) : undefined,
       horaIngreso: data.horaIngreso || undefined,
@@ -303,11 +314,12 @@ export class ServiciosExtrasService {
     );
   }
 
-  /** Cambia el pulidor asignado (permiso 'especiales.reasignar'). Vacío deja el servicio sin asignar. */
-  reasignarServicioExtra(id: number | string, operadorId: string | null): Observable<ServicioExtra> {
+  /** Cambia los pulidores asignados; el primero será responsable del kit (permiso 'especiales.reasignar'). */
+  reasignarServicioExtra(id: number | string, operadoresIds: string[]): Observable<ServicioExtra> {
     return this.http.post<any>(apiUrl('/operaciones/servicios-especiales/reasignar'), {
       id: String(id),
-      operadorId: operadorId || null,
+      operadorId: operadoresIds[0] || null,
+      operadoresIds,
     }).pipe(
       map(res => this.mapBackend(res)),
       tap(updated => this._updateLocal(id, updated)),

@@ -551,11 +551,20 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
           </ng-template>
 
           <ng-template appCell="operador" let-extra>
-            <div class="text-xs font-bold text-slate-800">
-                                <div class="flex items-center gap-1.5">
-                                  <i-lucide aria-hidden="true" name="user" class="w-3.5 h-3.5 text-amber-600"></i-lucide>
-                                  <span>{{ extra.operadorNombre }}</span>
-                                </div>
+            <div class="space-y-1.5 text-xs">
+              <div class="flex items-start gap-1.5 font-bold text-slate-800">
+                <i-lucide aria-hidden="true" name="user" class="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5"></i-lucide>
+                <div class="min-w-0">
+                  <span class="block text-[10px] uppercase tracking-wide text-amber-700">Responsable</span>
+                  <span>{{ extra.operadoresNombres?.[0] || extra.operadorNombre }}</span>
+                </div>
+              </div>
+              @for (nombre of (extra.operadoresNombres || []).slice(1); track $index) {
+                <div class="flex items-start gap-1.5 pl-5 text-slate-600">
+                  <i-lucide aria-hidden="true" name="user" class="w-3 h-3 text-slate-400 shrink-0 mt-0.5"></i-lucide>
+                  <span><span class="font-semibold">Asignado:</span> {{ nombre }}</span>
+                </div>
+              }
             </div>
           </ng-template>
 
@@ -802,9 +811,17 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
                 </div>
 
                 <div class="flex items-center justify-between mt-3 text-xs gap-2 pt-2 border-t border-slate-100">
-                  <div class="flex items-center gap-1 text-slate-500 truncate">
-                    <i-lucide aria-hidden="true" name="user" class="w-3.5 h-3.5 text-amber-600 shrink-0"></i-lucide>
-                    <span class="truncate">{{ extra.operadorNombre }}</span>
+                  <div class="min-w-0 space-y-1">
+                    <div class="flex items-center gap-1 text-slate-700">
+                      <i-lucide aria-hidden="true" name="user" class="w-3.5 h-3.5 text-amber-600 shrink-0"></i-lucide>
+                      <span class="text-[10px] font-bold uppercase tracking-wide text-amber-700">Responsable</span>
+                      <span class="truncate font-semibold">{{ extra.operadoresNombres?.[0] || extra.operadorNombre }}</span>
+                    </div>
+                    @for (nombre of (extra.operadoresNombres || []).slice(1); track $index) {
+                      <div class="pl-5 text-slate-500 truncate">
+                        <span class="font-semibold">Asignado:</span> {{ nombre }}
+                      </div>
+                    }
                   </div>
                   <div class="flex items-center gap-1.5 shrink-0">
                     @if (extra.estado === 'Pendiente') {
@@ -1093,17 +1110,27 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
         (close)="modalReasignarOpen = false">
         @if (extraReasignar) {
           <div class="space-y-3 text-xs">
-            <p class="text-slate-600">Servicio <b>{{ extraReasignar.codigoSE }}</b>. Elige el pulidor que lo va a ejecutar (debe ser de la misma región y tener los insumos en su kit).</p>
-            <div>
-              <label for="srv-reasignar" class="block font-bold text-slate-700 mb-1">Pulidor</label>
-              <select id="srv-reasignar" [(ngModel)]="reasignarOperadorId" name="reasignarOperadorId"
-                class="w-full p-2.5 rounded-xl border border-slate-200 bg-white">
-                <option value="">Sin asignar</option>
-                @for (p of pulidoresDisponiblesRegion; track p.id) {
-                  <option [value]="p.id">{{ p.name }} {{ p.lastname }}</option>
-                }
-              </select>
+            <p class="text-slate-600">Servicio <b>{{ extraReasignar.codigoSE }}</b>. Selecciona uno o varios pulidores de la misma región. El primero seleccionado será responsable de la OT y de los insumos, y debe tener el kit requerido.</p>
+            <div class="space-y-2 max-h-64 overflow-y-auto">
+              @for (p of pulidoresDisponiblesRegion; track p.id) {
+                <label class="flex items-center gap-2 rounded-lg border border-slate-200 bg-white p-2.5 cursor-pointer hover:bg-slate-50">
+                  <input type="checkbox"
+                    [checked]="estaPulidorReasignado(p.id)"
+                    [disabled]="esPulidorFijoReasignacion(p) && estaPulidorReasignado(p.id)"
+                    (change)="cambiarPulidorReasignacion(p, $event)"
+                    class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+                  <span class="font-semibold text-slate-700">{{ p.name }} {{ p.lastname }}</span>
+                  @if (esPulidorFijoReasignacion(p)) {
+                    <span class="ml-auto text-[10px] font-bold text-amber-700">Pulidor fijo · responsable</span>
+                  } @else if (esResponsableReasignacion(p.id)) {
+                    <span class="ml-auto text-[10px] font-bold text-indigo-700">Responsable e insumos</span>
+                  }
+                </label>
+              }
             </div>
+            @if (reasignarOperadoresIds.length > 1) {
+              <p class="text-[11px] text-slate-500">Orden de asignación: {{ nombresPulidoresReasignacion }}. El primero queda como responsable.</p>
+            }
           </div>
         }
         <div modal-footer class="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 w-full">
@@ -1216,23 +1243,33 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
                 }
               </div>
 
-              <!-- Operador Técnico (Trazabilidad) -->
+              <!-- Lavadores asignados a la bahía -->
               <div>
-                <label for="srv-f3" class="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                  Lavador
+                <span class="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                  Lavadores asignados
                   <span class="text-easydry-blue font-bold text-xs">(Trazabilidad)</span>
-                </label>
-                <select id="srv-f3"
-                  [(ngModel)]="nuevoRegistro.empleado"
-                  name="empleadoSelect"
-                  class="w-full p-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800">
-                  @for (op of operadoresSucursalForm; track op.id) {
-                    <option [value]="op.nombre">{{ op.nombre }} ({{ op.bahia }})</option>
-                  }
-                  @if (operadoresSucursalForm.length === 0) {
-                    <option [value]="nuevoRegistro.empleado">{{ nuevoRegistro.empleado }}</option>
-                  }
-                </select>
+                </span>
+                @if (lavadoresAsignadosBahia.length > 0) {
+                  <div class="max-h-32 overflow-y-auto rounded-xl border border-slate-200 bg-white p-2 space-y-1">
+                    @for (lavador of lavadoresAsignadosBahia; track lavador.id) {
+                      <label class="flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          [checked]="lavadorSeleccionado(lavador.id)"
+                          (change)="alternarLavadorSeleccionado(lavador.id, $event)"
+                          class="h-4 w-4 rounded border-slate-300 text-easydry-blue focus:ring-easydry-blue">
+                        <span>{{ lavador.nombre }}</span>
+                      </label>
+                    }
+                  </div>
+                  <p class="mt-1 text-[11px] text-slate-500">
+                    {{ lavadorIdsSeleccionados.length }} de {{ lavadoresAsignadosBahia.length }} seleccionados para esta OT.
+                  </p>
+                } @else {
+                  <div class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-500">
+                    No hay lavadores activos asignados a esta bahía. La OT conservará el usuario de la sesión como trazabilidad.
+                  </div>
+                }
               </div>
             </div>
             <p class="text-xs text-slate-500">
@@ -2233,58 +2270,38 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
                 }
               </div>
 
-              <!-- Pulidor Asignado (Fijo bloqueado o Selección de Móvil) -->
+              <!-- Pulidores asignados: el primero opera y se valida contra su kit. -->
               <div>
                 <label class="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                  Pulidor Asignado *
+                  Pulidores Asignados *
                   @if (pulidorFijoAgenciaSeleccionada) {
-                    <span class="text-emerald-700 font-bold text-xs">(Fijo en Sede)</span>
+                    <span class="text-emerald-700 font-bold text-xs">(Fijo primero)</span>
                   } @else {
-                    <span class="text-blue-700 font-bold text-xs">(Pulidor Móvil Requerido)</span>
+                    <span class="text-blue-700 font-bold text-xs">(Seleccione uno o varios)</span>
                   }
                 </label>
-
-                @if (isPulidor) {
-                  <div class="p-2.5 bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 flex items-center justify-between">
-                    <span>{{ extraForm.operadorNombre || 'Pulidor' }}</span>
-                    <span class="px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 text-xs font-extrabold border border-blue-200">
-                      Tú
-                    </span>
-                  </div>
-                } @else if (pulidorFijoAgenciaSeleccionada) {
-                  <!-- Si la agencia tiene pulidor fijo: se autorrellenan los campos y NO se puede editar -->
-                  <div class="p-2.5 bg-slate-100 border border-emerald-300 rounded-xl text-xs font-bold text-slate-800 flex items-center justify-between shadow-xs">
-                    <div class="flex items-center gap-2">
-                      <span class="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-extrabold border border-emerald-200 flex items-center gap-1">
-                        <i-lucide aria-hidden="true" name="award" class="w-3 h-3 text-emerald-700"></i-lucide>
-                        <span>Pulidor Fijo</span>
-                      </span>
-                      <span class="text-slate-900 font-bold">{{ pulidorFijoAgenciaSeleccionada.name }} {{ pulidorFijoAgenciaSeleccionada.lastname }}</span>
-                    </div>
-                    <i-lucide aria-hidden="true" name="lock" class="w-3.5 h-3.5 text-slate-400"></i-lucide>
-                  </div>
-                  <p class="text-xs text-slate-500 mt-1 flex items-center gap-1">
-                    <i-lucide aria-hidden="true" name="lock" class="w-3 h-3 text-slate-400 shrink-0"></i-lucide>
-                    <span>Esta agencia cuenta con pulidor fijo asignado permanentemente.</span>
-                  </p>
-                } @else {
-                  <!-- Si NO tiene pulidor fijo: se salta la lista de pulidores móviles -->
-                  <select
-                    [(ngModel)]="extraForm.operadorId"
-                    name="operadorIdExtra"
-                    (change)="onOperadorExtraChange()"
-                    class="w-full p-2.5 bg-white border border-blue-300 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-blue-500 shadow-xs"
-                    required>
-                    <option value="">Seleccione el pulidor móvil que acudirá...</option>
-                    @for (p of pulidoresMovilesDisponibles; track p.id) {
-                      <option [value]="p.id">{{ p.name }} {{ p.lastname }} (Pulidor Móvil Zonal)</option>
-                    }
-                  </select>
-                  <p class="text-xs text-blue-700 font-semibold mt-1 flex items-center gap-1">
-                    <i-lucide aria-hidden="true" name="car" class="w-3 h-3 text-blue-600 shrink-0"></i-lucide>
-                    <span>Esta agencia no tiene pulidor fijo. Selecciona el pulidor móvil que viajará a atender la orden.</span>
-                  </p>
-                }
+                <div class="max-h-48 overflow-y-auto rounded-xl border border-blue-200 bg-white divide-y divide-slate-100">
+                  @for (p of pulidoresDisponiblesParaAgencia; track p.id) {
+                    <label class="flex items-center gap-2.5 p-2.5 cursor-pointer hover:bg-blue-50">
+                      <input
+                        type="checkbox"
+                        [name]="'operadorExtra-' + p.id"
+                        [checked]="estaPulidorSeleccionado(p.id)"
+                        [disabled]="esPulidorFijoAsignado(p)"
+                        (change)="onOperadorExtraToggle(p, $event)"
+                        class="rounded border-slate-300 text-blue-700 focus:ring-blue-600">
+                      <span class="min-w-0 flex-1 text-xs font-semibold text-slate-800">{{ p.name }} {{ p.lastname }}</span>
+                      @if (esPulidorFijoAsignado(p)) {
+                        <span class="text-xs font-bold text-emerald-700">Fijo · Responsable principal</span>
+                      } @else {
+                        <span class="text-xs text-slate-500">{{ p.agenciaId || p.agencia?.id ? 'Fijo' : 'Móvil' }}</span>
+                      }
+                    </label>
+                  }
+                </div>
+                <p class="text-xs text-slate-500 mt-1">
+                  Todos recibirán la OT. Solo el primero seleccionado podrá operarla y registrar evidencias; sus insumos se validan contra su kit.
+                </p>
               </div>
             </div>
             <p class="text-xs text-slate-500">
@@ -2591,6 +2608,7 @@ export class ServiciosComponent implements OnInit, OnDestroy {
       return;
     }
     this.agregarServicioOTFuente = null;
+    this.lavadorIdsSeleccionados = [];
     this.nuevoRegistro.categoriaServicio = 'GENERAL';
     const user = this.authService.getCurrentUser();
     if (user) {
@@ -2634,6 +2652,7 @@ export class ServiciosComponent implements OnInit, OnDestroy {
     if (!this.puedeAgregarServicio(item)) return;
 
     this.agregarServicioOTFuente = item;
+    this.lavadorIdsSeleccionados = (item.operadoresAsignados || []).map((op) => String(op.id));
 
     // Misma inicialización base que abrirModalNuevaOT pero manteniendo los datos del vehículo
     const user = this.authService.getCurrentUser();
@@ -3394,6 +3413,7 @@ export class ServiciosComponent implements OnInit, OnDestroy {
   operadores: Operador[] = [];
   sucursales: Sucursal[] = [];
   bahiasSucursalForm: Bahia[] = [];
+  lavadorIdsSeleccionados: string[] = [];
   sucursalesDisponibles: string[] = [];
 
   busquedaExtras = '';
@@ -3429,6 +3449,7 @@ export class ServiciosComponent implements OnInit, OnDestroy {
     servicioDescripcion: string;
     operadorId: number | string;
     operadorNombre: string;
+    operadoresIds: string[];
     sucursalesSeleccionadas: string[];
     insumosReceta: RecetaInsumoServicio[];
     estado: ServicioExtra['estado'];
@@ -3439,6 +3460,7 @@ export class ServiciosComponent implements OnInit, OnDestroy {
     servicioDescripcion: '',
     operadorId: '' as number | string,
     operadorNombre: '',
+    operadoresIds: [],
     sucursalesSeleccionadas: [],
     insumosReceta: [],
     estado: 'Pendiente',
@@ -3475,7 +3497,7 @@ export class ServiciosComponent implements OnInit, OnDestroy {
   anulando = false;
   modalReasignarOpen = false;
   extraReasignar?: ServicioExtra;
-  reasignarOperadorId = '';
+  reasignarOperadoresIds: string[] = [];
   reasignando = false;
   modalVideoGenericoOpen = false;
   videoGenericoUrl = '';
@@ -3530,7 +3552,7 @@ export class ServiciosComponent implements OnInit, OnDestroy {
   get puedeVerGenerales(): boolean { return this.authService.puede('servicios.ver'); }
   get puedeVerEspeciales(): boolean { return this.authService.puede('especiales.ver'); }
   get puedeCrearGeneral(): boolean { return this.authService.puede('servicios.crear'); }
-  get puedeCrearEspecial(): boolean { return this.authService.puede('especiales.crear'); }
+  get puedeCrearEspecial(): boolean { return this.isCoordServiciosEspeciales; }
   get puedeEditarGeneral(): boolean { return this.authService.puede('servicios.editar'); }
   get puedeReasignarEspecial(): boolean { return this.authService.puede('especiales.reasignar'); }
   get puedeVerCatalogoBoton(): boolean { return this.authService.puedeAlguno('catalogo.gestionar', 'servicios.crear'); }
@@ -3604,6 +3626,23 @@ export class ServiciosComponent implements OnInit, OnDestroy {
 
   get pulidoresMovilesDisponibles(): any[] {
     return this.pulidoresDisponiblesRegion.filter(p => !p.agenciaId && !p.agencia?.id);
+  }
+
+  get pulidoresDisponiblesParaAgencia(): any[] {
+    const agId = String(this.extraFormAgenciaId || '');
+    return this.pulidoresDisponiblesRegion.filter((pulidor) => {
+      const agenciaPulidorId = String(pulidor.agenciaId || pulidor.agencia?.id || '');
+      return !agenciaPulidorId || agenciaPulidorId === agId;
+    });
+  }
+
+  estaPulidorSeleccionado(id: string | number): boolean {
+    return this.extraForm.operadoresIds.includes(String(id));
+  }
+
+  esPulidorFijoAsignado(pulidor: any): boolean {
+    return Boolean(this.pulidorFijoAgenciaSeleccionada)
+      && String(pulidor.id) === String(this.pulidorFijoAgenciaSeleccionada.id);
   }
 
   get otrosPulidoresRegion(): any[] {
@@ -4186,6 +4225,7 @@ export class ServiciosComponent implements OnInit, OnDestroy {
           this.nuevoRegistro.bahiaId = fuente.bahiaId ? String(fuente.bahiaId) : '';
           this.nuevoRegistro.bahia = fuente.bahia || 'Sin Bahía Específica';
           this.nuevoRegistro.empleado = fuente.empleado || this.nuevoRegistro.empleado;
+          this.lavadorIdsSeleccionados = (fuente.operadoresAsignados || []).map((op) => String(op.id));
           return;
         }
         if (this.bahiasSucursalForm.length > 0) {
@@ -4202,6 +4242,7 @@ export class ServiciosComponent implements OnInit, OnDestroy {
         } else {
           this.nuevoRegistro.bahia = 'Sin Bahía Específica';
           this.nuevoRegistro.bahiaId = '';
+          this.lavadorIdsSeleccionados = [];
         }
       });
     }
@@ -4212,21 +4253,45 @@ export class ServiciosComponent implements OnInit, OnDestroy {
     if (b) {
       this.nuevoRegistro.bahia = b.nombre;
       this.nuevoRegistro.bahiaId = String(b.id);
-      // `operadoresActivos` es la relación real (BahiaOperador, activo=true) y puede traer
-      // varios lavadores si la agencia permite turnos/rotación por bahía (maxLavadoresPorBahia > 1).
-      // Con exactamente uno, se autocarga sin ambigüedad. Con varios, se deja en blanco para que
-      // el líder elija explícitamente (mismo criterio que operadores.component.ts y NuevaOTModal.tsx).
-      const activos = b.operadoresActivos || [];
-      if (activos.length === 1) {
-        this.nuevoRegistro.empleado = activos[0].nombre;
-      } else if (activos.length > 1) {
-        this.nuevoRegistro.empleado = '';
-      } else if (b.operadorAsignado && b.operadorAsignado !== 'Sin Asignar') {
-        this.nuevoRegistro.empleado = b.operadorAsignado;
-      }
-    } else if (this.nuevoRegistro.bahiaId === '') {
-      this.nuevoRegistro.bahia = 'Sin Bahía Específica';
+      this.lavadorIdsSeleccionados = this.lavadoresAsignadosBahia.map((op) => op.id);
+      this.actualizarNombreLavadoresSeleccionados();
+    } else {
+      if (this.nuevoRegistro.bahiaId === '') this.nuevoRegistro.bahia = 'Sin Bahía Específica';
+      this.lavadorIdsSeleccionados = [];
     }
+  }
+
+  get lavadoresAsignadosBahia(): Array<{ id: string; nombre: string }> {
+    const bahia = this.bahiasSucursalForm.find((item) => String(item.id) === String(this.nuevoRegistro.bahiaId));
+    if (!bahia) return [];
+    const activos = (bahia.operadoresActivos || [])
+      .filter((op) => op.id && op.nombre)
+      .map((op) => ({ id: String(op.id), nombre: op.nombre }));
+    if (activos.length) return activos;
+    if (bahia.operadorId && bahia.operadorAsignado && bahia.operadorAsignado !== 'Sin Asignar') {
+      return [{ id: String(bahia.operadorId), nombre: bahia.operadorAsignado }];
+    }
+    return [];
+  }
+
+  lavadorSeleccionado(id: string): boolean {
+    return this.lavadorIdsSeleccionados.includes(String(id));
+  }
+
+  alternarLavadorSeleccionado(id: string, event: Event): void {
+    const marcado = (event.target as HTMLInputElement).checked;
+    const lavadorId = String(id);
+    this.lavadorIdsSeleccionados = marcado
+      ? [...new Set([...this.lavadorIdsSeleccionados, lavadorId])]
+      : this.lavadorIdsSeleccionados.filter((actual) => actual !== lavadorId);
+    this.actualizarNombreLavadoresSeleccionados();
+  }
+
+  private actualizarNombreLavadoresSeleccionados(): void {
+    this.nuevoRegistro.empleado = this.lavadoresAsignadosBahia
+      .filter((op) => this.lavadorIdsSeleccionados.includes(op.id))
+      .map((op) => op.nombre)
+      .join(', ');
   }
 
   onSucursalExtraFormChange(): void {
@@ -4236,33 +4301,45 @@ export class ServiciosComponent implements OnInit, OnDestroy {
 
     if (this.isPulidor) return;
 
-    // Buscar si la agencia tiene un pulidor fijo asignado
     const fijo = this.pulidoresDisponiblesRegion.find(p => String(p.agenciaId || p.agencia?.id) === String(agId));
     if (fijo) {
-      // Tiene pulidor fijo: se autorrellenan los campos y queda asignado
-      this.extraForm.operadorId = String(fijo.id);
-      this.extraForm.operadorNombre = `${fijo.name} ${fijo.lastname}`.trim();
-      this.cargarStockPulidorParaOT(fijo.id);
+      const disponibles = new Set(this.pulidoresDisponiblesParaAgencia.map((p) => String(p.id)));
+      const otros = this.extraForm.operadoresIds.filter((id) => disponibles.has(id) && id !== String(fijo.id));
+      this.extraForm.operadoresIds = [String(fijo.id), ...otros];
     } else {
-      // NO tiene pulidor fijo: asignar pulidor móvil
-      const opActual = this.pulidoresDisponiblesRegion.find(p => String(p.id) === String(this.extraForm.operadorId));
-      const esMovil = opActual && !opActual.agenciaId && !opActual.agencia?.id;
-      if (!esMovil) {
+      const disponibles = new Set(this.pulidoresDisponiblesParaAgencia.map((p) => String(p.id)));
+      this.extraForm.operadoresIds = this.extraForm.operadoresIds.filter((id) => disponibles.has(id));
+      if (!this.extraForm.operadoresIds.length) {
         const primerMovil = this.pulidoresMovilesDisponibles[0];
-        if (primerMovil) {
-          this.extraForm.operadorId = String(primerMovil.id);
-          this.extraForm.operadorNombre = `${primerMovil.name} ${primerMovil.lastname}`.trim();
-          this.cargarStockPulidorParaOT(primerMovil.id);
-        } else {
-          this.extraForm.operadorId = '';
-          this.extraForm.operadorNombre = '';
-          this.stockPulidor = [];
-          this.recalcularFaltantesInsumosOT();
-        }
-      } else {
-        // Ya tenía un pulidor móvil asignado, verificar sus existencias
-        this.cargarStockPulidorParaOT(opActual.id);
+        if (primerMovil) this.extraForm.operadoresIds = [String(primerMovil.id)];
       }
+    }
+    this.actualizarOperadorResponsableExtra();
+  }
+
+  onOperadorExtraToggle(pulidor: any, event: Event): void {
+    const marcado = (event.target as HTMLInputElement | null)?.checked === true;
+    const id = String(pulidor.id);
+    const fijoId = this.pulidorFijoAgenciaSeleccionada ? String(this.pulidorFijoAgenciaSeleccionada.id) : '';
+    if (!marcado && id === fijoId) return;
+    const seleccionados = this.extraForm.operadoresIds.filter((actual) => actual !== id);
+    if (marcado) seleccionados.push(id);
+    this.extraForm.operadoresIds = fijoId
+      ? [fijoId, ...seleccionados.filter((actual) => actual !== fijoId)]
+      : seleccionados;
+    this.actualizarOperadorResponsableExtra();
+  }
+
+  private actualizarOperadorResponsableExtra(): void {
+    const operadorId = this.extraForm.operadoresIds[0] || '';
+    const operador = this.pulidoresDisponiblesRegion.find((p) => String(p.id) === operadorId);
+    this.extraForm.operadorId = operadorId;
+    this.extraForm.operadorNombre = operador ? `${operador.name} ${operador.lastname}`.trim() : '';
+    if (operadorId) {
+      this.cargarStockPulidorParaOT(operadorId);
+    } else {
+      this.stockPulidor = [];
+      this.recalcularFaltantesInsumosOT();
     }
   }
 
@@ -4332,6 +4409,10 @@ export class ServiciosComponent implements OnInit, OnDestroy {
     const otGenUpper = this.nuevoRegistro.ordenTrabajoOT.trim().toUpperCase();
     this.nuevoRegistro.ordenTrabajoOT = otGenUpper;
     const modoAgregar = !!this.agregarServicioOTFuente;
+    if (!modoAgregar && this.lavadoresAsignadosBahia.length > 0 && this.lavadorIdsSeleccionados.length === 0) {
+      this.toastService.warning('Lavador requerido', 'Selecciona al menos un lavador asignado a la bahía.');
+      return;
+    }
 
     if (modoAgregar) {
       const yaEnOT = this.serviciosYaEnOT;
@@ -4425,6 +4506,7 @@ export class ServiciosComponent implements OnInit, OnDestroy {
       bahia: bahiaNombre,
       servicioCatalogoId: serviciosIds[0],
       servicioCatalogoIds: serviciosIds,
+      operadorIds: [...this.lavadorIdsSeleccionados],
       insumosUtilizados: [...this.insumosConsumoForm]
     };
 
@@ -4653,15 +4735,64 @@ export class ServiciosComponent implements OnInit, OnDestroy {
   abrirModalReasignar(extra: ServicioExtra) {
     if (!this.puedeReasignarExtra(extra)) return;
     this.extraReasignar = extra;
-    this.reasignarOperadorId = extra.operadorId ? String(extra.operadorId) : '';
+    const asignados = (extra.operadoresIds?.length
+      ? extra.operadoresIds
+      : extra.operadorId
+        ? [String(extra.operadorId)]
+        : []).map(String);
+    const pulidorFijo = this.pulidoresDisponiblesRegion.find(
+      (p) => String(p.agenciaId || p.agencia?.id || '') === String(extra.agenciaId || ''),
+    );
+    this.reasignarOperadoresIds = pulidorFijo
+      ? [String(pulidorFijo.id), ...asignados.filter((id) => id !== String(pulidorFijo.id))]
+      : [...asignados];
     this.modalReasignarOpen = true;
+  }
+
+  estaPulidorReasignado(id: string | number): boolean {
+    return this.reasignarOperadoresIds.includes(String(id));
+  }
+
+  esResponsableReasignacion(id: string | number): boolean {
+    return this.reasignarOperadoresIds[0] === String(id);
+  }
+
+  esPulidorFijoReasignacion(pulidor: any): boolean {
+    return Boolean(
+      this.extraReasignar?.agenciaId &&
+      String(pulidor.agenciaId || pulidor.agencia?.id || '') === String(this.extraReasignar.agenciaId),
+    );
+  }
+
+  get nombresPulidoresReasignacion(): string {
+    return this.reasignarOperadoresIds
+      .map((id) => this.pulidoresDisponiblesRegion.find((p) => String(p.id) === id))
+      .filter(Boolean)
+      .map((p) => `${p.name} ${p.lastname}`.trim())
+      .join(', ');
+  }
+
+  cambiarPulidorReasignacion(pulidor: any, event: Event): void {
+    const checked = (event.target as HTMLInputElement).checked;
+    const id = String(pulidor.id);
+    if (!checked && this.esPulidorFijoReasignacion(pulidor)) return;
+    const seleccionados = this.reasignarOperadoresIds.filter((actual) => actual !== id);
+    if (checked) seleccionados.push(id);
+    const fijo = this.pulidoresDisponiblesRegion.find((p) => this.esPulidorFijoReasignacion(p));
+    this.reasignarOperadoresIds = fijo
+      ? [String(fijo.id), ...seleccionados.filter((actual) => actual !== String(fijo.id))]
+      : seleccionados;
   }
 
   confirmarReasignacion() {
     const extra = this.extraReasignar;
     if (!extra) return;
+    if (!this.reasignarOperadoresIds.length) {
+      this.toastService.warning('Pulidor requerido', 'Selecciona al menos un pulidor para reasignar la OT.');
+      return;
+    }
     this.reasignando = true;
-    this.extrasService.reasignarServicioExtra(extra.id, this.reasignarOperadorId || null).subscribe({
+    this.extrasService.reasignarServicioExtra(extra.id, this.reasignarOperadoresIds).subscribe({
       next: () => {
         this.reasignando = false;
         this.modalReasignarOpen = false;
@@ -4670,7 +4801,12 @@ export class ServiciosComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         this.reasignando = false;
-        this.toastService.error('No se pudo reasignar', this.mensajeErrorAccion(err, 'No se pudo reasignar el servicio.'));
+        const detalle = this.mensajeErrorAccion(err, 'No se pudo reasignar el servicio.');
+        const sinKit = /insumos|kit/i.test(detalle);
+        this.toastService.error(
+          sinKit ? 'No se puede reasignar: faltan insumos' : 'No se pudo reasignar',
+          detalle,
+        );
       }
     });
   }
@@ -4702,8 +4838,8 @@ export class ServiciosComponent implements OnInit, OnDestroy {
   get extrasCancelados()  { return this.serviciosExtras.filter(e => e.estado === 'Cancelado').length; }
 
   get puedeCrearOTEspecialConInsumos(): boolean {
-    if (this.validandoStockPulidorOT) return false;
-    if (!this.extraForm.servicioNombre?.trim() || !this.extraForm.operadorId || !this.extraFormPlaca?.trim()) return false;
+    if (!this.isCoordServiciosEspeciales || this.validandoStockPulidorOT) return false;
+    if (!this.extraForm.servicioNombre?.trim() || !this.extraForm.operadoresIds.length || !this.extraFormPlaca?.trim()) return false;
     if (!this.extraForm.insumosReceta?.length) return false;
     return this.faltantesInsumosOT.length === 0;
   }
@@ -4918,6 +5054,7 @@ export class ServiciosComponent implements OnInit, OnDestroy {
       servicioDescripcion: primerServicio?.descripcion || '',
       operadorId: opId,
       operadorNombre: opNombre,
+      operadoresIds: opId ? [opId] : [],
       sucursalesSeleccionadas: [],
       insumosReceta: primerServicio?.insumosReceta
         ? JSON.parse(JSON.stringify(primerServicio.insumosReceta))
@@ -4942,14 +5079,7 @@ export class ServiciosComponent implements OnInit, OnDestroy {
   cerrarModalExtras() { this.showModalExtras = false; }
 
   onOperadorExtraChange() {
-    const op = this.pulidoresDisponiblesRegion.find(o => String(o.id) === String(this.extraForm.operadorId));
-    if (op) this.extraForm.operadorNombre = `${op.name} ${op.lastname}`.trim();
-    if (this.extraForm.operadorId) {
-      this.cargarStockPulidorParaOT(this.extraForm.operadorId);
-    } else {
-      this.stockPulidor = [];
-      this.recalcularFaltantesInsumosOT();
-    }
+    this.actualizarOperadorResponsableExtra();
   }
 
   async guardarServicioExtra() {
@@ -4975,8 +5105,8 @@ export class ServiciosComponent implements OnInit, OnDestroy {
       this.toastService.warning('Datos incompletos', 'Ingrese el tipo de servicio especial.');
       return;
     }
-    if (!this.extraForm.operadorId) {
-      this.toastService.warning('Datos incompletos', 'Seleccione un pulidor asignado.');
+    if (!this.extraForm.operadoresIds.length) {
+      this.toastService.warning('Datos incompletos', 'Seleccione al menos un pulidor asignado.');
       return;
     }
     if (!this.extraFormPlaca.trim()) {
@@ -5036,6 +5166,7 @@ export class ServiciosComponent implements OnInit, OnDestroy {
       servicioCatalogoId: this.servicioEspecialCatalogo?.id,
       servicioDescripcion: this.extraForm.servicioDescripcion.trim(),
       operadorId: this.extraForm.operadorId ? String(this.extraForm.operadorId) : undefined,
+      operadoresIds: this.extraForm.operadoresIds,
       operadorNombre: this.extraForm.operadorNombre,
       agenciaId: agenciaIdFinal || undefined,
       bahiaId: this.extraFormBahiaId || undefined,

@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, OnDestroy, Output, inject } from '@angular/core';
+import { Component, ElementRef, EventEmitter, Input, OnDestroy, Output, ViewChild, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { LucideAngularModule } from 'lucide-angular';
 import { StorageUploadService, MediaEvidenceType, StorageCategory } from '../../../core/services/storage-upload.service';
@@ -55,15 +55,22 @@ export interface ArchivoEvidencia {
           </span>
         </div>
 
-        <label class="inline-flex cursor-pointer px-4 py-2.5 bg-white border border-emerald-300 hover:bg-emerald-50 text-emerald-700 font-bold rounded-xl text-xs items-center gap-2 shadow-2xs focus-within:ring-2 focus-within:ring-easydry-blue transition-colors"
-          [class.opacity-60]="deshabilitado" [class.pointer-events-none]="deshabilitado">
-          <i-lucide name="upload-cloud" class="w-4 h-4" aria-hidden="true"></i-lucide>
-          <span>Seleccionar fotos / videos</span>
-          <input type="file" multiple class="sr-only"
-            accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,.jpg,.jpeg,.png,.webp,.mp4,.mov"
-            [disabled]="deshabilitado"
-            (change)="onSeleccionarMultimedia($event)">
-        </label>
+        <div class="flex flex-wrap gap-2">
+          <label class="inline-flex cursor-pointer px-4 py-2.5 bg-white border border-emerald-300 hover:bg-emerald-50 text-emerald-700 font-bold rounded-xl text-xs items-center gap-2 shadow-2xs focus-within:ring-2 focus-within:ring-easydry-blue transition-colors"
+            [class.opacity-60]="deshabilitado" [class.pointer-events-none]="deshabilitado">
+            <i-lucide name="upload-cloud" class="w-4 h-4" aria-hidden="true"></i-lucide>
+            <span>Seleccionar fotos / videos</span>
+            <input type="file" multiple class="sr-only"
+              accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,.jpg,.jpeg,.png,.webp,.mp4,.mov"
+              [disabled]="deshabilitado"
+              (change)="onSeleccionarMultimedia($event)">
+          </label>
+          <button type="button" (click)="abrirCamara()" [disabled]="deshabilitado"
+            class="inline-flex cursor-pointer px-4 py-2.5 bg-white border border-sky-300 hover:bg-sky-50 disabled:opacity-60 disabled:cursor-not-allowed text-sky-700 font-bold rounded-xl text-xs items-center gap-2 shadow-2xs focus-visible:ring-2 focus-visible:ring-easydry-blue transition-colors">
+            <i-lucide name="camera" class="w-4 h-4" aria-hidden="true"></i-lucide>
+            <span>Tomar foto</span>
+          </button>
+        </div>
 
         @if (multimedia.length > 0) {
           <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-1">
@@ -159,10 +166,63 @@ export interface ArchivoEvidencia {
         </div>
       }
     </div>
+
+    @if (camaraAbierta) {
+      <div class="fixed inset-0 z-[12000] bg-black/80 flex items-center justify-center p-3 sm:p-6"
+        (click)="cerrarCamara()" (keydown.escape)="cerrarCamara()">
+        <section role="dialog" aria-modal="true" aria-labelledby="evidencia-camera-title"
+          class="w-full max-w-2xl rounded-2xl overflow-hidden bg-slate-950 text-white shadow-2xl"
+          (click)="$event.stopPropagation()">
+          <header class="flex items-center justify-between px-4 py-3 border-b border-white/10">
+            <h2 id="evidencia-camera-title" class="text-sm font-bold">Tomar foto de evidencia</h2>
+            <button type="button" (click)="cerrarCamara()" aria-label="Cerrar cámara"
+              class="p-2 rounded-lg hover:bg-white/10">
+              <i-lucide name="x" class="w-5 h-5" aria-hidden="true"></i-lucide>
+            </button>
+          </header>
+
+          <div class="relative min-h-56 sm:min-h-80 flex items-center justify-center">
+            @if (camaraCargando) {
+              <div class="p-8 text-center space-y-2" role="status" aria-live="polite">
+                <i-lucide name="loader" class="w-8 h-8 text-sky-400 animate-spin mx-auto" aria-hidden="true"></i-lucide>
+                <p class="text-sm font-semibold text-slate-200">Iniciando cámara...</p>
+              </div>
+            }
+            @if (camaraError) {
+              <div class="p-6 text-center space-y-3" role="alert">
+                <i-lucide name="alert-circle" class="w-8 h-8 text-rose-400 mx-auto" aria-hidden="true"></i-lucide>
+                <p class="text-sm font-semibold text-rose-200">{{ camaraError }}</p>
+                <button type="button" (click)="abrirCamara()"
+                  class="px-4 py-2 bg-white text-slate-900 rounded-xl text-xs font-bold">
+                  Reintentar
+                </button>
+              </div>
+            }
+            <video #evidenciaCameraVideo autoplay playsinline muted
+              [class.hidden]="camaraCargando || !!camaraError"
+              class="w-full max-h-[65dvh] object-contain"></video>
+          </div>
+
+          <footer class="flex items-center justify-center gap-3 p-4 border-t border-white/10">
+            <button type="button" (click)="cambiarCamara()" [disabled]="camaraCargando || !!camaraError"
+              aria-label="Cambiar cámara" title="Cambiar cámara"
+              class="p-3 rounded-full bg-white/15 hover:bg-white/25 disabled:opacity-50">
+              <i-lucide name="refresh-cw" class="w-5 h-5" aria-hidden="true"></i-lucide>
+            </button>
+            <button type="button" (click)="capturarFoto()" [disabled]="camaraCargando || !!camaraError"
+              class="px-6 py-3 rounded-full bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white font-bold text-sm flex items-center gap-2">
+              <i-lucide name="camera" class="w-5 h-5" aria-hidden="true"></i-lucide>
+              Capturar foto
+            </button>
+          </footer>
+        </section>
+      </div>
+    }
   `,
 })
 export class EvidenciaSelectorComponent implements OnDestroy {
   private readonly storage = inject(StorageUploadService);
+  @ViewChild('evidenciaCameraVideo') private cameraVideo?: ElementRef<HTMLVideoElement>;
 
   /** INCIDENTE (fotos/videos/documento de incidencia) o MANTENIMIENTO. */
   @Input() contexto: 'INCIDENTE' | 'MANTENIMIENTO' = 'INCIDENTE';
@@ -188,8 +248,15 @@ export class EvidenciaSelectorComponent implements OnDestroy {
   advertencias: string[] = [];
   subiendo = false;
   progreso = 0;
+  camaraAbierta = false;
+  camaraCargando = false;
+  camaraError = '';
+  private cameraStream: MediaStream | null = null;
+  private cameraFacingMode: 'environment' | 'user' = 'environment';
+  private cameraAttempt = 0;
 
   ngOnDestroy(): void {
+    this.detenerCamara();
     this.liberarPreviews();
   }
 
@@ -255,6 +322,10 @@ export class EvidenciaSelectorComponent implements OnDestroy {
     const input = event.target as HTMLInputElement;
     const files = Array.from(input.files || []);
     input.value = '';
+    await this.agregarMultimedia(files);
+  }
+
+  private async agregarMultimedia(files: File[]): Promise<void> {
     this.errores = [];
     this.advertencias = [];
 
@@ -300,6 +371,122 @@ export class EvidenciaSelectorComponent implements OnDestroy {
       }];
     }
     this.cambio.emit();
+  }
+
+  async abrirCamara(): Promise<void> {
+    this.detenerCamara();
+    this.camaraAbierta = true;
+    this.camaraCargando = true;
+    this.camaraError = '';
+    const attempt = ++this.cameraAttempt;
+    if (!navigator.mediaDevices?.getUserMedia) {
+      this.camaraCargando = false;
+      this.camaraError = 'Este navegador no permite abrir la cámara desde esta página. Ábrela por HTTPS o localhost e inténtalo de nuevo.';
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: this.cameraFacingMode },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+        },
+        audio: false,
+      });
+      if (!this.camaraAbierta || attempt !== this.cameraAttempt) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+      this.cameraStream = stream;
+      this.camaraCargando = false;
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      if (!this.camaraAbierta || attempt !== this.cameraAttempt) return;
+      if (!this.cameraVideo) {
+        stream.getTracks().forEach((track) => track.stop());
+        if (this.cameraStream === stream) this.cameraStream = null;
+        this.camaraError = 'No se pudo mostrar la vista previa de la cámara. Inténtalo de nuevo.';
+        return;
+      }
+      this.cameraVideo.nativeElement.srcObject = this.cameraStream;
+      await this.cameraVideo.nativeElement.play();
+    } catch (error) {
+      if (attempt === this.cameraAttempt) {
+        this.detenerCamara();
+        this.camaraCargando = false;
+        this.camaraError = this.mensajeErrorCamara(error);
+      }
+    }
+  }
+
+  cambiarCamara(): void {
+    this.cameraFacingMode = this.cameraFacingMode === 'environment' ? 'user' : 'environment';
+    void this.abrirCamara();
+  }
+
+  cerrarCamara(): void {
+    this.camaraAbierta = false;
+    this.camaraCargando = false;
+    this.camaraError = '';
+    this.detenerCamara();
+  }
+
+  async capturarFoto(): Promise<void> {
+    const video = this.cameraVideo?.nativeElement;
+    if (!video || !this.cameraStream || video.videoWidth === 0 || video.videoHeight === 0) {
+      this.camaraError = 'La cámara todavía no está lista. Espera un momento e inténtalo de nuevo.';
+      return;
+    }
+    if (this.multimedia.length >= REGLAS_EVIDENCIA.maxMultimedia) {
+      this.errores = [`Máximo ${REGLAS_EVIDENCIA.maxMultimedia} fotos o videos por registro.`];
+      this.cerrarCamara();
+      return;
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const context = canvas.getContext('2d');
+    if (!context) {
+      this.camaraError = 'No se pudo procesar la foto. Inténtalo de nuevo.';
+      return;
+    }
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.9));
+    if (!blob) {
+      this.camaraError = 'No se pudo generar la foto. Inténtalo de nuevo.';
+      return;
+    }
+
+    const file = new File([blob], `incidencia_${new Date().toISOString().replace(/[:.]/g, '-')}.jpg`, {
+      type: 'image/jpeg',
+      lastModified: Date.now(),
+    });
+    this.cerrarCamara();
+    await this.agregarMultimedia([file]);
+  }
+
+  private detenerCamara(): void {
+    this.cameraAttempt++;
+    if (this.cameraStream) {
+      this.cameraStream.getTracks().forEach((track) => track.stop());
+      this.cameraStream = null;
+    }
+    if (this.cameraVideo?.nativeElement) this.cameraVideo.nativeElement.srcObject = null;
+  }
+
+  private mensajeErrorCamara(error: unknown): string {
+    const name = error instanceof DOMException ? error.name : '';
+    if (name === 'NotAllowedError' || name === 'SecurityError') {
+      return 'No se concedió permiso para usar la cámara. Habilítalo en el navegador e inténtalo de nuevo.';
+    }
+    if (name === 'NotFoundError' || name === 'OverconstrainedError') {
+      return 'No se encontró una cámara disponible en este dispositivo.';
+    }
+    if (name === 'NotReadableError') {
+      return 'La cámara está ocupada por otra aplicación. Ciérrala e inténtalo de nuevo.';
+    }
+    return 'No se pudo acceder a la cámara. Revisa los permisos del navegador y vuelve a intentarlo.';
   }
 
   onSeleccionarDocumento(event: Event): void {

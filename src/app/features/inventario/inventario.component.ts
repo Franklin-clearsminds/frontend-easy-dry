@@ -4209,10 +4209,8 @@ export class InventarioComponent implements OnInit, OnDestroy {
     if (this.isPulidor) {
       this.activeTab = 'pulidores';
     } else {
-      // El líder aterriza en "Productos" (su propia agencia): la pestaña "Agencias" es para elegir
-      // destino de despacho y excluye a propósito la agencia propia (`excluirAgenciaId`), así que
-      // dejarla como pestaña inicial escondía el stock del líder por defecto.
-      this.activeTab = 'productos';
+      // El líder ve primero el catálogo de su agencia; los perfiles de solo lectura empiezan en Agencias.
+      this.activeTab = !this.puedeOperarBodega && !this.operaDesdeAgencia ? 'agencias' : 'productos';
     }
 
     // Sin permiso de lectura de inventario no se consulta nada (evita errores 403 de fondo).

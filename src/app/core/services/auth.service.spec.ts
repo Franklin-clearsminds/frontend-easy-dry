@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { AuthService } from './auth.service';
 import { RolService } from './rol.service';
 import { MaquinariaService } from './maquinaria.service';
@@ -88,6 +88,71 @@ describe('AuthService — sincronización de rol (refrescarPermisos)', () => {
     expect(actual?.capacidades).toEqual(['maquinaria.gestionar', 'mantenimientos.ver']);
     expect(actual?.modulosPermitidos).toEqual(['maquinaria', 'taller-tecnico']);
     expect(service.hasRole(Role.COORD_MANTENIMIENTO)).toBe(true);
+  });
+
+  it('lee del servidor permisos de módulo actualizados antes de validar una ruta', async () => {
+    httpPost.and.returnValue(of({
+      role: 'LIDER',
+      name: 'Juan',
+      lastname: 'Pérez',
+      email: 'juan@easydry.com',
+      capacidades: ['agencias.ver'],
+      modulos: ['agencias', 'mapa-operativo'],
+      ambito: 'AGENCIA',
+      agenciaId: 'ag-1',
+      agencia: { id: 'ag-1', nombre: 'EasyDry Norte' },
+      regionId: 'reg-1',
+      region: { id: 'reg-1', nombre: 'Pichincha' },
+      regionNombre: 'Pichincha',
+      bodegaId: null,
+      estado: 1,
+    }));
+
+    const permitido = await new Promise<boolean>((resolve) => {
+      service.validarAccesoModulo('mapa-operativo').subscribe(resolve);
+    });
+
+    expect(httpPost).toHaveBeenCalledWith(jasmine.stringMatching(/auth\/me$/), {}, jasmine.any(Object));
+    expect(permitido).toBe(true);
+    expect(service.getCurrentUser()?.modulosPermitidos).toContain('mapa-operativo');
+  });
+
+  it('considera operativo a un usuario con módulo funcional aunque no tenga capacidades API', () => {
+    const currentUserSubject = (service as unknown as {
+      currentUserSubject: { next: (user: UsuarioAuth) => void };
+    }).currentUserSubject;
+    currentUserSubject.next({
+      ...fichaLider(),
+      modulosPermitidos: ['mapa-operativo'],
+      capacidades: [],
+    });
+
+    expect(service.sinAcceso()).toBe(false);
+    expect(service.rutaInicial()).toBe('/mapa-operativo');
+  });
+
+  it('mantiene sin acceso al usuario cuyo único módulo es perfil', () => {
+    const currentUserSubject = (service as unknown as {
+      currentUserSubject: { next: (user: UsuarioAuth) => void };
+    }).currentUserSubject;
+    currentUserSubject.next({
+      ...fichaLider(),
+      modulosPermitidos: ['perfil'],
+      capacidades: [],
+    });
+
+    expect(service.sinAcceso()).toBe(true);
+    expect(service.rutaInicial()).toBe('/sin-acceso');
+  });
+
+  it('no autoriza una ruta con permisos locales antiguos si falla la validación del servidor', async () => {
+    httpPost.and.returnValue(throwError(() => new Error('sin conexión')));
+
+    const permitido = await new Promise<boolean>((resolve) => {
+      service.validarAccesoModulo('maquinaria').subscribe(resolve);
+    });
+
+    expect(permitido).toBe(false);
   });
 
   it('bajar a un usuario de SUPER_ADMIN a un rol normal le quita isSuperAdmin() sin logout (no quedan permisos fantasma)', () => {

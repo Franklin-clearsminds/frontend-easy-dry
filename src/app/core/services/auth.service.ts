@@ -15,6 +15,8 @@ import { RolService } from './rol.service';
 import { MaquinariaService } from './maquinaria.service';
 import { NotificationSocketService } from './notification-socket.service';
 import { apiUrl, isRealProfilePhoto } from '../config/env';
+import { MENU_CONFIG } from '../config/menu.config';
+import { ToastService } from '../../shared/services/toast.service';
 
 const STORAGE_KEY = 'easydry_auth_user_v5';
 /** Renovar el access token ~5 min antes de que expire. */
@@ -30,12 +32,14 @@ export class AuthService {
   private rolService = inject(RolService);
   private maquinariaService = inject(MaquinariaService);
   private notificationSocket = inject(NotificationSocketService);
+  private toast = inject(ToastService);
 
   private currentUserSubject = new BehaviorSubject<UsuarioAuth | null>(this.getStoredUser());
   public currentUser$ = this.currentUserSubject.asObservable();
 
   private refreshInFlight$: Observable<boolean> | null = null;
   private refreshTimerId: ReturnType<typeof setTimeout> | null = null;
+  private lastPermissionsRefreshAt = 0;
 
   constructor() {
     const user = this.getStoredUser();
@@ -45,7 +49,15 @@ export class AuthService {
       this.refrescarPermisos();
       this.notificationSocket.connect(user.token);
     }
+    if (typeof window !== 'undefined') {
+      window.addEventListener('focus', this.onWindowFocus);
+    }
   }
+
+  private readonly onWindowFocus = (): void => {
+    if (Date.now() - this.lastPermissionsRefreshAt < 30_000) return;
+    this.refrescarPermisos();
+  };
 
   /** El catálogo de roles y módulos solo lo lee quien tiene el permiso 'roles.ver' (evita llamadas que el servidor rechazaría). */
   private cargarCatalogoDeRoles(): void {
@@ -191,6 +203,7 @@ export class AuthService {
       'LIDER': Role.LIDER_OPERADOR,
       'LIDER_OPERADOR': Role.LIDER_OPERADOR,
       'LIDER_AGENCIA': Role.LIDER_OPERADOR,
+      'BACKUP': Role.BACKUP,
       'OPERADOR': Role.OPERADOR,
       'COORD_SERVICIOS_ESPECIALES': Role.COORD_SERVICIOS_ESPECIALES,
       'PULIDOR': Role.PULIDOR,
@@ -456,7 +469,8 @@ export class AuthService {
   }
 
   isLiderOperador(): boolean {
-    return this.currentUserSubject.value?.role === Role.LIDER_OPERADOR;
+    const role = this.currentUserSubject.value?.role;
+    return role === Role.LIDER_OPERADOR || role === Role.BACKUP;
   }
 
   isOperador(): boolean {
@@ -487,6 +501,44 @@ export class AuthService {
   }
 
   /**
+   * Refresca permisos desde /auth/me antes de entrar a un módulo. El rol puede haber cambiado
+   * mientras la sesión sigue abierta en otra pestaña o dispositivo.
+   */
+  validarAccesoModulo(moduloCodigo: string): Observable<boolean> {
+    return this.verificarPermisosActualizados(true).pipe(
+      map((actualizado) => actualizado && (this.isSuperAdmin() || this.hasModuleAccess(moduloCodigo))),
+    );
+  }
+
+  /** Recarga el usuario y permisos actuales del servidor, sin aceptar el caché como confirmación. */
+  verificarPermisosActualizados(notificarError = false): Observable<boolean> {
+    const actual = this.currentUserSubject.value;
+    if (!actual?.token) return of(false);
+
+    this.lastPermissionsRefreshAt = Date.now();
+    return this.http.post<any>(apiUrl('/auth/me'), {}, { headers: { 'X-Silent-Fallback': '1' } }).pipe(
+      map((me) => {
+        if (!me || !this.currentUserSubject.value) return false;
+        const actualizado = this.construirUsuarioDesdeDatos(
+          me,
+          this.getAccessToken() || actual.token!,
+          this.getRefreshToken() || actual.refreshToken!,
+          this.currentUserSubject.value,
+        );
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(actualizado));
+        this.currentUserSubject.next(actualizado);
+        return true;
+      }),
+      catchError(() => {
+        if (notificarError) {
+          this.toast.error('No se pudieron verificar los permisos', 'Revisa tu conexión e inténtalo nuevamente.');
+        }
+        return of(false);
+      }),
+    );
+  }
+
+  /**
    * ¿Puede el usuario hacer esta acción? Es la MISMA regla que exige el backend en cada endpoint (los permisos del rol).
    * El SUPER_ADMIN siempre puede. Usa códigos como 'servicios.crear' o 'inventario.ver'.
    */
@@ -509,7 +561,8 @@ export class AuthService {
   sinAcceso(): boolean {
     const user = this.currentUserSubject.value;
     if (!user || user.role === Role.SUPER_ADMIN) return false;
-    return (user.capacidades || []).length === 0;
+    const tieneModuloDeUso = (user.modulosPermitidos || []).some((modulo) => modulo && modulo !== 'perfil');
+    return (user.capacidades || []).length === 0 && !tieneModuloDeUso;
   }
 
   /**
@@ -523,19 +576,21 @@ export class AuthService {
    * app (F5 incluido), así que el cambio se ve recién en la próxima carga, no en caliente.
    */
   refrescarPermisos(): void {
-    const actual = this.currentUserSubject.value;
-    if (!actual?.token) return;
-    this.http.post<any>(apiUrl('/auth/me'), {}, { headers: { 'X-Silent-Fallback': '1' } }).subscribe({
-      next: (me) => {
-        if (!me || !this.currentUserSubject.value) return;
-        const actualizado = this.construirUsuarioDesdeDatos(me, actual.token!, actual.refreshToken!, actual);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(actualizado));
-        this.currentUserSubject.next(actualizado);
+    this.verificarPermisosActualizados().subscribe({
+      next: (actualizado) => {
+        if (!actualizado) return;
         if (this.sinAcceso() && !this.router.url.startsWith('/sin-acceso')) {
           void this.router.navigate(['/sin-acceso']);
+          return;
+        }
+        const ruta = this.router.url.split('?')[0];
+        const moduloActual = MENU_CONFIG.find((item) =>
+          ruta === item.route || ruta.startsWith(`${item.route}/`),
+        )?.moduloCodigo;
+        if (moduloActual && !this.hasModuleAccess(moduloActual)) {
+          void this.router.navigateByUrl(this.rutaInicial());
         }
       },
-      error: () => { /* sin conexión: se conservan los permisos guardados */ },
     });
   }
 

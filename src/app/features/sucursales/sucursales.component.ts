@@ -123,10 +123,12 @@ import { ConsultaAgencias } from '../../core/services/sucursal.service';
                     <span class="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-xl">
                       {{ getBahiasDeSucursal(suc.id).length }} Bahías Registradas
                     </span>
-                    <a [routerLink]="['/agencias', suc.id]" class="px-3 py-1.5 bg-easydry-blue/10 hover:bg-easydry-blue hover:text-white text-easydry-blue font-bold rounded-xl text-xs transition-colors flex items-center gap-1">
-                      <span>Gestionar</span>
-                      <i-lucide aria-hidden="true" name="chevron-right" class="w-3.5 h-3.5"></i-lucide>
-                    </a>
+                    @if (auth.hasModuleAccess('agencias')) {
+                      <a [routerLink]="['/agencias', suc.id]" class="px-3 py-1.5 bg-easydry-blue/10 hover:bg-easydry-blue hover:text-white text-easydry-blue font-bold rounded-xl text-xs transition-colors flex items-center gap-1">
+                        <span>Gestionar</span>
+                        <i-lucide aria-hidden="true" name="chevron-right" class="w-3.5 h-3.5"></i-lucide>
+                      </a>
+                    }
                   </div>
                 </div>
 
@@ -192,10 +194,12 @@ import { ConsultaAgencias } from '../../core/services/sucursal.service';
 
                           <div class="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
                             <span class="text-slate-500">Tipo: {{ bahia.tipo || 'General' }}</span>
-                            <a [routerLink]="['/agencias', suc.id]" class="text-easydry-blue font-bold hover:underline flex items-center gap-0.5">
-                              <span>Ver detalle</span>
-                              <i-lucide aria-hidden="true" name="arrow-right" class="w-3 h-3"></i-lucide>
-                            </a>
+                            @if (auth.hasModuleAccess('agencias')) {
+                              <a [routerLink]="['/agencias', suc.id]" class="text-easydry-blue font-bold hover:underline flex items-center gap-0.5">
+                                <span>Ver detalle</span>
+                                <i-lucide aria-hidden="true" name="arrow-right" class="w-3 h-3"></i-lucide>
+                              </a>
+                            }
                           </div>
                         </div>
                       }
@@ -328,9 +332,11 @@ import { ConsultaAgencias } from '../../core/services/sucursal.service';
 
               <!-- Acciones -->
               <div class="mt-5 pt-4 border-t border-slate-100 flex items-center gap-2">
-                <button (click)="verEnMapa(suc)" class="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer">
-                  <i-lucide aria-hidden="true" name="map" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide><span>Mapa</span>
-                </button>
+                @if (auth.hasModuleAccess('mapa-operativo')) {
+                  <button (click)="verEnMapa(suc)" class="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer">
+                    <i-lucide aria-hidden="true" name="map" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide><span>Mapa</span>
+                  </button>
+                }
                 <a [routerLink]="['/agencias', suc.id]" class="flex-1 py-2 bg-easydry-blue/10 hover:bg-easydry-blue hover:text-white text-easydry-blue font-bold rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5">
                   <i-lucide aria-hidden="true" name="eye" class="w-3.5 h-3.5"></i-lucide><span>Detalle</span>
                 </a>
@@ -1304,7 +1310,12 @@ export class SucursalesComponent implements OnInit, OnDestroy {
   guardando = false;
 
   get tabsVisibles() {
-    return this.tabs.filter(t => t.id !== 'gerentes' || this.puedeVerUsuarios);
+    return this.tabs.filter(t =>
+      (t.id === 'mapa'
+        ? this.auth.hasModuleAccess('mapa-operativo')
+        : this.auth.hasModuleAccess('agencias')) &&
+      (t.id !== 'gerentes' || this.puedeVerUsuarios)
+    );
   }
 
   /** Mensaje del servidor (viene en español); si no hay, el de respaldo. */
@@ -1406,6 +1417,9 @@ export class SucursalesComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
+    if (this.route.snapshot.routeConfig?.path === 'mapa-operativo') {
+      this.tabActiva = 'mapa';
+    }
     this.busquedaSub = this.busqueda$
       .pipe(debounceTime(BUSQUEDA_DEBOUNCE_MS), distinctUntilChanged())
       .subscribe((texto) => {
@@ -1413,8 +1427,13 @@ export class SucursalesComponent implements OnInit, OnDestroy {
         this.agenciasLista.reiniciar();
       });
     this.route.queryParams.subscribe(params => {
-      if (params['tab'] && ['mapa', 'agencias', 'sucursales', 'regiones', 'marcas', 'clientes', 'gerentes'].includes(params['tab'])) {
+      if (this.route.snapshot.routeConfig?.path === 'mapa-operativo') {
+        this.tabActiva = 'mapa';
+      } else if (params['tab'] && ['mapa', 'agencias', 'sucursales', 'regiones', 'marcas', 'clientes', 'gerentes'].includes(params['tab'])) {
         this.tabActiva = params['tab'] === 'sucursales' ? 'agencias' : (params['tab'] === 'marcas' ? 'clientes' : params['tab'] as any);
+      }
+      if (this.tabActiva === 'mapa' && !this.auth.hasModuleAccess('mapa-operativo')) {
+        this.tabActiva = 'agencias';
       }
       if (params['sucursalId']) {
         this.filtroSucursalMapaId = Number(params['sucursalId']);
@@ -2294,4 +2313,3 @@ export class SucursalesComponent implements OnInit, OnDestroy {
   }
 
 }
-

@@ -1,8 +1,9 @@
-import { Routes, Router } from '@angular/router';
 import { inject } from '@angular/core';
+import { Routes, Router } from '@angular/router';
 import { LoginComponent } from './features/login/login.component';
 import { AdminLayoutComponent } from './shared/layouts/admin-layout.component';
 import { authGuard, moduloGuard } from './core/guards/auth.guard';
+import { AuthService } from './core/services/auth.service';
 
 export const routes: Routes = [
   {
@@ -20,7 +21,13 @@ export const routes: Routes = [
     component: AdminLayoutComponent,
     canActivate: [authGuard],
     children: [
-      { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
+      {
+        path: '',
+        loadComponent: () =>
+          import('./features/inicio-redirect/inicio-redirect.component')
+            .then(m => m.InicioRedirectComponent),
+        pathMatch: 'full'
+      },
 
       {
         path: 'unauthorized',
@@ -39,7 +46,10 @@ export const routes: Routes = [
         path: 'notificaciones',
         loadComponent: () =>
           import('./features/notificaciones/notificaciones.component').then(m => m.NotificacionesComponent),
-        canActivate: [authGuard]
+        canActivate: [
+          authGuard,
+          moduloGuard('notificaciones')
+        ]
       },
 
       {
@@ -84,10 +94,12 @@ export const routes: Routes = [
 
       {
         path: 'mapa-operativo',
-        redirectTo: () => {
-          const router = inject(Router);
-          return router.createUrlTree(['/agencias'], { queryParams: { tab: 'mapa' } });
-        }
+        loadComponent: () =>
+          import('./features/sucursales/sucursales.component').then(m => m.SucursalesComponent),
+        canActivate: [
+          authGuard,
+          moduloGuard('mapa-operativo')
+        ]
       },
 
       {
@@ -110,7 +122,16 @@ export const routes: Routes = [
       },
       {
         path: 'sucursales',
-        redirectTo: 'agencias',
+        redirectTo: () => {
+          const auth = inject(AuthService);
+          const router = inject(Router);
+          const destino = auth.hasModuleAccess('agencias')
+            ? '/agencias'
+            : auth.hasModuleAccess('mapa-operativo')
+              ? '/mapa-operativo'
+              : auth.rutaInicial();
+          return router.parseUrl(destino);
+        },
         pathMatch: 'full'
       },
       {

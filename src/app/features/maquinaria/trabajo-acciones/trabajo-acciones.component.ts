@@ -16,7 +16,7 @@ import { TecnicoSearchSelectComponent, TecnicoOpcion } from '../../../shared/com
 import { EvidenciaSelectorComponent } from '../../../shared/components/evidencia-selector/evidencia-selector.component';
 import { ToastService } from '../../../shared/services/toast.service';
 import { ChecklistOrdenComponent, EstadoChecklist } from '../../mantenimiento/checklist-orden/checklist-orden.component';
-import { puedeCorregirCostoMaquinaria } from '../../../core/utils/maquinaria-permisos';
+import { puedeAgregarEvidenciaMaquinaria, puedeCorregirCostoMaquinaria } from '../../../core/utils/maquinaria-permisos';
 
 /** Mensaje de error del backend tal cual (400/403...) o el del propio cliente. */
 export function mensajeError(err: any): string {
@@ -47,7 +47,11 @@ const TIPOS_FALLA = [
       @if (rep.open) {
         <div class="space-y-4">
           <p class="text-xs text-slate-600">Equipo: <strong>{{ rep.maquinaCodigo }} — {{ rep.maquinaNombre }}</strong></p>
-          <p class="text-xs text-slate-500">Requiere conexión. Solo puedes reportar máquinas asignadas a ti. Se exige 1 o más fotos/videos y exactamente 1 PDF.</p>
+          <p class="text-xs text-slate-500">
+            Requiere conexión. Solo puedes reportar máquinas dentro de tu alcance.
+            @if (puedeSubirEvidenciasMaquinaria) { Se exige al menos una foto o video. }
+            @else { Puedes reportar sin adjuntar evidencias porque tu rol no tiene permiso para subirlas. }
+          </p>
 
           <div class="space-y-4">
             <div>
@@ -79,11 +83,13 @@ const TIPOS_FALLA = [
             </select>
           </div>
 
-          <app-evidencia-selector #selReportar
-            contexto="INCIDENTE" fase="reporte"
-            [maquinariaCodigo]="rep.maquinaCodigo" [maquinariaId]="rep.maquinaId"
-            [clientUuid]="rep.clientUuid" [requiereMultimedia]="true" [requiereDocumento]="false" [deshabilitado]="enviando">
-          </app-evidencia-selector>
+          @if (puedeSubirEvidenciasMaquinaria) {
+            <app-evidencia-selector #selReportar
+              contexto="INCIDENTE" fase="reporte"
+              [maquinariaCodigo]="rep.maquinaCodigo" [maquinariaId]="rep.maquinaId"
+              [clientUuid]="rep.clientUuid" [requiereMultimedia]="true" [requiereDocumento]="false" [deshabilitado]="enviando">
+            </app-evidencia-selector>
+          }
 
           @if (error) { <div class="estado-error" role="alert">{{ error }}</div> }
         </div>
@@ -172,11 +178,15 @@ const TIPOS_FALLA = [
             </div>
           }
 
-          <app-evidencia-selector #selResolver
-            contexto="INCIDENTE" fase="reparacion"
-            [maquinariaCodigo]="res.maquinaCodigo" [maquinariaId]="res.maquinaId" [entidadId]="res.id"
-            [requiereMultimedia]="res.estado === 'RESUELTO'" [requiereDocumento]="res.estado === 'RESUELTO'" [deshabilitado]="enviando">
-          </app-evidencia-selector>
+          @if (puedeSubirEvidenciasMaquinaria) {
+            <app-evidencia-selector #selResolver
+              contexto="INCIDENTE" fase="reparacion"
+              [maquinariaCodigo]="res.maquinaCodigo" [maquinariaId]="res.maquinaId" [entidadId]="res.id"
+              [requiereMultimedia]="res.estado === 'RESUELTO'" [requiereDocumento]="res.estado === 'RESUELTO'" [deshabilitado]="enviando">
+            </app-evidencia-selector>
+          } @else {
+            <p class="text-xs text-slate-500">Tu rol no puede adjuntar evidencias; puedes guardar la resolución sin fotos ni documento.</p>
+          }
 
           @if (error) { <div class="estado-error" role="alert">{{ error }}</div> }
         </div>
@@ -316,11 +326,15 @@ const TIPOS_FALLA = [
             soloLecturaMotivo="solo el técnico asignado o un administrador puede marcar los pasos"
             (estado)="estadoChecklist = $event"></app-checklist-orden>
 
-          <app-evidencia-selector #selEjecutar
-            contexto="MANTENIMIENTO"
-            [maquinariaCodigo]="eje.maquinaCodigo" [maquinariaId]="eje.maquinaId" [entidadId]="eje.id"
-            [requiereMultimedia]="true" [requiereDocumento]="true" [deshabilitado]="enviando">
-          </app-evidencia-selector>
+          @if (puedeSubirEvidenciasMaquinaria) {
+            <app-evidencia-selector #selEjecutar
+              contexto="MANTENIMIENTO"
+              [maquinariaCodigo]="eje.maquinaCodigo" [maquinariaId]="eje.maquinaId" [entidadId]="eje.id"
+              [requiereMultimedia]="true" [requiereDocumento]="true" [deshabilitado]="enviando">
+            </app-evidencia-selector>
+          } @else {
+            <p class="text-xs text-slate-500">Tu rol no puede adjuntar evidencias; puedes ejecutar el mantenimiento sin fotos ni documento.</p>
+          }
 
           @if (error) { <div class="estado-error" role="alert">{{ error }}</div> }
         </div>
@@ -481,6 +495,10 @@ export class TrabajoAccionesComponent {
     return puedeCorregirCostoMaquinaria(this.authService);
   }
 
+  get puedeSubirEvidenciasMaquinaria(): boolean {
+    return puedeAgregarEvidenciaMaquinaria(this.authService);
+  }
+
   // ----------------------------------------------------------------
   // Datos auxiliares
   // ----------------------------------------------------------------
@@ -533,11 +551,13 @@ export class TrabajoAccionesComponent {
   async confirmarReporte(): Promise<void> {
     this.error = '';
     if (!this.rep.descripcion.trim()) { this.error = 'Describe el problema de la máquina.'; return; }
-    const pendiente = this.selReportar?.validar();
+    const pendiente = this.puedeSubirEvidenciasMaquinaria ? this.selReportar?.validar() : null;
     if (pendiente) { this.error = pendiente; return; }
     this.enviando = true;
     try {
-      const evidencias = await this.selReportar!.subir();
+      const evidencias = this.puedeSubirEvidenciasMaquinaria && this.selReportar
+        ? await this.selReportar.subir()
+        : [];
       await firstValueFrom(this.incidenteService.reportarIncidente({
         clientUuid: this.rep.clientUuid,
         maquinariaId: this.rep.maquinaId,
@@ -626,11 +646,13 @@ export class TrabajoAccionesComponent {
       this.error = 'El costo de la reparación es obligatorio para resolver la incidencia.';
       return;
     }
-    const pendiente = this.selResolver?.validar();
+    const pendiente = this.puedeSubirEvidenciasMaquinaria ? this.selResolver?.validar() : null;
     if (pendiente) { this.error = pendiente; return; }
     this.enviando = true;
     try {
-      const evidencias = this.selResolver && this.selResolver.totalArchivos > 0 ? await this.selResolver.subir() : [];
+      const evidencias = this.puedeSubirEvidenciasMaquinaria && this.selResolver && this.selResolver.totalArchivos > 0
+        ? await this.selResolver.subir()
+        : [];
       await firstValueFrom(this.incidenteService.resolverIncidente({
         incidenteId: this.res.id,
         solucion: this.res.solucion.trim(),
@@ -743,11 +765,13 @@ export class TrabajoAccionesComponent {
   async confirmarEjecucion(): Promise<void> {
     this.error = '';
     if (this.eje.costoTotal == null) { this.error = 'El costo del mantenimiento es obligatorio para ejecutarlo.'; return; }
-    const pendiente = this.selEjecutar?.validar();
+    const pendiente = this.puedeSubirEvidenciasMaquinaria ? this.selEjecutar?.validar() : null;
     if (pendiente) { this.error = pendiente; return; }
     this.enviando = true;
     try {
-      const evidencias = await this.selEjecutar!.subir();
+      const evidencias = this.puedeSubirEvidenciasMaquinaria && this.selEjecutar
+        ? await this.selEjecutar.subir()
+        : [];
       await firstValueFrom(this.mantenimientoService.ejecutarMantenimiento(this.eje.id, {
         observaciones: this.eje.observaciones,
         costoTotal: this.eje.costoTotal,
@@ -801,6 +825,10 @@ export class TrabajoAccionesComponent {
   // ----------------------------------------------------------------
 
   agregarEvidencia(entidad: 'INCIDENTE' | 'MANTENIMIENTO', item: Incidente | Mantenimiento): void {
+    if (!this.puedeSubirEvidenciasMaquinaria) {
+      this.error = 'Tu rol no puede subir evidencias de incidencias o mantenimientos.';
+      return;
+    }
     this.reset();
     const esInc = entidad === 'INCIDENTE';
     this.evi = {
@@ -814,6 +842,10 @@ export class TrabajoAccionesComponent {
 
   async confirmarEvidencia(): Promise<void> {
     this.error = '';
+    if (!this.puedeSubirEvidenciasMaquinaria) {
+      this.error = 'Tu rol no puede subir evidencias de incidencias o mantenimientos.';
+      return;
+    }
     if (!this.selAgregar || this.selAgregar.totalArchivos < 1) { this.error = 'Selecciona al menos un archivo.'; return; }
     this.enviando = true;
     try {

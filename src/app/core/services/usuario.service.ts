@@ -241,6 +241,7 @@ export class UsuarioService {
       (normRol.includes('COORD') && normRol.includes('BODEGA') && !normRol.includes('ASISTENTE'));
     const isSupervisor = normRol.includes('SUPERVISOR');
     const isAsistente = normRol === 'ASISTENTE_BODEGA' || (normRol.includes('ASISTENTE') && normRol.includes('BODEGA'));
+    const isBackup = normRol === 'BACKUP';
     const isPulidor = normRol.includes('PULIDOR');
     const isPulidorMovil = isPulidor && (usr.modalidadPulidor === 'MOVIL' || !usr.agenciaId);
 
@@ -253,8 +254,12 @@ export class UsuarioService {
       rolNombre: usr.rol,
       roleId: usr.roleId || (usr as any).roleId || undefined,
       regionId: isGlobal ? null : (usr.regionId || (usr as any).regionId || undefined),
-      agenciaId: (isGlobal || isSupervisor || isAsistente || isPulidorMovil) ? null : (usr.agenciaId ? String(usr.agenciaId) : undefined),
-      agencia: (isGlobal || isSupervisor || isAsistente || isPulidorMovil) ? '' : (usr.agencia !== 'Sin asignar' ? usr.agencia : undefined),
+      agenciaId: (isGlobal || isSupervisor || isAsistente || isPulidorMovil)
+        ? null
+        : (isBackup ? (usr.agenciaId ? String(usr.agenciaId) : null) : (usr.agenciaId ? String(usr.agenciaId) : undefined)),
+      agencia: (isGlobal || isSupervisor || isAsistente || isPulidorMovil)
+        ? ''
+        : (isBackup ? (usr.agenciaId ? usr.agencia : '') : (usr.agencia !== 'Sin asignar' ? usr.agencia : undefined)),
       bodegaId: isAsistente ? (usr.bodegaId ? String(usr.bodegaId) : null) : (usr.bodegaId ? String(usr.bodegaId) : null),
       servicioIds: isPulidor
         ? (isPulidorMovil
@@ -324,5 +329,3 @@ export class UsuarioService {
     );
   }
 }
-
-
