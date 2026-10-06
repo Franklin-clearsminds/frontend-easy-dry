@@ -39,8 +39,9 @@ export class SinAccesoComponent {
 
   /** Vuelve a leer los permisos del rol por si ya se le dio acceso. */
   verificar(): void {
-    this.auth.refrescarPermisos();
-    if (!this.auth.sinAcceso()) window.location.assign(this.auth.rutaInicial());
+    this.auth.verificarPermisosActualizados(true).subscribe((actualizado) => {
+      if (actualizado && !this.auth.sinAcceso()) window.location.assign(this.auth.rutaInicial());
+    });
   }
 
   salir(): void {

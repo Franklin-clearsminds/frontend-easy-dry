@@ -161,6 +161,8 @@ export interface HistorialAsignacionOperador {
   id: number | string;
   operadorId: number | string;
   operadorNombre: string;
+  operadoresIds?: string[];
+  operadoresNombres?: string[];
   fechaInicio: string;
   fechaFin?: string;
   sucursal: string;
@@ -214,6 +216,7 @@ export interface VehiculoServicio {
   bahia?: string;
   bahiaId?: string;
   empleado: string;
+  operadoresAsignados?: Array<{ id: string; nombre: string }>;
   fecha: string;
   horaIngreso: string;
   horaSalida: string;
@@ -482,6 +485,8 @@ export interface ServicioExtra {
   servicioDescripcion?: string;
   operadorId: number | string;
   operadorNombre: string;
+  operadoresIds?: string[];
+  operadoresNombres?: string[];
   regionId?: string;
   regionNombre?: string;
   agenciaId?: string;
@@ -546,4 +551,3 @@ export interface ServicioExtra {
   creadoPorNombre?: string;
   historialPausas?: any[];
 }
-

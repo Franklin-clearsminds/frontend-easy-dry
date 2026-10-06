@@ -15,7 +15,16 @@ import { ToastService } from '../../shared/services/toast.service';
 import { FormsModule } from '@angular/forms';
 import { DataTableCellDirective, DataTableComponent, TableColumn } from '../../shared/components/data-table/data-table.component';
 import { TablaServidor } from '../../core/utils/tabla-servidor';
-import { Reto } from '../../core/models/reto.model';
+import {
+  ETIQUETA_METRICA,
+  ETIQUETA_PARTICIPANTE,
+  ETIQUETA_TIPO_SERVICIO,
+  FilaRankingReto,
+  RankingReto,
+  Reto,
+  formatearValorReto,
+  resumenGanador,
+} from '../../core/models/reto.model';
 
 @Component({
   selector: 'app-productividad',
@@ -61,7 +70,7 @@ import { Reto } from '../../core/models/reto.model';
                 <div class="flex items-center gap-1.5">
                   @for (reto of retosActivos; track $index) {
                     <span class="block h-2 rounded-full transition-all duration-300 cursor-pointer"
-                          (click)="currentRetoIndex = $index; resetCarousel()"
+                          (click)="seleccionarReto($index)"
                           [ngClass]="$index === currentRetoIndex ? 'bg-amber-400 w-6 shadow-[0_0_8px_rgba(251,191,36,0.6)]' : 'bg-slate-700 w-2 hover:bg-slate-600'">
                     </span>
                   }
@@ -106,27 +115,30 @@ import { Reto } from '../../core/models/reto.model';
                 </p>
               </div>
 
-              <!-- Criterios -->
+              <!-- Cómo se juega -->
               <div class="bg-gradient-to-b from-slate-800/80 via-slate-800/60 to-slate-900/70 backdrop-blur-sm rounded-2xl p-5 border border-slate-700/80 shadow-md">
-                <span class="text-[11px] font-extrabold uppercase tracking-wider text-easydry-lime">Criterios de Evaluación</span>
+                <span class="text-[11px] font-extrabold uppercase tracking-wider text-easydry-lime">Cómo se juega</span>
                 <ul class="mt-2.5 space-y-2 text-xs text-slate-200 font-medium">
-                  @for (crit of retosActivos[currentRetoIndex].criterios; track crit) {
-                    <li class="flex items-center gap-2">
-                      <i-lucide aria-hidden="true" name="check-circle" class="w-3.5 h-3.5 text-easydry-lime shrink-0"></i-lucide>
-                      <span class="line-clamp-2 text-slate-200">{{ crit }}</span>
-                    </li>
-                  }
-                  @if (retosActivos[currentRetoIndex].sucursalesIds && retosActivos[currentRetoIndex].sucursalesIds.length > 0) {
-                    <li class="flex items-center gap-2 mt-3 text-amber-300 font-bold border-t border-slate-700/70 pt-2">
-                      <i-lucide aria-hidden="true" name="map-pin" class="w-3.5 h-3.5 shrink-0 text-amber-400"></i-lucide>
-                      <span>Aplica a agencias seleccionadas.</span>
-                    </li>
-                  } @else {
-                    <li class="flex items-center gap-2 mt-3 text-sky-300 font-bold border-t border-slate-700/70 pt-2">
-                      <i-lucide aria-hidden="true" name="globe" class="w-3.5 h-3.5 shrink-0 text-sky-400"></i-lucide>
-                      <span>Reto Global para toda la Red.</span>
-                    </li>
-                  }
+                  <li class="flex items-start gap-2">
+                    <i-lucide aria-hidden="true" [name]="etiquetaParticipante[retoActual.tipoReto].icono" class="w-3.5 h-3.5 mt-0.5 text-easydry-lime shrink-0"></i-lucide>
+                    <span>Compiten: <strong class="text-white">{{ participantesDe(retoActual) }}</strong></span>
+                  </li>
+                  <li class="flex items-start gap-2">
+                    <i-lucide aria-hidden="true" name="car" class="w-3.5 h-3.5 mt-0.5 text-easydry-lime shrink-0"></i-lucide>
+                    <span>Cuenta: <strong class="text-white">{{ serviciosDe(retoActual) }}</strong></span>
+                  </li>
+                  <li class="flex items-start gap-2">
+                    <i-lucide aria-hidden="true" name="target" class="w-3.5 h-3.5 mt-0.5 text-easydry-lime shrink-0"></i-lucide>
+                    <span>Se mide: <strong class="text-white">{{ etiquetaMetrica[retoActual.metrica].nombre }}</strong></span>
+                  </li>
+                  <li class="flex items-start gap-2 mt-3 text-amber-300 font-bold border-t border-slate-700/70 pt-2">
+                    <i-lucide aria-hidden="true" name="medal" class="w-3.5 h-3.5 mt-0.5 shrink-0 text-amber-400"></i-lucide>
+                    <span>{{ resumenGanador(retoActual) }}. Si empatan, va primero quien llegó antes.</span>
+                  </li>
+                  <li class="flex items-start gap-2 text-sky-300 font-bold">
+                    <i-lucide aria-hidden="true" name="map-pin" class="w-3.5 h-3.5 mt-0.5 shrink-0 text-sky-400"></i-lucide>
+                    <span>{{ dondeDe(retoActual) }}</span>
+                  </li>
                 </ul>
               </div>
 
@@ -135,23 +147,45 @@ import { Reto } from '../../core/models/reto.model';
                 <h3 class="font-extrabold text-slate-500 text-xs uppercase tracking-wider mb-3 flex items-center gap-2 font-outfit">
                   <i-lucide aria-hidden="true" name="bar-chart-2" class="w-4 h-4 text-easydry-lime"></i-lucide> Posiciones Actuales
                 </h3>
-                
-                <ul class="space-y-2 overflow-y-auto flex-1">
-                  @for (agencia of getRankingParaReto(); track agencia.nombre; let i = $index) {
-                    <li class="flex items-center justify-between p-2.5 rounded-xl transition-all" [ngClass]="i === 0 ? 'bg-amber-500/20 border border-amber-400/40 shadow-2xs' : 'bg-slate-900/50 border border-slate-700/50'">
-                      <div class="flex items-center gap-2.5">
-                        <span class="font-extrabold text-xs font-mono" [ngClass]="i === 0 ? 'text-amber-300' : 'text-slate-500'">#{{i + 1}}</span>
-                        <div>
-                          <p class="text-xs font-bold text-white line-clamp-1" [title]="agencia.nombre">{{ agencia.nombre }}</p>
-                          <p class="text-xs font-medium text-slate-500">{{ agencia.empleados }} empleados</p>
-                        </div>
-                      </div>
-                      <div class="text-right shrink-0">
-                        <span class="text-xs font-extrabold font-outfit" [ngClass]="i === 0 ? 'text-amber-300' : 'text-easydry-lime'">{{ agencia.productividad | number:'1.1-1' }}%</span>
-                      </div>
-                    </li>
+                @if (rankingRetoCargando) {
+                  <p class="text-xs text-slate-400">Calculando posiciones...</p>
+                } @else if (rankingRetoError) {
+                  <p role="alert" class="text-xs text-rose-300">{{ rankingRetoError }}</p>
+                } @else if (rankingReto && rankingReto.participantes.length) {
+                  @if (rankingReto.modoGanador === 'META' && rankingReto.meta) {
+                    <p class="text-xs text-slate-400 mb-2">Meta: {{ formatearValor(rankingReto.meta, rankingReto.metrica) }}</p>
                   }
-                </ul>
+                  <ul class="space-y-1 overflow-y-auto flex-1">
+                    @for (fila of rankingReto.participantes.slice(0, 5); track fila.participanteId) {
+                      <li class="flex items-center justify-between p-2 rounded-xl transition-all" [ngClass]="fila.gana ? 'bg-amber-500/20 border border-amber-400/40 shadow-2xs' : 'bg-slate-900/50 border border-slate-700/50'">
+                        <div class="flex items-center gap-2.5 min-w-0">
+                          <span class="font-extrabold text-xs font-mono" [ngClass]="fila.gana ? 'text-amber-300' : 'text-slate-500'">#{{ fila.posicion }}</span>
+                          <div class="min-w-0">
+                            <p class="text-xs font-bold text-white line-clamp-1" [title]="fila.nombre">{{ fila.nombre }}</p>
+                            @if (fila.detalle) {
+                              <p class="text-xs text-slate-500">{{ fila.detalle }}</p>
+                            }
+                            @if (fila.personas?.length) {
+                              <p class="text-xs text-slate-300 flex items-center gap-1 mt-0.5" [title]="lavadoresDe(fila, true)">
+                                <i-lucide aria-hidden="true" name="user" class="w-3 h-3 shrink-0 text-slate-400"></i-lucide>
+                                <span class="line-clamp-1">{{ lavadoresDe(fila) }}</span>
+                              </p>
+                            }
+                          </div>
+                        </div>
+                        <span class="text-xs font-extrabold font-outfit shrink-0 flex items-center gap-1" [ngClass]="fila.gana ? 'text-amber-300' : 'text-easydry-lime'">
+                          @if (fila.gana) { <i-lucide aria-label="Va ganando" name="medal" class="w-3.5 h-3.5"></i-lucide> }
+                          {{ formatearValor(fila.valor, rankingReto.metrica) }}
+                        </span>
+                      </li>
+                    }
+                  </ul>
+                  @if (rankingReto.participantes.length > 5) {
+                    <p class="text-xs text-slate-500 mt-2">y {{ rankingReto.participantes.length - 5 }} más.</p>
+                  }
+                } @else {
+                  <p class="text-xs text-slate-400">No hay participantes para este reto.</p>
+                }
               </div>
             </div>
 
@@ -233,14 +267,11 @@ import { Reto } from '../../core/models/reto.model';
             </div>
 
             <div class="flex-1 min-h-0 overflow-y-auto p-6 space-y-4">
-              <p class="text-sm text-slate-600">Vas a cerrar el reto <span class="font-bold text-slate-800">"{{ retoToCerrar?.titulo }}"</span>. Esta acción no se puede deshacer.</p>
+              <p class="text-sm text-slate-600">Vas a cerrar ahora el reto <span class="font-bold text-slate-800">"{{ retoToCerrar?.titulo }}"</span>. Esta acción no se puede deshacer.</p>
+              <p class="text-xs text-slate-500">El ganador se toma del ranking con los servicios registrados hasta este momento. Si no lo cierras, se cierra solo al terminar su último día.</p>
               <div>
-                <label class="block text-xs font-bold text-slate-600 mb-1.5">Ganador</label>
-                <input type="text" [(ngModel)]="cierreGanadorNombre" placeholder="Nombre del ganador (opcional)" class="w-full px-3.5 py-2.5 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-easydry-blue focus:border-easydry-blue" />
-              </div>
-              <div>
-                <label class="block text-xs font-bold text-slate-600 mb-1.5">Resultado / Nota de cierre</label>
-                <textarea [(ngModel)]="cierreResultado" rows="3" placeholder="Detalle del resultado (opcional)" class="w-full px-3.5 py-2.5 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-easydry-blue focus:border-easydry-blue resize-none"></textarea>
+                <label for="reto-cierre-nota" class="block text-xs font-bold text-slate-600 mb-1.5">Nota de cierre</label>
+                <textarea id="reto-cierre-nota" [(ngModel)]="cierreResultado" rows="3" placeholder="Detalle del resultado (opcional)" class="w-full px-3.5 py-2.5 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-easydry-blue focus:border-easydry-blue resize-none"></textarea>
               </div>
             </div>
 
@@ -429,7 +460,9 @@ import { Reto } from '../../core/models/reto.model';
           </ng-template>
 
           <ng-template appCell="regiones" let-reto>
-            <span class="text-xs font-semibold text-slate-700">{{ reto.regiones && reto.regiones.length ? reto.regiones.join(', ') : 'Todas' }}</span>
+            <span class="text-xs font-bold text-slate-700">{{ participantesDe(reto) }}</span>
+            <div class="text-xs text-slate-500">{{ reto.regiones && reto.regiones.length ? reto.regiones.join(', ') : 'Todas' }}</div>
+            <div class="text-xs text-slate-500">{{ metricaYGanador(reto) }}</div>
           </ng-template>
 
           <ng-template appCell="estado" let-reto>
@@ -443,13 +476,13 @@ import { Reto } from '../../core/models/reto.model';
               {{ reto.estado || 'ACTIVO' }}
             </span>
             @if (reto.ganadorNombre) {
-              <div class="text-xs text-slate-500 font-medium mt-1">Ganó: {{ reto.ganadorNombre }}</div>
+              <div class="text-xs text-slate-500 font-medium mt-1">{{ reto.ganadores.length > 1 ? 'Ganaron' : 'Ganó' }}: {{ reto.ganadorNombre }}</div>
             }
           </ng-template>
 
           <ng-template appCell="acciones" let-reto>
             <div class="flex items-center justify-end gap-1">
-              @if (canDeleteReto(reto) && (reto.estado || 'ACTIVO').toUpperCase() === 'ACTIVO') {
+              @if (canCerrarReto(reto) && (reto.estado || 'ACTIVO').toUpperCase() === 'ACTIVO') {
                 <button
                   type="button"
                   (click)="iniciarCerrarReto(reto)"
@@ -505,21 +538,26 @@ export class ProductividadComponent implements OnInit, OnDestroy {
     { key: 'titulo', label: 'Reto & Descripción', sortable: true, defaultSort: 'asc' },
     { key: 'premio', label: 'Premio' },
     { key: 'inicio', label: 'Vigencia', sortable: true, defaultSort: 'desc' },
-    { key: 'regiones', label: 'Región / Sucursal' },
+    { key: 'regiones', label: 'Participantes' },
     { key: 'estado', label: 'Estado', sortable: true, defaultSort: 'asc' },
     { key: 'acciones', label: 'Acciones', align: 'right', sticky: true },
   ];
   readonly retosTabla = new TablaServidor<Reto>((c) => this.retosService.getRetosPagina({ ...c, vigencia: this.vigenciaRetos }));
   retosActivos: Reto[] = [];
   currentRetoIndex = 0;
+  rankingReto: RankingReto | null = null;
+  rankingRetoCargando = false;
+  rankingRetoError = '';
+  private rankingRetoConsultados = new Set<string>();
+  private rankingRetoPorId = new Map<string, RankingReto>();
   showCrearRetoModal = false;
   showDeleteConfirmModal = false;
   retoToDelete: Reto | null = null;
   showCerrarModal = false;
   retoToCerrar: Reto | null = null;
-  cierreGanadorNombre = '';
   cierreResultado = '';
   carouselInterval: any;
+  rankingRefreshInterval: any;
   rankingLavadores: any[] = [];
 
   comparativaChartData = {
@@ -538,6 +576,54 @@ export class ProductividadComponent implements OnInit, OnDestroy {
   get canCreateReto(): boolean { return this.authService.puede('retos.crear'); }
   get puedeVerRetos(): boolean { return this.authService.puede('retos.ver'); }
   get puedeVerProductividad(): boolean { return this.authService.puede('productividad.ver'); }
+
+  readonly etiquetaParticipante = ETIQUETA_PARTICIPANTE;
+  readonly etiquetaMetrica = ETIQUETA_METRICA;
+  readonly resumenGanador = resumenGanador;
+  readonly formatearValor = formatearValorReto;
+
+  get retoActual(): Reto {
+    return this.retosActivos[this.currentRetoIndex];
+  }
+
+  /** "Pulidores (4 elegidos)", "Bahías", "Agencias (2 elegidas)". */
+  participantesDe(reto: Reto): string {
+    const plural = ETIQUETA_PARTICIPANTE[reto.tipoReto].plural;
+    const elegidos = reto.tipoReto === 'PULIDOR' ? reto.pulidoresIds.length
+      : reto.tipoReto === 'LAVADOR' ? reto.lavadoresIds.length
+      : reto.tipoReto === 'AGENCIA' ? reto.sucursalesIds.length
+      : 0;
+    return elegidos ? `${plural} (${elegidos} elegido${elegidos === 1 ? '' : 's'})` : plural;
+  }
+
+  /** "Pedro Mora (2) · Juan Paz (1)" o "Asignado: Luis Vera". Sin `completo`, muestra 2 y "+N". */
+  lavadoresDe(fila: FilaRankingReto, completo = false): string {
+    const personas = fila.personas || [];
+    if (personas.every(p => p.servicios === null)) {
+      return `Asignado: ${personas.map(p => p.nombre).join(', ')}`;
+    }
+    const nombres = personas.map(p => `${p.nombre} (${p.servicios})`);
+    if (completo || nombres.length <= 2) return nombres.join(' · ');
+    return `${nombres.slice(0, 2).join(' · ')} +${nombres.length - 2}`;
+  }
+
+  metricaYGanador(reto: Reto): string {
+    return `${ETIQUETA_METRICA[reto.metrica].nombre} · ${resumenGanador(reto)}`;
+  }
+
+  serviciosDe(reto: Reto): string {
+    return reto.tipoServicios === 'ESPECIFICOS' && reto.catalogoServicioNombres.length
+      ? reto.catalogoServicioNombres.join(', ')
+      : ETIQUETA_TIPO_SERVICIO[reto.tipoServicios];
+  }
+
+  dondeDe(reto: Reto): string {
+    const regiones = reto.regiones.filter(r => r.toLowerCase() !== 'todas');
+    const marcas = reto.marcas.filter(m => m.toLowerCase() !== 'todas');
+    const partes = [regiones.length ? regiones.join(', ') : 'Toda la red', ...marcas];
+    if (reto.tipoReto !== 'AGENCIA' && reto.sucursalesIds.length) partes.push(`${reto.sucursalesIds.length} agencia(s)`);
+    return partes.join(' · ');
+  }
 
   ngOnInit(): void {
     if (this.puedeVerRetos) this.cargarRetos();
@@ -571,6 +657,7 @@ export class ProductividadComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.stopCarousel();
+    if (this.rankingRefreshInterval) clearInterval(this.rankingRefreshInterval);
     this.retosTabla.destruir();
   }
 
@@ -581,7 +668,9 @@ export class ProductividadComponent implements OnInit, OnDestroy {
     this.retosService.getRetosVisibles().subscribe(retos => {
       this.retosActivos = retos;
       this.currentRetoIndex = 0;
+      this.cargarRankingRetoActual();
       this.startCarousel();
+      this.startRankingRefresh();
     });
   }
 
@@ -600,6 +689,17 @@ export class ProductividadComponent implements OnInit, OnDestroy {
     }
   }
 
+  private startRankingRefresh(): void {
+    if (this.rankingRefreshInterval) clearInterval(this.rankingRefreshInterval);
+    this.rankingRefreshInterval = setInterval(() => {
+      const reto = this.retosActivos[this.currentRetoIndex];
+      if (!reto || this.rankingRetoCargando) return;
+      this.rankingRetoConsultados.delete(reto.id);
+      this.rankingRetoPorId.delete(reto.id);
+      this.cargarRankingRetoActual();
+    }, 60_000);
+  }
+
   resetCarousel() {
     this.startCarousel();
   }
@@ -607,25 +707,75 @@ export class ProductividadComponent implements OnInit, OnDestroy {
   nextReto(manual = true) {
     if (this.retosActivos.length > 0) {
       this.currentRetoIndex = (this.currentRetoIndex + 1) % this.retosActivos.length;
+      this.cargarRankingRetoActual();
       if (manual) this.resetCarousel();
     }
+  }
+
+  seleccionarReto(index: number): void {
+    this.currentRetoIndex = index;
+    this.cargarRankingRetoActual();
+    this.resetCarousel();
   }
 
   prevReto() {
     if (this.retosActivos.length > 0) {
       this.currentRetoIndex = (this.currentRetoIndex - 1 + this.retosActivos.length) % this.retosActivos.length;
+      this.cargarRankingRetoActual();
       this.resetCarousel();
     }
   }
 
-  /**
-   * Eliminar exige el permiso 'retos.eliminar' y, además, ser el creador del reto o un administrador (el servidor lo valida).
-   * Como administrador se toma a quien gestiona usuarios.
-   */
-  canDeleteReto(reto: Reto): boolean {
+  private cargarRankingRetoActual(): void {
+    const reto = this.retosActivos[this.currentRetoIndex];
+    this.rankingReto = null;
+    this.rankingRetoError = '';
+    if (!reto) {
+      this.rankingRetoCargando = false;
+      return;
+    }
+    const resultadoGuardado = this.rankingRetoPorId.get(reto.id);
+    if (resultadoGuardado) {
+      this.rankingReto = resultadoGuardado;
+      this.rankingRetoCargando = false;
+      return;
+    }
+    if (this.rankingRetoConsultados.has(reto.id)) {
+      this.rankingRetoCargando = false;
+      this.rankingRetoError = 'No se pudo cargar el ranking del reto.';
+      return;
+    }
+
+    this.rankingRetoCargando = true;
+    this.rankingRetoConsultados.add(reto.id);
+    this.retosService.getRankingReto(reto.id).subscribe({
+      next: (ranking) => {
+        this.rankingRetoPorId.set(reto.id, ranking);
+        if (this.retosActivos[this.currentRetoIndex]?.id !== reto.id) return;
+        this.rankingReto = ranking;
+        this.rankingRetoCargando = false;
+      },
+      error: () => {
+        if (this.retosActivos[this.currentRetoIndex]?.id !== reto.id) return;
+        this.rankingRetoCargando = false;
+        this.rankingRetoError = 'No se pudo cargar el ranking del reto.';
+      },
+    });
+  }
+
+  /** Cerrar y eliminar exigen su permiso y, además, ser el creador del reto o tener alcance nacional (el servidor lo valida). */
+  private esCreadorOGlobal(reto: Reto): boolean {
     const user = this.authService.getCurrentUser();
-    if (!user || !this.authService.puede('retos.eliminar')) return false;
-    return String(reto.creadoPorId) === String(user.id) || this.authService.puede('usuarios.gestionar');
+    if (!user) return false;
+    return String(reto.creadoPorId) === String(user.id) || user.ambito === 'GLOBAL' || this.authService.isSuperAdmin();
+  }
+
+  canDeleteReto(reto: Reto): boolean {
+    return this.authService.puede('retos.eliminar') && this.esCreadorOGlobal(reto);
+  }
+
+  canCerrarReto(reto: Reto): boolean {
+    return this.authService.puede('retos.crear') && this.esCreadorOGlobal(reto);
   }
 
   iniciarEliminarReto(reto: Reto) {
@@ -656,7 +806,6 @@ export class ProductividadComponent implements OnInit, OnDestroy {
 
   iniciarCerrarReto(reto: Reto) {
     this.retoToCerrar = reto;
-    this.cierreGanadorNombre = '';
     this.cierreResultado = '';
     this.showCerrarModal = true;
   }
@@ -664,13 +813,12 @@ export class ProductividadComponent implements OnInit, OnDestroy {
   confirmarCerrarReto() {
     if (!this.retoToCerrar) return;
     this.retosService.cerrarReto(this.retoToCerrar.id, {
-      ganadorNombre: this.cierreGanadorNombre.trim() || undefined,
       resultado: this.cierreResultado.trim() || undefined,
     }).subscribe({
-      next: () => {
+      next: (cerrado) => {
         this.showCerrarModal = false;
         this.retoToCerrar = null;
-        this.toast.success('Reto cerrado', 'El reto se cerró correctamente.');
+        this.toast.success('Reto cerrado', cerrado.ganadorNombre ? `Ganador: ${cerrado.ganadorNombre}.` : 'Nadie alcanzó a ganar.');
         this.cargarRetos();
       },
       error: (err) => {
@@ -678,14 +826,6 @@ export class ProductividadComponent implements OnInit, OnDestroy {
         this.toast.error('No se pudo cerrar el reto', Array.isArray(m) ? m.join(' ') : (typeof m === 'string' && m ? m : 'El servidor no aceptó el cierre.'));
       }
     });
-  }
-
-  getRankingParaReto(): Agencia[] {
-    if (!this.agencias.length) return [];
-    
-    return [...this.agencias]
-      .sort((a, b) => b.productividad - a.productividad)
-      .slice(0, 3);
   }
 
   onRetoCreado(reto: Reto) {

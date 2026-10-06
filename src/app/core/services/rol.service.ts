@@ -130,7 +130,9 @@ export class RolService {
       descripcion: m.descripcion || '',
       icono: m.icono || 'circle',
       rutaPrincipal: m.rutaPrincipal || `/${m.codigo || ''}`,
-      grupo: m.grupo || 'Otros'
+      grupo: m.grupo || 'Otros',
+      permisos: Array.isArray(m.permisos) ? m.permisos.map(String) : [],
+      disponibleEnApp: m.disponibleEnApp === true,
     };
   }
 
@@ -207,7 +209,6 @@ export class RolService {
   crearRol(data: {
     nombre: string;
     descripcion: string;
-    modulos: string[];
     capacidades: string[];
     ambito: string;
     estado?: number;
@@ -216,7 +217,6 @@ export class RolService {
       namerol: codigoRolDesdeNombre(data.nombre),
       descripcion: data.descripcion?.trim() || '',
       estado: data.estado !== undefined ? data.estado : 1,
-      permisos: data.modulos || [],
       capacidades: data.capacidades || [],
       ambito: data.ambito,
     };
@@ -235,18 +235,16 @@ export class RolService {
 
   /**
    * Actualizar un rol existente (solo con 'roles.gestionar'). El nombre no se envía: no se cambia en roles ya creados.
-   * Solo viajan los campos que se pasan.
+   * Solo viajan los campos que se pasan. Las pantallas no se envían: el servidor las deriva de los permisos.
    */
   actualizarRol(id: string, cambios: {
     descripcion?: string;
-    modulos?: string[];
     capacidades?: string[];
     ambito?: string;
     estado?: number | string;
   }): Observable<RolPersonalizado> {
     const payload: any = { id };
     if (cambios.descripcion !== undefined) payload.descripcion = cambios.descripcion.trim();
-    if (cambios.modulos !== undefined) payload.permisos = cambios.modulos;
     if (cambios.capacidades !== undefined) payload.capacidades = cambios.capacidades;
     if (cambios.ambito !== undefined) payload.ambito = cambios.ambito;
     if (cambios.estado !== undefined) {

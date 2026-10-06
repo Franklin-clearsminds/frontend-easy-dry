@@ -41,7 +41,7 @@ import { Notificacion, NotificacionTipo } from '../../core/models/notificacion.m
         @for (f of filtros; track f.id) {
           <button
             type="button"
-            (click)="filtroActivo = f.id"
+            (click)="cambiarFiltro(f.id)"
             class="px-3 py-1.5 rounded-xl text-xs font-bold transition-colors"
             [ngClass]="filtroActivo === f.id
               ? 'bg-easydry-blue text-white'
@@ -51,8 +51,20 @@ import { Notificacion, NotificacionTipo } from '../../core/models/notificacion.m
         }
       </div>
 
+      @if (errorCarga) {
+        <div class="bg-rose-50 border border-rose-200 rounded-xl p-4 text-sm text-rose-700 flex items-center justify-between gap-3">
+          <span>{{ errorCarga }}</span>
+          <button type="button" (click)="cargarPagina(pagina)" class="font-bold underline cursor-pointer">Reintentar</button>
+        </div>
+      }
+
       <div class="space-y-3">
-        @for (n of notificacionesFiltradas; track n.id) {
+        @if (cargando && notificaciones.length === 0) {
+          <div class="bg-white rounded-2xl border border-slate-100 p-8 text-center text-sm text-slate-500">
+            Cargando notificaciones...
+          </div>
+        }
+        @for (n of notificaciones; track n.id) {
           <article
             class="bg-white rounded-2xl border p-4 flex gap-4 transition-shadow hover:shadow-easydry"
             [ngClass]="n.leida ? 'border-slate-100 opacity-90' : 'border-easydry-blue/30 shadow-sm ring-1 ring-easydry-blue/10'">
@@ -96,11 +108,42 @@ import { Notificacion, NotificacionTipo } from '../../core/models/notificacion.m
             </div>
           </article>
         } @empty {
+          @if (!cargando && !errorCarga) {
           <div class="bg-white rounded-2xl border border-slate-100 p-12 text-center">
             <i-lucide aria-hidden="true" name="bell-off" class="w-10 h-10 text-slate-300 mx-auto mb-3"></i-lucide>
             <p class="text-sm font-bold text-slate-600">No hay notificaciones en este filtro</p>
           </div>
+          }
         }
+      </div>
+
+      <div class="bg-white rounded-2xl border border-slate-100 px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3">
+        <p class="text-xs font-semibold text-slate-500">
+          @if (totalNotificaciones > 0) {
+            Mostrando {{ primerResultado }}–{{ ultimoResultado }} de {{ totalNotificaciones }}
+          } @else {
+            Sin notificaciones
+          }
+        </p>
+        <div class="flex items-center gap-3">
+          <button
+            type="button"
+            (click)="cargarPagina(pagina - 1)"
+            [disabled]="pagina <= 1 || cargando"
+            class="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-extrabold hover:bg-slate-200 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
+            Anterior
+          </button>
+          <span class="text-xs font-bold text-slate-600 min-w-24 text-center">
+            Página {{ pagina }} de {{ totalPaginas }}
+          </span>
+          <button
+            type="button"
+            (click)="cargarPagina(pagina + 1)"
+            [disabled]="pagina >= totalPaginas || cargando"
+            class="px-4 py-2 rounded-xl bg-easydry-blue text-white text-xs font-extrabold hover:bg-easydry-blue-dark cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
+            Siguiente
+          </button>
+        </div>
       </div>
     </div>
   `
@@ -110,36 +153,75 @@ export class NotificacionesComponent implements OnInit {
 
   notificaciones: Notificacion[] = [];
   filtroActivo: 'todas' | NotificacionTipo = 'todas';
+  noLeidas = 0;
+  readonly pageSize = 20;
+  pagina = 1;
+  totalNotificaciones = 0;
+  totalPaginas = 1;
+  cargando = false;
+  errorCarga = '';
 
-  filtros: { id: 'todas' | NotificacionTipo; label: string }[] = [
+  filtros: { id: 'todas' | NotificacionTipo; label: string; tipos?: string[] }[] = [
     { id: 'todas', label: 'Todas' },
-    { id: 'alerta', label: 'Alertas' },
-    { id: 'info', label: 'Información' },
-    { id: 'exito', label: 'Completadas' },
-    { id: 'sistema', label: 'Sistema' },
+    { id: 'alerta', label: 'Alertas', tipos: ['INCIDENTE_NUEVO', 'MANTENIMIENTO_VENCIDO', 'STOCK_CRITICO', 'LIMPIEZA_ATRASADA', 'DESPACHO_PENDIENTE', 'MAQUINA_DADA_DE_BAJA'] },
+    { id: 'info', label: 'Información', tipos: ['INCIDENCIA_ASIGNADA', 'MANTENIMIENTO_ASIGNADO', 'LIMPIEZA_RECORDATORIO', 'SERVICIO_DECIDIDO', 'SERVICIO_ESPECIAL_ASIGNADO', 'SERVICIO_ESPECIAL_CERRADO', 'DESPACHO_CONFIRMADO'] },
+    { id: 'exito', label: 'Completadas', tipos: ['INCIDENCIA_RESUELTA'] },
+    { id: 'sistema', label: 'Sistema', tipos: ['APROBACION_PENDIENTE', 'RETO_CERRADO', 'USUARIO_ACTUALIZADO'] },
   ];
 
   ngOnInit(): void {
-    this.notificacionService.getNotificaciones().subscribe(list => {
-      this.notificaciones = list;
+    this.cargarPagina(1);
+    this.notificacionService.getResumen().subscribe(resumen => {
+      this.noLeidas = resumen.pendientes;
     });
   }
 
-  get noLeidas(): number {
-    return this.notificaciones.filter(n => !n.leida).length;
+  get primerResultado(): number {
+    return this.totalNotificaciones === 0 ? 0 : (this.pagina - 1) * this.pageSize + 1;
   }
 
-  get notificacionesFiltradas(): Notificacion[] {
-    if (this.filtroActivo === 'todas') return this.notificaciones;
-    return this.notificaciones.filter(n => n.tipo === this.filtroActivo);
+  get ultimoResultado(): number {
+    return Math.min(this.pagina * this.pageSize, this.totalNotificaciones);
+  }
+
+  cambiarFiltro(filtro: 'todas' | NotificacionTipo): void {
+    if (this.filtroActivo === filtro) return;
+    this.filtroActivo = filtro;
+    this.cargarPagina(1);
+  }
+
+  cargarPagina(pagina: number): void {
+    if (pagina < 1 || pagina > this.totalPaginas || this.cargando) return;
+    this.cargando = true;
+    this.errorCarga = '';
+    const filtro = this.filtros.find(f => f.id === this.filtroActivo);
+    this.notificacionService.getNotificacionesPagina({
+      page: pagina,
+      pageSize: this.pageSize,
+      tipos: filtro?.tipos,
+    }).subscribe({
+      next: (resultado) => {
+        this.notificaciones = resultado.items;
+        this.pagina = resultado.page;
+        this.totalNotificaciones = resultado.total;
+        this.totalPaginas = Math.max(1, resultado.totalPages);
+        this.cargando = false;
+      },
+      error: () => {
+        this.errorCarga = 'No se pudieron cargar las notificaciones. Verifica tu conexión e inténtalo de nuevo.';
+        this.cargando = false;
+      },
+    });
   }
 
   marcarLeida(n: Notificacion): void {
+    if (!n.leida) this.noLeidas = Math.max(0, this.noLeidas - 1);
     this.notificacionService.marcarComoLeida(n.id);
     n.leida = true;
   }
 
   marcarTodasLeidas(): void {
+    this.noLeidas = 0;
     this.notificacionService.marcarTodasComoLeidas();
     this.notificaciones.forEach(n => { n.leida = true; });
   }
