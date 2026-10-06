@@ -197,7 +197,13 @@ export class DashboardComponent implements OnInit, OnDestroy {
   /** Top Agencias ocupa todo el ancho solo si quedaría sola en su fila (evita huecos en la grilla). */
   get agenciasFullWidth(): boolean {
     let slots = 0;
+    if (this.chartBahiasActivo) {
+      slots += this.bahiasFullWidth ? 2 : 1;
+    }
     if (this.produccion?.distribucionModelos && (this.isAdminView || this.isAprobadorView || this.isComercialView)) {
+      slots += 1;
+    }
+    if (this.produccion?.mixServicios) {
       slots += 1;
     }
     if (this.tieneTopVehiculos) {
