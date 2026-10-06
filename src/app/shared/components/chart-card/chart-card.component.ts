@@ -42,6 +42,8 @@ export class ChartCardComponent implements AfterViewInit, OnChanges, OnDestroy {
   @Input() data: any = { labels: [], datasets: [] };
   @Input() options: any = {};
   @Input() horizontal = false;
+  /** Apila las series (barras): útil para ver composición por estado/nivel dentro de cada categoría. */
+  @Input() stacked = false;
 
   @ViewChild('chartCanvas') chartCanvas!: ElementRef<HTMLCanvasElement>;
   private chartInstance?: Chart;
@@ -108,12 +110,38 @@ export class ChartCardComponent implements AfterViewInit, OnChanges, OnDestroy {
       animation: false,
       plugins: {
         legend: {
-          display: this.data?.datasets?.length > 1,
-          position: 'bottom',
+          display: this.type === 'pie' || this.type === 'doughnut' ? true : this.data?.datasets?.length > 1,
+          position: this.type === 'pie' || this.type === 'doughnut' ? 'right' : 'bottom',
           labels: {
             usePointStyle: true,
             font: { family: 'Inter', size: 12 },
-            padding: 15
+            padding: 15,
+            generateLabels: (chart: any) => {
+              const data = chart.data;
+              if (data.labels.length && data.datasets.length) {
+                const isPie = chart.config.type === 'pie' || chart.config.type === 'doughnut';
+                if (isPie) {
+                  const dataset = data.datasets[0];
+                  const total = dataset.data.reduce((acc: number, curr: number) => acc + (curr || 0), 0);
+                  
+                  return data.labels.map((label: string, i: number) => {
+                    const value = dataset.data[i] || 0;
+                    const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
+                    const color = dataset.backgroundColor?.[i] || '#000';
+                    return {
+                      text: `${label}: ${value} (${percentage}%)`,
+                      fillStyle: color,
+                      strokeStyle: color,
+                      lineWidth: 0,
+                      hidden: isNaN(dataset.data[i]) || chart.getDatasetMeta(0).data[i]?.hidden,
+                      index: i
+                    };
+                  });
+                }
+                return Chart.defaults.plugins.legend.labels.generateLabels(chart);
+              }
+              return [];
+            }
           }
         },
         tooltip: {
@@ -136,6 +164,11 @@ export class ChartCardComponent implements AfterViewInit, OnChanges, OnDestroy {
         }
       }
     };
+
+    if (this.stacked && this.type === 'bar') {
+      defaultOptions.scales.x.stacked = true;
+      defaultOptions.scales.y.stacked = true;
+    }
 
     // Agregar maxBarThickness si es gráfico de barras, para evitar barras gigantes si hay pocos datos
     if (this.type === 'bar') {

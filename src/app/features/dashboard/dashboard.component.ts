@@ -9,12 +9,15 @@ import { DashboardOperativoService } from '../../core/services/dashboard-operati
 import { AuthService } from '../../core/services/auth.service';
 import { ROLE_LABELS } from '../../core/models/roles.model';
 import { AlertasWidgetComponent } from './components/alertas-widget.component';
+import { AprobacionesWidgetComponent } from './components/aprobaciones-widget.component';
 import { RankingOperadoresWidgetComponent } from './components/ranking-operadores-widget.component';
 import { SelectSearchComponent } from '../../shared/components/select-search/select-search.component';
 
 import { RankingListComponent, RankingItem } from '../../shared/components/ranking-list/ranking-list.component';
 import { PeriodSummaryComponent, PeriodMetric } from '../../shared/components/period-summary/period-summary.component';
 import { DistributionCardComponent, DistributionItem } from '../../shared/components/distribution-card/distribution-card.component';
+import { HeatmapGridComponent } from '../../shared/components/heatmap-grid/heatmap-grid.component';
+import { TopBottomComponent, TopBottomItem } from '../../shared/components/top-bottom/top-bottom.component';
 import { OpcionesService } from '../../core/services/opciones.service';
 import { CHART_COLORS } from '../../shared/theme/colors';
 import { DashboardChartData } from '../../core/models/dashboard.model';
@@ -26,6 +29,12 @@ export type VistaDashboard = 'taller' | 'especiales' | 'bodega' | 'ejecutivo' | 
 
 /** Periodo del filtro de fecha global. Debe coincidir con el backend (`RANGOS_PERIODO`). */
 export type RangoPeriodo = 'HOY' | 'SEMANA' | 'MES' | 'TRIMESTRE' | 'SEMESTRE' | 'ANIO' | 'RANGO';
+
+/**
+ * Dimensión estructural activa del dashboard (filtro mutuamente exclusivo).
+ * País/Global → Región → Agencia → Pulidor. Solo una puede estar activa; las fechas son un modificador continuo.
+ */
+export type DimensionFiltro = 'GLOBAL' | 'REGION' | 'AGENCY' | 'POLISHER';
 
 @Component({
   selector: 'app-dashboard',
@@ -43,7 +52,9 @@ export type RangoPeriodo = 'HOY' | 'SEMANA' | 'MES' | 'TRIMESTRE' | 'SEMESTRE' |
     SelectSearchComponent,
     RankingListComponent,
     PeriodSummaryComponent,
-    DistributionCardComponent
+    DistributionCardComponent,
+    HeatmapGridComponent,
+    TopBottomComponent
   ],
   templateUrl: './dashboard.component.html'
 })
@@ -78,6 +89,12 @@ export class DashboardComponent implements OnInit, OnDestroy {
   agenciaLabel = '';
   pulidorLabel = '';
   recargando = false;
+
+  /**
+   * Dimensión estructural activa (filtro exclusivo). Arranca en GLOBAL (país). Al elegir Región/Agencia/Pulidor
+   * se bloquean y limpian las demás, manteniendo siempre el rango de fechas.
+   */
+  activeDimension: DimensionFiltro = 'GLOBAL';
 
   readonly rangos: { id: RangoPeriodo; label: string }[] = [
     { id: 'HOY', label: 'Hoy' },
@@ -114,7 +131,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   /** Pestaña del gráfico unificado de vehículos (marcas vs marca·modelo). */
   vehiculosTab: 'marcas' | 'modelos' = 'marcas';
 
-  activeExecutiveTab: 'analitica' | 'auditoria' | 'inventario' | 'alertas' = 'analitica';
+  activeExecutiveTab: 'analitica' | 'auditoria' | 'inventario' | 'operacion' | 'alertas' | 'taller' | 'aprobaciones' = 'analitica';
 
   /** Alertas del panel: en la vista ejecutiva, las unificadas (stock + mantenimiento); si no, las de stock. */
   get alertasPanel(): AlertaStockVM[] {
@@ -166,6 +183,21 @@ export class DashboardComponent implements OnInit, OnDestroy {
     return (this.produccion?.especiales ?? []).map((x: any) => ({ nombre: x.nombre, valor: Number(x.cantidad) || 0 }));
   }
 
+  mixTab: 'generales' | 'especiales' = 'generales';
+  
+  /** Navegación interna del tab de inventario (superadmin) */
+  invSubTabs = [
+    { id: 'salud', label: 'Salud de Inventario' },
+    { id: 'reposicion', label: 'Reposición & Cobertura' },
+    { id: 'despachos', label: 'Despachos Activos' },
+    { id: 'consumo', label: 'Consumo Histórico' }
+  ];
+  invSub: string = 'salud';
+
+  get activeMixItems(): DistributionItem[] {
+    return this.mixTab === 'generales' ? this.generalesItems : this.especialesItems;
+  }
+
   get coloresItems(): DistributionItem[] {
     return (this.produccion?.colores ?? []).map((x: any) => ({ nombre: x.nombre, valor: Number(x.cantidad) || 0 }));
   }
@@ -179,10 +211,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
     return { labels, datasets: [this.produccion.chartBahias.datasets[1]] };
   }
 
-  get bahiasFullWidth(): boolean {
-    return (this.produccion?.chartBahias?.labels?.length || 0) > 3;
-  }
-
   get tieneTopVehiculos(): boolean {
     return !!(this.produccion?.topMarcas || this.produccion?.topMarcasModelos);
   }
@@ -194,25 +222,22 @@ export class DashboardComponent implements OnInit, OnDestroy {
     return this.vehiculosTab === 'marcas' ? (marcas ?? modelos) : (modelos ?? marcas);
   }
 
-  /** Top Agencias ocupa todo el ancho solo si quedaría sola en su fila (evita huecos en la grilla). */
-  get agenciasFullWidth(): boolean {
-    let slots = 0;
-    if (this.chartBahiasActivo) {
-      slots += this.bahiasFullWidth ? 2 : 1;
-    }
-    if (this.produccion?.distribucionModelos && (this.isAdminView || this.isAprobadorView || this.isComercialView)) {
-      slots += 1;
-    }
-    if (this.produccion?.mixServicios) {
-      slots += 1;
-    }
-    if (this.tieneTopVehiculos) {
-      slots += this.vehiculosFullWidth ? 2 : 1;
-    }
-    if (this.coloresItems.length && !this.isSupervisorView) {
-      slots += 1;
-    }
-    return slots % 2 === 0;
+  /** Heatmap día × hora del período (dentro de la jerarquía). */
+  get heatmapData(): { dias: string[]; horas: string[]; matriz: number[][] } | null {
+    return this.produccion?.heatmap ?? null;
+  }
+
+  /** Top/Bottom adaptativo según la entidad del nivel activo (Región/Agencia/Bahía/Pulidor). */
+  get rankingEntidad(): string {
+    return this.produccion?.rankingEntidad || 'Entidad';
+  }
+
+  get rankingTopItems(): TopBottomItem[] {
+    return (this.produccion?.rankingTop ?? []).map((x: any) => ({ nombre: x.nombre, cantidad: Number(x.cantidad) || 0, tiempoPromedioMin: x.tiempoPromedioMin }));
+  }
+
+  get rankingBottomItems(): TopBottomItem[] {
+    return (this.produccion?.rankingBottom ?? []).map((x: any) => ({ nombre: x.nombre, cantidad: Number(x.cantidad) || 0, tiempoPromedioMin: x.tiempoPromedioMin }));
   }
 
   /** Ranking de agencias por ganancia neta (para la lista con barras). */
@@ -240,7 +265,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     if (this.isAprobadorView) return 'Aprobaciones';
     if (this.isComercialView) return 'Ventas y Flujo';
     if (this.isSupervisorView) return 'Operación Regional';
-    return 'Productividad';
+    return 'Analítica y Flujo';
   }
 
   get tabAuditoriaTitle(): string {
@@ -248,18 +273,59 @@ export class DashboardComponent implements OnInit, OnDestroy {
     if (this.isAprobadorView) return 'Revisión (N/A)'; // Usualmente oculto
     if (this.isComercialView) return 'Autorizaciones';
     if (this.isSupervisorView) return 'Salud Regional';
-    return 'Auditoría y Equipos';
+    return 'Servicios en Curso';
+  }
+
+  get tabTallerTitle(): string {
+    return 'Activos & Taller';
   }
 
   get tabInventarioTitle(): string {
     if (this.isAdminView) return 'Catálogos';
     if (this.isAprobadorView || this.isComercialView) return 'Catálogo Comercial';
     if (this.isSupervisorView) return 'Abastecimiento';
-    return 'Inventario';
+    return 'Inventario & Suministros';
+  }
+
+  /**
+   * Título del gráfico principal adaptado a la dimensión activa (drill-down): el mismo widget cambia de
+   * nivel de análisis según el filtro estructural elegido.
+   */
+  get tituloDrilldown(): string {
+    switch (this.activeDimension) {
+      case 'REGION': return 'Análisis Comparativo de Agencias en la Región';
+      case 'AGENCY': return 'Rendimiento por Bahía de Trabajo';
+      case 'POLISHER': return 'Ficha de Rendimiento del Pulidor';
+      default:
+        if (this.isAdminView) return 'Rendimiento Operativo Nacional por Agencia';
+        if (this.isComercialView) return 'Solicitudes Comerciales';
+        return 'Flujo Horario de Atención';
+    }
+  }
+
+  get subtituloDrilldown(): string {
+    switch (this.activeDimension) {
+      case 'REGION': return 'Comparativa de agencias dentro de la región seleccionada';
+      case 'AGENCY': return 'Desempeño de las bahías de la agencia seleccionada';
+      case 'POLISHER': return 'Evolución y comparación contra el promedio de su agencia';
+      default:
+        if (this.esAnaliticaGlobal) return 'Comparativa nacional por agencia';
+        return 'Vehículos procesados en el día';
+    }
+  }
+
+  /** Administrador o Super Admin: paneles nacionales con drill-down (mismo tratamiento visual). */
+  get esAnaliticaGlobal(): boolean {
+    return this.isAdminView || this.isSuperAdminView;
+  }
+
+  /** ¿Se muestra el gráfico de Top Agencias Productivas? (define el empaquetado de la grilla) */
+  get mostrarTopAgenciasProductivas(): boolean {
+    return (this.isAdminView || this.isSuperAdminView || this.isSupervisorView) && !!this.produccion?.topAgenciasProductivas;
   }
 
   get chart1Title(): string {
-    if (this.isAdminView) return 'Nuevos Usuarios (7d)';
+    if (this.esAnaliticaGlobal) return this.tituloDrilldown;
     if (this.isAprobadorView) return 'Cola de Solicitudes (7d)';
     if (this.isComercialView) return 'Solicitudes Comerciales';
     return 'Flujo Horario de Atención';
@@ -270,21 +336,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
     if (this.isAprobadorView) return 'Volumen de solicitudes pendientes/aprobadas';
     if (this.isComercialView) return 'Clientes solicitando beneficios';
     return 'Vehículos procesados en el día';
-  }
-
-  get vehiculosFullWidth(): boolean {
-    let slots = 0;
-    if (this.chartBahiasActivo) {
-      slots += this.bahiasFullWidth ? 2 : 1;
-    }
-    if (this.produccion?.distribucionModelos && (this.isAdminView || this.isAprobadorView || this.isComercialView)) {
-      slots += 1;
-    }
-    if (this.produccion?.mixServicios) {
-      slots += 1;
-    }
-    // Ocupa todo el ancho solo si no dejará un hueco en la grilla actual
-    return slots % 2 === 0;
   }
 
   get chart2Title(): string {
@@ -327,6 +378,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
       rango: this.rangoFiltro,
       fechaDesde: this.rangoFiltro === 'RANGO' ? this.fechaDesdeFiltro || undefined : undefined,
       fechaHasta: this.rangoFiltro === 'RANGO' ? this.fechaHastaFiltro || undefined : undefined,
+      // Solo la dimensión activa (filtro exclusivo); el resto van undefined.
+      dimension: this.activeDimension,
       regionId: this.regionFiltro || undefined,
       agenciaId: this.agenciaFiltro || undefined,
       pulidorId: this.pulidorFiltro || undefined,
@@ -349,6 +402,23 @@ export class DashboardComponent implements OnInit, OnDestroy {
     return !!this.regionFiltro || !!this.agenciaFiltro || !!this.pulidorFiltro || this.rangoFiltro !== 'HOY';
   }
 
+  // ── Filtros exclusivos: solo se habilita una dimensión cuando el panel está en GLOBAL ──
+  get regionHabilitada(): boolean { return this.activeDimension === 'GLOBAL'; }
+  get agenciaHabilitada(): boolean { return this.activeDimension === 'GLOBAL'; }
+  get pulidorHabilitado(): boolean { return this.activeDimension === 'GLOBAL'; }
+  /** true mientras hay una dimensión estructural distinta a GLOBAL (para el botón de reset). */
+  get hayDimensionEstructural(): boolean { return this.activeDimension !== 'GLOBAL'; }
+
+  /** Etiqueta del nivel de análisis actual (encabezado del panel). */
+  get nivelAnalisisLabel(): string {
+    switch (this.activeDimension) {
+      case 'REGION': return `Región · ${this.regionLabel || 'seleccionada'}`;
+      case 'AGENCY': return `Agencia · ${this.agenciaLabel || 'seleccionada'}`;
+      case 'POLISHER': return `Pulidor · ${this.pulidorLabel || 'seleccionado'}`;
+      default: return 'Global · País';
+    }
+  }
+
   get esRangoPersonalizado(): boolean {
     return this.rangoFiltro === 'RANGO';
   }
@@ -369,25 +439,62 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.recargar();
   }
 
-  /** Al cambiar de región se acotan las agencias a esa región y se limpia la agencia elegida. */
+  /**
+   * Máquina de estados de filtros exclusivos:
+   *  - Elegir Región → limpia Agencia y Pulidor y los bloquea.
+   *  - Elegir Agencia → limpia Región y Pulidor y los bloquea.
+   *  - Elegir Pulidor → limpia Región y Agencia y los bloquea.
+   *  - Quitar el valor activo → vuelve a GLOBAL (los tres habilitados).
+   * Las fechas nunca se tocan.
+   */
   onRegionChange(regionId: string | null): void {
     this.regionFiltro = regionId;
     if (!regionId) this.regionLabel = '';
-    this.agenciaFiltro = null;
-    this.agenciaLabel = '';
-    this.cargarAgencias = this.opciones.agencias(regionId ? { regionId } : {});
+    this.limpiarAgenciaYPulidor();
+    this.activeDimension = regionId ? 'REGION' : 'GLOBAL';
+    this.cargarAgencias = this.opciones.agencias();
     this.recargar();
   }
 
   onAgenciaChange(agenciaId: string | null): void {
     this.agenciaFiltro = agenciaId;
     if (!agenciaId) this.agenciaLabel = '';
+    this.regionFiltro = null;
+    this.regionLabel = '';
+    this.pulidorFiltro = null;
+    this.pulidorLabel = '';
+    this.activeDimension = agenciaId ? 'AGENCY' : 'GLOBAL';
     this.recargar();
   }
 
   onPulidorChange(pulidorId: string | null): void {
     this.pulidorFiltro = pulidorId;
     if (!pulidorId) this.pulidorLabel = '';
+    this.regionFiltro = null;
+    this.regionLabel = '';
+    this.agenciaFiltro = null;
+    this.agenciaLabel = '';
+    this.activeDimension = pulidorId ? 'POLISHER' : 'GLOBAL';
+    this.recargar();
+  }
+
+  private limpiarAgenciaYPulidor(): void {
+    this.agenciaFiltro = null;
+    this.agenciaLabel = '';
+    this.pulidorFiltro = null;
+    this.pulidorLabel = '';
+  }
+
+  /** Reset estructural: vuelve a GLOBAL y mantiene el rango de fechas seleccionado. */
+  limpiarDimensiones(): void {
+    this.regionFiltro = null;
+    this.agenciaFiltro = null;
+    this.pulidorFiltro = null;
+    this.regionLabel = '';
+    this.agenciaLabel = '';
+    this.pulidorLabel = '';
+    this.activeDimension = 'GLOBAL';
+    this.cargarAgencias = this.opciones.agencias();
     this.recargar();
   }
 
@@ -398,6 +505,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.regionLabel = '';
     this.agenciaLabel = '';
     this.pulidorLabel = '';
+    this.activeDimension = 'GLOBAL';
     this.rangoFiltro = 'HOY';
     this.fechaDesdeFiltro = '';
     this.fechaHastaFiltro = '';
@@ -496,6 +604,12 @@ export class DashboardComponent implements OnInit, OnDestroy {
     }
     if (this.puedeVerMaquinaria) {
       peticiones.push(this.dashboardService.getMaquinaria(filtro).pipe(tap((d) => (this.maquinaria = this.aChartMaquinaria(d)))));
+      // Costos, MTTR y deuda de mantenimiento para el tab de Activos & Taller.
+      peticiones.push(this.dashboardService.getDashboardTecnico(filtro).pipe(tap((d) => (this.tecnicoData = d))));
+    }
+    if (this.puedeVerAlertas) {
+      // Salud de stock vs mínimo/ideal, déficit y alertas por categoría para el tab de Inventario.
+      peticiones.push(this.dashboardService.getDashboardBodegaDedicado(filtro).pipe(tap((d) => (this.bodegaData = d))));
     }
     if (this.puedeVerAlertas) {
       peticiones.push(this.dashboardService.getAlertas(filtro).pipe(tap((d) => (this.alertas = d))));

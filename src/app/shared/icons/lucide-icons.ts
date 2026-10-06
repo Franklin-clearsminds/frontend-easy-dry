@@ -37,6 +37,7 @@ import {
   Check,
   AlertCircle,
   TrendingUp,
+  TrendingDown,
   FileText,
   FileSpreadsheet,
   Shield,
@@ -150,7 +151,9 @@ import {
   Power,
   Square,
   TriangleAlert,
-  ZoomOut
+  ZoomOut,
+  List,
+  Receipt
 } from 'lucide-angular';
 
 export const EASYDRY_ICONS = {
@@ -195,6 +198,7 @@ export const EASYDRY_ICONS = {
   Check,
   AlertCircle,
   TrendingUp,
+  TrendingDown,
   FileText,
   FileSpreadsheet,
   Shield,
@@ -354,6 +358,7 @@ export const EASYDRY_ICONS = {
   'check': Check,
   'alert-circle': AlertCircle,
   'trending-up': TrendingUp,
+  'trending-down': TrendingDown,
   'file-text': FileText,
   'file-spreadsheet': FileSpreadsheet,
   'shield': Shield,
@@ -460,5 +465,7 @@ export const EASYDRY_ICONS = {
   'power': Power,
   'square': Square,
   'triangle-alert': TriangleAlert,
-  'zoom-out': ZoomOut
+  'zoom-out': ZoomOut,
+  'list': List,
+  'receipt': Receipt
 };

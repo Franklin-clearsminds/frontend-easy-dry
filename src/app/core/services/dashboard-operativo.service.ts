@@ -54,15 +54,8 @@ export class DashboardOperativoService {
           datasets: [{ 
             label: flujoLabel, 
             data: data.flujoHorario.map((f: any) => f.cantidad), 
-            borderColor: '#3B82F6', // Blue-500
-            backgroundColor: 'rgba(59, 130, 246, 0.15)', // Light blue fill
-            pointBackgroundColor: '#FFFFFF',
-            pointBorderColor: '#3B82F6',
-            pointBorderWidth: 2,
-            pointRadius: 4,
-            pointHoverRadius: 6,
-            tension: 0.4, 
-            fill: true 
+            backgroundColor: CHART_COLORS.blue,
+            borderRadius: 6,
           }]
         } : null;
 
@@ -109,12 +102,12 @@ export class DashboardOperativoService {
         const donaSecSrc = isAdmin ? data?.distribucionCategorias : (isAprobador ? data?.distribucionTipos : (isComercial ? data?.solicitudesComerciales : data?.incidentesPorTipo));
         const incidentesPorTipo = toDonutChart(donaSecSrc, 'nombre', isAdmin ? 'total' : 'cantidad');
 
-        const bData = data?.bahias || data?.distribucionBahias;
+        const bData = data?.bahias || data?.distribucionBahias || data?.tiemposAgencias;
         const chartBahias = bData && bData.length > 0 ? {
           labels: bData.map((b: any) => truncateLabel(b.nombre)),
           datasets: [
-            { label: 'Lavados', data: bData.map((b: any) => b.cantidad ?? b.total ?? 0), backgroundColor: [...CHART_SERIES] },
-            { label: 'Tiempo prom. (min)', data: bData.map((b: any) => b.tiempoPromedioMin ?? 0), borderColor: CHART_COLORS.amber, backgroundColor: CHART_COLORS.amber + '33', tension: 0.4, fill: true, pointBackgroundColor: '#FFFFFF', pointBorderColor: CHART_COLORS.amber, pointBorderWidth: 2, pointRadius: 4, pointHoverRadius: 6 },
+            { label: 'Servicios', data: bData.map((b: any) => b.cantidad ?? b.total ?? 0), backgroundColor: [...CHART_SERIES] },
+            { label: 'Tiempo prom. (min)', data: bData.map((b: any) => b.tiempoPromedioMin ?? 0), backgroundColor: CHART_COLORS.amber },
           ],
         } : null;
 
@@ -134,11 +127,25 @@ export class DashboardOperativoService {
           // Atributos del vehículo.
           topColores: toBarChart(data?.topColores, 'nombre', 'cantidad', 'Frecuencia'),
           topMarcasModelos: toBarChart(data?.topMarcasModelos, 'nombre', 'cantidad', 'Frecuencia'),
-          // Bahías unificadas: cantidad + tiempo promedio en una sola serie (con su agencia de origen).
+          // Tiempos por agencia o bahías
           chartBahias,
-          // Agencias: ganancia neta y gasto en reparaciones (datos crudos para el ranking con barras).
+          // Agencias: Rentabilidad y reparaciones
+          topAgenciasRentabilidad: data?.topAgenciasRentabilidad ? {
+            labels: data.topAgenciasRentabilidad.map((x: any) => truncateLabel(x.nombre)),
+            datasets: [
+              { label: 'Ingresos', stack: 'ingresos', data: data.topAgenciasRentabilidad.map((x: any) => x.ingresos), backgroundColor: CHART_COLORS.green },
+              { label: 'Insumos', stack: 'gastos', data: data.topAgenciasRentabilidad.map((x: any) => x.costoInsumos ?? 0), backgroundColor: CHART_COLORS.amber },
+              { label: 'Reparaciones (fallas)', stack: 'gastos', data: data.topAgenciasRentabilidad.map((x: any) => x.costoIncidentes ?? 0), backgroundColor: CHART_COLORS.rose },
+              { label: 'Mantenimiento', stack: 'gastos', data: data.topAgenciasRentabilidad.map((x: any) => x.costoMantenimientos ?? 0), backgroundColor: CHART_COLORS.blue }
+            ]
+          } : null,
+          gananciaNetaAgencias: data?.topAgenciasRentabilidad?.length ? {
+            labels: data.topAgenciasRentabilidad.map((x: any) => x.nombre),
+            datasets: [{ label: 'Ganancia neta USD', data: data.topAgenciasRentabilidad.map((x: any) => x.gananciaNeta), backgroundColor: data.topAgenciasRentabilidad.map((x: any) => x.gananciaNeta >= 0 ? CHART_COLORS.green : CHART_COLORS.rose) }]
+          } : null,
           topAgenciasGanancia: toBarChart(data?.topAgenciasGanancia, 'nombre', 'ganancia', 'Ganancia USD'),
           topAgenciasReparaciones: toBarChart(data?.topAgenciasReparaciones, 'nombre', 'costo', 'Costo USD'),
+          agenciasRentabilidad: data?.topAgenciasRentabilidad ?? [],
           agenciasGanancia: data?.topAgenciasGanancia ?? [],
           agenciasReparaciones: data?.topAgenciasReparaciones ?? [],
           // Datos crudos para las tarjetas de distribución (dona + filas).
@@ -149,9 +156,38 @@ export class DashboardOperativoService {
           kpisResumen: data?.kpis ?? {},
           // Alertas operativas unificadas (stock + mantenimiento) ya acotadas por el servidor al alcance del rol.
           alertasOperativas: (data?.alertasOperativas ?? []).map((a: any) => this.aAlertaOperativaVM(a)),
+          // Drill-down jerárquico (País → Región → Agencia → Bahía) según la dimensión activa.
+          jerarquia: data?.jerarquia ?? null,
+          // Heatmap día × hora y Top/Bottom adaptativo (vienen dentro de jerarquia).
+          heatmap: data?.jerarquia?.heatmap ?? null,
+          rankingTop: data?.jerarquia?.ranking?.top ?? [],
+          rankingBottom: data?.jerarquia?.ranking?.bottom ?? [],
+          rankingEntidad: data?.jerarquia?.ranking?.entidad ?? 'Entidad',
+          jerarquiaChart: data?.jerarquia?.desglose?.length ? {
+            labels: data.jerarquia.desglose.map((d: any) => d.nombre),
+            datasets: [
+              { label: 'Servicios', data: data.jerarquia.desglose.map((d: any) => d.cantidad ?? 0), backgroundColor: CHART_COLORS.blue },
+              { label: 'Tiempo prom. (min)', data: data.jerarquia.desglose.map((d: any) => d.tiempoPromedioMin ?? 0), backgroundColor: CHART_COLORS.amber },
+            ],
+          } : null,
           topMaquinas: data?.topMaquinasDañadas && data.topMaquinasDañadas.length > 0 ? { labels: data.topMaquinasDañadas.map((m: any) => m.nombre.split('-')[0].trim()), datasets: [{ label: 'Incidentes', data: data.topMaquinasDañadas.map((m: any) => m.total), backgroundColor: [...CHART_SERIES].reverse() }] } : null,
           topAgencias: toBarChart(data?.topAgenciasIncidentes, 'nombre', 'total', 'Incidentes'),
           agenciasIncidentesRaw: data?.topAgenciasIncidentes,
+          chartAprobaciones: data?.chartAprobaciones || null,
+          metricasAprobaciones: data?.metricasAprobaciones ? {
+            kpis: data.metricasAprobaciones.kpis,
+            tiposCount: toDonutChart(data.metricasAprobaciones.distribucionTipos, 'nombre', 'cantidad'),
+            flujoSolicitudes: data.metricasAprobaciones.flujoEstadosPorDia ? {
+              labels: Object.keys(data.metricasAprobaciones.flujoEstadosPorDia).sort(),
+              datasets: [
+                { label: 'Aprobado', data: Object.keys(data.metricasAprobaciones.flujoEstadosPorDia).sort().map(k => data.metricasAprobaciones.flujoEstadosPorDia[k].APROBADO), backgroundColor: '#10B981' },
+                { label: 'Rechazado', data: Object.keys(data.metricasAprobaciones.flujoEstadosPorDia).sort().map(k => data.metricasAprobaciones.flujoEstadosPorDia[k].RECHAZADO), backgroundColor: '#EF4444' },
+                { label: 'Pendiente', data: Object.keys(data.metricasAprobaciones.flujoEstadosPorDia).sort().map(k => data.metricasAprobaciones.flujoEstadosPorDia[k].PENDIENTE), backgroundColor: '#F59E0B' }
+              ]
+            } : null,
+            topAgencias: toBarChart(data.metricasAprobaciones.topAgencias, 'nombre', 'cantidad', 'Solicitudes'),
+            topSolicitantes: toBarChart(data.metricasAprobaciones.topSolicitantes, 'nombre', 'cantidad', 'Solicitudes')
+          } : null
         };
       }),
       catchError((err) => {
@@ -200,7 +236,7 @@ export class DashboardOperativoService {
         return res.ranking.map((r: any, index: number) => ({
           posicion: index + 1,
           nombre: r.nombre,
-          bahia: `${r.cantidadServicios} servicios`, // Subtítulo en el widget
+          bahia: (r.agencia && r.bahia) ? `${r.agencia} · ${r.bahia}` : `${r.cantidadServicios} servicios`, // Subtítulo en el widget
           vehiculos: r.cantidadServicios,
           tiempoPromedioMin: r.tiempoPromedioMin
         }));
@@ -218,7 +254,7 @@ export class DashboardOperativoService {
         const mapOp = (op: any, index: number) => ({
           posicion: index + 1,
           nombre: op.nombre,
-          bahia: op.esFijo ? 'Agencia / Bahia' : 'Móvil',
+          bahia: op.ubicacion || (op.esFijo ? 'Agencia / Bahia' : 'Móvil'),
           vehiculos: op.cantidadServicios,
           dinero: op.dineroTotal
         });
@@ -377,6 +413,30 @@ export class DashboardOperativoService {
           chartTipoMaquinaria: toDonut(d?.distribucionTipoMaquinaria, 'nombre', 'total'),
           // Tabla próximos mantenimientos
           proxMantenimientos: d?.proxMantenimientos || [],
+          // Costos y fiabilidad
+          costoMantenimientos30d: d?.kpis?.costoMantenimientos30d ?? 0,
+          mantenimientosVencidos: d?.kpis?.mantenimientosVencidos ?? 0,
+          chartCostoTipoMantenimiento: toDonut(d?.costoPorTipoMantenimiento, 'nombre', 'costo'),
+          chartMttrGravedad: d?.mttrPorGravedad?.length ? {
+            labels: d.mttrPorGravedad.map((x: any) => x.nombre),
+            datasets: [{ 
+              label: 'Horas promedio', 
+              data: d.mttrPorGravedad.map((x: any) => x.horas), 
+              backgroundColor: d.mttrPorGravedad.map((x: any) => {
+                if (x.nombre === 'BAJA') return CHART_COLORS.green;
+                if (x.nombre === 'MEDIA') return CHART_COLORS.amber;
+                if (x.nombre === 'ALTA') return CHART_COLORS.rose;
+                return '#9F1239'; // CRITICA
+              })
+            }]
+          } : null,
+          chartCostoPorAgencia: d?.costoPorAgencia?.length ? {
+            labels: d.costoPorAgencia.map((x: any) => x.nombre),
+            datasets: [
+              { label: 'Reparaciones (fallas)', data: d.costoPorAgencia.map((x: any) => x.reparaciones), backgroundColor: CHART_COLORS.amber },
+              { label: 'Mantenimiento', data: d.costoPorAgencia.map((x: any) => x.mantenimiento), backgroundColor: CHART_COLORS.blue },
+            ]
+          } : null,
         };
       }),
       catchError((err) => {
@@ -408,6 +468,7 @@ export class DashboardOperativoService {
           chartConsumoPorCategoria: toBar(d?.consumoPorCategoria, 'nombre', 'cantidad', 'Unidades'),
           chartTopAgenciasConsumo: toBar(d?.topAgenciasConsumo, 'nombre', 'cantidad', 'Unidades'),
           chartValorStockPorCategoria: toBar(d?.valorStockPorCategoria, 'nombre', 'cantidad', 'Valor USD'),
+          ...this.mapSaludInventario(d),
         };
       }),
       catchError((err) => {
@@ -415,6 +476,58 @@ export class DashboardOperativoService {
         return of({ kpis: {}, chartNivelAlertas: null, chartTopInsumosCriticos: null, chartDespachosEstado: null, chartConsumoPorCategoria: null });
       })
     );
+  }
+
+  /** Colores semánticos por estado de stock: de lo más grave (agotado) a sobrestock. */
+  private readonly COLOR_SALUD: Record<string, string> = {
+    'AGOTADO': CHART_COLORS.rose, 'CRÍTICO': CHART_COLORS.amber, 'BAJO MÍNIMO': '#FCD34D',
+    'BAJO IDEAL': CHART_COLORS.blueLight, 'ÓPTIMO': CHART_COLORS.green, 'SOBRESTOCK': CHART_COLORS.violet,
+  };
+
+  /** Gráficos de salud de inventario: stock real vs mínimo/ideal, agrupado por estado, ubicación y categoría. */
+  private mapSaludInventario(d: any): any {
+    const estados = ['AGOTADO', 'CRÍTICO', 'BAJO MÍNIMO', 'BAJO IDEAL', 'ÓPTIMO', 'SOBRESTOCK'];
+    const salud: any[] = d?.saludStock ?? [];
+    const ubic: any[] = d?.saludPorUbicacion ?? [];
+    const cat: any[] = d?.stockVsIdealCategoria ?? [];
+    const def: any[] = d?.topDeficit ?? [];
+    const alc: any[] = d?.alertasPorCategoriaNivel ?? [];
+    const cob: any[] = d?.coberturaDias ?? [];
+    const hayEvaluacion = salud.some((s) => s.cantidad > 0);
+    return {
+      chartSaludStock: hayEvaluacion ? {
+        labels: salud.map((s) => s.nombre),
+        datasets: [{ data: salud.map((s) => s.cantidad), backgroundColor: salud.map((s) => this.COLOR_SALUD[s.nombre]) }],
+      } : null,
+      chartSaludPorUbicacion: ubic.length ? {
+        labels: ubic.map((u) => u.nombre),
+        datasets: estados.slice(0, 4).map((e) => ({ label: e, data: ubic.map((u) => u[e] ?? 0), backgroundColor: this.COLOR_SALUD[e] })),
+      } : null,
+      chartStockVsIdeal: cat.length ? {
+        labels: cat.map((c) => c.nombre),
+        datasets: [
+          { label: 'Stock actual', data: cat.map((c) => c.actual), backgroundColor: CHART_COLORS.blue },
+          { label: 'Mínimo', data: cat.map((c) => c.minimo), backgroundColor: CHART_COLORS.amber },
+          { label: 'Ideal', data: cat.map((c) => c.ideal), backgroundColor: CHART_COLORS.green },
+        ],
+      } : null,
+      chartCobertura: cob.length ? {
+        labels: cob.map((x) => x.nombre),
+        datasets: [{ label: 'Días de cobertura', data: cob.map((x) => x.dias), backgroundColor: cob.map((x) => x.dias < 7 ? CHART_COLORS.rose : x.dias < 15 ? CHART_COLORS.amber : CHART_COLORS.green) }],
+      } : null,
+      chartTopDeficit: def.length ? {
+        labels: def.map((x) => x.nombre),
+        datasets: [{ label: 'Costo de reposición USD', data: def.map((x) => x.costoReposicionUSD), backgroundColor: [...CHART_SERIES] }],
+      } : null,
+      chartAlertasCategoriaNivel: alc.length ? {
+        labels: alc.map((x) => x.nombre),
+        datasets: [
+          { label: 'Agotado', data: alc.map((x) => x.AGOTADO), backgroundColor: this.COLOR_SALUD['AGOTADO'] },
+          { label: 'Crítico', data: alc.map((x) => x.CRITICO), backgroundColor: this.COLOR_SALUD['CRÍTICO'] },
+          { label: 'Bajo', data: alc.map((x) => x.BAJO), backgroundColor: this.COLOR_SALUD['BAJO IDEAL'] },
+        ],
+      } : null,
+    };
   }
 
   /**
@@ -433,7 +546,7 @@ export class DashboardOperativoService {
           kpis: d?.kpis ?? {},
           chartFlujoSemanal: d?.flujoSemanal && d.flujoSemanal.length > 0 ? {
             labels: d.flujoSemanal.map((f: any) => f.hora),
-            datasets: [{ label: 'OTs creadas', data: d.flujoSemanal.map((f: any) => f.cantidad), borderColor: CHART_COLORS.green, backgroundColor: CHART_COLORS.green + '33', tension: 0.4, fill: true }]
+            datasets: [{ label: 'OTs creadas', data: d.flujoSemanal.map((f: any) => f.cantidad), backgroundColor: CHART_COLORS.green, borderRadius: 6 }]
           } : null,
           chartTipoServicio: toDonut(d?.tipoServicio, 'nombre', 'cantidad'),
           chartEstadosHoy: toDonut(d?.estadosHoy, 'nombre', 'cantidad'),
