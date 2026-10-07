@@ -652,14 +652,9 @@
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <!-- Tipos de Solicitud: qué pide la red y en qué volumen (antes se mostraba el código crudo del tipo) -->
-      <app-distribution-card titulo="Tipos de Solicitud"
-        subtitulo="Volumen de requerimientos del período, por tipo"
-        etiquetaTotal="Solicitudes"
-        [items]="produccion.metricasAprobaciones.tiposItems"></app-distribution-card>
-        
-      <!-- Flujo Semanal -->
-      <app-chart-card title="Flujo de Aprobaciones" subtitle="Día a Día" type="bar"
+      <!-- Flujo día a día a ancho completo: la dona de "Tipos de Solicitud" se retiró de este panel porque
+           duplicaba el gráfico de tipos de la pestaña de analítica. -->
+      <app-chart-card class="lg:col-span-2" title="Flujo de Aprobaciones" subtitle="Día a Día" type="bar"
         [data]="produccion.metricasAprobaciones.flujoSolicitudes"
         mensajeVacio="Sin movimientos de solicitudes en el período seleccionado."></app-chart-card>
         

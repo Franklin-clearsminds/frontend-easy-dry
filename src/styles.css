@@ -5,6 +5,14 @@
 @layer base {
   :root {
     color-scheme: light;
+    /* Escala general de la interfaz (preferencia de accesibilidad, ver UiScaleService). Como casi todo
+       en Tailwind está en rem, cambiar el font-size del root reescala tipografía, íconos, paddings/gaps
+       e imágenes con clases Tailwind de forma coherente, sin tocar cada componente. */
+    --ui-scale: 1;
+  }
+
+  html {
+    font-size: calc(16px * var(--ui-scale));
   }
 
   body {

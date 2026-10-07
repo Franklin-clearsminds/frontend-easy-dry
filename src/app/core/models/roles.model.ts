@@ -16,6 +16,8 @@ export enum Role {
   LIDER_OPERADOR = 'LIDER',
   /** @deprecated usar LIDER / LIDER_OPERADOR */
   LIDER_AGENCIA = 'LIDER',
+  /** Reemplazo temporal de un líder operador dentro de su región. */
+  BACKUP = 'BACKUP',
   /** Lavador de bahía — registro en BD para constancia y trazabilidad de productividad */
   LAVADOR = 'LAVADOR',
   /** @deprecated usar LAVADOR */
@@ -52,6 +54,10 @@ export interface ModuloSistema {
   rutaPrincipal: string;
   /** Grupo funcional; valor libre desde BD */
   grupo: string;
+  /** Permisos que habilitan la pantalla (basta uno). Vacío = la ve todo rol con algún permiso. */
+  permisos: string[];
+  /** La pantalla también existe en la app móvil. */
+  disponibleEnApp: boolean;
 }
 
 /**
@@ -73,6 +79,7 @@ export const DEFAULT_ROUTE_POR_ROL: Record<string, string> = {
   [Role.JEFE_COMERCIAL]: '/dashboard',
   [Role.COORD_COMERCIAL]: '/dashboard',
   [Role.LIDER_OPERADOR]: '/servicios',
+  [Role.BACKUP]: '/servicios',
   [Role.LAVADOR]: '/sin-acceso',
   [Role.COORD_SERVICIOS_ESPECIALES]: '/dashboard',
   [Role.PULIDOR]: '/servicios',
@@ -240,6 +247,7 @@ export const ROLE_LABELS: Record<string, string> = {
   [Role.JEFE_COMERCIAL]: 'Jefe Comercial',
   [Role.COORD_COMERCIAL]: 'Coordinador Comercial',
   [Role.LIDER_OPERADOR]: 'Líder Operador',
+  [Role.BACKUP]: 'Backup',
   [Role.LAVADOR]: 'Lavador',
   [Role.COORD_SERVICIOS_ESPECIALES]: 'Coordinador de Servicios Especiales',
   [Role.PULIDOR]: 'Pulidor',
@@ -263,6 +271,7 @@ export const ROLE_COLORS: Record<string, string> = {
   [Role.COORD_MANTENIMIENTO]: 'bg-amber-100 text-amber-800 border-amber-200',
   [Role.TECNICO]: 'bg-orange-100 text-orange-800 border-orange-200',
   [Role.LIDER_OPERADOR]: 'bg-teal-100 text-teal-800 border-teal-200',
+  [Role.BACKUP]: 'bg-amber-100 text-amber-800 border-amber-200',
   [Role.LAVADOR]: 'bg-emerald-100 text-emerald-800 border-emerald-200',
   [Role.COORD_SERVICIOS_ESPECIALES]: 'bg-cyan-100 text-cyan-800 border-cyan-200',
   [Role.PULIDOR]: 'bg-cyan-100 text-cyan-800 border-cyan-200',
@@ -283,6 +292,7 @@ export const ROLES_OFICIALES_NO_ELIMINABLES: string[] = [
   Role.COORD_MANTENIMIENTO,
   Role.TECNICO,
   Role.LIDER_OPERADOR,
+  Role.BACKUP,
   Role.LAVADOR,
   Role.COORD_COMERCIAL,
   Role.COORD_SERVICIOS_ESPECIALES,

@@ -7,6 +7,7 @@ import { NotificacionService } from '../../../core/services/notificacion.service
 import { StorageUploadService } from '../../../core/services/storage-upload.service';
 import { UiStateService } from '../../../core/services/ui-state.service';
 import { environment, isRealProfilePhoto } from '../../../core/config/env';
+import { ESCALA_POR_PRESET, ETIQUETA_PRESET, UiScaleService } from '../../../core/services/ui-scale.service';
 
 @Component({
   selector: 'app-header',
@@ -38,6 +39,17 @@ import { environment, isRealProfilePhoto } from '../../../core/config/env';
 
       <!-- Right: User Context, Notifications & Profile -->
       <div class="flex items-center gap-2 sm:gap-4">
+
+        <!-- Escala general de texto/íconos/espaciado: cicla Pequeño → Normal → Grande → Extra grande -->
+        <button
+          type="button"
+          (click)="siguienteEscala()"
+          class="flex items-center gap-1.5 p-2.5 rounded-xl text-slate-600 hover:text-easydry-blue hover:bg-slate-100 transition-colors"
+          [attr.aria-label]="'Tamaño de la interfaz: ' + etiquetaEscalaActual() + '. Toca para cambiar al siguiente tamaño.'"
+          [title]="'Tamaño: ' + etiquetaEscalaActual()">
+          <i-lucide name="sliders" class="w-5 h-5" aria-hidden="true"></i-lucide>
+          <span class="hidden lg:inline text-xs font-bold">{{ etiquetaEscalaActual() }}</span>
+        </button>
 
         @if (user; as u) {
           <!-- Role Badge -->
@@ -94,6 +106,19 @@ export class HeaderComponent implements OnInit {
   public uiState = inject(UiStateService);
   private notificacionService = inject(NotificacionService);
   private storageUpload = inject(StorageUploadService);
+  private uiScaleService = inject(UiScaleService);
+
+  etiquetaEscalaActual(): string {
+    return ETIQUETA_PRESET[this.uiScaleService.preset];
+  }
+
+  /** Ciclo Pequeño → Normal → Grande → Extra grande → Pequeño... en cada clic. */
+  siguienteEscala(): void {
+    const presets = Object.keys(ESCALA_POR_PRESET) as Array<keyof typeof ESCALA_POR_PRESET>;
+    const indiceActual = presets.indexOf(this.uiScaleService.preset);
+    const siguiente = presets[(indiceActual + 1) % presets.length];
+    this.uiScaleService.establecer(siguiente);
+  }
 
   avatarFailed = false;
   private lastAvatarSrc = '';

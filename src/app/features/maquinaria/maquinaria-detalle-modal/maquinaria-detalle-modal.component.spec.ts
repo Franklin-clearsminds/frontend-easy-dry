@@ -76,6 +76,14 @@ describe('MaquinariaDetalleModalComponent — registrar limpieza', () => {
     expect(component.puedeRegistrarLimpieza).toBe(true);
   });
 
+  it('puede desactivar evidencias de incidencias sin quitar la subida de limpieza', () => {
+    const auth = TestBed.inject(AuthService);
+    spyOn(auth, 'puede').and.callFake((codigo: string) => codigo !== 'limpiezas.evidencias');
+
+    expect(component.puedeAgregarEvidencia).toBe(true);
+    expect(component.puedeRegistrarLimpieza).toBe(false);
+  });
+
   it('puedeRegistrarLimpieza es false para admin: solo líder y pulidor registran, no auditan desde aquí', () => {
     configurar('ADMIN');
     expect(component.puedeRegistrarLimpieza).toBe(false);

@@ -41,6 +41,57 @@ describe('NotificacionService', () => {
     service.getNotificaciones().subscribe();
   });
 
+  it('mapea cambios de permisos del rol como notificación de sistema con enlace a roles', (done) => {
+    httpPost.and.returnValue(of({
+      items: [{
+        id: 'n-role',
+        tipo: 'USUARIO_ACTUALIZADO',
+        titulo: 'Permisos de rol actualizados',
+        mensaje: 'Se actualizaron los permisos',
+        leida: false,
+        entidadTipo: 'ROL',
+        createdAt: '2026-10-05T10:00:00.000Z',
+      }],
+    }));
+
+    service.getNotificacionesPagina({ page: 1, pageSize: 20, tipos: ['USUARIO_ACTUALIZADO'] }).subscribe((resultado) => {
+      expect(resultado.items[0]).toEqual(jasmine.objectContaining({
+        tipo: 'sistema',
+        enlace: '/usuarios',
+        enlaceLabel: 'Ver Roles',
+      }));
+      done();
+    });
+  });
+
+  it('getNotificacionesPagina envía página y tipos y devuelve metadatos paginados', (done) => {
+    httpPost.and.returnValue(of({
+      items: [
+        { id: 'n1', tipo: 'STOCK_CRITICO', titulo: 'Stock crítico', mensaje: 'Shampoo bajo', leida: false, createdAt: '2026-10-02T10:00:00.000Z' },
+      ],
+      total: 21,
+      page: 2,
+      pageSize: 20,
+      totalPages: 2,
+    }));
+
+    service.getNotificacionesPagina({ page: 2, pageSize: 20, tipos: ['STOCK_CRITICO'] }).subscribe((resultado) => {
+      expect(httpPost).toHaveBeenCalledWith(jasmine.stringMatching(/notifications\/list$/), {
+        page: 2,
+        pageSize: 20,
+        tipos: ['STOCK_CRITICO'],
+      });
+      expect(resultado).toEqual(jasmine.objectContaining({
+        items: [jasmine.objectContaining({ id: 'n1', tipo: 'alerta' })],
+        total: 21,
+        page: 2,
+        pageSize: 20,
+        totalPages: 2,
+      }));
+      done();
+    });
+  });
+
   it('getNotificaciones sin red no rompe: conserva la lista anterior', async () => {
     httpPost.and.returnValue(throwError(() => new Error('sin red')));
     const lista = await new Promise((resolve) => service.getNotificaciones().subscribe(resolve));

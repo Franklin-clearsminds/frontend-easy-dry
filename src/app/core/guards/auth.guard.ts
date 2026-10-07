@@ -1,5 +1,6 @@
 import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
+import { map } from 'rxjs/operators';
 import { AuthService } from '../services/auth.service';
 
 /**
@@ -17,8 +18,9 @@ export const moduloGuard = (moduloCodigo: string): CanActivateFn => {
 
     if (!authService.isLoggedIn()) return router.createUrlTree(['/login']);
     if (authService.sinAcceso()) return router.createUrlTree(['/sin-acceso']);
-    if (authService.isSuperAdmin() || authService.hasModuleAccess(moduloCodigo)) return true;
-    return router.createUrlTree(['/unauthorized']);
+    return authService.validarAccesoModulo(moduloCodigo).pipe(
+      map((permitido) => permitido ? true : router.createUrlTree(['/unauthorized'])),
+    );
   };
 };
 
@@ -32,7 +34,13 @@ export const authGuard: CanActivateFn = (route, state) => {
   if (authService.isLoggedIn()) {
     // Sin permisos (p. ej. un lavador) no se usa la plataforma: solo ve la pantalla de «sin acceso».
     if (authService.sinAcceso() && !state.url.startsWith('/sin-acceso')) {
-      return router.createUrlTree(['/sin-acceso']);
+      return authService.verificarPermisosActualizados(true).pipe(
+        map((actualizado) =>
+          actualizado && !authService.sinAcceso()
+            ? true
+            : router.createUrlTree(['/sin-acceso']),
+        ),
+      );
     }
     return true;
   }

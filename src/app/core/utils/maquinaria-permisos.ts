@@ -22,6 +22,7 @@ export const puedeResolverIncidentes = (auth: AuthService) => auth.puede('incide
 /** Ejecutar / editar mantenimientos (el servidor exige además ser el técnico asignado si no gestiona). */
 export const puedeEjecutarMantenimientos = (auth: AuthService) => auth.puede('mantenimientos.ejecutar');
 export const puedeAgregarEvidenciaMaquinaria = (auth: AuthService) => auth.puede('maquinaria.evidencias');
+export const puedeSubirEvidenciaLimpieza = (auth: AuthService) => auth.puede('limpiezas.evidencias');
 export const puedeVerLimpiezas = (auth: AuthService) => auth.puede('limpiezas.ver');
 /** Corregir observaciones o eliminar un registro de limpieza (el servidor acota además a su región). */
 export const puedeEditarLimpiezas = (auth: AuthService) => auth.puede('limpiezas.editar');

@@ -50,6 +50,7 @@ const ENLACE_POR_ENTIDAD: Record<string, { enlace: string; enlaceLabel: string }
   SERVICIO_ESPECIAL: { enlace: '/servicios', enlaceLabel: 'Ver Servicio Especial' },
   RETO: { enlace: '/productividad', enlaceLabel: 'Ver Retos' },
   USUARIO: { enlace: '/usuarios', enlaceLabel: 'Ver Usuario' },
+  ROL: { enlace: '/usuarios', enlaceLabel: 'Ver Roles' },
   AGENCIA: { enlace: '/sucursales', enlaceLabel: 'Ver Agencia' },
 };
 
@@ -94,6 +95,28 @@ export class NotificacionService {
   /** La notificación recién llegada por WebSocket todavía no tiene `id` real de BD: se arma una temporal. */
   private mapearPayload(n: NotificationPayload): Notificacion {
     return this.mapear({ ...n, id: `live-${Date.now()}-${Math.random().toString(36).slice(2)}` });
+  }
+
+  /** Historial paginado; los filtros se aplican en el servidor para recorrer todo el historial. */
+  getNotificacionesPagina(params: { page: number; pageSize: number; tipos?: string[] }): Observable<{
+    items: Notificacion[];
+    total: number;
+    page: number;
+    pageSize: number;
+    totalPages: number;
+  }> {
+    return this.http.post<any>(apiUrl('/notifications/list'), params).pipe(
+      map((res) => {
+        const items = Array.isArray(res?.items) ? res.items : [];
+        return {
+          items: items.map((n: any) => this.mapear(n)),
+          total: Number(res?.total || 0),
+          page: Number(res?.page || params.page),
+          pageSize: Number(res?.pageSize || params.pageSize),
+          totalPages: Number(res?.totalPages || 0),
+        };
+      }),
+    );
   }
 
   /** Historial real del usuario (hasta 100 más recientes), desde la tabla de notificaciones. */
