@@ -1,7 +1,7 @@
 import { Component, Input, OnChanges, SimpleChanges, ElementRef, ViewChild, AfterViewInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Chart, registerables, ChartType } from 'chart.js';
-import { CHART_COLORS } from '../../theme/colors';
+import { CHART_CATEGORICAL, CHART_COLORS } from '../../theme/colors';
 
 Chart.register(...registerables);
 
@@ -14,7 +14,13 @@ Chart.register(...registerables);
     '[attr.title]': 'null' // Previene que Angular ponga el @Input() title como tooltip nativo del navegador
   },
   template: `
-    <div class="bg-white rounded-2xl p-6 border border-slate-100 shadow-easydry flex flex-col h-full" [ngClass]="{'max-h-[400px]': type === 'doughnut' || type === 'pie'}">
+    <div class="flex flex-col h-full"
+      [ngClass]="{
+        'flex-1': sinTarjeta,
+        'bg-white rounded-2xl p-6 border border-slate-100 shadow-easydry': !sinTarjeta,
+        'max-h-[400px]': !sinTarjeta && (type === 'doughnut' || type === 'pie')
+      }">
+      @if (!sinTarjeta) {
       <div class="flex items-start justify-between gap-3 mb-4">
         <div class="min-w-0">
           <h4 class="font-bold text-slate-900 text-base font-outfit truncate">{{ title }}</h4>
@@ -24,6 +30,7 @@ Chart.register(...registerables);
         </div>
         <ng-content select="[chart-actions]"></ng-content>
       </div>
+      }
 
       <div class="flex-1 relative w-full min-h-[260px]" [ngClass]="{'overflow-y-auto custom-scrollbar': horizontal}">
         <div [style.height]="chartContainerHeight" class="relative w-full h-full min-h-[260px] flex items-center justify-center">
@@ -44,6 +51,8 @@ export class ChartCardComponent implements AfterViewInit, OnChanges, OnDestroy {
   @Input() horizontal = false;
   /** Apila las series (barras): útil para ver composición por estado/nivel dentro de cada categoría. */
   @Input() stacked = false;
+  /** Sin marco propio: renderiza solo el lienzo, para incrustarlo dentro de otra tarjeta. */
+  @Input() sinTarjeta = false;
 
   @ViewChild('chartCanvas') chartCanvas!: ElementRef<HTMLCanvasElement>;
   private chartInstance?: Chart;
@@ -127,7 +136,7 @@ export class ChartCardComponent implements AfterViewInit, OnChanges, OnDestroy {
                   return data.labels.map((label: string, i: number) => {
                     const value = dataset.data[i] || 0;
                     const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
-                    const color = dataset.backgroundColor?.[i] || '#000';
+                    const color = dataset.backgroundColor?.[i] || CHART_CATEGORICAL[i % CHART_CATEGORICAL.length];
                     return {
                       text: `${label}: ${value} (${percentage}%)`,
                       fillStyle: color,

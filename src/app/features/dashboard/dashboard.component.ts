@@ -17,9 +17,10 @@ import { RankingListComponent, RankingItem } from '../../shared/components/ranki
 import { PeriodSummaryComponent, PeriodMetric } from '../../shared/components/period-summary/period-summary.component';
 import { DistributionCardComponent, DistributionItem } from '../../shared/components/distribution-card/distribution-card.component';
 import { HeatmapGridComponent } from '../../shared/components/heatmap-grid/heatmap-grid.component';
+import { HourlyPatternCardComponent } from '../../shared/components/hourly-pattern-card/hourly-pattern-card.component';
 import { TopBottomComponent, TopBottomItem } from '../../shared/components/top-bottom/top-bottom.component';
 import { OpcionesService } from '../../core/services/opciones.service';
-import { CHART_COLORS } from '../../shared/theme/colors';
+import { CHART_COLORS, interpolarHex } from '../../shared/theme/colors';
 import { DashboardChartData } from '../../core/models/dashboard.model';
 import { AlertaStockVM } from '../../core/models/alerta-stock.model';
 import { Observable, Subscription, forkJoin, tap } from 'rxjs';
@@ -53,7 +54,7 @@ export type DimensionFiltro = 'GLOBAL' | 'REGION' | 'AGENCY' | 'POLISHER';
     RankingListComponent,
     PeriodSummaryComponent,
     DistributionCardComponent,
-    HeatmapGridComponent,
+    HourlyPatternCardComponent,
     TopBottomComponent
   ],
   templateUrl: './dashboard.component.html'
@@ -128,8 +129,16 @@ export class DashboardComponent implements OnInit, OnDestroy {
   pulidoresTab: 'fijos' | 'moviles' = 'fijos';
   /** Pestaña de productividad por bahía (lavados vs tiempo). */
   bahiasTab: 'lavados' | 'tiempo' = 'lavados';
-  /** Pestaña del gráfico unificado de vehículos (marcas vs marca·modelo). */
-  vehiculosTab: 'marcas' | 'modelos' = 'marcas';
+  /** Pestaña del gráfico unificado de vehículos (marca · modelo · color). */
+  vehiculosTab: 'marcas' | 'modelos' | 'colores' = 'marcas';
+  /** Pestaña del gráfico de agencias (productivas / ganancia neta / gasto en reparaciones). */
+  agenciasTab: 'productivas' | 'ganancia' | 'reparaciones' = 'productivas';
+
+  /**
+   * Pestaña del tiempo de resolución del taller. Por defecto por AGENCIA: el desglose por gravedad suele
+   * salir plano (todas las gravedades tardan parecido) y no dice dónde se está resolviendo lento.
+   */
+  mttrTab: 'agencia' | 'gravedad' = 'agencia';
 
   activeExecutiveTab: 'analitica' | 'auditoria' | 'inventario' | 'operacion' | 'alertas' | 'taller' | 'aprobaciones' = 'analitica';
 
@@ -212,14 +221,182 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   get tieneTopVehiculos(): boolean {
-    return !!(this.produccion?.topMarcas || this.produccion?.topMarcasModelos);
+    return !!(this.produccion?.topMarcas || this.produccion?.topMarcasModelos || this.coloresItems.length);
   }
 
-  /** Datos del gráfico unificado de vehículos; si una serie no existe, usa la otra. */
-  get chartVehiculosActivo(): any {
-    const marcas = this.produccion?.topMarcas;
-    const modelos = this.produccion?.topMarcasModelos;
-    return this.vehiculosTab === 'marcas' ? (marcas ?? modelos) : (modelos ?? marcas);
+  /** ¿Se renderiza el mapa de calor? (solo en la vista nacional, con datos del periodo) */
+  get muestraHeatmap(): boolean {
+    return this.esAnaliticaGlobal && !!this.produccion?.heatmap;
+  }
+
+  /** ¿Se renderiza el bloque Top vs Bottom? (solo en la vista nacional, y solo si no hay ranking de menor actividad) */
+  get muestraTopBottom(): boolean {
+    return this.esAnaliticaGlobal && (this.rankingTopItems.length > 0 || this.rankingBottomItems.length > 0);
+  }
+
+  /**
+   * Slots secundarios del nivel nacional. El bloque de agencias va a 8 columnas cuando lo acompaña
+   * un ranking (menor actividad o Top vs Bottom) y a fila completa cuando no hay ninguno.
+   */
+  get muestraBajaActividad(): boolean {
+    return this.bajaActividadItems.length > 0;
+  }
+
+  get spanActividad(): string {
+    return this.tieneAgenciasChart ? 'lg:col-span-4' : 'lg:col-span-12';
+  }
+
+  /** Anchos de la grilla Analítica: cada fila suma 12 columnas para no dejar huecos. */
+  get spanJerarquia(): string {
+    return (this.produccion?.mixServicios || this.eficienciaChart) ? 'lg:col-span-8' : 'lg:col-span-12';
+  }
+
+  get spanTopVehiculos(): string {
+    return this.esAnaliticaGlobal ? 'lg:col-span-4' : 'lg:col-span-12';
+  }
+
+  /** Ancho del bloque horario: comparte fila con Top Vehículos (o con el mix en los paneles de rol). */
+  get spanHorario(): string {
+    return this.esAnaliticaGlobal && !this.tieneTopVehiculos ? 'lg:col-span-12' : 'lg:col-span-8';
+  }
+
+  get spanTopAgencias(): string {
+    return this.esAnaliticaGlobal && (this.muestraBajaActividad || this.muestraTopBottom) ? 'lg:col-span-8' : 'lg:col-span-12';
+  }
+
+  /** Cuellos de botella: entidades del nivel activo ordenadas por tiempo promedio de servicio (más lentas primero). */
+  get eficienciaItems(): { nombre: string; minutos: number; cantidad: number }[] {
+    const fuente = (this.activeDimension === 'AGENCY' || this.activeDimension === 'POLISHER')
+      ? (this.produccion?.jerarquia?.desglose ?? [])
+      : (this.produccion?.tiemposAgencias ?? []);
+    return fuente
+      .map((x: any) => ({ nombre: x.nombre, minutos: Number(x.tiempoPromedioMin) || 0, cantidad: Number(x.cantidad) || 0 }))
+      .filter((x: { minutos: number }) => x.minutos > 0)
+      .sort((a: { minutos: number }, b: { minutos: number }) => b.minutos - a.minutos)
+      .slice(0, 6);
+  }
+
+  get eficienciaChart(): any {
+    const items = this.eficienciaItems;
+    if (!items.length) return null;
+    const minutos = items.map((i) => i.minutos);
+    const max = Math.max(...minutos);
+    const min = Math.min(...minutos);
+    return {
+      labels: items.map((i) => i.nombre),
+      datasets: [{
+        label: 'Minutos',
+        data: minutos,
+        // Escala de lentitud: ámbar para la más rápida del bloque y rojo para la más lenta.
+        backgroundColor: items.map((i) =>
+          interpolarHex(CHART_COLORS.amber, CHART_COLORS.rose, max > min ? (i.minutos - min) / (max - min) : 0),
+        ),
+        borderRadius: 6,
+      }],
+    };
+  }
+
+  get eficienciaTitulo(): string {
+    switch (this.activeDimension) {
+      case 'AGENCY': return 'Cuellos de Botella por Bahía';
+      case 'POLISHER': return 'Días Más Lentos del Pulidor';
+      case 'REGION': return 'Agencias Más Lentas de la Región';
+      default: return 'Agencias Más Lentas del País';
+    }
+  }
+
+  get eficienciaSubtitulo(): string {
+    const n = this.eficienciaItems.length;
+    return n ? `Tiempo promedio de servicio (min) · ${n} más lentas del período` : '';
+  }
+
+  /** Entidades del nivel activo con menos servicios (detecta agencias o bahías sin operación). */
+  get bajaActividadItems(): RankingItem[] {
+    return (this.produccion?.bajaActividad?.items ?? []).map((x: any) => ({
+      nombre: x.nombre,
+      valor: Number(x.cantidad) || 0,
+      secundario: Number(x.cantidad) ? `${Number(x.tiempoPromedioMin) || 0} min promedio` : '',
+    }));
+  }
+
+  get bajaActividadTitulo(): string {
+    switch (this.produccion?.bajaActividad?.entidad) {
+      case 'Bahía': return 'Bahías con Menos Actividad';
+      case 'Día': return 'Días con Menos Actividad';
+      default: return 'Agencias con Menos Actividad';
+    }
+  }
+
+  get bajaActividadSubtitulo(): string {
+    return this.produccion?.bajaActividad?.entidad === 'Bahía'
+      ? 'Estaciones con menor volumen de servicios'
+      : 'Sucursales con menor volumen de servicios';
+  }
+
+  /** Serie de tiempo de resolución según la pestaña (por agencia o por gravedad). */
+  get mttrChart(): any {
+    if (this.mttrTab === 'gravedad') {
+      return this.tecnicoData?.chartMttrGravedad ?? this.tecnicoData?.chartMttrAgencia ?? null;
+    }
+    return this.tecnicoData?.chartMttrAgencia ?? this.tecnicoData?.chartMttrGravedad ?? null;
+  }
+
+  /** Explica en qué se basa el promedio y sobre cuántos incidentes resueltos se calculó. */
+  get mttrSubtitulo(): string {
+    const items: any[] = (this.mttrTab === 'gravedad' ? this.tecnicoData?.mttrGravedad : this.tecnicoData?.mttrAgencia) ?? [];
+    const resueltos = items.reduce((sum, x) => sum + (Number(x.incidentes) || 0), 0);
+    if (!resueltos) return 'Sin incidentes resueltos en el período';
+    const base = this.mttrTab === 'gravedad'
+      ? 'Horas promedio hasta resolver, por gravedad'
+      : 'Horas promedio hasta resolver, por agencia (de más lenta a más rápida)';
+    return `${base} · ${resueltos} incidente${resueltos === 1 ? '' : 's'} resuelto${resueltos === 1 ? '' : 's'}`;
+  }
+
+  /** ¿Hay datos para el gráfico unificado de agencias? */
+  get tieneAgenciasChart(): boolean {
+    return !!(this.produccion?.topAgenciasProductivas || this.produccion?.gananciaNetaAgencias || this.produccion?.topAgenciasReparaciones);
+  }
+
+  /** Datos del gráfico de agencias; si la serie elegida no existe, cae a otra disponible. */
+  get chartAgenciasActivo(): any {
+    const productivas = this.produccion?.topAgenciasProductivas;
+    const ganancia = this.produccion?.gananciaNetaAgencias;
+    const reparaciones = this.produccion?.topAgenciasReparaciones;
+    if (this.agenciasTab === 'ganancia') return ganancia ?? reparaciones ?? productivas;
+    if (this.agenciasTab === 'reparaciones') return reparaciones ?? ganancia ?? productivas;
+    return productivas ?? ganancia ?? reparaciones;
+  }
+
+  get agenciasSubtitulo(): string {
+    switch (this.agenciasTab) {
+      case 'ganancia': return 'Ingresos − gastos operativos del período';
+      case 'reparaciones': return 'USD acumulado en incidentes técnicos del período';
+      default: return 'Servicios del período por agencia';
+    }
+  }
+
+  /** Top Vehículos en formato distribución (dona + lista): serie elegida entre marca · modelo · color. */
+  get vehiculosItems(): DistributionItem[] {
+    const marcas = this.itemsDeChart(this.produccion?.topMarcas);
+    const modelos = this.itemsDeChart(this.produccion?.topMarcasModelos);
+    const colores = this.coloresItems;
+    if (this.vehiculosTab === 'modelos') return modelos.length ? modelos : (marcas.length ? marcas : colores);
+    if (this.vehiculosTab === 'colores') return colores.length ? colores : (marcas.length ? marcas : modelos);
+    return marcas.length ? marcas : (modelos.length ? modelos : colores);
+  }
+
+  get vehiculosSubtitulo(): string {
+    switch (this.vehiculosTab) {
+      case 'modelos': return 'Marca · modelo más frecuentes';
+      case 'colores': return 'Vehículos atendidos por color';
+      default: return 'Marcas más frecuentes';
+    }
+  }
+
+  private itemsDeChart(chart: any): DistributionItem[] {
+    const labels: string[] = chart?.labels ?? [];
+    const data: number[] = chart?.datasets?.[0]?.data ?? [];
+    return labels.map((nombre, i) => ({ nombre, valor: Number(data[i]) || 0 }));
   }
 
   /** Heatmap día × hora del período (dentro de la jerarquía). */
@@ -238,11 +415,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   get rankingBottomItems(): TopBottomItem[] {
     return (this.produccion?.rankingBottom ?? []).map((x: any) => ({ nombre: x.nombre, cantidad: Number(x.cantidad) || 0, tiempoPromedioMin: x.tiempoPromedioMin }));
-  }
-
-  /** Ranking de agencias por ganancia neta (para la lista con barras). */
-  get agenciasGananciaItems(): RankingItem[] {
-    return (this.produccion?.agenciasGanancia ?? []).map((a: any) => ({ nombre: a.nombre, valor: Number(a.ganancia) || 0 }));
   }
 
   /** Ranking de agencias por gasto en reparaciones (para la lista con barras). */
@@ -317,11 +489,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
   /** Administrador o Super Admin: paneles nacionales con drill-down (mismo tratamiento visual). */
   get esAnaliticaGlobal(): boolean {
     return this.isAdminView || this.isSuperAdminView;
-  }
-
-  /** ¿Se muestra el gráfico de Top Agencias Productivas? (define el empaquetado de la grilla) */
-  get mostrarTopAgenciasProductivas(): boolean {
-    return (this.isAdminView || this.isSuperAdminView || this.isSupervisorView) && !!this.produccion?.topAgenciasProductivas;
   }
 
   get chart1Title(): string {
@@ -402,10 +569,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
     return !!this.regionFiltro || !!this.agenciaFiltro || !!this.pulidorFiltro || this.rangoFiltro !== 'HOY';
   }
 
-  // ── Filtros exclusivos: solo se habilita una dimensión cuando el panel está en GLOBAL ──
-  get regionHabilitada(): boolean { return this.activeDimension === 'GLOBAL'; }
-  get agenciaHabilitada(): boolean { return this.activeDimension === 'GLOBAL'; }
-  get pulidorHabilitado(): boolean { return this.activeDimension === 'GLOBAL'; }
+  // ── Filtros exclusivos: se habilita GLOBAL y la propia dimensión activa ──
+  get regionHabilitada(): boolean { return this.activeDimension === 'GLOBAL' || this.activeDimension === 'REGION'; }
+  get agenciaHabilitada(): boolean { return this.activeDimension === 'GLOBAL' || this.activeDimension === 'AGENCY'; }
+  get pulidorHabilitado(): boolean { return this.activeDimension === 'GLOBAL' || this.activeDimension === 'POLISHER'; }
   /** true mientras hay una dimensión estructural distinta a GLOBAL (para el botón de reset). */
   get hayDimensionEstructural(): boolean { return this.activeDimension !== 'GLOBAL'; }
 

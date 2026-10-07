@@ -1,7 +1,7 @@
 import { Component, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { LucideAngularModule } from 'lucide-angular';
-import { CHART_SERIES } from '../../theme/colors';
+import { CHART_CATEGORICAL } from '../../theme/colors';
 
 /** Segmento de la distribución: nombre, valor y color opcional. */
 export interface DistributionItem {
@@ -94,6 +94,6 @@ export class DistributionCardComponent {
   }
 
   colorDe(it: DistributionItem, i: number): string {
-    return it.color || CHART_SERIES[i % CHART_SERIES.length];
+    return it.color || CHART_CATEGORICAL[i % CHART_CATEGORICAL.length];
   }
 }

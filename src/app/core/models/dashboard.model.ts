@@ -38,6 +38,24 @@ export interface DashboardTecnicoData {
   chartTipoMantenimiento?: DashboardChartData | null;
   chartTipoMaquinaria?: DashboardChartData | null;
   proxMantenimientos?: any[];
+  // Costos y fiabilidad del parque
+  costoMantenimientos30d?: number;
+  mantenimientosVencidos?: number;
+  chartCostoTipoMantenimiento?: DashboardChartData | null;
+  chartCostoPorAgencia?: DashboardChartData | null;
+  /** Tiempo medio de resolución por gravedad (BAJA · MEDIA · ALTA · CRÍTICA). */
+  chartMttrGravedad?: DashboardChartData | null;
+  /** Tiempo medio de resolución por agencia, de la más lenta a la más rápida. */
+  chartMttrAgencia?: DashboardChartData | null;
+  mttrGravedad?: MttrItem[];
+  mttrAgencia?: MttrItem[];
+}
+
+/** Tiempo medio de resolución: horas promedio e incidentes resueltos que lo respaldan. */
+export interface MttrItem {
+  nombre: string;
+  horas: number;
+  incidentes: number;
 }
 
 export interface DashboardDistribuidorData {

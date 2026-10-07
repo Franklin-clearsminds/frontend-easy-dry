@@ -11,22 +11,20 @@ import { LucideAngularModule } from 'lucide-angular';
   standalone: true,
   imports: [CommonModule, LucideAngularModule],
   template: `
-    <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry p-6 h-full flex flex-col">
+    <div [ngClass]="sinTarjeta ? 'flex-1 flex flex-col' : 'bg-white rounded-2xl border border-slate-100 shadow-easydry p-6 h-full flex flex-col'">
+      @if (!sinTarjeta) {
       <div class="flex items-start justify-between gap-3 mb-4">
         <div class="min-w-0">
           <h4 class="font-bold text-slate-900 text-base font-outfit">{{ titulo }}</h4>
           @if (subtitulo) { <p class="text-xs text-slate-500 mt-0.5">{{ subtitulo }}</p> }
         </div>
-        <div class="flex items-center gap-2 shrink-0">
-          <span class="text-[10px] font-semibold text-slate-400">Menos</span>
-          <div class="flex gap-0.5">
-            @for (n of [0,1,2,3,4]; track n) {
-              <span class="w-3 h-3 rounded-sm" [style.background]="colorEscala(n / 4)"></span>
-            }
-          </div>
-          <span class="text-[10px] font-semibold text-slate-400">Más</span>
-        </div>
+        <ng-container *ngTemplateOutlet="leyenda"></ng-container>
       </div>
+      } @else if (total > 0) {
+      <div class="flex justify-end mb-3">
+        <ng-container *ngTemplateOutlet="leyenda"></ng-container>
+      </div>
+      }
 
       @if (total > 0) {
         <div class="overflow-x-auto flex-1">
@@ -62,6 +60,18 @@ import { LucideAngularModule } from 'lucide-angular';
         </div>
       }
     </div>
+
+    <ng-template #leyenda>
+      <div class="flex items-center gap-2 shrink-0">
+        <span class="text-[10px] font-semibold text-slate-400">Menos</span>
+        <div class="flex gap-0.5">
+          @for (n of [0,1,2,3,4]; track n) {
+            <span class="w-3 h-3 rounded-sm" [style.background]="colorEscala(n / 4)"></span>
+          }
+        </div>
+        <span class="text-[10px] font-semibold text-slate-400">Más</span>
+      </div>
+    </ng-template>
   `,
 })
 export class HeatmapGridComponent {
@@ -70,6 +80,8 @@ export class HeatmapGridComponent {
   @Input() dias: string[] = [];
   @Input() horas: string[] = [];
   @Input() matriz: number[][] = [];
+  /** Sin marco propio: renderiza solo la matriz, para incrustarla dentro de otra tarjeta. */
+  @Input() sinTarjeta = false;
 
   get total(): number {
     return this.matriz.reduce((sum, fila) => sum + fila.reduce((a, b) => a + b, 0), 0);
