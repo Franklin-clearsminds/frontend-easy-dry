@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { LucideAngularModule } from 'lucide-angular';
 import { AuthService } from '../../core/services/auth.service';
 import { StorageUploadService } from '../../core/services/storage-upload.service';
+import { ESCALA_POR_PRESET, ETIQUETA_PRESET, UiScalePreset, UiScaleService } from '../../core/services/ui-scale.service';
 import { isRealProfilePhoto } from '../../core/config/env';
 import { ToastService } from '../../shared/services/toast.service';
 import { ROLE_LABELS, UsuarioAuth } from '../../core/models/roles.model';
@@ -304,6 +305,34 @@ import { ImageCropModalComponent } from '../../shared/components/image-crop-moda
             </div>
           </div>
 
+          <!-- Preferencias de visualización: escala general de texto, íconos y espaciado. Preferencia
+               local del dispositivo (no viaja al servidor), igual que el tamaño de letra del sistema. -->
+          <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry overflow-hidden">
+            <div class="p-5 border-b border-slate-100">
+              <h3 class="font-bold text-slate-900 flex items-center gap-2 text-sm">
+                <i-lucide aria-hidden="true" name="sliders" class="w-5 h-5 text-slate-600"></i-lucide>
+                Preferencias de Visualización
+              </h3>
+            </div>
+
+            <div class="p-6 space-y-3">
+              <p class="text-xs text-slate-600 leading-relaxed">
+                Ajusta el tamaño general de texto, íconos y espaciado de todo el panel. Se guarda en este
+                dispositivo.
+              </p>
+              <div class="flex justify-start">
+                <button
+                  type="button"
+                  (click)="siguienteEscala()"
+                  [attr.aria-label]="'Tamaño actual: ' + etiquetaEscalaActual() + '. Toca para cambiar al siguiente tamaño.'"
+                  class="flex items-center gap-2 pl-3 pr-4 py-2 rounded-xl border border-easydry-blue bg-easydry-blue text-white text-xs font-bold transition-colors cursor-pointer hover:bg-easydry-blue-dark">
+                  <i-lucide aria-hidden="true" name="refresh-cw" class="w-3.5 h-3.5"></i-lucide>
+                  {{ etiquetaEscalaActual() }}
+                </button>
+              </div>
+            </div>
+          </div>
+
         </div>
       </div>
 
@@ -425,8 +454,28 @@ export class PerfilComponent implements OnInit {
   private authService = inject(AuthService);
   private storageUpload = inject(StorageUploadService);
   private toastService = inject(ToastService);
+  private uiScaleService = inject(UiScaleService);
 
   currentUser: UsuarioAuth | null = this.authService.getCurrentUser();
+
+  readonly opcionesEscala: Array<{ valor: UiScalePreset; etiqueta: string }> = (
+    Object.keys(ESCALA_POR_PRESET) as UiScalePreset[]
+  ).map((valor) => ({ valor, etiqueta: ETIQUETA_PRESET[valor] }));
+
+  get escalaActual(): UiScalePreset {
+    return this.uiScaleService.preset;
+  }
+
+  etiquetaEscalaActual(): string {
+    return ETIQUETA_PRESET[this.escalaActual];
+  }
+
+  /** Ciclo Pequeño → Normal → Grande → Extra grande → Pequeño... en cada clic. */
+  siguienteEscala(): void {
+    const indiceActual = this.opcionesEscala.findIndex((o) => o.valor === this.escalaActual);
+    const siguiente = this.opcionesEscala[(indiceActual + 1) % this.opcionesEscala.length];
+    this.uiScaleService.establecer(siguiente.valor);
+  }
   
   isAdmin = false;
   modoEdicion = false;
