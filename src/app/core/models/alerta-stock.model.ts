@@ -24,6 +24,10 @@ export interface AlertaStockVM {
   categoria?: string;
   /** Agencia o pulidor que originó la alerta. */
   origen: string | null;
+  /** Agencia a la que pertenece la alerta (explícita: en incidentes, `origen` es la máquina). */
+  agencia?: string | null;
+  /** Pulidor relacionado: dueño del kit (stock) o quien reportó el incidente. */
+  pulidor?: string | null;
   region: string | null;
   mensaje: string;
   fecha: string;

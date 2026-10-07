@@ -30,6 +30,38 @@ export class DashboardOperativoService {
   }
 
   /**
+   * Tipos de solicitud de aprobación: en la BDD se guardan como códigos (`SERVICIO_ESPECIAL_PRECIO`) y el
+   * gráfico los mostraba en crudo. `tipo` es un String libre, así que un código no catalogado se humaniza
+   * igualmente en vez de aparecer tal cual.
+   */
+  private readonly ETIQUETA_TIPO_SOLICITUD: Record<string, string> = {
+    SERVICIO_ESPECIAL_PRECIO: 'Precio de servicio especial',
+    DESPACHO_QUIMICOS: 'Despacho de químicos',
+    AJUSTE_MERMA: 'Ajuste de merma',
+    COMPRA_REPUESTO: 'Compra de repuesto',
+    REASIGNACION: 'Reasignación de operador',
+    DESCUENTO: 'Descuento',
+    CREDITO: 'Crédito',
+    ANULACION: 'Anulación',
+    CORTESIA: 'Cortesía',
+  };
+
+  /** Convierte `[ { nombre, cantidad } ]` del backend en ítems legibles para la tarjeta de distribución. */
+  private etiquetarTiposSolicitud(items: any[] | undefined | null): { nombre: string; valor: number }[] {
+    if (!Array.isArray(items)) return [];
+    return items.map((t) => ({
+      nombre: this.ETIQUETA_TIPO_SOLICITUD[t?.nombre] ?? this.humanizarCodigo(t?.nombre),
+      valor: Number(t?.cantidad) || 0,
+    }));
+  }
+
+  private humanizarCodigo(codigo: string): string {
+    if (!codigo) return 'Sin tipo';
+    const texto = codigo.replace(/_/g, ' ').toLowerCase();
+    return texto.charAt(0).toUpperCase() + texto.slice(1);
+  }
+
+  /**
    * Producción del día (POST /analytics/dashboard).
    */
   getProduccion(filtro: any = {}): Observable<any> {
@@ -88,7 +120,7 @@ export class DashboardOperativoService {
           }
         }
 
-        const barSrc = isAdmin ? data?.distribucionDecisiones : (isAprobador ? data?.distribucionTipos : (isComercial ? data?.solicitudesComerciales : data?.distribucionBahias));
+        const barSrc = isAdmin ? data?.distribucionDecisiones : (isAprobador ? this.etiquetarTiposSolicitud(data?.distribucionTipos) : (isComercial ? data?.solicitudesComerciales : data?.distribucionBahias));
         const barLabel = isAdmin ? 'Veces' : (isAprobador ? 'Solicitudes' : (isComercial ? 'Cantidad' : 'Lavados'));
         const barValueField = isComercial || isAprobador ? 'cantidad' : 'total';
         const distribucionModelos = toBarChart(barSrc, 'nombre', barValueField, barLabel);
@@ -102,14 +134,7 @@ export class DashboardOperativoService {
         const donaSecSrc = isAdmin ? data?.distribucionCategorias : (isAprobador ? data?.distribucionTipos : (isComercial ? data?.solicitudesComerciales : data?.incidentesPorTipo));
         const incidentesPorTipo = toDonutChart(donaSecSrc, 'nombre', isAdmin ? 'total' : 'cantidad');
 
-        const bData = data?.bahias || data?.distribucionBahias || data?.tiemposAgencias;
-        const chartBahias = bData && bData.length > 0 ? {
-          labels: bData.map((b: any) => truncateLabel(b.nombre)),
-          datasets: [
-            { label: 'Servicios', data: bData.map((b: any) => b.cantidad ?? b.total ?? 0), backgroundColor: coloresCategoricos(bData.length) },
-            { label: 'Tiempo prom. (min)', data: bData.map((b: any) => b.tiempoPromedioMin ?? 0), backgroundColor: CHART_COLORS.amber },
-          ],
-        } : null;
+
 
         return {
           isAdminView: isAdmin, isSupervisorView: isSupervisor, isComercialView: isComercial, isAprobadorView: isAprobador, isSuperAdminView: data?.isSuperAdminView ?? false,
@@ -127,14 +152,14 @@ export class DashboardOperativoService {
           // Atributos del vehículo.
           topColores: toBarChart(data?.topColores, 'nombre', 'cantidad', 'Frecuencia'),
           topMarcasModelos: toBarChart(data?.topMarcasModelos, 'nombre', 'cantidad', 'Frecuencia'),
-          // Tiempos por agencia o bahías
-          chartBahias,
-          // Agencias: Rentabilidad y reparaciones
+
+          // Agencias: Rentabilidad y reparaciones. Los insumos NO se apilan aquí: su costo del catálogo es por
+          // envase y el consumo está en unidad base, así que el monto inflaba la ganancia neta (medido: 340%
+          // de los ingresos). El consumo de insumos se sigue viendo en unidades en sus propias tarjetas.
           topAgenciasRentabilidad: data?.topAgenciasRentabilidad ? {
             labels: data.topAgenciasRentabilidad.map((x: any) => truncateLabel(x.nombre)),
             datasets: [
               { label: 'Ingresos', stack: 'ingresos', data: data.topAgenciasRentabilidad.map((x: any) => x.ingresos), backgroundColor: CHART_COLORS.green },
-              { label: 'Insumos', stack: 'gastos', data: data.topAgenciasRentabilidad.map((x: any) => x.costoInsumos ?? 0), backgroundColor: CHART_COLORS.amber },
               { label: 'Reparaciones (fallas)', stack: 'gastos', data: data.topAgenciasRentabilidad.map((x: any) => x.costoIncidentes ?? 0), backgroundColor: CHART_COLORS.rose },
               { label: 'Mantenimiento', stack: 'gastos', data: data.topAgenciasRentabilidad.map((x: any) => x.costoMantenimientos ?? 0), backgroundColor: CHART_COLORS.blue }
             ]
@@ -172,13 +197,17 @@ export class DashboardOperativoService {
               { label: 'Tiempo prom. (min)', data: data.jerarquia.desglose.map((d: any) => d.tiempoPromedioMin ?? 0), backgroundColor: CHART_COLORS.amber },
             ],
           } : null,
-          topMaquinas: data?.topMaquinasDañadas && data.topMaquinasDañadas.length > 0 ? { labels: data.topMaquinasDañadas.map((m: any) => m.nombre.split('-')[0].trim()), datasets: [{ label: 'Incidentes', data: data.topMaquinasDañadas.map((m: any) => m.total), backgroundColor: coloresCategoricos(data.topMaquinasDañadas.length).reverse() }] } : null,
+          topMaquinas: data?.topMaquinasDañadas && data.topMaquinasDañadas.length > 0 ? { labels: data.topMaquinasDañadas.map((m: any) => m.nombre.split('-')[0].trim() + (m.agencia ? ` (${m.agencia})` : '')), datasets: [{ label: 'Incidentes', data: data.topMaquinasDañadas.map((m: any) => m.total), backgroundColor: coloresCategoricos(data.topMaquinasDañadas.length).reverse() }] } : null,
           topAgencias: toBarChart(data?.topAgenciasIncidentes, 'nombre', 'total', 'Incidentes'),
+          topPulidores: toBarChart(data?.topPulidoresIncidentes, 'nombre', 'total', 'Incidentes'),
+          // Fallas por gravedad. Reemplaza al antiguo "Ubicación de Daños", que repetía el MISMO desglose por
+          // agencia que el gráfico de incidentes (el modelo IncidenteTecnico no tiene una ubicación del daño).
+          incidentesPorGravedad: toDonutChart(data?.incidentesPorGravedad, 'nombre', 'cantidad'),
           agenciasIncidentesRaw: data?.topAgenciasIncidentes,
           chartAprobaciones: data?.chartAprobaciones || null,
           metricasAprobaciones: data?.metricasAprobaciones ? {
             kpis: data.metricasAprobaciones.kpis,
-            tiposCount: toDonutChart(data.metricasAprobaciones.distribucionTipos, 'nombre', 'cantidad'),
+            tiposItems: this.etiquetarTiposSolicitud(data.metricasAprobaciones.distribucionTipos),
             flujoSolicitudes: data.metricasAprobaciones.flujoEstadosPorDia ? {
               labels: Object.keys(data.metricasAprobaciones.flujoEstadosPorDia).sort(),
               datasets: [
@@ -352,6 +381,8 @@ export class DashboardOperativoService {
       estado: String(a?.estado || ''),
       insumo: a?.detalle || '',
       origen: a?.origen || null,
+      agencia: a?.agencia ?? null,
+      pulidor: a?.pulidor ?? null,
       region: a?.region || null,
       mensaje: a?.detalle || '',
       fecha: fechaObj ? fechaObj.toLocaleDateString('es-EC', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '',
@@ -487,13 +518,13 @@ export class DashboardOperativoService {
           chartDespachosEstado: toDonut(d?.despachosEstado, 'nombre', 'cantidad'),
           chartConsumoPorCategoria: toBar(d?.consumoPorCategoria, 'nombre', 'cantidad', 'Unidades'),
           chartTopAgenciasConsumo: toBar(d?.topAgenciasConsumo, 'nombre', 'cantidad', 'Unidades'),
-          chartValorStockPorCategoria: toBar(d?.valorStockPorCategoria, 'nombre', 'cantidad', 'Valor USD'),
+          chartUnidadesStockPorCategoria: toBar(d?.unidadesStockPorCategoria, 'nombre', 'cantidad', 'Unidades'),
           ...this.mapSaludInventario(d),
         };
       }),
       catchError((err) => {
         this.avisarErrorCarga('No se pudo cargar el dashboard de bodega', err);
-        return of({ kpis: {}, chartNivelAlertas: null, chartTopInsumosCriticos: null, chartDespachosEstado: null, chartConsumoPorCategoria: null });
+        return of({ kpis: {}, chartNivelAlertas: null, chartTopInsumosCriticos: null, chartDespachosEstado: null, chartConsumoPorCategoria: null, chartUnidadesStockPorCategoria: null });
       })
     );
   }
@@ -536,8 +567,10 @@ export class DashboardOperativoService {
         datasets: [{ label: 'Días de cobertura', data: cob.map((x) => x.dias), backgroundColor: cob.map((x) => x.dias < 7 ? CHART_COLORS.rose : x.dias < 15 ? CHART_COLORS.amber : CHART_COLORS.green) }],
       } : null,
       chartTopDeficit: def.length ? {
-        labels: def.map((x) => x.nombre),
-        datasets: [{ label: 'Costo de reposición USD', data: def.map((x) => x.costoReposicionUSD), backgroundColor: coloresCategoricos(def.length) }],
+        // Cada barra es un insumo, así que el símbolo de su unidad de medida va en la etiqueta: el faltante
+        // se mide en la unidad base del insumo (und, ml) y no se convierte a USD.
+        labels: def.map((x) => `${x.nombre} · ${x.unidad}`),
+        datasets: [{ label: 'Unidades a reponer', data: def.map((x) => x.unidades), backgroundColor: coloresCategoricos(def.length) }],
       } : null,
       chartAlertasCategoriaNivel: alc.length ? {
         labels: alc.map((x) => x.nombre),
@@ -682,9 +715,9 @@ export class DashboardOperativoService {
             { label: 'Servicios del Mes', value: String(k.serviciosCompletadosMes ?? 0), icon: 'bar-chart-2', variant: 'primary' },
             { label: 'Tiempo Promedio', value: k.tiempoPromedioServicioMin > 0 ? `${k.tiempoPromedioServicioMin} min` : 'Sin datos', icon: 'clock', variant: 'warning' },
             // Salud del negocio
-            { label: 'Costo Reparaciones (30d)', value: `$${k.costoReparaciones30d ?? 0}`, icon: 'wrench', variant: 'warning' },
-            { label: 'Valor Inventario', value: `$${k.valorInventarioUSD ?? 0}`, icon: 'package', variant: 'primary' },
-            { label: 'Inventario en Tránsito', value: `$${k.valorEnTransitoUSD ?? 0}`, icon: 'truck', variant: 'warning' },
+            { label: 'Costo Reparaciones', value: `$${k.costoReparaciones30d ?? 0}`, icon: 'wrench', variant: 'warning' },
+            { label: 'Inventario', value: `${k.unidadesInventario ?? 0} u.`, icon: 'package', variant: 'primary', tooltip: 'Unidades en stock del alcance' },
+            { label: 'Inventario en Tránsito', value: `${k.unidadesEnTransito ?? 0} u.`, icon: 'truck', variant: 'warning', tooltip: 'Unidades despachadas sin recibir' },
           ]};
         }
 
@@ -695,19 +728,19 @@ export class DashboardOperativoService {
             { label: 'Aprobadas', value: String(k.aprobadasHoy ?? 0), icon: 'check-circle', variant: 'success' },
             { label: 'Rechazadas', value: String(k.rechazadasHoy ?? 0), icon: 'x-circle', variant: 'danger' },
             { label: 'Anuladas Hoy', value: String(k.anuladasHoy ?? 0), icon: 'shield-x', variant: 'danger' },
-            { label: 'Descuentos fuera de rango (30d)', value: String(k.descuentosFueraDeRango ?? 0), icon: 'shield-alert', variant: 'danger' },
+            { label: 'Descuentos fuera de rango', value: String(k.descuentosFueraDeRango ?? 0), icon: 'shield-alert', variant: 'danger' },
           ]};
         }
 
         if (data.isComercialView) {
           return { kpis: [
             { label: 'Lavados Hoy', value: String(k.serviciosHoy ?? 0), icon: 'car', variant: 'primary' },
-            { label: 'Lavados 30 días', value: String(k.servicios30Dias ?? 0), icon: 'bar-chart-2', variant: 'success' },
+            { label: 'Lavados del período', value: String(k.servicios30Dias ?? 0), icon: 'bar-chart-2', variant: 'success' },
             { label: 'Descuentos Pendientes', value: String(k.descuentosPendientes ?? 0), icon: 'clock', variant: 'warning' },
-            { label: 'Costo Químicos (30d)', value: k.costoQuimicos30d > 0 ? `$${k.costoQuimicos30d}` : '$0', icon: 'dollar-sign', variant: 'primary' },
-            { label: 'Cumplimiento SLA (30d)', value: slaTexto, icon: 'shield-check', variant: slaVariant, tooltip: '% de vehículos entregados dentro del tiempo prometido' },
+            { label: 'Químicos Consumidos', value: `${k.unidadesQuimicos ?? 0} u.`, icon: 'droplet', variant: 'primary', tooltip: 'Unidades de insumos consumidas en el período' },
+            { label: 'Cumplimiento SLA', value: slaTexto, icon: 'shield-check', variant: slaVariant, tooltip: '% de vehículos entregados dentro del tiempo prometido' },
             { label: 'Desviación vs Estimado', value: desviacionTexto, icon: 'clock', variant: 'warning', tooltip: 'Promedio de minutos de adelanto (-) o retraso (+) vs lo esperado' },
-            { label: '% Premium/Especiales (30d)', value: k.premiumPct === null || k.premiumPct === undefined ? 'Sin datos' : `${k.premiumPct}%`, icon: 'sparkles', variant: 'primary', tooltip: 'Porcentaje de servicios que pertenecen al catálogo Especial/Premium' },
+            { label: '% Premium/Especiales', value: k.premiumPct === null || k.premiumPct === undefined ? 'Sin datos' : `${k.premiumPct}%`, icon: 'sparkles', variant: 'primary', tooltip: 'Porcentaje de servicios que pertenecen al catálogo Especial/Premium' },
           ]};
         }
 

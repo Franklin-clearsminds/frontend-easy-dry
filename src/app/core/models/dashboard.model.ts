@@ -33,7 +33,10 @@ export interface DashboardTecnicoData {
   chartEstadoParque?: DashboardChartData | null;
   chartGravedadIncidentes?: DashboardChartData | null;
   chartEstadoIncidentes?: DashboardChartData | null;
+  /** Fallas por gravedad (BAJA/MEDIA/ALTA/CRITICA) del parque de maquinaria. */
+  incidentesPorGravedad?: DashboardChartData | null;
   chartTopMaquinas?: DashboardChartData | null;
+  topPulidores?: DashboardChartData | null;
   chartCostoMaquinas?: DashboardChartData | null;
   chartTipoMantenimiento?: DashboardChartData | null;
   chartTipoMaquinaria?: DashboardChartData | null;

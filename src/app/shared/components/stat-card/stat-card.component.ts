@@ -18,7 +18,8 @@ import { getKpiDescription } from './kpi-descriptions';
           <i-lucide [name]="icon" class="w-5 h-5" [ngClass]="iconColorClass" aria-hidden="true"></i-lucide>
         </div>
         @if (badge) {
-          <span class="px-3 py-1 rounded-full bg-slate-50/80 backdrop-blur text-[10px] font-bold uppercase tracking-wider text-slate-400 shadow-sm border border-slate-100/50">{{ badge }}</span>
+          <span class="px-3 py-1 rounded-full bg-slate-50/80 backdrop-blur text-[10px] font-bold uppercase tracking-wider text-slate-400 shadow-sm border border-slate-100/50 max-w-[62%] min-w-0 truncate"
+            [attr.title]="badge">{{ badge }}</span>
         }
       </div>
 
@@ -34,7 +35,7 @@ import { getKpiDescription } from './kpi-descriptions';
           </div>
         }
       </div>
-      <h3 class="text-3xl font-bold tracking-tight text-slate-800 relative z-10">{{ value }}</h3>
+      <h3 class="text-3xl font-bold tracking-tight text-slate-800 relative z-10 break-words leading-tight">{{ value }}</h3>
 
       @if (subtitle) {
         <p class="text-xs text-slate-400 mt-auto pt-4 flex items-center gap-1.5 relative z-10">

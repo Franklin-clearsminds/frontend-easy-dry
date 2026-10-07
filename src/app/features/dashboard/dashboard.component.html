@@ -110,9 +110,26 @@
         </div>
         }
 
+        <!-- Filtro de tipo de servicio: continuo, se combina con dimensión y fechas. El ancho da espacio al
+             texto más largo ("Servicios especiales") sin recortarlo en el control nativo. -->
+        <div class="relative w-48">
+          <select [ngModel]="categoriaServicio" (ngModelChange)="onCategoriaServicioChange($event)"
+            aria-label="Tipo de servicio" [attr.title]="etiquetaCategoriaServicio"
+            class="w-full h-10 pl-3 pr-8 rounded-xl border text-sm font-semibold outline-none focus:border-easydry-blue appearance-none cursor-pointer"
+            [ngClass]="categoriaServicio === 'TODOS' ? 'border-slate-200 text-slate-700 bg-white hover:bg-slate-50' : 'border-easydry-green text-easydry-green-text bg-easydry-green/10'">
+            @for (c of categoriasServicio; track c.id) {
+              <option [value]="c.id">{{ c.label }}</option>
+            }
+          </select>
+          <div class="absolute right-3 top-0 bottom-0 flex items-center pointer-events-none">
+            <i-lucide name="layers" class="w-4 h-4" [ngClass]="categoriaServicio === 'TODOS' ? 'text-slate-400' : 'text-easydry-green-text'"></i-lucide>
+          </div>
+        </div>
+
         <!-- Dropdown de Periodo Global -->
         <div class="relative w-40">
           <select [ngModel]="rangoFiltro" (ngModelChange)="onRangoChange($event)" aria-label="Periodo del dashboard"
+            [attr.title]="etiquetaRango"
             class="w-full h-10 pl-3 pr-8 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 outline-none focus:border-easydry-blue appearance-none bg-white hover:bg-slate-50 cursor-pointer">
             @for (r of rangos; track r.id) {
               <option [value]="r.id">{{ r.label }}</option>
@@ -259,19 +276,41 @@
     <div class="grid grid-cols-1 lg:grid-cols-12 grid-flow-dense gap-6 mb-8">
 
       <!-- Drill-down adaptativo (protagonista): cambia de nivel según el filtro estructural -->
-      @if (esAnaliticaGlobal && produccion?.jerarquiaChart) {
+      @if (esAnaliticaGlobal) {
       <div [ngClass]="spanJerarquia">
-        <app-chart-card [title]="produccion.jerarquia.titulo"
-          [subtitle]="'Desglose por ' + produccion.jerarquia.entidad + ' · ' + produccion.jerarquia.kpis.registros + ' servicios · ' + produccion.jerarquia.kpis.tiempoPromedioMin + ' min promedio'"
-          type="bar" [data]="produccion.jerarquiaChart"></app-chart-card>
+        <app-chart-card [title]="produccion?.jerarquia?.titulo ?? 'Rendimiento Operativo'"
+          [subtitle]="subtituloJerarquia"
+          type="bar" [data]="produccion?.jerarquiaChart"
+          mensajeVacio="Sin servicios registrados para el nivel y los filtros seleccionados.">
+          @if (activeDimension === 'GLOBAL') {
+          <div chart-actions class="flex bg-slate-100 p-1 rounded-xl">
+            <button type="button" class="px-2.5 py-1 text-xs font-bold rounded-lg transition-colors"
+              [ngClass]="desgloseTab === 'REGION' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+              [attr.aria-pressed]="desgloseTab === 'REGION'" (click)="cambiarDesglose('REGION')">
+              Región
+            </button>
+            <button type="button" class="px-2.5 py-1 text-xs font-bold rounded-lg transition-colors"
+              [ngClass]="desgloseTab === 'AGENCY' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+              [attr.aria-pressed]="desgloseTab === 'AGENCY'" (click)="cambiarDesglose('AGENCY')">
+              Agencia
+            </button>
+            <button type="button" class="px-2.5 py-1 text-xs font-bold rounded-lg transition-colors"
+              [ngClass]="desgloseTab === 'POLISHER' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+              [attr.aria-pressed]="desgloseTab === 'POLISHER'" (click)="cambiarDesglose('POLISHER')">
+              Pulidor
+            </button>
+          </div>
+          }
+        </app-chart-card>
       </div>
       }
 
       <!-- Cuellos de botella: reemplaza el estado de órdenes, que ya se ve en los KPI y en Servicios y Calidad -->
-      @if (esAnaliticaGlobal && eficienciaChart) {
+      @if (esAnaliticaGlobal) {
       <div class="lg:col-span-4">
         <app-chart-card [title]="eficienciaTitulo" [subtitle]="eficienciaSubtitulo" type="bar" [horizontal]="true"
-          [data]="eficienciaChart"></app-chart-card>
+          [data]="eficienciaChart"
+          mensajeVacio="Sin servicios finalizados en el período para calcular tiempos."></app-chart-card>
       </div>
       } @else if (produccion?.mixServicios) {
       <div class="lg:col-span-4">
@@ -337,9 +376,10 @@
       }
 
       <!-- Top Agencias (unificado): Productivas · Ganancia Neta · Reparaciones -->
-      @if (tieneAgenciasChart) {
+      @if (tieneAgenciasChart || esAnaliticaGlobal) {
       <div [ngClass]="spanTopAgencias">
-        <app-chart-card title="Top Agencias" [subtitle]="agenciasSubtitulo" type="bar" [data]="chartAgenciasActivo">
+        <app-chart-card title="Top Agencias" [subtitle]="agenciasSubtitulo" type="bar" [data]="chartAgenciasActivo"
+          mensajeVacio="Sin agencias con actividad en el período seleccionado.">
           <div chart-actions class="flex bg-slate-100 p-1 rounded-xl">
             <button type="button" class="px-3 py-1 text-xs font-bold rounded-lg transition-colors"
               [ngClass]="agenciasTab === 'productivas' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
@@ -354,17 +394,19 @@
             <button type="button" class="px-3 py-1 text-xs font-bold rounded-lg transition-colors"
               [ngClass]="agenciasTab === 'reparaciones' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
               [attr.aria-pressed]="agenciasTab === 'reparaciones'" (click)="agenciasTab = 'reparaciones'">
-              Reparaciones
+              Gastos
             </button>
           </div>
         </app-chart-card>
       </div>
       }
 
-      @if (produccion?.distribucionModelos && (isAdminView || isAprobadorView || isComercialView)) {
+      <!-- Lavados por Bahía: se omite en la vista nacional, donde el drill-down por agencia ya baja a bahía -->
+      @if (muestraLavadosPorBahia && (produccion?.distribucionModelos || esAnaliticaGlobal)) {
       <div class="lg:col-span-12">
         <app-chart-card [title]="chart4Title" [subtitle]="chart4Subtitle" type="bar"
-          [data]="produccion.distribucionModelos"></app-chart-card>
+          [data]="produccion?.distribucionModelos"
+          mensajeVacio="Sin vehículos registrados en el período seleccionado."></app-chart-card>
       </div>
       }
     </div>
@@ -377,7 +419,7 @@
         color="azul" [items]="agenciasIncidentesItems"></app-ranking-list>
       }
       @if (agenciasReparacionesItems.length) {
-      <app-ranking-list titulo="Agencias Críticas por Reparaciones"
+      <app-ranking-list titulo="Agencias Críticas por Gastos"
         subtitulo="USD acumulado en incidentes técnicos del periodo" prefijo="$" color="rojo"
         [items]="agenciasReparacionesItems"></app-ranking-list>
       }
@@ -393,13 +435,13 @@
 
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
       @if (serviciosData?.estados; as est) {
-      <app-stat-card title="En Espera" [value]="est.enEspera" icon="clock" variant="warning"></app-stat-card>
-      <app-stat-card title="En Proceso" [value]="est.enProceso" icon="car" variant="primary"></app-stat-card>
-      <app-stat-card title="Finalizados" [value]="est.finalizados" icon="check-circle"
+      <app-stat-card [badge]="etiquetaRango" title="En Espera" [value]="est.enEspera" icon="clock" variant="warning"></app-stat-card>
+      <app-stat-card [badge]="etiquetaRango" title="En Proceso" [value]="est.enProceso" icon="car" variant="primary"></app-stat-card>
+      <app-stat-card [badge]="etiquetaRango" title="Finalizados" [value]="est.finalizados" icon="check-circle"
         variant="success"></app-stat-card>
       }
       @if (puedeVerAlertas) {
-      <app-stat-card title="Alertas Activas" [value]="alertas.length" icon="bell-ring"
+      <app-stat-card [badge]="etiquetaRango" title="Alertas Activas" [value]="alertas.length" icon="bell-ring"
         [subtitle]="alertasCriticas + ' críticas'" variant="warning"></app-stat-card>
       }
     </div>
@@ -407,29 +449,53 @@
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
       @if (puedeVerMaquinaria) {
       <app-chart-card title="Disponibilidad Equipos" subtitle="Estado de maquinaria" type="doughnut"
-        [data]="maquinaria?.distribucionEstado"></app-chart-card>
+        [data]="maquinaria?.distribucionEstado"
+        mensajeVacio="Sin maquinaria registrada para el alcance seleccionado."></app-chart-card>
       }
-      @if (serviciosData?.estados) {
       <app-chart-card title="Servicios de Hoy" subtitle="Distribución por estado" type="doughnut"
-        [data]="serviciosData.estados.chart"></app-chart-card>
-      } @else {
-      <div class="bg-white rounded-2xl p-6 border border-slate-100 shadow-easydry text-sm text-slate-500">
-        <h4 class="font-bold text-slate-900 text-base font-outfit mb-1">Servicios de Hoy</h4>
-        Sin datos disponibles.
-      </div>
-      }
-      @if (produccion?.topMaquinas) {
+        [data]="serviciosData?.estados?.chart"
+        mensajeVacio="Sin servicios registrados en el período seleccionado."></app-chart-card>
+      <!-- Fallas de maquinaria: estas tarjetas necesitan el panel operativo (incidentes por equipo, agencia y
+           gravedad). Se muestran SIEMPRE dentro de los roles que sí traen esos datos —si el filtro deja el
+           alcance sin fallas, explican el motivo en vez de desaparecer— y se ocultan para ADMIN y COMERCIAL,
+           cuyos paneles no incluyen incidentes y solo mostrarían tarjetas vacías. -->
+      @if (muestraFallasMaquinaria) {
       <app-chart-card title="Equipos Vulnerables" subtitle="Top 5 con más daños" type="bar"
-        [data]="produccion.topMaquinas"></app-chart-card>
-      }
+        [data]="produccion?.topMaquinas"
+        mensajeVacio="Sin fallas de maquinaria en el período seleccionado."></app-chart-card>
 
-      @if (produccion?.topAgencias) {
-      <app-chart-card class="lg:col-span-2" title="Incidentes por Agencia" subtitle="Fallas en los últimos 30 días"
-        type="bar" [data]="produccion.topAgencias"></app-chart-card>
-      }
-      @if (produccion?.incidentesPorTipo) {
-      <app-chart-card title="Daños por Tipo" subtitle="Distribución por categoría de máquina" type="doughnut"
-        [data]="produccion.incidentesPorTipo"></app-chart-card>
+      <app-chart-card class="lg:col-span-2" [title]="incidentesTab === 'agencia' ? 'Incidentes por Agencia' : 'Incidentes por Pulidor'" subtitle="Fallas del período seleccionado"
+        type="bar" [data]="incidentesTab === 'agencia' ? produccion?.topAgencias : produccion?.topPulidores"
+        mensajeVacio="Sin incidentes registrados en el período seleccionado.">
+        <div chart-actions class="flex bg-slate-100 p-1 rounded-xl">
+          <button class="px-3 py-1 text-[11px] font-bold rounded-lg transition-colors"
+            [ngClass]="incidentesTab === 'agencia' ? 'bg-white text-easydry-blue shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+            (click)="incidentesTab = 'agencia'">
+            Agencias
+          </button>
+          <button class="px-3 py-1 text-[11px] font-bold rounded-lg transition-colors"
+            [ngClass]="incidentesTab === 'pulidor' ? 'bg-white text-easydry-blue shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+            (click)="incidentesTab = 'pulidor'">
+            Pulidores
+          </button>
+        </div>
+      </app-chart-card>
+      <app-chart-card [title]="danosTab === 'tipo' ? 'Fallas por Tipo' : 'Fallas por Gravedad'" subtitle="Distribución de las fallas del parque: por tipo de equipo y por gravedad" type="doughnut"
+        [data]="danosTab === 'tipo' ? produccion?.incidentesPorTipo : produccion?.incidentesPorGravedad"
+        mensajeVacio="Sin fallas registradas en el período seleccionado.">
+        <div chart-actions class="flex bg-slate-100 p-1 rounded-xl">
+          <button class="px-3 py-1 text-[11px] font-bold rounded-lg transition-colors"
+            [ngClass]="danosTab === 'tipo' ? 'bg-white text-easydry-blue shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+            (click)="danosTab = 'tipo'">
+            Tipo
+          </button>
+          <button class="px-3 py-1 text-[11px] font-bold rounded-lg transition-colors"
+            [ngClass]="danosTab === 'gravedad' ? 'bg-white text-easydry-blue shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+            (click)="danosTab = 'gravedad'">
+            Gravedad
+          </button>
+        </div>
+      </app-chart-card>
       }
 
 
@@ -449,27 +515,25 @@
       <h3 class="text-lg font-bold font-outfit text-slate-800">Costos y Fiabilidad del Parque</h3>
     </div>
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-      <app-stat-card title="Costo Reparaciones" [value]="'$' + tecnicoData.costoTotalReparaciones" icon="alert-triangle"
+      <app-stat-card [badge]="etiquetaRango" title="Costo Reparaciones" [value]="'$' + tecnicoData.costoTotalReparaciones" icon="alert-triangle"
         variant="danger" subtitle="Fallas en el periodo"></app-stat-card>
-      <app-stat-card title="Costo Mantenimiento" [value]="'$' + tecnicoData.costoMantenimientos30d" icon="wrench"
+      <app-stat-card [badge]="etiquetaRango" title="Costo Mantenimiento" [value]="'$' + tecnicoData.costoMantenimientos30d" icon="wrench"
         variant="primary" subtitle="Preventivo + correctivo"></app-stat-card>
-      <app-stat-card title="Tiempo de Reparación (MTTR)" [value]="tecnicoData.tiempoPromedioResolucionHoras + ' h'" icon="clock"
+      <app-stat-card [badge]="etiquetaRango" title="Tiempo de Reparación (MTTR)" [value]="(tecnicoData.tiempoPromedioResolucionHoras ?? 0) + ' h'" icon="clock"
         variant="warning" subtitle="Promedio por incidente resuelto"></app-stat-card>
-      <app-stat-card title="Preventivos Vencidos" [value]="tecnicoData.mantenimientosVencidos" icon="calendar-clock"
+      <app-stat-card [badge]="etiquetaRango" title="Preventivos Vencidos" [value]="tecnicoData.mantenimientosVencidos" icon="calendar-clock"
         [variant]="tecnicoData.mantenimientosVencidos > 0 ? 'danger' : 'success'" subtitle="Programados y sin ejecutar"></app-stat-card>
     </div>
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-      @if (tecnicoData.chartCostoPorAgencia) {
       <app-chart-card class="lg:col-span-2" title="Costo por Agencia" subtitle="Reparaciones por fallas + mantenimiento (USD)"
-        type="bar" [stacked]="true" [data]="tecnicoData.chartCostoPorAgencia"></app-chart-card>
-      }
-      @if (tecnicoData.chartCostoTipoMantenimiento) {
+        type="bar" [data]="tecnicoData?.chartCostoPorAgencia"
+        mensajeVacio="Sin costos de reparación ni mantenimiento en el período seleccionado."></app-chart-card>
       <app-chart-card title="Gasto: Preventivo vs Correctivo" subtitle="USD invertidos por tipo de mantenimiento" type="doughnut"
-        [data]="tecnicoData.chartCostoTipoMantenimiento"></app-chart-card>
-      }
-      @if (mttrChart) {
+        [data]="tecnicoData?.chartCostoTipoMantenimiento"
+        mensajeVacio="Sin mantenimientos registrados en el período seleccionado."></app-chart-card>
       <app-chart-card class="lg:col-span-3" title="Tiempo de Resolución" [subtitle]="mttrSubtitulo" type="bar"
-        [horizontal]="true" [data]="mttrChart">
+        [horizontal]="true" [data]="mttrChart"
+        mensajeVacio="Sin tiempos que promediar con el período y los filtros actuales.">
         <div chart-actions class="flex bg-slate-100 p-1 rounded-xl">
           <button type="button" class="px-3 py-1 text-xs font-bold rounded-lg transition-colors"
             [ngClass]="mttrTab === 'agencia' ? 'bg-white text-easydry-blue shadow-sm' : 'text-slate-500 hover:text-slate-700'"
@@ -483,11 +547,9 @@
           </button>
         </div>
       </app-chart-card>
-      }
-      @if (tecnicoData.chartCostoMaquinas) {
       <app-chart-card class="lg:col-span-3" title="Máquinas más Costosas" subtitle="USD acumulado en reparaciones por equipo" type="bar"
-        [horizontal]="true" [data]="tecnicoData.chartCostoMaquinas"></app-chart-card>
-      }
+        [horizontal]="true" [data]="tecnicoData?.chartCostoMaquinas"
+        mensajeVacio="Sin costos de reparación registrados en el período seleccionado."></app-chart-card>
     </div>
     }
   </div>
@@ -499,42 +561,23 @@
     [class.hidden]="activeExecutiveTab !== 'operacion'">
 
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-      <app-stat-card title="Ganancia Neta Global" [value]="'$' + (produccion?.kpisResumen?.gananciaNetaGlobal ?? 0)" icon="dollar-sign"
+      <app-stat-card [badge]="etiquetaRango" title="Ganancia Neta Global" [value]="'$' + (produccion?.kpisResumen?.gananciaNetaGlobal ?? 0)" icon="dollar-sign"
         variant="success" subtitle="Ingresos - Gastos Operativos"></app-stat-card>
-      <app-stat-card title="Ingreso Bruto Mensual" [value]="'$' + (produccion?.kpisResumen?.ingresoMes ?? 0)" icon="calendar"
+      <app-stat-card [badge]="etiquetaRango" title="Ingreso Bruto Mensual" [value]="'$' + (produccion?.kpisResumen?.ingresoMes ?? 0)" icon="calendar"
         variant="warning" subtitle="Acumulado del mes"></app-stat-card>
-      <app-stat-card title="Ticket Promedio" [value]="'$' + (produccion?.kpisResumen?.ticketPromedioHoy ?? 0)" icon="file-text"
+      <app-stat-card [badge]="etiquetaRango" title="Ticket Promedio" [value]="'$' + (produccion?.kpisResumen?.ticketPromedioHoy ?? 0)" icon="file-text"
         variant="primary" subtitle="Promedio por vehículo"></app-stat-card>
-      <app-stat-card title="Tiempo Promedio por Ticket" [value]="(produccion?.kpisResumen?.tiempoPromedioServicioMin ?? 0) + ' min'" icon="timer"
+      <app-stat-card [badge]="etiquetaRango" title="Tiempo Promedio por Ticket" [value]="(produccion?.kpisResumen?.tiempoPromedioServicioMin ?? 0) + ' min'" icon="timer"
         variant="primary" subtitle="Minutos por servicio finalizado"></app-stat-card>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-      @if (produccion?.topAgenciasRentabilidad) {
-      <app-chart-card class="lg:col-span-2" title="Rentabilidad Operativa" subtitle="Ingresos vs Gastos y Reparaciones por Agencia" type="bar"
-        [stacked]="true" [data]="produccion.topAgenciasRentabilidad"></app-chart-card>
+      @if (produccion?.topAgenciasRentabilidad || esAnaliticaGlobal) {
+      <app-chart-card class="lg:col-span-2" title="Rentabilidad Operativa" subtitle="Ingresos vs Reparaciones y Mantenimiento por agencia (los insumos se miden en unidades aparte)" type="bar"
+        [data]="produccion?.topAgenciasRentabilidad"
+        mensajeVacio="Sin ingresos ni costos registrados en el período seleccionado."></app-chart-card>
       }
 
-      @if (chartBahiasActivo) {
-      <div class="lg:col-span-2">
-        <app-chart-card [title]="(isAdminView || isSuperAdminView) ? 'Productividad por Agencia' : 'Productividad por Bahía'"
-          [subtitle]="bahiasTab === 'lavados' ? 'Cantidad de servicios' : 'Tiempo promedio (min)'"
-          type="bar" [data]="chartBahiasActivo">
-          <div chart-actions class="flex bg-slate-100 p-1 rounded-xl">
-            <button class="px-3 py-1 text-xs font-bold rounded-lg transition-colors"
-              [ngClass]="bahiasTab === 'lavados' ? 'bg-white text-easydry-blue shadow-sm' : 'text-slate-500 hover:text-slate-700'"
-              (click)="bahiasTab = 'lavados'">
-              Lavados
-            </button>
-            <button class="px-3 py-1 text-xs font-bold rounded-lg transition-colors"
-              [ngClass]="bahiasTab === 'tiempo' ? 'bg-white text-easydry-blue shadow-sm' : 'text-slate-500 hover:text-slate-700'"
-              (click)="bahiasTab = 'tiempo'">
-              Tiempo
-            </button>
-          </div>
-        </app-chart-card>
-      </div>
-      }
 
       @if (activeMixItems.length) {
       <div class="flex flex-col lg:col-span-2">
@@ -591,43 +634,44 @@
     <!-- Resumen principal de aprobaciones -->
     @if (produccion?.metricasAprobaciones) {
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-      <app-stat-card class="h-full" title="Pendientes" 
-        [value]="produccion.metricasAprobaciones.kpis.pendientesHoy.toString()"
+      <app-stat-card [badge]="etiquetaRango" class="h-full" title="Pendientes" 
+        [value]="produccion.metricasAprobaciones.kpis?.pendientesHoy ?? 0"
         icon="clock" variant="warning"></app-stat-card>
         
-      <app-stat-card class="h-full" title="Aprobadas Hoy" 
-        [value]="produccion.metricasAprobaciones.kpis.aprobadasHoy.toString()"
+      <app-stat-card [badge]="etiquetaRango" class="h-full" title="Aprobadas Hoy" 
+        [value]="produccion.metricasAprobaciones.kpis?.aprobadasHoy ?? 0"
         icon="check-circle-2" variant="success"></app-stat-card>
         
-      <app-stat-card class="h-full" title="Rechazadas Hoy" 
-        [value]="produccion.metricasAprobaciones.kpis.rechazadasHoy.toString()"
+      <app-stat-card [badge]="etiquetaRango" class="h-full" title="Rechazadas Hoy" 
+        [value]="produccion.metricasAprobaciones.kpis?.rechazadasHoy ?? 0"
         icon="x-circle" variant="danger"></app-stat-card>
         
-      <app-stat-card class="h-full" title="Monto Aprobado (USD)" 
-        [value]="'$' + produccion.metricasAprobaciones.kpis.montoAprobadoHoy.toString()"
+      <app-stat-card [badge]="etiquetaRango" class="h-full" title="Monto Aprobado (USD)" 
+        [value]="'$' + (produccion.metricasAprobaciones.kpis?.montoAprobadoHoy ?? 0)"
         icon="dollar-sign" variant="primary"></app-stat-card>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <!-- Tipos de Solicitud -->
-      <app-chart-card *ngIf="produccion.metricasAprobaciones.tiposCount"
-        title="Tipos de Solicitud" subtitle="Distribución por categoría" type="doughnut"
-        [data]="produccion.metricasAprobaciones.tiposCount"></app-chart-card>
+      <!-- Tipos de Solicitud: qué pide la red y en qué volumen (antes se mostraba el código crudo del tipo) -->
+      <app-distribution-card titulo="Tipos de Solicitud"
+        subtitulo="Volumen de requerimientos del período, por tipo"
+        etiquetaTotal="Solicitudes"
+        [items]="produccion.metricasAprobaciones.tiposItems"></app-distribution-card>
         
       <!-- Flujo Semanal -->
-      <app-chart-card *ngIf="produccion.metricasAprobaciones.flujoSolicitudes"
-        title="Flujo de Decisiones" subtitle="Últimos 7 días" type="bar" [stacked]="true"
-        [data]="produccion.metricasAprobaciones.flujoSolicitudes"></app-chart-card>
+      <app-chart-card title="Flujo de Aprobaciones" subtitle="Día a Día" type="bar"
+        [data]="produccion.metricasAprobaciones.flujoSolicitudes"
+        mensajeVacio="Sin movimientos de solicitudes en el período seleccionado."></app-chart-card>
         
       <!-- Top Agencias -->
-      <app-chart-card *ngIf="produccion.metricasAprobaciones.topAgencias"
-        title="Top Agencias" subtitle="Sucursales con más solicitudes" type="bar" [horizontal]="true"
-        [data]="produccion.metricasAprobaciones.topAgencias"></app-chart-card>
+      <app-chart-card title="Agencias con más aprobación" subtitle="Sucursales con más solicitudes aprobadas" type="bar" [horizontal]="true"
+        [data]="produccion.metricasAprobaciones.topAgencias"
+        mensajeVacio="Sin solicitudes aprobadas en el período seleccionado."></app-chart-card>
 
       <!-- Top Solicitantes -->
-      <app-chart-card *ngIf="produccion.metricasAprobaciones.topSolicitantes"
-        title="Top Solicitantes" subtitle="Líderes con más solicitudes" type="bar" [horizontal]="true"
-        [data]="produccion.metricasAprobaciones.topSolicitantes"></app-chart-card>
+      <app-chart-card title="Líderes con más solicitudes aprobadas" subtitle="Líderes con más aprobaciones" type="bar" [horizontal]="true"
+        [data]="produccion.metricasAprobaciones.topSolicitantes"
+        mensajeVacio="Sin aprobaciones registradas en el período seleccionado."></app-chart-card>
     </div>
     } @else {
     <div class="text-center py-12 bg-white rounded-2xl shadow-sm ring-1 ring-slate-900/5">
@@ -657,13 +701,14 @@
     <!-- KPIs fijos: el pulso del inventario -->
     @if (bodegaData?.kpis) {
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-      <app-stat-card title="Bajo el Ideal" [value]="bodegaData.kpis.posicionesBajoIdeal ?? 0" icon="package-minus"
+      <app-stat-card [badge]="etiquetaRango" title="Bajo el Ideal" [value]="bodegaData.kpis.posicionesBajoIdeal ?? 0" icon="package-minus"
         variant="warning" [subtitle]="(bodegaData.kpis.pctBajoIdeal ?? 0) + '% de las posiciones de stock'"></app-stat-card>
-      <app-stat-card title="Bajo el Mínimo" [value]="bodegaData.kpis.posicionesBajoMinimo ?? 0" icon="alert-triangle"
+      <app-stat-card [badge]="etiquetaRango" title="Bajo el Mínimo" [value]="bodegaData.kpis.posicionesBajoMinimo ?? 0" icon="alert-triangle"
         variant="danger" subtitle="Agotado, crítico o bajo mínimo"></app-stat-card>
-      <app-stat-card title="Costo de Reposición" [value]="'$' + (bodegaData.kpis.costoReposicionUSD ?? 0)" icon="dollar-sign"
-        variant="primary" subtitle="USD para volver al nivel ideal"></app-stat-card>
-      <app-stat-card title="Cobertura Crítica" [value]="bodegaData.kpis.insumosCoberturaCritica ?? 0" icon="clock"
+      <app-stat-card [badge]="etiquetaRango" title="Unidades a Reponer" [value]="bodegaData.kpis.unidadesReponer ?? 0" icon="package-plus"
+        variant="primary"
+        [subtitle]="(bodegaData.kpis.insumosConDeficit ?? 0) + ' insumos · ' + (bodegaData.kpis.ubicacionesConDeficit ?? 0) + ' ubicaciones de stock'"></app-stat-card>
+      <app-stat-card [badge]="etiquetaRango" title="Cobertura Crítica" [value]="bodegaData.kpis.insumosCoberturaCritica ?? 0" icon="clock"
         [variant]="(bodegaData.kpis.insumosCoberturaCritica ?? 0) > 0 ? 'danger' : 'success'"
         subtitle="Insumos con menos de 7 días de stock"></app-stat-card>
     </div>
@@ -671,70 +716,57 @@
 
     @if (invSub === 'salud') {
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-      @if (bodegaData?.chartSaludStock) {
       <app-chart-card title="Salud del Stock" subtitle="Posiciones según mínimo e ideal" type="doughnut"
-        [data]="bodegaData.chartSaludStock"></app-chart-card>
-      }
-      @if (bodegaData?.chartAlertasCategoriaNivel) {
-      <app-chart-card class="lg:col-span-2" title="Alertas por Categoría y Nivel" subtitle="Agotado · Crítico · Bajo" type="bar" [stacked]="true"
-        [data]="bodegaData.chartAlertasCategoriaNivel"></app-chart-card>
-      }
-      @if (bodegaData?.chartSaludPorUbicacion) {
+        [data]="bodegaData?.chartSaludStock"
+        mensajeVacio="Sin posiciones de stock evaluables para el alcance seleccionado."></app-chart-card>
+      <app-chart-card class="lg:col-span-2" title="Alertas por Categoría y Nivel" subtitle="Agotado · Crítico · Bajo" type="bar"
+        [data]="bodegaData?.chartAlertasCategoriaNivel"
+        mensajeVacio="Sin alertas de stock en el alcance seleccionado."></app-chart-card>
       <div class="lg:col-span-3">
         <app-chart-card title="Ubicaciones con Stock bajo el Ideal"
           subtitle="Primero las que combinan agotado con crítico/bajo mínimo/bajo ideal · luego las más agotadas" type="bar" [horizontal]="true"
-          [stacked]="true" [data]="bodegaData.chartSaludPorUbicacion"></app-chart-card>
+          [data]="bodegaData?.chartSaludPorUbicacion"
+          mensajeVacio="Ninguna ubicación por debajo de su nivel ideal."></app-chart-card>
       </div>
-      }
-      @if (bodegaData?.chartStockVsIdeal) {
       <div class="lg:col-span-3">
         <app-chart-card title="Stock vs Mínimo vs Ideal por Categoría"
-          subtitle="Unidades totales: existencia real frente a los umbrales" type="bar" [data]="bodegaData.chartStockVsIdeal"></app-chart-card>
+          subtitle="Unidades totales: existencia real frente a los umbrales" type="bar" [data]="bodegaData?.chartStockVsIdeal"
+          mensajeVacio="Sin existencias registradas en el alcance seleccionado."></app-chart-card>
       </div>
-      }
     </div>
     }
 
     @if (invSub === 'reposicion') {
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-      @if (bodegaData?.chartCobertura) {
-      <app-chart-card title="Cobertura de Stock" subtitle="Días que dura cada insumo al ritmo de consumo de 30 días" type="bar"
-        [horizontal]="true" [data]="bodegaData.chartCobertura"></app-chart-card>
-      } @else {
-      <div class="bg-white rounded-2xl p-6 border border-slate-100 shadow-easydry text-sm text-slate-500">
-        <h4 class="font-bold text-slate-900 text-base font-outfit mb-1">Cobertura de Stock</h4>
-        Sin consumo registrado en los últimos 30 días para estimar cobertura.
-      </div>
-      }
-      @if (bodegaData?.chartTopDeficit) {
-      <app-chart-card title="Mayor Costo de Reposición" subtitle="USD para llevar cada insumo a su nivel ideal" type="bar"
-        [horizontal]="true" [data]="bodegaData.chartTopDeficit"></app-chart-card>
-      }
+      <app-chart-card title="Cobertura de Stock" subtitle="Días que dura cada insumo al ritmo de consumo diario (promedio de 30 días)" type="bar"
+        [horizontal]="true" [data]="bodegaData?.chartCobertura"
+        mensajeVacio="Sin consumo registrado en el período para estimar la cobertura."></app-chart-card>
+      <app-chart-card title="Mayor Faltante de Reposición" subtitle="Unidades que faltan para llegar al nivel ideal, en la unidad de medida de cada insumo" type="bar"
+        [horizontal]="true" [data]="bodegaData?.chartTopDeficit"
+        mensajeVacio="Ningún insumo por debajo de su nivel ideal."></app-chart-card>
     </div>
     }
 
     @if (invSub === 'despachos') {
     @if (bodegaData?.kpis) {
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-      <app-stat-card title="Alertas Activas" [value]="bodegaData.kpis.totalAlertasActivas ?? 0" icon="bell-ring"
+      <app-stat-card [badge]="etiquetaRango" title="Alertas Activas" [value]="bodegaData.kpis.totalAlertasActivas ?? 0" icon="bell-ring"
         variant="warning" subtitle="Sin resolver"></app-stat-card>
-      <app-stat-card title="Críticas / Agotadas" [value]="bodegaData.kpis.alertasCriticas ?? 0" icon="package-minus"
+      <app-stat-card [badge]="etiquetaRango" title="Críticas / Agotadas" [value]="bodegaData.kpis.alertasCriticas ?? 0" icon="package-minus"
         variant="danger" subtitle="Requieren resurtido urgente"></app-stat-card>
-      <app-stat-card title="Despachos en Tránsito" [value]="bodegaData.kpis.despachosEnTransito ?? 0" icon="truck"
+      <app-stat-card [badge]="etiquetaRango" title="Despachos en Tránsito" [value]="bodegaData.kpis.despachosEnTransito ?? 0" icon="truck"
         variant="primary" [subtitle]="(bodegaData.kpis.despachosPendientes ?? 0) + ' pendientes de envío'"></app-stat-card>
-      <app-stat-card title="Valor en Tránsito" [value]="'$' + (bodegaData.kpis.valorEnTransitoUSD ?? 0)" icon="dollar-sign"
-        variant="warning" subtitle="USD sin recibir"></app-stat-card>
+      <app-stat-card [badge]="etiquetaRango" title="Unidades en Tránsito" [value]="bodegaData.kpis.unidadesEnTransito ?? 0" icon="boxes"
+        variant="warning" subtitle="Unidades enviadas sin recibir"></app-stat-card>
     </div>
     }
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-      @if (bodegaData?.chartDespachosEstado) {
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
       <app-chart-card title="Estado de Despachos" subtitle="Pendiente · En tránsito · Recibido" type="doughnut"
-        [data]="bodegaData.chartDespachosEstado"></app-chart-card>
-      }
-      @if (bodegaData?.chartTopAgenciasConAlertas) {
-      <app-chart-card class="lg:col-span-2" title="Agencias con más Alertas" subtitle="Alertas de stock sin resolver" type="bar" [horizontal]="true"
-        [data]="bodegaData.chartTopAgenciasConAlertas"></app-chart-card>
-      }
+        [data]="bodegaData?.chartDespachosEstado"
+        mensajeVacio="Sin despachos registrados en el período seleccionado."></app-chart-card>
+      <app-chart-card title="Ubicaciones con más Alertas" subtitle="Alertas de stock sin resolver" type="bar" [horizontal]="true"
+        [data]="bodegaData?.chartTopAgenciasConAlertas"
+        mensajeVacio="Sin alertas de stock en el alcance seleccionado."></app-chart-card>
     </div>
     }
     @if (invSub === 'consumo') {
@@ -746,19 +778,16 @@
       <app-chart-card class="lg:col-span-2" title="Consumo de Insumos" subtitle="Insumos más consumidos" type="bar"
         [data]="distribuidorData?.chartConsumoInsumos"></app-chart-card>
 
-      @if (distribuidorData?.chartInsumosMenosConsumidos) {
       <app-chart-card title="Menos Consumidos" subtitle="Poco movimiento" type="bar"
-        [data]="distribuidorData.chartInsumosMenosConsumidos"></app-chart-card>
-      }
-      @if (distribuidorData?.chartConsumoPorAgencia) {
+        [data]="distribuidorData?.chartInsumosMenosConsumidos"
+        mensajeVacio="Sin insumos con poco movimiento en el período."></app-chart-card>
       <app-chart-card class="lg:col-span-2" title="Consumo por Agencia"
         subtitle="Agencias con mayor uso de insumos (unidades)" type="bar"
-        [data]="distribuidorData.chartConsumoPorAgencia"></app-chart-card>
-      }
-      @if (bodegaData?.chartValorStockPorCategoria) {
-      <app-chart-card title="Capital por Categoría" subtitle="Valor del stock (USD)" type="bar"
-        [data]="bodegaData.chartValorStockPorCategoria"></app-chart-card>
-      }
+        [data]="distribuidorData?.chartConsumoPorAgencia"
+        mensajeVacio="Sin consumo de insumos registrado en el período seleccionado."></app-chart-card>
+      <app-chart-card title="Existencias por Categoría" subtitle="Unidades de stock disponible" type="bar"
+        [data]="bodegaData?.chartUnidadesStockPorCategoria"
+        mensajeVacio="Sin existencias registradas en el alcance seleccionado."></app-chart-card>
     </div>
     }
   </div>
@@ -780,23 +809,23 @@
 
   <!-- KPIs superiores -->
   <div class="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-    <app-stat-card title="Incidentes Activos" [value]="tecnicoData.incidentesAbiertos" icon="alert-triangle"
+    <app-stat-card [badge]="etiquetaRango" title="Incidentes Activos" [value]="tecnicoData.incidentesAbiertos" icon="alert-triangle"
       variant="warning" subtitle="Abiertos + en proceso"></app-stat-card>
-    <app-stat-card title="Equipos Operativos" [value]="tecnicoData.equiposOperativos" icon="shield-check"
+    <app-stat-card [badge]="etiquetaRango" title="Equipos Operativos" [value]="tecnicoData.equiposOperativos" icon="shield-check"
       variant="success" subtitle="Parque disponible"></app-stat-card>
-    <app-stat-card title="En Mantenimiento" [value]="tecnicoData.mantenimientosPendientes" icon="calendar-clock"
+    <app-stat-card [badge]="etiquetaRango" title="En Mantenimiento" [value]="tecnicoData.mantenimientosPendientes" icon="calendar-clock"
       variant="primary" subtitle="Máquinas intervenidas"></app-stat-card>
-    <app-stat-card title="Fuera de Servicio" [value]="tecnicoData.maquinariaFueraServicio" icon="ban" variant="danger"
+    <app-stat-card [badge]="etiquetaRango" title="Fuera de Servicio" [value]="tecnicoData.maquinariaFueraServicio" icon="ban" variant="danger"
       subtitle="Baja o fuera de servicio"></app-stat-card>
   </div>
 
   <!-- Segunda fila: KPIs de eficiencia -->
   <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-    <app-stat-card title="Costo Reparaciones" [value]="'$' + tecnicoData.costoTotalReparaciones"
+    <app-stat-card [badge]="etiquetaRango" title="Costo Reparaciones" [value]="'$' + tecnicoData.costoTotalReparaciones"
       icon="dollar-sign" variant="warning" subtitle="Total en insumos y mano de obra"></app-stat-card>
-    <app-stat-card title="Tiempo Promedio Resolución" [value]="tecnicoData.tiempoPromedioResolucionHoras + ' h'"
+    <app-stat-card [badge]="etiquetaRango" title="Tiempo Promedio Resolución" [value]="(tecnicoData.tiempoPromedioResolucionHoras ?? 0) + ' h'"
       icon="clock" variant="primary" subtitle="Por incidente resuelto"></app-stat-card>
-    <app-stat-card title="Mantenimientos" [value]="tecnicoData.mantenimientosEjecutados30d" icon="wrench"
+    <app-stat-card [badge]="etiquetaRango" title="Mantenimientos" [value]="tecnicoData.mantenimientosEjecutados30d" icon="wrench"
       variant="success" subtitle="Preventivos + correctivos"></app-stat-card>
   </div>
 
@@ -876,7 +905,7 @@
       [data]="bodegaData.chartTopInsumosCriticos"></app-chart-card>
     }
     @if (bodegaData.chartTopInsumosConsumo) {
-    <app-chart-card title="Insumos Más Consumidos" subtitle="Unidades en los últimos 30 días" type="bar"
+    <app-chart-card title="Insumos Más Consumidos" subtitle="Unidades del período seleccionado" type="bar"
       [data]="bodegaData.chartTopInsumosConsumo"></app-chart-card>
     }
     @if (bodegaData.chartDespachosEstado) {
@@ -899,25 +928,25 @@
 
   <!-- KPIs del día -->
   <div class="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-    <app-stat-card title="OTs Hoy" [value]="especialesData.kpis.serviciosHoy" icon="sparkles" variant="primary"
+    <app-stat-card [badge]="etiquetaRango" title="OTs Hoy" [value]="especialesData.kpis.serviciosHoy" icon="sparkles" variant="primary"
       subtitle="Órdenes de trabajo creadas"></app-stat-card>
-    <app-stat-card title="Completados" [value]="especialesData.kpis.completadosHoy" icon="check-circle"
+    <app-stat-card [badge]="etiquetaRango" title="Completados" [value]="especialesData.kpis.completadosHoy" icon="check-circle"
       variant="success" subtitle="Finalizados hoy"></app-stat-card>
-    <app-stat-card title="En Proceso" [value]="especialesData.kpis.enProcesoHoy" icon="loader" variant="warning"
+    <app-stat-card [badge]="etiquetaRango" title="En Proceso" [value]="especialesData.kpis.enProcesoHoy" icon="loader" variant="warning"
       subtitle="Servicios activos ahora"></app-stat-card>
-    <app-stat-card title="Pendientes" [value]="especialesData.kpis.pendientesHoy" icon="clock" variant="primary"
+    <app-stat-card [badge]="etiquetaRango" title="Pendientes" [value]="especialesData.kpis.pendientesHoy" icon="clock" variant="primary"
       subtitle="En cola para iniciar"></app-stat-card>
   </div>
 
   <!-- KPIs de calidad e ingresos -->
   <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-    <app-stat-card title="Ingreso Hoy" [value]="'$' + especialesData.kpis.ingresoHoy" icon="dollar-sign"
+    <app-stat-card [badge]="etiquetaRango" title="Ingreso Hoy" [value]="'$' + especialesData.kpis.ingresoHoy" icon="dollar-sign"
       variant="success" subtitle="Por OTs completadas hoy"></app-stat-card>
-    <app-stat-card title="Ingreso" [value]="'$' + especialesData.kpis.ingresoTotal30d" icon="bar-chart-2"
-      variant="primary" subtitle="Últimos 30 días"></app-stat-card>
-    <app-stat-card title="Calificación Promedio" [value]="especialesData.kpis.calificacionPromedio + ' / 5'" icon="star"
+    <app-stat-card [badge]="etiquetaRango" title="Ingreso" [value]="'$' + especialesData.kpis.ingresoTotal30d" icon="bar-chart-2"
+      variant="primary" subtitle="Del período seleccionado"></app-stat-card>
+    <app-stat-card [badge]="etiquetaRango" title="Calificación Promedio" [value]="(especialesData.kpis.calificacionPromedio ?? 0) + ' / 5'" icon="star"
       variant="success" subtitle="Calidad del servicio"></app-stat-card>
-    <app-stat-card title="Tiempo Promedio" [value]="especialesData.kpis.tiempoPromedioMin + ' min'" icon="timer"
+    <app-stat-card [badge]="etiquetaRango" title="Tiempo Promedio" [value]="(especialesData.kpis.tiempoPromedioMin ?? 0) + ' min'" icon="timer"
       variant="warning" subtitle="Tiempo efectivo por OT"></app-stat-card>
   </div>
 
@@ -925,7 +954,7 @@
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
     <div class="lg:col-span-2">
       @if (especialesData.chartFlujoSemanal) {
-      <app-chart-card title="OTs Creadas (últimos 7 días)" subtitle="Tendencia semanal de trabajo" type="line"
+      <app-chart-card title="OTs Creadas (últimos 7 días del período)" subtitle="Tendencia de cierre del período filtrado" type="line"
         [data]="especialesData.chartFlujoSemanal"></app-chart-card>
       }
     </div>
@@ -1061,22 +1090,22 @@
 
   <!-- KPIs principales -->
   <div class="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-    <app-stat-card title="Alertas Activas" [value]="bodegaData.kpis.totalAlertasActivas" icon="bell-ring"
+    <app-stat-card [badge]="etiquetaRango" title="Alertas Activas" [value]="bodegaData.kpis.totalAlertasActivas" icon="bell-ring"
       variant="warning" subtitle="Sin resolver"></app-stat-card>
-    <app-stat-card title="Críticas / Agotadas" [value]="bodegaData.kpis.alertasCriticas" icon="alert-triangle"
+    <app-stat-card [badge]="etiquetaRango" title="Críticas / Agotadas" [value]="bodegaData.kpis.alertasCriticas" icon="alert-triangle"
       variant="danger" subtitle="Requieren despacho urgente"></app-stat-card>
-    <app-stat-card title="Despachos en Tránsito" [value]="bodegaData.kpis.despachosEnTransito" icon="truck"
+    <app-stat-card [badge]="etiquetaRango" title="Despachos en Tránsito" [value]="bodegaData.kpis.despachosEnTransito" icon="truck"
       variant="primary" subtitle="Movimientos activos"></app-stat-card>
-    <app-stat-card title="Despachos Pendientes" [value]="bodegaData.kpis.despachosPendientes" icon="package"
+    <app-stat-card [badge]="etiquetaRango" title="Despachos Pendientes" [value]="bodegaData.kpis.despachosPendientes" icon="package"
       variant="warning" subtitle="Por confirmar envío"></app-stat-card>
   </div>
 
-  <!-- KPIs financieros -->
+  <!-- KPIs de volumen: todo el bloque de suministro se mide en unidades, no en USD -->
   <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-8">
-    <app-stat-card title="Valor en Tránsito" [value]="'$' + bodegaData.kpis.valorEnTransitoUSD" icon="dollar-sign"
-      variant="warning" subtitle="USD en movimientos no recibidos"></app-stat-card>
-    <app-stat-card title="Valor del Stock Disponible" [value]="'$' + bodegaData.kpis.valorStockUSD" icon="archive"
-      variant="success" subtitle="Basado en costo unitario actual"></app-stat-card>
+    <app-stat-card [badge]="etiquetaRango" title="Unidades en Tránsito" [value]="bodegaData.kpis.unidadesEnTransito" icon="boxes"
+      variant="warning" subtitle="Unidades en movimientos no recibidos"></app-stat-card>
+    <app-stat-card [badge]="etiquetaRango" title="Unidades en Stock" [value]="bodegaData.kpis.unidadesStock" icon="archive"
+      variant="success" subtitle="Existencias disponibles del alcance"></app-stat-card>
   </div>
 
   <!-- Gráficos -->
@@ -1114,9 +1143,9 @@
     <app-chart-card title="Top Agencias por Consumo" subtitle="Agencias que solicitaron más insumos" type="bar" [horizontal]="true"
       [data]="bodegaData.chartTopAgenciasConsumo"></app-chart-card>
     }
-    @if (bodegaData.chartValorStockPorCategoria) {
-    <app-chart-card title="Valor del Stock por Categoría" subtitle="Capital inmovilizado en insumos" type="bar" [horizontal]="true"
-      [data]="bodegaData.chartValorStockPorCategoria"></app-chart-card>
+    @if (bodegaData.chartUnidadesStockPorCategoria) {
+    <app-chart-card title="Existencias por Categoría" subtitle="Unidades de stock disponible por tipo de insumo" type="bar" [horizontal]="true"
+      [data]="bodegaData.chartUnidadesStockPorCategoria"></app-chart-card>
     }
   </div>
 

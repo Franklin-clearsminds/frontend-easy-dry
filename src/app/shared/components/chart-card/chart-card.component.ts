@@ -17,8 +17,7 @@ Chart.register(...registerables);
     <div class="flex flex-col h-full"
       [ngClass]="{
         'flex-1': sinTarjeta,
-        'bg-white rounded-2xl p-6 border border-slate-100 shadow-easydry': !sinTarjeta,
-        'max-h-[400px]': !sinTarjeta && (type === 'doughnut' || type === 'pie')
+        'bg-white rounded-2xl p-6 border border-slate-100 shadow-easydry': !sinTarjeta
       }">
       @if (!sinTarjeta) {
       <div class="flex items-start justify-between gap-3 mb-4">
@@ -34,7 +33,12 @@ Chart.register(...registerables);
 
       <div class="flex-1 relative w-full min-h-[260px]" [ngClass]="{'overflow-y-auto custom-scrollbar': horizontal}">
         <div [style.height]="chartContainerHeight" class="relative w-full h-full min-h-[260px] flex items-center justify-center">
-          <canvas #chartCanvas></canvas>
+          <canvas #chartCanvas [class.opacity-0]="!hayDatos"></canvas>
+          @if (!hayDatos) {
+            <div class="absolute inset-0 flex items-center justify-center px-6">
+              <p class="text-sm text-slate-500 text-center max-w-xs leading-relaxed">{{ mensajeVacio }}</p>
+            </div>
+          }
         </div>
       </div>
 
@@ -53,10 +57,28 @@ export class ChartCardComponent implements AfterViewInit, OnChanges, OnDestroy {
   @Input() stacked = false;
   /** Sin marco propio: renderiza solo el lienzo, para incrustarlo dentro de otra tarjeta. */
   @Input() sinTarjeta = false;
+  /**
+   * Texto del estado vacío. La tarjeta NO se oculta cuando no hay datos: si desaparece, el usuario no
+   * entiende por qué y el grid se reacomoda. En su lugar se muestra este mensaje explicando el motivo.
+   */
+  @Input() mensajeVacio = 'Sin datos para el período y los filtros seleccionados.';
 
   @ViewChild('chartCanvas') chartCanvas!: ElementRef<HTMLCanvasElement>;
   private chartInstance?: Chart;
   private viewReady = false;
+
+  /** Hay datos si alguna serie trae al menos un valor distinto de cero (los negativos también cuentan). */
+  get hayDatos(): boolean {
+    const labels = this.data?.labels ?? [];
+    const datasets = this.data?.datasets ?? [];
+    if (!labels.length || !datasets.length) return false;
+    return datasets.some((ds: any) =>
+      (ds?.data ?? []).some((v: any) => {
+        const n = Number(v);
+        return Number.isFinite(n) && n !== 0;
+      }),
+    );
+  }
 
   get chartContainerHeight(): string {
     if (this.horizontal && this.type === 'bar' && this.data?.labels?.length) {
@@ -117,6 +139,10 @@ export class ChartCardComponent implements AfterViewInit, OnChanges, OnDestroy {
       responsive: true,
       maintainAspectRatio: false,
       animation: false,
+      interaction: {
+        mode: (this.type !== 'pie' && this.type !== 'doughnut' && this.data?.datasets?.length > 1) ? 'index' : 'nearest',
+        intersect: (this.type !== 'pie' && this.type !== 'doughnut' && this.data?.datasets?.length > 1) ? false : true,
+      },
       plugins: {
         legend: {
           display: this.type === 'pie' || this.type === 'doughnut' ? true : this.data?.datasets?.length > 1,

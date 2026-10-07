@@ -127,18 +127,40 @@ export class DashboardComponent implements OnInit, OnDestroy {
   especialesData: any = null;
   /** Pestaña del ranking de pulidores (fijos vs móviles). */
   pulidoresTab: 'fijos' | 'moviles' = 'fijos';
-  /** Pestaña de productividad por bahía (lavados vs tiempo). */
-  bahiasTab: 'lavados' | 'tiempo' = 'lavados';
+
   /** Pestaña del gráfico unificado de vehículos (marca · modelo · color). */
   vehiculosTab: 'marcas' | 'modelos' | 'colores' = 'marcas';
   /** Pestaña del gráfico de agencias (productivas / ganancia neta / gasto en reparaciones). */
   agenciasTab: 'productivas' | 'ganancia' | 'reparaciones' = 'productivas';
+  /** Pestaña para gráfico de incidentes (por agencia vs por pulidor) */
+  incidentesTab: 'agencia' | 'pulidor' = 'agencia';
+  /** Pestaña para gráfico de distribución de daños (por tipo vs por ubicación) */
+  /** Pestaña del gráfico de fallas del parque: por tipo de equipo o por gravedad. */
+  danosTab: 'tipo' | 'gravedad' = 'tipo';
 
   /**
    * Pestaña del tiempo de resolución del taller. Por defecto por AGENCIA: el desglose por gravedad suele
    * salir plano (todas las gravedades tardan parecido) y no dice dónde se está resolviendo lento.
    */
   mttrTab: 'agencia' | 'gravedad' = 'agencia';
+
+  /**
+   * Tipo de servicio del catálogo. Es un modificador CONTINUO como las fechas: se combina con la dimensión
+   * estructural (región/agencia/pulidor) en lugar de competir con ella.
+   */
+  categoriaServicio: 'TODOS' | 'GENERAL' | 'ESPECIAL' = 'TODOS';
+
+  /**
+   * Nivel de desglose del gráfico de rendimiento cuando el filtro estructural está en GLOBAL: permite ver el
+   * mismo período por Región, Agencia o Pulidor sin cambiar el filtro (a nivel país, por región salían solo 2 barras).
+   */
+  desgloseTab: 'REGION' | 'AGENCY' | 'POLISHER' = 'REGION';
+
+  readonly categoriasServicio: { id: 'TODOS' | 'GENERAL' | 'ESPECIAL'; label: string }[] = [
+    { id: 'TODOS', label: 'Todos los servicios' },
+    { id: 'GENERAL', label: 'Servicios generales' },
+    { id: 'ESPECIAL', label: 'Servicios especiales' },
+  ];
 
   activeExecutiveTab: 'analitica' | 'auditoria' | 'inventario' | 'operacion' | 'alertas' | 'taller' | 'aprobaciones' = 'analitica';
 
@@ -150,14 +172,15 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   /** Texto del rango consultado para la barra de resumen del período. */
   get periodoTexto(): string {
+    const tipo = this.categoriaServicio === 'TODOS' ? '' : ` · ${this.etiquetaCategoriaServicio}`;
     if (this.esRangoPersonalizado) {
       const desde = this.fechaDesdeFiltro || '—';
       const hasta = this.fechaHastaFiltro || '—';
-      return `${desde} → ${hasta}`;
+      return `${desde} → ${hasta}${tipo}`;
     }
     const label = this.rangos.find((r) => r.id === this.rangoFiltro)?.label || 'Hoy';
     const f = this.fechaActual.toLocaleDateString('es-EC', { day: '2-digit', month: 'long', year: 'numeric' });
-    return `${label} · hasta ${f}`;
+    return `${label} · hasta ${f}${tipo}`;
   }
 
   /** Totales clave del período (varían según la variante del panel ejecutivo). */
@@ -174,7 +197,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
       return [
         { label: 'Lavados', valor: String(k.serviciosHoy ?? 0), color: 'azul' },
         { label: 'Lavados del período', valor: String(k.servicios30Dias ?? 0), color: 'verde' },
-        { label: 'Costo químicos', valor: `$${k.costoQuimicos30d ?? 0}`, color: 'slate' },
+        { label: 'Químicos consumidos', valor: `${k.unidadesQuimicos ?? 0} u.`, color: 'slate' },
       ];
     }
     return [
@@ -211,15 +234,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
     return (this.produccion?.colores ?? []).map((x: any) => ({ nombre: x.nombre, valor: Number(x.cantidad) || 0 }));
   }
 
-  get chartBahiasActivo(): any {
-    if (!this.produccion?.chartBahias) return null;
-    const labels = this.produccion.chartBahias.labels;
-    if (this.bahiasTab === 'lavados') {
-      return { labels, datasets: [this.produccion.chartBahias.datasets[0]] };
-    }
-    return { labels, datasets: [this.produccion.chartBahias.datasets[1]] };
-  }
-
   get tieneTopVehiculos(): boolean {
     return !!(this.produccion?.topMarcas || this.produccion?.topMarcasModelos || this.coloresItems.length);
   }
@@ -240,6 +254,16 @@ export class DashboardComponent implements OnInit, OnDestroy {
    */
   get muestraBajaActividad(): boolean {
     return this.bajaActividadItems.length > 0;
+  }
+
+  /**
+   * "Lavados por Bahía" (top 7 de bahías de todo el país) es redundante en la vista nacional: al filtrar por
+   * agencia, "Rendimiento Operativo" y "Cuellos de Botella" ya se abren a bahía con
+   * "Desempeño de las bahías de la agencia seleccionada". En los paneles sin drill-down
+   * (supervisor y operativos) sigue siendo la única lectura de bahía, así que se conserva.
+   */
+  get muestraLavadosPorBahia(): boolean {
+    return !this.isSuperAdminView;
   }
 
   get spanActividad(): string {
@@ -323,14 +347,19 @@ export class DashboardComponent implements OnInit, OnDestroy {
     switch (this.produccion?.bajaActividad?.entidad) {
       case 'Bahía': return 'Bahías con Menos Actividad';
       case 'Día': return 'Días con Menos Actividad';
+      case 'Pulidor': return 'Pulidores con Menos Actividad';
+      case 'Región': return 'Regiones con Menos Actividad';
       default: return 'Agencias con Menos Actividad';
     }
   }
 
   get bajaActividadSubtitulo(): string {
-    return this.produccion?.bajaActividad?.entidad === 'Bahía'
-      ? 'Estaciones con menor volumen de servicios'
-      : 'Sucursales con menor volumen de servicios';
+    switch (this.produccion?.bajaActividad?.entidad) {
+      case 'Bahía': return 'Estaciones con menor volumen de servicios';
+      case 'Pulidor': return 'Pulidores con menor volumen de servicios';
+      case 'Región': return 'Regiones con menor volumen de servicios';
+      default: return 'Sucursales con menor volumen de servicios';
+    }
   }
 
   /** Serie de tiempo de resolución según la pestaña (por agencia o por gravedad). */
@@ -486,9 +515,27 @@ export class DashboardComponent implements OnInit, OnDestroy {
     }
   }
 
+  /** Subtítulo del drill-down: declara la base del cálculo y sigue siendo correcto sin datos. */
+  get subtituloJerarquia(): string {
+    const j = this.produccion?.jerarquia;
+    if (!j) return 'Sin servicios en el nivel y los filtros seleccionados';
+    const k = j.kpis ?? {};
+    return `Desglose por ${j.entidad} · ${k.registros ?? 0} servicios · ${k.tiempoPromedioMin ?? 0} min promedio`;
+  }
+
   /** Administrador o Super Admin: paneles nacionales con drill-down (mismo tratamiento visual). */
   get esAnaliticaGlobal(): boolean {
     return this.isAdminView || this.isSuperAdminView;
+  }
+
+  /**
+   * Las tarjetas de fallas de maquinaria (equipos vulnerables, incidentes y fallas por tipo/gravedad) se
+   * alimentan del panel operativo, que trae los incidentes por equipo, agencia y gravedad. Los paneles de
+   * ADMIN (usuarios, roles, catálogo) y COMERCIAL no incluyen incidentes: para esos roles se ocultan en vez
+   * de quedar como tarjetas vacías.
+   */
+  get muestraFallasMaquinaria(): boolean {
+    return !this.isAdminView && !this.isComercialView;
   }
 
   get chart1Title(): string {
@@ -550,6 +597,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
       regionId: this.regionFiltro || undefined,
       agenciaId: this.agenciaFiltro || undefined,
       pulidorId: this.pulidorFiltro || undefined,
+      // Modificador continuo: se combina con la dimensión y las fechas.
+      categoriaServicio: this.categoriaServicio === 'TODOS' ? undefined : this.categoriaServicio,
+      // Desglose del gráfico: solo tiene sentido a nivel país (con una dimensión activa el drill-down ya manda).
+      desglose: this.activeDimension === 'GLOBAL' ? this.desgloseTab : undefined,
     };
   }
 
@@ -566,7 +617,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   get hayFiltrosActivos(): boolean {
-    return !!this.regionFiltro || !!this.agenciaFiltro || !!this.pulidorFiltro || this.rangoFiltro !== 'HOY';
+    return !!this.regionFiltro || !!this.agenciaFiltro || !!this.pulidorFiltro || this.rangoFiltro !== 'HOY' || this.categoriaServicio !== 'TODOS';
   }
 
   // ── Filtros exclusivos: se habilita GLOBAL y la propia dimensión activa ──
@@ -590,9 +641,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
     return this.rangoFiltro === 'RANGO';
   }
 
-  /** Etiqueta corta del periodo activo (para el badge de las tarjetas KPI). */
+  /** Etiqueta corta del periodo activo (para el badge de las tarjetas KPI). Incluye el tipo de servicio. */
   get etiquetaRango(): string {
-    return this.esRangoPersonalizado ? 'RANGO' : (this.rangos.find((r) => r.id === this.rangoFiltro)?.label.toUpperCase() || 'HOY');
+    const base = this.esRangoPersonalizado ? 'RANGO' : (this.rangos.find((r) => r.id === this.rangoFiltro)?.label.toUpperCase() || 'HOY');
+    return this.categoriaServicio === 'TODOS' ? base : `${base} · ${this.categoriaServicio}`;
   }
 
   /** Cambia el periodo del dashboard. Al pasar a "Rango" precarga un mes por defecto. */
@@ -614,8 +666,25 @@ export class DashboardComponent implements OnInit, OnDestroy {
    *  - Quitar el valor activo → vuelve a GLOBAL (los tres habilitados).
    * Las fechas nunca se tocan.
    */
-  onRegionChange(regionId: string | null): void {
-    this.regionFiltro = regionId;
+  /** Etiqueta del tipo de servicio activo (para el resumen del período). */
+  get etiquetaCategoriaServicio(): string {
+    return this.categoriasServicio.find((c) => c.id === this.categoriaServicio)?.label || '';
+  }
+
+  /** Cambia el tipo de servicio sin tocar la dimensión estructural ni las fechas. */
+  onCategoriaServicioChange(valor: 'TODOS' | 'GENERAL' | 'ESPECIAL'): void {
+    this.categoriaServicio = valor;
+    this.recargar();
+  }
+
+  /** Cambia el nivel de desglose del gráfico de rendimiento (solo se usa con el filtro en GLOBAL). */
+  cambiarDesglose(valor: 'REGION' | 'AGENCY' | 'POLISHER'): void {
+    if (this.desgloseTab === valor) return;
+    this.desgloseTab = valor;
+    this.recargar();
+  }
+
+  onRegionChange(regionId: string | null): void {    this.regionFiltro = regionId;
     if (!regionId) this.regionLabel = '';
     this.limpiarAgenciaYPulidor();
     this.activeDimension = regionId ? 'REGION' : 'GLOBAL';
@@ -672,6 +741,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.regionLabel = '';
     this.agenciaLabel = '';
     this.pulidorLabel = '';
+    this.categoriaServicio = 'TODOS';
+    this.desgloseTab = 'REGION';
     this.activeDimension = 'GLOBAL';
     this.rangoFiltro = 'HOY';
     this.fechaDesdeFiltro = '';
@@ -837,7 +908,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     if (this.bodegaData?.chartTopInsumosConsumo) count++;
     if (this.bodegaData?.chartConsumoPorCategoria) count++;
     if (this.bodegaData?.chartTopAgenciasConsumo) count++;
-    if (this.bodegaData?.chartValorStockPorCategoria) count++;
+    if (this.bodegaData?.chartUnidadesStockPorCategoria) count++;
     
     if (count === 1) return 1;
     if (count === 2 || count === 4) return 2;

@@ -7,15 +7,15 @@ export const KPI_DESCRIPTIONS: Record<string, string> = {
   // Administrador / financieros
   'ingreso hoy': 'Total facturado por servicios finalizados en el día de hoy',
   'ingreso del mes': 'Total facturado por servicios finalizados en el mes en curso',
-  'ingreso (30d)': 'Total facturado en los últimos 30 días',
+  'ingreso (período)': 'Total facturado por servicios finalizados en el período seleccionado',
   'ticket promedio': 'Ingreso promedio por cada servicio realizado (ventas ÷ servicios)',
   'crecimiento vs mes ant.': 'Variación porcentual de ingresos frente al mes anterior',
   'servicios completados hoy': 'Cantidad de servicios finalizados en el día de hoy',
   'servicios del mes': 'Cantidad de servicios finalizados en el mes en curso',
   'tiempo promedio': 'Duración media de un servicio, desde su inicio hasta su finalización',
-  'costo reparaciones (30d)': 'Gasto total en repuestos y mano de obra de reparaciones en los últimos 30 días',
-  'valor inventario': 'Valor en USD del stock disponible en todas las bodegas y locales',
-  'inventario en tránsito': 'Valor en USD de productos despachados que aún no han sido recibidos',
+  'costo reparaciones': 'Gasto en repuestos y mano de obra de reparaciones dentro del período seleccionado',
+  'inventario': 'Unidades de stock disponibles en las bodegas y locales del alcance (no se convierte a USD)',
+  'inventario en tránsito': 'Unidades despachadas que aún no han sido recibidas',
 
   // Aprobador
   'solicitudes hoy': 'Solicitudes de aprobación recibidas en el día',
@@ -23,17 +23,16 @@ export const KPI_DESCRIPTIONS: Record<string, string> = {
   'aprobadas': 'Solicitudes aprobadas en el día',
   'rechazadas': 'Solicitudes rechazadas en el día',
   'anuladas hoy': 'Servicios anulados en el día de hoy',
-  'descuentos fuera de rango (30d)': 'Descuentos que superaron el límite permitido en los últimos 30 días',
+  'descuentos fuera de rango': 'Descuentos que superaron el límite permitido dentro del período seleccionado',
 
   // Comercial
   'lavados hoy': 'Cantidad de lavados registrados en el día',
-  'lavados 30 días': 'Cantidad de lavados registrados en los últimos 30 días',
+  'lavados del período': 'Cantidad de lavados registrados en el período seleccionado',
   'descuentos pendientes': 'Solicitudes de descuento que esperan aprobación',
-  'costo químicos (30d)': 'Gasto en químicos e insumos consumidos en los últimos 30 días',
-  'cumplimiento sla (30d)': '% de vehículos entregados dentro del tiempo prometido (30 días)',
-  'cumplimiento sla': '% de vehículos entregados dentro del tiempo prometido',
+  'químicos consumidos': 'Unidades de químicos e insumos consumidas en el período seleccionado',
+  'cumplimiento sla': '% de vehículos entregados dentro del tiempo prometido, en el período seleccionado',
   'desviación vs estimado': 'Promedio de minutos de adelanto (-) o retraso (+) frente al tiempo estimado',
-  '% premium/especiales (30d)': 'Porcentaje de servicios del catálogo Especial/Premium',
+  '% premium/especiales': 'Porcentaje de servicios del catálogo Especial/Premium en el período seleccionado',
 
   // Supervisor / operativo
   'lavados hoy (región)': 'Lavados registrados hoy en los locales de tu región',
@@ -51,8 +50,9 @@ export const KPI_DESCRIPTIONS: Record<string, string> = {
   'equipos operativos': 'Máquinas funcionando y disponibles para operar',
   'en mantenimiento': 'Máquinas actualmente intervenidas por mantenimiento',
   'fuera de servicio': 'Máquinas dadas de baja o inoperativas',
+  'costo mantenimiento': 'Costo preventivo y correctivo del período seleccionado',
   'tiempo promedio resolución': 'Horas promedio desde que se reporta un incidente hasta que se resuelve',
-  'mantenimientos (30d)': 'Mantenimientos preventivos y correctivos ejecutados en los últimos 30 días',
+  'mantenimientos': 'Mantenimientos preventivos y correctivos ejecutados en el período seleccionado',
 
   // Servicios especiales
   'ots hoy': 'Órdenes de trabajo especiales creadas hoy',

@@ -101,7 +101,7 @@ const ORDEN_SEVERIDAD: Record<AlertaSeveridad, number> = { critica: 0, advertenc
                   <p class="text-xs mt-0.5 truncate font-semibold" [ngClass]="textoColor(a.tipo)">{{ a.detalle }}</p>
                 }
                 <p class="text-xs mt-0.5 truncate" [ngClass]="subTextoColor(a.tipo)">
-                  {{ a.origen || 'Sin ubicación' }}@if (a.region) {<span> · {{ a.region }}</span>}
+                  {{ a.origen || 'Sin ubicación' }}@if (a.agencia) {<span> · {{ a.agencia }}</span>}@if (a.pulidor) {<span> · Pulidor: {{ a.pulidor }}</span>}@if (a.region) {<span> · {{ a.region }}</span>}
                 </p>
                 <div class="flex items-center gap-2 mt-1">
                   <span class="text-[11px] opacity-70" [ngClass]="subTextoColor(a.tipo)">{{ a.fecha }}</span>
@@ -199,7 +199,7 @@ export class AlertasWidgetComponent {
         if (this.filtroGrupo === 'mantenimiento' && a.grupo !== 'mantenimiento') return false;
         if (this.filtroSeveridad === 'CRITICO' && a.tipo !== 'critica') return false;
         if (this.filtroSeveridad === 'BAJO' && a.tipo !== 'advertencia') return false;
-        if (q && !`${a.titulo ?? ''} ${a.insumo} ${a.detalle ?? ''} ${a.sku ?? ''} ${a.origen ?? ''} ${a.region ?? ''}`.toLowerCase().includes(q)) return false;
+        if (q && !`${a.titulo ?? ''} ${a.insumo} ${a.detalle ?? ''} ${a.sku ?? ''} ${a.origen ?? ''} ${a.agencia ?? ''} ${a.pulidor ?? ''} ${a.region ?? ''}`.toLowerCase().includes(q)) return false;
         return true;
       })
       .sort((a, b) => ORDEN_SEVERIDAD[a.tipo] - ORDEN_SEVERIDAD[b.tipo] || b.timestamp - a.timestamp);
