@@ -3683,7 +3683,7 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
             </button>
           </div>
           <div class="w-full min-h-64 max-h-[80vh] rounded-2xl overflow-auto bg-slate-950 border border-slate-200 shadow-inner flex items-center justify-center p-3">
-            <img loading="lazy" decoding="async" [src]="resolverUrlImagen(imagenModalZoom)" [alt]="imagenModalTitulo" class="max-w-full max-h-[76vh] object-contain" />
+            <img loading="lazy" decoding="async" [src]="imagenModalUrl" [alt]="imagenModalTitulo" class="max-w-full max-h-[76vh] object-contain" />
           </div>
           <div class="w-full flex items-center justify-end pt-1">
             <button type="button" (click)="cerrarZoomImagen()" class="px-4 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs cursor-pointer">
@@ -3713,11 +3713,23 @@ export class InventarioComponent implements OnInit, OnDestroy {
   // Lightbox Zoom
   public imagenModalZoom: string | null = null;
   public imagenModalTitulo = 'Foto adjunta';
+  /**
+   * URL ya resuelta (prefirmada si el archivo es privado) para el modal de zoom. Nunca se usa
+   * resolverUrlImagen()/resolveBackendUrl directo como [src]: para evidencias privadas de kardex
+   * eso pega primero contra /storage/file sin firmar y responde 403 antes de poder pedir la prefirmada.
+   */
+  public imagenModalUrl = '';
 
-  public abrirZoomImagen(url: string, titulo = 'Foto adjunta'): void {
-    if (url && url.trim()) {
-      this.imagenModalZoom = url.trim();
-      this.imagenModalTitulo = titulo;
+  public async abrirZoomImagen(url: string, titulo = 'Foto adjunta'): Promise<void> {
+    const limpia = url && url.trim();
+    if (!limpia) return;
+    this.imagenModalZoom = limpia;
+    this.imagenModalTitulo = titulo;
+    this.imagenModalUrl = '';
+    try {
+      this.imagenModalUrl = await this.storageUploadService.resolveMediaUrlStrict(limpia);
+    } catch {
+      this.imagenModalUrl = this.storageUploadService.resolveBackendUrl(limpia);
     }
   }
 
@@ -3736,6 +3748,7 @@ export class InventarioComponent implements OnInit, OnDestroy {
 
   public cerrarZoomImagen(): void {
     this.imagenModalZoom = null;
+    this.imagenModalUrl = '';
   }
 
   public resolverUrlImagen(url: string | null | undefined): string {
