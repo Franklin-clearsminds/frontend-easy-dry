@@ -207,7 +207,6 @@ export class DashboardOperativoService {
           chartAprobaciones: data?.chartAprobaciones || null,
           metricasAprobaciones: data?.metricasAprobaciones ? {
             kpis: data.metricasAprobaciones.kpis,
-            tiposItems: this.etiquetarTiposSolicitud(data.metricasAprobaciones.distribucionTipos),
             flujoSolicitudes: data.metricasAprobaciones.flujoEstadosPorDia ? {
               labels: Object.keys(data.metricasAprobaciones.flujoEstadosPorDia).sort(),
               datasets: [
