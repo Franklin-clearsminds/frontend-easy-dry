@@ -2705,6 +2705,8 @@ export class ServiciosComponent implements OnInit, OnDestroy {
   }
 
   get agenciaFormTieneEspeciales(): boolean {
+    // El líder (y Backup) solo registra servicios generales, aunque su agencia tenga especiales habilitados.
+    if (this.isLiderOperador) return false;
     const key = String(this.nuevoRegistro?.agencia || '').trim();
     if (!key) return false;
     const suc = this.sucursales.find(

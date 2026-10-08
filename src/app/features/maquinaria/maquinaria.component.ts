@@ -7,7 +7,7 @@ import { SucursalService } from '../../core/services/sucursal.service';
 import { BahiaService } from '../../core/services/bahia.service';
 import { AuthService } from '../../core/services/auth.service';
 import { Maquinaria, Sucursal, Bahia } from '../../core/models';
-import { puedeCrearMaquina, puedeGestionarMaquina } from '../../core/utils/maquinaria-permisos';
+import { puedeCrearMaquina, puedeGestionarMaquina, puedeTrasladarMaquina } from '../../core/utils/maquinaria-permisos';
 import { ModalComponent } from '../../shared/components/modal/modal.component';
 import { ToastService } from '../../shared/services/toast.service';
 import { InfiniteScrollComponent } from '../../shared/components/infinite-scroll/infinite-scroll.component';
@@ -522,7 +522,7 @@ export class MaquinariaComponent implements OnInit, OnDestroy {
 
   /** Transferir (agencia, bahía o taller): permiso maquinaria.gestionar. */
   get canTransfer() {
-    return puedeGestionarMaquina(this.authService);
+    return puedeTrasladarMaquina(this.authService);
   }
 
   /** Crear máquina: permiso maquinaria.crear. */

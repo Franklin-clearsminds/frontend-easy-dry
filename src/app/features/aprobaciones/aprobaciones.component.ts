@@ -81,7 +81,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
             <span class="text-3xl font-extrabold font-outfit text-easydry-lime">{{ totalAprobados }} / {{ totalServicios }}</span>
             <span class="text-xs text-slate-500 block font-semibold">Servicios Aprobados</span>
           </div>
-          @if (puedeDecidirPermiso) {
+          @if (puedeAprobarTodosPermiso) {
             @if (agenciaObjetivo; as ag) {
               @if (hayDecidiblesEnAgencia) {
                 <button
@@ -186,21 +186,25 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                   </div>
                 }
                 @if (item.puedeDecidir && puedeDecidirPermiso) {
-                  <div class="grid grid-cols-2 gap-2">
+                  <div class="flex gap-2">
+                    @if (puedeAprobarPermiso) {
                     <button
                       type="button"
                       (click)="aprobarIndividual(item)"
                       [disabled]="procesandoId === item.id"
-                      class="py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-colors disabled:opacity-50">
+                      class="flex-1 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-colors disabled:opacity-50">
                       Aprobar
                     </button>
+                    }
+                    @if (puedeRechazarPermiso) {
                     <button
                       type="button"
                       (click)="openModalRechazar(item)"
                       [disabled]="procesandoId === item.id"
-                      class="py-2 bg-rose-100 hover:bg-rose-200 text-rose-800 font-bold rounded-xl text-xs transition-colors disabled:opacity-50">
+                      class="flex-1 py-2 bg-rose-100 hover:bg-rose-200 text-rose-800 font-bold rounded-xl text-xs transition-colors disabled:opacity-50">
                       Rechazar
                     </button>
+                    }
                   </div>
                 } @else if (!item.agenciaSinAprobador && puedeDecidirPermiso) {
                   <p class="text-center text-[11px] font-semibold text-slate-500 py-1">Lo decide el aprobador de la agencia.</p>
@@ -490,8 +494,11 @@ export class AprobacionesComponent implements OnInit, OnDestroy {
 
   // ── Permisos (los mismos que exige el servidor en cada endpoint) ──
   get puedeVer(): boolean { return this.authService.puede('servicios.ver'); }
-  get puedeDecidirPermiso(): boolean { return this.authService.puede('servicios.decidir'); }
-  get puedeAnularPermiso(): boolean { return this.authService.puede('servicios.anular'); }
+  get puedeAprobarPermiso(): boolean { return this.authService.puede('aprobaciones.aprobar'); }
+  get puedeRechazarPermiso(): boolean { return this.authService.puede('aprobaciones.rechazar'); }
+  get puedeAprobarTodosPermiso(): boolean { return this.authService.puede('aprobaciones.aprobar.todos'); }
+  get puedeDecidirPermiso(): boolean { return this.puedeAprobarPermiso || this.puedeRechazarPermiso; }
+  get puedeAnularPermiso(): boolean { return this.authService.puede('aprobaciones.anular'); }
 
   /** Agencia sobre la que opera «Aprobar todos»: la del filtro (su id sale de los servicios cargados) o la del ámbito del usuario. */
   get agenciaObjetivo(): { id: string; nombre: string } | null {

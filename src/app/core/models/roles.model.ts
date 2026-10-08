@@ -44,6 +44,35 @@ export enum Role {
   CUSTOM = 'CUSTOM'
 }
 
+/** Acción (botón) de una sub-página o página. `compartida`: la misma casilla aparece en varias páginas. */
+export interface AccionCatalogo {
+  codigo: string;
+  nombre: string;
+  compartida: boolean;
+}
+
+/** Sub-página: una pestaña real de la pantalla, con sus acciones. */
+export interface SubPaginaCatalogo {
+  id: string;
+  codigo: string;
+  nombre: string;
+  acciones: AccionCatalogo[];
+}
+
+/** Página del menú con sus sub-páginas y acciones (catálogo del editor de roles). */
+export interface PaginaCatalogo {
+  id: string;
+  codigo: string;
+  nombre: string;
+  ruta: string;
+  enMenu: boolean;
+  /** Código del módulo del menú; null = fuera del menú. */
+  modulo: string | null;
+  subs: SubPaginaCatalogo[];
+  /** Acciones de una página sin sub-páginas. */
+  acciones: AccionCatalogo[];
+}
+
 /** Definición de un módulo funcional del sistema */
 export interface ModuloSistema {
   id: string;
@@ -113,6 +142,8 @@ export interface RolPersonalizado {
   esSistema: boolean;
   /** Permisos de acción (códigos como 'servicios.crear') que el backend exige en cada endpoint. */
   capacidades?: string[];
+  /** Códigos del catálogo de páginas que el rol tiene activos (páginas, sub-páginas y acciones). */
+  paginas?: string[];
   /** Sobre qué datos actúa: GLOBAL, REGION, AGENCIA o PROPIO. */
   ambito?: string;
   fechaCreacion: string;

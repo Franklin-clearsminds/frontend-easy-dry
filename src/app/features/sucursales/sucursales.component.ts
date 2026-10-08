@@ -403,7 +403,7 @@ import { ConsultaAgencias } from '../../core/services/sucursal.service';
       @if (tabActiva === 'regiones') {
         <div class="flex items-center justify-between">
           <p class="text-xs text-slate-500">Crea regiones y luego pasa sucursales a cada una.</p>
-          @if (puedeGestionarRegiones) {
+          @if (puedeCrearRegion) {
           <button (click)="abrirModalRegion()" class="btn btn-cta">
             <i-lucide aria-hidden="true" name="plus" class="w-3.5 h-3.5"></i-lucide> Nueva Región
           </button>
@@ -457,7 +457,7 @@ import { ConsultaAgencias } from '../../core/services/sucursal.service';
                   <p class="text-xs text-slate-500 mt-1">Responsable: {{ regionSeleccionada.responsable || '—' }}</p>
                 </div>
                 <div class="flex gap-2">
-                  @if (puedeGestionarRegiones) {
+                  @if (puedeEditarRegion) {
                   <button (click)="abrirModalRegion(regionSeleccionada)" class="px-3 py-2 bg-slate-100 text-slate-700 font-bold rounded-xl text-xs">Editar</button>
                   }
                   @if (puedeCrearAgencia) {
@@ -493,7 +493,7 @@ import { ConsultaAgencias } from '../../core/services/sucursal.service';
       @if (tabActiva === 'clientes' || tabActiva === 'marcas') {
         <div class="flex items-center justify-between">
           <p class="text-xs text-slate-500">Crea clientes corporativos de agencia y asígnalos o transfiérelos entre locales.</p>
-          @if (puedeGestionarClientes) {
+          @if (puedeCrearCliente) {
           <button (click)="abrirModalMarca()" class="btn btn-cta">
             <i-lucide aria-hidden="true" name="plus" class="w-3.5 h-3.5"></i-lucide> Nuevo Cliente
           </button>
@@ -549,7 +549,7 @@ import { ConsultaAgencias } from '../../core/services/sucursal.service';
                   <p class="text-xs text-slate-500">{{ marcaSeleccionada.descripcion }}</p>
                 </div>
                 <div class="flex gap-2">
-                  @if (puedeGestionarClientes) {
+                  @if (puedeEditarCliente) {
                   <button (click)="abrirModalMarca(marcaSeleccionada)" class="px-3 py-2 bg-slate-100 text-slate-700 font-bold rounded-xl text-xs">Editar</button>
                   }
                   @if (puedeCrearAgencia) {
@@ -776,7 +776,7 @@ import { ConsultaAgencias } from '../../core/services/sucursal.service';
             <div>
               <div class="flex items-center justify-between mb-1">
                 <label class="block text-xs font-bold text-slate-700 uppercase">Región</label>
-                @if (puedeGestionarRegiones) { <button type="button" (click)="mostrarAltaRegion = !mostrarAltaRegion" class="btn btn-cta">Crear región</button> }
+                @if (puedeCrearRegion) { <button type="button" (click)="mostrarAltaRegion = !mostrarAltaRegion" class="btn btn-cta">Crear región</button> }
               </div>
               <app-select-search
                 [cargar]="opcRegiones"
@@ -800,7 +800,7 @@ import { ConsultaAgencias } from '../../core/services/sucursal.service';
             <div>
               <div class="flex items-center justify-between mb-1">
                 <label class="block text-xs font-bold text-slate-700 uppercase">Cliente de agencia</label>
-                @if (puedeGestionarClientes) { <button type="button" (click)="mostrarAltaMarca = !mostrarAltaMarca" class="btn btn-cta">Crear cliente</button> }
+                @if (puedeCrearCliente) { <button type="button" (click)="mostrarAltaMarca = !mostrarAltaMarca" class="btn btn-cta">Crear cliente</button> }
               </div>
               <app-select-search
                 [cargar]="opcClientes"
@@ -983,7 +983,7 @@ import { ConsultaAgencias } from '../../core/services/sucursal.service';
               @for (s of serviciosGenerales; track s.id) {
                 <div class="flex items-center gap-2 py-1.5 hover:bg-slate-100/80 px-2 rounded-lg transition-colors">
                   <label class="flex items-start gap-2 cursor-pointer flex-1 min-w-0">
-                    <input type="checkbox" class="mt-0.5 rounded border-slate-300 text-easydry-blue focus:ring-easydry-blue" [checked]="servicioSeleccionado(s.id)" (change)="toggleServicio(s.id, s.nombre)">
+                    <input type="checkbox" class="mt-0.5 rounded border-slate-300 text-easydry-blue focus:ring-easydry-blue" [checked]="servicioSeleccionado(s.id)" [disabled]="editandoSucursal && !puedeHabilitarServicios" (change)="toggleServicio(s.id, s.nombre)">
                     <span class="text-xs font-semibold text-slate-800">{{ s.nombre }}</span>
                   </label>
                   @if (editandoSucursal && puedeGestionarPrecios && servicioSeleccionado(s.id)) {
@@ -1297,16 +1297,21 @@ export class SucursalesComponent implements OnInit, OnDestroy {
   private route = inject(ActivatedRoute);
 
   // Permisos: son los mismos que el servidor exige en cada endpoint. Sin ellos la pantalla queda en solo lectura.
-  get puedeCrearAgencia(): boolean { return this.auth.puede('agencias.crear'); }
-  get puedeEditarAgencia(): boolean { return this.auth.puede('agencias.editar'); }
-  get puedeCambiarEstadoAgencia(): boolean { return this.auth.puede('agencias.estado'); }
-  get puedeGestionarPrecios(): boolean { return this.auth.puede('agencias.precios.gestionar'); }
-  get puedeGestionarRegiones(): boolean { return this.auth.puede('regiones.gestionar'); }
-  get puedeGestionarClientes(): boolean { return this.auth.puede('clientes.gestionar'); }
+  get puedeCrearAgencia(): boolean { return this.auth.puede('agencias.agencias.crear'); }
+  get puedeEditarAgencia(): boolean { return this.auth.puede('agencias.agencias.editar'); }
+  get puedeHabilitarServicios(): boolean { return this.auth.puede('agencias.agencias.servicios'); }
+  get puedeCambiarEstadoAgencia(): boolean { return this.auth.puede('agencias.agencias.estado'); }
+  get puedeGestionarPrecios(): boolean { return this.auth.puede('agencias.precios.fijar'); }
+  get puedeCrearRegion(): boolean { return this.auth.puede('agencias.regiones.crear'); }
+  get puedeEditarRegion(): boolean { return this.auth.puede('agencias.regiones.editar'); }
+  get puedeGestionarRegiones(): boolean { return this.puedeCrearRegion || this.puedeEditarRegion || this.auth.puede('agencias.regiones.estado'); }
+  get puedeCrearCliente(): boolean { return this.auth.puede('agencias.clientes.crear'); }
+  get puedeEditarCliente(): boolean { return this.auth.puede('agencias.clientes.editar'); }
+  get puedeGestionarClientes(): boolean { return this.puedeCrearCliente || this.puedeEditarCliente || this.auth.puede('agencias.clientes.estado'); }
   get puedeAsignarPersonas(): boolean { return this.auth.puede('usuarios.gestionar'); }
   get puedeVerUsuarios(): boolean { return this.auth.puede('usuarios.ver'); }
   /** Al crear una agencia se define el número de bahías; al editar, aumentarlo crea bahías nuevas y exige 'bahias.crear'. */
-  get puedeCrearBahias(): boolean { return !this.editandoSucursal || this.auth.puede('bahias.crear'); }
+  get puedeCrearBahias(): boolean { return !this.editandoSucursal || this.auth.puede('agencias.bahias.crear'); }
   guardando = false;
 
   get tabsVisibles() {
@@ -1968,7 +1973,7 @@ export class SucursalesComponent implements OnInit, OnDestroy {
   }
 
   abrirModalRegion(region?: RegionOperativa): void {
-    if (!this.puedeGestionarRegiones) return;
+    if (region ? !this.puedeEditarRegion : !this.puedeCrearRegion) return;
     this.editandoRegion = !!region;
     let supId: string | number = '';
     if (region) {
@@ -2034,7 +2039,7 @@ export class SucursalesComponent implements OnInit, OnDestroy {
   }
 
   abrirModalMarca(marca?: MarcaSucursal): void {
-    if (!this.puedeGestionarClientes) return;
+    if (marca ? !this.puedeEditarCliente : !this.puedeCrearCliente) return;
     this.editandoMarca = !!marca;
     this.formMarca = marca
       ? { ...marca }
@@ -2193,16 +2198,27 @@ export class SucursalesComponent implements OnInit, OnDestroy {
 
   guardarPreciosServicios(): void {
     if (!this.hayPreciosPendientes || !this.nuevaSucursal.id) return;
-    const precios = Object.entries(this.preciosEditados).map(([catalogoServicioId, precio]) => ({
-      catalogoServicioId: Number(catalogoServicioId),
-      precio,
-    }));
+    // El backend solo acepta precios de servicios ya guardados en la agencia; los recién marcados
+    // en este modal aún no existen en la BD hasta pulsar "Guardar Cambios".
+    const guardados = new Set(this.preciosServicios.map(p => p.catalogoServicioId));
+    const seleccionados = new Set((this.nuevaSucursal.servicioIds || []).map(Number));
+    const editados = Object.entries(this.preciosEditados)
+      .map(([catalogoServicioId, precio]) => ({ catalogoServicioId: Number(catalogoServicioId), precio }))
+      .filter(p => seleccionados.has(p.catalogoServicioId));
+    const precios = editados.filter(p => guardados.has(p.catalogoServicioId));
+    if (precios.length < editados.length) {
+      this.toastService.warning(
+        'Guarda la agencia primero',
+        'Hay servicios recién marcados que aún no están guardados. Pulsa "Guardar Cambios" y luego fija sus precios.'
+      );
+      if (precios.length === 0) return;
+    }
     this.guardandoPrecios = true;
     this.sucursalService.setPreciosServicios(this.nuevaSucursal.id, precios).subscribe({
       next: (lista) => {
         this.guardandoPrecios = false;
         this.preciosServicios = lista;
-        this.preciosEditados = {};
+        precios.forEach(p => delete this.preciosEditados[p.catalogoServicioId]);
         this.toastService.success('Precios actualizados', 'Los precios de la agencia se guardaron correctamente.');
       },
       error: (err) => {

@@ -11,7 +11,13 @@ export const puedeCrearMaquina = (auth: AuthService) => auth.puede('maquinaria.c
 export const puedeEditarMaquina = (auth: AuthService) => auth.puede('maquinaria.editar');
 export const puedeActivarMaquina = (auth: AuthService) => auth.puede('maquinaria.editar');
 /** Asignar operador, ventana de adelanto, transferir, asignar incidentes y programar/asignar mantenimientos. */
-export const puedeGestionarMaquina = (auth: AuthService) => auth.puede('maquinaria.gestionar');
+export const puedeTrasladarMaquina = (auth: AuthService) => auth.puede('maquinaria.trasladar');
+export const puedeAsignarResponsableMaquina = (auth: AuthService) => auth.puede('maquinaria.responsable');
+export const puedeAsignarTecnico = (auth: AuthService) => auth.puede('taller.incidentes.asignar');
+export const puedeProgramarMantenimiento = (auth: AuthService) => auth.puede('taller.mantenimientos.programar');
+export const puedeExportarLimpiezas = (auth: AuthService) => auth.puede('reportes.maquinaria.limpiezas');
+export const puedeGestionarMaquina = (auth: AuthService) =>
+  puedeTrasladarMaquina(auth) || puedeAsignarResponsableMaquina(auth) || puedeAsignarTecnico(auth) || puedeProgramarMantenimiento(auth);
 /** Historial (línea de tiempo) y movimientos. */
 export const puedeVerTrazabilidad = (auth: AuthService) => auth.puede('maquinaria.trazabilidad');
 export const puedeVerIncidentes = (auth: AuthService) => auth.puede('incidentes.ver');

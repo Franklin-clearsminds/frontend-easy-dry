@@ -217,8 +217,10 @@ export class AuthService {
       'GERENTE': Role.APROBADOR,
       'DISTRIBUIDOR': Role.COORD_BODEGA,
       'OPERADOR_SERVICIOS_ESPECIALES': Role.PULIDOR,
+      'LAVADOR': Role.LAVADOR,
     };
-    return roleMap[backendRole] ?? Role.LIDER_OPERADOR;
+    // Un rol creado desde «Roles y Permisos» conserva su propio código: antes se confundía con el Líder Operador.
+    return roleMap[backendRole] ?? (String(backendRole || '').toUpperCase() as Role);
   }
 
   private normalizeAcciones(acciones: unknown): PermisosRol {
