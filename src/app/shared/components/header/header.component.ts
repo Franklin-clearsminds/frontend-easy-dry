@@ -14,7 +14,7 @@ import { ESCALA_POR_PRESET, ETIQUETA_PRESET, UiScaleService } from '../../../cor
   standalone: true,
   imports: [CommonModule, RouterModule, LucideAngularModule],
   template: `
-    <header class="h-20 bg-white border-b border-slate-200 px-4 sm:px-8 flex items-center justify-between sticky top-0 z-30 shadow-xs select-none">
+    <header class="h-20 bg-white border-b border-slate-200 px-4 sm:px-6 lg:px-8 2xl:px-10 flex items-center justify-between sticky top-0 z-30 shadow-xs select-none">
 
       <!-- Left: Menú móvil / Context Info / Network Status -->
       <div class="flex items-center gap-2 sm:gap-4">

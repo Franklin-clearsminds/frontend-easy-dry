@@ -44,7 +44,8 @@ import { ListaInfinita } from '../../../core/utils/lista-infinita';
       class="w-full flex items-center justify-between gap-2 px-3 py-2 min-h-9 rounded-xl border bg-white text-left text-xs font-semibold transition-colors cursor-pointer
              focus:outline-none focus-visible:ring-2 focus-visible:ring-easydry-blue/30 disabled:bg-slate-50 disabled:text-slate-500 disabled:cursor-not-allowed"
       [ngClass]="invalid ? 'border-rose-400 ring-2 ring-rose-100' : abierto ? 'border-easydry-blue ring-2 ring-easydry-blue/20' : 'border-slate-300 hover:border-slate-400'">
-      <span class="truncate" [ngClass]="etiqueta ? 'text-slate-800' : 'text-slate-500'">{{ etiqueta || placeholder }}</span>
+      <span class="truncate" [ngClass]="etiqueta ? 'text-slate-800' : 'text-slate-500'"
+            [attr.title]="etiqueta || placeholder">{{ etiqueta || placeholder }}</span>
       <span class="flex items-center gap-1 shrink-0">
         @if (value && clearable && !disabled) {
           <span role="button" tabindex="-1" aria-label="Quitar selección"
