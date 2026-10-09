@@ -191,6 +191,7 @@
   <div class="sticky top-4 z-40 mb-6 animate-fade-in-up">
     <div class="dashboard-tabs flex items-center gap-1 p-1.5 bg-white/85 backdrop-blur-md rounded-2xl border border-slate-200/60 shadow-sm overflow-x-auto"
       role="tablist" aria-label="Secciones del dashboard">
+      @if (!isAprobadorView || isEjecutivoView) {
       <button type="button" role="tab" id="tab-analitica" aria-controls="panel-analitica"
         [attr.aria-selected]="activeExecutiveTab === 'analitica'" (click)="activeExecutiveTab = 'analitica'"
         class="shrink-0 px-4 py-2 text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-2 whitespace-nowrap"
@@ -198,6 +199,7 @@
         <i-lucide aria-hidden="true" name="bar-chart-2" class="w-4 h-4"></i-lucide>
         {{ tabAnaliticaTitle }}
       </button>
+      }
       @if (!isAprobadorView) {
       <button type="button" role="tab" id="tab-auditoria" aria-controls="panel-auditoria"
         [attr.aria-selected]="activeExecutiveTab === 'auditoria'" (click)="activeExecutiveTab = 'auditoria'"
@@ -232,6 +234,7 @@
         {{ tabTallerTitle }}
       </button>
       }
+      @if (puedeVerInventario) {
       <button type="button" role="tab" id="tab-inventario" aria-controls="panel-inventario"
         [attr.aria-selected]="activeExecutiveTab === 'inventario'" (click)="activeExecutiveTab = 'inventario'"
         class="shrink-0 px-4 py-2 text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-2 whitespace-nowrap"
@@ -239,6 +242,7 @@
         <i-lucide aria-hidden="true" name="package" class="w-4 h-4"></i-lucide>
         {{ tabInventarioTitle }}
       </button>
+      }
       <button type="button" role="tab" id="tab-alertas" aria-controls="panel-alertas"
         [attr.aria-selected]="activeExecutiveTab === 'alertas'" (click)="activeExecutiveTab = 'alertas'"
         class="shrink-0 px-4 py-2 text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-2 whitespace-nowrap"
@@ -571,14 +575,17 @@
       <app-stat-card [badge]="etiquetaRango" title="Preventivos Vencidos" [value]="tecnicoData.mantenimientosVencidos" icon="calendar-clock"
         [variant]="tecnicoData.mantenimientosVencidos > 0 ? 'danger' : 'success'" subtitle="Programados y sin ejecutar"></app-stat-card>
     </div>
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+    <div class="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
       <app-chart-card class="lg:col-span-2" title="Costo por Agencia" subtitle="Reparaciones por fallas + mantenimiento (USD)"
         type="bar" [data]="tecnicoData?.chartCostoPorAgencia"
         mensajeVacio="Sin costos de reparación ni mantenimiento en el período seleccionado."></app-chart-card>
+      <app-chart-card title="Frecuencia Preventiva" subtitle="Cantidad de mantenimientos" type="doughnut"
+        [data]="tecnicoData?.chartTipoMantenimiento"
+        mensajeVacio="Sin intervenciones registradas."></app-chart-card>
       <app-chart-card title="Gasto: Preventivo vs Correctivo" subtitle="USD invertidos por tipo de mantenimiento" type="doughnut"
         [data]="tecnicoData?.chartCostoTipoMantenimiento"
         mensajeVacio="Sin mantenimientos registrados en el período seleccionado."></app-chart-card>
-      <app-chart-card class="lg:col-span-3" title="Tiempo de Resolución" [subtitle]="mttrSubtitulo" type="bar"
+      <app-chart-card class="lg:col-span-4" title="Tiempo de Resolución" [subtitle]="mttrSubtitulo" type="bar"
         [horizontal]="true" [data]="mttrChart"
         mensajeVacio="Sin tiempos que promediar con el período y los filtros actuales.">
         <div chart-actions class="flex bg-slate-100 p-1 rounded-xl">
@@ -655,7 +662,7 @@
       }
     </div>
 
-    @if (puedeVerUsuarios || isAdminView || isSuperAdminView) {
+    @if (puedeVerUsuarios || esAnaliticaGlobal) {
     <div class="mt-8 mb-4 border-b border-slate-200 pb-2 flex items-center gap-2">
       <i-lucide aria-hidden="true" name="users" class="w-5 h-5 text-easydry-blue"></i-lucide>
       <h3 class="text-lg font-bold font-outfit text-slate-800">Top Rendimiento de Personal</h3>
@@ -681,7 +688,7 @@
     
     <!-- Resumen principal de aprobaciones -->
     @if (produccion?.metricasAprobaciones) {
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+    <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
       <app-stat-card [badge]="etiquetaRango" class="h-full" title="Pendientes" 
         [value]="produccion.metricasAprobaciones.kpis?.pendientesHoy ?? 0"
         icon="clock" variant="warning"></app-stat-card>
@@ -693,6 +700,10 @@
       <app-stat-card [badge]="etiquetaRango" class="h-full" title="Rechazadas Hoy" 
         [value]="produccion.metricasAprobaciones.kpis?.rechazadasHoy ?? 0"
         icon="x-circle" variant="danger"></app-stat-card>
+
+      <app-stat-card [badge]="etiquetaRango" class="h-full" title="Tasa de Rechazo" 
+        [value]="tasaRechazoAprobaciones + '%'"
+        icon="alert-triangle" variant="warning" subtitle="Retrabajos"></app-stat-card>
         
       <app-stat-card [badge]="etiquetaRango" class="h-full" title="Monto Aprobado (USD)" 
         [value]="'$' + (produccion.metricasAprobaciones.kpis?.montoAprobadoHoy ?? 0)"
@@ -723,6 +734,14 @@
       <p class="mt-1 text-slate-500">No hay información comercial reciente.</p>
     </div>
     }
+
+    <!-- Acceso rápido -->
+    <div class="mt-4 flex justify-end">
+      <a routerLink="/aprobaciones" class="px-5 py-2.5 bg-easydry-blue hover:bg-blue-700 text-white shadow-sm hover:shadow-md rounded-xl text-sm font-bold transition-all flex items-center gap-2">
+        <i-lucide name="arrow-right-circle" class="w-4 h-4"></i-lucide>
+        Ir al Módulo de Aprobaciones
+      </a>
+    </div>
   </div>
 
   <!-- Sección: Consumo e Inventario -->
@@ -1001,6 +1020,25 @@
     <app-stat-card [badge]="etiquetaRango" title="Tiempo Promedio" [value]="(especialesData.kpis.tiempoPromedioMin ?? 0) + ' min'" icon="timer"
       variant="warning" subtitle="Tiempo efectivo por OT"></app-stat-card>
   </div>
+
+  <!-- Accesos Rápidos para Pulidores (Inventario y Maquinaria) -->
+  @if (puedeVerInventario || puedeVerMaquinaria) {
+  <div class="flex flex-wrap items-center gap-4 mb-8">
+    <h3 class="text-sm font-bold text-slate-500 uppercase tracking-wider w-full md:w-auto">Atajos Operativos:</h3>
+    @if (puedeVerInventario) {
+    <a routerLink="/inventario" class="px-5 py-2.5 bg-white border border-slate-200 hover:border-easydry-blue hover:text-easydry-blue hover:shadow-sm rounded-xl text-sm font-bold text-slate-700 transition-all flex items-center gap-2">
+      <i-lucide name="package-plus" class="w-4 h-4"></i-lucide>
+      Solicitar Insumos
+    </a>
+    }
+    @if (puedeVerMaquinaria) {
+    <a routerLink="/taller-tecnico" class="px-5 py-2.5 bg-white border border-slate-200 hover:border-red-500 hover:text-red-500 hover:shadow-sm rounded-xl text-sm font-bold text-slate-700 transition-all flex items-center gap-2">
+      <i-lucide name="alert-triangle" class="w-4 h-4"></i-lucide>
+      Reportar Falla de Equipo
+    </a>
+    }
+  </div>
+  }
 
   <!-- Gráficos -->
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">

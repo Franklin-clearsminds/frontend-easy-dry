@@ -125,6 +125,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   isComercialView = false;
   isAprobadorView = false;
   isSuperAdminView = false;
+  isEjecutivoView = false;
 
   bodegaData: any = null;
   especialesData: any = null;
@@ -583,6 +584,13 @@ export class DashboardComponent implements OnInit, OnDestroy {
     }
   }
 
+  get tasaRechazoAprobaciones(): number {
+    const aprobadas = this.produccion?.metricasAprobaciones?.kpis?.aprobadasHoy ?? 0;
+    const rechazadas = this.produccion?.metricasAprobaciones?.kpis?.rechazadasHoy ?? 0;
+    const totalDecididas = aprobadas + rechazadas;
+    return totalDecididas > 0 ? Number(((rechazadas / totalDecididas) * 100).toFixed(1)) : 0;
+  }
+
   /** Subtítulo del drill-down: declara la base del cálculo y sigue siendo correcto sin datos. */
   get subtituloJerarquia(): string {
     const j = this.produccion?.jerarquia;
@@ -591,9 +599,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
     return `Desglose por ${j.entidad} · ${k.registros ?? 0} servicios · ${k.tiempoPromedioMin ?? 0} min promedio`;
   }
 
-  /** Administrador o Super Admin: paneles nacionales con drill-down (mismo tratamiento visual). */
+  /** Administrador, Super Admin o Ejecutivo (Supervisor, Líder, Jefe): paneles con drill-down. */
   get esAnaliticaGlobal(): boolean {
-    return this.isAdminView || this.isSuperAdminView;
+    return this.isAdminView || this.isSuperAdminView || this.isEjecutivoView;
   }
 
   /**
@@ -868,6 +876,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   get puedeVerAlertas(): boolean { return this.auth.puede('alertas.ver'); }
   get puedeVerMaquinaria(): boolean { return this.auth.puede('maquinaria.ver'); }
+  get puedeVerInventario(): boolean { return this.auth.puede('inventario.ver'); }
   get puedeVerUsuarios(): boolean { return this.auth.puede('usuarios.ver'); }
   get puedeVerMapa(): boolean { return this.auth.puede('agencias.ver'); }
   get puedeVerProductividad(): boolean { return this.auth.puede('productividad.ver'); }
@@ -896,6 +905,13 @@ export class DashboardComponent implements OnInit, OnDestroy {
         this.isComercialView = d?.isComercialView || false;
         this.isAprobadorView = d?.isAprobadorView || false;
         this.isSuperAdminView = d?.isSuperAdminView || false;
+        this.isEjecutivoView = d?.isEjecutivoView || false;
+        
+        // Forzar vista de aprobaciones por defecto para el aprobador
+        if (this.isAprobadorView && !this.isEjecutivoView) {
+          this.activeExecutiveTab = 'aprobaciones';
+        }
+        
         this.produccion = this.normalizeProduccion(d);
       })),
       this.dashboardService.getServiciosData(filtro).pipe(tap((d) => (this.serviciosData = d))),
