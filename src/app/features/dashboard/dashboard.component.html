@@ -280,10 +280,11 @@
       <div [ngClass]="spanJerarquia">
         <app-chart-card [title]="produccion?.jerarquia?.titulo ?? 'Rendimiento Operativo'"
           [subtitle]="subtituloJerarquia"
-          type="bar" [data]="produccion?.jerarquiaChart"
+          type="bar" [data]="jerarquiaChartOrdenado"
           mensajeVacio="Sin servicios registrados para el nivel y los filtros seleccionados.">
+          <div chart-actions class="flex flex-wrap items-center justify-end gap-2">
           @if (activeDimension === 'GLOBAL') {
-          <div chart-actions class="flex bg-slate-100 p-1 rounded-xl">
+          <div class="flex bg-slate-100 p-1 rounded-xl">
             <button type="button" class="px-2.5 py-1 text-xs font-bold rounded-lg transition-colors"
               [ngClass]="desgloseTab === 'REGION' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
               [attr.aria-pressed]="desgloseTab === 'REGION'" (click)="cambiarDesglose('REGION')">
@@ -301,6 +302,10 @@
             </button>
           </div>
           }
+          @if (muestraOrdenJerarquia) {
+          <app-top-orden [orden]="jerarquiaTop" [mostrarTamano]="false" (ordenChange)="jerarquiaTop = $event"></app-top-orden>
+          }
+          </div>
         </app-chart-card>
       </div>
       }
@@ -310,7 +315,16 @@
       <div class="lg:col-span-4">
         <app-chart-card [title]="eficienciaTitulo" [subtitle]="eficienciaSubtitulo" type="bar" [horizontal]="true"
           [data]="eficienciaChart"
-          mensajeVacio="Sin servicios finalizados en el período para calcular tiempos."></app-chart-card>
+          mensajeVacio="Sin servicios finalizados en el período para calcular tiempos.">
+          <div chart-actions class="flex bg-slate-100 p-1 rounded-xl">
+            <button class="px-3 py-1 text-[11px] font-bold rounded-lg transition-colors"
+              [ngClass]="eficienciaSortTab === 'lentas' ? 'bg-white text-easydry-blue shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+              (click)="eficienciaSortTab = 'lentas'">Lentas</button>
+            <button class="px-3 py-1 text-[11px] font-bold rounded-lg transition-colors"
+              [ngClass]="eficienciaSortTab === 'rapidas' ? 'bg-white text-easydry-blue shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+              (click)="eficienciaSortTab = 'rapidas'">Rápidas</button>
+          </div>
+        </app-chart-card>
       </div>
       } @else if (produccion?.mixServicios) {
       <div class="lg:col-span-4">
@@ -367,7 +381,18 @@
       <div [ngClass]="spanActividad">
         <app-ranking-list [titulo]="bajaActividadTitulo" [subtitulo]="bajaActividadSubtitulo" color="rojo"
           [mostrarProgreso]="false" [mostrarPosicion]="false" sufijo=" servicios"
-          [items]="bajaActividadItems"></app-ranking-list>
+          [items]="bajaActividadItems">
+          @if (muestraBajaActividadSort) {
+          <div ranking-actions class="flex bg-slate-100 p-1 rounded-xl">
+            <button type="button" class="px-2 py-0.5 text-[10px] font-bold rounded-lg transition-colors whitespace-nowrap"
+              [ngClass]="bajaActividadSort === 'asc' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+              (click)="bajaActividadSort = 'asc'">Menos</button>
+            <button type="button" class="px-2 py-0.5 text-[10px] font-bold rounded-lg transition-colors whitespace-nowrap"
+              [ngClass]="bajaActividadSort === 'desc' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+              (click)="bajaActividadSort = 'desc'">Más</button>
+          </div>
+          }
+        </app-ranking-list>
       </div>
       } @else if (muestraTopBottom) {
       <div [ngClass]="spanActividad">
@@ -380,7 +405,8 @@
       <div [ngClass]="spanTopAgencias">
         <app-chart-card title="Top Agencias" [subtitle]="agenciasSubtitulo" type="bar" [data]="chartAgenciasActivo"
           mensajeVacio="Sin agencias con actividad en el período seleccionado.">
-          <div chart-actions class="flex bg-slate-100 p-1 rounded-xl">
+          <div chart-actions class="flex flex-wrap items-center justify-end gap-2">
+          <div class="flex bg-slate-100 p-1 rounded-xl">
             <button type="button" class="px-3 py-1 text-xs font-bold rounded-lg transition-colors"
               [ngClass]="agenciasTab === 'productivas' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
               [attr.aria-pressed]="agenciasTab === 'productivas'" (click)="agenciasTab = 'productivas'">
@@ -396,6 +422,8 @@
               [attr.aria-pressed]="agenciasTab === 'reparaciones'" (click)="agenciasTab = 'reparaciones'">
               Gastos
             </button>
+          </div>
+          <app-top-orden [orden]="agenciasTop" (ordenChange)="agenciasTop = $event"></app-top-orden>
           </div>
         </app-chart-card>
       </div>
@@ -460,24 +488,43 @@
            alcance sin fallas, explican el motivo en vez de desaparecer— y se ocultan para ADMIN y COMERCIAL,
            cuyos paneles no incluyen incidentes y solo mostrarían tarjetas vacías. -->
       @if (muestraFallasMaquinaria) {
-      <app-chart-card title="Equipos Vulnerables" subtitle="Top 5 con más daños" type="bar"
-        [data]="produccion?.topMaquinas"
-        mensajeVacio="Sin fallas de maquinaria en el período seleccionado."></app-chart-card>
-
-      <app-chart-card class="lg:col-span-2" [title]="incidentesTab === 'agencia' ? 'Incidentes por Agencia' : 'Incidentes por Pulidor'" subtitle="Fallas del período seleccionado"
-        type="bar" [data]="incidentesTab === 'agencia' ? produccion?.topAgencias : produccion?.topPulidores"
-        mensajeVacio="Sin incidentes registrados en el período seleccionado.">
+      <app-chart-card title="Equipos Vulnerables" [subtitle]="equiposVulnerablesTab === 'mas' ? 'Top 5 con más daños' : 'Top 5 con menos daños'" type="bar"
+        [data]="equiposVulnerablesTab === 'mas' ? produccion?.topMaquinas : produccion?.bottomMaquinas"
+        mensajeVacio="Sin fallas de maquinaria en el período seleccionado.">
         <div chart-actions class="flex bg-slate-100 p-1 rounded-xl">
           <button class="px-3 py-1 text-[11px] font-bold rounded-lg transition-colors"
-            [ngClass]="incidentesTab === 'agencia' ? 'bg-white text-easydry-blue shadow-sm' : 'text-slate-500 hover:text-slate-700'"
-            (click)="incidentesTab = 'agencia'">
-            Agencias
-          </button>
+            [ngClass]="equiposVulnerablesTab === 'mas' ? 'bg-white text-easydry-blue shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+            (click)="equiposVulnerablesTab = 'mas'">Más daños</button>
           <button class="px-3 py-1 text-[11px] font-bold rounded-lg transition-colors"
-            [ngClass]="incidentesTab === 'pulidor' ? 'bg-white text-easydry-blue shadow-sm' : 'text-slate-500 hover:text-slate-700'"
-            (click)="incidentesTab = 'pulidor'">
-            Pulidores
-          </button>
+            [ngClass]="equiposVulnerablesTab === 'menos' ? 'bg-white text-easydry-blue shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+            (click)="equiposVulnerablesTab = 'menos'">Menos daños</button>
+        </div>
+      </app-chart-card>
+
+      <app-chart-card class="lg:col-span-2" [title]="incidentesTab === 'agencia' ? 'Incidentes por Agencia' : 'Incidentes por Pulidor'" subtitle="Fallas del período seleccionado"
+        type="bar" [data]="incidentesTab === 'agencia' ? (incidentesSortTab === 'mas' ? produccion?.topAgencias : produccion?.bottomAgencias) : (incidentesSortTab === 'mas' ? produccion?.topPulidores : produccion?.bottomPulidores)"
+        mensajeVacio="Sin incidentes registrados en el período seleccionado.">
+        <div chart-actions class="flex gap-2">
+          <div class="flex bg-slate-100 p-1 rounded-xl">
+            <button class="px-3 py-1 text-[11px] font-bold rounded-lg transition-colors"
+              [ngClass]="incidentesSortTab === 'mas' ? 'bg-white text-easydry-blue shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+              (click)="incidentesSortTab = 'mas'">Más incidentes</button>
+            <button class="px-3 py-1 text-[11px] font-bold rounded-lg transition-colors"
+              [ngClass]="incidentesSortTab === 'menos' ? 'bg-white text-easydry-blue shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+              (click)="incidentesSortTab = 'menos'">Menos incidentes</button>
+          </div>
+          <div class="flex bg-slate-100 p-1 rounded-xl">
+            <button class="px-3 py-1 text-[11px] font-bold rounded-lg transition-colors"
+              [ngClass]="incidentesTab === 'agencia' ? 'bg-white text-easydry-blue shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+              (click)="incidentesTab = 'agencia'">
+              Agencias
+            </button>
+            <button class="px-3 py-1 text-[11px] font-bold rounded-lg transition-colors"
+              [ngClass]="incidentesTab === 'pulidor' ? 'bg-white text-easydry-blue shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+              (click)="incidentesTab = 'pulidor'">
+              Pulidores
+            </button>
+          </div>
         </div>
       </app-chart-card>
       <app-chart-card [title]="danosTab === 'tipo' ? 'Fallas por Tipo' : 'Fallas por Gravedad'" subtitle="Distribución de las fallas del parque: por tipo de equipo y por gravedad" type="doughnut"
@@ -615,11 +662,12 @@
     </div>
     <div class="grid grid-cols-1" [ngClass]="puedeVerProductividad ? 'lg:grid-cols-2 gap-6' : 'gap-8'">
       <div [class.lg:col-span-2]="!puedeVerProductividad">
-        <app-ranking-operadores-widget title="Top Lavadores" [ranking]="rankingLavadores || []"></app-ranking-operadores-widget>
+        <app-ranking-operadores-widget title="Top Lavadores" [ranking]="rankingLavadores?.ranking || []" [rankingBottom]="rankingLavadores?.rankingBottom || []"></app-ranking-operadores-widget>
       </div>
       @if (puedeVerProductividad) {
       <app-ranking-operadores-widget title="Top Pulidores" [ranking]="rankingPulidores?.fijos || []"
-        [rankingMoviles]="rankingPulidores?.moviles || []" [showTabs]="true"></app-ranking-operadores-widget>
+        [rankingBottom]="rankingPulidores?.bottomFijos || []"
+        [rankingMoviles]="rankingPulidores?.moviles || []" [rankingBottomMoviles]="rankingPulidores?.bottomMoviles || []" [showTabs]="true"></app-ranking-operadores-widget>
       }
     </div>
     }
@@ -770,16 +818,25 @@
       <h3 class="text-lg font-bold font-outfit text-slate-800">Consumo y Rotación</h3>
     </div>
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <app-chart-card class="lg:col-span-2" title="Consumo de Insumos" subtitle="Insumos más consumidos" type="bar"
-        [data]="distribuidorData?.chartConsumoInsumos"></app-chart-card>
+      <!-- Consumo de insumos: una sola tarjeta resuelve "más consumidos" y "menos consumidos" con el control de
+           orden, en lugar de repetir el mismo ranking en dos gráficos (uno al revés del otro). -->
+      <app-chart-card class="lg:col-span-3" [title]="consumoInsumosTitulo"
+        subtitle="Unidades consumidas en el período seleccionado" type="bar" [horizontal]="true"
+        [data]="consumoInsumosChart"
+        mensajeVacio="Sin consumo de insumos registrado en el período seleccionado.">
+        <div chart-actions class="flex flex-wrap items-center justify-end gap-2">
+          <app-top-orden [orden]="consumoTop" (ordenChange)="consumoTop = $event"></app-top-orden>
+        </div>
+      </app-chart-card>
 
-      <app-chart-card title="Menos Consumidos" subtitle="Poco movimiento" type="bar"
-        [data]="distribuidorData?.chartInsumosMenosConsumidos"
-        mensajeVacio="Sin insumos con poco movimiento en el período."></app-chart-card>
       <app-chart-card class="lg:col-span-2" title="Consumo por Agencia"
-        subtitle="Agencias con mayor uso de insumos (unidades)" type="bar"
-        [data]="distribuidorData?.chartConsumoPorAgencia"
-        mensajeVacio="Sin consumo de insumos registrado en el período seleccionado."></app-chart-card>
+        [subtitle]="consumoAgenciaSubtitulo" type="bar" [horizontal]="true"
+        [data]="consumoAgenciaChart"
+        mensajeVacio="Sin consumo de insumos registrado en el período seleccionado.">
+        <div chart-actions class="flex flex-wrap items-center justify-end gap-2">
+          <app-top-orden [orden]="consumoAgenciaTop" (ordenChange)="consumoAgenciaTop = $event"></app-top-orden>
+        </div>
+      </app-chart-card>
       <app-chart-card title="Existencias por Categoría" subtitle="Unidades de stock disponible" type="bar"
         [data]="bodegaData?.chartUnidadesStockPorCategoria"
         mensajeVacio="Sin existencias registradas en el alcance seleccionado."></app-chart-card>

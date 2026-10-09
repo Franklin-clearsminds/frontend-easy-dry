@@ -19,6 +19,8 @@ import { DistributionCardComponent, DistributionItem } from '../../shared/compon
 import { HeatmapGridComponent } from '../../shared/components/heatmap-grid/heatmap-grid.component';
 import { HourlyPatternCardComponent } from '../../shared/components/hourly-pattern-card/hourly-pattern-card.component';
 import { TopBottomComponent, TopBottomItem } from '../../shared/components/top-bottom/top-bottom.component';
+import { TopOrdenComponent } from '../../shared/components/top-orden/top-orden.component';
+import { OrdenTop, ordenarSerieTop } from '../../shared/utils/serie-top';
 import { OpcionesService } from '../../core/services/opciones.service';
 import { CHART_COLORS, interpolarHex } from '../../shared/theme/colors';
 import { DashboardChartData } from '../../core/models/dashboard.model';
@@ -55,7 +57,8 @@ export type DimensionFiltro = 'GLOBAL' | 'REGION' | 'AGENCY' | 'POLISHER';
     PeriodSummaryComponent,
     DistributionCardComponent,
     HourlyPatternCardComponent,
-    TopBottomComponent
+    TopBottomComponent,
+    TopOrdenComponent
   ],
   templateUrl: './dashboard.component.html'
 })
@@ -66,8 +69,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   produccion: any;
   operadores: any;
-  rankingPulidores: {fijos: any[], moviles: any[]} | null = null;
-  rankingLavadores: any[] | null = null;
+  rankingPulidores: {fijos: any[], bottomFijos: any[], moviles: any[], bottomMoviles: any[]} | null = null;
+  rankingLavadores: {ranking: any[], rankingBottom: any[]} | null = null;
   serviciosData: any;
   maquinaria: any;
   alertas: any[] = [];
@@ -134,6 +137,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
   agenciasTab: 'productivas' | 'ganancia' | 'reparaciones' = 'productivas';
   /** Pestaña para gráfico de incidentes (por agencia vs por pulidor) */
   incidentesTab: 'agencia' | 'pulidor' = 'agencia';
+  incidentesSortTab: 'mas' | 'menos' = 'mas';
+  equiposVulnerablesTab: 'mas' | 'menos' = 'mas';
+  eficienciaSortTab: 'lentas' | 'rapidas' = 'lentas';
+  bajaActividadSort: 'asc' | 'desc' = 'asc';
   /** Pestaña para gráfico de distribución de daños (por tipo vs por ubicación) */
   /** Pestaña del gráfico de fallas del parque: por tipo de equipo o por gravedad. */
   danosTab: 'tipo' | 'gravedad' = 'tipo';
@@ -155,6 +162,16 @@ export class DashboardComponent implements OnInit, OnDestroy {
    * mismo período por Región, Agencia o Pulidor sin cambiar el filtro (a nivel país, por región salían solo 2 barras).
    */
   desgloseTab: 'REGION' | 'AGENCY' | 'POLISHER' = 'REGION';
+
+  /**
+   * Orden y tamaño (Top 5 / Top 10, mayor→menor o menor→mayor) de los gráficos de barras de ranking.
+   * Cada tarjeta lleva su propio control, así que el estado es independiente por gráfico.
+   */
+  consumoTop: OrdenTop = { tamano: 5, direccion: 'DESC' };
+  consumoAgenciaTop: OrdenTop = { tamano: 5, direccion: 'DESC' };
+  /** El drill-down mostraba hasta 12 entidades: arranca en Top 10 para no perder alcance. */
+  jerarquiaTop: OrdenTop = { tamano: 10, direccion: 'DESC' };
+  agenciasTop: OrdenTop = { tamano: 5, direccion: 'DESC' };
 
   readonly categoriasServicio: { id: 'TODOS' | 'GENERAL' | 'ESPECIAL'; label: string }[] = [
     { id: 'TODOS', label: 'Todos los servicios' },
@@ -296,7 +313,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     return fuente
       .map((x: any) => ({ nombre: x.nombre, minutos: Number(x.tiempoPromedioMin) || 0, cantidad: Number(x.cantidad) || 0 }))
       .filter((x: { minutos: number }) => x.minutos > 0)
-      .sort((a: { minutos: number }, b: { minutos: number }) => b.minutos - a.minutos)
+      .sort((a: { minutos: number }, b: { minutos: number }) => this.eficienciaSortTab === 'lentas' ? b.minutos - a.minutos : a.minutos - b.minutos)
       .slice(0, 6);
   }
 
@@ -321,45 +338,57 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   get eficienciaTitulo(): string {
+    const rapida = this.eficienciaSortTab === 'rapidas';
     switch (this.activeDimension) {
-      case 'AGENCY': return 'Cuellos de Botella por Bahía';
-      case 'POLISHER': return 'Días Más Lentos del Pulidor';
-      case 'REGION': return 'Agencias Más Lentas de la Región';
-      default: return 'Agencias Más Lentas del País';
+      case 'AGENCY': return rapida ? 'Bahías Más Rápidas' : 'Cuellos de Botella por Bahía';
+      case 'POLISHER': return rapida ? 'Días Más Rápidos del Pulidor' : 'Días Más Lentos del Pulidor';
+      case 'REGION': return rapida ? 'Agencias Más Rápidas de la Región' : 'Agencias Más Lentas de la Región';
+      default: return rapida ? 'Agencias Más Rápidas del País' : 'Agencias Más Lentas del País';
     }
   }
 
   get eficienciaSubtitulo(): string {
     const n = this.eficienciaItems.length;
-    return n ? `Tiempo promedio de servicio (min) · ${n} más lentas del período` : '';
+    const rapida = this.eficienciaSortTab === 'rapidas';
+    return n ? `Tiempo promedio de servicio (min) · ${n} más ${rapida ? 'rápidas' : 'lentas'} del período` : '';
   }
 
   /** Entidades del nivel activo con menos servicios (detecta agencias o bahías sin operación). */
   get bajaActividadItems(): RankingItem[] {
-    return (this.produccion?.bajaActividad?.items ?? []).map((x: any) => ({
+    const arr = (this.produccion?.bajaActividad?.items ?? []).map((x: any) => ({
       nombre: x.nombre,
       valor: Number(x.cantidad) || 0,
       secundario: Number(x.cantidad) ? `${Number(x.tiempoPromedioMin) || 0} min promedio` : '',
     }));
+    const asc = this.muestraBajaActividadSort ? this.bajaActividadSort === 'asc' : true;
+    return arr.sort((a: RankingItem, b: RankingItem) => asc ? a.valor - b.valor : b.valor - a.valor).slice(0, 5);
   }
 
   get bajaActividadTitulo(): string {
+    const asc = this.muestraBajaActividadSort ? this.bajaActividadSort === 'asc' : true;
     switch (this.produccion?.bajaActividad?.entidad) {
-      case 'Bahía': return 'Bahías con Menos Actividad';
-      case 'Día': return 'Días con Menos Actividad';
-      case 'Pulidor': return 'Pulidores con Menos Actividad';
-      case 'Región': return 'Regiones con Menos Actividad';
-      default: return 'Agencias con Menos Actividad';
+      case 'Bahía': return asc ? 'Bahías con Menos Actividad' : 'Bahías con Más Actividad';
+      case 'Día': return asc ? 'Días con Menos Actividad' : 'Días con Más Actividad';
+      case 'Pulidor': return asc ? 'Pulidores con Menos Actividad' : 'Pulidores con Más Actividad';
+      case 'Región': return asc ? 'Regiones con Menos Actividad' : 'Regiones con Más Actividad';
+      default: return asc ? 'Agencias con Menos Actividad' : 'Agencias con Más Actividad';
     }
   }
 
   get bajaActividadSubtitulo(): string {
+    const asc = this.muestraBajaActividadSort ? this.bajaActividadSort === 'asc' : true;
+    const descText = asc ? 'menor' : 'mayor';
     switch (this.produccion?.bajaActividad?.entidad) {
-      case 'Bahía': return 'Estaciones con menor volumen de servicios';
-      case 'Pulidor': return 'Pulidores con menor volumen de servicios';
-      case 'Región': return 'Regiones con menor volumen de servicios';
-      default: return 'Sucursales con menor volumen de servicios';
+      case 'Bahía': return `Estaciones con ${descText} volumen de servicios`;
+      case 'Pulidor': return `Pulidores con ${descText} volumen de servicios`;
+      case 'Región': return `Regiones con ${descText} volumen de servicios`;
+      default: return `Sucursales con ${descText} volumen de servicios`;
     }
+  }
+
+  get muestraBajaActividadSort(): boolean {
+    // Si la entidad es Región, solo hay 4, por lo que no tiene sentido un top/bottom.
+    return this.produccion?.bajaActividad?.entidad !== 'Región';
   }
 
   /** Serie de tiempo de resolución según la pestaña (por agencia o por gravedad). */
@@ -388,12 +417,15 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   /** Datos del gráfico de agencias; si la serie elegida no existe, cae a otra disponible. */
   get chartAgenciasActivo(): any {
-    const productivas = this.produccion?.topAgenciasProductivas;
-    const ganancia = this.produccion?.gananciaNetaAgencias;
-    const reparaciones = this.produccion?.topAgenciasReparaciones;
-    if (this.agenciasTab === 'ganancia') return ganancia ?? reparaciones ?? productivas;
-    if (this.agenciasTab === 'reparaciones') return reparaciones ?? ganancia ?? productivas;
-    return productivas ?? ganancia ?? reparaciones;
+    // Se prefieren los rankings completos del backend (sin recortar) para que el control Top N pueda mostrar
+    // también las agencias de abajo; las series cortas quedan como respaldo si el backend no las enviara.
+    const productivas = this.produccion?.agenciasRankServicios ?? this.produccion?.topAgenciasProductivas;
+    const ganancia = this.produccion?.agenciasRankGanancia ?? this.produccion?.gananciaNetaAgencias;
+    const reparaciones = this.produccion?.agenciasRankCosto ?? this.produccion?.topAgenciasReparaciones;
+    const base = this.agenciasTab === 'ganancia' ? (ganancia ?? reparaciones ?? productivas)
+      : this.agenciasTab === 'reparaciones' ? (reparaciones ?? ganancia ?? productivas)
+        : (productivas ?? ganancia ?? reparaciones);
+    return ordenarSerieTop(base, this.agenciasTop);
   }
 
   get agenciasSubtitulo(): string {
@@ -402,6 +434,42 @@ export class DashboardComponent implements OnInit, OnDestroy {
       case 'reparaciones': return 'USD acumulado en incidentes técnicos del período';
       default: return 'Servicios del período por agencia';
     }
+  }
+
+  /** Serie del drill-down jerárquico con el orden y el tamaño elegidos (Top 5 / Top 10). */
+  get jerarquiaChartOrdenado(): any {
+    return ordenarSerieTop(this.produccion?.jerarquiaChart, this.jerarquiaTop);
+  }
+
+  /**
+   * El control de orden necesita entidades comparables entre sí. Con el filtro puesto en un pulidor la serie
+   * son días, y ordenar los días por volumen como si fueran un ranking no aporta nada.
+   */
+  get muestraOrdenJerarquia(): boolean {
+    const j = this.produccion?.jerarquia;
+    return !!j && j.entidad !== 'Día' && !!this.produccion?.jerarquiaChart;
+  }
+
+  /** Consumo de insumos: serie completa ordenada y recortada por su control (Top 5 / Top 10, asc o desc). */
+  get consumoInsumosChart(): any {
+    return ordenarSerieTop(this.distribuidorData?.chartConsumoInsumos, this.consumoTop);
+  }
+
+  /** Consumo por agencia con el mismo control de orden. */
+  get consumoAgenciaChart(): any {
+    return ordenarSerieTop(this.distribuidorData?.chartConsumoPorAgencia, this.consumoAgenciaTop);
+  }
+
+  /** El título del ranking de insumos dice qué extremo se está viendo; si no, "más consumidos" mentiría en ascendente. */
+  get consumoInsumosTitulo(): string {
+    const extremo = this.consumoTop.direccion === 'ASC' ? 'Menos consumidos' : 'Más consumidos';
+    return `Insumos · ${extremo} (Top ${this.consumoTop.tamano})`;
+  }
+
+  get consumoAgenciaSubtitulo(): string {
+    return this.consumoAgenciaTop.direccion === 'ASC'
+      ? 'Agencias con menos consumo de insumos (unidades)'
+      : 'Agencias con más consumo de insumos (unidades)';
   }
 
   /** Top Vehículos en formato distribución (dona + lista): serie elegida entre marca · modelo · color. */
