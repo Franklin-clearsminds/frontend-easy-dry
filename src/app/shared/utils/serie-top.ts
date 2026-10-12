@@ -6,13 +6,18 @@ export interface OrdenTop {
   tamano: number;
   /** DESC = de mayor a menor; ASC = de menor a mayor. */
   direccion: 'ASC' | 'DESC';
+  /**
+   * Valores por los que ordenar, alineados con las etiquetas. Por defecto se usa el primer dataset, que es
+   * la magnitud de cada barra; se pasa explícitamente cuando la magnitud real es la suma de varias series
+   * (barras apiladas, p. ej. Costo por Agencia = reparaciones + mantenimiento).
+   */
+  clave?: number[];
 }
 
 /**
  * Reordena y recorta una serie de Chart.js (`labels` + `datasets`) según el orden elegido.
  *
- * El criterio es el primer dataset: es la magnitud que representa cada barra en todos los gráficos que usan
- * este control. El reordenamiento se aplica a TODOS los datasets y a `backgroundColor` para que las series
+ * El reordenamiento se aplica a TODOS los datasets y a `backgroundColor` para que las series
  * no se desalineen; así cada entidad conserva su color tanto en orden ascendente como descendente.
  */
 export function ordenarSerieTop(serie: any, orden: OrdenTop): any {
@@ -22,7 +27,7 @@ export function ordenarSerieTop(serie: any, orden: OrdenTop): any {
 
   const total = labels.length;
   const tamano = Math.min(Math.max(1, Number(orden?.tamano) || total), total);
-  const base: any[] = Array.isArray(datasets[0]?.data) ? datasets[0].data : [];
+  const base: any[] = Array.isArray(orden?.clave) ? orden.clave : (Array.isArray(datasets[0]?.data) ? datasets[0].data : []);
   const signo = orden?.direccion === 'ASC' ? 1 : -1;
 
   const indices = labels

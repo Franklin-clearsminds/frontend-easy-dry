@@ -72,7 +72,7 @@ const ORDEN_SEVERIDAD: Record<AlertaSeveridad, number> = { critica: 0, advertenc
             <button type="button" role="tab" (click)="agrupacion = 'plana'" [attr.aria-selected]="agrupacion === 'plana'"
               class="px-3 h-7 text-xs font-bold rounded-lg transition-colors flex items-center gap-1"
               [ngClass]="agrupacion === 'plana' ? 'bg-white text-easydry-blue shadow-sm' : 'text-slate-500 hover:text-slate-700'">
-              <i-lucide name="list" class="w-3.5 h-3.5"></i-lucide> Lista
+              <i-lucide name="layout-list" class="w-3.5 h-3.5"></i-lucide> Lista
             </button>
             <button type="button" role="tab" (click)="agrupacion = 'insumo'" [attr.aria-selected]="agrupacion === 'insumo'"
               class="px-3 h-7 text-xs font-bold rounded-lg transition-colors flex items-center gap-1"

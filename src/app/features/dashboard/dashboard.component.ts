@@ -129,13 +129,30 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   bodegaData: any = null;
   especialesData: any = null;
+  /** Pestaña principal para la vista de Servicios Especiales */
+  especialesTab: 'resumen' | 'pulidores' | 'maquinaria' = 'resumen';
   /** Pestaña del ranking de pulidores (fijos vs móviles). */
   pulidoresTab: 'fijos' | 'moviles' = 'fijos';
 
+  /** Pestaña principal del dashboard de mantenimiento (COORD_MANTENIMIENTO · TECNICO). */
+  mantenimientoTab: 'parque' | 'fallas' | 'costos' | 'programacion' = 'parque';
+
+  /** Pestaña principal del dashboard de bodega (COORD_BODEGA · ASISTENTE_BODEGA). */
+  bodegaTab: 'salud' | 'reposicion' | 'despachos' | 'consumo' = 'salud';
+
+  /** Control de orden de los rankings del dashboard de bodega. */
+  coberturaTop: OrdenTop = { tamano: 5, direccion: 'DESC' };
+  deficitTop: OrdenTop = { tamano: 5, direccion: 'DESC' };
+  ubicacionesTop: OrdenTop = { tamano: 5, direccion: 'DESC' };
+  consumoInsumosTop: OrdenTop = { tamano: 5, direccion: 'DESC' };
+  consumoAgenciasTop: OrdenTop = { tamano: 5, direccion: 'DESC' };
+
   /** Pestaña del gráfico unificado de vehículos (marca · modelo · color). */
   vehiculosTab: 'marcas' | 'modelos' | 'colores' = 'marcas';
-  /** Pestaña del gráfico de agencias (productivas / ganancia neta / gasto en reparaciones). */
-  agenciasTab: 'productivas' | 'ganancia' | 'reparaciones' = 'productivas';
+  /** Pestaña del gráfico de agencias (productivas / ganancia neta / gasto en reparaciones / incidentes / tiempos). */
+  agenciasTab: 'productivas' | 'ganancia' | 'reparaciones' | 'incidentes' | 'tiempos' = 'productivas';
+  chart4Top: OrdenTop = { tamano: 5, direccion: 'DESC' };
+  chart4Tab: 'lavados' | 'incidentes' | 'gastos' | 'tiempos' = 'lavados';
   /** Pestaña para gráfico de incidentes (por agencia vs por pulidor) */
   incidentesTab: 'agencia' | 'pulidor' = 'agencia';
   incidentesSortTab: 'mas' | 'menos' = 'mas';
@@ -173,6 +190,19 @@ export class DashboardComponent implements OnInit, OnDestroy {
   /** El drill-down mostraba hasta 12 entidades: arranca en Top 10 para no perder alcance. */
   jerarquiaTop: OrdenTop = { tamano: 10, direccion: 'DESC' };
   agenciasTop: OrdenTop = { tamano: 5, direccion: 'DESC' };
+
+  /**
+   * Dashboard de mantenimiento (COORD_MANTENIMIENTO · TECNICO). Un control de orden por gráfico de ranking:
+   * en MTTR y en costos, el orden ascendente responde "¿qué equipo o agencia sale mejor parado?".
+   */
+  maquinasTop: OrdenTop = { tamano: 5, direccion: 'DESC' };
+  costoMaquinasTop: OrdenTop = { tamano: 5, direccion: 'DESC' };
+  mttrTop: OrdenTop = { tamano: 5, direccion: 'DESC' };
+  costoAgenciaTop: OrdenTop = { tamano: 5, direccion: 'DESC' };
+  pulidoresChartTop: OrdenTop = { tamano: 5, direccion: 'DESC' };
+  pulidoresTablaTop: OrdenTop = { tamano: 5, direccion: 'DESC' };
+  mixEspecialesTop: OrdenTop = { tamano: 5, direccion: 'DESC' };
+  mixEspecialesVista: 'barras' | 'distribucion' = 'barras';
 
   readonly categoriasServicio: { id: 'TODOS' | 'GENERAL' | 'ESPECIAL'; label: string }[] = [
     { id: 'TODOS', label: 'Todos los servicios' },
@@ -213,9 +243,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
     }
     if (this.isComercialView) {
       return [
-        { label: 'Lavados', valor: String(k.serviciosHoy ?? 0), color: 'azul' },
-        { label: 'Lavados del período', valor: String(k.servicios30Dias ?? 0), color: 'verde' },
-        { label: 'Químicos consumidos', valor: `${k.unidadesQuimicos ?? 0} u.`, color: 'slate' },
+        { label: 'Total Ventas', valor: `$${k.ingresoHoy ?? 0}`, color: 'verde' },
+        { label: 'Ticket Promedio', valor: `$${k.ticketPromedioHoy ?? 0}`, color: 'azul' },
+        { label: 'Servicios del período', valor: String(k.servicios30Dias ?? k.serviciosHoy ?? 0), color: 'azul' },
       ];
     }
     return [
@@ -246,6 +276,25 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   get activeMixItems(): DistributionItem[] {
     return this.mixTab === 'generales' ? this.generalesItems : this.especialesItems;
+  }
+
+  mixComercialTab: 'servicios' | 'categorias' = 'servicios';
+
+  get mixComercialItems(): DistributionItem[] {
+    if (this.mixComercialTab === 'categorias') {
+      const raw = this.produccion?.mixCategoriaRaw;
+      if (raw && raw.length) {
+        return raw.map((x: any) => ({
+          nombre: x.nombre === 'ESPECIAL' ? 'Especiales / Detailing' : 'Lavados Generales',
+          valor: Number(x.cantidad) || 0,
+        }));
+      }
+    }
+    const rawServicios = this.produccion?.mixServiciosRaw;
+    if (rawServicios && rawServicios.length) {
+      return rawServicios.map((x: any) => ({ nombre: x.nombre, valor: Number(x.cantidad) || 0 }));
+    }
+    return this.itemsDeChart(this.produccion?.mixServicios);
   }
 
   get coloresItems(): DistributionItem[] {
@@ -281,7 +330,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
    * (supervisor y operativos) sigue siendo la única lectura de bahía, así que se conserva.
    */
   get muestraLavadosPorBahia(): boolean {
-    return !this.isSuperAdminView;
+    return !this.isSuperAdminView && !this.isAdminView;
   }
 
   get spanActividad(): string {
@@ -401,39 +450,71 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   /** Explica en qué se basa el promedio y sobre cuántos incidentes resueltos se calculó. */
-  get mttrSubtitulo(): string {
+  /**
+   * Base del subtítulo del MTTR. El panel ejecutivo la usa con el orden fijo descendente de siempre; el
+   * dashboard de mantenimiento le pasa el sentido activo, para no anunciar un orden distinto al del gráfico.
+   */
+  private baseMttrSubtitulo(direccion: 'ASC' | 'DESC'): string {
     const items: any[] = (this.mttrTab === 'gravedad' ? this.tecnicoData?.mttrGravedad : this.tecnicoData?.mttrAgencia) ?? [];
     const resueltos = items.reduce((sum, x) => sum + (Number(x.incidentes) || 0), 0);
     if (!resueltos) return 'Sin incidentes resueltos en el período';
     const base = this.mttrTab === 'gravedad'
       ? 'Horas promedio hasta resolver, por gravedad'
-      : 'Horas promedio hasta resolver, por agencia (de más lenta a más rápida)';
+      : direccion === 'ASC'
+        ? 'Horas promedio hasta resolver, por agencia (de más rápida a más lenta)'
+        : 'Horas promedio hasta resolver, por agencia (de más lenta a más rápida)';
     return `${base} · ${resueltos} incidente${resueltos === 1 ? '' : 's'} resuelto${resueltos === 1 ? '' : 's'}`;
+  }
+
+  get mttrSubtitulo(): string {
+    return this.baseMttrSubtitulo('DESC');
+  }
+
+  /** Subtítulo del MTTR en el dashboard de mantenimiento, con el sentido del orden que el usuario eligió. */
+  get mttrSubtituloTaller(): string {
+    return this.baseMttrSubtitulo(this.mttrTop.direccion);
   }
 
   /** ¿Hay datos para el gráfico unificado de agencias? */
   get tieneAgenciasChart(): boolean {
-    return !!(this.produccion?.topAgenciasProductivas || this.produccion?.gananciaNetaAgencias || this.produccion?.topAgenciasReparaciones);
+    return !!(this.produccion?.topAgenciasProductivas || this.produccion?.gananciaNetaAgencias || this.produccion?.topAgenciasReparaciones || this.produccion?.distribucionModelos);
   }
 
-  /** Datos del gráfico de agencias; si la serie elegida no existe, cae a otra disponible. */
+  get chartTituloAgencias(): string {
+    return this.agenciaFiltro ? 'Rendimiento por Bahía' : 'Top Agencias';
+  }
+
+  /** Datos del gráfico de agencias/bahías unificado; si se filtra una agencia, baja automáticamente a bahías. */
   get chartAgenciasActivo(): any {
-    // Se prefieren los rankings completos del backend (sin recortar) para que el control Top N pueda mostrar
-    // también las agencias de abajo; las series cortas quedan como respaldo si el backend no las enviara.
-    const productivas = this.produccion?.agenciasRankServicios ?? this.produccion?.topAgenciasProductivas;
+    if (this.agenciaFiltro) {
+      const base = this.agenciasTab === 'tiempos'
+        ? this.produccion?.tiemposBahias
+        : this.produccion?.distribucionModelos;
+      return ordenarSerieTop(base, this.agenciasTop);
+    }
+
+    const productivas = this.produccion?.agenciasRankServicios ?? this.produccion?.topAgenciasProductivas ?? this.produccion?.distribucionModelos;
     const ganancia = this.produccion?.agenciasRankGanancia ?? this.produccion?.gananciaNetaAgencias;
     const reparaciones = this.produccion?.agenciasRankCosto ?? this.produccion?.topAgenciasReparaciones;
+    const incidentes = this.produccion?.agenciasRankIncidentes ?? this.produccion?.topAgencias;
+    const tiempos = this.produccion?.tiemposBahias;
+
     const base = this.agenciasTab === 'ganancia' ? (ganancia ?? reparaciones ?? productivas)
       : this.agenciasTab === 'reparaciones' ? (reparaciones ?? ganancia ?? productivas)
+      : this.agenciasTab === 'incidentes' ? (incidentes ?? reparaciones ?? productivas)
+      : this.agenciasTab === 'tiempos' ? (tiempos ?? productivas)
         : (productivas ?? ganancia ?? reparaciones);
     return ordenarSerieTop(base, this.agenciasTop);
   }
 
   get agenciasSubtitulo(): string {
+    const entidad = this.agenciaFiltro ? `por bahía en ${this.agenciaLabel || 'la agencia'}` : 'por agencia de la región';
     switch (this.agenciasTab) {
-      case 'ganancia': return 'Ingresos − gastos operativos del período';
-      case 'reparaciones': return 'USD acumulado en incidentes técnicos del período';
-      default: return 'Servicios del período por agencia';
+      case 'ganancia': return `Ingresos − gastos operativos del período ${entidad}`;
+      case 'reparaciones': return `USD acumulado en incidentes técnicos ${entidad}`;
+      case 'incidentes': return `Fallas y averías de maquinaria ${entidad}`;
+      case 'tiempos': return `Tiempo promedio de atención en minutos ${entidad}`;
+      default: return `Servicios del período ${entidad}`;
     }
   }
 
@@ -527,7 +608,53 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   get pulidoresActuales(): any[] {
     if (!this.especialesData) return [];
-    return this.pulidoresTab === 'fijos' ? (this.especialesData.pulidoresFijos || []) : (this.especialesData.pulidoresMoviles || []);
+    const raw = this.pulidoresTab === 'fijos' ? (this.especialesData.pulidoresFijos || []) : (this.especialesData.pulidoresMoviles || []);
+    const asc = this.pulidoresTablaTop.direccion === 'ASC';
+    const sorted = [...raw].sort((a: any, b: any) => asc ? (a.servicios - b.servicios) : (b.servicios - a.servicios));
+    return sorted.slice(0, this.pulidoresTablaTop.tamano);
+  }
+
+  get chartTopOperadoresOrdenado(): any {
+    return ordenarSerieTop(this.especialesData?.chartTopOperadores, this.pulidoresChartTop);
+  }
+
+  get chartTipoServicioOrdenado(): any {
+    return ordenarSerieTop(this.especialesData?.chartTipoServicio, this.mixEspecialesTop);
+  }
+
+  get mixEspecialesItems(): DistributionItem[] {
+    let raw = this.especialesData?.tipoServicio;
+    if (!raw || !raw.length) {
+      const chart = this.especialesData?.chartTipoServicio;
+      if (chart?.labels && chart?.datasets?.[0]?.data) {
+        raw = chart.labels.map((nombre: string, i: number) => ({
+          nombre,
+          cantidad: Number(chart.datasets[0].data[i]) || 0
+        }));
+      } else {
+        raw = [];
+      }
+    }
+    const asc = this.mixEspecialesTop.direccion === 'ASC';
+    const sorted = [...raw].sort((a: any, b: any) => asc ? (a.cantidad - b.cantidad) : (b.cantidad - a.cantidad));
+    const sliced = sorted.slice(0, this.mixEspecialesTop.tamano);
+    return sliced.map((x: any) => ({ nombre: x.nombre, valor: Number(x.cantidad) || 0 }));
+  }
+
+  get tituloFlujoEspeciales(): string {
+    switch (this.rangoFiltro) {
+      case 'HOY': return 'OTs Creadas (Últimos 7 días)';
+      case 'SEMANA': return 'OTs Creadas en la Semana';
+      case 'MES': return 'Evolución de OTs del Mes';
+      case 'ANIO': return 'Evolución de OTs del Año';
+      case 'TRIMESTRE': return 'Evolución de OTs del Trimestre';
+      case 'SEMESTRE': return 'Evolución de OTs del Semestre';
+      default: return 'Evolución de OTs Especiales';
+    }
+  }
+
+  get subtituloFlujoEspeciales(): string {
+    return `Tendencia de órdenes generadas (${this.etiquetaRango})`;
   }
 
   get tabAnaliticaTitle(): string {
@@ -654,13 +781,44 @@ export class DashboardComponent implements OnInit, OnDestroy {
     if (this.isAdminView) return 'Auditoría Reciente';
     if (this.isAprobadorView) return 'Tipos de Solicitud';
     if (this.isComercialView) return 'Top Marcas Atendidas';
-    return 'Lavados por Bahía';
+    const entidad = this.agenciaFiltro ? 'Bahía' : 'Agencia';
+    switch (this.chart4Tab) {
+      case 'incidentes': return `Incidentes por ${entidad}`;
+      case 'gastos': return `Gastos Técnicos por ${entidad}`;
+      case 'tiempos': return `Tiempos por ${entidad}`;
+      default: return `Lavados por ${entidad}`;
+    }
   }
 
   get chart4Subtitle(): string {
     if (this.isAdminView) return 'Acciones realizadas';
     if (this.isAprobadorView) return 'Distribución por tipo de requerimiento';
-    return 'Productividad en cantidad';
+    const nivel = this.agenciaFiltro ? `por bahía en ${this.agenciaLabel || 'la agencia'}` : 'por agencia de la región';
+    switch (this.chart4Tab) {
+      case 'incidentes': return `Fallas y averías de maquinaria ${nivel}`;
+      case 'gastos': return `USD acumulado en reparaciones ${nivel}`;
+      case 'tiempos': return `Tiempo promedio de atención en minutos ${nivel}`;
+      default: return `Productividad en cantidad ${nivel}`;
+    }
+  }
+
+  get chart4Data(): any {
+    let serieBase: any;
+    switch (this.chart4Tab) {
+      case 'incidentes':
+        serieBase = this.produccion?.agenciasRankIncidentes ?? this.produccion?.topAgencias;
+        break;
+      case 'gastos':
+        serieBase = this.produccion?.agenciasRankCosto ?? this.produccion?.topAgenciasReparaciones;
+        break;
+      case 'tiempos':
+        serieBase = this.produccion?.tiemposBahias;
+        break;
+      default:
+        serieBase = this.produccion?.distribucionModelos;
+        break;
+    }
+    return ordenarSerieTop(serieBase, this.chart4Top);
   }
 
   get filtroActual() {
@@ -698,18 +856,43 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   // ── Filtros exclusivos: se habilita GLOBAL y la propia dimensión activa ──
   get regionHabilitada(): boolean { return this.activeDimension === 'GLOBAL' || this.activeDimension === 'REGION'; }
-  get agenciaHabilitada(): boolean { return this.activeDimension === 'GLOBAL' || this.activeDimension === 'AGENCY'; }
+  get agenciaHabilitada(): boolean { return this.activeDimension === 'GLOBAL' || this.activeDimension === 'REGION' || this.activeDimension === 'AGENCY'; }
   get pulidorHabilitado(): boolean { return this.activeDimension === 'GLOBAL' || this.activeDimension === 'POLISHER'; }
   /** true mientras hay una dimensión estructural distinta a GLOBAL (para el botón de reset). */
   get hayDimensionEstructural(): boolean { return this.activeDimension !== 'GLOBAL'; }
 
   /** Etiqueta del nivel de análisis actual (encabezado del panel). */
   get nivelAnalisisLabel(): string {
+    const u = this.auth.getCurrentUser();
     switch (this.activeDimension) {
       case 'REGION': return `Región · ${this.regionLabel || 'seleccionada'}`;
       case 'AGENCY': return `Agencia · ${this.agenciaLabel || 'seleccionada'}`;
       case 'POLISHER': return `Pulidor · ${this.pulidorLabel || 'seleccionado'}`;
-      default: return 'Global · País';
+      default:
+        if (this.vista === 'especiales') {
+          return 'Global · Red Especializada';
+        }
+        if (u?.ambito === 'REGION') {
+          return `Región · ${u?.region || u?.regionNombre || this.contextLabel || 'Asignada'}`;
+        }
+        if (u?.ambito === 'AGENCIA') {
+          return `Agencia · ${u?.sucursal || u?.sucursalNombre || this.contextLabel || 'Asignada'}`;
+        }
+        return 'Global · País';
+    }
+  }
+
+  /** Subtítulo descriptivo del nivel de análisis actual según la dimensión o el alcance del usuario. */
+  get nivelAnalisisSubtitulo(): string {
+    switch (this.activeDimension) {
+      case 'REGION': return 'Comparativa de agencias dentro de la región';
+      case 'AGENCY': return 'Detalle por bahía de trabajo';
+      case 'POLISHER': return 'Ficha individual del pulidor';
+      default:
+        if (this.vista === 'especiales') return 'Monitoreo nacional de servicios especiales y pulidores';
+        if (this.puedeFiltrarRegion) return 'Comparativa entre agencias y regiones';
+        if (this.puedeFiltrarAgencia) return 'Consolidado de agencias de su región';
+        return 'Detalle operativo de su agencia';
     }
   }
 
@@ -760,22 +943,28 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.recargar();
   }
 
-  onRegionChange(regionId: string | null): void {    this.regionFiltro = regionId;
+  onRegionChange(regionId: string | null): void {
+    this.regionFiltro = regionId;
     if (!regionId) this.regionLabel = '';
-    this.limpiarAgenciaYPulidor();
+    this.agenciaFiltro = null;
+    this.agenciaLabel = '';
+    this.pulidorFiltro = null;
+    this.pulidorLabel = '';
     this.activeDimension = regionId ? 'REGION' : 'GLOBAL';
-    this.cargarAgencias = this.opciones.agencias();
+    this.cargarAgencias = this.opciones.agencias(regionId ? { regionId } : undefined);
     this.recargar();
   }
 
   onAgenciaChange(agenciaId: string | null): void {
     this.agenciaFiltro = agenciaId;
-    if (!agenciaId) this.agenciaLabel = '';
-    this.regionFiltro = null;
-    this.regionLabel = '';
-    this.pulidorFiltro = null;
-    this.pulidorLabel = '';
-    this.activeDimension = agenciaId ? 'AGENCY' : 'GLOBAL';
+    if (!agenciaId) {
+      this.agenciaLabel = '';
+      this.activeDimension = this.regionFiltro ? 'REGION' : 'GLOBAL';
+    } else {
+      this.activeDimension = 'AGENCY';
+      this.pulidorFiltro = null;
+      this.pulidorLabel = '';
+    }
     this.recargar();
   }
 
@@ -929,8 +1118,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
       // Costos, MTTR y deuda de mantenimiento para el tab de Activos & Taller.
       peticiones.push(this.dashboardService.getDashboardTecnico(filtro).pipe(tap((d) => (this.tecnicoData = d))));
     }
-    if (this.puedeVerAlertas) {
-      // Salud de stock vs mínimo/ideal, déficit y alertas por categoría para el tab de Inventario.
+    if (this.puedeVerAlertas || this.isComercialView || this.puedeVerInventario) {
+      // Salud de stock vs mínimo/ideal, déficit y alertas por categoría para el tab de Inventario / Catálogo Comercial.
       peticiones.push(this.dashboardService.getDashboardBodegaDedicado(filtro).pipe(tap((d) => (this.bodegaData = d))));
     }
     if (this.puedeVerAlertas) {
@@ -944,9 +1133,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   private cargarTaller(): void {
+    // El dashboard de mantenimiento ya no consume el panel de bodega: el rol no tiene capacidades de
+    // inventario/despachos y esas tarjetas se retiraron de esta vista.
     const peticiones: Observable<any>[] = [
       this.dashboardService.getDashboardTecnico(this.filtroActual).pipe(tap((d) => (this.tecnicoData = d))),
-      this.dashboardService.getDashboardBodegaDedicado(this.filtroActual).pipe(tap((d) => (this.bodegaData = d))),
     ];
     this.carga.add(forkJoin(peticiones).subscribe({
       next: () => (this.recargando = false),
@@ -955,8 +1145,15 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   private cargarEspeciales(): void {
-    this.carga.add(this.dashboardService.getDashboardEspeciales(this.filtroActual).subscribe({
-      next: (d) => { this.especialesData = d; this.recargando = false; },
+    const peticiones: Observable<any>[] = [
+      this.dashboardService.getDashboardEspeciales(this.filtroActual).pipe(tap((d) => (this.especialesData = d))),
+    ];
+    if (this.puedeVerMaquinaria) {
+      peticiones.push(this.dashboardService.getMaquinaria(this.filtroActual).pipe(tap((d) => (this.maquinaria = this.aChartMaquinaria(d)))));
+      peticiones.push(this.dashboardService.getDashboardTecnico(this.filtroActual).pipe(tap((d) => (this.tecnicoData = d))));
+    }
+    this.carga.add(forkJoin(peticiones).subscribe({
+      next: () => (this.recargando = false),
       error: () => (this.recargando = false),
     }));
   }
@@ -975,29 +1172,120 @@ export class DashboardComponent implements OnInit, OnDestroy {
     }));
   }
 
-  get tallerBodegaColumns(): number {
-    let count = 0;
-    if (this.bodegaData?.chartTopInsumosCriticos) count++;
-    if (this.bodegaData?.chartTopInsumosConsumo) count++;
-    if (this.bodegaData?.chartDespachosEstado) count++;
-    return count || 1;
+  // ── Rankings del dashboard de mantenimiento (Top 5 / Top 10, asc o desc) ──
+  // Cada gráfico se ordena sobre el ranking completo que envía el backend; los campos recortados del servicio
+  // se quedan para el panel ejecutivo, que muestra su propio top fijo.
+
+  /** Máquinas con más incidentes reportados. Ascendente = las más sanas del parque. */
+  get maquinasProblematicasChart(): any {
+    return ordenarSerieTop(this.tecnicoData?.maquinasProblematicasRank, this.maquinasTop);
   }
 
-  get bodegaMainColumns(): number {
-    let count = 0;
-    if (this.bodegaData?.chartNivelAlertas) count++;
-    if (this.bodegaData?.chartDespachosEstado) count++;
-    if (this.bodegaData?.chartTopInsumosCriticos) count++;
-    if (this.bodegaData?.chartTopAgenciasConAlertas) count++;
-    if (this.bodegaData?.chartTopInsumosConsumo) count++;
-    if (this.bodegaData?.chartConsumoPorCategoria) count++;
-    if (this.bodegaData?.chartTopAgenciasConsumo) count++;
-    if (this.bodegaData?.chartUnidadesStockPorCategoria) count++;
-    
-    if (count === 1) return 1;
-    if (count === 2 || count === 4) return 2;
-    if (count === 3) return 3; 
-    return 2; 
+  /** Máquinas con más USD acumulado en reparaciones. */
+  get maquinasCostosasChart(): any {
+    return ordenarSerieTop(this.tecnicoData?.maquinasCostosasRank, this.costoMaquinasTop);
+  }
+
+  /**
+   * MTTR por agencia. Ascendente = las agencias que resuelven más rápido.
+   * Por gravedad son 4 valores fijos (no es un ranking), así que ese lado usa la serie tal cual.
+   */
+  get mttrChartOrdenado(): any {
+    if (this.mttrTab === 'gravedad') return this.mttrChart;
+    return ordenarSerieTop(this.tecnicoData?.mttrAgenciaRank, this.mttrTop);
+  }
+
+  /**
+   * Costo por agencia (reparaciones + mantenimiento). Es un gráfico apilado, así que se ordena por el gasto
+   * total: sin la clave explícita, el helper ordenaría solo por la primera serie y "menor a mayor" mostraría
+   * las agencias con menos reparaciones aunque sean las que más gastan en mantenimiento.
+   */
+  get costoAgenciaChart(): any {
+    const serie = this.tecnicoData?.costoAgenciaRank;
+    const datasets: any[] = Array.isArray(serie?.datasets) ? serie.datasets : [];
+    const clave = (serie?.labels ?? []).map((_: any, i: number) =>
+      datasets.reduce((sum, ds) => sum + (Number(ds?.data?.[i]) || 0), 0),
+    );
+    return ordenarSerieTop(serie, { ...this.costoAgenciaTop, clave });
+  }
+
+  /** Costo total del parque en el período: reparaciones por fallas + mantenimiento. */
+  get costoTotalParque(): number {
+    return Number(((this.tecnicoData?.costoTotalReparaciones ?? 0) + (this.tecnicoData?.costoMantenimientos30d ?? 0)).toFixed(2));
+  }
+
+  /** Equipos distintos que registraron al menos una falla en el período. */
+  get equiposConFallas(): number {
+    return this.tecnicoData?.maquinasProblematicasRank?.labels?.length ?? 0;
+  }
+
+  /** Conteo de mantenimientos por tipo (preventivo / correctivo) para los KPI de programación. */
+  private conteoPorTipoMantenimiento(tipo: string): number {
+    const serie = this.tecnicoData?.chartTipoMantenimiento;
+    const labels: string[] = serie?.labels ?? [];
+    const datos: number[] = serie?.datasets?.[0]?.data ?? [];
+    return Number(datos[labels.indexOf(tipo)]) || 0;
+  }
+
+  get preventivosEjecutados(): number {
+    return this.conteoPorTipoMantenimiento('PREVENTIVO');
+  }
+
+  get correctivosEjecutados(): number {
+    return this.conteoPorTipoMantenimiento('CORRECTIVO');
+  }
+
+  // ── Rankings del dashboard de bodega (Top 5 / Top 10, asc o desc) ──
+  // Igual que en mantenimiento: se ordena sobre la serie que envía el backend para el control, no sobre la
+  // recortada que consume el panel ejecutivo.
+
+  /** Días de cobertura del stock por insumo. Ascendente = los que se agotan primero. */
+  get coberturaChart(): any {
+    return ordenarSerieTop(this.bodegaData?.chartCoberturaRank, this.coberturaTop);
+  }
+
+  /** Unidades que faltan para llegar al nivel ideal, por insumo. */
+  get deficitChart(): any {
+    return ordenarSerieTop(this.bodegaData?.chartTopDeficitRank, this.deficitTop);
+  }
+
+  /**
+   * Ubicaciones con stock bajo el ideal. Es un gráfico apilado (agotado · crítico · bajo mínimo · bajo ideal),
+   * así que se ordena por el TOTAL de posiciones con problema y no por la primera serie apilada.
+   */
+  get ubicacionesChart(): any {
+    const serie = this.bodegaData?.chartSaludPorUbicacionRank;
+    const datasets: any[] = Array.isArray(serie?.datasets) ? serie.datasets : [];
+    const clave = (serie?.labels ?? []).map((_: any, i: number) =>
+      datasets.reduce((sum, ds) => sum + (Number(ds?.data?.[i]) || 0), 0),
+    );
+    return ordenarSerieTop(serie, { ...this.ubicacionesTop, clave });
+  }
+
+  /** Insumos con más unidades despachadas. */
+  get consumoInsumosBodegaChart(): any {
+    return ordenarSerieTop(this.bodegaData?.chartTopInsumosConsumoRank, this.consumoInsumosTop);
+  }
+
+  /** Agencias que más insumos recibieron. */
+  get consumoAgenciasBodegaChart(): any {
+    return ordenarSerieTop(this.bodegaData?.chartTopAgenciasConsumoRank, this.consumoAgenciasTop);
+  }
+
+  /** Posiciones de stock en un estado concreto de la clasificación de salud (AGOTADO, ÓPTIMO, SOBRESTOCK…). */
+  private posicionesEnEstado(estado: string): number {
+    const serie = this.bodegaData?.chartSaludStock;
+    const labels: string[] = serie?.labels ?? [];
+    const datos: number[] = serie?.datasets?.[0]?.data ?? [];
+    return Number(datos[labels.indexOf(estado)]) || 0;
+  }
+
+  get posicionesOptimas(): number {
+    return this.posicionesEnEstado('ÓPTIMO');
+  }
+
+  get posicionesSobrestock(): number {
+    return this.posicionesEnEstado('SOBRESTOCK');
   }
 
   /** Distribución del parque de maquinaria como serie de gráfico (operativas / mantenimiento / dañadas). */
@@ -1047,7 +1335,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
       distribucionModelos: d.distribucionModelos ?? null,
       tiemposBahias: d.tiemposBahias ?? null,
       topMaquinas: d.topMaquinas ?? null,
-      topAgencias: d.topAgencias ?? null
+      topAgencias: d.topAgencias ?? null,
+      mixServiciosRaw: d.mixServiciosRaw ?? [],
+      mixCategoriaRaw: d.mixCategoriaRaw ?? []
     };
   }
 }
