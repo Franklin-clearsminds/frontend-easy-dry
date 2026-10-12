@@ -229,21 +229,29 @@ export class DashboardOperativoService {
           bottomAgencias: toBarChart(data?.bottomAgenciasIncidentes, 'nombre', 'total', 'Incidentes'),
           topPulidores: toBarChart(data?.topPulidoresIncidentes, 'nombre', 'total', 'Incidentes'),
           bottomPulidores: toBarChart(data?.bottomPulidoresIncidentes, 'nombre', 'total', 'Incidentes'),
+          topBahias: toBarChart(data?.topBahiasIncidentes, 'nombre', 'total', 'Incidentes'),
+          bottomBahias: toBarChart(data?.bottomBahiasIncidentes, 'nombre', 'total', 'Incidentes'),
           // Fallas por gravedad. Reemplaza al antiguo "Ubicación de Daños", que repetía el MISMO desglose por
           // agencia que el gráfico de incidentes (el modelo IncidenteTecnico no tiene una ubicación del daño).
           incidentesPorGravedad: toDonutChart(data?.incidentesPorGravedad, 'nombre', 'cantidad'),
           agenciasIncidentesRaw: data?.topAgenciasIncidentes,
-          chartAprobaciones: data?.chartAprobaciones || null,
+          chartAprobaciones: data?.chartAprobaciones || data?.metricasAprobaciones?.chartAprobaciones || null,
           metricasAprobaciones: data?.metricasAprobaciones ? {
+            ...data.metricasAprobaciones,
             kpis: data.metricasAprobaciones.kpis,
-            flujoSolicitudes: data.metricasAprobaciones.flujoEstadosPorDia ? {
+            flujoSolicitudes: data.metricasAprobaciones.flujoSolicitudes || (data.metricasAprobaciones.flujoEstadosPorDia ? {
               labels: Object.keys(data.metricasAprobaciones.flujoEstadosPorDia).sort(),
               datasets: [
                 { label: 'Aprobado', data: Object.keys(data.metricasAprobaciones.flujoEstadosPorDia).sort().map(k => data.metricasAprobaciones.flujoEstadosPorDia[k].APROBADO), backgroundColor: '#10B981' },
                 { label: 'Rechazado', data: Object.keys(data.metricasAprobaciones.flujoEstadosPorDia).sort().map(k => data.metricasAprobaciones.flujoEstadosPorDia[k].RECHAZADO), backgroundColor: '#EF4444' },
                 { label: 'Pendiente', data: Object.keys(data.metricasAprobaciones.flujoEstadosPorDia).sort().map(k => data.metricasAprobaciones.flujoEstadosPorDia[k].PENDIENTE), backgroundColor: '#F59E0B' }
               ]
-            } : null,
+            } : null),
+            chartAprobaciones: data.metricasAprobaciones.chartAprobaciones || data.chartAprobaciones || null,
+            chartTipos: data.metricasAprobaciones.chartTipos || null,
+            chartTopSolicitantes: data.metricasAprobaciones.chartTopSolicitantes || toBarChart(data.metricasAprobaciones.topSolicitantes, 'nombre', 'cantidad', 'Solicitudes'),
+            chartMotivosRechazo: data.metricasAprobaciones.chartMotivosRechazo || null,
+            chartAuditoriaDecisiones: data.metricasAprobaciones.chartAuditoriaDecisiones || null,
             topAgencias: toBarChart(data.metricasAprobaciones.topAgencias, 'nombre', 'cantidad', 'Solicitudes'),
             topSolicitantes: toBarChart(data.metricasAprobaciones.topSolicitantes, 'nombre', 'cantidad', 'Solicitudes')
           } : null

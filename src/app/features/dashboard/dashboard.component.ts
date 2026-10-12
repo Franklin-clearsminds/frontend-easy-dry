@@ -130,7 +130,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   bodegaData: any = null;
   especialesData: any = null;
   /** Pestaña principal para la vista de Servicios Especiales */
-  especialesTab: 'resumen' | 'pulidores' | 'maquinaria' = 'resumen';
+  especialesTab: 'resumen' | 'pulidores' | 'maquinaria' | 'insumos' = 'resumen';
   /** Pestaña del ranking de pulidores (fijos vs móviles). */
   pulidoresTab: 'fijos' | 'moviles' = 'fijos';
 
@@ -138,7 +138,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   mantenimientoTab: 'parque' | 'fallas' | 'costos' | 'programacion' = 'parque';
 
   /** Pestaña principal del dashboard de bodega (COORD_BODEGA · ASISTENTE_BODEGA). */
-  bodegaTab: 'salud' | 'reposicion' | 'despachos' | 'consumo' = 'salud';
+  bodegaTab: 'salud' | 'reposicion' | 'despachos' | 'consumo' | 'alertas' = 'salud';
 
   /** Control de orden de los rankings del dashboard de bodega. */
   coberturaTop: OrdenTop = { tamano: 5, direccion: 'DESC' };
@@ -153,8 +153,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
   agenciasTab: 'productivas' | 'ganancia' | 'reparaciones' | 'incidentes' | 'tiempos' = 'productivas';
   chart4Top: OrdenTop = { tamano: 5, direccion: 'DESC' };
   chart4Tab: 'lavados' | 'incidentes' | 'gastos' | 'tiempos' = 'lavados';
-  /** Pestaña para gráfico de incidentes (por agencia vs por pulidor) */
-  incidentesTab: 'agencia' | 'pulidor' = 'agencia';
+  /** Pestaña para gráfico de incidentes (por agencia vs por pulidor vs por bahía) */
+  incidentesTab: 'agencia' | 'pulidor' | 'bahia' = 'agencia';
   incidentesSortTab: 'mas' | 'menos' = 'mas';
   equiposVulnerablesTab: 'mas' | 'menos' = 'mas';
   eficienciaSortTab: 'lentas' | 'rapidas' = 'lentas';
@@ -357,7 +357,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   /** Cuellos de botella: entidades del nivel activo ordenadas por tiempo promedio de servicio (más lentas primero). */
   get eficienciaItems(): { nombre: string; minutos: number; cantidad: number }[] {
-    const fuente = (this.activeDimension === 'AGENCY' || this.activeDimension === 'POLISHER')
+    const fuente = (this.activeDimension === 'AGENCY' || this.activeDimension === 'POLISHER' || this.esAlcanceAgencia)
       ? (this.produccion?.jerarquia?.desglose ?? [])
       : (this.produccion?.tiemposAgencias ?? []);
     return fuente
@@ -389,6 +389,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   get eficienciaTitulo(): string {
     const rapida = this.eficienciaSortTab === 'rapidas';
+    if (this.esAlcanceAgencia) {
+      return rapida ? 'Bahías Más Rápidas' : 'Cuellos de Botella por Bahía';
+    }
     switch (this.activeDimension) {
       case 'AGENCY': return rapida ? 'Bahías Más Rápidas' : 'Cuellos de Botella por Bahía';
       case 'POLISHER': return rapida ? 'Días Más Rápidos del Pulidor' : 'Días Más Lentos del Pulidor';
@@ -416,6 +419,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   get bajaActividadTitulo(): string {
     const asc = this.muestraBajaActividadSort ? this.bajaActividadSort === 'asc' : true;
+    if (this.esAlcanceAgencia || this.produccion?.bajaActividad?.entidad === 'Bahía') {
+      return asc ? 'Bahías con Menos Actividad' : 'Bahías con Más Actividad';
+    }
     switch (this.produccion?.bajaActividad?.entidad) {
       case 'Bahía': return asc ? 'Bahías con Menos Actividad' : 'Bahías con Más Actividad';
       case 'Día': return asc ? 'Días con Menos Actividad' : 'Días con Más Actividad';
@@ -428,6 +434,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
   get bajaActividadSubtitulo(): string {
     const asc = this.muestraBajaActividadSort ? this.bajaActividadSort === 'asc' : true;
     const descText = asc ? 'menor' : 'mayor';
+    if (this.esAlcanceAgencia || this.produccion?.bajaActividad?.entidad === 'Bahía') {
+      return `Estaciones con ${descText} volumen de servicios`;
+    }
     switch (this.produccion?.bajaActividad?.entidad) {
       case 'Bahía': return `Estaciones con ${descText} volumen de servicios`;
       case 'Pulidor': return `Pulidores con ${descText} volumen de servicios`;
@@ -480,16 +489,33 @@ export class DashboardComponent implements OnInit, OnDestroy {
     return !!(this.produccion?.topAgenciasProductivas || this.produccion?.gananciaNetaAgencias || this.produccion?.topAgenciasReparaciones || this.produccion?.distribucionModelos);
   }
 
-  get chartTituloAgencias(): string {
-    return this.agenciaFiltro ? 'Rendimiento por Bahía' : 'Top Agencias';
+  /**
+   * Nombre de la agencia actualmente en foco (por filtro explícito o por asignación del usuario).
+   */
+  get nombreAgenciaActiva(): string {
+    const u = this.auth.getCurrentUser();
+    return this.agenciaLabel || u?.sucursal || u?.sucursalNombre || 'la agencia';
   }
 
-  /** Datos del gráfico de agencias/bahías unificado; si se filtra una agencia, baja automáticamente a bahías. */
+  /**
+   * Determina si el análisis está acotado al alcance de una agencia específica:
+   * ya sea porque se filtró manualmente una agencia, o porque el rol del usuario es de ámbito agencia.
+   */
+  get esAlcanceAgencia(): boolean {
+    const u = this.auth.getCurrentUser();
+    return !!this.agenciaFiltro || (!!u && (u.ambito === 'AGENCIA' || !this.puedeFiltrarAgencia));
+  }
+
+  get chartTituloAgencias(): string {
+    return this.esAlcanceAgencia ? 'Rendimiento por Bahía' : 'Top Agencias';
+  }
+
+  /** Datos del gráfico de agencias/bahías unificado; si se analiza una agencia, baja automáticamente a bahías. */
   get chartAgenciasActivo(): any {
-    if (this.agenciaFiltro) {
+    if (this.esAlcanceAgencia) {
       const base = this.agenciasTab === 'tiempos'
         ? this.produccion?.tiemposBahias
-        : this.produccion?.distribucionModelos;
+        : (this.produccion?.distribucionModelos ?? this.produccion?.agenciasRankServicios ?? this.produccion?.topAgenciasProductivas);
       return ordenarSerieTop(base, this.agenciasTop);
     }
 
@@ -508,7 +534,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   get agenciasSubtitulo(): string {
-    const entidad = this.agenciaFiltro ? `por bahía en ${this.agenciaLabel || 'la agencia'}` : 'por agencia de la región';
+    const entidad = this.esAlcanceAgencia ? `por bahía en ${this.nombreAgenciaActiva}` : 'por agencia de la región';
     switch (this.agenciasTab) {
       case 'ganancia': return `Ingresos − gastos operativos del período ${entidad}`;
       case 'reparaciones': return `USD acumulado en incidentes técnicos ${entidad}`;
@@ -516,6 +542,22 @@ export class DashboardComponent implements OnInit, OnDestroy {
       case 'tiempos': return `Tiempo promedio de atención en minutos ${entidad}`;
       default: return `Servicios del período ${entidad}`;
     }
+  }
+
+  get incidentesTitulo(): string {
+    if (this.incidentesTab === 'bahia') return 'Incidentes por Bahía';
+    if (this.incidentesTab === 'pulidor') return 'Incidentes por Pulidor';
+    return 'Incidentes por Agencia';
+  }
+
+  get incidentesDataChart(): any {
+    if (this.incidentesTab === 'bahia') {
+      return this.incidentesSortTab === 'mas' ? this.produccion?.topBahias : this.produccion?.bottomBahias;
+    }
+    if (this.incidentesTab === 'pulidor') {
+      return this.incidentesSortTab === 'mas' ? this.produccion?.topPulidores : this.produccion?.bottomPulidores;
+    }
+    return this.incidentesSortTab === 'mas' ? this.produccion?.topAgencias : this.produccion?.bottomAgencias;
   }
 
   /** Serie del drill-down jerárquico con el orden y el tamaño elegidos (Top 5 / Top 10). */
@@ -534,12 +576,12 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   /** Consumo de insumos: serie completa ordenada y recortada por su control (Top 5 / Top 10, asc o desc). */
   get consumoInsumosChart(): any {
-    return ordenarSerieTop(this.distribuidorData?.chartConsumoInsumos, this.consumoTop);
+    return ordenarSerieTop(this.distribuidorData?.chartConsumoInsumos || this.bodegaData?.chartTopInsumosConsumoRank, this.consumoTop);
   }
 
   /** Consumo por agencia con el mismo control de orden. */
   get consumoAgenciaChart(): any {
-    return ordenarSerieTop(this.distribuidorData?.chartConsumoPorAgencia, this.consumoAgenciaTop);
+    return ordenarSerieTop(this.distribuidorData?.chartConsumoPorAgencia || this.bodegaData?.chartTopAgenciasConsumoRank, this.consumoAgenciaTop);
   }
 
   /** El título del ranking de insumos dice qué extremo se está viendo; si no, "más consumidos" mentiría en ascendente. */
@@ -694,6 +736,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
       case 'AGENCY': return 'Rendimiento por Bahía de Trabajo';
       case 'POLISHER': return 'Ficha de Rendimiento del Pulidor';
       default:
+        if (this.esAlcanceAgencia) return 'Rendimiento por Bahía de Trabajo';
         if (this.isAdminView) return 'Rendimiento Operativo Nacional por Agencia';
         if (this.isComercialView) return 'Solicitudes Comerciales';
         return 'Flujo Horario de Atención';
@@ -706,12 +749,16 @@ export class DashboardComponent implements OnInit, OnDestroy {
       case 'AGENCY': return 'Desempeño de las bahías de la agencia seleccionada';
       case 'POLISHER': return 'Evolución y comparación contra el promedio de su agencia';
       default:
+        if (this.esAlcanceAgencia) return `Desempeño de las bahías en ${this.nombreAgenciaActiva}`;
         if (this.esAnaliticaGlobal) return 'Comparativa nacional por agencia';
         return 'Vehículos procesados en el día';
     }
   }
 
   get tasaRechazoAprobaciones(): number {
+    if (this.produccion?.metricasAprobaciones?.kpis?.tasaRechazoPct !== undefined) {
+      return this.produccion.metricasAprobaciones.kpis.tasaRechazoPct;
+    }
     const aprobadas = this.produccion?.metricasAprobaciones?.kpis?.aprobadasHoy ?? 0;
     const rechazadas = this.produccion?.metricasAprobaciones?.kpis?.rechazadasHoy ?? 0;
     const totalDecididas = aprobadas + rechazadas;
@@ -781,7 +828,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     if (this.isAdminView) return 'Auditoría Reciente';
     if (this.isAprobadorView) return 'Tipos de Solicitud';
     if (this.isComercialView) return 'Top Marcas Atendidas';
-    const entidad = this.agenciaFiltro ? 'Bahía' : 'Agencia';
+    const entidad = this.esAlcanceAgencia ? 'Bahía' : 'Agencia';
     switch (this.chart4Tab) {
       case 'incidentes': return `Incidentes por ${entidad}`;
       case 'gastos': return `Gastos Técnicos por ${entidad}`;
@@ -793,7 +840,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   get chart4Subtitle(): string {
     if (this.isAdminView) return 'Acciones realizadas';
     if (this.isAprobadorView) return 'Distribución por tipo de requerimiento';
-    const nivel = this.agenciaFiltro ? `por bahía en ${this.agenciaLabel || 'la agencia'}` : 'por agencia de la región';
+    const nivel = this.esAlcanceAgencia ? `por bahía en ${this.nombreAgenciaActiva}` : 'por agencia de la región';
     switch (this.chart4Tab) {
       case 'incidentes': return `Fallas y averías de maquinaria ${nivel}`;
       case 'gastos': return `USD acumulado en reparaciones ${nivel}`;
@@ -806,7 +853,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
     let serieBase: any;
     switch (this.chart4Tab) {
       case 'incidentes':
-        serieBase = this.produccion?.agenciasRankIncidentes ?? this.produccion?.topAgencias;
+        serieBase = this.esAlcanceAgencia
+          ? this.produccion?.topBahias
+          : (this.produccion?.agenciasRankIncidentes ?? this.produccion?.topAgencias);
         break;
       case 'gastos':
         serieBase = this.produccion?.agenciasRankCosto ?? this.produccion?.topAgenciasReparaciones;
@@ -833,8 +882,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
       pulidorId: this.pulidorFiltro || undefined,
       // Modificador continuo: se combina con la dimensión y las fechas.
       categoriaServicio: this.categoriaServicio === 'TODOS' ? undefined : this.categoriaServicio,
-      // Desglose del gráfico: solo tiene sentido a nivel país (con una dimensión activa el drill-down ya manda).
-      desglose: this.activeDimension === 'GLOBAL' ? this.desgloseTab : undefined,
+      // Desglose del gráfico: solo tiene sentido a nivel país (con una dimensión activa o alcance de agencia el drill-down ya manda).
+      desglose: this.activeDimension === 'GLOBAL' && !this.esAlcanceAgencia ? this.desgloseTab : undefined,
     };
   }
 
@@ -870,7 +919,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
       case 'POLISHER': return `Pulidor · ${this.pulidorLabel || 'seleccionado'}`;
       default:
         if (this.vista === 'especiales') {
-          return 'Global · Red Especializada';
+          return this.isPulidor
+            ? `Agencia · ${u?.sucursal || u?.sucursalNombre || this.contextLabel || 'Asignada'}`
+            : 'Global · Red Especializada';
         }
         if (u?.ambito === 'REGION') {
           return `Región · ${u?.region || u?.regionNombre || this.contextLabel || 'Asignada'}`;
@@ -889,7 +940,11 @@ export class DashboardComponent implements OnInit, OnDestroy {
       case 'AGENCY': return 'Detalle por bahía de trabajo';
       case 'POLISHER': return 'Ficha individual del pulidor';
       default:
-        if (this.vista === 'especiales') return 'Monitoreo nacional de servicios especiales y pulidores';
+        if (this.vista === 'especiales') {
+          return this.isPulidor
+            ? 'Monitoreo de órdenes de trabajo, insumos y herramientas de detailing'
+            : 'Monitoreo nacional de servicios especiales y pulidores';
+        }
         if (this.puedeFiltrarRegion) return 'Comparativa entre agencias y regiones';
         if (this.puedeFiltrarAgencia) return 'Consolidado de agencias de su región';
         return 'Detalle operativo de su agencia';
@@ -1070,6 +1125,32 @@ export class DashboardComponent implements OnInit, OnDestroy {
   get puedeVerMapa(): boolean { return this.auth.puede('agencias.ver'); }
   get puedeVerProductividad(): boolean { return this.auth.puede('productividad.ver'); }
 
+  get isPulidor(): boolean {
+    const user = this.auth.getCurrentUser();
+    const rol = user?.role || user?.rolNombre;
+    return rol === 'PULIDOR' || rol === 'PULIDOR_FIJO' || rol === 'PULIDOR_MOVIL' || rol === 'OPERADOR_SERVICIOS_ESPECIALES';
+  }
+
+  get isCoordServiciosEspeciales(): boolean {
+    const user = this.auth.getCurrentUser();
+    const rol = user?.role || user?.rolNombre;
+    return rol === 'COORD_SERVICIOS_ESPECIALES';
+  }
+
+  /** Proporción de herramientas y pulidoras operativas en la sede del pulidor. */
+  get herramientasOperativasPulidor(): string {
+    const operativas = this.tecnicoData?.equiposOperativos ?? this.maquinaria?.operativas ?? 0;
+    const total = this.tecnicoData
+      ? (this.tecnicoData.equiposOperativos + this.tecnicoData.mantenimientosPendientes + this.tecnicoData.maquinariaFueraServicio)
+      : (this.maquinaria?.total || 0);
+    return total > 0 ? `${operativas} / ${total}` : `${operativas}`;
+  }
+
+  /** Insumos o químicos de detailing bajo nivel mínimo en la sede. */
+  get insumosCriticosPulidor(): number {
+    return this.bodegaData?.kpis?.posicionesBajoMinimo ?? 0;
+  }
+
   /** Alertas de nivel crítico entre las que llegaron del servidor. */
   get alertasCriticas(): number {
     return this.alertas.filter(a => a.tipo === 'critica').length;
@@ -1080,6 +1161,14 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.userName = user ? `${user.nombre} ${user.apellido}`.trim() : 'Usuario';
     this.rolLabel = ROLE_LABELS[user?.role as keyof typeof ROLE_LABELS] || user?.rolNombre || 'Colaborador';
     this.contextLabel = (user?.ambito === 'REGION' ? user?.region : (user?.sucursal || user?.sucursalNombre)) || 'Red EasyDry®';
+
+    // Pre-establecer la pestaña correcta para el rol APROBADOR antes de cargar datos,
+    // para que los charts se rendericen con dimensiones reales (no 0×0 en canvas oculto).
+    const rolNombre = user?.role || user?.rolNombre;
+    if (rolNombre === 'APROBADOR' || rolNombre === 'GERENTE') {
+      this.activeExecutiveTab = 'aprobaciones';
+      this.isAprobadorView = true;
+    }
 
     this.recargar();
   }
@@ -1102,6 +1191,18 @@ export class DashboardComponent implements OnInit, OnDestroy {
         }
         
         this.produccion = this.normalizeProduccion(d);
+        if (this.esAlcanceAgencia) {
+          if (this.incidentesTab === 'agencia') {
+            this.incidentesTab = 'bahia';
+          }
+        } else {
+          if (this.incidentesTab === 'bahia') {
+            this.incidentesTab = 'agencia';
+          }
+          if ((this.produccion?.topAgencias?.labels?.length ?? 0) <= 1 && (this.produccion?.topPulidores?.labels?.length ?? 0) > 0) {
+            this.incidentesTab = 'pulidor';
+          }
+        }
       })),
       this.dashboardService.getServiciosData(filtro).pipe(tap((d) => (this.serviciosData = d))),
       this.dashboardService.getResumenEjecutivo(filtro).pipe(tap((d) => (this.resumenEjecutivo = d))),
@@ -1116,7 +1217,12 @@ export class DashboardComponent implements OnInit, OnDestroy {
     if (this.puedeVerMaquinaria) {
       peticiones.push(this.dashboardService.getMaquinaria(filtro).pipe(tap((d) => (this.maquinaria = this.aChartMaquinaria(d)))));
       // Costos, MTTR y deuda de mantenimiento para el tab de Activos & Taller.
-      peticiones.push(this.dashboardService.getDashboardTecnico(filtro).pipe(tap((d) => (this.tecnicoData = d))));
+      peticiones.push(this.dashboardService.getDashboardTecnico(filtro).pipe(tap((d) => {
+        this.tecnicoData = d;
+        if ((d?.mttrAgencia?.length ?? 0) <= 1 && (d?.mttrGravedad?.length ?? 0) > 0) {
+          this.mttrTab = 'gravedad';
+        }
+      })));
     }
     if (this.puedeVerAlertas || this.isComercialView || this.puedeVerInventario) {
       // Salud de stock vs mínimo/ideal, déficit y alertas por categoría para el tab de Inventario / Catálogo Comercial.
@@ -1136,7 +1242,12 @@ export class DashboardComponent implements OnInit, OnDestroy {
     // El dashboard de mantenimiento ya no consume el panel de bodega: el rol no tiene capacidades de
     // inventario/despachos y esas tarjetas se retiraron de esta vista.
     const peticiones: Observable<any>[] = [
-      this.dashboardService.getDashboardTecnico(this.filtroActual).pipe(tap((d) => (this.tecnicoData = d))),
+      this.dashboardService.getDashboardTecnico(this.filtroActual).pipe(tap((d) => {
+        this.tecnicoData = d;
+        if ((d?.mttrAgencia?.length ?? 0) <= 1 && (d?.mttrGravedad?.length ?? 0) > 0) {
+          this.mttrTab = 'gravedad';
+        }
+      })),
     ];
     this.carga.add(forkJoin(peticiones).subscribe({
       next: () => (this.recargando = false),
@@ -1150,7 +1261,19 @@ export class DashboardComponent implements OnInit, OnDestroy {
     ];
     if (this.puedeVerMaquinaria) {
       peticiones.push(this.dashboardService.getMaquinaria(this.filtroActual).pipe(tap((d) => (this.maquinaria = this.aChartMaquinaria(d)))));
-      peticiones.push(this.dashboardService.getDashboardTecnico(this.filtroActual).pipe(tap((d) => (this.tecnicoData = d))));
+      peticiones.push(this.dashboardService.getDashboardTecnico(this.filtroActual).pipe(tap((d) => {
+        this.tecnicoData = d;
+        if ((d?.mttrAgencia?.length ?? 0) <= 1 && (d?.mttrGravedad?.length ?? 0) > 0) {
+          this.mttrTab = 'gravedad';
+        }
+      })));
+    }
+    if (this.puedeVerInventario) {
+      peticiones.push(this.dashboardService.getDashboardBodegaDedicado(this.filtroActual).pipe(tap((d) => (this.bodegaData = d))));
+      peticiones.push(this.dashboardService.getDashboardDistribuidor(this.filtroActual).pipe(tap((d) => (this.distribuidorData = d))));
+      if (this.puedeVerAlertas) {
+        peticiones.push(this.dashboardService.getAlertas(this.filtroActual).pipe(tap((d) => (this.alertas = d))));
+      }
     }
     this.carga.add(forkJoin(peticiones).subscribe({
       next: () => (this.recargando = false),
@@ -1328,12 +1451,18 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   private normalizeProduccion(d: any) {
+    if (d?.isAprobadorView && !d.metricasAprobaciones) {
+      d.metricasAprobaciones = d;
+    }
     return {
       ...d,
+      metricasAprobaciones: d.metricasAprobaciones ?? null,
       totalVehiculos: d.vehiculosHoy ?? null,
       flujoHorario: d.flujoHorario ?? null,
       distribucionModelos: d.distribucionModelos ?? null,
       tiemposBahias: d.tiemposBahias ?? null,
+      topBahias: d.topBahias ?? null,
+      bottomBahias: d.bottomBahias ?? null,
       topMaquinas: d.topMaquinas ?? null,
       topAgencias: d.topAgencias ?? null,
       mixServiciosRaw: d.mixServiciosRaw ?? [],

@@ -94,6 +94,8 @@ export interface DistributionItem {
 export class DistributionCardComponent {
   @Input() titulo = '';
   @Input() subtitulo = '';
+  @Input() set title(val: string) { if (val) this.titulo = val; }
+  @Input() set subtitle(val: string) { if (val) this.subtitulo = val; }
   @Input() etiquetaTotal = 'Total';
   @Input() items: DistributionItem[] = [];
   @Input() layout: 'auto' | 'side' | 'stacked' = 'auto';

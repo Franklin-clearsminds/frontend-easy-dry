@@ -13,7 +13,7 @@
         @switch (vista) {
         @case ('ejecutivo') { Panel de Control EasyDry® }
         @case ('taller') { Dashboard Técnico & Taller }
-        @case ('especiales') { Dashboard Servicios Especiales }
+        @case ('especiales') { {{ isPulidor ? 'Panel Operativo de Detailing' : 'Dashboard Servicios Especiales' }} }
         @case ('bodega') { Dashboard de Inventario & Bodega }
         @default { Dashboard EasyDry® }
         }
@@ -41,7 +41,7 @@
       @if (vista === 'especiales') {
       <a routerLink="/servicios" [queryParams]="{ tab: 'especiales' }"
         class="px-4 py-2.5 bg-easydry-green hover:bg-easydry-green-dark text-slate-900 font-bold rounded-xl text-sm flex items-center gap-2">
-        <i-lucide aria-hidden="true" name="sparkles" class="w-4 h-4"></i-lucide> Cola de Servicios
+        <i-lucide aria-hidden="true" name="sparkles" class="w-4 h-4"></i-lucide> {{ isPulidor ? 'Ejecución de OTs' : 'Cola de Servicios' }}
       </a>
       }
       @if (vista === 'bodega') {
@@ -102,7 +102,7 @@
           </app-select-search>
         </div>
         }
-        @if (!isComercialView) {
+        @if (!isComercialView && !isPulidor) {
         <div class="w-44 transition-all" [class.ring-2]="pulidorFiltro" [class.ring-violet-400]="pulidorFiltro" [class.rounded-xl]="pulidorFiltro">
           <app-select-search placeholder="Pulidor" todasLabel="Todos los pulidores" ariaLabel="Filtrar por pulidor"
             [cargar]="cargarPulidores" [value]="pulidorFiltro" [valueLabel]="pulidorLabel" [disabled]="!pulidorHabilitado"
@@ -113,7 +113,7 @@
         }
 
         <!-- Filtro de tipo de servicio: continuo, se combina con dimensión y fechas. Solo en vistas donde conviven general y especial. -->
-        @if (vista !== 'especiales') {
+        @if (vista === 'ejecutivo' || vista === 'especiales') {
         <div class="relative w-48">
           <select [ngModel]="categoriaServicio" (ngModelChange)="onCategoriaServicioChange($event)"
             aria-label="Tipo de servicio" [attr.title]="etiquetaCategoriaServicio"
@@ -157,7 +157,7 @@
       </div>
 
       <div class="flex items-center gap-2 shrink-0">
-        @if (hayDimensionEstructural) {
+        @if (hayDimensionEstructural && !isPulidor) {
         <button type="button" (click)="limpiarDimensiones()"
           class="h-10 px-3 rounded-xl text-xs font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-100 inline-flex items-center gap-1.5"
           title="Volver a la vista Global (mantiene las fechas)">
@@ -191,72 +191,74 @@
   @if (vista === 'ejecutivo') {
 
   <!-- Navegación entre dashboards (scroll horizontal en pantallas pequeñas) -->
+  @if (!isAprobadorView) {
   <div class="sticky top-4 z-40 mb-6 animate-fade-in-up">
-    <div class="dashboard-tabs flex items-center gap-1 p-1.5 bg-white/85 backdrop-blur-md rounded-2xl border border-slate-200/60 shadow-sm overflow-x-auto"
+    <div class="dashboard-tabs inline-flex items-center gap-1 sm:gap-1.5 p-1.5 bg-white/95 backdrop-blur-md rounded-2xl border border-slate-200/80 shadow-sm max-w-full overflow-x-auto scroll-smooth"
       role="tablist" aria-label="Secciones del dashboard">
       @if (!isAprobadorView || isEjecutivoView) {
       <button type="button" role="tab" id="tab-analitica" aria-controls="panel-analitica"
         [attr.aria-selected]="activeExecutiveTab === 'analitica'" (click)="activeExecutiveTab = 'analitica'"
-        class="shrink-0 px-4 py-2 text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-2 whitespace-nowrap"
+        class="shrink-0 px-3 sm:px-3.5 2xl:px-4 py-2 text-xs sm:text-[13px] 2xl:text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap"
         [ngClass]="activeExecutiveTab === 'analitica' ? 'bg-easydry-blue text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'">
-        <i-lucide aria-hidden="true" name="bar-chart-2" class="w-4 h-4"></i-lucide>
+        <i-lucide aria-hidden="true" name="bar-chart-2" class="w-4 h-4 shrink-0"></i-lucide>
         {{ tabAnaliticaTitle }}
       </button>
       }
       @if (!isAprobadorView && !isComercialView) {
       <button type="button" role="tab" id="tab-auditoria" aria-controls="panel-auditoria"
         [attr.aria-selected]="activeExecutiveTab === 'auditoria'" (click)="activeExecutiveTab = 'auditoria'"
-        class="shrink-0 px-4 py-2 text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-2 whitespace-nowrap"
+        class="shrink-0 px-3 sm:px-3.5 2xl:px-4 py-2 text-xs sm:text-[13px] 2xl:text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap"
         [ngClass]="activeExecutiveTab === 'auditoria' ? 'bg-easydry-blue text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'">
-        <i-lucide aria-hidden="true" name="shield-check" class="w-4 h-4"></i-lucide>
+        <i-lucide aria-hidden="true" name="shield-check" class="w-4 h-4 shrink-0"></i-lucide>
         {{ tabAuditoriaTitle }}
       </button>
       }
       @if (!isAprobadorView) {
       <button type="button" role="tab" id="tab-operacion" aria-controls="panel-operacion"
         [attr.aria-selected]="activeExecutiveTab === 'operacion'" (click)="activeExecutiveTab = 'operacion'"
-        class="shrink-0 px-4 py-2 text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-2 whitespace-nowrap"
+        class="shrink-0 px-3 sm:px-3.5 2xl:px-4 py-2 text-xs sm:text-[13px] 2xl:text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap"
         [ngClass]="activeExecutiveTab === 'operacion' ? 'bg-easydry-blue text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'">
-        <i-lucide aria-hidden="true" name="briefcase" class="w-4 h-4"></i-lucide>
+        <i-lucide aria-hidden="true" name="briefcase" class="w-4 h-4 shrink-0"></i-lucide>
         Operación & Servicios
       </button>
       }
       <button type="button" role="tab" id="tab-aprobaciones" aria-controls="panel-aprobaciones"
         [attr.aria-selected]="activeExecutiveTab === 'aprobaciones'" (click)="activeExecutiveTab = 'aprobaciones'"
-        class="shrink-0 px-4 py-2 text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-2 whitespace-nowrap"
+        class="shrink-0 px-3 sm:px-3.5 2xl:px-4 py-2 text-xs sm:text-[13px] 2xl:text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap"
         [ngClass]="activeExecutiveTab === 'aprobaciones' ? 'bg-easydry-blue text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'">
-        <i-lucide aria-hidden="true" name="clipboard-check" class="w-4 h-4"></i-lucide>
+        <i-lucide aria-hidden="true" name="clipboard-check" class="w-4 h-4 shrink-0"></i-lucide>
         Aprobaciones Comerciales
       </button>
       @if (puedeVerMaquinaria) {
       <button type="button" role="tab" id="tab-taller" aria-controls="panel-taller"
         [attr.aria-selected]="activeExecutiveTab === 'taller'" (click)="activeExecutiveTab = 'taller'"
-        class="shrink-0 px-4 py-2 text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-2 whitespace-nowrap"
+        class="shrink-0 px-3 sm:px-3.5 2xl:px-4 py-2 text-xs sm:text-[13px] 2xl:text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap"
         [ngClass]="activeExecutiveTab === 'taller' ? 'bg-easydry-blue text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'">
-        <i-lucide aria-hidden="true" name="wrench" class="w-4 h-4"></i-lucide>
+        <i-lucide aria-hidden="true" name="wrench" class="w-4 h-4 shrink-0"></i-lucide>
         {{ tabTallerTitle }}
       </button>
       }
       @if (puedeVerInventario || isComercialView) {
       <button type="button" role="tab" id="tab-inventario" aria-controls="panel-inventario"
         [attr.aria-selected]="activeExecutiveTab === 'inventario'" (click)="activeExecutiveTab = 'inventario'"
-        class="shrink-0 px-4 py-2 text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-2 whitespace-nowrap"
+        class="shrink-0 px-3 sm:px-3.5 2xl:px-4 py-2 text-xs sm:text-[13px] 2xl:text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap"
         [ngClass]="activeExecutiveTab === 'inventario' ? 'bg-easydry-blue text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'">
-        <i-lucide aria-hidden="true" name="package" class="w-4 h-4"></i-lucide>
+        <i-lucide aria-hidden="true" name="package" class="w-4 h-4 shrink-0"></i-lucide>
         {{ tabInventarioTitle }}
       </button>
       }
       @if (puedeVerAlertas) {
       <button type="button" role="tab" id="tab-alertas" aria-controls="panel-alertas"
         [attr.aria-selected]="activeExecutiveTab === 'alertas'" (click)="activeExecutiveTab = 'alertas'"
-        class="shrink-0 px-4 py-2 text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-2 whitespace-nowrap"
+        class="shrink-0 px-3 sm:px-3.5 2xl:px-4 py-2 text-xs sm:text-[13px] 2xl:text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap"
         [ngClass]="activeExecutiveTab === 'alertas' ? 'bg-easydry-blue text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'">
-        <i-lucide aria-hidden="true" name="bell-ring" class="w-4 h-4"></i-lucide>
+        <i-lucide aria-hidden="true" name="bell-ring" class="w-4 h-4 shrink-0"></i-lucide>
         Alertas
       </button>
       }
     </div>
   </div>
+  }
 
   <!-- Sección: Analítica y Productividad -->
   <div class="mb-4 animate-fade-in" role="tabpanel" id="panel-analitica" aria-labelledby="tab-analitica"
@@ -301,7 +303,7 @@
           type="bar" [data]="jerarquiaChartOrdenado"
           mensajeVacio="Sin servicios registrados para el nivel y los filtros seleccionados.">
           <div chart-actions class="flex flex-wrap items-center justify-end gap-2">
-          @if (activeDimension === 'GLOBAL') {
+          @if (activeDimension === 'GLOBAL' && !esAlcanceAgencia) {
           <div class="flex bg-slate-100 p-1 rounded-xl">
             <button type="button" class="px-2.5 py-1 text-xs font-bold rounded-lg transition-colors"
               [ngClass]="desgloseTab === 'REGION' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
@@ -441,9 +443,9 @@
             <button type="button" class="px-3 py-1 text-xs font-bold rounded-lg transition-colors"
               [ngClass]="agenciasTab === 'productivas' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
               [attr.aria-pressed]="agenciasTab === 'productivas'" (click)="agenciasTab = 'productivas'">
-              {{ agenciaFiltro ? 'Lavados' : 'Productivas' }}
+              {{ esAlcanceAgencia ? 'Lavados' : 'Productivas' }}
             </button>
-            @if (!agenciaFiltro) {
+            @if (!esAlcanceAgencia) {
             <button type="button" class="px-3 py-1 text-xs font-bold rounded-lg transition-colors"
               [ngClass]="agenciasTab === 'ganancia' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
               [attr.aria-pressed]="agenciasTab === 'ganancia'" (click)="agenciasTab = 'ganancia'">
@@ -589,8 +591,8 @@
         </div>
       </app-chart-card>
 
-      <app-chart-card class="lg:col-span-2" [title]="incidentesTab === 'agencia' ? 'Incidentes por Agencia' : 'Incidentes por Pulidor'" subtitle="Fallas del período seleccionado"
-        type="bar" [data]="incidentesTab === 'agencia' ? (incidentesSortTab === 'mas' ? produccion?.topAgencias : produccion?.bottomAgencias) : (incidentesSortTab === 'mas' ? produccion?.topPulidores : produccion?.bottomPulidores)"
+      <app-chart-card class="lg:col-span-2" [title]="incidentesTitulo" subtitle="Fallas del período seleccionado"
+        type="bar" [data]="incidentesDataChart"
         mensajeVacio="Sin incidentes registrados en el período seleccionado.">
         <div chart-actions class="flex gap-2">
           <div class="flex bg-slate-100 p-1 rounded-xl">
@@ -602,11 +604,19 @@
               (click)="incidentesSortTab = 'menos'">Menos incidentes</button>
           </div>
           <div class="flex bg-slate-100 p-1 rounded-xl">
+            @if (esAlcanceAgencia) {
+            <button class="px-3 py-1 text-[11px] font-bold rounded-lg transition-colors"
+              [ngClass]="incidentesTab === 'bahia' ? 'bg-white text-easydry-blue shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+              (click)="incidentesTab = 'bahia'">
+              Bahías
+            </button>
+            } @else {
             <button class="px-3 py-1 text-[11px] font-bold rounded-lg transition-colors"
               [ngClass]="incidentesTab === 'agencia' ? 'bg-white text-easydry-blue shadow-sm' : 'text-slate-500 hover:text-slate-700'"
               (click)="incidentesTab = 'agencia'">
               Agencias
             </button>
+            }
             <button class="px-3 py-1 text-[11px] font-bold rounded-lg transition-colors"
               [ngClass]="incidentesTab === 'pulidor' ? 'bg-white text-easydry-blue shadow-sm' : 'text-slate-500 hover:text-slate-700'"
               (click)="incidentesTab = 'pulidor'">
@@ -668,7 +678,7 @@
       <app-chart-card title="Gasto: Preventivo vs Correctivo" subtitle="USD invertidos por tipo de mantenimiento" type="doughnut"
         [data]="tecnicoData?.chartCostoTipoMantenimiento"
         mensajeVacio="Sin mantenimientos registrados en el período seleccionado."></app-chart-card>
-      <app-chart-card class="lg:col-span-4" title="Tiempo de Resolución" [subtitle]="mttrSubtitulo" type="bar"
+      <app-chart-card class="lg:col-span-2" title="Tiempo de Resolución" [subtitle]="mttrSubtitulo" type="bar"
         [horizontal]="true" [data]="mttrChart"
         mensajeVacio="Sin tiempos que promediar con el período y los filtros actuales.">
         <div chart-actions class="flex bg-slate-100 p-1 rounded-xl">
@@ -684,7 +694,7 @@
           </button>
         </div>
       </app-chart-card>
-      <app-chart-card class="lg:col-span-4" title="Máquinas más Costosas" subtitle="USD acumulado en reparaciones por equipo" type="bar"
+      <app-chart-card class="lg:col-span-2" title="Máquinas más Costosas" subtitle="USD acumulado en reparaciones por equipo" type="bar"
         [horizontal]="true" [data]="tecnicoData?.chartCostoMaquinas"
         mensajeVacio="Sin costos de reparación registrados en el período seleccionado."></app-chart-card>
     </div>
@@ -765,66 +775,102 @@
   </div>
   }
 
-  <!-- Sección: Aprobaciones Comerciales -->
+  <!-- Sección: Aprobaciones Comerciales y Calidad (Puro Dashboard) -->
   <div class="mb-4 animate-fade-in" role="tabpanel" id="panel-aprobaciones" aria-labelledby="tab-aprobaciones"
     [class.hidden]="activeExecutiveTab !== 'aprobaciones'">
     
     <!-- Resumen principal de aprobaciones -->
     @if (produccion?.metricasAprobaciones) {
-    <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
+    <!-- Encabezado minimalista de aprobaciones -->
+    <div class="mb-5">
+      <div class="flex items-center gap-2 mb-1">
+        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-easydry-blue border border-blue-200/60">
+          <i-lucide name="shield-check" class="w-3.5 h-3.5"></i-lucide>
+          Panel de Calidad y Gobernanza
+        </span>
+        <span class="text-xs text-slate-400">•</span>
+        <span class="text-xs font-semibold text-slate-500">{{ contextLabel }}</span>
+      </div>
+      <h3 class="text-xl font-bold font-outfit text-slate-900">Control de Solicitudes y Excepciones</h3>
+      <p class="text-xs text-slate-500 mt-0.5">Métricas analíticas de aprobaciones, resolución de solicitudes y auditoría de decisiones en tu agencia.</p>
+    </div>
+
+    <!-- 6 Tarjetas de KPIs con tooltips explicativos -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">
       <app-stat-card [badge]="etiquetaRango" class="h-full" title="Pendientes" 
-        [value]="produccion.metricasAprobaciones.kpis?.pendientesHoy ?? 0"
-        icon="clock" variant="warning"></app-stat-card>
+        [value]="produccion.metricasAprobaciones.kpis?.totalPendientes ?? produccion.metricasAprobaciones.kpis?.pendientesHoy ?? 0"
+        icon="clock" variant="warning" subtitle="Por resolver"
+        tooltip="Solicitudes técnicas y comerciales que requieren revisión y decisión en tu agencia."></app-stat-card>
         
-      <app-stat-card [badge]="etiquetaRango" class="h-full" title="Aprobadas Hoy" 
-        [value]="produccion.metricasAprobaciones.kpis?.aprobadasHoy ?? 0"
-        icon="check-circle-2" variant="success"></app-stat-card>
+      <app-stat-card [badge]="etiquetaRango" class="h-full" title="Aprobadas" 
+        [value]="produccion.metricasAprobaciones.kpis?.totalAprobadas ?? produccion.metricasAprobaciones.kpis?.aprobadasHoy ?? 0"
+        icon="check-circle-2" variant="success" subtitle="Autorizadas"
+        tooltip="Solicitudes evaluadas y autorizadas favorablemente dentro del período consultado."></app-stat-card>
         
-      <app-stat-card [badge]="etiquetaRango" class="h-full" title="Rechazadas Hoy" 
-        [value]="produccion.metricasAprobaciones.kpis?.rechazadasHoy ?? 0"
-        icon="x-circle" variant="danger"></app-stat-card>
+      <app-stat-card [badge]="etiquetaRango" class="h-full" title="Rechazadas" 
+        [value]="produccion.metricasAprobaciones.kpis?.totalRechazadas ?? produccion.metricasAprobaciones.kpis?.rechazadasHoy ?? 0"
+        icon="x-circle" variant="danger" subtitle="Denegadas"
+        tooltip="Solicitudes rechazadas por no cumplir con las políticas comerciales o de calidad."></app-stat-card>
 
       <app-stat-card [badge]="etiquetaRango" class="h-full" title="Tasa de Rechazo" 
         [value]="tasaRechazoAprobaciones + '%'"
-        icon="alert-triangle" variant="warning" subtitle="Retrabajos"></app-stat-card>
+        icon="alert-triangle" variant="warning" subtitle="Incidencia"
+        tooltip="Porcentaje de solicitudes rechazadas respecto al total de decisiones tomadas."></app-stat-card>
         
-      <app-stat-card [badge]="etiquetaRango" class="h-full" title="Monto Aprobado (USD)" 
-        [value]="'$' + (produccion.metricasAprobaciones.kpis?.montoAprobadoHoy ?? 0)"
-        icon="dollar-sign" variant="primary"></app-stat-card>
+      <app-stat-card [badge]="etiquetaRango" class="h-full" title="Monto Autorizado" 
+        [value]="'$' + (produccion.metricasAprobaciones.kpis?.montoAprobadoPeriodo ?? produccion.metricasAprobaciones.kpis?.montoAprobadoHoy ?? 0)"
+        icon="dollar-sign" variant="primary" subtitle="Descuentos USD"
+        tooltip="Total acumulado en USD de descuentos y excepciones comerciales autorizadas."></app-stat-card>
+
+      <app-stat-card [badge]="etiquetaRango" class="h-full" title="Tiempo Resolución" 
+        [value]="(produccion.metricasAprobaciones.kpis?.tiempoPromedioResolucionMin ?? 0) + ' min'"
+        icon="timer" variant="primary" subtitle="SLA Promedio"
+        tooltip="Tiempo medio transcurrido entre la creación de la solicitud y la decisión del aprobador."></app-stat-card>
     </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <!-- Flujo día a día a ancho completo: la dona de "Tipos de Solicitud" se retiró de este panel porque
-           duplicaba el gráfico de tipos de la pestaña de analítica. -->
-      <app-chart-card class="lg:col-span-2" title="Flujo de Aprobaciones" subtitle="Día a Día" type="bar"
+    <!-- Gráficos Analíticos Reciclados de Super Admin -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-6">
+      <!-- Flujo día a día (Tendencia de 7 días apilada) -->
+      <app-chart-card class="lg:col-span-8" title="Flujo de Decisiones" subtitle="Tendencia de solicitudes y resolución día a día (últimos 7 días)" type="bar" [stacked]="true"
         [data]="produccion.metricasAprobaciones.flujoSolicitudes"
         mensajeVacio="Sin movimientos de solicitudes en el período seleccionado."></app-chart-card>
         
-      <!-- Top Agencias -->
-      <app-chart-card title="Agencias con más aprobación" subtitle="Sucursales con más solicitudes aprobadas" type="bar" [horizontal]="true"
-        [data]="produccion.metricasAprobaciones.topAgencias"
-        mensajeVacio="Sin solicitudes aprobadas en el período seleccionado."></app-chart-card>
+      <!-- Tasa de Decisión y Eficacia (Dona) -->
+      <app-chart-card class="lg:col-span-4" title="Tasa de Decisión" subtitle="Aprobadas vs Rechazadas vs Pendientes" type="doughnut"
+        [data]="produccion.metricasAprobaciones.chartAprobaciones"
+        mensajeVacio="Sin solicitudes en el período seleccionado."></app-chart-card>
+    </div>
 
-      <!-- Top Solicitantes -->
-      <app-chart-card title="Líderes con más solicitudes aprobadas" subtitle="Líderes con más aprobaciones" type="bar" [horizontal]="true"
-        [data]="produccion.metricasAprobaciones.topSolicitantes"
-        mensajeVacio="Sin aprobaciones registradas en el período seleccionado."></app-chart-card>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+      <!-- Tipos de Solicitud (Dona / Categorías) -->
+      <app-chart-card title="Tipos de Requerimiento" subtitle="Distribución por tipo de requerimiento o excepción" type="doughnut"
+        [data]="produccion.metricasAprobaciones.chartTipos"
+        mensajeVacio="Sin tipos de solicitud registrados en el período."></app-chart-card>
+
+      <!-- Top Solicitantes / Líderes en la Agencia -->
+      <app-chart-card title="Líderes con Más Solicitudes" subtitle="Operadores y líderes que gestionan excepciones" type="bar" [horizontal]="true"
+        [data]="produccion.metricasAprobaciones.chartTopSolicitantes"
+        mensajeVacio="Sin solicitudes aprobadas en el período seleccionado."></app-chart-card>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+      <!-- Motivos Frecuentes de Rechazo -->
+      <app-chart-card title="Motivos Frecuentes de Rechazo" subtitle="Causas principales de excepciones denegadas en la agencia" type="bar" [horizontal]="true"
+        [data]="produccion.metricasAprobaciones.chartMotivosRechazo"
+        mensajeVacio="Sin rechazos registrados en el período seleccionado."></app-chart-card>
+
+      <!-- Auditoría de Decisiones Recientes (Reciclado de Super Admin) -->
+      <app-chart-card title="Auditoría de Decisiones" subtitle="Historial de aprobaciones, rechazos y anulaciones en la agencia" type="bar"
+        [data]="produccion.metricasAprobaciones.chartAuditoriaDecisiones"
+        mensajeVacio="Sin decisiones de auditoría en el período seleccionado."></app-chart-card>
     </div>
     } @else {
     <div class="text-center py-12 bg-white rounded-2xl shadow-sm ring-1 ring-slate-900/5">
       <i-lucide aria-hidden="true" name="inbox" class="w-12 h-12 text-slate-300 mx-auto mb-3"></i-lucide>
       <h3 class="text-lg font-medium text-slate-900">Sin datos de aprobaciones</h3>
-      <p class="mt-1 text-slate-500">No hay información comercial reciente.</p>
+      <p class="mt-1 text-slate-500">No hay información de calidad ni aprobaciones reciente para el alcance seleccionado.</p>
     </div>
     }
-
-    <!-- Acceso rápido -->
-    <div class="mt-4 flex justify-end">
-      <a routerLink="/aprobaciones" class="px-5 py-2.5 bg-easydry-blue hover:bg-blue-700 text-white shadow-sm hover:shadow-md rounded-xl text-sm font-bold transition-all flex items-center gap-2">
-        <i-lucide name="arrow-right" class="w-4 h-4"></i-lucide>
-        Ir al Módulo de Aprobaciones
-      </a>
-    </div>
   </div>
 
   <!-- Sección: Consumo e Inventario / Catálogo Comercial -->
@@ -860,24 +906,22 @@
     }
 
     @if (invSub === 'salud') {
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
       <app-chart-card title="Salud del Stock" subtitle="Posiciones según mínimo e ideal" type="doughnut"
         [data]="bodegaData?.chartSaludStock"
         mensajeVacio="Sin posiciones de stock evaluables para el alcance seleccionado."></app-chart-card>
       <app-chart-card class="lg:col-span-2" title="Alertas por Categoría y Nivel" subtitle="Agotado · Crítico · Bajo" type="bar"
         [data]="bodegaData?.chartAlertasCategoriaNivel"
         mensajeVacio="Sin alertas de stock en el alcance seleccionado."></app-chart-card>
-      <div class="lg:col-span-3">
-        <app-chart-card title="Ubicaciones con Stock bajo el Ideal"
-          subtitle="Primero las que combinan agotado con crítico/bajo mínimo/bajo ideal · luego las más agotadas" type="bar" [horizontal]="true"
-          [data]="bodegaData?.chartSaludPorUbicacion"
-          mensajeVacio="Ninguna ubicación por debajo de su nivel ideal."></app-chart-card>
-      </div>
-      <div class="lg:col-span-3">
-        <app-chart-card title="Stock vs Mínimo vs Ideal por Categoría"
-          subtitle="Unidades totales: existencia real frente a los umbrales" type="bar" [data]="bodegaData?.chartStockVsIdeal"
-          mensajeVacio="Sin existencias registradas en el alcance seleccionado."></app-chart-card>
-      </div>
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+      <app-chart-card title="Ubicaciones con Stock bajo el Ideal"
+        subtitle="Primero las que combinan agotado con crítico/bajo mínimo/bajo ideal · luego las más agotadas" type="bar" [horizontal]="true"
+        [data]="bodegaData?.chartSaludPorUbicacion"
+        mensajeVacio="Ninguna ubicación por debajo de su nivel ideal."></app-chart-card>
+      <app-chart-card title="Stock vs Mínimo vs Ideal por Categoría"
+        subtitle="Unidades totales: existencia real frente a los umbrales" type="bar" [data]="bodegaData?.chartStockVsIdeal"
+        mensajeVacio="Sin existencias registradas en el alcance seleccionado."></app-chart-card>
     </div>
     }
 
@@ -963,34 +1007,34 @@
 
   <!-- Submenú flotante: agrupa las funcionalidades del rol sin salir de la página -->
   <div class="sticky top-4 z-40 mb-6 animate-fade-in-up">
-    <div class="dashboard-tabs flex items-center gap-1 p-1.5 bg-white/85 backdrop-blur-md rounded-2xl border border-slate-200/60 shadow-sm overflow-x-auto"
+    <div class="dashboard-tabs inline-flex items-center gap-1 sm:gap-1.5 p-1.5 bg-white/95 backdrop-blur-md rounded-2xl border border-slate-200/80 shadow-sm max-w-full overflow-x-auto scroll-smooth"
       role="tablist" aria-label="Secciones del dashboard de mantenimiento">
       <button type="button" role="tab" id="tab-mant-parque" aria-controls="panel-mant-parque"
         [attr.aria-selected]="mantenimientoTab === 'parque'" (click)="mantenimientoTab = 'parque'"
-        class="shrink-0 px-4 py-2 text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-2 whitespace-nowrap"
+        class="shrink-0 px-3 sm:px-3.5 2xl:px-4 py-2 text-xs sm:text-[13px] 2xl:text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap"
         [ngClass]="mantenimientoTab === 'parque' ? 'bg-easydry-blue text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'">
-        <i-lucide aria-hidden="true" name="activity" class="w-4 h-4"></i-lucide>
+        <i-lucide aria-hidden="true" name="activity" class="w-4 h-4 shrink-0"></i-lucide>
         Estado del Parque
       </button>
       <button type="button" role="tab" id="tab-mant-fallas" aria-controls="panel-mant-fallas"
         [attr.aria-selected]="mantenimientoTab === 'fallas'" (click)="mantenimientoTab = 'fallas'"
-        class="shrink-0 px-4 py-2 text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-2 whitespace-nowrap"
+        class="shrink-0 px-3 sm:px-3.5 2xl:px-4 py-2 text-xs sm:text-[13px] 2xl:text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap"
         [ngClass]="mantenimientoTab === 'fallas' ? 'bg-easydry-blue text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'">
-        <i-lucide aria-hidden="true" name="alert-triangle" class="w-4 h-4"></i-lucide>
+        <i-lucide aria-hidden="true" name="alert-triangle" class="w-4 h-4 shrink-0"></i-lucide>
         Fallas & Tiempos
       </button>
       <button type="button" role="tab" id="tab-mant-costos" aria-controls="panel-mant-costos"
         [attr.aria-selected]="mantenimientoTab === 'costos'" (click)="mantenimientoTab = 'costos'"
-        class="shrink-0 px-4 py-2 text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-2 whitespace-nowrap"
+        class="shrink-0 px-3 sm:px-3.5 2xl:px-4 py-2 text-xs sm:text-[13px] 2xl:text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap"
         [ngClass]="mantenimientoTab === 'costos' ? 'bg-easydry-blue text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'">
-        <i-lucide aria-hidden="true" name="dollar-sign" class="w-4 h-4"></i-lucide>
+        <i-lucide aria-hidden="true" name="dollar-sign" class="w-4 h-4 shrink-0"></i-lucide>
         Costos
       </button>
       <button type="button" role="tab" id="tab-mant-programacion" aria-controls="panel-mant-programacion"
         [attr.aria-selected]="mantenimientoTab === 'programacion'" (click)="mantenimientoTab = 'programacion'"
-        class="shrink-0 px-4 py-2 text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-2 whitespace-nowrap"
+        class="shrink-0 px-3 sm:px-3.5 2xl:px-4 py-2 text-xs sm:text-[13px] 2xl:text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap"
         [ngClass]="mantenimientoTab === 'programacion' ? 'bg-easydry-blue text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'">
-        <i-lucide aria-hidden="true" name="calendar-clock" class="w-4 h-4"></i-lucide>
+        <i-lucide aria-hidden="true" name="calendar-clock" class="w-4 h-4 shrink-0"></i-lucide>
         Programación
       </button>
     </div>
@@ -1184,29 +1228,40 @@
 
   <!-- Navegación entre pestañas de Servicios Especiales -->
   <div class="sticky top-4 z-40 mb-6 animate-fade-in-up">
-    <div class="dashboard-tabs flex items-center gap-1 p-1.5 bg-white/85 backdrop-blur-md rounded-2xl border border-slate-200/60 shadow-sm overflow-x-auto"
+    <div class="dashboard-tabs inline-flex items-center gap-1 sm:gap-1.5 p-1.5 bg-white/95 backdrop-blur-md rounded-2xl border border-slate-200/80 shadow-sm max-w-full overflow-x-auto scroll-smooth"
       role="tablist" aria-label="Secciones del dashboard de especiales">
       <button type="button" role="tab" id="tab-esp-resumen" aria-controls="panel-esp-resumen"
         [attr.aria-selected]="especialesTab === 'resumen'" (click)="especialesTab = 'resumen'"
-        class="shrink-0 px-4 py-2 text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-2 whitespace-nowrap"
+        class="shrink-0 px-3 sm:px-3.5 2xl:px-4 py-2 text-xs sm:text-[13px] 2xl:text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap"
         [ngClass]="especialesTab === 'resumen' ? 'bg-easydry-blue text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'">
-        <i-lucide aria-hidden="true" name="sparkles" class="w-4 h-4"></i-lucide>
-        Métricas & OTs
+        <i-lucide aria-hidden="true" name="sparkles" class="w-4 h-4 shrink-0"></i-lucide>
+        {{ isPulidor ? 'Mi Jornada & OTs' : 'Métricas & OTs' }}
       </button>
-      <button type="button" role="tab" id="tab-esp-pulidores" aria-controls="panel-esp-pulidores"
-        [attr.aria-selected]="especialesTab === 'pulidores'" (click)="especialesTab = 'pulidores'"
-        class="shrink-0 px-4 py-2 text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-2 whitespace-nowrap"
-        [ngClass]="especialesTab === 'pulidores' ? 'bg-easydry-blue text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'">
-        <i-lucide aria-hidden="true" name="users" class="w-4 h-4"></i-lucide>
-        Ranking de Pulidores
+      @if (puedeVerInventario) {
+      <button type="button" role="tab" id="tab-esp-insumos" aria-controls="panel-esp-insumos"
+        [attr.aria-selected]="especialesTab === 'insumos'" (click)="especialesTab = 'insumos'"
+        class="shrink-0 px-3 sm:px-3.5 2xl:px-4 py-2 text-xs sm:text-[13px] 2xl:text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap"
+        [ngClass]="especialesTab === 'insumos' ? 'bg-easydry-blue text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'">
+        <i-lucide aria-hidden="true" name="boxes" class="w-4 h-4 shrink-0"></i-lucide>
+        Insumos & Stock
       </button>
+      }
       @if (puedeVerMaquinaria) {
       <button type="button" role="tab" id="tab-esp-maquinaria" aria-controls="panel-esp-maquinaria"
         [attr.aria-selected]="especialesTab === 'maquinaria'" (click)="especialesTab = 'maquinaria'"
-        class="shrink-0 px-4 py-2 text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-2 whitespace-nowrap"
+        class="shrink-0 px-3 sm:px-3.5 2xl:px-4 py-2 text-xs sm:text-[13px] 2xl:text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap"
         [ngClass]="especialesTab === 'maquinaria' ? 'bg-easydry-blue text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'">
-        <i-lucide aria-hidden="true" name="wrench" class="w-4 h-4"></i-lucide>
+        <i-lucide aria-hidden="true" name="wrench" class="w-4 h-4 shrink-0"></i-lucide>
         Equipos & Detailing
+      </button>
+      }
+      @if (!isPulidor) {
+      <button type="button" role="tab" id="tab-esp-pulidores" aria-controls="panel-esp-pulidores"
+        [attr.aria-selected]="especialesTab === 'pulidores'" (click)="especialesTab = 'pulidores'"
+        class="shrink-0 px-3 sm:px-3.5 2xl:px-4 py-2 text-xs sm:text-[13px] 2xl:text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap"
+        [ngClass]="especialesTab === 'pulidores' ? 'bg-easydry-blue text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'">
+        <i-lucide aria-hidden="true" name="users" class="w-4 h-4 shrink-0"></i-lucide>
+        Ranking de Pulidores
       </button>
       }
     </div>
@@ -1229,19 +1284,28 @@
         subtitle="En cola para iniciar"></app-stat-card>
     </div>
 
-    <!-- KPIs de calidad e ingresos -->
+    <!-- KPIs de calidad, eficiencia e insumos/ingresos -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      @if (isPulidor) {
+      <app-stat-card [badge]="etiquetaRango" title="Herramientas Operativas"
+        [value]="herramientasOperativasPulidor" icon="wrench" variant="primary"
+        subtitle="Listas en bahía de pulido"></app-stat-card>
+      <app-stat-card [badge]="etiquetaRango" title="Insumos Bajo Mínimo"
+        [value]="insumosCriticosPulidor" icon="alert-triangle"
+        [variant]="insumosCriticosPulidor > 0 ? 'danger' : 'success'"
+        subtitle="Compuestos y pastas de pulir"></app-stat-card>
+      } @else {
       <app-stat-card [badge]="etiquetaRango" [title]="rangoFiltro === 'HOY' ? 'Ingreso Hoy' : 'Ingresos del Período'"
         [value]="'$' + especialesData.kpis.ingresoHoy" icon="dollar-sign"
         variant="success" subtitle="Por OTs completadas"></app-stat-card>
       <app-stat-card [badge]="etiquetaRango" title="Ingreso 30 Días" [value]="'$' + especialesData.kpis.ingresoTotal30d" icon="bar-chart-2"
         variant="primary" subtitle="Acumulado del período"></app-stat-card>
+      }
       <app-stat-card [badge]="etiquetaRango" title="Calificación Promedio" [value]="(especialesData.kpis.calificacionPromedio ?? 0) + ' / 5'" icon="star"
-        variant="success" subtitle="Calidad del servicio"></app-stat-card>
+        variant="success" subtitle="Calidad y acabado percibido"></app-stat-card>
       <app-stat-card [badge]="etiquetaRango" title="Tiempo Promedio" [value]="(especialesData.kpis.tiempoPromedioMin ?? 0) + ' min'" icon="timer"
         variant="warning" subtitle="Tiempo efectivo por OT"></app-stat-card>
     </div>
-
 
     <!-- Gráficos de tendencias y estados -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -1259,50 +1323,49 @@
       </div>
     </div>
 
-    <!-- Gráficos de Mix y Prioridad -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      @if (especialesData.chartTipoServicio) {
-        @if (mixEspecialesVista === 'distribucion') {
-        <app-distribution-card titulo="Mix de Servicios Especiales" subtitle="Tipos de servicio más demandados"
-          etiquetaTotal="OTs" [items]="mixEspecialesItems">
-          <div card-actions class="flex items-center gap-2 flex-wrap justify-end">
-            <div class="flex bg-slate-100 p-1 rounded-xl">
-              <button type="button" class="px-2.5 py-1 text-xs font-bold rounded-lg transition-colors text-slate-500 hover:text-slate-700"
-                (click)="mixEspecialesVista = 'barras'">
-                Barras
-              </button>
-              <button type="button" class="px-2.5 py-1 text-xs font-bold rounded-lg transition-colors bg-white text-slate-900 shadow-sm"
-                (click)="mixEspecialesVista = 'distribucion'">
-                Dona
-              </button>
-            </div>
-            <app-top-orden [orden]="mixEspecialesTop" (ordenChange)="mixEspecialesTop = $event"></app-top-orden>
+    <!-- Gráfico de Mix de Tratamientos (Generales & Especiales) -->
+    @if (especialesData.chartTipoServicio) {
+    <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry p-6">
+      @if (mixEspecialesVista === 'distribucion') {
+      <app-distribution-card [titulo]="categoriaServicio === 'TODOS' ? 'Mix de Servicios (Generales & Especiales)' : (categoriaServicio === 'GENERAL' ? 'Mix de Servicios Generales' : 'Mix de Servicios Especiales')"
+        [subtitulo]="categoriaServicio === 'TODOS' ? 'Tratamientos generales y especiales más demandados' : ('Servicios de ' + (categoriaServicio === 'GENERAL' ? 'lavado general' : 'detailing especial') + ' más demandados')"
+        etiquetaTotal="OTs" [items]="mixEspecialesItems">
+        <div card-actions class="flex items-center gap-2 flex-wrap justify-end">
+          <div class="flex bg-slate-100 p-1 rounded-xl">
+            <button type="button" class="px-2.5 py-1 text-xs font-bold rounded-lg transition-colors text-slate-500 hover:text-slate-700"
+              (click)="mixEspecialesVista = 'barras'">
+              Barras
+            </button>
+            <button type="button" class="px-2.5 py-1 text-xs font-bold rounded-lg transition-colors bg-white text-slate-900 shadow-sm"
+              (click)="mixEspecialesVista = 'distribucion'">
+              Dona
+            </button>
           </div>
-        </app-distribution-card>
-        } @else {
-        <app-chart-card title="Mix de Servicios Especiales" subtitle="Tipos de servicio más demandados" type="bar" [horizontal]="true"
-          [data]="chartTipoServicioOrdenado">
-          <div chart-actions class="flex items-center gap-2 flex-wrap justify-end">
-            <div class="flex bg-slate-100 p-1 rounded-xl">
-              <button type="button" class="px-2.5 py-1 text-xs font-bold rounded-lg transition-colors bg-white text-slate-900 shadow-sm"
-                (click)="mixEspecialesVista = 'barras'">
-                Barras
-              </button>
-              <button type="button" class="px-2.5 py-1 text-xs font-bold rounded-lg transition-colors text-slate-500 hover:text-slate-700"
-                (click)="mixEspecialesVista = 'distribucion'">
-                Dona
-              </button>
-            </div>
-            <app-top-orden [orden]="mixEspecialesTop" (ordenChange)="mixEspecialesTop = $event"></app-top-orden>
+          <app-top-orden [orden]="mixEspecialesTop" (ordenChange)="mixEspecialesTop = $event"></app-top-orden>
+        </div>
+      </app-distribution-card>
+      } @else {
+      <app-chart-card [title]="categoriaServicio === 'TODOS' ? 'Mix de Servicios (Generales & Especiales)' : (categoriaServicio === 'GENERAL' ? 'Mix de Servicios Generales' : 'Mix de Servicios Especiales')"
+        [subtitle]="categoriaServicio === 'TODOS' ? 'Tratamientos generales y especiales más demandados' : ('Servicios de ' + (categoriaServicio === 'GENERAL' ? 'lavado general' : 'detailing especial') + ' más demandados')"
+        type="bar" [horizontal]="true"
+        [data]="chartTipoServicioOrdenado">
+        <div chart-actions class="flex items-center gap-2 flex-wrap justify-end">
+          <div class="flex bg-slate-100 p-1 rounded-xl">
+            <button type="button" class="px-2.5 py-1 text-xs font-bold rounded-lg transition-colors bg-white text-slate-900 shadow-sm"
+              (click)="mixEspecialesVista = 'barras'">
+              Barras
+            </button>
+            <button type="button" class="px-2.5 py-1 text-xs font-bold rounded-lg transition-colors text-slate-500 hover:text-slate-700"
+              (click)="mixEspecialesVista = 'distribucion'">
+              Dona
+            </button>
           </div>
-        </app-chart-card>
-        }
-      }
-      @if (especialesData.chartPrioridad) {
-      <app-chart-card title="OTs por Prioridad" subtitle="Alta · Media · Baja · Urgente" type="bar"
-        [data]="especialesData.chartPrioridad"></app-chart-card>
+          <app-top-orden [orden]="mixEspecialesTop" (ordenChange)="mixEspecialesTop = $event"></app-top-orden>
+        </div>
+      </app-chart-card>
       }
     </div>
+    }
   </div>
   }
 
@@ -1384,6 +1447,20 @@
   <!-- PESTAÑA 3: EQUIPOS & DETAILING -->
   @if (especialesTab === 'maquinaria' && puedeVerMaquinaria) {
   <div class="space-y-6 animate-fade-in">
+    <div class="bg-gradient-to-r from-easydry-blue/10 via-blue-50 to-transparent p-4 rounded-2xl border border-slate-200/80 flex items-center justify-between gap-4 flex-wrap">
+      <div>
+        <h2 class="text-base font-bold text-slate-900 font-outfit flex items-center gap-2">
+          <i-lucide name="wrench" class="w-4 h-4 text-easydry-blue"></i-lucide>
+          Equipos, Pulidoras y Herramientas de Detailing
+        </h2>
+        <p class="text-xs text-slate-500 mt-0.5">Estado operativo, preventivos y mantenimiento de maquinaria asignada a su sede.</p>
+      </div>
+      <a routerLink="/maquinaria"
+        class="px-3.5 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-800 text-xs font-bold rounded-xl transition-colors inline-flex items-center gap-1.5 shadow-sm">
+        <i-lucide name="wrench" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide> Ver Módulo de Maquinaria
+      </a>
+    </div>
+
     @if (tecnicoData || maquinaria) {
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-6">
       <app-stat-card [badge]="etiquetaRango" title="Equipos Totales"
@@ -1491,10 +1568,69 @@
   </div>
   }
 
+  <!-- PESTAÑA: INSUMOS & STOCK DE DETAILING -->
+  @if (especialesTab === 'insumos' && puedeVerInventario) {
+  <div class="space-y-6 animate-fade-in">
+    <div class="bg-gradient-to-r from-easydry-blue/10 via-emerald-50 to-transparent p-4 rounded-2xl border border-slate-200/80 flex items-center justify-between gap-4 flex-wrap">
+      <div>
+        <h2 class="text-base font-bold text-slate-900 font-outfit flex items-center gap-2">
+          <i-lucide name="boxes" class="w-4 h-4 text-easydry-blue"></i-lucide>
+          Insumos y Químicos de Detailing
+        </h2>
+        <p class="text-xs text-slate-500 mt-0.5">Control de existencias de pastas de pulir, ceras, microfibras y compuestos asignados a su agencia.</p>
+      </div>
+      <a routerLink="/inventario"
+        class="px-3.5 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-800 text-xs font-bold rounded-xl transition-colors inline-flex items-center gap-1.5 shadow-sm">
+        <i-lucide name="package" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide> Ver Catálogo de Inventario
+      </a>
+    </div>
+
+    @if (bodegaData) {
+    <!-- KPIs de Insumos -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-6">
+      <app-stat-card [badge]="etiquetaRango" title="Posiciones Evaluadas" [value]="bodegaData.kpis.posicionesEvaluadas ?? 0"
+        icon="archive" variant="primary" subtitle="Insumos asignados a la sede"></app-stat-card>
+      <app-stat-card [badge]="etiquetaRango" title="Bajo el Mínimo" [value]="bodegaData.kpis.posicionesBajoMinimo ?? 0"
+        icon="alert-triangle" variant="danger" subtitle="Agotado, crítico o bajo mínimo"></app-stat-card>
+      <app-stat-card [badge]="etiquetaRango" title="Bajo el Ideal" [value]="bodegaData.kpis.posicionesBajoIdeal ?? 0"
+        icon="trending-down" variant="warning" subtitle="Sin reserva de seguridad"></app-stat-card>
+      <app-stat-card [badge]="etiquetaRango" title="Unidades a Reponer" [value]="bodegaData.kpis.unidadesReponer ?? 0"
+        icon="package-plus" variant="primary" subtitle="Unidades requeridas"></app-stat-card>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      @if (bodegaData.chartSaludStock) {
+      <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry p-6">
+        <app-chart-card title="Salud del Stock de Detailing" subtitle="Distribución de insumos según nivel de reserva"
+          type="doughnut" [data]="bodegaData.chartSaludStock"></app-chart-card>
+      </div>
+      }
+      @if (bodegaData.chartTopDeficit) {
+      <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry p-6">
+        <app-chart-card title="Insumos con Mayor Déficit" subtitle="Productos más alejados de su stock ideal"
+          type="bar" [horizontal]="true" [data]="bodegaData.chartTopDeficit"></app-chart-card>
+      </div>
+      }
+    </div>
+    }
+
+    <!-- Alertas activas de la sede -->
+    @if (alertasPanel.length > 0) {
+    <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry p-6">
+      <h3 class="text-base font-bold font-outfit text-slate-900 mb-4 flex items-center gap-2">
+        <i-lucide name="alert-circle" class="w-4 h-4 text-rose-500"></i-lucide>
+        Alertas de Reposición de Insumos
+      </h3>
+      <app-alertas-widget [alertas]="alertasPanel"></app-alertas-widget>
+    </div>
+    }
+  </div>
+  }
+
   <div class="text-center mt-6">
     <a routerLink="/servicios" [queryParams]="{ tab: 'especiales' }"
       class="inline-flex items-center gap-2 px-6 py-3 bg-easydry-green hover:bg-easydry-green-dark text-slate-900 font-bold rounded-xl text-sm transition-colors">
-      <i-lucide name="sparkles" class="w-4 h-4"></i-lucide> Ir a la Cola de Servicios Especiales
+      <i-lucide name="sparkles" class="w-4 h-4"></i-lucide> {{ isPulidor ? 'Ir a la Mesa de Ejecución de OTs' : 'Ir a la Cola de Servicios Especiales' }}
     </a>
   </div>
   }
@@ -1504,35 +1640,42 @@
 
   <!-- Submenú flotante: agrupa las funcionalidades del rol sin salir de la página -->
   <div class="sticky top-4 z-40 mb-6 animate-fade-in-up">
-    <div class="dashboard-tabs flex items-center gap-1 p-1.5 bg-white/85 backdrop-blur-md rounded-2xl border border-slate-200/60 shadow-sm overflow-x-auto"
+    <div class="dashboard-tabs inline-flex items-center gap-1 sm:gap-1.5 p-1.5 bg-white/95 backdrop-blur-md rounded-2xl border border-slate-200/80 shadow-sm max-w-full overflow-x-auto scroll-smooth"
       role="tablist" aria-label="Secciones del dashboard de bodega">
       <button type="button" role="tab" id="tab-bod-salud" aria-controls="panel-bod-salud"
         [attr.aria-selected]="bodegaTab === 'salud'" (click)="bodegaTab = 'salud'"
-        class="shrink-0 px-4 py-2 text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-2 whitespace-nowrap"
+        class="shrink-0 px-3 sm:px-3.5 2xl:px-4 py-2 text-xs sm:text-[13px] 2xl:text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap"
         [ngClass]="bodegaTab === 'salud' ? 'bg-easydry-blue text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'">
-        <i-lucide aria-hidden="true" name="activity" class="w-4 h-4"></i-lucide>
+        <i-lucide aria-hidden="true" name="activity" class="w-4 h-4 shrink-0"></i-lucide>
         Salud del Stock
       </button>
       <button type="button" role="tab" id="tab-bod-reposicion" aria-controls="panel-bod-reposicion"
         [attr.aria-selected]="bodegaTab === 'reposicion'" (click)="bodegaTab = 'reposicion'"
-        class="shrink-0 px-4 py-2 text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-2 whitespace-nowrap"
+        class="shrink-0 px-3 sm:px-3.5 2xl:px-4 py-2 text-xs sm:text-[13px] 2xl:text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap"
         [ngClass]="bodegaTab === 'reposicion' ? 'bg-easydry-blue text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'">
-        <i-lucide aria-hidden="true" name="package-plus" class="w-4 h-4"></i-lucide>
+        <i-lucide aria-hidden="true" name="package-plus" class="w-4 h-4 shrink-0"></i-lucide>
         Reposición
       </button>
       <button type="button" role="tab" id="tab-bod-despachos" aria-controls="panel-bod-despachos"
         [attr.aria-selected]="bodegaTab === 'despachos'" (click)="bodegaTab = 'despachos'"
-        class="shrink-0 px-4 py-2 text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-2 whitespace-nowrap"
+        class="shrink-0 px-3 sm:px-3.5 2xl:px-4 py-2 text-xs sm:text-[13px] 2xl:text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap"
         [ngClass]="bodegaTab === 'despachos' ? 'bg-easydry-blue text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'">
-        <i-lucide aria-hidden="true" name="truck" class="w-4 h-4"></i-lucide>
+        <i-lucide aria-hidden="true" name="truck" class="w-4 h-4 shrink-0"></i-lucide>
         Despachos
       </button>
       <button type="button" role="tab" id="tab-bod-consumo" aria-controls="panel-bod-consumo"
         [attr.aria-selected]="bodegaTab === 'consumo'" (click)="bodegaTab = 'consumo'"
-        class="shrink-0 px-4 py-2 text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-2 whitespace-nowrap"
+        class="shrink-0 px-3 sm:px-3.5 2xl:px-4 py-2 text-xs sm:text-[13px] 2xl:text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap"
         [ngClass]="bodegaTab === 'consumo' ? 'bg-easydry-blue text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'">
-        <i-lucide aria-hidden="true" name="boxes" class="w-4 h-4"></i-lucide>
+        <i-lucide aria-hidden="true" name="boxes" class="w-4 h-4 shrink-0"></i-lucide>
         Consumo & Existencias
+      </button>
+      <button type="button" role="tab" id="tab-bod-alertas" aria-controls="panel-bod-alertas"
+        [attr.aria-selected]="bodegaTab === 'alertas'" (click)="bodegaTab = 'alertas'"
+        class="shrink-0 px-3 sm:px-3.5 2xl:px-4 py-2 text-xs sm:text-[13px] 2xl:text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap"
+        [ngClass]="bodegaTab === 'alertas' ? 'bg-easydry-blue text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'">
+        <i-lucide aria-hidden="true" name="bell" class="w-4 h-4 shrink-0"></i-lucide>
+        Alertas
       </button>
     </div>
   </div>
@@ -1636,12 +1779,6 @@
         [horizontal]="true" [data]="bodegaData?.chartTopAgenciasConAlertas"
         mensajeVacio="Sin alertas de stock en el alcance seleccionado."></app-chart-card>
     </div>
-
-    @if (alertas.length > 0) {
-    <div class="mt-8">
-      <app-alertas-widget [alertas]="alertasPanel"></app-alertas-widget>
-    </div>
-    }
   </div>
 
   <!-- PESTAÑA: CONSUMO & EXISTENCIAS -->
@@ -1685,6 +1822,14 @@
       <app-chart-card class="lg:col-span-12" title="Insumos con más Alertas" subtitle="Insumos con más reportes de stock bajo"
         type="bar" [horizontal]="true" [data]="bodegaData?.chartTopInsumosCriticos"
         mensajeVacio="Sin alertas de stock en el alcance seleccionado."></app-chart-card>
+    </div>
+  </div>
+
+  <!-- PESTAÑA: ALERTAS OPERATIVAS -->
+  <div class="mb-4 animate-fade-in" role="tabpanel" id="panel-bod-alertas" aria-labelledby="tab-bod-alertas"
+    [class.hidden]="bodegaTab !== 'alertas'">
+    <div class="w-full">
+      <app-alertas-widget [alertas]="alertasPanel"></app-alertas-widget>
     </div>
   </div>
   }
