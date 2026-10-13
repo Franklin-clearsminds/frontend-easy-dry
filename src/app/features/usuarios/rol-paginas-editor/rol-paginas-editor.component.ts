@@ -47,6 +47,11 @@ import { AccionCatalogo, PaginaCatalogo, SubPaginaCatalogo } from '../../../core
             @for (p of visibles; track p.codigo) {
               <div class="flex items-center gap-1 rounded-xl pl-1 pr-1 transition-colors"
                 [ngClass]="actual?.codigo === p.codigo ? 'bg-white shadow-sm ring-1 ring-slate-200' : 'hover:bg-white/70'">
+                @if (esDeCuenta(p)) {
+                  <span class="shrink-0 min-h-11 min-w-11 flex items-center justify-center text-slate-400" title="Incluida en todos los roles" role="img" aria-label="Incluida en todos los roles">
+                    <i-lucide aria-hidden="true" name="lock" class="w-4 h-4"></i-lucide>
+                  </span>
+                } @else {
                 <button type="button" role="switch" [attr.aria-checked]="activa(p.codigo)"
                   [attr.aria-label]="'Acceso a la página ' + p.nombre"
                   [disabled]="soloLectura || !puedeOtorgar(p.codigo)"
@@ -56,10 +61,13 @@ import { AccionCatalogo, PaginaCatalogo, SubPaginaCatalogo } from '../../../core
                     <span class="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform" [ngClass]="activa(p.codigo) ? 'translate-x-4' : ''"></span>
                   </span>
                 </button>
+                }
                 <button type="button" (click)="elegir(p)" [attr.aria-current]="actual?.codigo === p.codigo ? 'true' : null"
                   class="flex-1 min-w-0 min-h-11 flex items-center justify-between gap-2 py-2 pr-2 text-left rounded-lg">
                   <span class="text-xs font-bold truncate" [ngClass]="activa(p.codigo) ? 'text-slate-900' : 'text-slate-500'">{{ p.nombre }}</span>
-                  @if (activa(p.codigo) && contador(p)[1] > 0) {
+                  @if (esDeCuenta(p)) {
+                    <span class="text-[10px] font-bold uppercase tracking-wide text-slate-500 shrink-0">Siempre</span>
+                  } @else if (activa(p.codigo) && contador(p)[1] > 0) {
                     <span class="text-[11px] font-bold tabular-nums shrink-0 px-1.5 py-0.5 rounded-md"
                       [ngClass]="contador(p)[0] ? 'bg-blue-100 text-blue-800' : 'bg-slate-200 text-slate-600'">{{ contador(p)[0] }}/{{ contador(p)[1] }}</span>
                   } @else if (!activa(p.codigo)) {
@@ -78,6 +86,12 @@ import { AccionCatalogo, PaginaCatalogo, SubPaginaCatalogo } from '../../../core
                   <h5 class="font-extrabold text-sm text-easydry-blue truncate">{{ p.nombre }}</h5>
                   <p class="text-[11px] text-slate-500 font-mono truncate">{{ p.ruta }}</p>
                 </div>
+                @if (esDeCuenta(p)) {
+                  <span class="inline-flex items-center gap-2 min-h-11 px-3 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-600">
+                    <i-lucide aria-hidden="true" name="lock" class="w-4 h-4 text-slate-400"></i-lucide>
+                    Incluida en todos los roles
+                  </span>
+                } @else {
                 <button type="button" role="switch" [attr.aria-checked]="activa(p.codigo)"
                   [disabled]="soloLectura || !puedeOtorgar(p.codigo)"
                   (click)="togglePagina(p)"
@@ -88,6 +102,7 @@ import { AccionCatalogo, PaginaCatalogo, SubPaginaCatalogo } from '../../../core
                   </span>
                   {{ activa(p.codigo) ? 'Página activa' : 'Página apagada' }}
                 </button>
+                }
               </div>
 
               <div class="p-4 space-y-4">
@@ -100,7 +115,9 @@ import { AccionCatalogo, PaginaCatalogo, SubPaginaCatalogo } from '../../../core
                     <p class="text-xs text-slate-400 px-1">{{ s.nombre }} · {{ s.acciones.length }} acciones</p>
                   }
                 } @else {
-                  @if (!p.subs.length && !p.acciones.length) {
+                  @if (esDeCuenta(p)) {
+                    <p class="text-xs text-slate-500">Es una pantalla de cuenta: todos los usuarios la tienen, sin importar su rol. Cada persona solo ve lo suyo.</p>
+                  } @else if (!p.subs.length && !p.acciones.length) {
                     <p class="text-xs text-slate-500">Esta página es solo de consulta: al activarla el rol ya puede verla y no tiene acciones propias.</p>
                   }
 
@@ -237,8 +254,13 @@ export class RolPaginasEditorComponent implements OnChanges {
   }
 
   // ── Lectura ──
+  /** Notificaciones y Perfil son pantallas de cuenta: el sistema se las da a todos los roles y no se pueden apagar. */
+  esDeCuenta(p: PaginaCatalogo): boolean {
+    return p.codigo === 'pagina.notificaciones' || p.codigo === 'pagina.perfil';
+  }
+
   activa(codigo: string): boolean {
-    return this.activos.has(codigo);
+    return codigo === 'pagina.notificaciones' || codigo === 'pagina.perfil' || this.activos.has(codigo);
   }
 
   private normalizar(t: string): string {
@@ -311,7 +333,7 @@ export class RolPaginasEditorComponent implements OnChanges {
 
   // ── Cambios ──
   togglePagina(p: PaginaCatalogo): void {
-    if (this.soloLectura || !this.puedeOtorgar(p.codigo)) return;
+    if (this.soloLectura || this.esDeCuenta(p) || !this.puedeOtorgar(p.codigo)) return;
     if (this.activos.has(p.codigo)) {
       this.activos.delete(p.codigo);
     } else {
