@@ -285,7 +285,7 @@ const COLUMNAS_ROLES: TableColumn[] = [
                     (click)="abrirModalCrearUsuario()"
                     class="btn btn-cta">
                     <i-lucide aria-hidden="true" name="user-plus" class="w-4 h-4"></i-lucide>
-                    <span>{{ puedeGestionarUsuarios ? 'Registrar Usuario' : 'Registrar Backup' }}</span>
+                    <span>{{ puedeCrearUsuario ? 'Registrar Usuario' : 'Registrar Backup' }}</span>
                   </button>
                 }
               </div>
@@ -402,8 +402,8 @@ const COLUMNAS_ROLES: TableColumn[] = [
                 <button
                   type="button"
                   (click)="toggleEstadoUsuario(u)"
-                  [disabled]="!puedeGestionarUsuarios"
-                  [title]="!puedeGestionarUsuarios ? 'Tu rol no puede cambiar el estado de usuarios' : (u.estado === 'Activo' ? 'Click para marcar como Inactivo (Bloqueará login y asignación)' : 'Click para activar usuario')"
+                  [disabled]="!puedeEstadoUsuario"
+                  [title]="!puedeEstadoUsuario ? 'Tu rol no puede cambiar el estado de usuarios' : (u.estado === 'Activo' ? 'Click para marcar como Inactivo (Bloqueará login y asignación)' : 'Click para activar usuario')"
                   [attr.aria-label]="u.estado === 'Activo' ? 'Usuario activo. Marcar como inactivo' : 'Usuario inactivo. Activar usuario'"
                   class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border transition-all cursor-pointer select-none disabled:cursor-default"
                   [ngClass]="u.estado === 'Activo'
@@ -416,7 +416,7 @@ const COLUMNAS_ROLES: TableColumn[] = [
 
               <ng-template appCell="acciones" let-u>
                 <div class="flex items-center justify-end gap-1">
-                  @if (puedeGestionarUsuarios) {
+                  @if (puedeEstadoUsuario) {
                     <button
                       type="button"
                       (click)="toggleEstadoUsuario(u)"
@@ -435,7 +435,7 @@ const COLUMNAS_ROLES: TableColumn[] = [
                       <i-lucide aria-hidden="true" name="edit-3" class="w-4 h-4"></i-lucide>
                     </button>
                   }
-                  @if (puedeGestionarUsuarios) {
+                  @if (puedeEliminarUsuario) {
                     <button
                       type="button"
                       (click)="abrirModalEliminarUsuario(u)"
@@ -511,7 +511,7 @@ const COLUMNAS_ROLES: TableColumn[] = [
                 <span class="text-xs font-bold text-purple-700 bg-purple-50 px-3 py-1.5 rounded-xl border border-purple-200">
                   {{ roles.length }} roles en BD
                 </span>
-                @if (puedeGestionarRoles) {
+                @if (puedeCrearRol) {
                   <button
                     type="button"
                     (click)="abrirModalCrearRol()"
@@ -602,8 +602,8 @@ const COLUMNAS_ROLES: TableColumn[] = [
                 <button
                   type="button"
                   (click)="toggleEstadoRol(rol)"
-                  [disabled]="!puedeGestionarRoles"
-                  [title]="!puedeGestionarRoles ? 'Solo el Super Administrador cambia el estado de un rol' : (rol.estado === 'Activo' ? 'Click para desactivar rol' : 'Click para activar rol')"
+                  [disabled]="!puedeEditarRol"
+                  [title]="!puedeEditarRol ? 'Solo el Super Administrador cambia el estado de un rol' : (rol.estado === 'Activo' ? 'Click para desactivar rol' : 'Click para activar rol')"
                   class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border transition-all select-none disabled:cursor-default"
                   [ngClass]="rol.estado === 'Activo'
                     ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 cursor-pointer'
@@ -622,12 +622,12 @@ const COLUMNAS_ROLES: TableColumn[] = [
                   <button
                     type="button"
                     (click)="abrirModalEditarRol(rol)"
-                    [title]="puedeGestionarRoles ? 'Editar rol y permisos' : 'Ver permisos del rol'"
+                    [title]="puedeEditarRol ? 'Editar rol y permisos' : 'Ver permisos del rol'"
                     class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-bold transition-colors cursor-pointer border border-purple-200">
-                    <i-lucide aria-hidden="true" [name]="puedeGestionarRoles ? 'sliders' : 'eye'" class="w-3.5 h-3.5"></i-lucide>
-                    <span>{{ puedeGestionarRoles ? 'Editar' : 'Ver' }}</span>
+                    <i-lucide aria-hidden="true" [name]="puedeEditarRol ? 'sliders' : 'eye'" class="w-3.5 h-3.5"></i-lucide>
+                    <span>{{ puedeEditarRol ? 'Editar' : 'Ver' }}</span>
                   </button>
-                  @if (puedeGestionarRoles && !rol.esSistema) {
+                  @if (puedeEliminarRol && !rol.esSistema) {
                     <button
                       type="button"
                       (click)="abrirModalEliminarRol(rol)"
@@ -1704,7 +1704,7 @@ export class UsuariosComponent implements OnInit, OnDestroy {
   get motivoSinReinicioPassword(): string {
     const u = this.editandoUsuario;
     if (!u) return '';
-    if (!this.puedeGestionarUsuarios) {
+    if (!this.puedePasswordUsuario) {
       return 'Solo Admin o Super Admin pueden restablecer contraseñas.';
     }
     const actual = this.authService.getCurrentUser();
@@ -2297,7 +2297,7 @@ export class UsuariosComponent implements OnInit, OnDestroy {
   }
 
   toggleEstadoUsuario(u: Usuario) {
-    if (!this.puedeGestionarUsuarios) return;
+    if (!this.puedeEstadoUsuario) return;
     const nuevoEstado: 'Activo' | 'Inactivo' = u.estado === 'Activo' ? 'Inactivo' : 'Activo';
     this.usuarioService.toggleEstado(u.id, nuevoEstado).subscribe({
       next: () => {
@@ -2703,24 +2703,30 @@ export class UsuariosComponent implements OnInit, OnDestroy {
     return this.authService.puede('roles.ver');
   }
 
-  get puedeGestionarRoles(): boolean {
-    return this.authService.puede('usuarios.roles.crear') || this.authService.puede('usuarios.roles.editar') || this.authService.puede('usuarios.roles.eliminar');
-  }
+  get puedeCrearRol(): boolean { return this.authService.puede('usuarios.roles.crear'); }
+  get puedeEditarRol(): boolean { return this.authService.puede('usuarios.roles.editar'); }
+  get puedeEliminarRol(): boolean { return this.authService.puede('usuarios.roles.eliminar'); }
+  /** Alguna acción sobre roles: con solo «ver» el editor se abre en lectura. */
+  get puedeGestionarRoles(): boolean { return this.puedeCrearRol || this.puedeEditarRol || this.puedeEliminarRol; }
 
-  get puedeGestionarUsuarios(): boolean {
-    return this.authService.puede('usuarios.gestionar');
-  }
+  get puedeCrearUsuario(): boolean { return this.authService.puede('usuarios.usuarios.crear'); }
+  get puedeEditarUsuario(): boolean { return this.authService.puede('usuarios.usuarios.editar'); }
+  get puedeEstadoUsuario(): boolean { return this.authService.puede('usuarios.usuarios.estado'); }
+  get puedeEliminarUsuario(): boolean { return this.authService.puede('usuarios.usuarios.eliminar'); }
+  get puedePasswordUsuario(): boolean { return this.authService.puede('usuarios.usuarios.password'); }
+  /** Crea o edita usuarios de cualquier rol (a diferencia de quien solo gestiona Backups de su región). */
+  get puedeGestionarUsuarios(): boolean { return this.puedeCrearUsuario || this.puedeEditarUsuario; }
 
   get puedeGestionarBackups(): boolean {
-    return this.authService.puede('backup.gestionar');
+    return this.authService.puede('usuarios.usuarios.backup');
   }
 
   get puedeCrearUsuarios(): boolean {
-    return this.puedeGestionarUsuarios || this.puedeGestionarBackups;
+    return this.puedeCrearUsuario || this.puedeGestionarBackups;
   }
 
   puedeGestionarFilaUsuario(usuario: Usuario): boolean {
-    if (this.puedeGestionarUsuarios) return true;
+    if (this.puedeEditarUsuario) return true;
     const regionActor = this.authService.currentUserValue?.regionId;
     return this.puedeGestionarBackups &&
       this.esBackupRol(usuario.rolNombre || usuario.rol) &&
@@ -2730,7 +2736,7 @@ export class UsuariosComponent implements OnInit, OnDestroy {
 
   /** Con solo 'roles.ver' el editor se abre en modo lectura. */
   get soloLecturaRol(): boolean {
-    return !this.puedeGestionarRoles;
+    return this.editandoRol ? !this.puedeEditarRol : !this.puedeCrearRol;
   }
 
   // ── Catálogo de permisos y ámbitos ──
@@ -2806,7 +2812,7 @@ export class UsuariosComponent implements OnInit, OnDestroy {
 
   // ── Acciones de Roles ──
   abrirModalCrearRol() {
-    if (!this.puedeGestionarRoles) return;
+    if (!this.puedeCrearRol) return;
     this.editandoRol = null;
     this.rolForm = {
       nombre: '',
@@ -2843,7 +2849,7 @@ export class UsuariosComponent implements OnInit, OnDestroy {
   }
 
   guardarRol() {
-    if (!this.puedeGestionarRoles || this.guardandoRol) return;
+    if (this.soloLecturaRol || this.guardandoRol) return;
 
     if (!this.editandoRol) {
       if (!this.rolForm.nombre.trim()) {
@@ -2889,7 +2895,7 @@ export class UsuariosComponent implements OnInit, OnDestroy {
   }
 
   toggleEstadoRol(rol: RolPersonalizado) {
-    if (!this.puedeGestionarRoles) return;
+    if (!this.puedeEditarRol) return;
     const nuevoEstado = rol.estado === 'Activo' ? 'Inactivo' : 'Activo';
     this.rolService.actualizarRol(rol.id, { estado: nuevoEstado === 'Activo' ? 1 : 0 }).subscribe({
       next: () => {
@@ -2905,7 +2911,7 @@ export class UsuariosComponent implements OnInit, OnDestroy {
   }
 
   abrirModalEliminarRol(rol: RolPersonalizado) {
-    if (!this.puedeGestionarRoles || rol.esSistema) return;
+    if (!this.puedeEliminarRol || rol.esSistema) return;
     this.rolAEliminar = rol;
     this.modalEliminarRolOpen = true;
   }
