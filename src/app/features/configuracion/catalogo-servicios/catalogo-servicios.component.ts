@@ -37,10 +37,34 @@ export class CatalogoServiciosComponent implements OnInit, OnDestroy {
     return this.generalesTabla.resumen ?? this.especialesTabla.resumen;
   }
   /** Permisos del catálogo: son los mismos que exige el servidor en cada endpoint. */
-  get puedeGestionarCatalogo(): boolean { return this.authService.puede('catalogo.gestionar'); }
-  get puedeGestionarRecetas(): boolean { return this.authService.puede('recetas.gestionar'); }
-  get soloLectura(): boolean { return !this.puedeGestionarCatalogo; }
-  get puedeGuardar(): boolean { return this.puedeGestionarCatalogo || (this.isEditing && this.puedeGestionarRecetas); }
+  /** Cada categoría tiene sus propias casillas (catalogo.generales.* / catalogo.especiales.*), las mismas que exige el servidor. */
+  private permisoDe(categoria: string | undefined, accion: string): boolean {
+    const grupo = String(categoria || '').toUpperCase() === 'ESPECIAL' ? 'especiales' : 'generales';
+    return this.authService.puede(`catalogo.${grupo}.${accion}`);
+  }
+  puedeCrear(categoria?: string): boolean { return this.permisoDe(categoria, 'crear'); }
+  puedeEditar(categoria?: string): boolean { return this.permisoDe(categoria, 'editar'); }
+  puedeCambiarEstado(categoria?: string): boolean { return this.permisoDe(categoria, 'estado'); }
+  puedeVerReceta(categoria?: string): boolean { return this.permisoDe(categoria, 'recetas.ver'); }
+  puedeEditarReceta(categoria?: string): boolean { return this.permisoDe(categoria, 'recetas.editar'); }
+  /** Receta del servicio abierto en el modal. */
+  get puedeGestionarRecetas(): boolean { return this.puedeEditarReceta(this.servicioActual?.categoria); }
+  get puedeVerRecetaActual(): boolean { return this.puedeVerReceta(this.servicioActual?.categoria); }
+  get soloLectura(): boolean {
+    const cat = this.servicioActual?.categoria;
+    return this.isEditing ? !this.puedeEditar(cat) : !this.puedeCrear(cat);
+  }
+  get puedeGuardar(): boolean { return !this.soloLectura || (this.isEditing && this.puedeGestionarRecetas); }
+  alternarEstado(servicio: CatalogoServicio): void {
+    if (!servicio.id || !this.puedeCambiarEstado(servicio.categoria)) return;
+    this.catalogoService.cambiarEstado(servicio.id).subscribe({
+      next: () => {
+        this.toast.success(servicio.estado === 'Activo' ? 'Servicio desactivado' : 'Servicio activado', servicio.nombre);
+        this.refrescarTablas();
+      },
+      error: (err) => this.toast.error('Error', err?.error?.message || 'No se pudo cambiar el estado del servicio.'),
+    });
+  }
   get tieneServiciosEspeciales(): boolean { return this.agenciaCtx?.tieneServiciosEspeciales ?? false; }
   /** La sede tiene el catálogo vacío: nada asignado y nada que mostrar. */
   get sinServiciosConfigurados(): boolean {
@@ -106,7 +130,7 @@ export class CatalogoServiciosComponent implements OnInit, OnDestroy {
   historialReceta: RecetaHistorialCambio[] = [];
 
   get canVerHistorialReceta(): boolean {
-    return this.authService.puede('recetas.historial');
+    return this.permisoDe(this.servicioActual?.categoria, 'recetas.historial');
   }
 
   toggleHistorialReceta(): void {
@@ -184,7 +208,7 @@ export class CatalogoServiciosComponent implements OnInit, OnDestroy {
     this.generalesTabla.reiniciar();
     this.especialesTabla.reiniciar();
     // Los insumos solo hacen falta para armar recetas y requieren poder ver el inventario.
-    if (this.puedeGestionarRecetas && this.authService.puede('inventario.ver')) {
+    if ((this.puedeEditarReceta('GENERAL') || this.puedeEditarReceta('ESPECIAL')) && this.authService.puede('inventario.ver')) {
       this.inventarioService.cargarItems();
       this.inventarioService.getItems().subscribe(items => {
         this.productosInventario = items;
@@ -204,7 +228,7 @@ export class CatalogoServiciosComponent implements OnInit, OnDestroy {
 
   // ── Modal de creación / edición (Generales y Especiales) ─────────────────
   abrirModalNuevo(categoria: 'GENERAL' | 'ESPECIAL' = 'GENERAL') {
-    if (!this.puedeGestionarCatalogo) return;
+    if (!this.puedeCrear(categoria)) return;
     this.isEditing = false;
     this.servicioActual = {
       codigo: '',
@@ -309,7 +333,7 @@ export class CatalogoServiciosComponent implements OnInit, OnDestroy {
   guardarServicio() {
     if (!this.puedeGuardar) return;
     // Solo recetas (p. ej. coordinador de bodega): no toca los datos del servicio.
-    if (this.isEditing && this.servicioActual.id && !this.puedeGestionarCatalogo) {
+    if (this.isEditing && this.servicioActual.id && this.soloLectura) {
       this.catalogoService.guardarRecetasServicio(this.servicioActual.id, this.servicioActual.insumosReceta || []).subscribe({
         next: () => {
           this.toast.success('Receta Actualizada', 'La receta de insumos fue guardada.');
