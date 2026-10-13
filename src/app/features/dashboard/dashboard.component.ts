@@ -8,7 +8,6 @@ import { ChartCardComponent } from '../../shared/components/chart-card/chart-car
 import { DashboardOperativoService } from '../../core/services/dashboard-operativo.service';
 import { AuthService } from '../../core/services/auth.service';
 import { ROLE_LABELS } from '../../core/models/roles.model';
-import { AlertasWidgetComponent } from './components/alertas-widget.component';
 import { AprobacionesWidgetComponent } from './components/aprobaciones-widget.component';
 import { RankingOperadoresWidgetComponent } from './components/ranking-operadores-widget.component';
 import { SelectSearchComponent } from '../../shared/components/select-search/select-search.component';
@@ -22,7 +21,6 @@ import { TopBottomComponent, TopBottomItem } from '../../shared/components/top-b
 import { OpcionesService } from '../../core/services/opciones.service';
 import { CHART_COLORS, interpolarHex } from '../../shared/theme/colors';
 import { DashboardChartData } from '../../core/models/dashboard.model';
-import { AlertaStockVM } from '../../core/models/alerta-stock.model';
 import { Observable, Subscription, forkJoin, tap } from 'rxjs';
 
 /** Qué panel ve el usuario. Se decide por los permisos del rol (los mismos que exige el servidor), no por su nombre. */
@@ -47,7 +45,6 @@ export type DimensionFiltro = 'GLOBAL' | 'REGION' | 'AGENCY' | 'POLISHER';
     LucideAngularModule,
     StatCardComponent,
     ChartCardComponent,
-    AlertasWidgetComponent,
     RankingOperadoresWidgetComponent,
     DatePipe,
     SelectSearchComponent,
@@ -162,13 +159,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
     { id: 'ESPECIAL', label: 'Servicios especiales' },
   ];
 
-  activeExecutiveTab: 'analitica' | 'auditoria' | 'inventario' | 'operacion' | 'alertas' | 'taller' | 'aprobaciones' = 'analitica';
+  activeExecutiveTab: 'analitica' | 'auditoria' | 'inventario' | 'operacion' | 'taller' | 'aprobaciones' = 'analitica';
 
-  /** Alertas del panel: en la vista ejecutiva, las unificadas (stock + mantenimiento); si no, las de stock. */
-  get alertasPanel(): AlertaStockVM[] {
-    const ops = this.produccion?.alertasOperativas;
-    return ops && ops.length ? ops : this.alertas;
-  }
 
   /** Texto del rango consultado para la barra de resumen del período. */
   get periodoTexto(): string {

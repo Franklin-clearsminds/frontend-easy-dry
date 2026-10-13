@@ -239,13 +239,6 @@
         <i-lucide aria-hidden="true" name="package" class="w-4 h-4"></i-lucide>
         {{ tabInventarioTitle }}
       </button>
-      <button type="button" role="tab" id="tab-alertas" aria-controls="panel-alertas"
-        [attr.aria-selected]="activeExecutiveTab === 'alertas'" (click)="activeExecutiveTab = 'alertas'"
-        class="shrink-0 px-4 py-2 text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-2 whitespace-nowrap"
-        [ngClass]="activeExecutiveTab === 'alertas' ? 'bg-easydry-blue text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'">
-        <i-lucide aria-hidden="true" name="bell-ring" class="w-4 h-4"></i-lucide>
-        Alertas
-      </button>
     </div>
   </div>
 
@@ -788,15 +781,6 @@
   </div>
   }
 
-  <!-- Sección: Alertas -->
-  @if (puedeVerAlertas && !isAprobadorView) {
-  <div class="mb-4 animate-fade-in" role="tabpanel" id="panel-alertas" aria-labelledby="tab-alertas"
-    [class.hidden]="activeExecutiveTab !== 'alertas'">
-    <div class="w-full">
-      <app-alertas-widget [alertas]="alertasPanel"></app-alertas-widget>
-    </div>
-  </div>
-  }
   }
 
   <!-- ═══ DASHBOARD TÉCNICO / TALLER ═══ -->
@@ -1144,12 +1128,6 @@
     }
   </div>
 
-  <!-- Alertas de stock vigentes -->
-  @if (alertas.length > 0) {
-  <div class="mt-4">
-    <app-alertas-widget [alertas]="alertasPanel"></app-alertas-widget>
-  </div>
-  }
 
   <div class="text-center mt-6">
     <a routerLink="/inventario"

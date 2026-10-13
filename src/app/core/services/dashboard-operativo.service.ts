@@ -177,8 +177,6 @@ export class DashboardOperativoService {
           colores: data?.topColores ?? [],
           marcasModelos: data?.topMarcasModelos ?? [],
           kpisResumen: data?.kpis ?? {},
-          // Alertas operativas unificadas (stock + mantenimiento) ya acotadas por el servidor al alcance del rol.
-          alertasOperativas: (data?.alertasOperativas ?? []).map((a: any) => this.aAlertaOperativaVM(a)),
           // Drill-down jerárquico (País → Región → Agencia → Bahía) según la dimensión activa.
           jerarquia: data?.jerarquia ?? null,
           // Heatmap día × hora y Top/Bottom adaptativo (vienen dentro de jerarquia).
@@ -225,8 +223,10 @@ export class DashboardOperativoService {
         return of({ vehiculosHoy: null, flujoHorario: null, distribucionModelos: null, tiemposBahias: null, topMaquinas: null, topAgencias: null, mixServicios: null, topMarcas: null, incidentesPorTipo: null });
       })
     );
-  }
-
+  }
+
+
+
     /**
    * Ranking de operadores por servicios atendidos (POST /agencias/operadores/list).
    */
@@ -365,28 +365,6 @@ export class DashboardOperativoService {
         return of([]);
       })
     );
-  }
-
-  /** Normaliza una alerta operativa del dashboard (stock o mantenimiento) al modelo del widget. */
-  private aAlertaOperativaVM(a: any): AlertaStockVM {
-    const fechaObj = a?.fecha ? new Date(a.fecha) : null;
-    return {
-      id: String(a?.id ?? `al-${a?.grupo}-${a?.detalle}-${a?.fecha}`),
-      tipo: (a?.severidad as any) || 'info',
-      grupo: a?.grupo === 'mantenimiento' ? 'mantenimiento' : 'stock',
-      titulo: a?.titulo || 'Alerta',
-      detalle: a?.detalle || '',
-      nivel: String(a?.nivel || ''),
-      estado: String(a?.estado || ''),
-      insumo: a?.detalle || '',
-      origen: a?.origen || null,
-      agencia: a?.agencia ?? null,
-      pulidor: a?.pulidor ?? null,
-      region: a?.region || null,
-      mensaje: a?.detalle || '',
-      fecha: fechaObj ? fechaObj.toLocaleDateString('es-EC', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '',
-      timestamp: fechaObj ? fechaObj.getTime() : 0,
-    };
   }
 
   private aAlertaVM(a: any): AlertaStockVM {
