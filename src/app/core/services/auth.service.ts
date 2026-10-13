@@ -37,21 +37,44 @@ export class AuthService {
   private currentUserSubject = new BehaviorSubject<UsuarioAuth | null>(this.getStoredUser());
   public currentUser$ = this.currentUserSubject.asObservable();
 
+  /**
+   * El access token vive SOLO en memoria: no se escribe en localStorage, así que un XSS no puede llevárselo para usarlo después
+   * ni desde otro equipo. Al recargar la página se obtiene uno nuevo con la cookie HttpOnly del refresh token (`restaurarSesion`).
+   */
+  private accessToken: string | null = null;
+  /** Estado HTTP del último refresh fallido (0 = sin red). Distingue «sesión inválida» de «no pude conectar». */
+  private ultimoErrorRefresh: number | null = null;
+
   private refreshInFlight$: Observable<boolean> | null = null;
   private refreshTimerId: ReturnType<typeof setTimeout> | null = null;
   private lastPermissionsRefreshAt = 0;
 
   constructor() {
-    const user = this.getStoredUser();
-    if (user?.token) {
-      this.cargarCatalogoDeRoles();
-      this.scheduleProactiveRefresh();
-      this.refrescarPermisos();
-      this.notificationSocket.connect(user.token);
-    }
     if (typeof window !== 'undefined') {
       window.addEventListener('focus', this.onWindowFocus);
     }
+  }
+
+  /**
+   * Se ejecuta al arrancar la app, antes de la primera ruta. Si hay un usuario guardado en el navegador (sin token), pide el
+   * access token con la cookie del refresh token y recién entonces carga permisos y notificaciones.
+   * - Respuesta 401/403: la sesión ya no existe en el servidor → se cierra en este navegador.
+   * - Sin red o error del servidor: se conserva el usuario; el siguiente refresh lo intentará de nuevo.
+   */
+  restaurarSesion(): Observable<boolean> {
+    if (!this.currentUserSubject.value) return of(false);
+    return this.refreshSession().pipe(
+      map(ok => {
+        if (ok) {
+          this.cargarCatalogoDeRoles();
+          this.refrescarPermisos();
+          this.notificationSocket.connect(() => this.getAccessToken());
+          return true;
+        }
+        if (this.refreshRechazado()) this.cerrarSesionLocal();
+        return false;
+      }),
+    );
   }
 
   private readonly onWindowFocus = (): void => {
@@ -67,13 +90,15 @@ export class AuthService {
   }
 
   getAccessToken(): string | null {
-    return this.currentUserSubject.value?.token
-      || localStorage.getItem('easydry_access_token');
+    return this.accessToken;
   }
 
-  getRefreshToken(): string | null {
-    return this.currentUserSubject.value?.refreshToken
-      || localStorage.getItem('easydry_refresh_token');
+  /**
+   * El refresh token vive en una cookie HttpOnly que pone el servidor: el JavaScript de la página no puede leerlo, así que un
+   * XSS no puede robarlo. Aquí solo se pregunta si hay una sesión que renovar.
+   */
+  hasSession(): boolean {
+    return !!this.currentUserSubject.value;
   }
 
   /** true si el access JWT ya venció o vence dentro de `skewMs`. */
@@ -98,8 +123,7 @@ export class AuthService {
    * No cierra sesión aquí: el caller decide (401 vs refresco proactivo).
    */
   refreshSession(): Observable<boolean> {
-    const refreshToken = this.getRefreshToken();
-    if (!refreshToken) {
+    if (!this.hasSession()) {
       return of(false);
     }
     if (this.refreshInFlight$) {
@@ -109,12 +133,13 @@ export class AuthService {
     this.refreshInFlight$ = this.http.post<{
       success: boolean;
       accessToken: string;
-      refreshToken: string;
     }>(
       apiUrl('/auth/refresh'),
-      { refreshToken },
+      {},
       {
+        withCredentials: true,
         headers: {
+          'X-Client': 'web',
           'X-Skip-Auth-Refresh': '1',
           'X-Silent-Fallback': '1',
         },
@@ -122,10 +147,14 @@ export class AuthService {
     ).pipe(
       map(res => {
         if (!res?.success || !res.accessToken) return false;
-        this.applyTokens(res.accessToken, res.refreshToken || refreshToken);
+        this.ultimoErrorRefresh = null;
+        this.applyTokens(res.accessToken);
         return true;
       }),
-      catchError(() => of(false)),
+      catchError((err: { status?: number }) => {
+        this.ultimoErrorRefresh = typeof err?.status === 'number' ? err.status : 0;
+        return of(false);
+      }),
       finalize(() => {
         this.refreshInFlight$ = null;
       }),
@@ -135,16 +164,20 @@ export class AuthService {
     return this.refreshInFlight$;
   }
 
-  private applyTokens(accessToken: string, refreshToken: string): void {
-    localStorage.setItem('easydry_access_token', accessToken);
-    localStorage.setItem('easydry_refresh_token', refreshToken);
-    const current = this.currentUserSubject.value;
-    if (current) {
-      const updated: UsuarioAuth = { ...current, token: accessToken, refreshToken };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-      this.currentUserSubject.next(updated);
-    }
+  /** true si el servidor rechazó el último refresh (la sesión ya no existe); false si solo falló la conexión. */
+  refreshRechazado(): boolean {
+    return this.ultimoErrorRefresh === 401 || this.ultimoErrorRefresh === 403;
+  }
+
+  private applyTokens(accessToken: string): void {
+    this.accessToken = accessToken;
     this.scheduleProactiveRefresh();
+  }
+
+  /** Guarda el usuario en el navegador SIN credenciales: ni access token ni refresh token tocan localStorage. */
+  private guardarUsuario(user: UsuarioAuth): void {
+    const { token: _token, refreshToken: _refresh, ...sinCredenciales } = user;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(sinCredenciales));
   }
 
   private getJwtExpMs(token: string): number | null {
@@ -162,7 +195,7 @@ export class AuthService {
 
   scheduleProactiveRefresh(): void {
     this.clearRefreshTimer();
-    if (!this.getRefreshToken()) return;
+    if (!this.hasSession()) return;
 
     const token = this.getAccessToken();
     const exp = token ? this.getJwtExpMs(token) : null;
@@ -172,7 +205,7 @@ export class AuthService {
 
     this.refreshTimerId = setTimeout(() => {
       this.refreshSession().subscribe(ok => {
-        if (!ok && this.isAccessTokenExpired()) {
+        if (!ok && this.refreshRechazado()) {
           this.logout();
         } else if (ok) {
           // timer reprogramado en applyTokens
@@ -200,25 +233,18 @@ export class AuthService {
       'JEFE_COMERCIAL': Role.JEFE_COMERCIAL,
       'COORD_COMERCIAL': Role.COORD_COMERCIAL,
       'APROBADOR': Role.APROBADOR,
-      'LIDER': Role.LIDER_OPERADOR,
-      'LIDER_OPERADOR': Role.LIDER_OPERADOR,
-      'LIDER_AGENCIA': Role.LIDER_OPERADOR,
+      'LIDER': Role.LIDER,
       'BACKUP': Role.BACKUP,
-      'OPERADOR': Role.OPERADOR,
       'COORD_SERVICIOS_ESPECIALES': Role.COORD_SERVICIOS_ESPECIALES,
       'PULIDOR': Role.PULIDOR,
-      'PULIDOR_FIJO': Role.PULIDOR,
-      'PULIDOR_MOVIL': Role.PULIDOR,
       'COORD_MANTENIMIENTO': Role.COORD_MANTENIMIENTO,
       'TECNICO': Role.TECNICO,
       'COORD_BODEGA': Role.COORD_BODEGA,
       'ASISTENTE_BODEGA': Role.ASISTENTE_BODEGA,
-      // Aliases legacy (pueden venir del backend en datos viejos)
-      'GERENTE': Role.APROBADOR,
-      'DISTRIBUIDOR': Role.COORD_BODEGA,
-      'OPERADOR_SERVICIOS_ESPECIALES': Role.PULIDOR,
+      'LAVADOR': Role.LAVADOR,
     };
-    return roleMap[backendRole] ?? Role.LIDER_OPERADOR;
+    // Un rol creado desde «Roles y Permisos» conserva su propio código: antes se confundía con el Líder Operador.
+    return roleMap[backendRole] ?? (String(backendRole || '').toUpperCase() as Role);
   }
 
   private normalizeAcciones(acciones: unknown): PermisosRol {
@@ -234,10 +260,16 @@ export class AuthService {
 
   private getStoredUser(): UsuarioAuth | null {
     try {
+      // Versiones anteriores guardaban los tokens en localStorage: se borran, ahora el access token vive en memoria y el
+      // refresh token en una cookie HttpOnly.
+      localStorage.removeItem('easydry_refresh_token');
+      localStorage.removeItem('easydry_access_token');
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored) as UsuarioAuth;
-        if (parsed && parsed.email && parsed.token) {
+        if (parsed && parsed.email) {
+          delete parsed.refreshToken;
+          delete parsed.token;
           parsed.modulosPermitidos = Array.isArray(parsed.modulosPermitidos)
             ? parsed.modulosPermitidos
             : [];
@@ -290,8 +322,6 @@ export class AuthService {
    */
   private construirUsuarioDesdeDatos(
     userData: any,
-    token: string,
-    refreshToken: string,
     base: UsuarioAuth | null = null,
   ): UsuarioAuth {
     const role = this.mapBackendRole(userData.role);
@@ -328,8 +358,6 @@ export class AuthService {
         ? userData.servicioIds.map((n: any) => Number(n)).filter((n: number) => !isNaN(n) && n > 0)
         : (base?.servicioIds ?? []),
       estado: userData.estado === 1 ? 'Activo' : 'Inactivo',
-      token,
-      refreshToken,
       permisos,
       avatar: this.sanitizeAvatar(userData.avatar || userData.avatarUrl || ''),
     };
@@ -349,7 +377,6 @@ export class AuthService {
     return this.http.post<{
       success: boolean;
       accessToken: string;
-      refreshToken: string;
       user: {
         id: string;
         name: string;
@@ -375,14 +402,17 @@ export class AuthService {
         avatar?: string;
         avatarUrl?: string;
       };
-    }>(apiUrl('/auth/login'), { email: normalizedEmail, password: normalizedPass }).pipe(
+    }>(
+      apiUrl('/auth/login'),
+      { email: normalizedEmail, password: normalizedPass },
+      { withCredentials: true, headers: { 'X-Client': 'web' } },
+    ).pipe(
       map(res => {
         if (!res.success) return { success: false, message: 'Credenciales incorrectas.' };
 
-        const authenticatedUser = this.construirUsuarioDesdeDatos(res.user, res.accessToken, res.refreshToken);
+        const authenticatedUser = this.construirUsuarioDesdeDatos(res.user);
 
-        localStorage.setItem('easydry_access_token', res.accessToken);
-        localStorage.setItem('easydry_refresh_token', res.refreshToken);
+        this.accessToken = res.accessToken;
         this.setUser(authenticatedUser);
 
         return { success: true, user: authenticatedUser };
@@ -395,12 +425,12 @@ export class AuthService {
   }
 
   setUser(user: UsuarioAuth): void {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
+    this.guardarUsuario(user);
     this.currentUserSubject.next(user);
-    if (user?.token) {
+    if (this.accessToken) {
       this.cargarCatalogoDeRoles();
       this.scheduleProactiveRefresh();
-      this.notificationSocket.connect(user.token);
+      this.notificationSocket.connect(() => this.getAccessToken());
     }
   }
 
@@ -435,8 +465,22 @@ export class AuthService {
 
 
   logout(): void {
+    // Revoca la sesión en el servidor y borra la cookie del refresh token. Si no hay red, igual se cierra en este navegador.
+    if (this.currentUserSubject.value) {
+      this.http.post(apiUrl('/auth/logout'), {}, {
+        withCredentials: true,
+        headers: { 'X-Client': 'web', 'X-Skip-Auth-Refresh': '1', 'X-Silent-Fallback': '1' },
+      }).pipe(catchError(() => of(null))).subscribe();
+    }
+    this.cerrarSesionLocal();
+    this.router.navigate(['/login']);
+  }
+
+  /** Borra todo rastro de la sesión en este navegador (sin avisar al servidor ni navegar). */
+  private cerrarSesionLocal(): void {
     this.clearRefreshTimer();
     this.notificationSocket.disconnect();
+    this.accessToken = null;
     localStorage.removeItem(STORAGE_KEY);
     localStorage.removeItem('easydry_access_token');
     localStorage.removeItem('easydry_refresh_token');
@@ -444,7 +488,6 @@ export class AuthService {
     // Sin esto, un logout→login en la misma pestaña deja el caché en memoria de la sesión anterior:
     // si la próxima carga falla, el servicio puede servir la lista del usuario/rol de antes.
     this.maquinariaService.limpiarCache();
-    this.router.navigate(['/login']);
   }
 
   isLoggedIn(): boolean {
@@ -470,11 +513,7 @@ export class AuthService {
 
   isLiderOperador(): boolean {
     const role = this.currentUserSubject.value?.role;
-    return role === Role.LIDER_OPERADOR || role === Role.BACKUP;
-  }
-
-  isOperador(): boolean {
-    return this.currentUserSubject.value?.role === Role.OPERADOR;
+    return role === Role.LIDER || role === Role.BACKUP;
   }
 
   hasRole(role: Role | string): boolean {
@@ -513,19 +552,14 @@ export class AuthService {
   /** Recarga el usuario y permisos actuales del servidor, sin aceptar el caché como confirmación. */
   verificarPermisosActualizados(notificarError = false): Observable<boolean> {
     const actual = this.currentUserSubject.value;
-    if (!actual?.token) return of(false);
+    if (!actual || !this.accessToken) return of(false);
 
     this.lastPermissionsRefreshAt = Date.now();
     return this.http.post<any>(apiUrl('/auth/me'), {}, { headers: { 'X-Silent-Fallback': '1' } }).pipe(
       map((me) => {
         if (!me || !this.currentUserSubject.value) return false;
-        const actualizado = this.construirUsuarioDesdeDatos(
-          me,
-          this.getAccessToken() || actual.token!,
-          this.getRefreshToken() || actual.refreshToken!,
-          this.currentUserSubject.value,
-        );
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(actualizado));
+        const actualizado = this.construirUsuarioDesdeDatos(me, this.currentUserSubject.value);
+        this.guardarUsuario(actualizado);
         this.currentUserSubject.next(actualizado);
         return true;
       }),
@@ -646,7 +680,7 @@ export class AuthService {
     if (this.isAdmin()) return false;
     if (this.isCoordServiciosEspeciales()) return false;
     const r = this.currentUserSubject.value?.role;
-    return r === Role.PULIDOR || r === Role.PULIDOR_MOVIL || r === Role.PULIDOR_FIJO || r === Role.OPERADOR_SERVICIOS_ESPECIALES || (typeof r === 'string' && r.toUpperCase().includes('PULIDOR'));
+    return r === Role.PULIDOR || (typeof r === 'string' && r.toUpperCase().includes('PULIDOR'));
   }
 
   isPulidorFijo(): boolean {
@@ -663,10 +697,6 @@ export class AuthService {
 
   isStaffServiciosEspeciales(): boolean {
     return this.isCoordServiciosEspeciales() || this.isPulidor();
-  }
-
-  isGerente(): boolean {
-    return this.hasRole(Role.GERENTE);
   }
 
   getSucursalScope(): string | null {

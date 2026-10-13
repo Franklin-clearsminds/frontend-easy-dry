@@ -29,7 +29,9 @@ import { UiStateService } from '../../core/services/ui-state.service';
         <app-header></app-header>
 
         <main class="flex-1 overflow-y-auto">
-          <div class="p-6 lg:p-8 max-w-[1600px] w-full mx-auto animate-fade-in">
+          <!-- Contenido fluido: ocupa todo el ancho disponible con márgenes estándar que escalan por
+               breakpoint, alineados con el header (sin tope de ancho que deje franjas vacías en monitores grandes). -->
+          <div class="px-4 py-6 sm:px-6 lg:px-8 lg:py-8 2xl:px-10 w-full animate-fade-in">
             <router-outlet></router-outlet>
           </div>
         </main>

@@ -5,6 +5,14 @@
 @layer base {
   :root {
     color-scheme: light;
+    /* Escala general de la interfaz (preferencia de accesibilidad, ver UiScaleService). Como casi todo
+       en Tailwind está en rem, cambiar el font-size del root reescala tipografía, íconos, paddings/gaps
+       e imágenes con clases Tailwind de forma coherente, sin tocar cada componente. */
+    --ui-scale: 1;
+  }
+
+  html {
+    font-size: calc(16px * var(--ui-scale));
   }
 
   body {
@@ -185,3 +193,7 @@
   .estado-vacio { @apply text-center text-sm text-slate-500 font-semibold py-8; }
   .estado-error { @apply p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs font-semibold text-rose-700; }
 }
+
+/* Navegación entre dashboards: scroll horizontal sin barra visible */
+.dashboard-tabs { scrollbar-width: none; -ms-overflow-style: none; }
+.dashboard-tabs::-webkit-scrollbar { display: none; }

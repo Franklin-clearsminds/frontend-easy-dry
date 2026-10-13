@@ -130,7 +130,7 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
           <!-- 4. Pulidores — kits de pulidores móviles y fijos (no para el líder: ver el stock de los
                pulidores de otras sedes/región no es suyo; el botón "Despachar" ya permite enviarles insumos) -->
           <button
-            *ngIf="puedeVerInventario && !operaDesdeAgencia"
+            *ngIf="puedeVerInventario && !operaDesdeAgencia && puedeVerKits"
             (click)="activeTab = 'pulidores'; cargarStockPulidoresResumen()"
             class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
             [ngClass]="activeTab === 'pulidores' ? 'bg-cyan-50 text-cyan-800 font-extrabold border border-cyan-200 shadow-2xs' : 'text-slate-600 hover:bg-slate-50'">
@@ -3683,7 +3683,7 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
             </button>
           </div>
           <div class="w-full min-h-64 max-h-[80vh] rounded-2xl overflow-auto bg-slate-950 border border-slate-200 shadow-inner flex items-center justify-center p-3">
-            <img loading="lazy" decoding="async" [src]="resolverUrlImagen(imagenModalZoom)" [alt]="imagenModalTitulo" class="max-w-full max-h-[76vh] object-contain" />
+            <img loading="lazy" decoding="async" [src]="imagenModalUrl" [alt]="imagenModalTitulo" class="max-w-full max-h-[76vh] object-contain" />
           </div>
           <div class="w-full flex items-center justify-end pt-1">
             <button type="button" (click)="cerrarZoomImagen()" class="px-4 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs cursor-pointer">
@@ -3700,6 +3700,8 @@ export class InventarioComponent implements OnInit, OnDestroy {
   private inventarioService = inject(InventarioService);
   private toast = inject(ToastService);
   private auth = inject(AuthService);
+  /** Stock de los kits de pulidores: permiso aparte, los perfiles comerciales no lo tienen. */
+  get puedeVerKits(): boolean { return this.auth.puede('inventario.kits.ver'); }
   private sucursalService = inject(SucursalService);
   private usuarioService = inject(UsuarioService);
   private regionService = inject(RegionService);
@@ -3713,11 +3715,23 @@ export class InventarioComponent implements OnInit, OnDestroy {
   // Lightbox Zoom
   public imagenModalZoom: string | null = null;
   public imagenModalTitulo = 'Foto adjunta';
+  /**
+   * URL ya resuelta (prefirmada si el archivo es privado) para el modal de zoom. Nunca se usa
+   * resolverUrlImagen()/resolveBackendUrl directo como [src]: para evidencias privadas de kardex
+   * eso pega primero contra /storage/file sin firmar y responde 403 antes de poder pedir la prefirmada.
+   */
+  public imagenModalUrl = '';
 
-  public abrirZoomImagen(url: string, titulo = 'Foto adjunta'): void {
-    if (url && url.trim()) {
-      this.imagenModalZoom = url.trim();
-      this.imagenModalTitulo = titulo;
+  public async abrirZoomImagen(url: string, titulo = 'Foto adjunta'): Promise<void> {
+    const limpia = url && url.trim();
+    if (!limpia) return;
+    this.imagenModalZoom = limpia;
+    this.imagenModalTitulo = titulo;
+    this.imagenModalUrl = '';
+    try {
+      this.imagenModalUrl = await this.storageUploadService.resolveMediaUrlStrict(limpia);
+    } catch {
+      this.imagenModalUrl = this.storageUploadService.resolveBackendUrl(limpia);
     }
   }
 
@@ -3736,6 +3750,7 @@ export class InventarioComponent implements OnInit, OnDestroy {
 
   public cerrarZoomImagen(): void {
     this.imagenModalZoom = null;
+    this.imagenModalUrl = '';
   }
 
   public resolverUrlImagen(url: string | null | undefined): string {
@@ -3809,7 +3824,9 @@ export class InventarioComponent implements OnInit, OnDestroy {
   // ── Permisos: los mismos códigos que el backend exige en cada endpoint (el rol no se consulta por nombre) ──
   get puedeVerInventario(): boolean { return this.auth.puede('inventario.ver'); }
   get puedeGestionarCatalogos(): boolean { return this.auth.puede('inventario.catalogos.gestionar'); }
-  get puedeGestionarBodegas(): boolean { return this.auth.puede('bodegas.gestionar'); }
+  get puedeGestionarBodegas(): boolean { return this.auth.puede('inventario.bodegas.gestionar'); }
+  get puedeEstadoBodegas(): boolean { return this.auth.puede('inventario.bodegas.estado'); }
+  get puedeEliminarBodegas(): boolean { return this.auth.puede('inventario.bodegas.eliminar'); }
   get puedeAjustarStock(): boolean { return this.auth.puede('stock.ajustar'); }
   get puedeVerDespachos(): boolean { return this.auth.puede('despachos.ver'); }
   get puedeRecibirDespacho(): boolean { return this.auth.puede('despachos.recibir'); }

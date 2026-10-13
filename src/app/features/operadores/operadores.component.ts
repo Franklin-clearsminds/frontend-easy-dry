@@ -43,7 +43,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
           </div>
         </div>
 
-        @if (canGestionarOperadores) {
+        @if (canRegistrar) {
           <button
             type="button"
             (click)="abrirModalCrear()"
@@ -61,6 +61,8 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
         [showBahia]="true"
         [showCliente]="true"
         [showEstado]="true"
+        [showRol]="rolesFiltro.length > 1"
+        [listaRoles]="rolesFiltro"
         [showFechas]="false"
         [showBusqueda]="true"
         [placeholderBusqueda]="isCoordServiciosEspeciales ? 'Buscar pulidor por nombre, apellido o cédula...' : 'Buscar por nombre, apellido o cédula...'"
@@ -129,7 +131,9 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                       }
                       <div>
                         <p class="font-bold text-slate-900 text-xs">{{ op.nombre }}</p>
-                        <p class="text-xs text-slate-500 font-mono">CI: {{ op.cedula }}</p>
+                        @if (op.cedula) {
+                          <p class="text-xs text-slate-500 font-mono">CI: {{ op.cedula }}</p>
+                        }
                         <p class="text-xs text-slate-500 mt-0.5">
                           Alta: <span class="font-mono text-slate-600">{{ op.fechaCreacion ? (op.fechaCreacion | date:'dd/MM/yyyy') : (op.fechaAsignacion || '-') }}</span>
                           @if (op.fechaModificacion && op.fechaModificacion !== op.fechaCreacion) {
@@ -164,7 +168,9 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
 
                   <!-- Bahía Asignada -->
                   <td class="py-3.5 px-4">
-                    @if (op.bahia && !op.bahia.includes('Sin') && !op.bahia.includes('undefined') && !op.bahia.includes('null')) {
+                    @if (!esLavador(op.rol)) {
+                      <span class="text-slate-400 text-xs">No aplica</span>
+                    } @else if (op.bahia && !op.bahia.includes('Sin') && !op.bahia.includes('undefined') && !op.bahia.includes('null')) {
                       <span class="px-2.5 py-1 rounded-lg bg-easydry-blue/10 text-easydry-blue font-bold text-xs inline-flex items-center gap-1">
                         <i-lucide aria-hidden="true" name="layout-grid" class="w-3 h-3"></i-lucide>
                         {{ op.bahia }}
@@ -185,7 +191,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                   <!-- Acciones -->
                   <td class="py-3.5 px-4 text-right">
                     <div class="flex items-center justify-end gap-1">
-                      @if (canGestionarOperadores) {
+                      @if (canEditar) {
                         <!-- Editar Operador -->
                         <button
                           type="button"
@@ -196,7 +202,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                         </button>
 
                         }
-                      @if (canAsignarBahia) {
+                      @if (canAsignarBahia && esLavador(op.rol)) {
                         <!-- Asignar o Cambiar Bahía -->
                         <button
                           type="button"
@@ -207,7 +213,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                         </button>
 
                         <!-- Desactivar Asignación -->
-                        @if (op.bahia && !op.bahia.includes('Sin') && op.bahia !== 'undefined') {
+                        @if (canQuitarBahia && op.bahia && !op.bahia.includes('Sin') && op.bahia !== 'undefined') {
                           <button
                             type="button"
                             (click)="desactivarAsignacion(op)"
@@ -347,7 +353,8 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
             </select>
           </div>
 
-          <!-- Bahía de Asignación -->
+          <!-- Bahía de Asignación: solo para lavadores -->
+          @if (esLavador(formOperador.rol)) {
           <div>
             <label for="operadores-f7" class="block text-xs font-bold text-slate-700 uppercase mb-1">
               Bahía de Asignación
@@ -377,6 +384,9 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
               El lavador quedará vinculado de inmediato en la base de datos a la bahía seleccionada.
             </p>
           </div>
+          } @else {
+            <p class="text-xs text-slate-500">Este rol no trabaja en bahía: solo los lavadores se asignan a una.</p>
+          }
         </div>
 
         <div modal-footer class="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2 w-full">
@@ -695,7 +705,7 @@ export class OperadoresComponent implements OnInit, OnDestroy {
 
     // Quien atiende servicios especiales ve pulidores; quien trabaja con una sola agencia ve los lavadores de su agencia.
     if (this.isCoordServiciosEspeciales) c.categoriaRol = 'PULIDOR';
-    else if (u?.ambito === 'AGENCIA') c.categoriaRol = 'LAVADOR';
+    else if (u?.ambito === 'AGENCIA' && !this.esLider) c.categoriaRol = 'LAVADOR';
 
     // Con alcance de agencia la consulta queda en la agencia propia (el servidor lo vuelve a aplicar).
     const idUsuario = u?.agenciaId || u?.sucursalId;
@@ -708,6 +718,7 @@ export class OperadoresComponent implements OnInit, OnDestroy {
     const estado = this.neutro(f.estado, 'Todos');
     if (estado === 'Activo') c.estado = 1;
     else if (estado === 'Inactivo') c.estado = 0;
+    c.rol = this.neutro(f.rol, 'Todos') || undefined;
     c.bahiaNombre = this.neutro(f.bahia, 'Todas') || undefined;
     c.clienteNombre = this.neutro(f.marca || f.cliente, 'Todas', 'Todos') || undefined;
     return c;
@@ -750,14 +761,34 @@ export class OperadoresComponent implements OnInit, OnDestroy {
 
   rolesOperativosPulidor: string[] = [
     'PULIDOR',
-    'PULIDOR_FIJO',
-    'PULIDOR_MOVIL',
     'Pulidor de Detallado & Acabado',
     'Pulidor Técnico Especialista'
   ];
 
   get rolesOperativosDisponibles(): string[] {
     return this.isCoordServiciosEspeciales ? this.rolesOperativosPulidor : this.rolesOperativosLavador;
+  }
+
+  /**
+   * Roles entre los que se puede filtrar la lista. Quien ve solo una categoría (pulidores, o lavadores de su agencia)
+   * no necesita el filtro; el resto elige entre los roles que la pantalla puede mostrar.
+   */
+  get rolesFiltro(): string[] {
+    if (this.isCoordServiciosEspeciales) return [];
+    if (this.esLider) return ['LAVADOR', 'PULIDOR'];
+    if (this.authService.getCurrentUser()?.ambito === 'AGENCIA') return [];
+    return ['LAVADOR', 'PULIDOR', 'TECNICO'];
+  }
+
+  /** El líder (y Backup, que opera como líder) solo consulta a quien tiene asignado en su agencia: sus lavadores y su pulidor fijo. */
+  get esLider(): boolean {
+    return !this.canGestionarOperadores && !this.canAsignarBahia && !this.canQuitarBahia && this.authService.puede('operadores.ver');
+  }
+
+  /** Solo los lavadores trabajan en bahía. */
+  esLavador(rol?: string | null): boolean {
+    const r = (rol || '').trim().toUpperCase();
+    return r === 'LAVADOR' || r.startsWith('LAVADOR ');
   }
 
   get rolesOperativos(): string[] {
@@ -824,7 +855,7 @@ export class OperadoresComponent implements OnInit, OnDestroy {
     this.cargando = true;
     const currentUser = this.authService.getCurrentUser();
     const esAgencia = currentUser?.ambito === 'AGENCIA';
-    const categoriaRol = this.isCoordServiciosEspeciales ? 'PULIDOR' : (esAgencia ? 'LAVADOR' : undefined);
+    const categoriaRol = this.isCoordServiciosEspeciales ? 'PULIDOR' : (esAgencia && !this.esLider ? 'LAVADOR' : undefined);
     const rawAgenciaId = currentUser?.agenciaId || currentUser?.sucursalId;
     const agenciaId = esAgencia && rawAgenciaId ? String(rawAgenciaId) : undefined;
 
@@ -849,13 +880,20 @@ export class OperadoresComponent implements OnInit, OnDestroy {
   }
 
   /** Registrar y editar personal operativo: mismo permiso que exige el servidor. */
+  get canRegistrar(): boolean { return this.authService.puede('operadores.registrar'); }
+  get canEditar(): boolean { return this.authService.puede('operadores.editar') || this.authService.puede('operadores.rol'); }
+  get canCambiarRol(): boolean { return this.authService.puede('operadores.rol'); }
   get canGestionarOperadores(): boolean {
-    return this.authService.puede('operadores.gestionar');
+    return this.canRegistrar || this.canEditar;
   }
 
   /** Asignar o quitar a un operador de una bahía (el servidor lo permite dentro del alcance del usuario). */
   get canAsignarBahia(): boolean {
-    return this.authService.puede('bahias.asignar');
+    return this.authService.puede('operadores.bahia.asignar');
+  }
+
+  get canQuitarBahia(): boolean {
+    return this.authService.puede('operadores.bahia.quitar');
   }
 
   private mensajeError(err: any, respaldo: string): string {
@@ -887,7 +925,7 @@ export class OperadoresComponent implements OnInit, OnDestroy {
   }
 
   abrirModalCrear(): void {
-    if (!this.canGestionarOperadores) {
+    if (!this.canRegistrar) {
       this.toastService.warning('Sin permiso', 'Tu rol no puede registrar personal operativo.');
       return;
     }
@@ -919,7 +957,7 @@ export class OperadoresComponent implements OnInit, OnDestroy {
   }
 
   abrirModalEditar(op: Operador): void {
-    if (!this.canGestionarOperadores) {
+    if (!this.canEditar) {
       this.toastService.warning('Sin permiso', 'Tu rol no puede editar personal operativo.');
       return;
     }
@@ -934,7 +972,7 @@ export class OperadoresComponent implements OnInit, OnDestroy {
       nombre: op.nombre,
       cedula: op.cedula,
       telefono: op.telefono || '',
-      rol: op.rol || 'OPERADOR',
+      rol: op.rol || 'LAVADOR',
       sucursalNombre: op.sucursal,
       sucursalId: suc ? String(suc.id) : String(op.sucursalId || ''),
       bahiaNombre: op.bahia || 'Sin Bahía Asignada',
@@ -1024,6 +1062,11 @@ export class OperadoresComponent implements OnInit, OnDestroy {
       return;
     }
 
+    // Solo los lavadores van a bahía: con otro rol se descarta la bahía elegida antes de validar cupo.
+    if (!this.esLavador(this.formOperador.rol)) {
+      this.formOperador.bahiaId = '';
+      this.conflictoAsignacion = null;
+    }
     this.onBahiaCrearSelectChange();
 
     if (this.conflictoAsignacion && this.conflictoAsignacion.contexto === 'crear') {
@@ -1225,7 +1268,7 @@ export class OperadoresComponent implements OnInit, OnDestroy {
   }
 
   desactivarAsignacion(op: Operador): void {
-    if (!this.canAsignarBahia) {
+    if (!this.canQuitarBahia) {
       this.toastService.warning('Sin permiso', 'Tu rol no puede desasignar bahías.');
       return;
     }

@@ -261,6 +261,7 @@ import { apiUrl } from '../../core/config/env';
         <ng-template appCell="acciones" let-env>
           @if (env.estado === 'ENVIADO' && puedeAccionesEnvio(env)) {
             <div class="flex items-center justify-end gap-1.5">
+              @if (puedeConfirmarEnvio) {
               <button
                 type="button"
                 (click)="abrirModalConfirmacion(env)"
@@ -268,6 +269,8 @@ import { apiUrl } from '../../core/config/env';
                 <i-lucide aria-hidden="true" name="check" class="w-3.5 h-3.5"></i-lucide>
                 <span>Confirmar</span>
               </button>
+              }
+              @if (puedeRechazarEnvio) {
               <button
                 type="button"
                 (click)="abrirModalRechazo(env)"
@@ -275,6 +278,7 @@ import { apiUrl } from '../../core/config/env';
                 <i-lucide aria-hidden="true" name="x" class="w-3.5 h-3.5"></i-lucide>
                 <span>Rechazar</span>
               </button>
+              }
             </div>
           } @else if (env.estado === 'ENVIADO') {
             <span class="inline-flex items-center gap-1 text-xs font-bold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200">
@@ -587,15 +591,23 @@ export class EnviosComponent implements OnInit, OnDestroy {
   }
 
   get puedeDespachar(): boolean {
-    return this.auth.puede('despachos.crear');
+    return this.auth.puede('envios.crear');
   }
 
   get puedeVerDespachos(): boolean {
     return this.auth.puede('despachos.ver');
   }
 
+  get puedeConfirmarEnvio(): boolean {
+    return this.auth.puede('envios.confirmar');
+  }
+
+  get puedeRechazarEnvio(): boolean {
+    return this.auth.puede('envios.rechazar');
+  }
+
   get puedeRecibir(): boolean {
-    return this.auth.puede('despachos.recibir');
+    return this.puedeConfirmarEnvio || this.puedeRechazarEnvio;
   }
 
   get miRegionNombre(): string {

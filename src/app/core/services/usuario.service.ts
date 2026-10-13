@@ -54,11 +54,10 @@ export class UsuarioService {
     const isGlobal =
       rawRole === 'SUPER_ADMIN' ||
       rawRole === 'ADMIN' ||
-      rawRole === 'COORD_BODEGA' ||
-      rawRole === 'DISTRIBUIDOR';
+      rawRole === 'COORD_BODEGA';
     const isSupervisor = rawRole === 'SUPERVISOR';
     const isAsistente = rawRole === 'ASISTENTE_BODEGA';
-    const isPulidor = rawRole === 'PULIDOR' || rawRole === 'PULIDOR_FIJO' || rawRole === 'PULIDOR_MOVIL';
+    const isPulidor = rawRole === 'PULIDOR';
     const hasAgencia = !!(u.agenciaId || u.agencia?.id || (u.agencia?.nombre && u.agencia.nombre !== 'Sin asignar'));
     const modalidadPulidor: 'FIJO' | 'MOVIL' | undefined = isPulidor
       ? (hasAgencia ? 'FIJO' : 'MOVIL')
@@ -177,7 +176,6 @@ export class UsuarioService {
       normRol === 'ADMIN' ||
       normRol.includes('ADMINISTRADOR') ||
       normRol === 'COORD_BODEGA' ||
-      normRol === 'DISTRIBUIDOR' ||
       (normRol.includes('GESTOR') && normRol.includes('INVENTARIO')) ||
       (normRol.includes('GESTOR') && normRol.includes('BODEGA')) ||
       (normRol.includes('COORD') && normRol.includes('BODEGA') && !normRol.includes('ASISTENTE'));
@@ -235,7 +233,6 @@ export class UsuarioService {
       normRol === 'ADMIN' ||
       normRol.includes('ADMINISTRADOR') ||
       normRol === 'COORD_BODEGA' ||
-      normRol === 'DISTRIBUIDOR' ||
       (normRol.includes('GESTOR') && normRol.includes('INVENTARIO')) ||
       (normRol.includes('GESTOR') && normRol.includes('BODEGA')) ||
       (normRol.includes('COORD') && normRol.includes('BODEGA') && !normRol.includes('ASISTENTE'));
@@ -268,7 +265,7 @@ export class UsuarioService {
         : undefined,
     };
 
-    if (usr.password && usr.password.trim().length >= 6) {
+    if (usr.password && usr.password.trim().length > 0) {
       payload.password = usr.password.trim();
     }
 

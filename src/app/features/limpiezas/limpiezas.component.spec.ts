@@ -1,174 +1,182 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { importProvidersFrom } from '@angular/core';
 import { LucideAngularModule } from 'lucide-angular';
-import { of, throwError } from 'rxjs';
+import { firstValueFrom } from 'rxjs';
 import { LimpiezasComponent } from './limpiezas.component';
-import { LimpiezaMaquinaria, MaquinariaService } from '../../core/services/maquinaria.service';
+import { MaquinariaService } from '../../core/services/maquinaria.service';
 import { AuthService } from '../../core/services/auth.service';
 import { ToastService } from '../../shared/services/toast.service';
 import { EASYDRY_ICONS } from '../../shared/icons/lucide-icons';
+import { esperar, iniciarSesion, mundo, proveedoresApiReal, requiereMundo } from '../../../testing/api-real';
 
-function registro(over: Partial<LimpiezaMaquinaria> = {}): LimpiezaMaquinaria {
-  return {
-    id: 'lim-1',
-    maquinariaId: 'm1',
-    fecha: '2026-01-01T00:00:00.000Z',
-    tipo: 'PULIDOR',
-    fotos: [],
-    observaciones: 'Todo en orden',
-    registradoPorId: 'u1',
-    maquinaria: { id: 'm1', codigo: 'MQ-01', nombre: 'Hidro' },
-    registradoPor: { id: 'u1', name: 'Juan', lastname: 'Pérez' },
-    ...over,
-  };
-}
-
+/**
+ * Contra el backend REAL y la base local (ver `src/testing/api-real.ts`). Solo se observan las APIs del navegador
+ * (confirm, descarga de archivos) y el aviso en pantalla; el servicio y los datos son los reales.
+ */
 describe('LimpiezasComponent', () => {
   let fixture: ComponentFixture<LimpiezasComponent>;
   let component: LimpiezasComponent;
-  let maquinariaService: jasmine.SpyObj<MaquinariaService>;
-  let authService: { puede: jasmine.Spy };
-  let toastService: jasmine.SpyObj<ToastService>;
+  let auth: AuthService;
+  let toast: ToastService;
 
-  function configurar(puedeEditar: boolean): void {
-    maquinariaService = jasmine.createSpyObj<MaquinariaService>('MaquinariaService', [
-      'getLimpiezasPagina', 'getResumenLimpiezas', 'getMaquinaria', 'exportarLimpiezas', 'editarLimpieza', 'eliminarLimpieza',
-    ]);
-    maquinariaService.getLimpiezasPagina.and.returnValue(
-      of({ items: [registro()], total: 1, page: 1, pageSize: 50, totalPages: 1, hasNextPage: false, hasPrevPage: false }),
-    );
-    maquinariaService.getResumenLimpiezas.and.returnValue(of({ pendientes: 3 }));
-    maquinariaService.getMaquinaria.and.returnValue(of([{ id: 'm1', codigo: 'MQ-01', nombre: 'Hidro' } as never]));
-
-    authService = { puede: jasmine.createSpy('puede').and.returnValue(puedeEditar) };
-    toastService = jasmine.createSpyObj<ToastService>('ToastService', ['success', 'warning', 'error', 'info', 'show']);
-
+  /** Inicia sesión como `usuario` (o sin sesión), monta la pantalla y espera a que cargue la lista. */
+  async function configurar(usuario: string | null, esperarLista = true): Promise<void> {
     TestBed.configureTestingModule({
       imports: [LimpiezasComponent],
-      providers: [
-        importProvidersFrom(LucideAngularModule.pick(EASYDRY_ICONS)),
-        { provide: MaquinariaService, useValue: maquinariaService },
-        { provide: AuthService, useValue: authService },
-        { provide: ToastService, useValue: toastService },
-      ],
+      providers: [importProvidersFrom(LucideAngularModule.pick(EASYDRY_ICONS)), ...proveedoresApiReal()],
     });
+    auth = TestBed.inject(AuthService);
+    toast = TestBed.inject(ToastService);
+    if (usuario) await iniciarSesion(auth, usuario);
 
     fixture = TestBed.createComponent(LimpiezasComponent);
     component = fixture.componentInstance;
+    spyOn(toast, 'success').and.callThrough();
+    spyOn(toast, 'error').and.callThrough();
+    fixture.detectChanges();
+    if (esperarLista) await esperar(() => component.lista.items.length > 0);
     fixture.detectChanges();
   }
 
+  /** Un rol global ve toda la red: se acota a la máquina del mundo para ver siempre los registros propios. */
+  async function soloLaMaquina(): Promise<void> {
+    component.filtroMaquinariaId = mundo.maquinaria.id;
+    component.onFiltroMaquinaChange();
+    await esperar(() => component.lista.items.length > 0 && component.lista.items.every((r) => r.maquinariaId === mundo.maquinaria.id));
+  }
+
+  const ids = () => component.lista.items.map((r) => r.id);
+  const delServidor = () => firstValueFrom(TestBed.inject(MaquinariaService).getLimpiezasPagina({ maquinariaId: mundo.maquinaria.id }));
+
+  beforeEach(() => {
+    requiereMundo();
+    localStorage.clear();
+  });
+
   afterEach(() => {
-    component.ngOnDestroy();
+    component?.ngOnDestroy();
+    auth?.logout();
+    localStorage.clear();
   });
 
-  it('carga el resumen de atrasadas, la lista y las máquinas del alcance al iniciar', () => {
-    configurar(true);
-    expect(component.pendientes).toBe(3);
-    expect(component.lista.items.length).toBe(1);
-    expect(component.maquinas).toEqual([{ id: 'm1', codigo: 'MQ-01', nombre: 'Hidro' }]);
-    expect(maquinariaService.getLimpiezasPagina).toHaveBeenCalled();
+  it('carga el resumen de atrasadas, la lista y las máquinas del alcance al iniciar', async () => {
+    await configurar('supervisor');
+    expect(typeof component.pendientes).toBe('number');
+    expect(ids()).toEqual(jasmine.arrayContaining([mundo.limpiezas.paraEditar, mundo.limpiezas.paraExportar]));
+    expect(component.lista.items[0].maquinaria).toEqual(jasmine.objectContaining({ codigo: mundo.maquinaria.codigo }));
+    await esperar(() => component.maquinas.length > 0);
+    expect(component.maquinas.map((m) => m.id)).toContain(mundo.maquinaria.id);
   });
 
-  it('oculta los botones de editar/eliminar sin el permiso "limpiezas.editar"', () => {
-    configurar(false);
+  it('oculta los botones de editar/eliminar sin el permiso "limpiezas.editar"', async () => {
+    await configurar('soloVer');
+    await soloLaMaquina();
     expect(component.puedeEditar).toBe(false);
-    const botones = fixture.nativeElement.querySelectorAll('button');
-    const textos = Array.from(botones as NodeListOf<HTMLButtonElement>).map((b) => b.textContent || '');
+    const textos = Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>).map((b) => b.textContent || '');
     expect(textos.some((t) => t.includes('Editar'))).toBe(false);
     expect(textos.some((t) => t.includes('Eliminar'))).toBe(false);
   });
 
-  it('muestra los botones de editar/eliminar con el permiso', () => {
-    configurar(true);
-    const botones = fixture.nativeElement.querySelectorAll('button');
-    const textos = Array.from(botones as NodeListOf<HTMLButtonElement>).map((b) => b.textContent || '');
+  it('muestra los botones de editar/eliminar con el permiso', async () => {
+    await configurar('supervisor');
+    expect(component.puedeEditar).toBe(true);
+    const textos = Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>).map((b) => b.textContent || '');
     expect(textos.some((t) => t.includes('Editar'))).toBe(true);
     expect(textos.some((t) => t.includes('Eliminar'))).toBe(true);
   });
 
-  it('cambiar el filtro de máquina reinicia la lista con el maquinariaId elegido', () => {
-    configurar(true);
-    maquinariaService.getLimpiezasPagina.calls.reset();
-    component.filtroMaquinariaId = 'm1';
+  it('cambiar el filtro de máquina reinicia la lista con el maquinariaId elegido', async () => {
+    await configurar('supervisor');
+    component.filtroMaquinariaId = mundo.maquinaria.id;
     component.onFiltroMaquinaChange();
-    expect(maquinariaService.getLimpiezasPagina).toHaveBeenCalledWith(
-      jasmine.objectContaining({ maquinariaId: 'm1' }),
-    );
+    await esperar(() => component.lista.items.length > 0 && component.lista.items.every((r) => r.maquinariaId === mundo.maquinaria.id));
+    expect(ids()).toContain(mundo.limpiezas.paraEditar);
   });
 
-  it('abrirEditar precarga las observaciones actuales', () => {
-    configurar(true);
-    const r = registro({ observaciones: 'Faltó secar bien' });
+  it('abrirEditar precarga las observaciones actuales', async () => {
+    await configurar('supervisor');
+    const r = component.lista.items.find((x) => x.id === mundo.limpiezas.paraEditar)!;
     component.abrirEditar(r);
     expect(component.editando).toBe(r);
-    expect(component.editarObservaciones).toBe('Faltó secar bien');
+    expect(component.editarObservaciones).toBe(r.observaciones ?? '');
   });
 
-  it('guardarEditar llama al servicio, recarga la lista y muestra un toast de éxito', async () => {
-    configurar(true);
-    maquinariaService.editarLimpieza.and.returnValue(of({ success: true }));
-    component.abrirEditar(registro());
+  it('guardarEditar guarda en el servidor, recarga la lista y muestra un aviso de éxito', async () => {
+    await configurar('supervisor');
+    const r = component.lista.items.find((x) => x.id === mundo.limpiezas.paraEditar)!;
+    component.abrirEditar(r);
     component.editarObservaciones = 'Nueva observación';
+
     await component.guardarEditar();
-    expect(maquinariaService.editarLimpieza).toHaveBeenCalledWith('lim-1', 'Nueva observación');
-    expect(toastService.success).toHaveBeenCalled();
+
+    expect(toast.success).toHaveBeenCalled();
     expect(component.editando).toBeNull();
+    expect((await delServidor()).items.find((x) => x.id === r.id)?.observaciones).toBe('Nueva observación');
   });
 
   it('guardarEditar muestra el error del servidor y no cierra el modal si falla', async () => {
-    configurar(true);
-    maquinariaService.editarLimpieza.and.returnValue(throwError(() => ({ error: { message: 'No autorizado' } })));
-    component.abrirEditar(registro());
+    await configurar('soloVer'); // sin permiso para editar: el servidor rechaza de verdad
+    await soloLaMaquina();
+    const r = component.lista.items.find((x) => x.id === mundo.limpiezas.paraExportar)!;
+    component.abrirEditar(r);
+    component.editarObservaciones = 'No debería guardarse';
+
     await component.guardarEditar();
-    expect(component.editarError).toBe('No autorizado');
+
+    expect(component.editarError).toBeTruthy();
     expect(component.editando).not.toBeNull();
+    expect((await delServidor()).items.find((x) => x.id === r.id)?.observaciones).not.toBe('No debería guardarse');
   });
 
-  it('eliminar no llama al backend si el usuario cancela la confirmación', async () => {
-    configurar(true);
+  it('eliminar no toca el servidor si el usuario cancela la confirmación', async () => {
+    await configurar('supervisor');
     spyOn(window, 'confirm').and.returnValue(false);
-    await component.eliminar(registro());
-    expect(maquinariaService.eliminarLimpieza).not.toHaveBeenCalled();
+    const r = component.lista.items[0];
+
+    await component.eliminar(r);
+
+    expect((await delServidor()).items.map((x) => x.id)).toContain(r.id);
   });
 
-  it('eliminar llama al backend, recarga la lista y muestra un toast al confirmar', async () => {
-    configurar(true);
+  it('eliminar borra en el servidor, recarga la lista y muestra un aviso al confirmar', async () => {
+    await configurar('supervisor');
     spyOn(window, 'confirm').and.returnValue(true);
-    maquinariaService.eliminarLimpieza.and.returnValue(of({ success: true }));
-    await component.eliminar(registro());
-    expect(maquinariaService.eliminarLimpieza).toHaveBeenCalledWith('lim-1');
-    expect(toastService.success).toHaveBeenCalled();
+    const r = component.lista.items.find((x) => x.id === mundo.limpiezas.paraEliminar)!;
+
+    await component.eliminar(r);
+
+    expect(toast.success).toHaveBeenCalled();
+    await esperar(() => !ids().includes(r.id));
+    expect((await delServidor()).items.map((x) => x.id)).not.toContain(r.id);
   });
 
-  it('exportarCsv descarga un CSV con los datos de cada registro y avisa cuántos exportó', async () => {
-    configurar(true);
-    maquinariaService.exportarLimpiezas.and.returnValue(of([registro({ observaciones: 'Con "comillas"' })]));
+  it('exportarCsv descarga un CSV con los datos reales de cada registro y avisa cuántos exportó', async () => {
+    await configurar('supervisor');
     const linkClick = spyOn(HTMLAnchorElement.prototype, 'click').and.callFake(() => {});
     let blobCapturado: Blob | null = null;
-    const blobUrl = 'blob:fake-url';
     spyOn(URL, 'createObjectURL').and.callFake((blob: Blob) => {
       blobCapturado = blob;
-      return blobUrl;
+      return 'blob:descarga-de-prueba';
     });
     spyOn(URL, 'revokeObjectURL').and.callFake(() => {});
 
     await component.exportarCsv();
     const csvTexto = await blobCapturado!.text();
 
-    expect(maquinariaService.exportarLimpiezas).toHaveBeenCalledWith(undefined);
     expect(linkClick).toHaveBeenCalled();
     expect(component.exportando).toBe(false);
-    expect(toastService.success).toHaveBeenCalled();
-    expect(csvTexto).toContain('MQ-01');
+    expect(toast.success).toHaveBeenCalled();
+    expect(csvTexto).toContain(mundo.maquinaria.codigo);
     expect(csvTexto).toContain('""comillas""');
   });
 
-  it('exportarCsv muestra un toast de error si el backend falla', async () => {
-    configurar(true);
-    maquinariaService.exportarLimpiezas.and.returnValue(throwError(() => new Error('falló')));
+  it('exportarCsv muestra un aviso de error si el servidor rechaza la petición', async () => {
+    await configurar(null, false); // sin sesión: el servidor responde 401
+    (toast.error as jasmine.Spy).calls.reset();
+
     await component.exportarCsv();
-    expect(toastService.error).toHaveBeenCalled();
+
+    expect(toast.error).toHaveBeenCalled();
     expect(component.exportando).toBe(false);
   });
 });

@@ -453,8 +453,8 @@ export class FilterBarComponent implements OnInit {
   private fijarSegunRol(): void {
     const user = this.authService?.getCurrentUser();
     const rol = (user?.role || '').toUpperCase();
-    const esSupervisor = rol === 'SUPERVISOR' || rol === 'GERENTE_REGIONAL' || rol.includes('SUPERVISOR') || rol.includes('REGIONAL');
-    const esAprobador = rol === 'APROBADOR' || rol === 'GERENTE';
+    const esSupervisor = rol === 'SUPERVISOR' || rol.includes('SUPERVISOR') || rol.includes('REGIONAL');
+    const esAprobador = rol === 'APROBADOR';
 
     const regionUsuario = String(user?.regionNombre || user?.region || '').trim();
     if (!this.customRegiones && esSupervisor && regionUsuario) {

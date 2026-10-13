@@ -2,12 +2,14 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "outDir": "./dist/out-tsc/spec",
+    "resolveJsonModule": true,
     "types": [
       "jasmine"
     ]
   },
   "include": [
     "src/**/*.spec.ts",
+    "src/testing/**/*.ts",
     "src/**/*.d.ts"
   ]
 }

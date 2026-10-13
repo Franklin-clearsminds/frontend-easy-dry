@@ -9,7 +9,8 @@
     "dev": "node scripts/sync-env.mjs && ng serve",
     "build": "node scripts/sync-env.mjs --prod && ng build",
     "watch": "node scripts/sync-env.mjs && ng build --watch --configuration development",
-    "test": "ng test --watch=false --browsers=ChromeHeadless"
+    "test": "ng test --watch=false --browsers=ChromeHeadless",
+    "test:integracion": "cd ../backend-easydry && npx vitest run --config vitest.config.web.ts"
   },
   "dependencies": {
     "@angular/animations": "^19.1.0",

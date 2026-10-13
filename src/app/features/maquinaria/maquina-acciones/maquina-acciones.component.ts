@@ -20,7 +20,7 @@ import { mensajeError } from '../trabajo-acciones/trabajo-acciones.component';
  * ver `ROLES_OPERADOR` en `maquinaria.permisos.ts`): solo pulidores, fijos o móviles. El líder NO
  * entra aquí — ya ve y reporta toda la maquinaria de su agencia sin necesitar asignación individual.
  */
-const ROLES_OPERADOR_MAQUINA = ['PULIDOR', 'PULIDOR_FIJO', 'PULIDOR_MOVIL'];
+const ROLES_OPERADOR_MAQUINA = ['PULIDOR'];
 
 interface DestinoOpcion {
   id: string;

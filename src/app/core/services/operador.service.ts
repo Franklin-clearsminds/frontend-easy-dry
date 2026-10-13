@@ -12,6 +12,8 @@ export interface ConsultaOperadores extends Partial<ConsultaTabla> {
   agenciaId?: string;
   /** PULIDOR | LAVADOR */
   categoriaRol?: string;
+  /** Rol concreto (LAVADOR, PULIDOR, PULIDOR_FIJO, TECNICO…) */
+  rol?: string;
   /** 1 activo, 0 inactivo */
   estado?: number;
   bahiaNombre?: string;
@@ -50,7 +52,7 @@ export class OperadorService {
     return postPagina<Operador>(
       this.http,
       apiUrl('/agencias/operadores/list'),
-      cuerpoConsulta(c, ['agenciaId', 'categoriaRol', 'estado', 'bahiaNombre', 'clienteNombre']),
+      cuerpoConsulta(c, ['agenciaId', 'categoriaRol', 'rol', 'estado', 'bahiaNombre', 'clienteNombre']),
     );
   }
 
