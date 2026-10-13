@@ -775,7 +775,7 @@ export class ProductividadComponent implements OnInit, OnDestroy {
   }
 
   canCerrarReto(reto: Reto): boolean {
-    return this.authService.puede('retos.crear') && this.esCreadorOGlobal(reto);
+    return this.authService.puede('retos.cerrar') && this.esCreadorOGlobal(reto);
   }
 
   iniciarEliminarReto(reto: Reto) {
