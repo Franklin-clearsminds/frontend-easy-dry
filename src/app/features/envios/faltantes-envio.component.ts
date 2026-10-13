@@ -46,7 +46,7 @@ interface FaltanteEnvio {
               <div class="min-w-0">
                 <p class="text-xs font-bold text-slate-900 break-words">{{ f.insumoNombre }} <span class="font-mono text-slate-500">· {{ f.insumoSku }}</span></p>
                 <p class="text-xs text-slate-600">Guía <strong>{{ f.numeroGuia }}</strong> · sin recibir <strong>{{ f.cantidadUnd }}</strong> und · origen {{ f.origenNombre || '—' }}</p>
-                @if (f.motivoRecepcion) { <p class="text-xs text-slate-500 break-words">{{ f.motivoRecepcion?.startsWith('Rechazado') ? '' : 'Al recibir: ' }}{{ f.motivoRecepcion }}</p> }
+                @if (f.motivoRecepcion) { <p class="text-xs text-slate-500 break-words">{{ f.motivoRecepcion.startsWith('Rechazado') ? '' : 'Al recibir: ' }}{{ f.motivoRecepcion }}</p> }
               </div>
               <div class="flex gap-2 shrink-0">
                 <button type="button" class="btn btn-secondary" (click)="abrir(f, 'DEVOLVER')">Devolver al stock</button>
