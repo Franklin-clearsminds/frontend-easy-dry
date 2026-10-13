@@ -1,24 +1,28 @@
 import { TestBed } from '@angular/core/testing';
-import { of, throwError } from 'rxjs';
+import { firstValueFrom } from 'rxjs';
 import { MaquinariaDetalleModalComponent } from './maquinaria-detalle-modal.component';
 import { MaquinariaService } from '../../../core/services/maquinaria.service';
-import { IncidenteService } from '../../../core/services/incidente.service';
-import { MantenimientoService } from '../../../core/services/mantenimiento.service';
-import { MovimientoMaquinariaService } from '../../../core/services/movimiento-maquinaria.service';
 import { StorageUploadService } from '../../../core/services/storage-upload.service';
 import { AuthService } from '../../../core/services/auth.service';
 import { MaquinaFicha } from '../../../core/models';
+import { esperar, iniciarSesion, mundo, proveedoresApiReal, requiereMundo } from '../../../../testing/api-real';
 
+/**
+ * Contra el backend REAL y la base local (ver `src/testing/api-real.ts`): usuarios con sesión real y permisos reales.
+ *
+ * Únicos dobles: (1) el almacenamiento de archivos (S3), porque el `.env` apunta al bucket real y subir una foto de
+ * prueba escribiría en él; la foto "subida" es una clave inventada, así que el servidor —que verifica la evidencia— la
+ * rechaza, y eso es lo que se prueba; (2) las APIs del navegador (cámara).
+ */
 function archivo(nombre: string, tipo: string, bytes: number): File {
-  const contenido = new Uint8Array(bytes);
-  return new File([contenido], nombre, { type: tipo });
+  return new File([new Uint8Array(bytes)], nombre, { type: tipo });
 }
 
 function ficha(over: Partial<MaquinaFicha> = {}): MaquinaFicha {
   return {
-    id: 'm1',
-    codigo: 'MQ-01',
-    nombre: 'Hidrolavadora',
+    id: mundo.maquinaria.id,
+    codigo: mundo.maquinaria.codigo,
+    nombre: mundo.maquinaria.nombre,
     estadoOperativo: 'OPERATIVA',
     activa: true,
     ventanaAdelantoDias: 7,
@@ -31,70 +35,71 @@ function ficha(over: Partial<MaquinaFicha> = {}): MaquinaFicha {
 }
 
 describe('MaquinariaDetalleModalComponent — registrar limpieza', () => {
-  let maquinariaService: jasmine.SpyObj<MaquinariaService>;
-  let storage: jasmine.SpyObj<StorageUploadService>;
-  let authHasRole: jasmine.Spy;
   let component: MaquinariaDetalleModalComponent;
+  let auth: AuthService;
+  let subidas: Array<{ archivo: File; meta: unknown }>;
 
-  function configurar(rol: string): void {
+  /** Sesión real como `usuario` y componente creado en ese contexto de inyección. */
+  async function configurar(usuario: string): Promise<void> {
     TestBed.resetTestingModule();
-    maquinariaService = jasmine.createSpyObj<MaquinariaService>('MaquinariaService', ['registrarLimpieza', 'getDetalle', 'getLimpiezasPagina']);
-    maquinariaService.getLimpiezasPagina.and.returnValue(
-      of({ items: [], total: 0, page: 1, pageSize: 50, totalPages: 1, hasNextPage: false, hasPrevPage: false }),
-    );
-    storage = jasmine.createSpyObj<StorageUploadService>('StorageUploadService', ['uploadMedia']);
-    authHasRole = jasmine.createSpy('hasRole').and.callFake((r: string) => r === rol);
-
+    localStorage.clear();
+    subidas = [];
+    // Borde S3: anota la subida y devuelve una clave que no existe en el bucket.
+    const almacenamiento = {
+      uploadMedia: async (a: File, meta: unknown) => {
+        subidas.push({ archivo: a, meta });
+        return `maquinaria/${mundo.marca}/limpiezas/foto-inexistente.jpg`;
+      },
+    };
     TestBed.configureTestingModule({
-      providers: [
-        { provide: MaquinariaService, useValue: maquinariaService },
-        { provide: IncidenteService, useValue: jasmine.createSpyObj('IncidenteService', ['list']) },
-        { provide: MantenimientoService, useValue: jasmine.createSpyObj('MantenimientoService', ['list']) },
-        { provide: MovimientoMaquinariaService, useValue: jasmine.createSpyObj('MovimientoMaquinariaService', ['list']) },
-        { provide: StorageUploadService, useValue: storage },
-        { provide: AuthService, useValue: { puede: () => true, hasRole: authHasRole } },
-      ],
+      providers: [...proveedoresApiReal(), { provide: StorageUploadService, useValue: almacenamiento }],
     });
+    auth = TestBed.inject(AuthService);
+    await iniciarSesion(auth, usuario);
 
-    // Se instancia la clase directamente (sin montar la vista completa, pesada en dependencias):
-    // estos métodos no tocan @ViewChild (salvo iniciarCamaraLimpieza, probado con la cámara simulada)
-    // ni los componentes hijos.
+    // Se instancia la clase directamente (sin montar la vista completa, pesada en dependencias): estos métodos no tocan
+    // @ViewChild (salvo iniciarCamaraLimpieza) ni los componentes hijos.
     component = TestBed.runInInjectionContext(() => new MaquinariaDetalleModalComponent());
-    // maquinariaId en null: cargarFicha() (llamada tras registrar) no dispara una petición real.
     component.maquinariaId = null;
     component.ficha = ficha();
   }
 
-  beforeEach(() => configurar('LIDER'));
+  beforeEach(() => requiereMundo());
 
-  it('puedeRegistrarLimpieza es true para el líder', () => {
+  afterEach(() => {
+    auth?.logout();
+    localStorage.clear();
+  });
+
+  it('puedeRegistrarLimpieza es true para el líder', async () => {
+    await configurar('lider');
     expect(component.puedeRegistrarLimpieza).toBe(true);
   });
 
-  it('puedeRegistrarLimpieza es true para el pulidor', () => {
-    configurar('PULIDOR');
+  it('puedeRegistrarLimpieza es true para el pulidor', async () => {
+    await configurar('pulidor');
     expect(component.puedeRegistrarLimpieza).toBe(true);
   });
 
-  it('puede desactivar evidencias de incidencias sin quitar la subida de limpieza', () => {
-    const auth = TestBed.inject(AuthService);
-    spyOn(auth, 'puede').and.callFake((codigo: string) => codigo !== 'limpiezas.evidencias');
-
+  it('un técnico puede agregar evidencias de incidencias sin poder subir limpiezas', async () => {
+    await configurar('tecnico');
     expect(component.puedeAgregarEvidencia).toBe(true);
     expect(component.puedeRegistrarLimpieza).toBe(false);
   });
 
-  it('puedeRegistrarLimpieza es false para admin: solo líder y pulidor registran, no auditan desde aquí', () => {
-    configurar('ADMIN');
+  it('puedeRegistrarLimpieza es false para admin: solo líder y pulidor registran, no auditan desde aquí', async () => {
+    await configurar('admin');
     expect(component.puedeRegistrarLimpieza).toBe(false);
   });
 
-  it('puedeRegistrarLimpieza es false para super admin', () => {
-    configurar('SUPER_ADMIN');
+  it('puedeRegistrarLimpieza es false para super admin', async () => {
+    await configurar('superadmin');
     expect(component.puedeRegistrarLimpieza).toBe(false);
   });
 
   describe('cámara (las fotos se capturan en vivo, nunca se eligen de archivos guardados)', () => {
+    beforeEach(async () => configurar('lider'));
+
     it('iniciarCamaraLimpieza arranca el stream y apaga el loading cuando el navegador da acceso', async () => {
       const track = jasmine.createSpyObj('MediaStreamTrack', ['stop']);
       const stream = { getTracks: () => [track] } as unknown as MediaStream;
@@ -139,89 +144,82 @@ describe('MaquinariaDetalleModalComponent — registrar limpieza', () => {
     });
   });
 
-  it('confirmarRegistrarLimpieza no sube nada si no se capturó ninguna foto', async () => {
-    component.limpiezaArchivos = [];
-    await component.confirmarRegistrarLimpieza();
-    expect(component.limpiezaError).toBe('Captura al menos una foto con la cámara.');
-    expect(storage.uploadMedia).not.toHaveBeenCalled();
-  });
+  describe('confirmarRegistrarLimpieza', () => {
+    const limpiezasEnServidor = async () =>
+      (await firstValueFrom(TestBed.inject(MaquinariaService).getLimpiezasPagina({ maquinariaId: mundo.maquinaria.id }))).items.length;
 
-  it('confirmarRegistrarLimpieza no sube nada si alguna foto capturada no es válida (defensa adicional)', async () => {
-    component.limpiezaArchivos = [archivo('no-es-foto.pdf', 'application/pdf', 100)];
-    await component.confirmarRegistrarLimpieza();
-    expect(component.limpiezaError).toContain('no es una imagen');
-    expect(storage.uploadMedia).not.toHaveBeenCalled();
-  });
+    beforeEach(async () => configurar('lider'));
 
-  it('confirmarRegistrarLimpieza sube las fotos y registra la limpieza cuando todo es válido', async () => {
-    storage.uploadMedia.and.returnValue(Promise.resolve('maquinaria/mq-01/limpiezas/foto1.jpg'));
-    maquinariaService.registrarLimpieza.and.returnValue(of({ success: true }));
-    component.limpiezaArchivos = [archivo('foto.jpg', 'image/jpeg', 1024)];
-    component.limpiezaObservaciones = 'Todo en orden';
-    component.limpiezaModalOpen = true;
-
-    await component.confirmarRegistrarLimpieza();
-
-    expect(storage.uploadMedia).toHaveBeenCalledTimes(1);
-    expect(maquinariaService.registrarLimpieza).toHaveBeenCalledWith(jasmine.objectContaining({
-      maquinariaId: 'm1',
-      fotos: [{ url: 'maquinaria/mq-01/limpiezas/foto1.jpg' }],
-      observaciones: 'Todo en orden',
-    }));
-    expect(component.limpiezaModalOpen).toBe(false);
-    expect(component.limpiezaError).toBe('');
-  });
-
-  it('confirmarRegistrarLimpieza muestra el error del servidor y deja el modal abierto si falla', async () => {
-    storage.uploadMedia.and.returnValue(Promise.resolve('maquinaria/mq-01/limpiezas/foto1.jpg'));
-    maquinariaService.registrarLimpieza.and.returnValue(throwError(() => ({ error: { message: 'No puedes registrar la limpieza de esta máquina.' } })));
-    component.limpiezaArchivos = [archivo('foto.jpg', 'image/jpeg', 1024)];
-    component.limpiezaModalOpen = true;
-
-    await component.confirmarRegistrarLimpieza();
-
-    expect(component.limpiezaError).toBe('No puedes registrar la limpieza de esta máquina.');
-    expect(component.limpiezaModalOpen).toBe(true);
-  });
-
-  it('la pestaña "Limpieza" aparece cuando la máquina tiene una regla de limpieza vigente', () => {
-    component.ficha = ficha({ limpieza: { regla: 'PULIDOR', ultimaFecha: null, ultimasFotos: [], atrasada: false } });
-    expect(component.pestanas.some((p) => p.id === 'limpieza')).toBe(true);
-  });
-
-  it('la pestaña "Limpieza" no aparece si a la máquina no le aplica ninguna regla', () => {
-    component.ficha = ficha({ limpieza: { regla: null, ultimaFecha: null, ultimasFotos: [], atrasada: false } });
-    expect(component.pestanas.some((p) => p.id === 'limpieza')).toBe(false);
-  });
-
-  it('la pestaña "Limpieza" no aparece sin el permiso limpiezas.ver, aunque la máquina tenga regla vigente (ej. TECNICO)', () => {
-    TestBed.resetTestingModule();
-    TestBed.configureTestingModule({
-      providers: [
-        { provide: MaquinariaService, useValue: maquinariaService },
-        { provide: IncidenteService, useValue: jasmine.createSpyObj('IncidenteService', ['list']) },
-        { provide: MantenimientoService, useValue: jasmine.createSpyObj('MantenimientoService', ['list']) },
-        { provide: MovimientoMaquinariaService, useValue: jasmine.createSpyObj('MovimientoMaquinariaService', ['list']) },
-        { provide: StorageUploadService, useValue: storage },
-        { provide: AuthService, useValue: { puede: (c: string) => c !== 'limpiezas.ver', hasRole: () => false } },
-      ],
+    it('no sube nada si no se capturó ninguna foto', async () => {
+      component.limpiezaArchivos = [];
+      await component.confirmarRegistrarLimpieza();
+      expect(component.limpiezaError).toBe('Captura al menos una foto con la cámara.');
+      expect(subidas).toEqual([]);
     });
-    const sinPermiso = TestBed.runInInjectionContext(() => new MaquinariaDetalleModalComponent());
-    sinPermiso.maquinariaId = null;
-    sinPermiso.ficha = ficha({ limpieza: { regla: 'PULIDOR', ultimaFecha: null, ultimasFotos: [], atrasada: false } });
 
-    expect(sinPermiso.pestanas.some((p) => p.id === 'limpieza')).toBe(false);
+    it('no sube nada si alguna foto capturada no es válida (defensa adicional)', async () => {
+      component.limpiezaArchivos = [archivo('no-es-foto.pdf', 'application/pdf', 100)];
+      await component.confirmarRegistrarLimpieza();
+      expect(component.limpiezaError).toContain('no es una imagen');
+      expect(subidas).toEqual([]);
+    });
+
+    it('sube la foto y el servidor rechaza una evidencia que no existe: muestra el error y deja el modal abierto', async () => {
+      const antes = await limpiezasEnServidor();
+      component.limpiezaArchivos = [archivo('foto.jpg', 'image/jpeg', 1024)];
+      component.limpiezaObservaciones = 'Todo en orden';
+      component.limpiezaModalOpen = true;
+
+      await component.confirmarRegistrarLimpieza();
+
+      expect(subidas.length).toBe(1);
+      expect(subidas[0].meta).toEqual(jasmine.objectContaining({ category: 'MAQUINARIA_LIMPIEZA', maquinariaId: mundo.maquinaria.id }));
+      expect(component.limpiezaError).toBeTruthy();
+      expect(component.limpiezaModalOpen).toBe(true);
+      expect(component.subiendoLimpieza).toBe(false);
+      expect(await limpiezasEnServidor()).toBe(antes); // no se creó ninguna limpieza
+    });
+
+    it('muestra el error del servidor cuando la máquina es de otra agencia', async () => {
+      component.ficha = ficha({ id: mundo.maquinariaAjena.id, codigo: mundo.maquinariaAjena.codigo });
+      component.limpiezaArchivos = [archivo('foto.jpg', 'image/jpeg', 1024)];
+      component.limpiezaModalOpen = true;
+
+      await component.confirmarRegistrarLimpieza();
+
+      expect(component.limpiezaError).toBeTruthy();
+      expect(component.limpiezaModalOpen).toBe(true);
+    });
   });
 
-  it('registrar una limpieza recarga el historial de la pestaña "Limpieza" si ya estaba abierta', async () => {
-    storage.uploadMedia.and.returnValue(Promise.resolve('maquinaria/mq-01/limpiezas/foto1.jpg'));
-    maquinariaService.registrarLimpieza.and.returnValue(of({ success: true }));
-    component.cambiarPestana('limpieza');
-    expect(maquinariaService.getLimpiezasPagina).toHaveBeenCalledTimes(1);
+  describe('pestaña "Limpieza"', () => {
+    it('aparece cuando la máquina tiene una regla de limpieza vigente', async () => {
+      await configurar('lider');
+      component.ficha = ficha({ limpieza: { regla: 'PULIDOR', ultimaFecha: null, ultimasFotos: [], atrasada: false } });
+      expect(component.pestanas.some((p) => p.id === 'limpieza')).toBe(true);
+    });
 
-    component.limpiezaArchivos = [archivo('foto.jpg', 'image/jpeg', 1024)];
-    await component.confirmarRegistrarLimpieza();
+    it('no aparece si a la máquina no le aplica ninguna regla', async () => {
+      await configurar('lider');
+      component.ficha = ficha({ limpieza: { regla: null, ultimaFecha: null, ultimasFotos: [], atrasada: false } });
+      expect(component.pestanas.some((p) => p.id === 'limpieza')).toBe(false);
+    });
 
-    expect(maquinariaService.getLimpiezasPagina).toHaveBeenCalledTimes(2);
+    it('no aparece sin el permiso limpiezas.ver, aunque la máquina tenga regla vigente (el técnico)', async () => {
+      await configurar('tecnico');
+      expect(auth.puede('limpiezas.ver')).toBe(false);
+      component.ficha = ficha({ limpieza: { regla: 'PULIDOR', ultimaFecha: null, ultimasFotos: [], atrasada: false } });
+      expect(component.pestanas.some((p) => p.id === 'limpieza')).toBe(false);
+    });
+
+    it('al abrirla carga el historial real de limpiezas de la máquina', async () => {
+      await configurar('lider');
+      component.maquinariaId = mundo.maquinaria.id;
+
+      component.cambiarPestana('limpieza');
+      await esperar(() => component.listaLimp.items.length >= 2);
+
+      expect(component.listaLimp.items.map((l) => l.id)).toEqual(jasmine.arrayContaining([mundo.limpiezas.paraEditar, mundo.limpiezas.paraExportar]));
+    });
   });
 });
