@@ -94,7 +94,7 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
         <div class="flex items-center gap-2 sm:gap-4 mt-5 pt-3 border-t border-slate-100 overflow-x-auto">
           <!-- 1. Productos — catálogo de insumos (para el líder: los insumos de su propia agencia) -->
           <button
-            *ngIf="puedeVerInventario && (puedeOperarBodega || operaDesdeAgencia)"
+            *ngIf="puedeVerInventario && (puedeOperarBodega || operaDesdeAgencia) && puedeSubProductos"
             (click)="activeTab = 'productos'; abrirProductos()"
             class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
             [ngClass]="activeTab === 'productos' ? 'bg-blue-50 text-easydry-blue font-extrabold shadow-2xs' : 'text-slate-600 hover:bg-slate-50'">
@@ -105,7 +105,7 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
 
           <!-- 2. Bodegas — CENTRAL / REGIONAL -->
           <button
-            *ngIf="puedeVerInventario && puedeOperarBodega"
+            *ngIf="puedeVerInventario && puedeOperarBodega && puedeSubBodegas"
             (click)="activeTab = 'bodegas'"
             class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
             [ngClass]="activeTab === 'bodegas' ? 'bg-blue-50 text-easydry-blue font-extrabold shadow-2xs' : 'text-slate-600 hover:bg-slate-50'">
@@ -116,7 +116,7 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
           <!-- 3. Agencias — stock / monitoreo de sedes (no para el líder: solo ve su propia agencia,
                para elegir destino de despacho ya usa el botón "Despachar", que no depende de esta pestaña) -->
           <button
-            *ngIf="puedeVerInventario && !operaDesdeAgencia"
+            *ngIf="puedeVerInventario && !operaDesdeAgencia && puedeSubAgencias"
             (click)="activeTab = 'agencias'"
             class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
             [ngClass]="activeTab === 'agencias' ? 'bg-purple-50 text-purple-700 font-extrabold border border-purple-200 shadow-2xs' : 'text-slate-600 hover:bg-slate-50'">
@@ -170,7 +170,7 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
 
           <!-- 7. Movimientos (Kardex) -->
           <button
-            *ngIf="puedeVerInventario && puedeOperarBodega"
+            *ngIf="puedeVerInventario && puedeOperarBodega && puedeSubMovimientos"
             (click)="activeTab = 'movimientos'"
             class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
             [ngClass]="activeTab === 'movimientos' ? 'bg-blue-50 text-easydry-blue font-extrabold shadow-2xs' : 'text-slate-600 hover:bg-slate-50'">
@@ -190,7 +190,7 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
 
           <!-- 8. Configuración -->
           <button
-            *ngIf="puedeGestionarCatalogos"
+            *ngIf="puedeGestionarCatalogos && puedeSubConfiguracion"
             (click)="activeTab = 'configuracion'; abrirConfiguracion()"
             class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
             [ngClass]="activeTab === 'configuracion' ? 'bg-purple-50 text-purple-700 font-extrabold shadow-2xs' : 'text-slate-600 hover:bg-slate-50'">
@@ -3882,6 +3882,12 @@ export class InventarioComponent implements OnInit, OnDestroy {
     return this.auth.puedeAlguno('inventario.productos.despachar', 'inventario.bodegas.despachar', 'inventario.agencias.despachar', 'inventario.pulidores.despachar', 'inventario.stockbajo.despachar');
   }
 
+  // Cada pestaña se muestra solo si el rol tiene su sub-página.
+  get puedeSubProductos(): boolean { return this.auth.puede('pagina.inventario.productos'); }
+  get puedeSubBodegas(): boolean { return this.auth.puede('pagina.inventario.bodegas'); }
+  get puedeSubAgencias(): boolean { return this.auth.puede('pagina.inventario.agencias'); }
+  get puedeSubMovimientos(): boolean { return this.auth.puede('pagina.inventario.movimientos'); }
+  get puedeSubConfiguracion(): boolean { return this.auth.puede('pagina.inventario.configuracion'); }
   get puedeReajustarBodega(): boolean { return this.auth.puede('inventario.bodegas.reajustar'); }
   get puedeReajustarAgencia(): boolean { return this.auth.puede('inventario.agencias.reajustar'); }
   get puedeReajustarPulidor(): boolean { return this.auth.puede('inventario.pulidores.reajustar'); }

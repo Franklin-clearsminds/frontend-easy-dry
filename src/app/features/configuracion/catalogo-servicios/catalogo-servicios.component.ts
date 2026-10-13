@@ -42,6 +42,8 @@ export class CatalogoServiciosComponent implements OnInit, OnDestroy {
     const grupo = String(categoria || '').toUpperCase() === 'ESPECIAL' ? 'especiales' : 'generales';
     return this.authService.puede(`catalogo.${grupo}.${accion}`);
   }
+  get puedeVerSubGenerales(): boolean { return this.authService.puede('pagina.catalogo.generales'); }
+  get puedeVerSubEspeciales(): boolean { return this.authService.puede('pagina.catalogo.especiales'); }
   puedeCrear(categoria?: string): boolean { return this.permisoDe(categoria, 'crear'); }
   puedeEditar(categoria?: string): boolean { return this.permisoDe(categoria, 'editar'); }
   puedeCambiarEstado(categoria?: string): boolean { return this.permisoDe(categoria, 'estado'); }
@@ -201,6 +203,8 @@ export class CatalogoServiciosComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit() {
+    // Si el rol no tiene la pestaña de generales, se abre en la de especiales.
+    if (!this.puedeVerSubGenerales && this.puedeVerSubEspeciales) this.tabActiva = 'especiales';
     this.suscripcionTexto = this.texto$.pipe(debounceTime(300)).subscribe(({ tabla, texto }) => {
       if (tabla === 'generales') this.recargar(this.generalesTabla, texto);
       else this.recargar(this.especialesTabla, texto);

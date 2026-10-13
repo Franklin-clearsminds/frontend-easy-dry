@@ -47,6 +47,7 @@
   <div class="flex flex-wrap gap-2 p-1.5 bg-slate-200/80 rounded-2xl w-fit">
     
     <!-- Pestaña 1: Servicios Generales -->
+    @if (puedeVerSubGenerales) {
     <button
       (click)="tabActiva = 'generales'"
       [ngClass]="tabActiva === 'generales' ? 'bg-white text-easydry-blue shadow-md font-extrabold' : 'text-slate-600 hover:text-slate-900 font-semibold'"
@@ -54,9 +55,10 @@
       <i-lucide name="droplet" class="w-4 h-4 text-easydry-blue"></i-lucide>
       <span>Servicios Generales</span>
     </button>
+    }
 
     <!-- Pestaña 2: Servicios Especiales -->
-    @if (tieneServiciosEspeciales || !agenciaCtx) {
+    @if ((tieneServiciosEspeciales || !agenciaCtx) && puedeVerSubEspeciales) {
       <button
         (click)="tabActiva = 'especiales'"
         [ngClass]="tabActiva === 'especiales' ? 'bg-white text-amber-700 shadow-md font-extrabold' : 'text-slate-600 hover:text-slate-900 font-semibold'"

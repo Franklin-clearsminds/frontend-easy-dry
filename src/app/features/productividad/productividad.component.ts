@@ -573,7 +573,7 @@ export class ProductividadComponent implements OnInit, OnDestroy {
   private toast = inject(ToastService);
 
   // Permisos: los mismos que exige el servidor en cada endpoint.
-  get canCreateReto(): boolean { return this.authService.puede('retos.crear'); }
+  get canCreateReto(): boolean { return this.authService.puede('productividad.retos.crear'); }
   get puedeVerRetos(): boolean { return this.authService.puede('pagina.productividad.retos'); }
   get puedeVerProductividad(): boolean { return this.authService.puede('productividad.ver'); }
 
@@ -771,11 +771,11 @@ export class ProductividadComponent implements OnInit, OnDestroy {
   }
 
   canDeleteReto(reto: Reto): boolean {
-    return this.authService.puede('retos.eliminar') && this.esCreadorOGlobal(reto);
+    return this.authService.puede('productividad.retos.eliminar') && this.esCreadorOGlobal(reto);
   }
 
   canCerrarReto(reto: Reto): boolean {
-    return this.authService.puede('retos.cerrar') && this.esCreadorOGlobal(reto);
+    return this.authService.puede('productividad.retos.cerrar') && this.esCreadorOGlobal(reto);
   }
 
   iniciarEliminarReto(reto: Reto) {
