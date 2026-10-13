@@ -36,8 +36,8 @@ interface FaltanteEnvio {
             <i-lucide aria-hidden="true" name="package-x" class="w-5 h-5"></i-lucide>
           </div>
           <div>
-            <h3 class="text-sm font-extrabold text-amber-950 uppercase tracking-wide">Faltantes de envíos por resolver ({{ faltantes.length }})</h3>
-            <p class="text-xs text-amber-900">Esto no llegó completo. Decide si regresa al stock de la bodega o se da de baja (dañado o perdido).</p>
+            <h3 class="text-sm font-extrabold text-amber-950 uppercase tracking-wide">Envíos rechazados o incompletos por resolver ({{ faltantes.length }})</h3>
+            <p class="text-xs text-amber-900">Este producto no se recibió (envío rechazado o incompleto) y sigue retenido. Decide si regresa al stock de la bodega o se da de baja (dañado o perdido).</p>
           </div>
         </div>
         <div class="space-y-2">
@@ -45,8 +45,8 @@ interface FaltanteEnvio {
             <div class="bg-white border border-amber-200 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div class="min-w-0">
                 <p class="text-xs font-bold text-slate-900 break-words">{{ f.insumoNombre }} <span class="font-mono text-slate-500">· {{ f.insumoSku }}</span></p>
-                <p class="text-xs text-slate-600">Guía <strong>{{ f.numeroGuia }}</strong> · faltan <strong>{{ f.cantidadUnd }}</strong> und · origen {{ f.origenNombre || '—' }}</p>
-                @if (f.motivoRecepcion) { <p class="text-xs text-slate-500 break-words">Al recibir: {{ f.motivoRecepcion }}</p> }
+                <p class="text-xs text-slate-600">Guía <strong>{{ f.numeroGuia }}</strong> · sin recibir <strong>{{ f.cantidadUnd }}</strong> und · origen {{ f.origenNombre || '—' }}</p>
+                @if (f.motivoRecepcion) { <p class="text-xs text-slate-500 break-words">{{ f.motivoRecepcion?.startsWith('Rechazado') ? '' : 'Al recibir: ' }}{{ f.motivoRecepcion }}</p> }
               </div>
               <div class="flex gap-2 shrink-0">
                 <button type="button" class="btn btn-secondary" (click)="abrir(f, 'DEVOLVER')">Devolver al stock</button>
