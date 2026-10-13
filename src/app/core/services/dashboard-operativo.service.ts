@@ -692,14 +692,20 @@ export class DashboardOperativoService {
    * KPIs y tableros para Distribuidor / Bodega: alertas de stock y consumo real de insumos
    * (POST /analytics/consumo-quimicos -> insumos, ordenados por costo).
    */
-  getDashboardDistribuidor(filtro: any = {}): Observable<DashboardDistribuidorData> {
+  /**
+   * `conAlertas`: si el rol puede ver alertas de stock. Sin ese permiso no se piden (el servidor respondería 403 y saldría un
+   * aviso de error en pantalla); el resumen de consumo, que es otro permiso, se sigue pidiendo.
+   */
+  getDashboardDistribuidor(filtro: any = {}, conAlertas = true): Observable<DashboardDistribuidorData> {
     return forkJoin([
-      this.http.post<any[]>(apiUrl('/inventario/alertas/list'), filtro).pipe(
-        catchError((err) => {
-          this.avisarErrorCarga('No se pudieron cargar las alertas de stock', err);
-          return of([]);
-        })
-      ),
+      (conAlertas
+        ? this.http.post<any[]>(apiUrl('/inventario/alertas/list'), filtro).pipe(
+            catchError((err) => {
+              this.avisarErrorCarga('No se pudieron cargar las alertas de stock', err);
+              return of([]);
+            })
+          )
+        : of([] as any[])),
       this.http.post<any>(apiUrl('/analytics/consumo-quimicos'), filtro).pipe(
         catchError((err) => {
           this.avisarErrorCarga('No se pudo cargar el consumo de insumos', err);

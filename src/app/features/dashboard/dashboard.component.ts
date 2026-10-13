@@ -1222,7 +1222,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     }
     if (this.puedeVerAlertas) {
       peticiones.push(this.dashboardService.getAlertas(filtro).pipe(tap((d) => (this.alertas = d))));
-      peticiones.push(this.dashboardService.getDashboardDistribuidor(filtro).pipe(tap((d) => (this.distribuidorData = d))));
+      peticiones.push(this.dashboardService.getDashboardDistribuidor(filtro, this.puedeVerAlertas).pipe(tap((d) => (this.distribuidorData = d))));
     }
     this.carga.add(forkJoin(peticiones).subscribe({
       next: () => (this.recargando = false),
@@ -1262,7 +1262,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     }
     if (this.puedeVerInventario) {
       peticiones.push(this.dashboardService.getDashboardBodegaDedicado(this.filtroActual).pipe(tap((d) => (this.bodegaData = d))));
-      peticiones.push(this.dashboardService.getDashboardDistribuidor(this.filtroActual).pipe(tap((d) => (this.distribuidorData = d))));
+      peticiones.push(this.dashboardService.getDashboardDistribuidor(this.filtroActual, this.puedeVerAlertas).pipe(tap((d) => (this.distribuidorData = d))));
       if (this.puedeVerAlertas) {
         peticiones.push(this.dashboardService.getAlertas(this.filtroActual).pipe(tap((d) => (this.alertas = d))));
       }
@@ -1276,7 +1276,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   private cargarBodega(): void {
     const peticiones: Observable<any>[] = [
       this.dashboardService.getDashboardBodegaDedicado(this.filtroActual).pipe(tap((d) => (this.bodegaData = d))),
-      this.dashboardService.getDashboardDistribuidor(this.filtroActual).pipe(tap((d) => (this.distribuidorData = d))),
+      this.dashboardService.getDashboardDistribuidor(this.filtroActual, this.puedeVerAlertas).pipe(tap((d) => (this.distribuidorData = d))),
     ];
     if (this.puedeVerAlertas) {
       peticiones.push(this.dashboardService.getAlertas(this.filtroActual).pipe(tap((d) => (this.alertas = d))));
