@@ -76,7 +76,12 @@ describe('AuthService — sincronización de rol (refrescarPermisos)', () => {
 
   it('no autoriza una ruta con permisos locales antiguos si falla la validación del servidor', async () => {
     await iniciarSesion(service, 'lider');
-    // Token que el servidor rechaza (y sin cookie de refresh válida): la verificación falla de verdad.
+    // El refresh vive en una cookie HttpOnly que sigue válida tras el login: para que la verificación falle de verdad hay que
+    // cerrar la sesión en el servidor (revoca el refresh y borra la cookie) y dejar un access token que el servidor rechaza.
+    await firstValueFrom(TestBed.inject(HttpClient).post(apiUrl('/auth/logout'), {}, {
+      withCredentials: true,
+      headers: { 'X-Client': 'web', 'X-Skip-Auth-Refresh': '1' },
+    }));
     (service as unknown as { accessToken: string }).accessToken = 'token-invalido';
 
     const permitido = await firstValueFrom(service.validarAccesoModulo('maquinaria'));
