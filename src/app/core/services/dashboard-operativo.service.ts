@@ -134,18 +134,42 @@ export class DashboardOperativoService {
         const donaSecSrc = isAdmin ? data?.distribucionCategorias : (isAprobador ? data?.distribucionTipos : (isComercial ? data?.solicitudesComerciales : data?.incidentesPorTipo));
         const incidentesPorTipo = toDonutChart(donaSecSrc, 'nombre', isAdmin ? 'total' : 'cantidad');
 
+        // Serie del drill-down: se prefieren los dos extremos que envía el backend (mayores y menores) para que
+        // el control Top N pueda mostrar cualquiera de los dos lados; `desglose` es el respaldo del backend previo.
+        const filasJerarquia: any[] = data?.jerarquia?.desgloseGrafico ?? data?.jerarquia?.desglose ?? [];
+
+        // Rankings completos por agencia para el control Top N del Top Agencias. El de ganancia colorea cada
+        // barra según su signo, así el orden ascendente deja ver de un golpe las agencias en pérdida.
+        const filasGanancia: any[] = data?.rankingsAgencias?.ganancia ?? [];
+        const agenciasRankGanancia = filasGanancia.length ? {
+          labels: filasGanancia.map((f: any) => f.nombre),
+          datasets: [{
+            label: 'Ganancia neta USD',
+            data: filasGanancia.map((f: any) => Number(f.valor) || 0),
+            backgroundColor: filasGanancia.map((f: any) => (Number(f.valor) || 0) >= 0 ? CHART_COLORS.green : CHART_COLORS.rose),
+          }],
+        } : null;
+
 
 
         return {
-          isAdminView: isAdmin, isSupervisorView: isSupervisor, isComercialView: isComercial, isAprobadorView: isAprobador, isSuperAdminView: data?.isSuperAdminView ?? false,
+          isAdminView: isAdmin, isSupervisorView: isSupervisor, isComercialView: isComercial, isAprobadorView: isAprobador, isSuperAdminView: data?.isSuperAdminView ?? false, isEjecutivoView: data?.isEjecutivoView ?? false,
           vehiculosHoy: data?.kpis?.totalLavadosHoy ?? data?.kpis?.serviciosHoy ?? data?.kpis?.totalHoy ?? null,
           flujoHorario,
           distribucionModelos,
           tiemposBahias,
           mixServicios,
+          distribucionRolesChart: toDonutChart(data?.distribucionRoles, 'nombre', 'cantidad'),
+          distribucionDecisionesChart: toBarChart(data?.distribucionDecisiones, 'nombre', 'total', 'Decisiones'),
+          distribucionCategoriasChart: toDonutChart(data?.distribucionCategorias, 'nombre', 'total'),
           incidentesPorTipo,
           topMarcas: toBarChart(data?.topMarcas, 'nombre', 'cantidad', 'Frecuencia'),
           topAgenciasProductivas: toBarChart(data?.topAgenciasProductivas, 'nombre', 'cantidad', 'Servicios'),
+          // Rankings completos (sin recortar) para el control Top 5 / Top 10 en orden ascendente o descendente.
+          agenciasRankServicios: toBarChart(data?.rankingsAgencias?.servicios, 'nombre', 'valor', 'Servicios'),
+          agenciasRankGanancia,
+          agenciasRankCosto: toBarChart(data?.rankingsAgencias?.costoIncidentes, 'nombre', 'valor', 'Costo USD'),
+          agenciasRankIncidentes: toBarChart(data?.topAgenciasIncidentes, 'nombre', 'total', 'Incidentes'),
           // Mix separado: generales vs especiales (top 5 cada uno).
           mixGenerales: toDonutChart(data?.mixGenerales, 'nombre', 'cantidad'),
           mixEspeciales: toDonutChart(data?.mixEspeciales, 'nombre', 'cantidad'),
@@ -174,6 +198,8 @@ export class DashboardOperativoService {
           // Datos crudos para las tarjetas de distribución (dona + filas).
           generales: data?.mixGenerales ?? [],
           especiales: data?.mixEspeciales ?? [],
+          mixServiciosRaw: data?.mixServicios ?? [],
+          mixCategoriaRaw: data?.mixCategoria ?? [],
           colores: data?.topColores ?? [],
           marcasModelos: data?.topMarcasModelos ?? [],
           kpisResumen: data?.kpis ?? {},
@@ -188,31 +214,42 @@ export class DashboardOperativoService {
           bajaActividad: data?.jerarquia?.bajaActividad ?? null,
           // Tiempo promedio por agencia (cuellos de botella); ya viene acotado al alcance y a los filtros.
           tiemposAgencias: data?.tiemposAgencias ?? [],
-          jerarquiaChart: data?.jerarquia?.desglose?.length ? {
-            labels: data.jerarquia.desglose.map((d: any) => d.nombre),
+          jerarquiaChart: filasJerarquia.length ? {
+            labels: filasJerarquia.map((d: any) => d.nombre),
             datasets: [
-              { label: 'Servicios', data: data.jerarquia.desglose.map((d: any) => d.cantidad ?? 0), backgroundColor: CHART_COLORS.blue },
-              { label: 'Tiempo prom. (min)', data: data.jerarquia.desglose.map((d: any) => d.tiempoPromedioMin ?? 0), backgroundColor: CHART_COLORS.amber },
+              { label: 'Servicios', data: filasJerarquia.map((d: any) => d.cantidad ?? 0), backgroundColor: CHART_COLORS.blue },
+              { label: 'Tiempo prom. (min)', data: filasJerarquia.map((d: any) => d.tiempoPromedioMin ?? 0), backgroundColor: CHART_COLORS.amber },
             ],
           } : null,
           topMaquinas: data?.topMaquinasDañadas && data.topMaquinasDañadas.length > 0 ? { labels: data.topMaquinasDañadas.map((m: any) => m.nombre.split('-')[0].trim() + (m.agencia ? ` (${m.agencia})` : '')), datasets: [{ label: 'Incidentes', data: data.topMaquinasDañadas.map((m: any) => m.total), backgroundColor: coloresCategoricos(data.topMaquinasDañadas.length).reverse() }] } : null,
+          bottomMaquinas: data?.bottomMaquinasDañadas && data.bottomMaquinasDañadas.length > 0 ? { labels: data.bottomMaquinasDañadas.map((m: any) => m.nombre.split('-')[0].trim() + (m.agencia ? ` (${m.agencia})` : '')), datasets: [{ label: 'Incidentes', data: data.bottomMaquinasDañadas.map((m: any) => m.total), backgroundColor: coloresCategoricos(data.bottomMaquinasDañadas.length) }] } : null,
           topAgencias: toBarChart(data?.topAgenciasIncidentes, 'nombre', 'total', 'Incidentes'),
+          bottomAgencias: toBarChart(data?.bottomAgenciasIncidentes, 'nombre', 'total', 'Incidentes'),
           topPulidores: toBarChart(data?.topPulidoresIncidentes, 'nombre', 'total', 'Incidentes'),
+          bottomPulidores: toBarChart(data?.bottomPulidoresIncidentes, 'nombre', 'total', 'Incidentes'),
+          topBahias: toBarChart(data?.topBahiasIncidentes, 'nombre', 'total', 'Incidentes'),
+          bottomBahias: toBarChart(data?.bottomBahiasIncidentes, 'nombre', 'total', 'Incidentes'),
           // Fallas por gravedad. Reemplaza al antiguo "Ubicación de Daños", que repetía el MISMO desglose por
           // agencia que el gráfico de incidentes (el modelo IncidenteTecnico no tiene una ubicación del daño).
           incidentesPorGravedad: toDonutChart(data?.incidentesPorGravedad, 'nombre', 'cantidad'),
           agenciasIncidentesRaw: data?.topAgenciasIncidentes,
-          chartAprobaciones: data?.chartAprobaciones || null,
+          chartAprobaciones: data?.chartAprobaciones || data?.metricasAprobaciones?.chartAprobaciones || null,
           metricasAprobaciones: data?.metricasAprobaciones ? {
+            ...data.metricasAprobaciones,
             kpis: data.metricasAprobaciones.kpis,
-            flujoSolicitudes: data.metricasAprobaciones.flujoEstadosPorDia ? {
+            flujoSolicitudes: data.metricasAprobaciones.flujoSolicitudes || (data.metricasAprobaciones.flujoEstadosPorDia ? {
               labels: Object.keys(data.metricasAprobaciones.flujoEstadosPorDia).sort(),
               datasets: [
                 { label: 'Aprobado', data: Object.keys(data.metricasAprobaciones.flujoEstadosPorDia).sort().map(k => data.metricasAprobaciones.flujoEstadosPorDia[k].APROBADO), backgroundColor: '#10B981' },
                 { label: 'Rechazado', data: Object.keys(data.metricasAprobaciones.flujoEstadosPorDia).sort().map(k => data.metricasAprobaciones.flujoEstadosPorDia[k].RECHAZADO), backgroundColor: '#EF4444' },
                 { label: 'Pendiente', data: Object.keys(data.metricasAprobaciones.flujoEstadosPorDia).sort().map(k => data.metricasAprobaciones.flujoEstadosPorDia[k].PENDIENTE), backgroundColor: '#F59E0B' }
               ]
-            } : null,
+            } : null),
+            chartAprobaciones: data.metricasAprobaciones.chartAprobaciones || data.chartAprobaciones || null,
+            chartTipos: data.metricasAprobaciones.chartTipos || null,
+            chartTopSolicitantes: data.metricasAprobaciones.chartTopSolicitantes || toBarChart(data.metricasAprobaciones.topSolicitantes, 'nombre', 'cantidad', 'Solicitudes'),
+            chartMotivosRechazo: data.metricasAprobaciones.chartMotivosRechazo || null,
+            chartAuditoriaDecisiones: data.metricasAprobaciones.chartAuditoriaDecisiones || null,
             topAgencias: toBarChart(data.metricasAprobaciones.topAgencias, 'nombre', 'cantidad', 'Solicitudes'),
             topSolicitantes: toBarChart(data.metricasAprobaciones.topSolicitantes, 'nombre', 'cantidad', 'Solicitudes')
           } : null
@@ -223,10 +260,8 @@ export class DashboardOperativoService {
         return of({ vehiculosHoy: null, flujoHorario: null, distribucionModelos: null, tiemposBahias: null, topMaquinas: null, topAgencias: null, mixServicios: null, topMarcas: null, incidentesPorTipo: null });
       })
     );
-  }
-
-
-
+  }
+
     /**
    * Ranking de operadores por servicios atendidos (POST /agencias/operadores/list).
    */
@@ -259,26 +294,29 @@ export class DashboardOperativoService {
   /**
    * Ranking de lavadores por cantidad de servicios y tiempo promedio (POST /analytics/ranking-lavadores).
    */
-  getRankingLavadores(filtro: { agenciaId?: string; regionId?: string; fechaDesde?: string; fechaHasta?: string } = {}): Observable<any[]> {
+  getRankingLavadores(filtro: { agenciaId?: string; regionId?: string; fechaDesde?: string; fechaHasta?: string } = {}): Observable<{ranking: any[], rankingBottom: any[]}> {
     return this.http.post<any>(apiUrl('/analytics/ranking-lavadores'), filtro).pipe(
       map(res => {
-        if (!res?.ranking || !Array.isArray(res.ranking)) return [];
-        return res.ranking.map((r: any, index: number) => ({
+        const mapOp = (r: any, index: number) => ({
           posicion: index + 1,
           nombre: r.nombre,
           bahia: (r.agencia && r.bahia) ? `${r.agencia} · ${r.bahia}` : `${r.cantidadServicios} servicios`, // Subtítulo en el widget
           vehiculos: r.cantidadServicios,
           tiempoPromedioMin: r.tiempoPromedioMin
-        }));
+        });
+        return {
+          ranking: (res?.ranking || []).map(mapOp),
+          rankingBottom: (res?.rankingBottom || []).map(mapOp)
+        };
       }),
       catchError((err) => {
         this.avisarErrorCarga('No se pudo cargar el ranking de lavadores', err);
-        return of([]);
+        return of({ ranking: [], rankingBottom: [] });
       })
     );
   }
 
-  getRankingPulidores(filtro: any = {}): Observable<{fijos: any[], moviles: any[]}> {
+  getRankingPulidores(filtro: any = {}): Observable<{fijos: any[], bottomFijos: any[], moviles: any[], bottomMoviles: any[]}> {
     return this.http.post<any>(apiUrl('/analytics/ranking-pulidores'), filtro).pipe(
       map(res => {
         const mapOp = (op: any, index: number) => ({
@@ -290,12 +328,14 @@ export class DashboardOperativoService {
         });
         return {
           fijos: (res?.rankingFijos || []).map(mapOp),
-          moviles: (res?.rankingMoviles || []).map(mapOp)
+          bottomFijos: (res?.rankingBottomFijos || []).map(mapOp),
+          moviles: (res?.rankingMoviles || []).map(mapOp),
+          bottomMoviles: (res?.rankingBottomMoviles || []).map(mapOp)
         };
       }),
       catchError((err) => {
         this.avisarErrorCarga('No se pudo cargar el ranking de pulidores', err);
-        return of({ fijos: [], moviles: [] });
+        return of({ fijos: [], bottomFijos: [], moviles: [], bottomMoviles: [] });
       })
     );
   }
@@ -465,6 +505,38 @@ export class DashboardOperativoService {
               { label: 'Mantenimiento', data: d.costoPorAgencia.map((x: any) => x.mantenimiento), backgroundColor: CHART_COLORS.blue },
             ]
           } : null,
+          // Rankings completos (sin recortar) para el control Top 5 / Top 10 en orden descendente o ascendente.
+          // Los campos recortados de arriba se mantienen porque el panel ejecutivo los usa tal cual.
+          maquinasProblematicasRank: d?.maquinasProblematicasRank?.length ? {
+            labels: d.maquinasProblematicasRank.map((m: any) => m.nombre),
+            datasets: [{ label: 'Incidentes', data: d.maquinasProblematicasRank.map((m: any) => m.total), backgroundColor: coloresCategoricos(d.maquinasProblematicasRank.length) }]
+          } : null,
+          maquinasCostosasRank: d?.maquinasCostosasRank?.length ? {
+            labels: d.maquinasCostosasRank.map((m: any) => m.nombre),
+            datasets: [{ label: 'Costo USD', data: d.maquinasCostosasRank.map((m: any) => m.costoTotal), backgroundColor: coloresCategoricos(d.maquinasCostosasRank.length) }]
+          } : null,
+          mttrAgenciaRank: d?.mttrAgenciaRank?.length ? (() => {
+            const items = d.mttrAgenciaRank;
+            const horas = items.map((x: any) => Number(x.horas) || 0);
+            const max = Math.max(...horas);
+            const min = Math.min(...horas);
+            return {
+              labels: items.map((x: any) => x.nombre),
+              datasets: [{
+                label: 'Horas promedio',
+                data: horas,
+                backgroundColor: horas.map((h: number) => interpolarHex(CHART_COLORS.amber, CHART_COLORS.rose, max > min ? (h - min) / (max - min) : 0)),
+                borderRadius: 6,
+              }],
+            };
+          })() : null,
+          costoAgenciaRank: d?.costoAgenciaRank?.length ? {
+            labels: d.costoAgenciaRank.map((x: any) => x.nombre),
+            datasets: [
+              { label: 'Reparaciones (fallas)', data: d.costoAgenciaRank.map((x: any) => x.reparaciones), backgroundColor: CHART_COLORS.amber },
+              { label: 'Mantenimiento', data: d.costoAgenciaRank.map((x: any) => x.mantenimiento), backgroundColor: CHART_COLORS.blue },
+            ],
+          } : null,
         };
       }),
       catchError((err) => {
@@ -492,9 +564,11 @@ export class DashboardOperativoService {
           chartTopInsumosCriticos: toBar(d?.topInsumosCriticos, 'nombre', 'alertas', 'Alertas'),
           chartTopAgenciasConAlertas: toBar(d?.topAgenciasConAlertas, 'nombre', 'alertas', 'Alertas'),
           chartTopInsumosConsumo: toBar(d?.topInsumosConsumo, 'nombre', 'cantidad', 'Unidades'),
+          chartTopInsumosConsumoRank: toBar(d?.topInsumosConsumoRank ?? d?.topInsumosConsumo, 'nombre', 'cantidad', 'Unidades'),
           chartDespachosEstado: toDonut(d?.despachosEstado, 'nombre', 'cantidad'),
           chartConsumoPorCategoria: toBar(d?.consumoPorCategoria, 'nombre', 'cantidad', 'Unidades'),
           chartTopAgenciasConsumo: toBar(d?.topAgenciasConsumo, 'nombre', 'cantidad', 'Unidades'),
+          chartTopAgenciasConsumoRank: toBar(d?.topAgenciasConsumoRank ?? d?.topAgenciasConsumo, 'nombre', 'cantidad', 'Unidades'),
           chartUnidadesStockPorCategoria: toBar(d?.unidadesStockPorCategoria, 'nombre', 'cantidad', 'Unidades'),
           ...this.mapSaludInventario(d),
         };
@@ -517,6 +591,12 @@ export class DashboardOperativoService {
     const estados = ['AGOTADO', 'CRÍTICO', 'BAJO MÍNIMO', 'BAJO IDEAL', 'ÓPTIMO', 'SOBRESTOCK'];
     const salud: any[] = d?.saludStock ?? [];
     const ubic: any[] = d?.saludPorUbicacion ?? [];
+    // Extremos (10 mayores ∪ 10 menores) y listas completas cortas, para el control Top N del dashboard de
+    // bodega. No se reutilizan las series recortadas: sobre un top 8 el orden ascendente mostraría como
+    // "mejores" entidades que solo quedaron fuera del recorte.
+    const ubicTop: any[] = d?.saludPorUbicacionExtremos ?? [];
+    const cobTop: any[] = d?.coberturaDiasRank ?? d?.coberturaDias ?? [];
+    const defTop: any[] = d?.topDeficitRank ?? d?.topDeficit ?? [];
     const cat: any[] = d?.stockVsIdealCategoria ?? [];
     const def: any[] = d?.topDeficit ?? [];
     const alc: any[] = d?.alertasPorCategoriaNivel ?? [];
@@ -531,6 +611,10 @@ export class DashboardOperativoService {
         labels: ubic.map((u) => u.nombre),
         datasets: estados.slice(0, 4).map((e) => ({ label: e, data: ubic.map((u) => u[e] ?? 0), backgroundColor: this.COLOR_SALUD[e] })),
       } : null,
+      chartSaludPorUbicacionRank: ubicTop.length ? {
+        labels: ubicTop.map((u) => u.nombre),
+        datasets: estados.slice(0, 4).map((e) => ({ label: e, data: ubicTop.map((u) => u[e] ?? 0), backgroundColor: this.COLOR_SALUD[e] })),
+      } : null,
       chartStockVsIdeal: cat.length ? {
         labels: cat.map((c) => c.nombre),
         datasets: [
@@ -543,11 +627,19 @@ export class DashboardOperativoService {
         labels: cob.map((x) => x.nombre),
         datasets: [{ label: 'Días de cobertura', data: cob.map((x) => x.dias), backgroundColor: cob.map((x) => x.dias < 7 ? CHART_COLORS.rose : x.dias < 15 ? CHART_COLORS.amber : CHART_COLORS.green) }],
       } : null,
+      chartCoberturaRank: cobTop.length ? {
+        labels: cobTop.map((x) => x.nombre),
+        datasets: [{ label: 'Días de cobertura', data: cobTop.map((x) => x.dias), backgroundColor: cobTop.map((x) => x.dias < 7 ? CHART_COLORS.rose : x.dias < 15 ? CHART_COLORS.amber : CHART_COLORS.green) }],
+      } : null,
       chartTopDeficit: def.length ? {
         // Cada barra es un insumo, así que el símbolo de su unidad de medida va en la etiqueta: el faltante
         // se mide en la unidad base del insumo (und, ml) y no se convierte a USD.
         labels: def.map((x) => `${x.nombre} · ${x.unidad}`),
         datasets: [{ label: 'Unidades a reponer', data: def.map((x) => x.unidades), backgroundColor: coloresCategoricos(def.length) }],
+      } : null,
+      chartTopDeficitRank: defTop.length ? {
+        labels: defTop.map((x) => `${x.nombre} · ${x.unidad}`),
+        datasets: [{ label: 'Unidades a reponer', data: defTop.map((x) => x.unidades), backgroundColor: coloresCategoricos(defTop.length) }],
       } : null,
       chartAlertasCategoriaNivel: alc.length ? {
         labels: alc.map((x) => x.nombre),
@@ -574,11 +666,12 @@ export class DashboardOperativoService {
 
         return {
           kpis: d?.kpis ?? {},
-          chartFlujoSemanal: d?.flujoSemanal && d.flujoSemanal.length > 0 ? {
-            labels: d.flujoSemanal.map((f: any) => f.hora),
-            datasets: [{ label: 'OTs creadas', data: d.flujoSemanal.map((f: any) => f.cantidad), backgroundColor: CHART_COLORS.green, borderRadius: 6 }]
+          chartFlujoSemanal: ((d?.flujoPeriodo && d.flujoPeriodo.length > 0) ? d.flujoPeriodo : (d?.flujoSemanal || [])).length > 0 ? {
+            labels: ((d?.flujoPeriodo && d.flujoPeriodo.length > 0) ? d.flujoPeriodo : d.flujoSemanal).map((f: any) => f.hora),
+            datasets: [{ label: 'OTs creadas', data: ((d?.flujoPeriodo && d.flujoPeriodo.length > 0) ? d.flujoPeriodo : d.flujoSemanal).map((f: any) => f.cantidad), backgroundColor: CHART_COLORS.green, borderRadius: 6 }]
           } : null,
           chartTipoServicio: toDonut(d?.tipoServicio, 'nombre', 'cantidad'),
+          tipoServicio: d?.tipoServicio || [],
           chartEstadosHoy: toDonut(d?.estadosHoy, 'nombre', 'cantidad'),
           chartPrioridad: toBar(d?.prioridad, 'nombre', 'cantidad', 'OTs'),
           chartTopOperadores: toBar(d?.topOperadores, 'nombre', 'servicios', 'Servicios'),
@@ -617,33 +710,26 @@ export class DashboardOperativoService {
       map(([alertas, consumo]) => {
         const criticos = (alertas || []).filter((a: any) => (a.nivel || '').toUpperCase() === 'CRITICO').length;
         const insumosList = Array.isArray(consumo?.insumos) ? consumo.insumos : [];
-        const topInsumos = [...insumosList].sort((a, b) => b.cantidadTotal - a.cantidadTotal).slice(0, 5);
-        const bottomInsumos = [...insumosList].sort((a, b) => a.cantidadTotal - b.cantidadTotal).filter(i => i.cantidadTotal > 0).slice(0, 5);
+        // Serie completa ordenada de mayor a menor: el Top 5 / Top 10 y el sentido del orden se resuelven en el
+        // dashboard, así que aquí no se recorta. Los nombres van completos —el gráfico es horizontal y su
+        // contenedor se desplaza— porque truncarlos ocultaba de qué insumo se trataba.
+        const insumosOrdenados = [...insumosList]
+          .sort((a, b) => Number(b.cantidadTotal || 0) - Number(a.cantidadTotal || 0));
 
-        const truncate = (str: string, len: number) => str.length > len ? str.substring(0, len) + '...' : str;
-        
         return {
           skusCriticos: criticos,
-          chartConsumoInsumos: {
-            labels: topInsumos.map(c => truncate(c.nombre, 15)),
+          chartConsumoInsumos: insumosOrdenados.length > 0 ? {
+            labels: insumosOrdenados.map((c) => c.nombre),
             datasets: [{
-              label: 'Más Consumidos',
-              data: topInsumos.map(c => Number(c.cantidadTotal || 0)),
-              backgroundColor: coloresCategoricos(topInsumos.length)
-            }]
-          },
-          chartInsumosMenosConsumidos: bottomInsumos.length > 0 ? {
-            labels: bottomInsumos.map(c => truncate(c.nombre, 15)),
-            datasets: [{
-              label: 'Menos Consumidos',
-              data: bottomInsumos.map(c => Number(c.cantidadTotal || 0)),
-              backgroundColor: coloresCategoricos(bottomInsumos.length).reverse()
+              label: 'Unidades consumidas',
+              data: insumosOrdenados.map((c) => Number(c.cantidadTotal || 0)),
+              backgroundColor: coloresCategoricos(insumosOrdenados.length)
             }]
           } : null,
           chartConsumoPorAgencia: consumo?.consumoPorAgencia && consumo.consumoPorAgencia.length > 0 ? {
-            labels: consumo.consumoPorAgencia.map((a: any) => truncate(a.nombre, 15)),
+            labels: consumo.consumoPorAgencia.map((a: any) => a.nombre),
             datasets: [{
-              label: 'Cantidad (Unidades)',
+              label: 'Unidades consumidas',
               data: consumo.consumoPorAgencia.map((a: any) => a.costo),
               backgroundColor: coloresCategoricos(consumo.consumoPorAgencia.length)
             }]
@@ -710,13 +796,16 @@ export class DashboardOperativoService {
         }
 
         if (data.isComercialView) {
+          const ventaMonto = k.ingresoHoy !== undefined && k.ingresoHoy !== null ? `$${k.ingresoHoy}` : (k.ingresoMes ? `$${k.ingresoMes}` : '$0');
+          const ticketMonto = k.ticketPromedioHoy !== undefined && k.ticketPromedioHoy !== null ? `$${k.ticketPromedioHoy}` : '$0';
           return { kpis: [
+            { label: 'Ventas del Período', value: ventaMonto, icon: 'dollar-sign', variant: 'success', tooltip: 'Ingresos totales generados en el período consultado' },
+            { label: 'Ticket Promedio', value: ticketMonto, icon: 'file-text', variant: 'primary', tooltip: 'Monto promedio de venta por servicio finalizado' },
             { label: 'Lavados Hoy', value: String(k.serviciosHoy ?? 0), icon: 'car', variant: 'primary' },
             { label: 'Lavados del período', value: String(k.servicios30Dias ?? 0), icon: 'bar-chart-2', variant: 'success' },
-            { label: 'Descuentos Pendientes', value: String(k.descuentosPendientes ?? 0), icon: 'clock', variant: 'warning' },
+            { label: 'Descuentos Pendientes', value: String(k.descuentosPendientes ?? 0), icon: 'clock', variant: 'warning', tooltip: 'Solicitudes de descuento o precio especial pendientes' },
             { label: 'Químicos Consumidos', value: `${k.unidadesQuimicos ?? 0} u.`, icon: 'droplet', variant: 'primary', tooltip: 'Unidades de insumos consumidas en el período' },
             { label: 'Cumplimiento SLA', value: slaTexto, icon: 'shield-check', variant: slaVariant, tooltip: '% de vehículos entregados dentro del tiempo prometido' },
-            { label: 'Desviación vs Estimado', value: desviacionTexto, icon: 'clock', variant: 'warning', tooltip: 'Promedio de minutos de adelanto (-) o retraso (+) vs lo esperado' },
             { label: '% Premium/Especiales', value: k.premiumPct === null || k.premiumPct === undefined ? 'Sin datos' : `${k.premiumPct}%`, icon: 'sparkles', variant: 'primary', tooltip: 'Porcentaje de servicios que pertenecen al catálogo Especial/Premium' },
           ]};
         }

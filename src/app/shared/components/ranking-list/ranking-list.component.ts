@@ -24,9 +24,12 @@ export interface RankingItem {
           <h4 class="font-bold text-slate-900 text-base font-outfit">{{ titulo }}</h4>
           @if (subtitulo) { <p class="text-xs text-slate-500 mt-0.5">{{ subtitulo }}</p> }
         </div>
-        @if (mostrarPosicion) {
-          <span class="text-[11px] font-semibold text-slate-400 shrink-0">Ranking</span>
-        }
+        <div class="flex items-center gap-2 shrink-0">
+          <ng-content select="[ranking-actions]"></ng-content>
+          @if (mostrarPosicion) {
+            <span class="text-[11px] font-semibold text-slate-400 shrink-0">Ranking</span>
+          }
+        </div>
       </div>
 
       <div class="flex-1 divide-y divide-slate-100">

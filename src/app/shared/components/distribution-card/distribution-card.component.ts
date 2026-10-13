@@ -29,31 +29,59 @@ export interface DistributionItem {
       </div>
 
       @if (items.length) {
-        <div class="flex flex-col sm:flex-row items-center gap-6 flex-1">
-          <div class="relative w-40 h-40 shrink-0" role="img" [attr.aria-label]="titulo">
-            <div class="w-full h-full rounded-full" [style.background]="gradiente"></div>
-            <div class="absolute inset-[18%] rounded-full bg-white flex flex-col items-center justify-center shadow-inner">
-              <span class="text-2xl font-extrabold text-slate-900 font-outfit leading-none">{{ total | number:'1.0-0' }}</span>
-              <span class="text-[10px] font-semibold uppercase tracking-wide text-slate-400 mt-1">{{ etiquetaTotal }}</span>
+        @if (layout === 'stacked') {
+          <div class="flex flex-col items-center gap-4 flex-1 w-full">
+            <div class="relative w-32 h-32 shrink-0 my-1" role="img" [attr.aria-label]="titulo">
+              <div class="w-full h-full rounded-full" [style.background]="gradiente"></div>
+              <div class="absolute inset-[18%] rounded-full bg-white flex flex-col items-center justify-center shadow-inner">
+                <span class="text-2xl font-extrabold text-slate-900 font-outfit leading-none">{{ total | number:'1.0-0' }}</span>
+                <span class="text-[10px] font-semibold uppercase tracking-wide text-slate-400 mt-1">{{ etiquetaTotal }}</span>
+              </div>
+            </div>
+
+            <div class="w-full min-w-0 divide-y divide-slate-100">
+              @for (it of items; track it.nombre; let i = $index) {
+                <div class="py-2">
+                  <div class="flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full shrink-0" [style.background]="colorDe(it, i)"></span>
+                    <span class="text-xs font-semibold text-slate-700 truncate flex-1" [title]="it.nombre">{{ it.nombre }}</span>
+                    <span class="text-xs font-bold text-slate-900 shrink-0">{{ it.valor | number:'1.0-2' }}</span>
+                    <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 shrink-0">{{ porcentaje(it.valor) }}%</span>
+                  </div>
+                  <div class="mt-1.5 h-1 rounded-full bg-slate-100 overflow-hidden">
+                    <div class="h-full rounded-full transition-all duration-500" [style.background]="colorDe(it, i)" [style.width.%]="porcentaje(it.valor)"></div>
+                  </div>
+                </div>
+              }
             </div>
           </div>
-
-          <div class="flex-1 w-full min-w-0 divide-y divide-slate-100">
-            @for (it of items; track it.nombre; let i = $index) {
-              <div class="py-2">
-                <div class="flex items-center gap-2">
-                  <span class="w-2.5 h-2.5 rounded-full shrink-0" [style.background]="colorDe(it, i)"></span>
-                  <span class="text-sm font-semibold text-slate-700 truncate flex-1">{{ it.nombre }}</span>
-                  <span class="text-sm font-bold text-slate-900 shrink-0">{{ it.valor | number:'1.0-2' }}</span>
-                  <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 shrink-0">{{ porcentaje(it.valor) }}%</span>
-                </div>
-                <div class="mt-1.5 h-1 rounded-full bg-slate-100 overflow-hidden">
-                  <div class="h-full rounded-full" [style.background]="colorDe(it, i)" [style.width.%]="porcentaje(it.valor)"></div>
-                </div>
+        } @else {
+          <div class="flex flex-col sm:flex-row items-center gap-6 flex-1">
+            <div class="relative w-40 h-40 shrink-0" role="img" [attr.aria-label]="titulo">
+              <div class="w-full h-full rounded-full" [style.background]="gradiente"></div>
+              <div class="absolute inset-[18%] rounded-full bg-white flex flex-col items-center justify-center shadow-inner">
+                <span class="text-2xl font-extrabold text-slate-900 font-outfit leading-none">{{ total | number:'1.0-0' }}</span>
+                <span class="text-[10px] font-semibold uppercase tracking-wide text-slate-400 mt-1">{{ etiquetaTotal }}</span>
               </div>
-            }
+            </div>
+
+            <div class="flex-1 w-full min-w-0 divide-y divide-slate-100">
+              @for (it of items; track it.nombre; let i = $index) {
+                <div class="py-2">
+                  <div class="flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full shrink-0" [style.background]="colorDe(it, i)"></span>
+                    <span class="text-sm font-semibold text-slate-700 truncate flex-1" [title]="it.nombre">{{ it.nombre }}</span>
+                    <span class="text-sm font-bold text-slate-900 shrink-0">{{ it.valor | number:'1.0-2' }}</span>
+                    <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 shrink-0">{{ porcentaje(it.valor) }}%</span>
+                  </div>
+                  <div class="mt-1.5 h-1 rounded-full bg-slate-100 overflow-hidden">
+                    <div class="h-full rounded-full transition-all duration-500" [style.background]="colorDe(it, i)" [style.width.%]="porcentaje(it.valor)"></div>
+                  </div>
+                </div>
+              }
+            </div>
           </div>
-        </div>
+        }
       } @else {
         <div class="py-10 text-center">
           <i-lucide name="pie-chart" class="w-8 h-8 text-slate-300 mx-auto mb-2" aria-hidden="true"></i-lucide>
@@ -66,8 +94,11 @@ export interface DistributionItem {
 export class DistributionCardComponent {
   @Input() titulo = '';
   @Input() subtitulo = '';
+  @Input() set title(val: string) { if (val) this.titulo = val; }
+  @Input() set subtitle(val: string) { if (val) this.subtitulo = val; }
   @Input() etiquetaTotal = 'Total';
   @Input() items: DistributionItem[] = [];
+  @Input() layout: 'auto' | 'side' | 'stacked' = 'auto';
 
   get total(): number {
     return this.items.reduce((sum, it) => sum + (Number(it.valor) || 0), 0);

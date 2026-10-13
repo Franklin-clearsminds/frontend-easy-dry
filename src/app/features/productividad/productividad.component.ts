@@ -643,8 +643,8 @@ export class ProductividadComponent implements OnInit, OnDestroy {
   }
 
   cargarRankingLavadores(filtro: { agenciaId?: string; regionId?: string; fechaDesde?: string; fechaHasta?: string } = {}): void {
-    this.dashboardOperativoService.getRankingLavadores(filtro).subscribe(ranking => {
-      this.rankingLavadores = ranking;
+    this.dashboardOperativoService.getRankingLavadores(filtro).subscribe(data => {
+      this.rankingLavadores = data.ranking;
     });
   }
 

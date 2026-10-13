@@ -66,6 +66,8 @@ export class ChartCardComponent implements AfterViewInit, OnChanges, OnDestroy {
   @ViewChild('chartCanvas') chartCanvas!: ElementRef<HTMLCanvasElement>;
   private chartInstance?: Chart;
   private viewReady = false;
+  private resizeObserver?: ResizeObserver;
+  private wasHidden = false;
 
   /** Hay datos si alguna serie trae al menos un valor distinto de cero (los negativos también cuentan). */
   get hayDatos(): boolean {
@@ -92,6 +94,7 @@ export class ChartCardComponent implements AfterViewInit, OnChanges, OnDestroy {
   ngAfterViewInit(): void {
     this.viewReady = true;
     this.renderChart();
+    this.setupResizeObserver();
   }
 
   ngOnChanges(changes: SimpleChanges): void {
@@ -108,7 +111,35 @@ export class ChartCardComponent implements AfterViewInit, OnChanges, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.resizeObserver?.disconnect();
     this.destroyChart();
+  }
+
+  /**
+   * Observa cambios de tamaño del contenedor para detectar cuando el panel pasa de
+   * oculto (hidden / display:none) a visible. Cuando esto ocurre, re-renderiza el
+   * gráfico para que Chart.js calcule las dimensiones reales del canvas.
+   */
+  private setupResizeObserver(): void {
+    if (!this.chartCanvas?.nativeElement || typeof ResizeObserver === 'undefined') return;
+
+    const canvas = this.chartCanvas.nativeElement;
+    this.wasHidden = canvas.offsetWidth === 0 || canvas.offsetHeight === 0;
+
+    this.resizeObserver = new ResizeObserver(() => {
+      const isNowVisible = canvas.offsetWidth > 0 && canvas.offsetHeight > 0;
+      if (isNowVisible && this.wasHidden) {
+        // El panel pasó de oculto a visible: re-renderizar con dimensiones reales
+        this.wasHidden = false;
+        this.renderChart();
+      } else if (!isNowVisible) {
+        this.wasHidden = true;
+      }
+    });
+
+    // Observar el contenedor relativo más cercano para detectar cambios de visibilidad
+    const target = canvas.closest('.relative') ?? canvas;
+    this.resizeObserver.observe(target);
   }
 
   private destroyChart(): void {

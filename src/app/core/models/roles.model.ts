@@ -99,8 +99,8 @@ export const DEFAULT_ROUTE_POR_ROL: Record<string, string> = {
   [Role.PULIDOR]: '/servicios',
   [Role.COORD_MANTENIMIENTO]: '/taller-tecnico',
   [Role.TECNICO]: '/taller-tecnico',
-  [Role.COORD_BODEGA]: '/inventario',
-  [Role.ASISTENTE_BODEGA]: '/inventario'
+  [Role.COORD_BODEGA]: '/dashboard',
+  [Role.ASISTENTE_BODEGA]: '/dashboard'
 };
 
 /** Permisos granulares de acción por módulo (Ver vs Crear / Editar / Configurar) */
