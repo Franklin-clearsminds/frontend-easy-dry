@@ -1324,7 +1324,7 @@ export class SucursalesComponent implements OnInit, OnDestroy {
   get puedeEditarCliente(): boolean { return this.auth.puede('agencias.clientes.editar'); }
   get puedeGestionarClientes(): boolean { return this.puedeCrearCliente || this.puedeEditarCliente || this.auth.puede('agencias.clientes.estado'); }
   get puedeAsignarPersonas(): boolean { return this.auth.puede('agencias.aprobadores.asignar'); }
-  get puedeVerUsuarios(): boolean { return this.auth.puede('usuarios.ver'); }
+  get puedeVerUsuarios(): boolean { return this.auth.puedeAlguno('agencias.personal.ver', 'agencias.aprobadores.asignar'); }
   /** Al crear una agencia se define el número de bahías; al editar, aumentarlo crea bahías nuevas y exige 'bahias.crear'. */
   get puedeCrearBahias(): boolean { return !this.editandoSucursal || this.auth.puede('agencias.bahias.crear'); }
   guardando = false;

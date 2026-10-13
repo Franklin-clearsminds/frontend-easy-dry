@@ -101,20 +101,24 @@ import { jsPDF } from 'jspdf';
                   <td class="py-3.5 px-4 text-right">
                     <div class="flex items-center justify-end gap-2">
                       <!-- Export Excel -->
+                      @if (puedeExcel) {
                       <button 
                         (click)="exportarExcel(rep)" 
                         title="Exportar Excel" 
                         class="p-1.5 min-w-9 min-h-9 inline-flex items-center justify-center bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg transition-colors cursor-pointer flex items-center justify-center" aria-label="Exportar Excel">
                         <i-lucide aria-hidden="true" name="file-spreadsheet" class="w-4 h-4"></i-lucide>
                       </button>
+                      }
 
                       <!-- Export PDF -->
+                      @if (puedePdf) {
                       <button 
                         (click)="exportarPDF(rep)" 
                         title="Exportar PDF" 
                         class="p-1.5 min-w-9 min-h-9 inline-flex items-center justify-center bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg transition-colors cursor-pointer flex items-center justify-center" aria-label="Exportar PDF">
                         <i-lucide aria-hidden="true" name="file-text" class="w-4 h-4"></i-lucide>
                       </button>
+                      }
                     </div>
                   </td>
                 </tr>
@@ -180,6 +184,9 @@ export class ReportesComponent implements OnInit {
   private sucursalService = inject(SucursalService);
   private storageUploadService = inject(StorageUploadService);
   private authService = inject(AuthService);
+
+  get puedeExcel(): boolean { return this.authService.puede('reportes.excel'); }
+  get puedePdf(): boolean { return this.authService.puede('reportes.pdf'); }
 
   /** Los reportes se arman con los indicadores del dashboard (mismo permiso que exige el servidor). */
   get puedeGenerar(): boolean {

@@ -1110,7 +1110,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     return 'ninguna';
   }
 
-  get puedeVerAlertas(): boolean { return this.auth.puede('alertas.ver'); }
+  get puedeVerAlertas(): boolean { return this.auth.puede('dashboard.alertas.ver'); }
   get puedeVerMaquinaria(): boolean { return this.auth.puede('maquinaria.ver'); }
   get puedeVerInventario(): boolean { return this.auth.puede('inventario.ver'); }
   get puedeVerUsuarios(): boolean { return this.auth.puede('usuarios.ver'); }
