@@ -991,7 +991,7 @@ import { ConsultaAgencias } from '../../core/services/sucursal.service';
                     <input type="checkbox" class="mt-0.5 rounded border-slate-300 text-easydry-blue focus:ring-easydry-blue" [checked]="servicioSeleccionado(s.id)" [disabled]="editandoSucursal && !puedeHabilitarServicios" (change)="toggleServicio(s.id, s.nombre)">
                     <span class="text-xs font-semibold text-slate-800">{{ s.nombre }}</span>
                   </label>
-                  @if (editandoSucursal && puedeGestionarPrecios && servicioSeleccionado(s.id)) {
+                  @if (puedeGestionarPrecios && servicioSeleccionado(s.id)) {
                     <div class="flex items-center gap-1 shrink-0" title="Precio para esta agencia">
                       <span class="text-xs text-slate-500">$</span>
                       <input type="number" min="0" step="0.01"
@@ -1970,6 +1970,7 @@ export class SucursalesComponent implements OnInit, OnDestroy {
           this.guardando = false;
           this.bahiaService.sincronizarBahias(actualizada.id, actualizada.nombre, actualizada.cantidadBahias);
           this.toastService.success('Agencia Actualizada', 'Se guardaron los cambios de ' + actualizada.nombre + '.');
+          this.guardarPreciosPendientesTras(actualizada.id);
           this.cerrarModal();
           this.cargarTodo();
         },
@@ -1984,6 +1985,7 @@ export class SucursalesComponent implements OnInit, OnDestroy {
           this.guardando = false;
           this.bahiaService.sincronizarBahias(creada.id, creada.nombre, creada.cantidadBahias);
           this.toastService.success('Agencia Registrada', 'Se configuró ' + creada.nombre + ' correctamente.');
+          this.guardarPreciosPendientesTras(creada.id);
           this.cerrarModal();
           this.cargarTodo();
         },
@@ -2217,6 +2219,23 @@ export class SucursalesComponent implements OnInit, OnDestroy {
 
   get hayPreciosPendientes(): boolean {
     return Object.keys(this.preciosEditados).length > 0;
+  }
+
+  /**
+   * Los precios escritos en el formulario se guardan junto con la agencia: antes solo se guardaban con el botón «Guardar precios»,
+   * y si el servicio recién marcado aún no existía en la agencia, el valor escrito se perdía en silencio al guardar.
+   */
+  private guardarPreciosPendientesTras(agenciaId: string | number): void {
+    if (!this.puedeGestionarPrecios || !this.hayPreciosPendientes) return;
+    const seleccionados = new Set((this.nuevaSucursal.servicioIds || []).map(Number));
+    const precios = Object.entries(this.preciosEditados)
+      .map(([catalogoServicioId, precio]) => ({ catalogoServicioId: Number(catalogoServicioId), precio }))
+      .filter(p => seleccionados.has(p.catalogoServicioId));
+    this.preciosEditados = {};
+    if (!precios.length) return;
+    this.sucursalService.setPreciosServicios(agenciaId, precios).subscribe({
+      error: (err) => this.toastService.error('Precios sin guardar', this.mensajeError(err, 'La agencia se guardó, pero el servidor no aceptó los precios.')),
+    });
   }
 
   guardarPreciosServicios(): void {
