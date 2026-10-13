@@ -5504,7 +5504,7 @@ export class InventarioComponent implements OnInit, OnDestroy {
   }
 
   public cargarRegiones(): void {
-    this.regionService.getRegiones().subscribe({
+    this.regionService.getRegionesLista().subscribe({
       next: (regs) => {
         this.regionesDisponibles = (regs || []).filter((r) => r.estado === 'Activa' || (r.estado as any) === 1);
         if (!this.bodegaForm.regionId && this.regionesDisponibles.length > 0) {

@@ -1747,7 +1747,7 @@ export class UsuariosComponent implements OnInit, OnDestroy {
     // Catálogo de módulos y permisos: solo con 'roles.ver' (lo exige el servidor).
     this.cargarCatalogoPermisos();
 
-    this.regionService.getRegiones().subscribe(list => {
+    this.regionService.getRegionesLista().subscribe(list => {
       if (list && list.length) {
         this.regionesDisponibles = list.filter(r => r.estado === 'Activa' || (r as any).estado === 1);
       }

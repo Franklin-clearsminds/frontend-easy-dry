@@ -4,6 +4,7 @@ import { BehaviorSubject, Observable, of } from 'rxjs';
 import { map, tap, catchError } from 'rxjs/operators';
 import { ClienteSucursal } from '../models';
 import { apiUrl } from '../config/env';
+import { OpcionesService } from './opciones.service';
 import { ConsultaTabla } from '../models/paginacion.model';
 import { PaginaConResumen, cuerpoConsulta, postPagina } from '../utils/tabla-servidor';
 
@@ -12,6 +13,7 @@ import { PaginaConResumen, cuerpoConsulta, postPagina } from '../utils/tabla-ser
 })
 export class ClienteService {
   private http = inject(HttpClient);
+  private opciones = inject(OpcionesService);
   private clientesSubject = new BehaviorSubject<ClienteSucursal[]>([]);
   public clientes$ = this.clientesSubject.asObservable();
   public marcas$ = this.clientes$; // alias retrocompatible
@@ -32,6 +34,22 @@ export class ClienteService {
       map(items => (items || []).map(m => this.mapBackendCliente(m))),
       tap(mapped => this.clientesSubject.next(mapped)),
       catchError(() => of(this.clientesSubject.value))
+    );
+  }
+
+  /** Clientes para desplegables y filtros. No exige la pestaña «Clientes», que es la única que usa `getClientes()`. */
+  getClientesLista(): Observable<ClienteSucursal[]> {
+    return this.opciones.todas('/agencias/clientes/opciones').pipe(
+      map((ops) => ops.map((o): ClienteSucursal => ({
+        id: o.value,
+        codigo: `CL-${o.value.slice(-4)}`,
+        nombre: o.label,
+        descripcion: '',
+        color: '#004282',
+        estado: o.estado === 0 ? 'Inactiva' : 'Activa',
+      }))),
+      tap((mapped) => this.clientesSubject.next(mapped)),
+      catchError(() => of(this.clientesSubject.value)),
     );
   }
 
