@@ -574,7 +574,7 @@ export class ProductividadComponent implements OnInit, OnDestroy {
 
   // Permisos: los mismos que exige el servidor en cada endpoint.
   get canCreateReto(): boolean { return this.authService.puede('retos.crear'); }
-  get puedeVerRetos(): boolean { return this.authService.puede('retos.ver'); }
+  get puedeVerRetos(): boolean { return this.authService.puede('pagina.productividad.retos'); }
   get puedeVerProductividad(): boolean { return this.authService.puede('productividad.ver'); }
 
   readonly etiquetaParticipante = ETIQUETA_PARTICIPANTE;
