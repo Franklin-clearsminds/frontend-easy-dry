@@ -761,8 +761,6 @@ export class OperadoresComponent implements OnInit, OnDestroy {
 
   rolesOperativosPulidor: string[] = [
     'PULIDOR',
-    'PULIDOR_FIJO',
-    'PULIDOR_MOVIL',
     'Pulidor de Detallado & Acabado',
     'Pulidor Técnico Especialista'
   ];
@@ -790,7 +788,7 @@ export class OperadoresComponent implements OnInit, OnDestroy {
   /** Solo los lavadores trabajan en bahía. */
   esLavador(rol?: string | null): boolean {
     const r = (rol || '').trim().toUpperCase();
-    return r === 'LAVADOR' || r === 'OPERADOR' || r.startsWith('LAVADOR ');
+    return r === 'LAVADOR' || r.startsWith('LAVADOR ');
   }
 
   get rolesOperativos(): string[] {
@@ -974,7 +972,7 @@ export class OperadoresComponent implements OnInit, OnDestroy {
       nombre: op.nombre,
       cedula: op.cedula,
       telefono: op.telefono || '',
-      rol: op.rol || 'OPERADOR',
+      rol: op.rol || 'LAVADOR',
       sucursalNombre: op.sucursal,
       sucursalId: suc ? String(suc.id) : String(op.sucursalId || ''),
       bahiaNombre: op.bahia || 'Sin Bahía Asignada',

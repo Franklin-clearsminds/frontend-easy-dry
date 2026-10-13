@@ -2,23 +2,23 @@ import { Role } from '../models/roles.model';
 
 /** Roles operativos de la app móvil — también pueden ingresar a la web con las mismas credenciales. */
 export const MOBILE_APP_ROLES: Role[] = [
-  Role.OPERADOR,
+  Role.LAVADOR,
   Role.TECNICO,
   Role.COORD_MANTENIMIENTO,
-  Role.OPERADOR_SERVICIOS_ESPECIALES,
+  Role.PULIDOR,
   Role.COORD_SERVICIOS_ESPECIALES,
-  Role.DISTRIBUIDOR,
+  Role.COORD_BODEGA,
   Role.ASISTENTE_BODEGA,
 ];
 
 /** Orden de visualización en login (igual que la app móvil). */
 export const MOBILE_APP_ROLES_ORDER: Role[] = [
-  Role.OPERADOR,
+  Role.LAVADOR,
   Role.TECNICO,
   Role.COORD_MANTENIMIENTO,
-  Role.OPERADOR_SERVICIOS_ESPECIALES,
+  Role.PULIDOR,
   Role.COORD_SERVICIOS_ESPECIALES,
-  Role.DISTRIBUIDOR,
+  Role.COORD_BODEGA,
   Role.ASISTENTE_BODEGA,
 ];
 

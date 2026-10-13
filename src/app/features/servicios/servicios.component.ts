@@ -5089,19 +5089,11 @@ export class ServiciosComponent implements OnInit, OnDestroy {
       this.toastService.warning('Campos Incompletos', 'Ingrese el Nº de Orden de Trabajo (OT).');
       return;
     }
+    
     const otUpper = this.extraFormOT.trim().toUpperCase();
 
-    // Validar unicidad de OT en el cliente antes de enviar
-    const existeEnEspeciales = this.serviciosExtras.some(e =>
-      (e.codigoSE || (e as any).ordenTrabajoOT)?.toUpperCase() === otUpper && e.estado !== 'Cancelado'
-    );
-    const existeEnGenerales = this.servicios.some(s =>
-      s.ordenTrabajoOT?.toUpperCase() === otUpper && s.estado !== 'CANCELADO'
-    );
-    if (existeEnEspeciales || existeEnGenerales) {
-      this.toastService.warning('Orden de Trabajo Duplicada', `La OT "${otUpper}" ya se encuentra registrada en el sistema. Ingrese un número de OT único.`);
-      return;
-    }
+    // La unicidad de la OT la valida el servidor (fuente de verdad, sobre toda la base y no solo las últimas filas
+    // cargadas): la OT de un servicio especial es independiente de la de lavado, así que no se compara con esta.
 
     if (!this.extraForm.servicioNombre?.trim()) {
       this.toastService.warning('Datos incompletos', 'Ingrese el tipo de servicio especial.');

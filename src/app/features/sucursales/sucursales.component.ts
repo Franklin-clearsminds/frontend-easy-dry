@@ -701,7 +701,7 @@ import { ConsultaAgencias } from '../../core/services/sucursal.service';
         </div>
       }
 
-      <!-- Modal Asignar / Reasignar Agencia a Gerente (Validación Exclusiva Rol GERENTE) -->
+      <!-- Modal Asignar / Reasignar Agencia a Aprobador (rol APROBADOR) -->
       <app-modal
         [isOpen]="modalAsignarGerenteOpen" size="lg"
         title="Asignación Exclusiva de Agencia a Gerente"
@@ -1356,7 +1356,7 @@ export class SucursalesComponent implements OnInit, OnDestroy {
     return this.todosLosUsuarios.filter(u => {
       const r = (u.rol || u.rolNombre || '').toUpperCase();
       const activo = u.estado === 'Activo' || (u as any).estado === 1;
-      return activo && (r.includes('LIDER') || r.includes('LÍDER')) && !r.includes('APROBADOR') && !r.includes('GERENTE');
+      return activo && (r.includes('LIDER') || r.includes('LÍDER')) && !r.includes('APROBADOR');
     });
   }
 
