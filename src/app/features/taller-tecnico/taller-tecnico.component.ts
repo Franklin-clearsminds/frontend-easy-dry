@@ -134,7 +134,7 @@ export class TallerTecnicoComponent {
   verMantenimientos = puedeVerMantenimientos(this.auth);
   verIncidentes = puedeVerIncidentes(this.auth);
   // Editar las plantillas del checklist es del coordinador de mantenimiento y los administradores.
-  verChecklist = this.auth.puede('checklist.gestionar');
+  verChecklist = this.auth.puede('taller.checklist.gestionar');
   // Auditoría de limpiezas: admin/super admin (todo el país), supervisor y coord. mantenimiento (su
   // región), coord. de servicios especiales (sus pulidores) — el backend resuelve el alcance.
   verLimpiezas = this.auth.puede('limpiezas.ver');

@@ -3693,7 +3693,7 @@ export class ServiciosComponent implements OnInit, OnDestroy {
     return this.authService.getCurrentUser()?.sucursalNombre || this.authService.getCurrentUser()?.sucursal;
   }
   get puedeReportarFalla() {
-    return !this.isAdmin && this.authService.puede('incidentes.reportar');
+    return !this.isAdmin && this.authService.puedeAlguno('maquinaria.incidente.reportar', 'taller.incidentes.reportar');
   }
 
   /** Alcance del usuario según su ámbito (el servidor lo aplica igual; esto solo acota lo que se pide). */
