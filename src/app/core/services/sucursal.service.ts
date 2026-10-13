@@ -20,6 +20,7 @@ export interface PrecioServicioAgencia {
   catalogoServicioId: number;
   codigo: string;
   nombre: string;
+  categoria?: string;
   estado: string;
   precioCatalogo: number;
   precioAgencia: number | null;

@@ -965,6 +965,24 @@ import { ConsultaAgencias } from '../../core/services/sucursal.service';
                     </p>
                   </div>
                 </div>
+                @if (puedeGestionarPrecios) {
+                  <div class="mt-3 space-y-1.5">
+                    <p class="text-xs font-bold text-amber-900">Precio de cada servicio especial en esta agencia</p>
+                    @for (s of serviciosEspeciales; track s.id) {
+                      <div class="flex items-center justify-between gap-2 px-2 py-1 rounded-lg bg-white/70 border border-amber-200">
+                        <span class="text-xs font-semibold text-slate-800 min-w-0 break-words">{{ s.nombre }}</span>
+                        <div class="flex items-center gap-1 shrink-0">
+                          <span class="text-xs text-slate-500">$</span>
+                          <input type="number" min="0" step="0.01"
+                            class="w-20 text-xs rounded-lg border border-slate-200 px-2 py-1"
+                            [value]="precioMostrado(s.id)"
+                            (change)="onPrecioServicioChange(s.id, $any($event.target).value)"
+                            placeholder="0.00">
+                        </div>
+                      </div>
+                    }
+                  </div>
+                }
               </div>
             }
           </div>
@@ -1006,7 +1024,7 @@ import { ConsultaAgencias } from '../../core/services/sucursal.service';
             </div>
             @if (editandoSucursal && puedeGestionarPrecios) {
               <div class="mt-2 flex items-center justify-between gap-2">
-                <p class="text-xs text-slate-500">Precio por agencia para servicios generales (si no se fija, rige el precio del catálogo).</p>
+                <p class="text-xs text-slate-500">Precio de cada servicio en esta agencia. El catálogo no tiene precio base: un servicio sin precio fijado vale $0.</p>
                 <button type="button" (click)="guardarPreciosServicios()" [disabled]="!hayPreciosPendientes || guardandoPrecios"
                   class="btn btn-secondary btn-sm shrink-0">
                   {{ guardandoPrecios ? 'Guardando...' : 'Guardar precios' }}
