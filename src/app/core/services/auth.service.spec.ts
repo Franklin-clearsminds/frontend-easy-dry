@@ -1,6 +1,8 @@
+import { HttpClient } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { firstValueFrom } from 'rxjs';
 import { AuthService } from './auth.service';
+import { apiUrl } from '../config/env';
 import { Role, UsuarioAuth } from '../models/roles.model';
 import { esperar, iniciarSesion, mundo, postComo, proveedoresApiReal, requiereMundo } from '../../../testing/api-real';
 
@@ -95,6 +97,40 @@ describe('AuthService — sincronización de rol (refrescarPermisos)', () => {
 
     expect(service.isSuperAdmin()).toBe(true);
     expect(service.getCurrentUser()?.role).toBe(Role.SUPER_ADMIN);
+  });
+
+  it('refreshSession renueva el access token con la cookie HttpOnly (incluye el preflight CORS de las cabeceras de la app)', async () => {
+    await iniciarSesion(service, 'lider');
+
+    const ok = await firstValueFrom(service.refreshSession());
+
+    expect(ok).toBeTrue();
+    expect(service.getAccessToken()).toBeTruthy();
+    expect(service.refreshRechazado()).toBeFalse();
+  });
+
+  it('dos renovaciones seguidas con la misma cookie no cierran la sesión (dos pestañas a la vez)', async () => {
+    await iniciarSesion(service, 'lider');
+    const http = TestBed.inject(HttpClient);
+    const renovar = () => firstValueFrom(http.post<{ success: boolean; accessToken: string }>(
+      apiUrl('/auth/refresh'), {}, { withCredentials: true, headers: { 'X-Client': 'web', 'X-Skip-Auth-Refresh': '1', 'X-Silent-Fallback': '1' } }));
+
+    const [a, b] = await Promise.all([renovar(), renovar()]);
+
+    expect(a.accessToken).toBeTruthy();
+    expect(b.accessToken).toBeTruthy();
+  });
+
+  it('logout revoca la sesión en el servidor: la cookie ya no renueva', async () => {
+    await iniciarSesion(service, 'lider');
+    const http = TestBed.inject(HttpClient);
+    const renovar = () => firstValueFrom(http.post(apiUrl('/auth/refresh'), {},
+      { withCredentials: true, headers: { 'X-Client': 'web', 'X-Skip-Auth-Refresh': '1', 'X-Silent-Fallback': '1' } }));
+
+    service.logout();
+    await new Promise((r) => setTimeout(r, 600)); // el aviso al servidor es asíncrono
+
+    await expectAsync(renovar()).toBeRejected();
   });
 
   it('mantiene el token actual (/auth/me no devuelve tokens nuevos)', async () => {
