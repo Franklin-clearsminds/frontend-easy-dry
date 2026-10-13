@@ -265,7 +265,7 @@ export class UsuarioService {
         : undefined,
     };
 
-    if (usr.password && usr.password.trim().length >= 6) {
+    if (usr.password && usr.password.trim().length > 0) {
       payload.password = usr.password.trim();
     }
 

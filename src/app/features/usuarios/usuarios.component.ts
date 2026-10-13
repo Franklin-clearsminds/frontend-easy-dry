@@ -24,6 +24,7 @@ import { ToastService } from '../../shared/services/toast.service';
 import { FilterBarComponent, FilterState } from '../../shared/components/filter-bar/filter-bar.component';
 import { isRealProfilePhoto } from '../../core/config/env';
 import { NotaAmbito, construirNotaAmbito } from './ambito-rol';
+import { passwordCumplePolitica } from '../../core/utils/password-politica';
 
 interface AmbitoInfo {
   codigo: string;
@@ -928,9 +929,9 @@ const COLUMNAS_ROLES: TableColumn[] = [
                       [type]="showPassword ? 'text' : 'password'"
                       [(ngModel)]="usuarioForm.password"
                       name="password"
-                      placeholder="Mínimo 6 caracteres"
+                      placeholder="Mínimo 10 caracteres"
                       class="w-full p-2.5 pr-10 border rounded-xl text-sm font-medium transition-all outline-none"
-                      [ngClass]="passwordInvalido ? 'border-rose-500 bg-rose-50/20 ring-2 ring-rose-200' : (usuarioForm.password && usuarioForm.password.length < 6 ? 'border-amber-400 bg-amber-50/20' : 'border-slate-200 bg-white focus:border-easydry-blue focus:ring-2 focus:ring-easydry-blue/20')"
+                      [ngClass]="passwordInvalido ? 'border-rose-500 bg-rose-50/20 ring-2 ring-rose-200' : (usuarioForm.password && !passwordValida(usuarioForm.password) ? 'border-amber-400 bg-amber-50/20' : 'border-slate-200 bg-white focus:border-easydry-blue focus:ring-2 focus:ring-easydry-blue/20')"
                       required
                       minlength="6">
                     <button
@@ -943,7 +944,7 @@ const COLUMNAS_ROLES: TableColumn[] = [
                   @if (passwordInvalido) {
                     <p class="text-xs text-rose-600 font-semibold mt-1 flex items-center gap-1.5">
                       <i-lucide aria-hidden="true" name="alert-circle" class="w-3.5 h-3.5 shrink-0"></i-lucide>
-                      La contraseña debe tener al menos 6 caracteres.
+                      La contraseña debe tener al menos 10 caracteres, con mayúscula, minúscula y número.
                     </p>
                   }
                 </div>
@@ -990,15 +991,15 @@ const COLUMNAS_ROLES: TableColumn[] = [
                     <i-lucide aria-hidden="true" name="check-circle-2" class="w-3.5 h-3.5 shrink-0"></i-lucide>
                     Contraseña verificada correctamente.
                   </span>
-                } @else if (usuarioForm.password && usuarioForm.password.length < 6) {
+                } @else if (usuarioForm.password && !passwordValida(usuarioForm.password)) {
                   <span class="text-amber-600 font-medium flex items-center gap-1.5">
                     <i-lucide aria-hidden="true" name="alert-triangle" class="w-3.5 h-3.5 shrink-0"></i-lucide>
-                    La contraseña debe tener al menos 6 caracteres.
+                    La contraseña debe tener al menos 10 caracteres, con mayúscula, minúscula y número.
                   </span>
                 } @else {
                   <span class="text-slate-500 flex items-center gap-1.5">
                     <i-lucide aria-hidden="true" name="info" class="w-3.5 h-3.5 shrink-0"></i-lucide>
-                    Mínimo 6 caracteres. Se almacenará de forma cifrada en el sistema.
+                    Mínimo 10 caracteres, con mayúscula, minúscula y número. Se almacenará de forma cifrada en el sistema.
                   </span>
                 }
               </div>
@@ -1027,7 +1028,7 @@ const COLUMNAS_ROLES: TableColumn[] = [
                         [type]="showPassword ? 'text' : 'password'"
                         [(ngModel)]="usuarioForm.password"
                         name="password"
-                        placeholder="Mínimo 6 caracteres"
+                        placeholder="Mínimo 10 caracteres"
                         class="w-full p-2.5 pr-10 border rounded-xl text-sm font-medium transition-all outline-none"
                         [ngClass]="passwordInvalido ? 'border-rose-500 bg-rose-50/20 ring-2 ring-rose-200' : 'border-slate-200 bg-white focus:border-easydry-blue focus:ring-2 focus:ring-easydry-blue/20'"
                         minlength="6">
@@ -1041,7 +1042,7 @@ const COLUMNAS_ROLES: TableColumn[] = [
                     @if (passwordInvalido) {
                       <p class="text-xs text-rose-600 font-semibold mt-1 flex items-center gap-1.5">
                         <i-lucide aria-hidden="true" name="alert-circle" class="w-3.5 h-3.5 shrink-0"></i-lucide>
-                        La nueva contraseña debe tener al menos 6 caracteres.
+                        La nueva contraseña debe tener al menos 10 caracteres, con mayúscula, minúscula y número.
                       </p>
                     }
                   </div>
@@ -1455,11 +1456,15 @@ export class UsuariosComponent implements OnInit, OnDestroy {
     return !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   }
 
+  passwordValida(p: string | null | undefined): boolean {
+    return passwordCumplePolitica(p);
+  }
+
   get passwordInvalido(): boolean {
     if (!this.usuarioFormSubmitted) return false;
     if (this.editandoUsuario && !this.usuarioForm.cambiarPassword) return false;
     const pass = this.usuarioForm.password?.trim();
-    return !pass || pass.length < 6;
+    return !pass || !passwordCumplePolitica(pass);
   }
 
   get confirmPasswordInvalido(): boolean {
@@ -1473,7 +1478,7 @@ export class UsuariosComponent implements OnInit, OnDestroy {
   get passwordsMatch(): boolean {
     const p = this.usuarioForm.password?.trim();
     const c = this.usuarioForm.confirmPassword?.trim();
-    return !!p && p.length >= 6 && p === c;
+    return !!p && passwordCumplePolitica(p) && p === c;
   }
 
   get passwordsMismatch(): boolean {
@@ -2409,8 +2414,8 @@ export class UsuariosComponent implements OnInit, OnDestroy {
         this.toastService.warning('Contraseña Requerida', 'Debe ingresar una contraseña para el nuevo usuario.');
         return;
       }
-      if (p.length < 6) {
-        this.toastService.warning('Contraseña Corta', 'La contraseña debe contener al menos 6 caracteres.');
+      if (!passwordCumplePolitica(p)) {
+        this.toastService.warning('Contraseña Corta', 'La contraseña debe tener al menos 10 caracteres, con mayúscula, minúscula y número.');
         return;
       }
       if (p !== c) {
@@ -2424,8 +2429,8 @@ export class UsuariosComponent implements OnInit, OnDestroy {
         this.toastService.warning('Contraseña Requerida', 'Ingrese la nueva contraseña o desmarque la opción de cambio.');
         return;
       }
-      if (p.length < 6) {
-        this.toastService.warning('Contraseña Corta', 'La nueva contraseña debe contener al menos 6 caracteres.');
+      if (!passwordCumplePolitica(p)) {
+        this.toastService.warning('Contraseña Corta', 'La nueva contraseña debe tener al menos 10 caracteres, con mayúscula, minúscula y número.');
         return;
       }
       if (p !== c) {
