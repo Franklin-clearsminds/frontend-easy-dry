@@ -175,7 +175,9 @@ export class OperadorService {
       telefono: op.telefono,
       rol: op.rol,
       agenciaId: op.sucursalId ? String(op.sucursalId) : op.sucursal,
-      bahiaId: op.bahiaId || undefined,
+      // null = «dejar sin bahía (en reserva)» y viaja como cadena vacía; undefined = «no tocar la bahía» y el campo no viaja.
+      // Antes ambos se mandaban como undefined: el servidor entendía «sin cambios» y no se podía dejar en reserva.
+      bahiaId: op.bahiaId === null ? '' : (op.bahiaId ? String(op.bahiaId) : undefined),
       estado: op.estado === 'Inactivo' ? 0 : 1
     };
 

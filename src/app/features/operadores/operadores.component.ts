@@ -89,7 +89,9 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                 <th scope="col" class="py-3.5 px-4">Estado</th>
                 <th scope="col" class="py-3.5 px-4">Agencia Asignada</th>
                 <th scope="col" class="py-3.5 px-4">Bahía Asignada</th>
-                <th scope="col" class="py-3.5 px-4">Productividad</th>
+                @if (puedeVerFicha) {
+                  <th scope="col" class="py-3.5 px-4">Productividad</th>
+                }
                 <th scope="col" class="py-3.5 px-4 text-right">Acciones</th>
               </tr>
             </thead>
@@ -181,12 +183,14 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                   </td>
 
                   <!-- Productividad -->
+                  @if (puedeVerFicha) {
                   <td class="py-3.5 px-4">
                     <div class="text-xs">
                       <span class="font-extrabold text-easydry-green-text">{{ op.vehiculosAtendidos }} Autos</span>
                       <p class="text-xs text-slate-500">Servicios en BD</p>
                     </div>
                   </td>
+                  }
 
                   <!-- Acciones -->
                   <td class="py-3.5 px-4 text-right">
@@ -211,9 +215,10 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                           class="p-1.5 min-w-9 min-h-9 inline-flex items-center justify-center text-slate-500 hover:text-easydry-blue hover:bg-slate-100 rounded-lg transition-colors cursor-pointer flex items-center justify-center" [attr.aria-label]="op.bahia && !op.bahia.includes('Sin') && op.bahia !== 'undefined' ? 'Cambiar bahía' : 'Asignar a bahía'">
                           <i-lucide aria-hidden="true" name="refresh-cw" class="w-4 h-4"></i-lucide>
                         </button>
-
+                      }
+                      @if (canQuitarBahia && esLavador(op.rol)) {
                         <!-- Desactivar Asignación -->
-                        @if (canQuitarBahia && op.bahia && !op.bahia.includes('Sin') && op.bahia !== 'undefined') {
+                        @if (op.bahia && !op.bahia.includes('Sin') && op.bahia !== 'undefined') {
                           <button
                             type="button"
                             (click)="desactivarAsignacion(op)"
@@ -225,6 +230,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                       }
 
                       <!-- Ver Productividad & Ficha -->
+                      @if (puedeVerFicha) {
                       <button 
                         type="button"
                         (click)="verFichaOperador(op)" 
@@ -232,6 +238,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                         class="p-1.5 min-w-9 min-h-9 inline-flex items-center justify-center text-slate-500 hover:text-easydry-blue hover:bg-slate-100 rounded-lg transition-colors cursor-pointer flex items-center justify-center" aria-label="Ver productividad y ficha técnica">
                         <i-lucide aria-hidden="true" name="bar-chart-2" class="w-4 h-4"></i-lucide>
                       </button>
+                      }
                     </div>
                   </td>
                 </tr>
@@ -304,6 +311,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
               </label>
               <input id="operadores-f3"
                 type="text"
+                [disabled]="datosBloqueados"
                 [(ngModel)]="formOperador.telefono"
                 placeholder="Ej. 0998765432"
                 class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 placeholder:text-slate-500 outline-none focus:ring-2 focus:ring-easydry-blue">
@@ -317,6 +325,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                 Rol Operativo
               </label>
               <select id="operadores-f4"
+                [disabled]="rolBloqueado"
                 [(ngModel)]="formOperador.rol"
                 class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-easydry-blue">
                 @for (r of rolesOperativosDisponibles; track r) {
@@ -330,6 +339,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                 Estado del {{ isCoordServiciosEspeciales ? 'Pulidor' : 'Lavador' }}
               </label>
               <select id="operadores-f5"
+                [disabled]="datosBloqueados"
                 [(ngModel)]="formOperador.estado"
                 class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-easydry-blue">
                 <option value="Activo">Activo</option>
@@ -344,6 +354,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
               Agencia / Sucursal Asignada <span class="text-rose-500">*</span>
             </label>
             <select id="operadores-f6"
+              [disabled]="datosBloqueados"
               [(ngModel)]="formOperador.sucursalId"
               (change)="onSucursalOperadorChange()"
               class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 disabled:opacity-75 disabled:bg-slate-100 outline-none focus:ring-2 focus:ring-easydry-blue">
@@ -354,7 +365,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
           </div>
 
           <!-- Bahía de Asignación: solo para lavadores -->
-          @if (esLavador(formOperador.rol)) {
+          @if (esLavador(formOperador.rol) && bahiaVisibleEnFormulario) {
           <div>
             <label for="operadores-f7" class="block text-xs font-bold text-slate-700 uppercase mb-1">
               Bahía de Asignación
@@ -363,8 +374,10 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
               [(ngModel)]="formOperador.bahiaId"
               (change)="onBahiaCrearSelectChange()"
               class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-easydry-blue">
-              <option value="">Sin Bahía Asignada (Personal en Reserva / Disponible)</option>
-              @for (b of listaBahiasOperador; track b.id) {
+              @if (puedeElegirSinBahia) {
+                <option value="">Sin Bahía Asignada (Personal en Reserva / Disponible)</option>
+              }
+              @for (b of bahiasOfrecidas; track b.id) {
                 <option [value]="b.id">{{ b.nombre }} - {{ b.operadorAsignado ? b.operadorAsignado : 'Sin asignar' }}</option>
               }
             </select>
@@ -881,8 +894,22 @@ export class OperadoresComponent implements OnInit, OnDestroy {
 
   /** Registrar y editar personal operativo: mismo permiso que exige el servidor. */
   get canRegistrar(): boolean { return this.authService.puede('operadores.registrar'); }
-  get canEditar(): boolean { return this.authService.puede('operadores.editar') || this.authService.puede('operadores.rol'); }
+  /** Editar datos, cambiar el rol y mover de bahía son tres permisos distintos: el botón «Editar» sale si tiene alguno. */
+  get canEditarDatos(): boolean { return this.authService.puede('operadores.editar'); }
   get canCambiarRol(): boolean { return this.authService.puede('operadores.rol'); }
+  get canEditar(): boolean { return this.canEditarDatos || this.canCambiarRol || this.canAsignarBahia || this.canQuitarBahia; }
+  /** El campo de bahía de los formularios: al editar sirve para asignar o para dejar en reserva; al registrar, solo para asignar. */
+  get bahiaVisibleEnFormulario(): boolean { return this.esEdicion ? (this.canAsignarBahia || this.canQuitarBahia) : this.canAsignarBahia; }
+  /** «Sin bahía (en reserva)»: al editar exige «Quitar de bahía»; al registrar siempre se puede (no hay bahía que quitar). */
+  get puedeElegirSinBahia(): boolean { return !this.esEdicion || this.canQuitarBahia || !this.formOperador.bahiaId; }
+  get puedeVerFicha(): boolean { return this.authService.puede('operadores.ficha.ver'); }
+  /** Al editar, cada campo se bloquea si el rol no tiene el permiso de ese tipo de cambio. */
+  get datosBloqueados(): boolean { return this.esEdicion && !this.canEditarDatos; }
+  get rolBloqueado(): boolean { return this.esEdicion && !this.canCambiarRol; }
+  /** Bahías ofrecidas: sin «Asignar a bahía» solo se muestra la actual (para poder dejarla en reserva). */
+  get bahiasOfrecidas(): any[] {
+    return this.canAsignarBahia ? this.listaBahiasOperador : this.listaBahiasOperador.filter((b: any) => b.id === this.formOperador.bahiaId);
+  }
   get canGestionarOperadores(): boolean {
     return this.canRegistrar || this.canEditar;
   }
@@ -1082,16 +1109,19 @@ export class OperadoresComponent implements OnInit, OnDestroy {
     const bahiaSelected = this.listaBahiasOperador.find(b => b.id === this.formOperador.bahiaId);
 
     if (this.esEdicion && this.operadorEnEdicionId) {
+      // Solo se manda lo que este rol puede cambiar: el servidor exige un permiso distinto para datos, rol y bahía.
+      // `bahiaId: null` significa «dejar en reserva»; sin permiso de bahía el campo ni viaja (queda como estaba).
+      const datos = this.canEditarDatos;
       this.operadorService.actualizarOperador({
         id: this.operadorEnEdicionId,
-        nombre: this.formOperador.nombre.trim(),
-        cedula: this.formOperador.cedula.trim(),
-        telefono: this.formOperador.telefono?.trim() || '',
-        rol: this.formOperador.rol,
-        sucursal: suc ? suc.nombre : this.formOperador.sucursalNombre,
-        sucursalId: suc ? suc.id : this.formOperador.sucursalId,
+        nombre: datos ? this.formOperador.nombre.trim() : '',
+        cedula: datos ? this.formOperador.cedula.trim() : '',
+        telefono: datos ? (this.formOperador.telefono?.trim() || '') : '',
+        rol: this.canCambiarRol ? this.formOperador.rol : '',
+        sucursal: datos ? (suc ? suc.nombre : this.formOperador.sucursalNombre) : '',
+        sucursalId: datos ? (suc ? suc.id : this.formOperador.sucursalId) : '',
         bahia: bahiaSelected ? bahiaSelected.nombre : 'Sin Bahía Asignada',
-        bahiaId: this.formOperador.bahiaId || null,
+        bahiaId: this.bahiaVisibleEnFormulario ? (this.formOperador.bahiaId || null) : undefined,
         estado: this.formOperador.estado,
         fechaAsignacion: new Date().toISOString().split('T')[0],
         vehiculosAtendidos: 0,
@@ -1119,7 +1149,7 @@ export class OperadoresComponent implements OnInit, OnDestroy {
         sucursal: suc ? suc.nombre : this.formOperador.sucursalNombre,
         sucursalId: suc ? suc.id : this.formOperador.sucursalId,
         bahia: bahiaSelected ? bahiaSelected.nombre : 'Sin Bahía Asignada',
-        bahiaId: this.formOperador.bahiaId || null,
+        bahiaId: this.bahiaVisibleEnFormulario ? (this.formOperador.bahiaId || null) : null,
         estado: this.formOperador.estado
       }).subscribe({
         next: (nuevo) => {
