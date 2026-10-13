@@ -313,77 +313,21 @@ import { FaltantesEnvioComponent } from './faltantes-envio.component';
         </ng-template>
       </app-data-table>
 
-      <!-- MODAL RECHAZO -->
-      <app-modal size="md"
-        [isOpen]="modalRechazoOpen"
-        title="Rechazar Envío / Reportar No Conformidad"
-        icon="alert-triangle"
-        (close)="modalRechazoOpen = false">
-        @if (envioSeleccionadoRechazo) {
-          <div class="space-y-4">
-            <div class="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-900 flex items-start gap-2.5">
-              <i-lucide aria-hidden="true" name="alert-triangle" class="w-4 h-4 text-rose-600 shrink-0 mt-0.5"></i-lucide>
-              <div>
-                <p class="font-bold">¿Deseas reportar disconformidad para el envío {{ envioSeleccionadoRechazo.codigoEnvio }}?</p>
-                <p class="text-xs text-rose-700 mt-0.5">
-                  El despacho se marcará como rechazado y se liberará la reserva de stock en el origen (el físico no se había descontado).
-                </p>
-              </div>
-            </div>
-
-            <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1.5">Motivos rápidos</label>
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5 mb-3">
-                @for (m of motivosFrecuentes; track m) {
-                  <button
-                    type="button"
-                    (click)="seleccionarMotivoRapido(m)"
-                    class="p-2 text-left rounded-lg text-xs font-medium border transition-colors cursor-pointer"
-                    [ngClass]="motivoRechazoTexto === m ? 'bg-rose-100 border-rose-400 text-rose-950 font-bold' : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'">
-                    {{ m }}
-                  </button>
-                }
-              </div>
-
-              <label for="env-f1" class="block text-xs font-bold text-slate-700 uppercase mb-1">Detalle u Observaciones del Rechazo</label>
-              <textarea id="env-f1"
-                [(ngModel)]="motivoRechazoTexto"
-                rows="3"
-                placeholder="Indique la causa detallada (ej. Transporte nunca llegó a la sede, derrame del bidón, etc.)..."
-                class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 outline-none focus:ring-2 focus:ring-rose-500"
-                required>
-              </textarea>
-            </div>
-          </div>
-        }
-        <div modal-footer class="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 w-full">
-          <button
-            type="button"
-            (click)="modalRechazoOpen = false"
-            class="btn-secondary w-full sm:w-auto">
-            Cancelar
-          </button>
-          <button
-            type="button"
-            (click)="confirmarRechazoEnvio()"
-            [disabled]="!motivoRechazoTexto.trim()"
-            class="px-4 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white disabled:opacity-50 cursor-pointer w-full sm:w-auto justify-center">
-            Confirmar Rechazo
-          </button>
-        </div>
-      </app-modal>
-
-      <!-- MODAL CONFIRMAR RECEPCIÓN (permite parcial + observación) -->
+      <!-- MODAL CONFIRMAR / RECHAZAR RECEPCIÓN: la cantidad que se recibió y la observación -->
       <app-modal size="md"
         [isOpen]="modalConfirmacionOpen"
-        title="Confirmar Recepción"
-        icon="check-circle"
+        [title]="modoRechazo ? 'Rechazar Envío' : 'Confirmar Recepción'"
+        [icon]="modoRechazo ? 'alert-triangle' : 'check-circle'"
         (close)="modalConfirmacionOpen = false">
         @if (envioSeleccionadoConfirmacion) {
           <div class="space-y-3 text-xs">
             <p class="text-slate-600">
               Guía <b>{{ envioSeleccionadoConfirmacion.codigoEnvio }}</b> → {{ envioSeleccionadoConfirmacion.sucursalNombre }}.
-              Puedes recibir menos de lo enviado; si es parcial, la observación es obligatoria.
+              @if (modoRechazo) {
+                Indica cuánto se recibió de cada producto (0 si no llegó nada). Lo que no se reciba queda retenido hasta que la bodega de origen decida si lo devuelve o lo da de baja.
+              } @else {
+                Puedes recibir menos de lo enviado; si es parcial, la observación es obligatoria.
+              }
             </p>
             <div class="space-y-2">
               @for (p of envioSeleccionadoConfirmacion.productos || []; track $index) {
@@ -409,7 +353,9 @@ import { FaltantesEnvioComponent } from './faltantes-envio.component';
             <div>
               <label for="env-f3" class="block font-bold text-slate-700 mb-1">
                 Observación
-                @if (esRecepcionParcial) {
+                @if (modoRechazo) {
+                  <span class="text-rose-600">(obligatoria: explica el rechazo)</span>
+                } @else if (esRecepcionParcial) {
                   <span class="text-rose-600">(obligatoria por recepción parcial)</span>
                 }
               </label>
@@ -418,7 +364,7 @@ import { FaltantesEnvioComponent } from './faltantes-envio.component';
                 name="obsRecepcion"
                 rows="2"
                 class="w-full p-2.5 rounded-xl border border-slate-200"
-                [placeholder]="esRecepcionParcial ? 'Explica la diferencia de cantidades...' : 'Opcional'"></textarea>
+                [placeholder]="modoRechazo ? 'Explica por qué se rechaza (ej. llegó averiado, no corresponde al pedido)...' : (esRecepcionParcial ? 'Explica la diferencia de cantidades...' : 'Opcional')"></textarea>
             </div>
           </div>
         }
@@ -432,9 +378,10 @@ import { FaltantesEnvioComponent } from './faltantes-envio.component';
           <button
             type="button"
             (click)="ejecutarConfirmacionRecepcion()"
-            [disabled]="esRecepcionParcial && !observacionRecepcion.trim()"
-            class="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50 cursor-pointer w-full sm:w-auto justify-center">
-            Confirmar Ingreso
+            [disabled]="(modoRechazo || esRecepcionParcial) && !observacionRecepcion.trim()"
+            [ngClass]="modoRechazo ? 'bg-rose-600 hover:bg-rose-700' : 'bg-emerald-600 hover:bg-emerald-700'"
+            class="px-4 py-2 rounded-xl text-xs font-bold text-white disabled:opacity-50 cursor-pointer w-full sm:w-auto justify-center">
+            {{ modoRechazo ? 'Confirmar Rechazo' : 'Confirmar Ingreso' }}
           </button>
         </div>
       </app-modal>
@@ -696,12 +643,11 @@ export class EnviosComponent implements OnInit, OnDestroy {
   insumosDisponibles: InventarioItem[] = [];
 
   // Modales
-  modalRechazoOpen = false;
+  /** El mismo modal de recepción sirve para rechazar: cantidad recibida (0 por defecto) y observación obligatoria. */
+  modoRechazo = false;
   modalCrearEnvioOpen = false;
   modalConfirmacionOpen = false;
-  envioSeleccionadoRechazo: EnvioSuministro | null = null;
   envioSeleccionadoConfirmacion: EnvioSuministro | null = null;
-  motivoRechazoTexto = '';
   observacionRecepcion = '';
   cantidadesRecepcion: number[] = [];
 
@@ -710,13 +656,6 @@ export class EnviosComponent implements OnInit, OnDestroy {
     if (!env?.productos?.length) return false;
     return env.productos.some((p, i) => Number(this.cantidadesRecepcion[i] ?? p.cantidad) < Number(p.cantidad));
   }
-
-  motivosFrecuentes: string[] = [
-    'Transporte nunca llegó a la agencia',
-    'Producto averiado / derrame en tránsito',
-    'Insumo equivocado / no corresponde al pedido',
-    'Empaque violentado / faltante de unidades'
-  ];
 
   nuevoEnvioForm = {
     sucursalId: '' as string | number,
@@ -805,10 +744,6 @@ export class EnviosComponent implements OnInit, OnDestroy {
         };
       });
     });
-  }
-
-  seleccionarMotivoRapido(motivo: string): void {
-    this.motivoRechazoTexto = motivo;
   }
 
   ngOnDestroy(): void {
@@ -1176,6 +1111,7 @@ export class EnviosComponent implements OnInit, OnDestroy {
   }
 
   abrirModalConfirmacion(env: EnvioSuministro): void {
+    this.modoRechazo = false;
     this.envioSeleccionadoConfirmacion = env;
     this.observacionRecepcion = '';
     this.cantidadesRecepcion = (env.productos || []).map((p) => Number(p.cantidad) || 0);
@@ -1185,7 +1121,11 @@ export class EnviosComponent implements OnInit, OnDestroy {
   ejecutarConfirmacionRecepcion(): void {
     const env = this.envioSeleccionadoConfirmacion;
     if (!env) return;
-    if (this.esRecepcionParcial && !this.observacionRecepcion.trim()) {
+    if (this.modoRechazo && !this.observacionRecepcion.trim()) {
+      this.toastService.warning('Observación requerida', 'Explica por qué se rechaza el envío.');
+      return;
+    }
+    if (!this.modoRechazo && this.esRecepcionParcial && !this.observacionRecepcion.trim()) {
       this.toastService.warning('Observación requerida', 'En recepción parcial debes explicar la diferencia.');
       return;
     }
@@ -1203,6 +1143,17 @@ export class EnviosComponent implements OnInit, OnDestroy {
         return;
       }
       c.cantidadRecibida = Math.round(c.cantidadRecibida);
+    }
+
+    // Rechazar sin recibir nada es un rechazo completo; si se recibió algo, es una recepción parcial.
+    const recibidoAlgo = cantidadesRecibidas.some((c) => c.cantidadRecibida > 0);
+    if (this.modoRechazo && !recibidoAlgo) {
+      this.rechazarEnvioCompleto(env, this.observacionRecepcion.trim());
+      return;
+    }
+    if (this.modoRechazo && !this.puedeConfirmarEnvio) {
+      this.toastService.warning('Sin permiso', 'Tu rol puede rechazar el envío completo, pero no recibir una parte. Deja la cantidad recibida en 0.');
+      return;
     }
 
     const body: any = {
@@ -1238,16 +1189,14 @@ export class EnviosComponent implements OnInit, OnDestroy {
   }
 
   abrirModalRechazo(env: EnvioSuministro): void {
-    this.envioSeleccionadoRechazo = env;
-    this.motivoRechazoTexto = '';
-    this.modalRechazoOpen = true;
+    this.modoRechazo = true;
+    this.envioSeleccionadoConfirmacion = env;
+    this.observacionRecepcion = '';
+    this.cantidadesRecepcion = (env.productos || []).map(() => 0);
+    this.modalConfirmacionOpen = true;
   }
 
-  confirmarRechazoEnvio(): void {
-    if (!this.envioSeleccionadoRechazo || !this.motivoRechazoTexto.trim()) return;
-
-    const env = this.envioSeleccionadoRechazo;
-    const motivo = this.motivoRechazoTexto.trim();
+  private rechazarEnvioCompleto(env: EnvioSuministro, motivo: string): void {
     const user = this.auth.getCurrentUser();
     const agenciaId = env.sucursalId || user?.agenciaId || user?.sucursalNombre || user?.sucursal || '';
 
@@ -1266,11 +1215,11 @@ export class EnviosComponent implements OnInit, OnDestroy {
         env.fechaResolucion = fechaStr;
         env.horaResolucion = horaStr;
         env.responsableRecepcion = `${user?.nombre || 'Líder'} ${user?.apellido || 'Operador'} (Receptor)`.trim();
-        this.modalRechazoOpen = false;
+        this.modalConfirmacionOpen = false;
 
         this.toastService.warning(
           'Envío Rechazado',
-          `Se registró disconformidad para ${env.codigoEnvio}: ${motivo}. Se liberó la reserva en el origen.`
+          `Se rechazó ${env.codigoEnvio}: ${motivo}. El producto quedó retenido hasta que la bodega de origen decida qué hacer con él.`
         );
         this.refrescar();
         this.notificacionService.recargar();
