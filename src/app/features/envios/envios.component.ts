@@ -1,4 +1,4 @@
-import { Component, OnDestroy, OnInit, inject } from '@angular/core';
+import { Component, OnDestroy, OnInit, ViewChild, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
@@ -20,11 +20,12 @@ import { EnvioSuministro, EstadoEnvio, Sucursal, InventarioItem } from '../../co
 import { BodegaInventario } from '../../core/models/inventario.model';
 import { apiUrl } from '../../core/config/env';
 import { FaltantesEnvioComponent } from './faltantes-envio.component';
+import { EvidenciasEnvioComponent } from './evidencias-envio.component';
 
 @Component({
   selector: 'app-envios',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, FaltantesEnvioComponent, FilterBarComponent, DataTableComponent, DataTableCellDirective],
+  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, FaltantesEnvioComponent, EvidenciasEnvioComponent, FilterBarComponent, DataTableComponent, DataTableCellDirective],
   template: `
     <div class="space-y-6 animate-fade-in pb-12">
 
@@ -50,69 +51,6 @@ import { FaltantesEnvioComponent } from './faltantes-envio.component';
 
       <!-- Faltantes de recepciones parciales por resolver (bodega de origen) -->
       <app-faltantes-envio />
-
-      <!-- Alerta Destacada de Envíos Rechazados -->
-      @if (rechazadosTotal > 0) {
-        <div class="p-5 bg-rose-50 border-2 border-rose-300 rounded-2xl shadow-sm space-y-3 animate-fade-in">
-          <div class="flex items-center justify-between gap-3">
-            <div class="flex items-center gap-3">
-              <div class="w-10 h-10 rounded-xl bg-rose-600 text-white flex items-center justify-center font-bold shadow-sm shrink-0">
-                <i-lucide aria-hidden="true" name="alert-triangle" class="w-5 h-5"></i-lucide>
-              </div>
-              <div>
-                <div class="flex items-center gap-2">
-                  <h3 class="text-sm font-extrabold text-rose-950 uppercase tracking-wide">
-                    Alerta: {{ rechazadosTotal }} despacho(s) rechazado(s)
-                  </h3>
-                  <span class="px-2 py-0.5 rounded-full text-xs font-extrabold bg-rose-200 text-rose-900">
-                    Stock permanece en origen (reserva liberada)
-                  </span>
-                </div>
-                <p class="text-xs text-rose-800 mt-0.5">
-                  El destino no aceptó el envío. El stock nunca salió del origen; revisa el motivo para reenviar o gestionar.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
-            @for (rech of rechazadosRecientes; track rech.id) {
-              <div class="p-3.5 bg-white rounded-xl border border-rose-200 text-xs shadow-2xs space-y-2">
-                <div class="flex justify-between items-center border-b border-slate-100 pb-1.5">
-                  <div class="flex items-center gap-2">
-                    <span class="font-mono font-extrabold text-xs px-2 py-0.5 rounded bg-rose-100 text-rose-900 border border-rose-200">
-                      {{ rech.codigoEnvio }}
-                    </span>
-                    <span class="font-bold text-slate-800">{{ rech.sucursalNombre }}</span>
-                  </div>
-                  <span class="text-xs text-slate-500 font-mono">{{ rech.fecha }}</span>
-                </div>
-
-                <div class="space-y-1">
-                  <span class="text-[11px] font-bold text-slate-500 uppercase">Insumos del Envío:</span>
-                  <div class="flex flex-wrap gap-1">
-                    @for (p of rech.productos; track p.nombreProducto) {
-                      <span class="inline-flex items-center gap-1 bg-slate-100 px-2 py-0.5 rounded text-xs font-semibold text-slate-800 border border-slate-200">
-                        <strong class="font-mono text-rose-700 font-extrabold">{{ p.cantidad }} und</strong> {{ p.nombreProducto }}
-                      </span>
-                    }
-                  </div>
-                </div>
-
-                <div class="p-2 bg-rose-100/80 rounded-lg text-rose-950 text-xs border border-rose-200">
-                  <span class="font-extrabold text-rose-800 uppercase text-[11px] block mb-0.5">Motivo / Comentario de la Sede:</span>
-                  <p class="font-semibold italic">"{{ rech.motivoRechazo || rech.observaciones || 'No se especificó comentario' }}"</p>
-                </div>
-              </div>
-            }
-          </div>
-          @if (rechazadosTotal > rechazadosRecientes.length) {
-            <p class="text-xs font-semibold text-rose-800">
-              Se muestran los {{ rechazadosRecientes.length }} más recientes de {{ rechazadosTotal }}. Filtra por estado «Rechazado» para ver todos.
-            </p>
-          }
-        </div>
-      }
 
       <!-- Banner KPIs Generales / Sede -->
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -366,6 +304,7 @@ import { FaltantesEnvioComponent } from './faltantes-envio.component';
                 class="w-full p-2.5 rounded-xl border border-slate-200"
                 [placeholder]="modoRechazo ? 'Explica por qué se rechaza (ej. llegó averiado, no corresponde al pedido)...' : (esRecepcionParcial ? 'Explica la diferencia de cantidades...' : 'Opcional')"></textarea>
             </div>
+            <app-evidencias-envio #evidenciasRecepcion />
           </div>
         }
         <div modal-footer class="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 w-full">
@@ -378,7 +317,7 @@ import { FaltantesEnvioComponent } from './faltantes-envio.component';
           <button
             type="button"
             (click)="ejecutarConfirmacionRecepcion()"
-            [disabled]="(modoRechazo || esRecepcionParcial) && !observacionRecepcion.trim()"
+            [disabled]="subiendoEvidencias || ((modoRechazo || esRecepcionParcial) && !observacionRecepcion.trim())"
             [ngClass]="modoRechazo ? 'bg-rose-600 hover:bg-rose-700' : 'bg-emerald-600 hover:bg-emerald-700'"
             class="px-4 py-2 rounded-xl text-xs font-bold text-white disabled:opacity-50 cursor-pointer w-full sm:w-auto justify-center">
             {{ modoRechazo ? 'Confirmar Rechazo' : 'Confirmar Ingreso' }}
@@ -628,10 +567,7 @@ export class EnviosComponent implements OnInit, OnDestroy {
   /** Contadores de los filtros vigentes (menos el de estado); los da el servidor, no lo cargado. */
   resumen: ResumenDespachos | null = null;
   /** Los últimos rechazados (aviso destacado) y cuántos hay en total dentro del alcance del usuario. */
-  rechazadosRecientes: EnvioSuministro[] = [];
-  rechazadosTotal = 0;
   private subTabla?: Subscription;
-  private subRechazados?: Subscription;
 
   readonly claseFila = (env: EnvioSuministro): string => (env.estado === 'RECHAZADO' ? 'bg-rose-50/60 hover:bg-rose-50' : '');
 
@@ -645,6 +581,8 @@ export class EnviosComponent implements OnInit, OnDestroy {
   // Modales
   /** El mismo modal de recepción sirve para rechazar: cantidad recibida (0 por defecto) y observación obligatoria. */
   modoRechazo = false;
+  @ViewChild('evidenciasRecepcion') evidenciasRecepcion?: EvidenciasEnvioComponent;
+  subiendoEvidencias = false;
   modalCrearEnvioOpen = false;
   modalConfirmacionOpen = false;
   envioSeleccionadoConfirmacion: EnvioSuministro | null = null;
@@ -748,7 +686,6 @@ export class EnviosComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.subTabla?.unsubscribe();
-    this.subRechazados?.unsubscribe();
   }
 
   /** Vuelve a la primera página con los filtros vigentes (y pide contadores y rechazados). */
@@ -760,7 +697,6 @@ export class EnviosComponent implements OnInit, OnDestroy {
   /** Tras cambiar un filtro o una acción (despachar, confirmar, rechazar): vuelve a pedir lo que se ve y los contadores. */
   refrescar(): void {
     this.cargarPagina(true);
-    this.cargarRechazados();
   }
 
   onTablaCambio(q: ConsultaTabla): void {
@@ -808,23 +744,6 @@ export class EnviosComponent implements OnInit, OnDestroy {
           this.totalTabla = 0;
           this.errorTabla = this.mensajeError(err);
           this.cargandoTabla = false;
-        },
-      });
-  }
-
-  /** Aviso destacado: los 4 rechazados más recientes dentro del alcance del usuario (sin los filtros de la tabla). */
-  private cargarRechazados(): void {
-    this.subRechazados?.unsubscribe();
-    this.subRechazados = this.inventarioService
-      .getDespachosPagina({ ...this.filtroAlcance(), estadoDespacho: 'RECHAZADO', page: 1, pageSize: 4 })
-      .subscribe({
-        next: ({ pagina }) => {
-          this.rechazadosRecientes = pagina.items.map((m) => this.mapBackendDespacho(m));
-          this.rechazadosTotal = pagina.total;
-        },
-        error: () => {
-          this.rechazadosRecientes = [];
-          this.rechazadosTotal = 0;
         },
       });
   }
@@ -1115,10 +1034,11 @@ export class EnviosComponent implements OnInit, OnDestroy {
     this.envioSeleccionadoConfirmacion = env;
     this.observacionRecepcion = '';
     this.cantidadesRecepcion = (env.productos || []).map((p) => Number(p.cantidad) || 0);
+    this.evidenciasRecepcion?.limpiar();
     this.modalConfirmacionOpen = true;
   }
 
-  ejecutarConfirmacionRecepcion(): void {
+  async ejecutarConfirmacionRecepcion(): Promise<void> {
     const env = this.envioSeleccionadoConfirmacion;
     if (!env) return;
     if (this.modoRechazo && !this.observacionRecepcion.trim()) {
@@ -1148,13 +1068,17 @@ export class EnviosComponent implements OnInit, OnDestroy {
     // Rechazar sin recibir nada es un rechazo completo; si se recibió algo, es una recepción parcial.
     const recibidoAlgo = cantidadesRecibidas.some((c) => c.cantidadRecibida > 0);
     if (this.modoRechazo && !recibidoAlgo) {
-      this.rechazarEnvioCompleto(env, this.observacionRecepcion.trim());
+      const fotos = await this.subirFotos(env, 'rechazo');
+      if (fotos === null) return;
+      this.rechazarEnvioCompleto(env, this.observacionRecepcion.trim(), fotos);
       return;
     }
     if (this.modoRechazo && !this.puedeConfirmarEnvio) {
       this.toastService.warning('Sin permiso', 'Tu rol puede rechazar el envío completo, pero no recibir una parte. Deja la cantidad recibida en 0.');
       return;
     }
+    const evidencias = await this.subirFotos(env, this.modoRechazo ? 'rechazo' : 'recepcion');
+    if (evidencias === null) return;
 
     const body: any = {
       movimientoId: String(env.id),
@@ -1162,6 +1086,7 @@ export class EnviosComponent implements OnInit, OnDestroy {
       sucursalId: String(agenciaId),
       accion: 'RECIBIDO',
       observaciones: this.observacionRecepcion.trim() || undefined,
+      evidencias: evidencias.length ? evidencias : undefined,
     };
     if (cantidadesRecibidas.length > 0) {
       body.cantidadesRecibidas = cantidadesRecibidas;
@@ -1193,10 +1118,25 @@ export class EnviosComponent implements OnInit, OnDestroy {
     this.envioSeleccionadoConfirmacion = env;
     this.observacionRecepcion = '';
     this.cantidadesRecepcion = (env.productos || []).map(() => 0);
+    this.evidenciasRecepcion?.limpiar();
     this.modalConfirmacionOpen = true;
   }
 
-  private rechazarEnvioCompleto(env: EnvioSuministro, motivo: string): void {
+  /** Sube las fotos opcionales; devuelve null si falló (ya se avisó) para no guardar la recepción sin ellas. */
+  private async subirFotos(env: EnvioSuministro, etapa: 'recepcion' | 'rechazo'): Promise<string[] | null> {
+    if (!this.evidenciasRecepcion?.cantidad) return [];
+    this.subiendoEvidencias = true;
+    try {
+      return await this.evidenciasRecepcion.subir(String(env.codigoEnvio), etapa);
+    } catch (err: any) {
+      this.toastService.error('No se pudieron subir las fotos', err?.error?.message || err?.message || 'Intenta de nuevo o quítalas.');
+      return null;
+    } finally {
+      this.subiendoEvidencias = false;
+    }
+  }
+
+  private rechazarEnvioCompleto(env: EnvioSuministro, motivo: string, evidencias: string[] = []): void {
     const user = this.auth.getCurrentUser();
     const agenciaId = env.sucursalId || user?.agenciaId || user?.sucursalNombre || user?.sucursal || '';
 
@@ -1204,7 +1144,8 @@ export class EnviosComponent implements OnInit, OnDestroy {
       movimientoId: String(env.id),
       agenciaId: String(agenciaId),
       motivo,
-      observaciones: motivo
+      observaciones: motivo,
+      evidencias: evidencias.length ? evidencias : undefined,
     }).subscribe({
       next: () => {
         const ahora = new Date();

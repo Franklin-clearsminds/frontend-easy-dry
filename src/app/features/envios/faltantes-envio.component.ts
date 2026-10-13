@@ -1,4 +1,4 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, ViewChild, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
@@ -8,6 +8,7 @@ import { AuthService } from '../../core/services/auth.service';
 import { ToastService } from '../../shared/services/toast.service';
 import { ModalComponent } from '../../shared/components/modal/modal.component';
 import { apiUrl } from '../../core/config/env';
+import { EvidenciasEnvioComponent } from './evidencias-envio.component';
 
 interface FaltanteEnvio {
   id: string;
@@ -18,6 +19,12 @@ interface FaltanteEnvio {
   motivoRecepcion: string | null;
   origenNombre: string | null;
   createdAt: string;
+  resolucion?: 'DEVOLVER' | 'BAJA' | null;
+  observacionResolucion?: string | null;
+  resueltoEn?: string | null;
+  resueltoPorNombre?: string | null;
+  evidenciasRecepcion?: string[];
+  evidenciasResolucion?: string[];
 }
 
 /**
@@ -27,7 +34,7 @@ interface FaltanteEnvio {
 @Component({
   selector: 'app-faltantes-envio',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent],
+  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, EvidenciasEnvioComponent],
   template: `
     @if (puedeResolver && faltantes.length > 0) {
       <div class="p-5 bg-amber-50 border-2 border-amber-300 rounded-2xl shadow-sm space-y-3 animate-fade-in">
@@ -47,6 +54,13 @@ interface FaltanteEnvio {
                 <p class="text-xs font-bold text-slate-900 break-words">{{ f.insumoNombre }} <span class="font-mono text-slate-500">· {{ f.insumoSku }}</span></p>
                 <p class="text-xs text-slate-600">Guía <strong>{{ f.numeroGuia }}</strong> · sin recibir <strong>{{ f.cantidadUnd }}</strong> und · origen {{ f.origenNombre || '—' }}</p>
                 @if (f.motivoRecepcion) { <p class="text-xs text-slate-500 break-words">{{ f.motivoRecepcion.startsWith('Rechazado') ? '' : 'Al recibir: ' }}{{ f.motivoRecepcion }}</p> }
+                @if (f.evidenciasRecepcion?.length) {
+                  <div class="flex gap-1 mt-1">
+                    @for (u of f.evidenciasRecepcion; track u) {
+                      <img [src]="u" alt="Evidencia del envío" loading="lazy" class="w-14 h-14 object-cover rounded-lg border border-slate-200">
+                    }
+                  </div>
+                }
               </div>
               <div class="flex gap-2 shrink-0">
                 <button type="button" class="btn btn-secondary" (click)="abrir(f, 'DEVOLVER')">Devolver al stock</button>
@@ -56,6 +70,45 @@ interface FaltanteEnvio {
           }
         </div>
       </div>
+    }
+
+    @if (puedeResolver) {
+      <div class="flex justify-end">
+        <button type="button" class="btn btn-secondary btn-sm" (click)="alternarHistorial()">
+          {{ verHistorial ? 'Ocultar historial' : 'Ver historial de resueltos' }}
+        </button>
+      </div>
+      @if (verHistorial) {
+        <div class="bg-white border border-slate-200 rounded-2xl p-4 space-y-2">
+          <h3 class="text-sm font-extrabold text-slate-900">Historial de envíos rechazados o incompletos resueltos</h3>
+          @if (historial.length === 0) {
+            <p class="text-xs text-slate-500">Todavía no hay faltantes resueltos.</p>
+          }
+          @for (h of historial; track h.id) {
+            <div class="border border-slate-100 rounded-xl p-3 text-xs space-y-1">
+              <p class="font-bold text-slate-900 break-words">{{ h.insumoNombre }} <span class="font-mono text-slate-500">· {{ h.insumoSku }}</span></p>
+              <p class="text-slate-600">
+                Guía <strong>{{ h.numeroGuia }}</strong> · {{ h.cantidadUnd }} und · origen {{ h.origenNombre || '—' }}
+              </p>
+              <p>
+                <span class="inline-flex px-2 py-0.5 rounded-full font-extrabold"
+                  [ngClass]="h.resolucion === 'DEVOLVER' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'">
+                  {{ h.resolucion === 'DEVOLVER' ? 'Devuelto al stock' : 'Dado de baja' }}
+                </span>
+                <span class="text-slate-500"> · {{ h.resueltoEn | date:'yyyy-MM-dd HH:mm' }} · por {{ h.resueltoPorNombre || '—' }}</span>
+              </p>
+              @if (h.motivoRecepcion) { <p class="text-slate-500 break-words">Al recibir: {{ h.motivoRecepcion }}</p> }
+              @if (h.observacionResolucion) { <p class="text-slate-700 break-words">Decisión: {{ h.observacionResolucion }}</p> }
+              @if (h.evidenciasRecepcion?.length || h.evidenciasResolucion?.length) {
+                <div class="flex flex-wrap gap-2">
+                  @for (u of h.evidenciasRecepcion || []; track u) { <img [src]="u" alt="Evidencia del envío" loading="lazy" class="w-14 h-14 object-cover rounded-lg border border-slate-200"> }
+                  @for (u of h.evidenciasResolucion || []; track u) { <img [src]="u" alt="Evidencia del envío" loading="lazy" class="w-14 h-14 object-cover rounded-lg border border-slate-200"> }
+                </div>
+              }
+            </div>
+          }
+        </div>
+      }
     }
 
     <app-modal [isOpen]="!!resolviendo" [title]="resolucion === 'DEVOLVER' ? 'Devolver al stock' : 'Dar de baja'" icon="package-x" size="md" zClass="z-[10100]" (close)="cerrar()">
@@ -69,6 +122,7 @@ interface FaltanteEnvio {
             <label for="falt-obs" class="field-label">{{ resolucion === 'DEVOLVER' ? '¿Por qué regresa al stock?' : '¿Qué le pasó al producto?' }}</label>
             <textarea id="falt-obs" [(ngModel)]="observacion" name="falt-obs" rows="3" class="field" placeholder="Mínimo 10 caracteres"></textarea>
           </div>
+          <app-evidencias-envio #evidenciasResolucion />
         </div>
       }
       <div modal-footer>
@@ -90,6 +144,9 @@ export class FaltantesEnvioComponent implements OnInit {
   resolucion: 'DEVOLVER' | 'BAJA' = 'DEVOLVER';
   observacion = '';
   enviando = false;
+  verHistorial = false;
+  historial: FaltanteEnvio[] = [];
+  @ViewChild('evidenciasResolucion') evidenciasResolucion?: EvidenciasEnvioComponent;
 
   get puedeResolver(): boolean { return this.auth.puede('envios.faltantes'); }
 
@@ -105,7 +162,20 @@ export class FaltantesEnvioComponent implements OnInit {
     });
   }
 
+  alternarHistorial(): void {
+    this.verHistorial = !this.verHistorial;
+    if (this.verHistorial) this.cargarHistorial();
+  }
+
+  private cargarHistorial(): void {
+    this.http.post<FaltanteEnvio[]>(apiUrl('/inventario/despachos/faltantes/list'), { estado: 'RESUELTO' }).subscribe({
+      next: (lista) => (this.historial = lista || []),
+      error: () => (this.historial = []),
+    });
+  }
+
   abrir(f: FaltanteEnvio, resolucion: 'DEVOLVER' | 'BAJA'): void {
+    this.evidenciasResolucion?.limpiar();
     this.resolviendo = f;
     this.resolucion = resolucion;
     this.observacion = '';
@@ -119,14 +189,19 @@ export class FaltantesEnvioComponent implements OnInit {
     if (!this.resolviendo || this.enviando) return;
     this.enviando = true;
     try {
+      const evidencias = this.evidenciasResolucion?.cantidad
+        ? await this.evidenciasResolucion.subir(this.resolviendo.numeroGuia, 'resolucion')
+        : [];
       await firstValueFrom(this.http.post(apiUrl('/inventario/despachos/faltantes/resolver'), {
         id: this.resolviendo.id, resolucion: this.resolucion, observacion: this.observacion.trim(),
+        evidencias: evidencias.length ? evidencias : undefined,
       }));
       this.toast.success(this.resolucion === 'DEVOLVER' ? 'Devuelto al stock' : 'Dado de baja', 'El faltante quedó resuelto.');
       this.cerrar();
       this.cargar();
+      if (this.verHistorial) this.cargarHistorial();
     } catch (err: any) {
-      this.toast.error('No se pudo resolver', err?.error?.message || 'Intenta de nuevo.');
+      this.toast.error('No se pudo resolver', err?.error?.message || err?.message || 'Intenta de nuevo.');
     } finally {
       this.enviando = false;
     }
