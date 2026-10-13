@@ -582,7 +582,7 @@ export class EnviosComponent implements OnInit, OnDestroy {
   /** Opera desde una bodega regional propia (tiene bodega asignada y no es de alcance global). */
   get operaBodegaRegional(): boolean {
     const u = this.auth.getCurrentUser();
-    return !!(u as any)?.bodegaId && u?.ambito !== 'GLOBAL' && this.auth.puede('despachos.crear');
+    return !!(u as any)?.bodegaId && u?.ambito !== 'GLOBAL' && this.auth.puede('envios.crear');
   }
 
   get liderSucursalNombre(): string {
