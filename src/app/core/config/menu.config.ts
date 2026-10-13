@@ -46,14 +46,7 @@ export const MENU_CONFIG: MenuItem[] = [
 
   // ─── 2. OPERACIÓN & AGENCIAS ─────────────────────────────────
   {
-    label: 'Mapa Operativo',
-    route: '/mapa-operativo',
-    icon: 'map',
-    moduloCodigo: 'mapa-operativo',
-    group: 'Operación & Agencias'
-  },
-  {
-    label: 'Gestión de Agencias',
+    label: 'Agencias & Mapa Red',
     route: '/agencias',
     icon: 'building-2',
     moduloCodigo: 'agencias',

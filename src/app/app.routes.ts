@@ -94,12 +94,8 @@ export const routes: Routes = [
 
       {
         path: 'mapa-operativo',
-        loadComponent: () =>
-          import('./features/sucursales/sucursales.component').then(m => m.SucursalesComponent),
-        canActivate: [
-          authGuard,
-          moduloGuard('mapa-operativo')
-        ]
+        redirectTo: () => inject(Router).parseUrl('/agencias?tab=mapa'),
+        pathMatch: 'full'
       },
 
       {
@@ -125,11 +121,7 @@ export const routes: Routes = [
         redirectTo: () => {
           const auth = inject(AuthService);
           const router = inject(Router);
-          const destino = auth.hasModuleAccess('agencias')
-            ? '/agencias'
-            : auth.hasModuleAccess('mapa-operativo')
-              ? '/mapa-operativo'
-              : auth.rutaInicial();
+          const destino = auth.hasModuleAccess('agencias') ? '/agencias' : auth.rutaInicial();
           return router.parseUrl(destino);
         },
         pathMatch: 'full'

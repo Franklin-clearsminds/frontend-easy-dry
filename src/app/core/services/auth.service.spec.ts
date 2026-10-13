@@ -60,10 +60,10 @@ describe('AuthService — sincronización de rol (refrescarPermisos)', () => {
 
   it('considera operativo a un usuario con módulo funcional aunque no tenga capacidades API', async () => {
     await iniciarSesion(service, 'lider');
-    estado().next({ ...service.getCurrentUser()!, modulosPermitidos: ['mapa-operativo'], capacidades: [] });
+    estado().next({ ...service.getCurrentUser()!, modulosPermitidos: ['agencias'], capacidades: [] });
 
     expect(service.sinAcceso()).toBe(false);
-    expect(service.rutaInicial()).toBe('/mapa-operativo');
+    expect(service.rutaInicial()).toBe('/agencias');
   });
 
   it('mantiene sin acceso al usuario cuyo único módulo es perfil', async () => {
