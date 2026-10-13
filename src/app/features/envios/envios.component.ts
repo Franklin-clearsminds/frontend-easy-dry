@@ -19,11 +19,12 @@ import { resolverRangoFechas } from '../../core/utils/fecha-rango';
 import { EnvioSuministro, EstadoEnvio, Sucursal, InventarioItem } from '../../core/models';
 import { BodegaInventario } from '../../core/models/inventario.model';
 import { apiUrl } from '../../core/config/env';
+import { FaltantesEnvioComponent } from './faltantes-envio.component';
 
 @Component({
   selector: 'app-envios',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, FilterBarComponent, DataTableComponent, DataTableCellDirective],
+  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, FaltantesEnvioComponent, FilterBarComponent, DataTableComponent, DataTableCellDirective],
   template: `
     <div class="space-y-6 animate-fade-in pb-12">
 
@@ -46,6 +47,9 @@ import { apiUrl } from '../../core/config/env';
           </p>
         </div>
       </div>
+
+      <!-- Faltantes de recepciones parciales por resolver (bodega de origen) -->
+      <app-faltantes-envio />
 
       <!-- Alerta Destacada de Envíos Rechazados -->
       @if (rechazadosTotal > 0) {
