@@ -479,6 +479,7 @@ export class DashboardOperativoService {
           chartGravedadIncidentes: toDonut(d?.gravedadIncidentes, 'nombre', 'cantidad'),
           chartEstadoIncidentes: toDonut(d?.estadoIncidentes, 'nombre', 'cantidad'),
           chartTopMaquinas: toBar(d?.topMaquinasProblematicas, 'nombre', 'total', 'Incidentes'),
+          chartIncidentesPorBahia: toBar(d?.incidentesPorBahia, 'nombre', 'total', 'Incidentes'),
           chartCostoMaquinas: d?.topMaquinasCostosas && d.topMaquinasCostosas.length > 0 ? {
             labels: d.topMaquinasCostosas.map((m: any) => m.nombre),
             datasets: [{ label: 'Costo USD', data: d.topMaquinasCostosas.map((m: any) => m.costoTotal), backgroundColor: [CHART_COLORS.rose, CHART_COLORS.amber, CHART_COLORS.blue, CHART_COLORS.green, CHART_COLORS.slate] }]
@@ -604,15 +605,15 @@ export class DashboardOperativoService {
     );
   }
 
-  /** Colores semánticos por estado de stock: de lo más grave (agotado) a sobrestock. */
+  /** Colores semánticos por estado de stock: de lo más grave (agotado) a óptimo. */
   private readonly COLOR_SALUD: Record<string, string> = {
     'AGOTADO': CHART_COLORS.rose, 'CRÍTICO': CHART_COLORS.amber, 'BAJO MÍNIMO': '#FCD34D',
-    'BAJO IDEAL': CHART_COLORS.blueLight, 'ÓPTIMO': CHART_COLORS.green, 'SOBRESTOCK': CHART_COLORS.violet,
+    'BAJO IDEAL': CHART_COLORS.blueLight, 'ÓPTIMO': CHART_COLORS.green,
   };
 
   /** Gráficos de salud de inventario: stock real vs mínimo/ideal, agrupado por estado, ubicación y categoría. */
   private mapSaludInventario(d: any): any {
-    const estados = ['AGOTADO', 'CRÍTICO', 'BAJO MÍNIMO', 'BAJO IDEAL', 'ÓPTIMO', 'SOBRESTOCK'];
+    const estados = ['AGOTADO', 'CRÍTICO', 'BAJO MÍNIMO', 'BAJO IDEAL', 'ÓPTIMO'];
     const salud: any[] = d?.saludStock ?? [];
     const ubic: any[] = d?.saludPorUbicacion ?? [];
     // Extremos (10 mayores ∪ 10 menores) y listas completas cortas, para el control Top N del dashboard de

@@ -44,7 +44,7 @@ export class OpcionesService {
     return this.cargador('/agencias/regiones/opciones', filtros);
   }
   /** Clientes / marcas. */
-  clientes(filtros: { estado?: number } = {}): CargadorOpciones {
+  clientes(filtros: { regionId?: string; estado?: number } = {}): CargadorOpciones {
     return this.cargador('/agencias/clientes/opciones', filtros);
   }
   /** Bahías; con `agenciaId`, solo las de esa agencia. */
