@@ -191,6 +191,88 @@ export const routes: Routes = [
       },
 
       {
+        path: 'auditorias',
+        loadComponent: () =>
+          import('./features/auditorias/auditorias-dashboard.component').then(m => m.AuditoriasDashboardComponent),
+        canActivate: [
+          authGuard,
+          moduloGuard('auditorias')
+        ]
+      },
+      {
+        path: 'informes-inspeccion',
+        loadComponent: () =>
+          import('./features/auditorias/informes/informes.component').then(m => m.InformesComponent),
+        canActivate: [
+          authGuard,
+          moduloGuard('informes-inspeccion')
+        ]
+      },
+      {
+        path: 'informes-inspeccion/nuevo',
+        loadComponent: () =>
+          import('./features/auditorias/informes/informe-form.component').then(m => m.InformeFormComponent),
+        canActivate: [
+          authGuard,
+          moduloGuard('informes-inspeccion')
+        ]
+      },
+      {
+        path: 'informes-inspeccion/:id/editar',
+        loadComponent: () =>
+          import('./features/auditorias/informes/informe-form.component').then(m => m.InformeFormComponent),
+        canActivate: [
+          authGuard,
+          moduloGuard('informes-inspeccion')
+        ]
+      },
+      {
+        path: 'informes-inspeccion/:id',
+        loadComponent: () =>
+          import('./features/auditorias/informes/informe-detail.component').then(m => m.InformeDetailComponent),
+        canActivate: [
+          authGuard,
+          moduloGuard('informes-inspeccion')
+        ]
+      },
+      {
+        path: 'auditorias-5s',
+        loadComponent: () =>
+          import('./features/auditorias/auditoria5s/auditorias5s.component').then(m => m.Auditorias5sComponent),
+        canActivate: [
+          authGuard,
+          moduloGuard('auditorias-5s')
+        ]
+      },
+      {
+        path: 'auditorias-5s/nueva',
+        loadComponent: () =>
+          import('./features/auditorias/auditoria5s/auditoria5s-form.component').then(m => m.Auditoria5sFormComponent),
+        canActivate: [
+          authGuard,
+          moduloGuard('auditorias-5s')
+        ]
+      },
+      {
+        path: 'auditorias-5s/:id/editar',
+        loadComponent: () =>
+          import('./features/auditorias/auditoria5s/auditoria5s-form.component').then(m => m.Auditoria5sFormComponent),
+        canActivate: [
+          authGuard,
+          moduloGuard('auditorias-5s')
+        ]
+      },
+      {
+        path: 'auditorias-5s/:id',
+        loadComponent: () =>
+          import('./features/auditorias/auditoria5s/auditoria5s-detail.component').then(m => m.Auditoria5sDetailComponent),
+        canActivate: [
+          authGuard,
+          moduloGuard('auditorias-5s')
+        ]
+      },
+
+      {
         path: 'reportes',
         loadComponent: () =>
           import('./features/reportes/reportes.component').then(m => m.ReportesComponent),

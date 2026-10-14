@@ -94,7 +94,7 @@ export const DEFAULT_ROUTE_POR_ROL: Record<string, string> = {
   [Role.COORD_COMERCIAL]: '/dashboard',
   [Role.LIDER]: '/servicios',
   [Role.BACKUP]: '/servicios',
-  [Role.LAVADOR]: '/sin-acceso',
+  [Role.LAVADOR]: '/informes-inspeccion',
   [Role.COORD_SERVICIOS_ESPECIALES]: '/dashboard',
   [Role.PULIDOR]: '/servicios',
   [Role.COORD_MANTENIMIENTO]: '/taller-tecnico',

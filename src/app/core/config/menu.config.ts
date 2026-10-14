@@ -124,7 +124,23 @@ export const MENU_CONFIG: MenuItem[] = [
     badgeColor: 'bg-amber-500 text-white'
   },
 
-  // ─── 5. ADMINISTRACIÓN ─────────────────────────────────────────
+  // ─── 5. AUDITORÍAS ─────────────────────────────────────────────
+  {
+    label: 'Informes de Inspección',
+    route: '/informes-inspeccion',
+    icon: 'file-search',
+    moduloCodigo: 'informes-inspeccion',
+    group: 'Auditorías'
+  },
+  {
+    label: 'Auditorías 5S',
+    route: '/auditorias-5s',
+    icon: 'sparkles',
+    moduloCodigo: 'auditorias-5s',
+    group: 'Auditorías'
+  },
+
+  // ─── 6. ADMINISTRACIÓN ─────────────────────────────────────────
   {
     label: 'Usuarios y Roles',
     route: '/usuarios',

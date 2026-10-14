@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LucideAngularModule } from 'lucide-angular';
 import { AccionCatalogo, PaginaCatalogo, SubPaginaCatalogo } from '../../../core/models/roles.model';
+import { REPORTES_POR_PAGINA } from './reportes-por-pagina';
 
 /**
  * Editor de los permisos de un rol en tres niveles: página, sub-página (pestaña) y acciones (botones).
@@ -40,10 +41,10 @@ import { AccionCatalogo, PaginaCatalogo, SubPaginaCatalogo } from '../../../core
       @if (!visibles.length) {
         <p class="text-xs text-slate-500 py-6 text-center border border-dashed border-slate-200 rounded-2xl">Nada coincide con «{{ busqueda }}».</p>
       } @else {
-        <div class="grid grid-cols-1 md:grid-cols-[17rem_minmax(0,1fr)] md:items-start border border-slate-200 rounded-2xl overflow-hidden bg-white">
+        <div class="grid grid-cols-1 md:grid-cols-[22rem_minmax(0,1fr)] md:items-start border border-slate-200 rounded-2xl overflow-hidden bg-white">
 
           <!-- Páginas -->
-          <nav aria-label="Páginas del sistema" class="bg-slate-50 border-b md:border-b-0 md:border-r border-slate-200 p-2 space-y-0.5 max-h-72 md:max-h-[min(70vh,40rem)] overflow-y-auto">
+          <nav aria-label="Páginas del sistema" class="bg-slate-50 border-b md:border-b-0 md:border-r border-slate-200 p-2 space-y-0.5 max-h-72 md:max-h-[min(75vh,44rem)] overflow-y-auto">
             @for (p of visibles; track p.codigo) {
               <div class="flex items-center gap-1 rounded-xl pl-1 pr-1 transition-colors"
                 [ngClass]="actual?.codigo === p.codigo ? 'bg-white shadow-sm ring-1 ring-slate-200' : 'hover:bg-white/70'">
@@ -119,6 +120,26 @@ import { AccionCatalogo, PaginaCatalogo, SubPaginaCatalogo } from '../../../core
                     <p class="text-xs text-slate-500">Es una pantalla de cuenta: todos los usuarios la tienen, sin importar su rol. Cada persona solo ve lo suyo.</p>
                   } @else if (!p.subs.length && !p.acciones.length) {
                     <p class="text-xs text-slate-500">Esta página es solo de consulta: al activarla el rol ya puede verla y no tiene acciones propias.</p>
+                  }
+
+                  @if (p.id === 'reportes') {
+                    <div class="rounded-2xl border border-slate-200 bg-white">
+                      <div class="px-4 py-3 border-b border-slate-100">
+                        <p class="text-xs font-extrabold text-slate-900">Reportes que podrá sacar este rol</p>
+                        <p class="text-[11px] text-slate-500">Cada reporte depende de la página de su módulo: al activar la página, el rol puede ver sus reportes y exportarlos con las acciones de arriba.</p>
+                      </div>
+                      <ul class="grid grid-cols-1 xl:grid-cols-2 gap-x-3 px-2 py-1">
+                        @for (r of reportesPorPagina; track r.nombre) {
+                          <li class="flex items-center gap-2.5 px-2 py-2 min-h-11">
+                            <i-lucide aria-hidden="true" [name]="paginaActiva(r.pagina) ? 'check' : 'x'" class="w-4 h-4 shrink-0" [ngClass]="paginaActiva(r.pagina) ? 'text-emerald-600' : 'text-slate-400'"></i-lucide>
+                            <span class="min-w-0 flex-1 text-xs font-bold" [ngClass]="paginaActiva(r.pagina) ? 'text-slate-900' : 'text-slate-500'">{{ r.nombre }}</span>
+                            <span class="text-[11px] font-semibold shrink-0" [ngClass]="paginaActiva(r.pagina) ? 'text-emerald-700' : 'text-slate-500'">
+                              {{ paginaActiva(r.pagina) ? 'Disponible' : 'Activa «' + nombrePagina(r.pagina) + '»' }}
+                            </span>
+                          </li>
+                        }
+                      </ul>
+                    </div>
                   }
 
                   @for (s of p.subs; track s.codigo) {
@@ -226,6 +247,18 @@ import { AccionCatalogo, PaginaCatalogo, SubPaginaCatalogo } from '../../../core
 })
 export class RolPaginasEditorComponent implements OnChanges {
   @Input({ required: true }) paginas: PaginaCatalogo[] = [];
+
+  readonly reportesPorPagina = REPORTES_POR_PAGINA;
+
+  /** ¿Está activa la página con ese `id` en el rol que se edita? */
+  paginaActiva(id: string): boolean {
+    const p = this.paginas.find((x) => x.id === id);
+    return !!p && this.activa(p.codigo);
+  }
+
+  nombrePagina(id: string): string {
+    return this.paginas.find((x) => x.id === id)?.nombre ?? id;
+  }
   /** Códigos del catálogo de páginas que el rol tiene activos. */
   @Input() seleccion: string[] = [];
   @Output() seleccionChange = new EventEmitter<string[]>();

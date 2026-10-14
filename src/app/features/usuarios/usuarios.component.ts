@@ -1100,7 +1100,7 @@ const COLUMNAS_ROLES: TableColumn[] = [
       <!-- MODAL: CONFIGURAR ROL Y MATRIZ DE PERMISOS MODULARES    -->
       <!-- ======================================================== -->
       <app-modal
-        [isOpen]="modalRolOpen" size="xl"
+        [isOpen]="modalRolOpen" size="xl" sizeClass="max-w-[90rem]"
         [title]="editandoRol ? (soloLecturaRol ? 'Permisos del rol: ' : 'Configurar rol: ') + rolForm.nombre : 'Crear Nuevo Rol de Usuario'"
         icon="shield"
         (close)="modalRolOpen = false">
