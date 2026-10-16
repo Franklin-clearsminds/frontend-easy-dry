@@ -2592,6 +2592,17 @@ export class ServiciosComponent implements OnInit, OnDestroy {
     if (tab === 'especiales' && !this.puedeVerEspeciales && this.puedeVerGenerales) tab = 'generales';
     this.tabActiva = tab;
     this.cargarVistaActual();
+    if (tab === 'especiales' && this.puedeVerEspeciales) this.cargarDatosEspeciales();
+  }
+
+  /** Pulidores de la región, stock del pulidor y servicios extras: solo hacen falta en la pestaña Especiales. */
+  private datosEspecialesCargados = false;
+  private cargarDatosEspeciales(): void {
+    if (this.datosEspecialesCargados) return;
+    this.datosEspecialesCargados = true;
+    this.cargarServiciosEspeciales(false);
+    this.cargarPulidoresRegion();
+    if (this.isPulidor) this.cargarStockPulidor();
   }
 
   abrirModalNuevaOT() {
@@ -3852,13 +3863,11 @@ export class ServiciosComponent implements OnInit, OnDestroy {
       });
     }
 
-    // Cargar Servicios Especiales Regionales (la vista paginada ya la carga iniciarVistaServidor)
-    if (this.puedeVerEspeciales) {
-      this.cargarServiciosEspeciales(false);
-      this.cargarPulidoresRegion();
-      if (this.isPulidor) {
-        this.cargarStockPulidor();
-      }
+    // Cargar Servicios Especiales Regionales (la vista paginada ya la carga iniciarVistaServidor). Solo hacen
+    // falta para la pestaña Especiales (modal de reasignar, stock del pulidor): si se arranca en Generales se
+    // piden recién al entrar a Especiales (ver `cambiarTab`).
+    if (this.tabActiva === 'especiales' && this.puedeVerEspeciales) {
+      this.cargarDatosEspeciales();
     }
 
     if (this.isOperadorEspeciales) {

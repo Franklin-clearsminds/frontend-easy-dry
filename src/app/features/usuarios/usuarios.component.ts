@@ -1783,8 +1783,9 @@ export class UsuariosComponent implements OnInit, OnDestroy {
     if (!this.puedeCrearUsuarios) {
       this.columnasUsuarios = COLUMNAS_USUARIOS.filter(c => c.key !== 'acciones');
     }
-    // Catálogo de módulos y permisos: solo con 'roles.ver' (lo exige el servidor).
-    this.cargarCatalogoPermisos();
+    // Catálogo de módulos y permisos: solo hace falta en la pestaña Roles (su modal de crear/editar rol y sus
+    // contadores). Si se arranca en Usuarios, `seleccionarTab('roles')` ya lo pide al entrar por primera vez.
+    if (this.activeTab === 'roles') this.cargarCatalogoPermisos();
 
     this.regionService.getRegionesLista().subscribe(list => {
       if (list && list.length) {

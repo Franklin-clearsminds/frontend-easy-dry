@@ -49,7 +49,7 @@
     <!-- Pestaña 1: Servicios Generales -->
     @if (puedeVerSubGenerales) {
     <button
-      (click)="tabActiva = 'generales'"
+      (click)="seleccionarTab('generales')"
       [ngClass]="tabActiva === 'generales' ? 'bg-white text-easydry-blue shadow-md font-extrabold' : 'text-slate-600 hover:text-slate-900 font-semibold'"
       class="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs transition-all cursor-pointer">
       <i-lucide name="droplet" class="w-4 h-4 text-easydry-blue"></i-lucide>
@@ -60,7 +60,7 @@
     <!-- Pestaña 2: Servicios Especiales -->
     @if ((tieneServiciosEspeciales || !agenciaCtx) && puedeVerSubEspeciales) {
       <button
-        (click)="tabActiva = 'especiales'"
+        (click)="seleccionarTab('especiales')"
         [ngClass]="tabActiva === 'especiales' ? 'bg-white text-amber-700 shadow-md font-extrabold' : 'text-slate-600 hover:text-slate-900 font-semibold'"
         class="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs transition-all cursor-pointer">
         <i-lucide name="star" class="w-4 h-4 text-amber-500 fill-amber-500/20"></i-lucide>
