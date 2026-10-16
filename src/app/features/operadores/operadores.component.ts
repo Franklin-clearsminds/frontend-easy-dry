@@ -914,8 +914,17 @@ export class OperadoresComponent implements OnInit, OnDestroy {
       this.cargando = false;
     });
 
+  }
+
+  /** Sucursales: solo hacen falta en los modales de crear/editar operador y asignar bahía — antes se pedían
+   * siempre al entrar a la pantalla, aunque el usuario nunca abriera ninguno de los tres. */
+  private sucursalesOperadoresCargadas = false;
+  private cargarSucursalesSiHaceFalta(onListo: () => void): void {
+    if (this.sucursalesOperadoresCargadas) { onListo(); return; }
     this.sucursalService.getSucursales().subscribe(list => {
       this.sucursales = list;
+      this.sucursalesOperadoresCargadas = true;
+      onListo();
     });
   }
 
@@ -983,33 +992,35 @@ export class OperadoresComponent implements OnInit, OnDestroy {
       this.toastService.warning('Sin permiso', 'Tu rol no puede registrar personal operativo.');
       return;
     }
-    this.esEdicion = false;
-    this.operadorEnEdicionId = undefined;
-    this.conflictoAsignacion = null;
-    this.modalConfirmarConflictoOpen = false;
-    
-    const defaultSucursal = this.sucursales[0];
+    this.cargarSucursalesSiHaceFalta(() => {
+      this.esEdicion = false;
+      this.operadorEnEdicionId = undefined;
+      this.conflictoAsignacion = null;
+      this.modalConfirmarConflictoOpen = false;
 
-    const defaultRol = this.isCoordServiciosEspeciales ? 'PULIDOR' : 'LAVADOR';
+      const defaultSucursal = this.sucursales[0];
 
-    this.formOperador = {
-      nombre: '',
-      cedula: '',
-      telefono: '',
-      rol: defaultRol,
-      sucursalNombre: defaultSucursal?.nombre || '',
-      sucursalId: defaultSucursal ? String(defaultSucursal.id) : '',
-      bahiaNombre: 'Sin Bahía Asignada',
-      bahiaId: '',
-      estado: 'Activo',
-      password: ''
-    };
-    this.verPassword = false;
+      const defaultRol = this.isCoordServiciosEspeciales ? 'PULIDOR' : 'LAVADOR';
 
-    if (this.formOperador.sucursalId) {
-      this.cargarBahiasParaCrear(this.formOperador.sucursalId);
-    }
-    this.modalCrearOpen = true;
+      this.formOperador = {
+        nombre: '',
+        cedula: '',
+        telefono: '',
+        rol: defaultRol,
+        sucursalNombre: defaultSucursal?.nombre || '',
+        sucursalId: defaultSucursal ? String(defaultSucursal.id) : '',
+        bahiaNombre: 'Sin Bahía Asignada',
+        bahiaId: '',
+        estado: 'Activo',
+        password: ''
+      };
+      this.verPassword = false;
+
+      if (this.formOperador.sucursalId) {
+        this.cargarBahiasParaCrear(this.formOperador.sucursalId);
+      }
+      this.modalCrearOpen = true;
+    });
   }
 
   abrirModalEditar(op: Operador): void {
@@ -1017,30 +1028,32 @@ export class OperadoresComponent implements OnInit, OnDestroy {
       this.toastService.warning('Sin permiso', 'Tu rol no puede editar personal operativo.');
       return;
     }
-    this.esEdicion = true;
-    this.operadorEnEdicionId = op.id;
-    this.conflictoAsignacion = null;
-    this.modalConfirmarConflictoOpen = false;
+    this.cargarSucursalesSiHaceFalta(() => {
+      this.esEdicion = true;
+      this.operadorEnEdicionId = op.id;
+      this.conflictoAsignacion = null;
+      this.modalConfirmarConflictoOpen = false;
 
-    const suc = this.sucursales.find(s => s.nombre === op.sucursal || String(s.id) === String(op.sucursalId));
+      const suc = this.sucursales.find(s => s.nombre === op.sucursal || String(s.id) === String(op.sucursalId));
 
-    this.formOperador = {
-      nombre: op.nombre,
-      cedula: op.cedula,
-      telefono: op.telefono || '',
-      rol: op.rol || 'LAVADOR',
-      sucursalNombre: op.sucursal,
-      sucursalId: suc ? String(suc.id) : String(op.sucursalId || ''),
-      bahiaNombre: op.bahia || 'Sin Bahía Asignada',
-      bahiaId: op.bahiaId || '',
-      estado: op.estado || 'Activo',
-      password: ''
-    };
+      this.formOperador = {
+        nombre: op.nombre,
+        cedula: op.cedula,
+        telefono: op.telefono || '',
+        rol: op.rol || 'LAVADOR',
+        sucursalNombre: op.sucursal,
+        sucursalId: suc ? String(suc.id) : String(op.sucursalId || ''),
+        bahiaNombre: op.bahia || 'Sin Bahía Asignada',
+        bahiaId: op.bahiaId || '',
+        estado: op.estado || 'Activo',
+        password: ''
+      };
 
-    if (this.formOperador.sucursalId) {
-      this.cargarBahiasParaCrear(this.formOperador.sucursalId);
-    }
-    this.modalCrearOpen = true;
+      if (this.formOperador.sucursalId) {
+        this.cargarBahiasParaCrear(this.formOperador.sucursalId);
+      }
+      this.modalCrearOpen = true;
+    });
   }
 
   cerrarModalCrear(): void {
@@ -1219,25 +1232,27 @@ export class OperadoresComponent implements OnInit, OnDestroy {
       this.toastService.warning('Lavador Inactivo', 'No se puede asignar bahías a un colaborador inactivo. Debe activarlo primero.');
       return;
     }
-    this.operadorSeleccionado = op;
-    this.conflictoAsignacion = null;
-    this.modalConfirmarConflictoOpen = false;
+    this.cargarSucursalesSiHaceFalta(() => {
+      this.operadorSeleccionado = op;
+      this.conflictoAsignacion = null;
+      this.modalConfirmarConflictoOpen = false;
 
-    const suc = this.sucursales.find(s => s.nombre === op.sucursal || String(s.id) === String(op.sucursalId)) || this.sucursales[0];
+      const suc = this.sucursales.find(s => s.nombre === op.sucursal || String(s.id) === String(op.sucursalId)) || this.sucursales[0];
 
-    this.formAsignarBahia = {
-      operadorId: op.id,
-      sucursalId: suc ? String(suc.id) : '',
-      sucursalNombre: suc ? suc.nombre : op.sucursal,
-      bahiaId: op.bahiaId || '',
-      bahiaNombre: op.bahia || 'Sin Bahía Asignada',
-      motivo: ''
-    };
+      this.formAsignarBahia = {
+        operadorId: op.id,
+        sucursalId: suc ? String(suc.id) : '',
+        sucursalNombre: suc ? suc.nombre : op.sucursal,
+        bahiaId: op.bahiaId || '',
+        bahiaNombre: op.bahia || 'Sin Bahía Asignada',
+        motivo: ''
+      };
 
-    if (this.formAsignarBahia.sucursalId) {
-      this.cargarBahiasParaAsignar(this.formAsignarBahia.sucursalId);
-    }
-    this.modalAsignarBahiaOpen = true;
+      if (this.formAsignarBahia.sucursalId) {
+        this.cargarBahiasParaAsignar(this.formAsignarBahia.sucursalId);
+      }
+      this.modalAsignarBahiaOpen = true;
+    });
   }
 
   onSucursalAsignarChange(): void {

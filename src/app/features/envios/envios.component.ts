@@ -619,8 +619,29 @@ export class EnviosComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     if (this.puedeVerDespachos) this.refrescar();
-    // Los catálogos del formulario de envío solo se piden si el usuario puede despachar (evita 403 de fondo).
-    if (!this.puedeDespachar) return;
+  }
+
+  /** Reaplica el default de sucursal/insumo del form si el catálogo llegó después de abrir el modal (primera vez). */
+  private aplicarDefaultsFormularioEnvio(): void {
+    if (!this.modalCrearEnvioOpen) return;
+    if (!this.nuevoEnvioForm.sucursalId && this.sucursalesDisponibles[0]) {
+      const s = this.sucursalesDisponibles[0];
+      this.nuevoEnvioForm.sucursalId = s.id;
+      this.nuevoEnvioForm.sucursalNombre = s.nombre;
+    }
+    if (!this.nuevoEnvioForm.insumoId && this.insumosDisponibles[0]) {
+      const i = this.insumosDisponibles[0];
+      this.nuevoEnvioForm.insumoId = i.producto.id;
+      this.nuevoEnvioForm.insumoNombre = i.producto.nombre;
+    }
+  }
+
+  /** Los catálogos del formulario de envío (sucursales, bodegas, insumos, pulidores) solo hacen falta dentro del
+   * modal "Crear Envío": antes se pedían siempre en `ngOnInit`, aunque el usuario nunca abriera el modal. */
+  private catalogosEnvioCargados = false;
+  private cargarCatalogosEnvioSiHaceFalta(): void {
+    if (this.catalogosEnvioCargados || !this.puedeDespachar) return;
+    this.catalogosEnvioCargados = true;
 
     this.sucursalService.getSucursales().subscribe(sucs => {
       this.todasSucursales = sucs || [];
@@ -636,6 +657,7 @@ export class EnviosComponent implements OnInit, OnDestroy {
       } else {
         this.sucursalesDisponibles = sucs || [];
       }
+      this.aplicarDefaultsFormularioEnvio();
     });
 
     this.inventarioService.getBodegas().subscribe(bodegas => {
@@ -661,6 +683,7 @@ export class EnviosComponent implements OnInit, OnDestroy {
 
     this.inventarioService.getItems().subscribe(items => {
       this.insumosDisponibles = items || [];
+      this.aplicarDefaultsFormularioEnvio();
     });
 
     const user = this.auth.getCurrentUser();
@@ -905,6 +928,7 @@ export class EnviosComponent implements OnInit, OnDestroy {
       );
       return;
     }
+    this.cargarCatalogosEnvioSiHaceFalta();
     const primeraSuc = this.sucursalesDisponibles[0];
     const primerIns = this.insumosDisponibles[0];
     this.nuevoEnvioForm = {
