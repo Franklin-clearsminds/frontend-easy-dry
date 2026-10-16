@@ -4254,6 +4254,9 @@ export class InventarioComponent implements OnInit, OnDestroy {
         const encontrada = this.sucursalesActivas.find(
           (s) => String(s.id) === String(this.miAgenciaId) || s.nombre.toLowerCase() === this.miAgenciaNombre.toLowerCase()
         );
+        // Solo se recarga si `miAgenciaId` realmente cambió con esta respuesta: si ya venía correcto desde
+        // `currentUser`, repetir aquí las mismas peticiones del inicio era puro duplicado.
+        const idPrevio = this.miAgenciaId;
         if (encontrada) {
           this.miAgenciaId = String(encontrada.id);
           this.miAgenciaNombre = encontrada.nombre;
@@ -4261,11 +4264,13 @@ export class InventarioComponent implements OnInit, OnDestroy {
           this.miAgenciaId = String(this.sucursalesActivas[0].id);
           this.miAgenciaNombre = this.sucursalesActivas[0].nombre;
         }
-        this.cargarInsumosPorServicios();
-        this.cargarDespachosPendientes();
-        this.cargarProductos();
-        // "Otras agencias" excluye la propia por su id: se vuelve a pedir ahora que ya se conoce.
-        if (this.isOperador) this.cargarStockAgencias();
+        if (String(idPrevio) !== String(this.miAgenciaId)) {
+          this.cargarInsumosPorServicios();
+          this.cargarDespachosPendientes();
+          this.cargarProductos();
+          // "Otras agencias" excluye la propia por su id: se vuelve a pedir ahora que ya se conoce.
+          if (this.isOperador) this.cargarStockAgencias();
+        }
       }
     });
   }
