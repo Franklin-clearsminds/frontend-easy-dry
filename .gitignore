@@ -56,3 +56,14 @@ CLAUDE.md
 AGENTS.md
 .gemini/
 .agents/
+
+# Documentation & Workspace
+/docs/
+*.code-workspace
+
+# Local test specs / Dashboard tests
+src/app/core/services/dashboard-operativo.service.spec.ts
+src/app/features/dashboard/**/*.spec.ts
+src/app/features/dashboard/*.spec.ts
+src/app/shared/**/*.spec.ts
+src/app/shared/*.spec.ts
