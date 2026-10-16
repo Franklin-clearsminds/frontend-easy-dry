@@ -1,4 +1,4 @@
-import { Component, OnDestroy, OnInit, inject } from '@angular/core';
+import { Component, OnDestroy, OnInit, ViewChild, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
@@ -19,11 +19,13 @@ import { resolverRangoFechas } from '../../core/utils/fecha-rango';
 import { EnvioSuministro, EstadoEnvio, Sucursal, InventarioItem } from '../../core/models';
 import { BodegaInventario } from '../../core/models/inventario.model';
 import { apiUrl } from '../../core/config/env';
+import { FaltantesEnvioComponent } from './faltantes-envio.component';
+import { EvidenciasEnvioComponent } from './evidencias-envio.component';
 
 @Component({
   selector: 'app-envios',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, FilterBarComponent, DataTableComponent, DataTableCellDirective],
+  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, FaltantesEnvioComponent, EvidenciasEnvioComponent, FilterBarComponent, DataTableComponent, DataTableCellDirective],
   template: `
     <div class="space-y-6 animate-fade-in pb-12">
 
@@ -47,68 +49,8 @@ import { apiUrl } from '../../core/config/env';
         </div>
       </div>
 
-      <!-- Alerta Destacada de Envíos Rechazados -->
-      @if (rechazadosTotal > 0) {
-        <div class="p-5 bg-rose-50 border-2 border-rose-300 rounded-2xl shadow-sm space-y-3 animate-fade-in">
-          <div class="flex items-center justify-between gap-3">
-            <div class="flex items-center gap-3">
-              <div class="w-10 h-10 rounded-xl bg-rose-600 text-white flex items-center justify-center font-bold shadow-sm shrink-0">
-                <i-lucide aria-hidden="true" name="alert-triangle" class="w-5 h-5"></i-lucide>
-              </div>
-              <div>
-                <div class="flex items-center gap-2">
-                  <h3 class="text-sm font-extrabold text-rose-950 uppercase tracking-wide">
-                    Alerta: {{ rechazadosTotal }} despacho(s) rechazado(s)
-                  </h3>
-                  <span class="px-2 py-0.5 rounded-full text-xs font-extrabold bg-rose-200 text-rose-900">
-                    Stock permanece en origen (reserva liberada)
-                  </span>
-                </div>
-                <p class="text-xs text-rose-800 mt-0.5">
-                  El destino no aceptó el envío. El stock nunca salió del origen; revisa el motivo para reenviar o gestionar.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
-            @for (rech of rechazadosRecientes; track rech.id) {
-              <div class="p-3.5 bg-white rounded-xl border border-rose-200 text-xs shadow-2xs space-y-2">
-                <div class="flex justify-between items-center border-b border-slate-100 pb-1.5">
-                  <div class="flex items-center gap-2">
-                    <span class="font-mono font-extrabold text-xs px-2 py-0.5 rounded bg-rose-100 text-rose-900 border border-rose-200">
-                      {{ rech.codigoEnvio }}
-                    </span>
-                    <span class="font-bold text-slate-800">{{ rech.sucursalNombre }}</span>
-                  </div>
-                  <span class="text-xs text-slate-500 font-mono">{{ rech.fecha }}</span>
-                </div>
-
-                <div class="space-y-1">
-                  <span class="text-[11px] font-bold text-slate-500 uppercase">Insumos del Envío:</span>
-                  <div class="flex flex-wrap gap-1">
-                    @for (p of rech.productos; track p.nombreProducto) {
-                      <span class="inline-flex items-center gap-1 bg-slate-100 px-2 py-0.5 rounded text-xs font-semibold text-slate-800 border border-slate-200">
-                        <strong class="font-mono text-rose-700 font-extrabold">{{ p.cantidad }} und</strong> {{ p.nombreProducto }}
-                      </span>
-                    }
-                  </div>
-                </div>
-
-                <div class="p-2 bg-rose-100/80 rounded-lg text-rose-950 text-xs border border-rose-200">
-                  <span class="font-extrabold text-rose-800 uppercase text-[11px] block mb-0.5">Motivo / Comentario de la Sede:</span>
-                  <p class="font-semibold italic">"{{ rech.motivoRechazo || rech.observaciones || 'No se especificó comentario' }}"</p>
-                </div>
-              </div>
-            }
-          </div>
-          @if (rechazadosTotal > rechazadosRecientes.length) {
-            <p class="text-xs font-semibold text-rose-800">
-              Se muestran los {{ rechazadosRecientes.length }} más recientes de {{ rechazadosTotal }}. Filtra por estado «Rechazado» para ver todos.
-            </p>
-          }
-        </div>
-      }
+      <!-- Faltantes de recepciones parciales por resolver (bodega de origen) -->
+      <app-faltantes-envio />
 
       <!-- Banner KPIs Generales / Sede -->
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -261,6 +203,7 @@ import { apiUrl } from '../../core/config/env';
         <ng-template appCell="acciones" let-env>
           @if (env.estado === 'ENVIADO' && puedeAccionesEnvio(env)) {
             <div class="flex items-center justify-end gap-1.5">
+              @if (puedeConfirmarEnvio) {
               <button
                 type="button"
                 (click)="abrirModalConfirmacion(env)"
@@ -268,6 +211,8 @@ import { apiUrl } from '../../core/config/env';
                 <i-lucide aria-hidden="true" name="check" class="w-3.5 h-3.5"></i-lucide>
                 <span>Confirmar</span>
               </button>
+              }
+              @if (puedeRechazarEnvio) {
               <button
                 type="button"
                 (click)="abrirModalRechazo(env)"
@@ -275,6 +220,7 @@ import { apiUrl } from '../../core/config/env';
                 <i-lucide aria-hidden="true" name="x" class="w-3.5 h-3.5"></i-lucide>
                 <span>Rechazar</span>
               </button>
+              }
             </div>
           } @else if (env.estado === 'ENVIADO') {
             <span class="inline-flex items-center gap-1 text-xs font-bold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200">
@@ -305,77 +251,21 @@ import { apiUrl } from '../../core/config/env';
         </ng-template>
       </app-data-table>
 
-      <!-- MODAL RECHAZO -->
-      <app-modal size="md"
-        [isOpen]="modalRechazoOpen"
-        title="Rechazar Envío / Reportar No Conformidad"
-        icon="alert-triangle"
-        (close)="modalRechazoOpen = false">
-        @if (envioSeleccionadoRechazo) {
-          <div class="space-y-4">
-            <div class="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-900 flex items-start gap-2.5">
-              <i-lucide aria-hidden="true" name="alert-triangle" class="w-4 h-4 text-rose-600 shrink-0 mt-0.5"></i-lucide>
-              <div>
-                <p class="font-bold">¿Deseas reportar disconformidad para el envío {{ envioSeleccionadoRechazo.codigoEnvio }}?</p>
-                <p class="text-xs text-rose-700 mt-0.5">
-                  El despacho se marcará como rechazado y se liberará la reserva de stock en el origen (el físico no se había descontado).
-                </p>
-              </div>
-            </div>
-
-            <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase mb-1.5">Motivos rápidos</label>
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5 mb-3">
-                @for (m of motivosFrecuentes; track m) {
-                  <button
-                    type="button"
-                    (click)="seleccionarMotivoRapido(m)"
-                    class="p-2 text-left rounded-lg text-xs font-medium border transition-colors cursor-pointer"
-                    [ngClass]="motivoRechazoTexto === m ? 'bg-rose-100 border-rose-400 text-rose-950 font-bold' : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'">
-                    {{ m }}
-                  </button>
-                }
-              </div>
-
-              <label for="env-f1" class="block text-xs font-bold text-slate-700 uppercase mb-1">Detalle u Observaciones del Rechazo</label>
-              <textarea id="env-f1"
-                [(ngModel)]="motivoRechazoTexto"
-                rows="3"
-                placeholder="Indique la causa detallada (ej. Transporte nunca llegó a la sede, derrame del bidón, etc.)..."
-                class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 outline-none focus:ring-2 focus:ring-rose-500"
-                required>
-              </textarea>
-            </div>
-          </div>
-        }
-        <div modal-footer class="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 w-full">
-          <button
-            type="button"
-            (click)="modalRechazoOpen = false"
-            class="btn-secondary w-full sm:w-auto">
-            Cancelar
-          </button>
-          <button
-            type="button"
-            (click)="confirmarRechazoEnvio()"
-            [disabled]="!motivoRechazoTexto.trim()"
-            class="px-4 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white disabled:opacity-50 cursor-pointer w-full sm:w-auto justify-center">
-            Confirmar Rechazo
-          </button>
-        </div>
-      </app-modal>
-
-      <!-- MODAL CONFIRMAR RECEPCIÓN (permite parcial + observación) -->
+      <!-- MODAL CONFIRMAR / RECHAZAR RECEPCIÓN: la cantidad que se recibió y la observación -->
       <app-modal size="md"
         [isOpen]="modalConfirmacionOpen"
-        title="Confirmar Recepción"
-        icon="check-circle"
+        [title]="modoRechazo ? 'Rechazar Envío' : 'Confirmar Recepción'"
+        [icon]="modoRechazo ? 'alert-triangle' : 'check-circle'"
         (close)="modalConfirmacionOpen = false">
         @if (envioSeleccionadoConfirmacion) {
           <div class="space-y-3 text-xs">
             <p class="text-slate-600">
               Guía <b>{{ envioSeleccionadoConfirmacion.codigoEnvio }}</b> → {{ envioSeleccionadoConfirmacion.sucursalNombre }}.
-              Puedes recibir menos de lo enviado; si es parcial, la observación es obligatoria.
+              @if (modoRechazo) {
+                Indica cuánto se recibió de cada producto (0 si no llegó nada). Lo que no se reciba queda retenido hasta que la bodega de origen decida si lo devuelve o lo da de baja.
+              } @else {
+                Puedes recibir menos de lo enviado; si es parcial, la observación es obligatoria.
+              }
             </p>
             <div class="space-y-2">
               @for (p of envioSeleccionadoConfirmacion.productos || []; track $index) {
@@ -401,7 +291,9 @@ import { apiUrl } from '../../core/config/env';
             <div>
               <label for="env-f3" class="block font-bold text-slate-700 mb-1">
                 Observación
-                @if (esRecepcionParcial) {
+                @if (modoRechazo) {
+                  <span class="text-rose-600">(obligatoria: explica el rechazo)</span>
+                } @else if (esRecepcionParcial) {
                   <span class="text-rose-600">(obligatoria por recepción parcial)</span>
                 }
               </label>
@@ -410,8 +302,9 @@ import { apiUrl } from '../../core/config/env';
                 name="obsRecepcion"
                 rows="2"
                 class="w-full p-2.5 rounded-xl border border-slate-200"
-                [placeholder]="esRecepcionParcial ? 'Explica la diferencia de cantidades...' : 'Opcional'"></textarea>
+                [placeholder]="modoRechazo ? 'Explica por qué se rechaza (ej. llegó averiado, no corresponde al pedido)...' : (esRecepcionParcial ? 'Explica la diferencia de cantidades...' : 'Opcional')"></textarea>
             </div>
+            <app-evidencias-envio #evidenciasRecepcion />
           </div>
         }
         <div modal-footer class="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 w-full">
@@ -424,9 +317,10 @@ import { apiUrl } from '../../core/config/env';
           <button
             type="button"
             (click)="ejecutarConfirmacionRecepcion()"
-            [disabled]="esRecepcionParcial && !observacionRecepcion.trim()"
-            class="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50 cursor-pointer w-full sm:w-auto justify-center">
-            Confirmar Ingreso
+            [disabled]="subiendoEvidencias || ((modoRechazo || esRecepcionParcial) && !observacionRecepcion.trim())"
+            [ngClass]="modoRechazo ? 'bg-rose-600 hover:bg-rose-700' : 'bg-emerald-600 hover:bg-emerald-700'"
+            class="px-4 py-2 rounded-xl text-xs font-bold text-white disabled:opacity-50 cursor-pointer w-full sm:w-auto justify-center">
+            {{ modoRechazo ? 'Confirmar Rechazo' : 'Confirmar Ingreso' }}
           </button>
         </div>
       </app-modal>
@@ -578,7 +472,7 @@ export class EnviosComponent implements OnInit, OnDestroy {
   /** Opera desde una bodega regional propia (tiene bodega asignada y no es de alcance global). */
   get operaBodegaRegional(): boolean {
     const u = this.auth.getCurrentUser();
-    return !!(u as any)?.bodegaId && u?.ambito !== 'GLOBAL' && this.auth.puede('despachos.crear');
+    return !!(u as any)?.bodegaId && u?.ambito !== 'GLOBAL' && this.auth.puede('envios.crear');
   }
 
   get liderSucursalNombre(): string {
@@ -587,15 +481,23 @@ export class EnviosComponent implements OnInit, OnDestroy {
   }
 
   get puedeDespachar(): boolean {
-    return this.auth.puede('despachos.crear');
+    return this.auth.puede('envios.crear');
   }
 
   get puedeVerDespachos(): boolean {
     return this.auth.puede('despachos.ver');
   }
 
+  get puedeConfirmarEnvio(): boolean {
+    return this.auth.puede('envios.confirmar');
+  }
+
+  get puedeRechazarEnvio(): boolean {
+    return this.auth.puede('envios.rechazar');
+  }
+
   get puedeRecibir(): boolean {
-    return this.auth.puede('despachos.recibir');
+    return this.puedeConfirmarEnvio || this.puedeRechazarEnvio;
   }
 
   get miRegionNombre(): string {
@@ -665,10 +567,7 @@ export class EnviosComponent implements OnInit, OnDestroy {
   /** Contadores de los filtros vigentes (menos el de estado); los da el servidor, no lo cargado. */
   resumen: ResumenDespachos | null = null;
   /** Los últimos rechazados (aviso destacado) y cuántos hay en total dentro del alcance del usuario. */
-  rechazadosRecientes: EnvioSuministro[] = [];
-  rechazadosTotal = 0;
   private subTabla?: Subscription;
-  private subRechazados?: Subscription;
 
   readonly claseFila = (env: EnvioSuministro): string => (env.estado === 'RECHAZADO' ? 'bg-rose-50/60 hover:bg-rose-50' : '');
 
@@ -680,12 +579,13 @@ export class EnviosComponent implements OnInit, OnDestroy {
   insumosDisponibles: InventarioItem[] = [];
 
   // Modales
-  modalRechazoOpen = false;
+  /** El mismo modal de recepción sirve para rechazar: cantidad recibida (0 por defecto) y observación obligatoria. */
+  modoRechazo = false;
+  @ViewChild('evidenciasRecepcion') evidenciasRecepcion?: EvidenciasEnvioComponent;
+  subiendoEvidencias = false;
   modalCrearEnvioOpen = false;
   modalConfirmacionOpen = false;
-  envioSeleccionadoRechazo: EnvioSuministro | null = null;
   envioSeleccionadoConfirmacion: EnvioSuministro | null = null;
-  motivoRechazoTexto = '';
   observacionRecepcion = '';
   cantidadesRecepcion: number[] = [];
 
@@ -694,13 +594,6 @@ export class EnviosComponent implements OnInit, OnDestroy {
     if (!env?.productos?.length) return false;
     return env.productos.some((p, i) => Number(this.cantidadesRecepcion[i] ?? p.cantidad) < Number(p.cantidad));
   }
-
-  motivosFrecuentes: string[] = [
-    'Transporte nunca llegó a la agencia',
-    'Producto averiado / derrame en tránsito',
-    'Insumo equivocado / no corresponde al pedido',
-    'Empaque violentado / faltante de unidades'
-  ];
 
   nuevoEnvioForm = {
     sucursalId: '' as string | number,
@@ -791,13 +684,8 @@ export class EnviosComponent implements OnInit, OnDestroy {
     });
   }
 
-  seleccionarMotivoRapido(motivo: string): void {
-    this.motivoRechazoTexto = motivo;
-  }
-
   ngOnDestroy(): void {
     this.subTabla?.unsubscribe();
-    this.subRechazados?.unsubscribe();
   }
 
   /** Vuelve a la primera página con los filtros vigentes (y pide contadores y rechazados). */
@@ -809,7 +697,6 @@ export class EnviosComponent implements OnInit, OnDestroy {
   /** Tras cambiar un filtro o una acción (despachar, confirmar, rechazar): vuelve a pedir lo que se ve y los contadores. */
   refrescar(): void {
     this.cargarPagina(true);
-    this.cargarRechazados();
   }
 
   onTablaCambio(q: ConsultaTabla): void {
@@ -857,23 +744,6 @@ export class EnviosComponent implements OnInit, OnDestroy {
           this.totalTabla = 0;
           this.errorTabla = this.mensajeError(err);
           this.cargandoTabla = false;
-        },
-      });
-  }
-
-  /** Aviso destacado: los 4 rechazados más recientes dentro del alcance del usuario (sin los filtros de la tabla). */
-  private cargarRechazados(): void {
-    this.subRechazados?.unsubscribe();
-    this.subRechazados = this.inventarioService
-      .getDespachosPagina({ ...this.filtroAlcance(), estadoDespacho: 'RECHAZADO', page: 1, pageSize: 4 })
-      .subscribe({
-        next: ({ pagina }) => {
-          this.rechazadosRecientes = pagina.items.map((m) => this.mapBackendDespacho(m));
-          this.rechazadosTotal = pagina.total;
-        },
-        error: () => {
-          this.rechazadosRecientes = [];
-          this.rechazadosTotal = 0;
         },
       });
   }
@@ -1160,16 +1030,22 @@ export class EnviosComponent implements OnInit, OnDestroy {
   }
 
   abrirModalConfirmacion(env: EnvioSuministro): void {
+    this.modoRechazo = false;
     this.envioSeleccionadoConfirmacion = env;
     this.observacionRecepcion = '';
     this.cantidadesRecepcion = (env.productos || []).map((p) => Number(p.cantidad) || 0);
+    this.evidenciasRecepcion?.limpiar();
     this.modalConfirmacionOpen = true;
   }
 
-  ejecutarConfirmacionRecepcion(): void {
+  async ejecutarConfirmacionRecepcion(): Promise<void> {
     const env = this.envioSeleccionadoConfirmacion;
     if (!env) return;
-    if (this.esRecepcionParcial && !this.observacionRecepcion.trim()) {
+    if (this.modoRechazo && !this.observacionRecepcion.trim()) {
+      this.toastService.warning('Observación requerida', 'Explica por qué se rechaza el envío.');
+      return;
+    }
+    if (!this.modoRechazo && this.esRecepcionParcial && !this.observacionRecepcion.trim()) {
       this.toastService.warning('Observación requerida', 'En recepción parcial debes explicar la diferencia.');
       return;
     }
@@ -1189,12 +1065,28 @@ export class EnviosComponent implements OnInit, OnDestroy {
       c.cantidadRecibida = Math.round(c.cantidadRecibida);
     }
 
+    // Rechazar sin recibir nada es un rechazo completo; si se recibió algo, es una recepción parcial.
+    const recibidoAlgo = cantidadesRecibidas.some((c) => c.cantidadRecibida > 0);
+    if (this.modoRechazo && !recibidoAlgo) {
+      const fotos = await this.subirFotos(env, 'rechazo');
+      if (fotos === null) return;
+      this.rechazarEnvioCompleto(env, this.observacionRecepcion.trim(), fotos);
+      return;
+    }
+    if (this.modoRechazo && !this.puedeConfirmarEnvio) {
+      this.toastService.warning('Sin permiso', 'Tu rol puede rechazar el envío completo, pero no recibir una parte. Deja la cantidad recibida en 0.');
+      return;
+    }
+    const evidencias = await this.subirFotos(env, this.modoRechazo ? 'rechazo' : 'recepcion');
+    if (evidencias === null) return;
+
     const body: any = {
       movimientoId: String(env.id),
       agenciaId: String(agenciaId),
       sucursalId: String(agenciaId),
       accion: 'RECIBIDO',
       observaciones: this.observacionRecepcion.trim() || undefined,
+      evidencias: evidencias.length ? evidencias : undefined,
     };
     if (cantidadesRecibidas.length > 0) {
       body.cantidadesRecibidas = cantidadesRecibidas;
@@ -1222,16 +1114,29 @@ export class EnviosComponent implements OnInit, OnDestroy {
   }
 
   abrirModalRechazo(env: EnvioSuministro): void {
-    this.envioSeleccionadoRechazo = env;
-    this.motivoRechazoTexto = '';
-    this.modalRechazoOpen = true;
+    this.modoRechazo = true;
+    this.envioSeleccionadoConfirmacion = env;
+    this.observacionRecepcion = '';
+    this.cantidadesRecepcion = (env.productos || []).map(() => 0);
+    this.evidenciasRecepcion?.limpiar();
+    this.modalConfirmacionOpen = true;
   }
 
-  confirmarRechazoEnvio(): void {
-    if (!this.envioSeleccionadoRechazo || !this.motivoRechazoTexto.trim()) return;
+  /** Sube las fotos opcionales; devuelve null si falló (ya se avisó) para no guardar la recepción sin ellas. */
+  private async subirFotos(env: EnvioSuministro, etapa: 'recepcion' | 'rechazo'): Promise<string[] | null> {
+    if (!this.evidenciasRecepcion?.cantidad) return [];
+    this.subiendoEvidencias = true;
+    try {
+      return await this.evidenciasRecepcion.subir(String(env.codigoEnvio), etapa);
+    } catch (err: any) {
+      this.toastService.error('No se pudieron subir las fotos', err?.error?.message || err?.message || 'Intenta de nuevo o quítalas.');
+      return null;
+    } finally {
+      this.subiendoEvidencias = false;
+    }
+  }
 
-    const env = this.envioSeleccionadoRechazo;
-    const motivo = this.motivoRechazoTexto.trim();
+  private rechazarEnvioCompleto(env: EnvioSuministro, motivo: string, evidencias: string[] = []): void {
     const user = this.auth.getCurrentUser();
     const agenciaId = env.sucursalId || user?.agenciaId || user?.sucursalNombre || user?.sucursal || '';
 
@@ -1239,7 +1144,8 @@ export class EnviosComponent implements OnInit, OnDestroy {
       movimientoId: String(env.id),
       agenciaId: String(agenciaId),
       motivo,
-      observaciones: motivo
+      observaciones: motivo,
+      evidencias: evidencias.length ? evidencias : undefined,
     }).subscribe({
       next: () => {
         const ahora = new Date();
@@ -1250,11 +1156,11 @@ export class EnviosComponent implements OnInit, OnDestroy {
         env.fechaResolucion = fechaStr;
         env.horaResolucion = horaStr;
         env.responsableRecepcion = `${user?.nombre || 'Líder'} ${user?.apellido || 'Operador'} (Receptor)`.trim();
-        this.modalRechazoOpen = false;
+        this.modalConfirmacionOpen = false;
 
         this.toastService.warning(
           'Envío Rechazado',
-          `Se registró disconformidad para ${env.codigoEnvio}: ${motivo}. Se liberó la reserva en el origen.`
+          `Se rechazó ${env.codigoEnvio}: ${motivo}. El producto quedó retenido hasta que la bodega de origen decida qué hacer con él.`
         );
         this.refrescar();
         this.notificacionService.recargar();

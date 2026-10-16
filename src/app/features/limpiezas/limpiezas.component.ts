@@ -1,3 +1,4 @@
+import { celdaCsv } from '../../core/utils/csv';
 import { Component, Input, OnDestroy, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -12,7 +13,7 @@ import { ModalComponent } from '../../shared/components/modal/modal.component';
 import { SkeletonLoaderComponent } from '../../shared/components/skeleton-loader/skeleton-loader.component';
 import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
 import { fechaLocal } from '../../core/utils/evidencia-maquinaria';
-import { puedeEditarLimpiezas } from '../../core/utils/maquinaria-permisos';
+import { puedeEditarLimpiezas, puedeExportarLimpiezas } from '../../core/utils/maquinaria-permisos';
 import { PAGE_SIZE_INFINITO } from '../../core/config/paginacion';
 
 /**
@@ -58,11 +59,13 @@ import { PAGE_SIZE_INFINITO } from '../../core/config/paginacion';
             <option [value]="m.id">{{ m.codigo }} — {{ m.nombre }}</option>
           }
         </select>
+        @if (puedeExportar) {
         <button type="button" (click)="exportarCsv()" [disabled]="exportando"
           class="btn btn-secondary btn-sm w-full sm:w-auto">
           <i-lucide name="download" class="w-3.5 h-3.5" aria-hidden="true"></i-lucide>
           {{ exportando ? 'Exportando...' : 'Exportar CSV' }}
         </button>
+        }
       </div>
 
       @if (lista.error && lista.items.length === 0) {
@@ -173,6 +176,8 @@ export class LimpiezasComponent implements OnInit, OnDestroy {
   exportando = false;
 
   readonly puedeEditar = puedeEditarLimpiezas(this.authService);
+  /** Las exportaciones viven en Reportes Operativos: solo exporta quien tiene ese permiso. */
+  readonly puedeExportar = puedeExportarLimpiezas(this.authService);
 
   readonly lista = new ListaInfinita<LimpiezaMaquinaria>(
     (page, pageSize) => this.maquinariaService.getLimpiezasPagina({ page, pageSize, maquinariaId: this.filtroMaquinariaId || undefined }),
@@ -262,7 +267,7 @@ export class LimpiezasComponent implements OnInit, OnDestroy {
         `${r.registradoPor?.name || ''} ${r.registradoPor?.lastname || ''}`.trim(),
         r.observaciones || '',
         String(r.fotos.length),
-      ].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(','));
+      ].map(celdaCsv).join(','));
       const csv = [encabezado.join(','), ...lineas].join('\r\n');
       const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);

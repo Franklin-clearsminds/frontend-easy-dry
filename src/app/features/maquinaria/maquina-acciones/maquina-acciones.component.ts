@@ -11,6 +11,8 @@ import { UsuarioService } from '../../../core/services/usuario.service';
 import { StorageUploadService } from '../../../core/services/storage-upload.service';
 import { ModalComponent } from '../../../shared/components/modal/modal.component';
 import { TecnicoSearchSelectComponent, TecnicoOpcion } from '../../../shared/components/tecnico-search-select/tecnico-search-select.component';
+import { AuthService } from '../../../core/services/auth.service';
+import { puedeEditarMaquina, puedeCambiarArchivosMaquina } from '../../../core/utils/maquinaria-permisos';
 import { ToastService } from '../../../shared/services/toast.service';
 
 import { mensajeError } from '../trabajo-acciones/trabajo-acciones.component';
@@ -20,7 +22,7 @@ import { mensajeError } from '../trabajo-acciones/trabajo-acciones.component';
  * ver `ROLES_OPERADOR` en `maquinaria.permisos.ts`): solo pulidores, fijos o móviles. El líder NO
  * entra aquí — ya ve y reporta toda la maquinaria de su agencia sin necesitar asignación individual.
  */
-const ROLES_OPERADOR_MAQUINA = ['PULIDOR', 'PULIDOR_FIJO', 'PULIDOR_MOVIL'];
+const ROLES_OPERADOR_MAQUINA = ['PULIDOR'];
 
 interface DestinoOpcion {
   id: string;
@@ -42,6 +44,7 @@ interface DestinoOpcion {
       @if (edi.open) {
         <div class="space-y-4">
           <p class="text-xs text-slate-500">Aquí no se cambia la ubicación (agencia/bahía): para eso usa <strong>Transferir</strong>. Cada cambio queda en la línea de tiempo.</p>
+          @if (puedeEditarDatos) {
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div><label for="ma-edi-nombre" class="field-label">Nombre</label>
               <input id="ma-edi-nombre" type="text" [(ngModel)]="edi.nombre" name="edi-nombre" class="field"></div>
@@ -56,6 +59,8 @@ interface DestinoOpcion {
             <div><label for="ma-edi-horas" class="field-label">Horas de uso</label>
               <input id="ma-edi-horas" type="number" min="0" [(ngModel)]="edi.horasUso" name="edi-horas" class="field"></div>
           </div>
+          }
+          @if (puedeArchivos) {
           <div class="space-y-4">
             <div>
               <label for="ma-edi-foto" class="field-label">Reemplazar foto (opcional)</label>
@@ -66,6 +71,7 @@ interface DestinoOpcion {
               <input id="ma-edi-ficha" type="file" accept="image/*" (change)="edi.ficha = $any($event.target).files?.[0] || null" class="w-full text-xs">
             </div>
           </div>
+          }
           @if (error) { <div class="estado-error" role="alert">{{ error }}</div> }
         </div>
       }
@@ -201,6 +207,9 @@ interface DestinoOpcion {
 })
 export class MaquinaAccionesComponent {
   private maquinariaService = inject(MaquinariaService);
+  private authPermisos = inject(AuthService);
+  get puedeEditarDatos(): boolean { return puedeEditarMaquina(this.authPermisos); }
+  get puedeArchivos(): boolean { return puedeCambiarArchivosMaquina(this.authPermisos); }
   private sucursalService = inject(SucursalService);
   private bahiaService = inject(BahiaService);
   private usuarioService = inject(UsuarioService);

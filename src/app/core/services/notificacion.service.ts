@@ -3,7 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { BehaviorSubject, Observable, firstValueFrom } from 'rxjs';
 import { map, tap, catchError } from 'rxjs/operators';
 import { of } from 'rxjs';
-import { Notificacion, NotificacionCategoria, NotificacionTipo } from '../models/notificacion.model';
+import { Notificacion, NotificacionCategoria, NotificacionTipo, Pendiente } from '../models/notificacion.model';
 import { apiUrl } from '../config/env';
 import { NotificationSocketService, NotificationPayload } from './notification-socket.service';
 
@@ -25,12 +25,14 @@ const TIPO_A_NOTIFICACION_TIPO: Record<string, NotificacionTipo> = {
   SERVICIO_ESPECIAL_ASIGNADO: 'info',
   SERVICIO_ESPECIAL_CERRADO: 'info',
   DESPACHO_CONFIRMADO: 'info',
+  DESPACHO_FALTANTE: 'alerta',
 };
 
 /** Módulo funcional de cada tipo de notificación del backend, para agrupar/filtrar por área. */
 const CATEGORIA_POR_TIPO: Record<string, NotificacionCategoria> = {
   STOCK_CRITICO: 'inventario',
   DESPACHO_PENDIENTE: 'inventario',
+  DESPACHO_FALTANTE: 'inventario',
   INCIDENTE_NUEVO: 'mantenimiento',
   INCIDENCIA_ASIGNADA: 'mantenimiento',
   INCIDENCIA_RESUELTA: 'mantenimiento',
@@ -136,6 +138,31 @@ export class NotificacionService {
     return this.http.post<any>(apiUrl('/notifications/resumen'), {}).pipe(
       map((res) => ({ pendientes: Number(res?.pendientes || 0) })),
       catchError(() => of({ pendientes: 0 })),
+    );
+  }
+
+  /**
+   * Pendientes operativos del usuario (lo que sigue mal ahora: stock, incidentes, preventivos vencidos), ya acotados por el
+   * servidor a su alcance y a lo que su rol puede ver. Devuelve `null` si el rol no tiene acceso a ninguno de esos orígenes.
+   */
+  getPendientes(): Observable<Pendiente[] | null> {
+    return this.http.post<any>(apiUrl('/analytics/pendientes'), {}, { headers: { 'X-Silent-Fallback': '1' } }).pipe(
+      map((res) => (Array.isArray(res?.pendientes) ? res.pendientes : []).map((p: any): Pendiente => ({
+        id: String(p.id),
+        grupo: p.grupo === 'stock' ? 'stock' : 'mantenimiento',
+        severidad: p.severidad === 'critica' || p.severidad === 'advertencia' ? p.severidad : 'info',
+        titulo: p.titulo,
+        detalle: p.detalle,
+        origen: p.origen ?? null,
+        agencia: p.agencia ?? null,
+        pulidor: p.pulidor ?? null,
+        region: p.region ?? null,
+        estado: p.estado,
+        timestamp: p.fecha ? new Date(p.fecha).getTime() : 0,
+        enlace: p.grupo === 'stock' ? '/inventario' : '/maquinaria',
+        enlaceLabel: p.grupo === 'stock' ? 'Ver Inventario' : 'Ir al Taller',
+      }))),
+      catchError(() => of(null)),
     );
   }
 

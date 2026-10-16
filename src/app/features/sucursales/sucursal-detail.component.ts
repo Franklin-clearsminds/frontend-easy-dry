@@ -256,9 +256,9 @@ export class SucursalDetailComponent implements OnInit {
   private toastService = inject(ToastService);
 
   // Permisos: los mismos que exige el servidor.
-  get puedeEditarServicios(): boolean { return this.auth.puede('agencias.editar'); }
-  get puedeEditarBahias(): boolean { return this.auth.puede('bahias.editar'); }
-  get puedeAsignarOperadores(): boolean { return this.auth.puede('bahias.asignar'); }
+  get puedeEditarServicios(): boolean { return this.auth.puede('agencias.agencias.servicios'); }
+  get puedeEditarBahias(): boolean { return this.auth.puede('agencias.bahias.estado'); }
+  get puedeAsignarOperadores(): boolean { return this.auth.puede('agencias.bahias.asignar'); }
 
   private mensajeError(err: any, respaldo: string): string {
     const m = err?.error?.message;

@@ -585,58 +585,6 @@ export class InventarioService {
     return item.stockBodegaCentral || item.stockTotalRed || 0;
   }
 
-  public consumirInsumosServicio(
-    agenciaId: string,
-    ordenTrabajo: string,
-    placa: string,
-    insumos: any[],
-    operador?: string
-  ): Observable<{ success: boolean; alertasGeneradas: string[] }> {
-    const payload = {
-      agenciaId,
-      ordenTrabajo,
-      placa,
-      insumos: (insumos || []).map(i => ({
-        insumoId: typeof i.productoId === 'string' && i.productoId.length > 10 ? i.productoId : undefined,
-        codigoSKU: i.productoSKU || (typeof i.productoId === 'string' ? i.productoId : undefined),
-        cantidad: Number(i.cantidad || 1)
-      })),
-      operador
-    };
-
-    return this.http.post<{ success: boolean; alertasGeneradas: string[] }>(
-      apiUrl('/inventario/stock/consumir-servicio'),
-      payload
-    ).pipe(
-      tap(() => this.cargarItems()),
-      catchError(() => {
-        // Fallback reactivo local en caso de desconexión
-        const currentItems = [...this.itemsSubject.value];
-        const alertas: string[] = [];
-
-        payload.insumos.forEach(itemConsumo => {
-          const found = currentItems.find(i => 
-            (itemConsumo.insumoId && i.producto.id === itemConsumo.insumoId) || 
-            (itemConsumo.codigoSKU && i.producto.codigoSKU === itemConsumo.codigoSKU)
-          );
-          if (found) {
-            found.stockBodegaCentral = Math.max(0, found.stockBodegaCentral - itemConsumo.cantidad);
-            found.stockTotalRed = Math.max(0, found.stockTotalRed - itemConsumo.cantidad);
-            if (agenciaId && found.stockPorSucursal && found.stockPorSucursal[agenciaId] != null) {
-              found.stockPorSucursal[agenciaId] = Math.max(0, found.stockPorSucursal[agenciaId] - itemConsumo.cantidad);
-            }
-            if (found.stockBodegaCentral <= (found.producto.stockMinimoAgencia || 2)) {
-              alertas.push(`Stock Bajo: ${found.producto.nombre} en ${agenciaId} (quedan ${found.stockBodegaCentral} ${found.producto.unidadMedida})`);
-            }
-          }
-        });
-
-        this.itemsSubject.next(currentItems);
-        return of({ success: true, alertasGeneradas: alertas });
-      })
-    );
-  }
-
   public getInsumosPorServiciosAgencia(agenciaId?: string, servicioIds?: number[]): Observable<any> {
     return this.http.post<any>(apiUrl('/inventario/agencia/insumos-servicios'), { agenciaId, servicioIds }).pipe(
       catchError(() => of(null))

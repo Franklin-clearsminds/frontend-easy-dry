@@ -1,210 +1,182 @@
-import { TestBed } from '@angular/core/testing';
-import { Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
-import { of, throwError } from 'rxjs';
+import { TestBed } from '@angular/core/testing';
+import { firstValueFrom } from 'rxjs';
 import { AuthService } from './auth.service';
-import { RolService } from './rol.service';
-import { MaquinariaService } from './maquinaria.service';
+import { apiUrl } from '../config/env';
 import { Role, UsuarioAuth } from '../models/roles.model';
+import { esperar, iniciarSesion, mundo, postComo, proveedoresApiReal, requiereMundo } from '../../../testing/api-real';
 
-function fichaLider(): UsuarioAuth {
-  return {
-    id: 'u1',
-    nombre: 'Juan',
-    apellido: 'Pérez',
-    email: 'juan@easydry.com',
-    role: Role.LIDER_OPERADOR,
-    rolNombre: 'Líder Operador',
-    modulosPermitidos: ['maquinaria'],
-    capacidades: ['maquinaria.ver'],
-    ambito: 'AGENCIA',
-    sucursal: 'EasyDry Norte',
-    sucursalNombre: 'EasyDry Norte',
-    region: 'Pichincha',
-    agenciaId: 'ag-1',
-    regionId: 'reg-1',
-    bodegaId: undefined,
-    modalidadPulidor: undefined,
-    servicioIds: [7],
-    estado: 'Activo',
-    token: 'token-actual',
-    refreshToken: 'refresh-actual',
-    permisos: {} as never,
-    avatar: '',
-  };
-}
-
+/**
+ * Contra el backend REAL y la base local (ver `src/testing/api-real.ts`): inicia sesión de verdad con `/auth/login` y
+ * refresca permisos con `/auth/me`. Los cambios de rol los hace un administrador real por la API.
+ */
 describe('AuthService — sincronización de rol (refrescarPermisos)', () => {
-  let httpPost: jasmine.Spy;
   let service: AuthService;
-  let router: { url: string; navigate: jasmine.Spy };
+
+  const estado = () => (service as unknown as { currentUserSubject: { next: (u: UsuarioAuth) => void } }).currentUserSubject;
 
   beforeEach(() => {
-    // El constructor de AuthService lee localStorage real (getStoredUser()) y, si hay token, dispara
-    // refrescarPermisos() de entrada — sin esto, lo que guarda un test (localStorage es del browser,
-    // no se resetea solo entre specs) filtra al siguiente antes de que su propio spy esté configurado.
+    requiereMundo();
     localStorage.clear();
-    httpPost = jasmine.createSpy('post');
-    router = { url: '/maquinaria', navigate: jasmine.createSpy('navigate') };
-
-    TestBed.configureTestingModule({
-      providers: [
-        AuthService,
-        { provide: HttpClient, useValue: { post: httpPost } },
-        { provide: Router, useValue: router },
-        { provide: RolService, useValue: jasmine.createSpyObj('RolService', ['getRoles', 'getModulos']) },
-        { provide: MaquinariaService, useValue: {} },
-      ],
-    });
+    TestBed.configureTestingModule({ providers: [AuthService, ...proveedoresApiReal()] });
     service = TestBed.inject(AuthService);
-    // Simula una sesión ya cargada, sin pasar por el constructor (localStorage vacío en el test).
-    (service as unknown as { currentUserSubject: { next: (u: UsuarioAuth) => void } }).currentUserSubject.next(fichaLider());
   });
 
-  it('un cambio de rol (a uno distinto) se refleja tras refrescarPermisos, sin logout', () => {
-    httpPost.and.returnValue(of({
-      role: 'COORD_MANTENIMIENTO',
-      rolNombre: 'Coordinador de Mantenimiento',
-      name: 'Juan',
-      lastname: 'Pérez',
-      email: 'juan@easydry.com',
-      capacidades: ['maquinaria.gestionar', 'mantenimientos.ver'],
-      modulos: ['maquinaria', 'taller-tecnico'],
-      ambito: 'REGION',
-      agenciaId: null,
-      agencia: null,
-      regionId: 'reg-1',
-      region: { id: 'reg-1', nombre: 'Pichincha' },
-      regionNombre: 'Pichincha',
-      bodegaId: null,
-      estado: 1,
-    }));
+  afterEach(() => {
+    service?.logout();
+    localStorage.clear();
+  });
 
+  it('un cambio de rol (a uno distinto) se refleja tras refrescarPermisos, sin logout', async () => {
+    await iniciarSesion(service, 'cambiante');
+    expect(service.getCurrentUser()?.role).toBe(Role.LIDER);
+
+    await postComo('superadmin', '/agencias/usuarios/update', {
+      id: mundo.usuarios['cambiante'].id,
+      roleId: mundo.rolId['COORD_MANTENIMIENTO'],
+      regionId: mundo.regionId,
+    });
     service.refrescarPermisos();
+    await esperar(() => service.getCurrentUser()?.role === Role.COORD_MANTENIMIENTO);
 
     const actual = service.getCurrentUser();
-    expect(actual?.role).toBe(Role.COORD_MANTENIMIENTO);
-    expect(actual?.rolNombre).toBe('Coordinador de Mantenimiento');
-    expect(actual?.capacidades).toEqual(['maquinaria.gestionar', 'mantenimientos.ver']);
-    expect(actual?.modulosPermitidos).toEqual(['maquinaria', 'taller-tecnico']);
+    expect(actual?.capacidades).toContain('mantenimientos.ver');
+    expect(actual?.ambito).toBe('REGION');
     expect(service.hasRole(Role.COORD_MANTENIMIENTO)).toBe(true);
   });
 
-  it('lee del servidor permisos de módulo actualizados antes de validar una ruta', async () => {
-    httpPost.and.returnValue(of({
-      role: 'LIDER',
-      name: 'Juan',
-      lastname: 'Pérez',
-      email: 'juan@easydry.com',
-      capacidades: ['agencias.ver'],
-      modulos: ['agencias', 'mapa-operativo'],
-      ambito: 'AGENCIA',
-      agenciaId: 'ag-1',
-      agencia: { id: 'ag-1', nombre: 'EasyDry Norte' },
-      regionId: 'reg-1',
-      region: { id: 'reg-1', nombre: 'Pichincha' },
-      regionNombre: 'Pichincha',
-      bodegaId: null,
-      estado: 1,
-    }));
+  it('lee del servidor los permisos de módulo antes de validar una ruta', async () => {
+    await iniciarSesion(service, 'lider');
+    // El módulo que el servidor entrega al líder es el que se autoriza; uno que no entrega, no.
+    const modulos = service.getCurrentUser()?.modulosPermitidos ?? [];
+    expect(modulos.length).toBeGreaterThan(0);
+    estado().next({ ...service.getCurrentUser()!, modulosPermitidos: [] }); // permisos locales viejos
 
-    const permitido = await new Promise<boolean>((resolve) => {
-      service.validarAccesoModulo('mapa-operativo').subscribe(resolve);
-    });
+    const permitido = await firstValueFrom(service.validarAccesoModulo(modulos.find((m) => m !== 'perfil') ?? modulos[0]));
 
-    expect(httpPost).toHaveBeenCalledWith(jasmine.stringMatching(/auth\/me$/), {}, jasmine.any(Object));
     expect(permitido).toBe(true);
-    expect(service.getCurrentUser()?.modulosPermitidos).toContain('mapa-operativo');
+    expect(service.getCurrentUser()?.modulosPermitidos).toEqual(modulos);
   });
 
-  it('considera operativo a un usuario con módulo funcional aunque no tenga capacidades API', () => {
-    const currentUserSubject = (service as unknown as {
-      currentUserSubject: { next: (user: UsuarioAuth) => void };
-    }).currentUserSubject;
-    currentUserSubject.next({
-      ...fichaLider(),
-      modulosPermitidos: ['mapa-operativo'],
-      capacidades: [],
-    });
+  it('considera operativo a un usuario con módulo funcional aunque no tenga capacidades API', async () => {
+    await iniciarSesion(service, 'lider');
+    estado().next({ ...service.getCurrentUser()!, modulosPermitidos: ['agencias'], capacidades: [] });
 
     expect(service.sinAcceso()).toBe(false);
-    expect(service.rutaInicial()).toBe('/mapa-operativo');
+    expect(service.rutaInicial()).toBe('/agencias');
   });
 
-  it('mantiene sin acceso al usuario cuyo único módulo es perfil', () => {
-    const currentUserSubject = (service as unknown as {
-      currentUserSubject: { next: (user: UsuarioAuth) => void };
-    }).currentUserSubject;
-    currentUserSubject.next({
-      ...fichaLider(),
-      modulosPermitidos: ['perfil'],
-      capacidades: [],
-    });
+  it('mantiene sin acceso al usuario cuyo único módulo es perfil', async () => {
+    await iniciarSesion(service, 'lider');
+    estado().next({ ...service.getCurrentUser()!, modulosPermitidos: ['perfil'], capacidades: [] });
 
     expect(service.sinAcceso()).toBe(true);
     expect(service.rutaInicial()).toBe('/sin-acceso');
   });
 
   it('no autoriza una ruta con permisos locales antiguos si falla la validación del servidor', async () => {
-    httpPost.and.returnValue(throwError(() => new Error('sin conexión')));
+    await iniciarSesion(service, 'lider');
+    // El refresh vive en una cookie HttpOnly que sigue válida tras el login: para que la verificación falle de verdad hay que
+    // cerrar la sesión en el servidor (revoca el refresh y borra la cookie) y dejar un access token que el servidor rechaza.
+    await firstValueFrom(TestBed.inject(HttpClient).post(apiUrl('/auth/logout'), {}, {
+      withCredentials: true,
+      headers: { 'X-Client': 'web', 'X-Skip-Auth-Refresh': '1' },
+    }));
+    (service as unknown as { accessToken: string }).accessToken = 'token-invalido';
 
-    const permitido = await new Promise<boolean>((resolve) => {
-      service.validarAccesoModulo('maquinaria').subscribe(resolve);
-    });
+    const permitido = await firstValueFrom(service.validarAccesoModulo('maquinaria'));
 
     expect(permitido).toBe(false);
   });
 
-  it('bajar a un usuario de SUPER_ADMIN a un rol normal le quita isSuperAdmin() sin logout (no quedan permisos fantasma)', () => {
-    (service as unknown as { currentUserSubject: { next: (u: UsuarioAuth) => void } }).currentUserSubject.next({
-      ...fichaLider(), role: Role.SUPER_ADMIN, rolNombre: 'Super Admin', capacidades: [],
-    });
+  it('el servidor no deja degradar a un SUPER_ADMIN, así que su sesión conserva isSuperAdmin() tras refrescar', async () => {
+    await iniciarSesion(service, 'degradable');
     expect(service.isSuperAdmin()).toBe(true);
 
-    httpPost.and.returnValue(of({
-      role: 'LIDER', rolNombre: 'Líder Operador', name: 'Juan', lastname: 'Pérez', email: 'juan@easydry.com',
-      capacidades: ['maquinaria.ver'], modulos: ['maquinaria'], ambito: 'AGENCIA',
-      agenciaId: 'ag-1', agencia: { id: 'ag-1', nombre: 'EasyDry Norte' },
-      regionId: 'reg-1', region: { id: 'reg-1', nombre: 'Pichincha' }, regionNombre: 'Pichincha',
-      bodegaId: null, estado: 1,
-    }));
+    await expectAsync(postComo('superadmin', '/agencias/usuarios/update', {
+      id: mundo.usuarios['degradable'].id,
+      roleId: mundo.rolId['LIDER'],
+      agenciaId: mundo.agenciaId,
+    })).toBeRejectedWithError(/403.*de sistema/);
+    await firstValueFrom(service.verificarPermisosActualizados());
 
-    service.refrescarPermisos();
-
-    expect(service.isSuperAdmin()).toBe(false);
-    expect(service.getCurrentUser()?.role).toBe(Role.LIDER_OPERADOR);
+    expect(service.isSuperAdmin()).toBe(true);
+    expect(service.getCurrentUser()?.role).toBe(Role.SUPER_ADMIN);
   });
 
-  it('mantiene token/refreshToken actuales (/auth/me no devuelve tokens nuevos)', () => {
-    httpPost.and.returnValue(of({
-      role: 'LIDER', rolNombre: 'Líder Operador', name: 'Juan', lastname: 'Pérez', email: 'juan@easydry.com',
-      capacidades: ['maquinaria.ver'], modulos: ['maquinaria'], ambito: 'AGENCIA',
-      agenciaId: 'ag-1', agencia: { id: 'ag-1', nombre: 'EasyDry Norte' },
-      regionId: 'reg-1', region: { id: 'reg-1', nombre: 'Pichincha' }, regionNombre: 'Pichincha',
-      bodegaId: null, estado: 1,
-    }));
+  it('refreshSession renueva el access token con la cookie HttpOnly (incluye el preflight CORS de las cabeceras de la app)', async () => {
+    await iniciarSesion(service, 'lider');
 
-    service.refrescarPermisos();
+    const ok = await firstValueFrom(service.refreshSession());
 
-    expect(service.getCurrentUser()?.token).toBe('token-actual');
-    expect(service.getCurrentUser()?.refreshToken).toBe('refresh-actual');
+    expect(ok).toBeTrue();
+    expect(service.getAccessToken()).toBeTruthy();
+    expect(service.refreshRechazado()).toBeFalse();
   });
 
-  it('preserva servicioIds existentes: /auth/me no los devuelve', () => {
-    httpPost.and.returnValue(of({
-      role: 'LIDER', rolNombre: 'Líder Operador', name: 'Juan', lastname: 'Pérez', email: 'juan@easydry.com',
-      capacidades: ['maquinaria.ver'], modulos: ['maquinaria'], ambito: 'AGENCIA',
-      agenciaId: 'ag-1', agencia: { id: 'ag-1', nombre: 'EasyDry Norte' },
-      regionId: 'reg-1', region: { id: 'reg-1', nombre: 'Pichincha' }, regionNombre: 'Pichincha',
-      bodegaId: null, estado: 1,
-    }));
+  it('dos renovaciones seguidas con la misma cookie no cierran la sesión (dos pestañas a la vez)', async () => {
+    await iniciarSesion(service, 'lider');
+    const http = TestBed.inject(HttpClient);
+    const renovar = () => firstValueFrom(http.post<{ success: boolean; accessToken: string }>(
+      apiUrl('/auth/refresh'), {}, { withCredentials: true, headers: { 'X-Client': 'web', 'X-Skip-Auth-Refresh': '1', 'X-Silent-Fallback': '1' } }));
 
-    service.refrescarPermisos();
+    const [a, b] = await Promise.all([renovar(), renovar()]);
+
+    expect(a.accessToken).toBeTruthy();
+    expect(b.accessToken).toBeTruthy();
+  });
+
+  it('logout revoca la sesión en el servidor: la cookie ya no renueva', async () => {
+    await iniciarSesion(service, 'lider');
+    const http = TestBed.inject(HttpClient);
+    const renovar = () => firstValueFrom(http.post(apiUrl('/auth/refresh'), {},
+      { withCredentials: true, headers: { 'X-Client': 'web', 'X-Skip-Auth-Refresh': '1', 'X-Silent-Fallback': '1' } }));
+
+    service.logout();
+    await new Promise((r) => setTimeout(r, 600)); // el aviso al servidor es asíncrono
+
+    await expectAsync(renovar()).toBeRejected();
+  });
+
+  it('mantiene el token actual (/auth/me no devuelve tokens nuevos)', async () => {
+    await iniciarSesion(service, 'lider');
+    const token = service.getAccessToken();
+    expect(token).toBeTruthy();
+
+    await firstValueFrom(service.verificarPermisosActualizados());
+
+    expect(service.getAccessToken()).toBe(token);
+  });
+
+  it('no guarda ningún token en el navegador: el access token vive en memoria y el refresh token es una cookie HttpOnly', async () => {
+    await iniciarSesion(service, 'lider');
+    const token = service.getAccessToken()!;
+    expect(token).toBeTruthy();
+
+    expect(service.getCurrentUser()?.token).toBeFalsy();
+    expect(service.getCurrentUser()?.refreshToken).toBeFalsy();
+    expect(localStorage.getItem('easydry_access_token')).toBeNull();
+    expect(localStorage.getItem('easydry_refresh_token')).toBeNull();
+    for (let i = 0; i < localStorage.length; i++) {
+      const valor = localStorage.getItem(localStorage.key(i)!) ?? '';
+      expect(valor).not.toContain(token);
+    }
+  });
+
+  it('al cerrar sesión se borra el token de memoria', async () => {
+    await iniciarSesion(service, 'lider');
+    service.logout();
+
+    expect(service.getAccessToken()).toBeNull();
+    expect(service.isLoggedIn()).toBe(false);
+  });
+
+  it('preserva servicioIds existentes: /auth/me no los devuelve', async () => {
+    await iniciarSesion(service, 'lider');
+    estado().next({ ...service.getCurrentUser()!, servicioIds: [7] });
+
+    await firstValueFrom(service.verificarPermisosActualizados());
 
     expect(service.getCurrentUser()?.servicioIds).toEqual([7]);
-  });
-
-  afterEach(() => {
-    localStorage.clear();
   });
 });

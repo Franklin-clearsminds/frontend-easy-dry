@@ -1,0 +1,59 @@
+# Panel web de EasyDry como sitio estático en Render (Blueprint).
+#
+# Antes de desplegar, cambia los dominios de ESTE archivo por los reales:
+#   - https://www.api.easydry.com   → el dominio de tu backend (aparece en NG_APP_API_BASE_URL y en la cabecera Content-Security-Policy)
+#   - el backend debe tener CORS_ORIGIN con el dominio de este panel (por ejemplo https://www.app.easydry.com)
+#
+# La Content-Security-Policy impide que se ejecute cualquier script que no sea el de la propia aplicación (defensa contra XSS):
+#   script-src 'self'          solo los .js de este sitio; nada en línea ni de otros dominios
+#   connect-src                a dónde puede hablar el panel: este sitio, la API (https y sockets wss) y el bucket de S3
+#   img/media/frame-src        fotos, videos y PDF de evidencias, que vienen firmados desde S3
+#   frame-ancestors 'none'     nadie puede incrustar el panel en otra página (clickjacking)
+# El build verifica que el index.html no tenga scripts ni manejadores en línea (scripts/verificar-csp.mjs).
+services:
+  - type: web
+    name: easydry-panel
+    runtime: static
+    buildCommand: pnpm install --frozen-lockfile && pnpm run build && node scripts/verificar-csp.mjs
+    staticPublishPath: dist/frontend-easy-dry/browser
+    pullRequestPreviewsEnabled: false
+    envVars:
+      - key: NG_APP_NAME
+        value: EasyDry®
+      - key: NG_APP_ENV
+        value: production
+      - key: NG_APP_PRODUCTION
+        value: "true"
+      - key: NG_APP_API_BASE_URL
+        value: https://www.api.easydry.com
+    routes:
+      # Aplicación de una sola página: cualquier ruta devuelve index.html.
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /*
+        name: Content-Security-Policy
+        value: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https://*.amazonaws.com; media-src 'self' blob: https://*.amazonaws.com; frame-src 'self' blob: https://*.amazonaws.com; connect-src 'self' https://www.api.easydry.com wss://www.api.easydry.com https://*.amazonaws.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests"
+      - path: /*
+        name: Strict-Transport-Security
+        value: max-age=31536000; includeSubDomains
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+      - path: /*
+        name: Permissions-Policy
+        value: camera=(self), microphone=(self), geolocation=(self), payment=(), usb=()
+      # Los archivos con hash en el nombre nunca cambian: el navegador los guarda un año. El index.html siempre se revisa.
+      - path: /*.js
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+      - path: /*.css
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+      - path: /index.html
+        name: Cache-Control
+        value: no-cache

@@ -13,35 +13,49 @@ export enum Role {
   /** Aprobador de agencia — cierre diario y auditoría de evidencias */
   APROBADOR = 'APROBADOR',
   /** Líder Operador — OTs, inventario de agencia, recepción y despachos intra-región */
-  LIDER_OPERADOR = 'LIDER',
-  /** @deprecated usar LIDER / LIDER_OPERADOR */
-  LIDER_AGENCIA = 'LIDER',
+  LIDER = 'LIDER',
   /** Reemplazo temporal de un líder operador dentro de su región. */
   BACKUP = 'BACKUP',
   /** Lavador de bahía — registro en BD para constancia y trazabilidad de productividad */
   LAVADOR = 'LAVADOR',
-  /** @deprecated usar LAVADOR */
-  OPERADOR = 'LAVADOR',
   COORD_SERVICIOS_ESPECIALES = 'COORD_SERVICIOS_ESPECIALES',
   /** Pulidor — especialista en pulido, cerámico y detailing (fijo=con agencia; móvil=sin agencia + región) */
   PULIDOR = 'PULIDOR',
-  /** @deprecated usar PULIDOR */
-  PULIDOR_FIJO = 'PULIDOR',
-  /** @deprecated usar PULIDOR */
-  PULIDOR_MOVIL = 'PULIDOR',
   COORD_MANTENIMIENTO = 'COORD_MANTENIMIENTO',
   TECNICO = 'TECNICO',
   /** Coordinador de bodega — inventario nacional y despachos */
   COORD_BODEGA = 'COORD_BODEGA',
   ASISTENTE_BODEGA = 'ASISTENTE_BODEGA',
-  // ── Aliases de retrocompatibilidad (deprecated — usar roles canónicos) ──
-  /** @deprecated usar APROBADOR */
-  GERENTE = 'APROBADOR',
-  /** @deprecated usar COORD_BODEGA */
-  DISTRIBUIDOR = 'COORD_BODEGA',
-  /** @deprecated usar PULIDOR */
-  OPERADOR_SERVICIOS_ESPECIALES = 'PULIDOR',
   CUSTOM = 'CUSTOM'
+}
+
+/** Acción (botón) de una sub-página o página. `compartida`: la misma casilla aparece en varias páginas. */
+export interface AccionCatalogo {
+  codigo: string;
+  nombre: string;
+  compartida: boolean;
+}
+
+/** Sub-página: una pestaña real de la pantalla, con sus acciones. */
+export interface SubPaginaCatalogo {
+  id: string;
+  codigo: string;
+  nombre: string;
+  acciones: AccionCatalogo[];
+}
+
+/** Página del menú con sus sub-páginas y acciones (catálogo del editor de roles). */
+export interface PaginaCatalogo {
+  id: string;
+  codigo: string;
+  nombre: string;
+  ruta: string;
+  enMenu: boolean;
+  /** Código del módulo del menú; null = fuera del menú. */
+  modulo: string | null;
+  subs: SubPaginaCatalogo[];
+  /** Acciones de una página sin sub-páginas. */
+  acciones: AccionCatalogo[];
 }
 
 /** Definición de un módulo funcional del sistema */
@@ -78,9 +92,9 @@ export const DEFAULT_ROUTE_POR_ROL: Record<string, string> = {
   [Role.SUPERVISOR]: '/dashboard',
   [Role.JEFE_COMERCIAL]: '/dashboard',
   [Role.COORD_COMERCIAL]: '/dashboard',
-  [Role.LIDER_OPERADOR]: '/servicios',
+  [Role.LIDER]: '/servicios',
   [Role.BACKUP]: '/servicios',
-  [Role.LAVADOR]: '/sin-acceso',
+  [Role.LAVADOR]: '/informes-inspeccion',
   [Role.COORD_SERVICIOS_ESPECIALES]: '/dashboard',
   [Role.PULIDOR]: '/servicios',
   [Role.COORD_MANTENIMIENTO]: '/taller-tecnico',
@@ -113,6 +127,8 @@ export interface RolPersonalizado {
   esSistema: boolean;
   /** Permisos de acción (códigos como 'servicios.crear') que el backend exige en cada endpoint. */
   capacidades?: string[];
+  /** Códigos del catálogo de páginas que el rol tiene activos (páginas, sub-páginas y acciones). */
+  paginas?: string[];
   /** Sobre qué datos actúa: GLOBAL, REGION, AGENCIA o PROPIO. */
   ambito?: string;
   fechaCreacion: string;
@@ -155,7 +171,7 @@ export interface UsuarioAuth {
   avatar?: string;
   /** Access token JWT (localStorage en web, SecureStore en móvil) */
   token?: string;
-  /** Refresh token para renovación automática de sesión */
+  /** Solo la app móvil lo guarda; en la web el refresh token es una cookie HttpOnly y no pasa por JavaScript */
   refreshToken?: string;
   /** ID de la agencia/sucursal asignada (UUID o entero según backend) */
   agenciaId?: string | number;
@@ -246,7 +262,7 @@ export const ROLE_LABELS: Record<string, string> = {
   [Role.SUPERVISOR]: 'Supervisor Regional',
   [Role.JEFE_COMERCIAL]: 'Jefe Comercial',
   [Role.COORD_COMERCIAL]: 'Coordinador Comercial',
-  [Role.LIDER_OPERADOR]: 'Líder Operador',
+  [Role.LIDER]: 'Líder Operador',
   [Role.BACKUP]: 'Backup',
   [Role.LAVADOR]: 'Lavador',
   [Role.COORD_SERVICIOS_ESPECIALES]: 'Coordinador de Servicios Especiales',
@@ -255,10 +271,6 @@ export const ROLE_LABELS: Record<string, string> = {
   [Role.TECNICO]: 'Técnico de Maquinaria',
   [Role.COORD_BODEGA]: 'Coordinador de Bodega',
   [Role.ASISTENTE_BODEGA]: 'Asistente de Bodega',
-  'PULIDOR_FIJO': 'Pulidor Fijo',
-  'PULIDOR_MOVIL': 'Pulidor Móvil',
-  'DISTRIBUIDOR': 'Coordinador de Bodega',
-  'LIDER_AGENCIA': 'Líder Operador',
 };
 
 export const ROLE_COLORS: Record<string, string> = {
@@ -270,18 +282,13 @@ export const ROLE_COLORS: Record<string, string> = {
   [Role.COORD_COMERCIAL]: 'bg-sky-100 text-sky-800 border-sky-200',
   [Role.COORD_MANTENIMIENTO]: 'bg-amber-100 text-amber-800 border-amber-200',
   [Role.TECNICO]: 'bg-orange-100 text-orange-800 border-orange-200',
-  [Role.LIDER_OPERADOR]: 'bg-teal-100 text-teal-800 border-teal-200',
+  [Role.LIDER]: 'bg-teal-100 text-teal-800 border-teal-200',
   [Role.BACKUP]: 'bg-amber-100 text-amber-800 border-amber-200',
   [Role.LAVADOR]: 'bg-emerald-100 text-emerald-800 border-emerald-200',
   [Role.COORD_SERVICIOS_ESPECIALES]: 'bg-cyan-100 text-cyan-800 border-cyan-200',
   [Role.PULIDOR]: 'bg-cyan-100 text-cyan-800 border-cyan-200',
   [Role.COORD_BODEGA]: 'bg-slate-100 text-slate-800 border-slate-200',
   [Role.ASISTENTE_BODEGA]: 'bg-teal-100 text-teal-800 border-teal-200',
-  'PULIDOR_FIJO': 'bg-cyan-100 text-cyan-800 border-cyan-200',
-  'PULIDOR_MOVIL': 'bg-cyan-100 text-cyan-800 border-cyan-200',
-  'DISTRIBUIDOR': 'bg-slate-100 text-slate-800 border-slate-200',
-  'OPERADOR_SERVICIOS_ESPECIALES': 'bg-cyan-100 text-cyan-800 border-cyan-200',
-  'LIDER_AGENCIA': 'bg-teal-100 text-teal-800 border-teal-200',
 };
 
 /** Códigos oficiales que no pueden eliminarse desde la matriz de roles */
@@ -291,12 +298,12 @@ export const ROLES_OFICIALES_NO_ELIMINABLES: string[] = [
   Role.SUPERVISOR,
   Role.COORD_MANTENIMIENTO,
   Role.TECNICO,
-  Role.LIDER_OPERADOR,
+  Role.LIDER,
   Role.BACKUP,
   Role.LAVADOR,
   Role.COORD_COMERCIAL,
   Role.COORD_SERVICIOS_ESPECIALES,
-  Role.OPERADOR_SERVICIOS_ESPECIALES,
+  Role.PULIDOR,
   Role.COORD_BODEGA,
   Role.ASISTENTE_BODEGA,
 ];

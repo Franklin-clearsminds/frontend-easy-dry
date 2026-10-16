@@ -5,6 +5,7 @@ import { map, tap, catchError } from 'rxjs/operators';
 import {
   RolPersonalizado,
   ModuloSistema,
+  PaginaCatalogo,
   ROLE_LABELS,
   ROLE_COLORS,
 } from '../models/roles.model';
@@ -21,17 +22,12 @@ export const DEFAULT_ROLE_HEX_COLORS: Record<string, string> = {
   COORD_MANTENIMIENTO: '#D97706',
   TECNICO: '#EA580C',
   LIDER: '#0D9488',
-  LIDER_OPERADOR: '#0D9488',
-  LIDER_AGENCIA: '#0D9488',
   LAVADOR: '#059669',
   COORD_COMERCIAL: '#2563EB',
   JEFE_COMERCIAL: '#1D4ED8',
   COORD_SERVICIOS_ESPECIALES: BRAND_COLORS.blue,
   PULIDOR: '#0891B2',
-  PULIDOR_FIJO: '#0891B2',
-  PULIDOR_MOVIL: '#0891B2',
   COORD_BODEGA: '#475569',
-  DISTRIBUIDOR: '#475569',
   ASISTENTE_BODEGA: '#0F766E',
 };
 
@@ -45,6 +41,8 @@ export interface CapacidadCatalogo {
 
 /** Catálogo completo para el editor de roles: módulos de navegación, permisos de acción y ámbitos. */
 export interface CatalogoPermisos {
+  /** Páginas, sub-páginas y acciones: lo que se activa en el editor de roles. */
+  paginas: PaginaCatalogo[];
   modulos: ModuloSistema[];
   capacidades: CapacidadCatalogo[];
   ambitos: string[];
@@ -113,6 +111,7 @@ export class RolService {
       badgeClass,
       modulos: Array.isArray(r.permisos) ? r.permisos : [],
       capacidades: Array.isArray(r.capacidades) ? r.capacidades : [],
+      paginas: Array.isArray(r.paginas) ? r.paginas : [],
       ambito: r.ambito || 'AGENCIA',
       estado,
       esSistema: !!r.esSistema,
@@ -186,6 +185,7 @@ export class RolService {
   getCatalogoPermisos(): Observable<CatalogoPermisos> {
     return this.http.post<any>(apiUrl('/roles/permisos/list'), {}, SILENCIOSO).pipe(
       map(res => ({
+        paginas: (Array.isArray(res?.paginas) ? res.paginas : []) as PaginaCatalogo[],
         modulos: (Array.isArray(res?.catalogo) ? res.catalogo : []).map((m: any) => this.mapBackendModulo(m)),
         capacidades: (Array.isArray(res?.capacidades) ? res.capacidades : []).map((c: any): CapacidadCatalogo => ({
           codigo: String(c.codigo),

@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
-import { map } from 'rxjs/operators';
+import { Observable, of } from 'rxjs';
+import { map, switchMap } from 'rxjs/operators';
 import { apiUrl } from '../config/env';
 import { BUSQUEDA_MIN_CARACTERES } from '../config/paginacion';
 import { OpcionSelect, PaginaServidor, normalizarPagina } from '../models/paginacion.model';
@@ -27,6 +27,22 @@ export class OpcionesService {
       if (texto.length >= BUSQUEDA_MIN_CARACTERES) body['search'] = texto;
       return this.http.post<any>(apiUrl(ruta), body).pipe(map((res) => normalizarPagina<OpcionSelect>(res, page, pageSize)));
     };
+  }
+
+  /**
+   * Todas las opciones de un listado (para desplegables simples que necesitan la lista completa, como filtros o selectores de
+   * pocas decenas de filas). Pide bloques de 100 hasta agotar; tope de seguridad de 20 bloques.
+   */
+  todas(ruta: string, filtros: Record<string, unknown> = {}): Observable<OpcionSelect[]> {
+    const pedir = (page: number, acumulado: OpcionSelect[]): Observable<OpcionSelect[]> =>
+      this.http.post<any>(apiUrl(ruta), { page, pageSize: 100, ...limpiar(filtros) }).pipe(
+        map((res) => normalizarPagina<OpcionSelect>(res, page, 100)),
+        switchMap((pagina) => {
+          const todas = [...acumulado, ...pagina.items];
+          return pagina.items.length >= 100 && page < 20 && todas.length < pagina.total ? pedir(page + 1, todas) : of(todas);
+        }),
+      );
+    return pedir(1, []);
   }
 
   /** Trae solo las opciones con estos ids (para mostrar la etiqueta de un valor ya elegido). */

@@ -2,10 +2,10 @@ import { Component, DestroyRef, OnInit, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterModule } from '@angular/router';
+import { ActivatedRoute, RouterModule } from '@angular/router';
 import { LucideAngularModule } from 'lucide-angular';
 import { NotificacionService } from '../../core/services/notificacion.service';
-import { Notificacion, NotificacionCategoria, NotificacionTipo } from '../../core/models/notificacion.model';
+import { Notificacion, NotificacionCategoria, NotificacionTipo, Pendiente, PendienteSeveridad } from '../../core/models/notificacion.model';
 import { EmptyStateComponent } from '../../shared/components/empty-state/empty-state.component';
 
 /** Categoría seleccionable en la barra de filtros (incluye la opción "todas"). */
@@ -56,6 +56,7 @@ const CATEGORIA_BADGE: Record<NotificacionCategoria, string> = {
                 [ngClass]="noLeidas > 0 ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'">
             {{ noLeidas > 0 ? noLeidas + ' sin leer' : 'Todo al día' }}
           </span>
+          @if (pestana === 'avisos') {
           <button
             type="button"
             (click)="marcarTodasLeidas()"
@@ -64,8 +65,34 @@ const CATEGORIA_BADGE: Record<NotificacionCategoria, string> = {
             <i-lucide aria-hidden="true" name="check-check" class="w-4 h-4"></i-lucide>
             Marcar todas como leídas
           </button>
+          }
         </div>
       </div>
+
+      <!-- Una sola bandeja: avisos (se leen) y pendientes (siguen hasta que se resuelve el problema) -->
+      @if (pendientes !== null) {
+        <div class="inline-flex bg-slate-100 p-1 rounded-xl" role="tablist" aria-label="Tipo de elementos">
+          <button type="button" role="tab" [attr.aria-selected]="pestana === 'avisos'" (click)="pestana = 'avisos'"
+            class="px-4 py-2 text-xs font-bold rounded-lg transition-colors inline-flex items-center gap-2"
+            [ngClass]="pestana === 'avisos' ? 'bg-white text-easydry-blue shadow-sm' : 'text-slate-500 hover:text-slate-700'">
+            Avisos
+            @if (noLeidas > 0) {
+              <span class="px-1.5 rounded-md text-[10px] font-extrabold bg-rose-100 text-rose-700">{{ noLeidas }}</span>
+            }
+          </button>
+          <button type="button" role="tab" [attr.aria-selected]="pestana === 'pendientes'" (click)="pestana = 'pendientes'"
+            class="px-4 py-2 text-xs font-bold rounded-lg transition-colors inline-flex items-center gap-2"
+            [ngClass]="pestana === 'pendientes' ? 'bg-white text-easydry-blue shadow-sm' : 'text-slate-500 hover:text-slate-700'">
+            Pendientes
+            @if (pendientes.length > 0) {
+              <span class="px-1.5 rounded-md text-[10px] font-extrabold"
+                    [ngClass]="criticos > 0 ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'">{{ pendientes.length }}</span>
+            }
+          </button>
+        </div>
+      }
+
+      @if (pestana === 'avisos') {
 
       <!-- Barra de filtros -->
       <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry p-4 space-y-4">
@@ -206,12 +233,114 @@ const CATEGORIA_BADGE: Record<NotificacionCategoria, string> = {
           }
         </div>
       }
+      } @else {
+        <!-- Pendientes operativos -->
+        <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry p-4 space-y-3">
+          <p class="text-xs text-slate-500">
+            Lo que sigue pendiente ahora mismo en tu ámbito. Estos elementos no se marcan como leídos: desaparecen cuando se resuelve el problema.
+          </p>
+          <div class="relative">
+            <i-lucide aria-hidden="true" name="search" class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"></i-lucide>
+            <input type="search" name="busquedaPendientes" [(ngModel)]="busquedaPendientes"
+              placeholder="Buscar por insumo, máquina, agencia, pulidor o región…" aria-label="Buscar pendientes"
+              class="w-full h-10 pl-9 pr-3 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-700 outline-none focus:border-easydry-blue focus:bg-white transition-colors" />
+          </div>
+          <div class="flex flex-wrap gap-2">
+            @for (g of filtrosGrupo; track g.id) {
+              <button type="button" (click)="filtroGrupo = g.id" [attr.aria-pressed]="filtroGrupo === g.id"
+                class="px-3 py-1.5 rounded-xl text-xs font-bold transition-colors inline-flex items-center gap-1.5 border"
+                [ngClass]="filtroGrupo === g.id ? 'bg-easydry-blue text-white border-easydry-blue' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'">
+                {{ g.label }}
+                <span class="px-1.5 rounded-md text-[10px] font-extrabold"
+                      [ngClass]="filtroGrupo === g.id ? 'bg-white/25' : 'bg-slate-100 text-slate-500'">{{ contarGrupo(g.id) }}</span>
+              </button>
+            }
+          </div>
+          <div class="flex flex-wrap gap-2">
+            @for (f of filtrosSeveridad; track f.id) {
+              <button type="button" (click)="filtroSeveridad = f.id" [attr.aria-pressed]="filtroSeveridad === f.id"
+                class="px-3 py-1.5 rounded-xl text-xs font-bold transition-colors inline-flex items-center gap-1.5 border"
+                [ngClass]="filtroSeveridad === f.id ? 'bg-slate-800 text-white border-slate-800' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'">
+                {{ f.label }}
+                <span class="px-1.5 rounded-md text-[10px] font-extrabold"
+                      [ngClass]="filtroSeveridad === f.id ? 'bg-white/25' : 'bg-slate-100 text-slate-500'">{{ contarSeveridad(f.id) }}</span>
+              </button>
+            }
+          </div>
+        </div>
+
+        @if (pendientesFiltrados.length === 0) {
+          <div class="bg-white rounded-2xl border border-slate-100 p-12">
+            <app-empty-state
+              icon="check-circle-2"
+              [title]="pendientes && pendientes.length ? 'Sin pendientes con este filtro' : 'Todo en orden'"
+              [hint]="pendientes && pendientes.length ? 'Prueba con otro filtro o limpia la búsqueda.' : 'No hay stock bajo, incidentes abiertos ni mantenimientos vencidos en tu ámbito.'"></app-empty-state>
+          </div>
+        } @else {
+          <div class="space-y-3">
+            @for (p of pendientesFiltrados; track p.grupo + p.id) {
+              <article class="bg-white rounded-2xl border border-slate-100 p-4 flex gap-4 transition-shadow hover:shadow-easydry">
+                <div class="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" [ngClass]="severidadBg(p.severidad)">
+                  <i-lucide aria-hidden="true" [name]="p.grupo === 'stock' ? 'package' : 'wrench'" class="w-5 h-5" [ngClass]="severidadColor(p.severidad)"></i-lucide>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0">
+                      <h3 class="text-sm font-extrabold text-slate-900">{{ p.titulo }}</h3>
+                      <p class="text-xs text-slate-600 mt-1 leading-relaxed">{{ p.detalle }}</p>
+                    </div>
+                    <span class="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-md shrink-0" [ngClass]="severidadBadge(p.severidad)">
+                      {{ severidadLabel(p.severidad) }}
+                    </span>
+                  </div>
+                  <div class="flex flex-wrap items-center gap-x-4 gap-y-2 mt-3">
+                    @if (p.timestamp) {
+                      <span class="text-xs text-slate-400 font-semibold inline-flex items-center gap-1">
+                        <i-lucide aria-hidden="true" name="clock" class="w-3.5 h-3.5"></i-lucide>{{ tiempoDesde(p.timestamp) }}
+                      </span>
+                    }
+                    @if (p.agencia || p.origen) {
+                      <span class="text-xs text-slate-500 font-semibold">{{ p.agencia || p.origen }}</span>
+                    }
+                    @if (p.pulidor) {
+                      <span class="text-xs text-slate-400">· {{ p.pulidor }}</span>
+                    }
+                    <a [routerLink]="p.enlace" class="text-xs font-bold text-easydry-blue hover:underline lg:ml-auto">{{ p.enlaceLabel }}</a>
+                  </div>
+                </div>
+              </article>
+            }
+          </div>
+        }
+      }
     </div>
   `
 })
 export class NotificacionesComponent implements OnInit {
   private notificacionService = inject(NotificacionService);
   private destroyRef = inject(DestroyRef);
+  private route = inject(ActivatedRoute);
+
+  /** Avisos (se leen) o pendientes (siguen hasta que se resuelve el problema). */
+  pestana: 'avisos' | 'pendientes' = 'avisos';
+  /** `null` = el rol no tiene acceso a pendientes (no se muestra la pestaña). */
+  pendientes: Pendiente[] | null = null;
+  filtroSeveridad: 'todas' | PendienteSeveridad = 'todas';
+  filtroGrupo: 'todos' | 'stock' | 'mantenimiento' = 'todos';
+  busquedaPendientes = '';
+
+  readonly filtrosGrupo: { id: 'todos' | 'stock' | 'mantenimiento'; label: string }[] = [
+    { id: 'todos', label: 'Todo' },
+    { id: 'stock', label: 'Stock' },
+    { id: 'mantenimiento', label: 'Mantenimiento' },
+  ];
+
+  readonly filtrosSeveridad: { id: 'todas' | PendienteSeveridad; label: string }[] = [
+    { id: 'todas', label: 'Todas' },
+    { id: 'critica', label: 'Críticas' },
+    { id: 'advertencia', label: 'Advertencias' },
+    { id: 'info', label: 'Informativas' },
+  ];
 
   notificaciones: Notificacion[] = [];
   cargando = true;
@@ -249,6 +378,60 @@ export class NotificacionesComponent implements OnInit {
     this.notificacionService.getNotificaciones().pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
       this.cargando = false;
     });
+    this.notificacionService.getPendientes().pipe(takeUntilDestroyed(this.destroyRef)).subscribe((lista) => {
+      this.pendientes = lista;
+      // El enlace «Ver bandeja» del dashboard llega con ?tab=pendientes.
+      if (lista !== null && this.route.snapshot.queryParamMap.get('tab') === 'pendientes') this.pestana = 'pendientes';
+    });
+  }
+
+  get criticos(): number {
+    return (this.pendientes ?? []).filter((p) => p.severidad === 'critica').length;
+  }
+
+  get pendientesFiltrados(): Pendiente[] {
+    const q = this.busquedaPendientes.trim().toLowerCase();
+    return (this.pendientes ?? []).filter((p) => {
+      if (this.filtroSeveridad !== 'todas' && p.severidad !== this.filtroSeveridad) return false;
+      if (this.filtroGrupo !== 'todos' && p.grupo !== this.filtroGrupo) return false;
+      if (q && !`${p.titulo} ${p.detalle} ${p.origen ?? ''} ${p.agencia ?? ''} ${p.pulidor ?? ''} ${p.region ?? ''}`.toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }
+
+  contarSeveridad(id: 'todas' | PendienteSeveridad): number {
+    const lista = this.pendientes ?? [];
+    return id === 'todas' ? lista.length : lista.filter((p) => p.severidad === id).length;
+  }
+
+  contarGrupo(id: 'todos' | 'stock' | 'mantenimiento'): number {
+    const lista = this.pendientes ?? [];
+    return id === 'todos' ? lista.length : lista.filter((p) => p.grupo === id).length;
+  }
+
+  severidadLabel(s: PendienteSeveridad): string {
+    return s === 'critica' ? 'Crítica' : s === 'advertencia' ? 'Advertencia' : 'Informativa';
+  }
+
+  severidadBg(s: PendienteSeveridad): string {
+    return s === 'critica' ? 'bg-rose-100' : s === 'advertencia' ? 'bg-amber-100' : 'bg-easydry-blue/10';
+  }
+
+  severidadColor(s: PendienteSeveridad): string {
+    return s === 'critica' ? 'text-rose-600' : s === 'advertencia' ? 'text-amber-600' : 'text-easydry-blue';
+  }
+
+  severidadBadge(s: PendienteSeveridad): string {
+    return s === 'critica' ? 'bg-rose-100 text-rose-700' : s === 'advertencia' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600';
+  }
+
+  /** «Hace 3 d» desde una marca de tiempo (cuánto lleva pendiente). */
+  tiempoDesde(timestamp: number): string {
+    const minutos = Math.max(Math.floor((Date.now() - timestamp) / 60000), 0);
+    if (minutos < 60) return minutos < 1 ? 'Ahora' : 'Hace ' + minutos + ' min';
+    const horas = Math.floor(minutos / 60);
+    if (horas < 24) return 'Hace ' + horas + ' h';
+    return 'Hace ' + Math.floor(horas / 24) + ' d';
   }
 
   get noLeidas(): number {

@@ -18,6 +18,8 @@ export type StorageCategory =
   | 'MAQUINARIA_LIMPIEZA'
   | 'DOCUMENTO'
   | 'CATALOGO_INSUMOS'
+  | 'INVENTARIO_ENVIOS'
+  | 'AUDITORIAS'
   | 'PERFIL_USUARIO';
 
 export type MediaEvidenceType =
@@ -41,6 +43,8 @@ export type MediaEvidenceType =
   | 'IMAGEN_PRODUCTO'
   | 'FOTO_AJUSTE_INVENTARIO'
   | 'FOTO_INGRESO_INVENTARIO'
+  | 'FOTO_ENVIO'
+  | 'FOTO_AUDITORIA'
   | 'FOTO_PERFIL';
 
 export interface UploadTicket {
@@ -69,6 +73,12 @@ export interface UploadMediaOptions {
   mantenimientoId?: string;
   insumoId?: string | number;
   insumoNombre?: string;
+  /** Evidencias de envíos: guía y etapa. */
+  envioGuia?: string;
+  envioEtapa?: 'recepcion' | 'rechazo' | 'resolucion';
+  /** Evidencias de auditorías: el módulo y el informe o auditoría al que pertenecen (sin id aún = «borrador»). */
+  auditoriaTipo?: 'informes' | '5s';
+  auditoriaId?: string;
   clientUuid?: string;
   fileName?: string;
   contentType?: string;
@@ -115,6 +125,10 @@ export class StorageUploadService {
       mantenimientoId: options.mantenimientoId,
       insumoId: options.insumoId ? String(options.insumoId) : undefined,
       insumoNombre: options.insumoNombre,
+      envioGuia: options.envioGuia,
+      envioEtapa: options.envioEtapa,
+      auditoriaTipo: options.auditoriaTipo,
+      auditoriaId: options.auditoriaId,
       clientUuid: options.clientUuid,
       fileName,
       contentType,

@@ -203,8 +203,6 @@ export class DashboardOperativoService {
           colores: data?.topColores ?? [],
           marcasModelos: data?.topMarcasModelos ?? [],
           kpisResumen: data?.kpis ?? {},
-          // Alertas operativas unificadas (stock + mantenimiento) ya acotadas por el servidor al alcance del rol.
-          alertasOperativas: (data?.alertasOperativas ?? []).map((a: any) => this.aAlertaOperativaVM(a)),
           // Drill-down jerárquico (País → Región → Agencia → Bahía) según la dimensión activa.
           jerarquia: data?.jerarquia ?? null,
           // Heatmap día × hora y Top/Bottom adaptativo (vienen dentro de jerarquia).
@@ -262,8 +260,10 @@ export class DashboardOperativoService {
         return of({ vehiculosHoy: null, flujoHorario: null, distribucionModelos: null, tiemposBahias: null, topMaquinas: null, topAgencias: null, mixServicios: null, topMarcas: null, incidentesPorTipo: null });
       })
     );
-  }
-
+  }
+
+
+
     /**
    * Ranking de operadores por servicios atendidos (POST /agencias/operadores/list).
    */
@@ -407,28 +407,6 @@ export class DashboardOperativoService {
         return of([]);
       })
     );
-  }
-
-  /** Normaliza una alerta operativa del dashboard (stock o mantenimiento) al modelo del widget. */
-  private aAlertaOperativaVM(a: any): AlertaStockVM {
-    const fechaObj = a?.fecha ? new Date(a.fecha) : null;
-    return {
-      id: String(a?.id ?? `al-${a?.grupo}-${a?.detalle}-${a?.fecha}`),
-      tipo: (a?.severidad as any) || 'info',
-      grupo: a?.grupo === 'mantenimiento' ? 'mantenimiento' : 'stock',
-      titulo: a?.titulo || 'Alerta',
-      detalle: a?.detalle || '',
-      nivel: String(a?.nivel || ''),
-      estado: String(a?.estado || ''),
-      insumo: a?.detalle || '',
-      origen: a?.origen || null,
-      agencia: a?.agencia ?? null,
-      pulidor: a?.pulidor ?? null,
-      region: a?.region || null,
-      mensaje: a?.detalle || '',
-      fecha: fechaObj ? fechaObj.toLocaleDateString('es-EC', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '',
-      timestamp: fechaObj ? fechaObj.getTime() : 0,
-    };
   }
 
   private aAlertaVM(a: any): AlertaStockVM {
@@ -717,14 +695,20 @@ export class DashboardOperativoService {
    * KPIs y tableros para Distribuidor / Bodega: alertas de stock y consumo real de insumos
    * (POST /analytics/consumo-quimicos -> insumos, ordenados por costo).
    */
-  getDashboardDistribuidor(filtro: any = {}): Observable<DashboardDistribuidorData> {
+  /**
+   * `conAlertas`: si el rol puede ver alertas de stock. Sin ese permiso no se piden (el servidor respondería 403 y saldría un
+   * aviso de error en pantalla); el resumen de consumo, que es otro permiso, se sigue pidiendo.
+   */
+  getDashboardDistribuidor(filtro: any = {}, conAlertas = true): Observable<DashboardDistribuidorData> {
     return forkJoin([
-      this.http.post<any[]>(apiUrl('/inventario/alertas/list'), filtro).pipe(
-        catchError((err) => {
-          this.avisarErrorCarga('No se pudieron cargar las alertas de stock', err);
-          return of([]);
-        })
-      ),
+      (conAlertas
+        ? this.http.post<any[]>(apiUrl('/inventario/alertas/list'), filtro).pipe(
+            catchError((err) => {
+              this.avisarErrorCarga('No se pudieron cargar las alertas de stock', err);
+              return of([]);
+            })
+          )
+        : of([] as any[])),
       this.http.post<any>(apiUrl('/analytics/consumo-quimicos'), filtro).pipe(
         catchError((err) => {
           this.avisarErrorCarga('No se pudo cargar el consumo de insumos', err);

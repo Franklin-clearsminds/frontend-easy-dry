@@ -25,3 +25,26 @@ export interface Notificacion {
   enlace?: string;
   enlaceLabel?: string;
 }
+
+/** Severidad de un pendiente operativo. */
+export type PendienteSeveridad = 'critica' | 'advertencia' | 'info';
+
+/**
+ * Algo que sigue mal ahora mismo (stock bajo o crítico, incidente abierto, preventivo vencido). A diferencia de un aviso no se
+ * «lee»: desaparece de la bandeja cuando se resuelve el problema de fondo.
+ */
+export interface Pendiente {
+  id: string;
+  grupo: 'stock' | 'mantenimiento';
+  severidad: PendienteSeveridad;
+  titulo: string;
+  detalle: string;
+  origen: string | null;
+  agencia: string | null;
+  pulidor: string | null;
+  region: string | null;
+  estado: string;
+  timestamp: number;
+  enlace: string;
+  enlaceLabel: string;
+}

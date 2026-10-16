@@ -20,6 +20,7 @@ export interface PrecioServicioAgencia {
   catalogoServicioId: number;
   codigo: string;
   nombre: string;
+  categoria?: string;
   estado: string;
   precioCatalogo: number;
   precioAgencia: number | null;
@@ -55,7 +56,7 @@ export class SucursalService {
 
     const ger = a.usuarios?.find((u: any) => {
       const r = (u.role?.namerol || u.role || '').toUpperCase();
-      return r === 'GERENTE' || r === 'APROBADOR' || r.includes('GERENTE') || r.includes('APROBADOR') || r === 'LIDER' || r === 'LIDER_AGENCIA';
+      return r === 'APROBADOR' || r.includes('APROBADOR') || r === 'LIDER';
     });
 
     const responsable = ger
@@ -70,7 +71,7 @@ export class SucursalService {
     const lider = (a.usuarios || []).find((u: any) => String(u.id) === String(a.liderOperadorId))
       || a.usuarios?.find((u: any) => {
         const r = (u.role?.namerol || u.role || '').toUpperCase();
-        return r === 'LIDER_OPERADOR' || r === 'LIDER' || r.includes('LIDER') || r.includes('LÍDER');
+        return r === 'LIDER' || r.includes('LIDER') || r.includes('LÍDER');
       });
 
     const liderOperador = lider
@@ -88,7 +89,7 @@ export class SucursalService {
     // Filtrar operadores estrictos (excluyendo roles directivos / gerenciales)
     const operadores = (a.usuarios || []).filter((u: any) => {
       const r = (u.role?.namerol || u.role || '').toUpperCase();
-      const esGestion = r === 'GERENTE' || r === 'APROBADOR' || r.includes('GERENTE') || r.includes('APROBADOR') || r.includes('ADMIN') || r.includes('SUPERVISOR') || r.includes('JEFE') || r.includes('COORD');
+      const esGestion = r === 'APROBADOR' || r.includes('APROBADOR') || r.includes('ADMIN') || r.includes('SUPERVISOR') || r.includes('JEFE') || r.includes('COORD');
       return (u.estado === 1 || u.estado === 'Activo') && !esGestion;
     });
 

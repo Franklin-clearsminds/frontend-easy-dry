@@ -4,6 +4,7 @@ import { BehaviorSubject, Observable, of } from 'rxjs';
 import { map, tap, catchError } from 'rxjs/operators';
 import { RegionOperativa } from '../models';
 import { apiUrl } from '../config/env';
+import { OpcionesService } from './opciones.service';
 import { ConsultaTabla } from '../models/paginacion.model';
 import { PaginaConResumen, cuerpoConsulta, postPagina } from '../utils/tabla-servidor';
 
@@ -12,6 +13,7 @@ import { PaginaConResumen, cuerpoConsulta, postPagina } from '../utils/tabla-ser
 })
 export class RegionService {
   private http = inject(HttpClient);
+  private opciones = inject(OpcionesService);
   private regionesSubject = new BehaviorSubject<RegionOperativa[]>([]);
   public regiones$ = this.regionesSubject.asObservable();
 
@@ -35,6 +37,25 @@ export class RegionService {
       map(items => (items || []).map(r => this.mapBackendRegion(r))),
       tap(mapped => this.regionesSubject.next(mapped)),
       catchError(() => of(this.regionesSubject.value))
+    );
+  }
+
+  /**
+   * Regiones para desplegables y filtros (id, nombre, código y estado). Sale de las opciones, que cualquier pantalla con acceso a
+   * agencias puede pedir: NO exige la pestaña «Regiones», que es la única que usa `getRegiones()` (con responsables y conteos).
+   */
+  getRegionesLista(): Observable<RegionOperativa[]> {
+    return this.opciones.todas('/agencias/regiones/opciones').pipe(
+      map((ops) => ops.map((o): RegionOperativa => ({
+        id: o.value,
+        codigo: o.sublabel || '',
+        nombre: o.label,
+        descripcion: '',
+        responsable: '',
+        estado: o.estado === 0 ? 'Inactiva' : 'Activa',
+      }))),
+      tap((mapped) => this.regionesSubject.next(mapped)),
+      catchError(() => of(this.regionesSubject.value)),
     );
   }
 

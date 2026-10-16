@@ -18,7 +18,7 @@ import { EvidenciaGaleriaComponent } from '../../shared/components/evidencia-gal
 import { resolverRangoFechas } from '../../core/utils/fecha-rango';
 import { SucursalService } from '../../core/services/sucursal.service';
 import { fechaHoraLocal, fechaProgramadaLocal } from '../../core/utils/evidencia-maquinaria';
-import { puedeGestionarMaquina, puedeEjecutarMantenimientos, puedeVerMaquinaria } from '../../core/utils/maquinaria-permisos';
+import { puedeGestionarMaquina, puedeEjecutarMantenimientos, puedeEditarMantenimientos, puedeVerMaquinaria, puedeProgramarMantenimiento } from '../../core/utils/maquinaria-permisos';
 import { TrabajoAccionesComponent } from '../maquinaria/trabajo-acciones/trabajo-acciones.component';
 import { ChecklistOrdenComponent } from './checklist-orden/checklist-orden.component';
 import { MaquinariaDetalleModalComponent } from '../maquinaria/maquinaria-detalle-modal/maquinaria-detalle-modal.component';
@@ -599,14 +599,14 @@ export class MantenimientoComponent implements OnInit, OnDestroy {
   }
 
   // ---- Permisos de UI (el backend valida siempre) ----
-  get puedeProgramar(): boolean { return puedeGestionarMaquina(this.authService); }
+  get puedeProgramar(): boolean { return puedeProgramarMantenimiento(this.authService); }
   puedeAsignar(m: Mantenimiento): boolean { return puedeGestionarMaquina(this.authService) && m.estadoRaw !== 'FINALIZADO'; }
   /** Solo el técnico asignado ejecuta (el backend además bloquea si falta más que la ventana de adelanto). */
   puedeEjecutar(m: Mantenimiento): boolean {
     return m.estadoRaw !== 'FINALIZADO' && puedeEjecutarMantenimientos(this.authService) && String(m.tecnicoAsignadoId || '') === this.miId;
   }
   puedeEditar(m: Mantenimiento): boolean {
-    return puedeEjecutarMantenimientos(this.authService) && (puedeGestionarMaquina(this.authService) || String(m.tecnicoAsignadoId || '') === this.miId);
+    return puedeEditarMantenimientos(this.authService) && (puedeGestionarMaquina(this.authService) || String(m.tecnicoAsignadoId || '') === this.miId);
   }
 
   programar(): void {

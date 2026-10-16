@@ -131,7 +131,6 @@ export class CatalogoServiciosService {
       nombre: (servicio.nombre || '').trim(),
       categoria: (servicio.categoria || 'GENERAL').trim().toUpperCase(),
       descripcion: (servicio.descripcion || '').trim(),
-      precio: Number(servicio.precio || 0),
       tiempoEstimadoMin: Math.max(1, Math.round(Number(servicio.tiempoEstimadoMin ?? 30))),
       estado: servicio.estado === 'Inactivo' ? 'Inactivo' : 'Activo',
     };
@@ -175,12 +174,10 @@ export class CatalogoServiciosService {
       nombre: cambios.nombre,
       categoria: cambios.categoria,
       descripcion: cambios.descripcion,
-      precio: cambios.precio !== undefined ? Number(cambios.precio) : undefined,
       tiempoEstimadoMin: Math.max(
         1,
         Math.round(Number(cambios.tiempoEstimadoMin ?? 30)),
       ),
-      estado: cambios.estado,
     };
 
     return this.http.post<any>(apiUrl('/catalogos/servicios/update'), payload).pipe(
@@ -219,21 +216,9 @@ export class CatalogoServiciosService {
     );
   }
 
-  eliminarServicio(id: number): Observable<{ success: boolean; message?: string }> {
-    return this.http.post<any>(apiUrl('/catalogos/servicios/delete'), { id }).pipe(
-      tap(() => {
-        const current = this.serviciosSubject.value.filter(s => s.id !== id);
-        this.serviciosSubject.next(current);
-      }),
-      catchError(err => {
-        console.error('Error al eliminar servicio de catálogo:', err);
-        throw err;
-      })
-    );
-  }
-
-  cambiarEstado(id: number, estado: 'Activo' | 'Inactivo'): Observable<boolean> {
-    return this.actualizarServicio(id, { estado }).pipe(
+  /** Activa o desactiva el servicio (los servicios del catálogo nunca se eliminan). */
+  cambiarEstado(id: number, _estado?: 'Activo' | 'Inactivo'): Observable<boolean> {
+    return this.http.post<any>(apiUrl('/catalogos/servicios/estado'), { id }).pipe(
       map(() => true),
       catchError(err => {
         console.error('Error al cambiar el estado del servicio de catálogo:', err);

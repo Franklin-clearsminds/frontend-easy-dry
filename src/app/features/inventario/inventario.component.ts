@@ -94,7 +94,7 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
         <div class="flex items-center gap-2 sm:gap-4 mt-5 pt-3 border-t border-slate-100 overflow-x-auto">
           <!-- 1. Productos — catálogo de insumos (para el líder: los insumos de su propia agencia) -->
           <button
-            *ngIf="puedeVerInventario && (puedeOperarBodega || operaDesdeAgencia)"
+            *ngIf="puedeVerInventario && (puedeOperarBodega || operaDesdeAgencia) && puedeSubProductos"
             (click)="activeTab = 'productos'; abrirProductos()"
             class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
             [ngClass]="activeTab === 'productos' ? 'bg-blue-50 text-easydry-blue font-extrabold shadow-2xs' : 'text-slate-600 hover:bg-slate-50'">
@@ -105,7 +105,7 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
 
           <!-- 2. Bodegas — CENTRAL / REGIONAL -->
           <button
-            *ngIf="puedeVerInventario && puedeOperarBodega"
+            *ngIf="puedeVerInventario && puedeOperarBodega && puedeSubBodegas"
             (click)="activeTab = 'bodegas'"
             class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
             [ngClass]="activeTab === 'bodegas' ? 'bg-blue-50 text-easydry-blue font-extrabold shadow-2xs' : 'text-slate-600 hover:bg-slate-50'">
@@ -116,7 +116,7 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
           <!-- 3. Agencias — stock / monitoreo de sedes (no para el líder: solo ve su propia agencia,
                para elegir destino de despacho ya usa el botón "Despachar", que no depende de esta pestaña) -->
           <button
-            *ngIf="puedeVerInventario && !operaDesdeAgencia"
+            *ngIf="puedeVerInventario && !operaDesdeAgencia && puedeSubAgencias"
             (click)="activeTab = 'agencias'"
             class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
             [ngClass]="activeTab === 'agencias' ? 'bg-purple-50 text-purple-700 font-extrabold border border-purple-200 shadow-2xs' : 'text-slate-600 hover:bg-slate-50'">
@@ -130,7 +130,7 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
           <!-- 4. Pulidores — kits de pulidores móviles y fijos (no para el líder: ver el stock de los
                pulidores de otras sedes/región no es suyo; el botón "Despachar" ya permite enviarles insumos) -->
           <button
-            *ngIf="puedeVerInventario && !operaDesdeAgencia"
+            *ngIf="puedeVerInventario && !operaDesdeAgencia && puedeVerKits"
             (click)="activeTab = 'pulidores'; cargarStockPulidoresResumen()"
             class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
             [ngClass]="activeTab === 'pulidores' ? 'bg-cyan-50 text-cyan-800 font-extrabold border border-cyan-200 shadow-2xs' : 'text-slate-600 hover:bg-slate-50'">
@@ -170,7 +170,7 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
 
           <!-- 7. Movimientos (Kardex) -->
           <button
-            *ngIf="puedeVerInventario && puedeOperarBodega"
+            *ngIf="puedeVerInventario && puedeOperarBodega && puedeSubMovimientos"
             (click)="activeTab = 'movimientos'"
             class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
             [ngClass]="activeTab === 'movimientos' ? 'bg-blue-50 text-easydry-blue font-extrabold shadow-2xs' : 'text-slate-600 hover:bg-slate-50'">
@@ -190,7 +190,7 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
 
           <!-- 8. Configuración -->
           <button
-            *ngIf="puedeGestionarCatalogos"
+            *ngIf="puedeGestionarCatalogos && puedeSubConfiguracion"
             (click)="activeTab = 'configuracion'; abrirConfiguracion()"
             class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
             [ngClass]="activeTab === 'configuracion' ? 'bg-purple-50 text-purple-700 font-extrabold shadow-2xs' : 'text-slate-600 hover:bg-slate-50'">
@@ -632,7 +632,7 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
                   </td>
                   <td class="p-3.5 text-right space-x-1 whitespace-nowrap">
                     <button
-                      *ngIf="puedeGenerarDespacho && item.estado !== 'NO_NECESARIO'"
+                      *ngIf="puedeDespacharStockBajo && item.estado !== 'NO_NECESARIO'"
                       (click)="abrirModalDespachoAgencia(undefined, item)"
                       title="Despachar a otra agencia o pulidor"
                       class="px-2.5 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-800 text-xs font-bold transition cursor-pointer inline-flex items-center gap-1 border border-purple-200">
@@ -640,7 +640,7 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
                       <span>Despachar</span>
                     </button>
                     <button
-                      *ngIf="puedeGenerarDespacho && item.estado === 'NO_NECESARIO' && item.stockActual > 0"
+                      *ngIf="puedeDespacharStockBajo && item.estado === 'NO_NECESARIO' && item.stockActual > 0"
                       (click)="abrirModalDespachoAgencia(undefined, item)"
                       title="Reubicar stock no requerido por servicios"
                       class="px-2.5 py-1 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold transition cursor-pointer inline-flex items-center gap-1 border border-slate-200">
@@ -1268,7 +1268,7 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
             <div class="flex items-center justify-end gap-1.5 whitespace-nowrap">
               <button
                 type="button"
-                *ngIf="puedeGenerarDespacho && puedeAjustarStock"
+                *ngIf="puedeDespacharBodega && puedeAjustarStock"
                 (click)="abrirModalDespachoDesdeBodegaActual(item)"
                 title="Despachar este insumo desde la bodega seleccionada"
                 class="px-2.5 py-1 rounded-lg bg-easydry-blue hover:bg-blue-700 text-white font-bold text-xs transition cursor-pointer inline-flex items-center gap-1">
@@ -1284,7 +1284,7 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
               </button>
               <button
                 type="button"
-                *ngIf="puedeReajustarStock"
+                *ngIf="puedeReajustarBodega"
                 (click)="abrirModalReajuste(item)"
                 title="Reajustar stock por conteo físico"
                 class="px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs transition cursor-pointer inline-flex items-center gap-1">
@@ -1322,7 +1322,7 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
           </div>
 
           <button
-            *ngIf="puedeGenerarDespacho"
+            *ngIf="puedeDespacharBodega"
             (click)="abrirModalDespachoAgencia()"
             class="px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition flex items-center gap-2 shadow-sm cursor-pointer shrink-0">
             <i-lucide aria-hidden="true" name="truck" class="w-4 h-4"></i-lucide>
@@ -1459,8 +1459,8 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
               *ngIf="agenciasExpandidas.has(itemAg.agencia.id)"
               tipo="agencia"
               [ubicacionId]="itemAg.agencia.id"
-              [puedeDespachar]="puedeGenerarDespacho"
-              [puedeReajustar]="puedeReajustarStock"
+              [puedeDespachar]="puedeDespacharAgencia"
+              [puedeReajustar]="puedeReajustarAgencia"
               [refreshToken]="stockRefreshToken"
               (despachar)="seleccionarParaDespachoAgencia(itemAg.agencia, $event)"
               (reajustar)="abrirModalReajusteAgencia(itemAg.agencia, $event)">
@@ -1512,7 +1512,7 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
               </button>
 
               <button
-                *ngIf="puedeGenerarDespacho"
+                *ngIf="puedeDespacharPulidor"
                 (click)="abrirModalDespacho('pulidor')"
                 class="px-3.5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm">
                 <i-lucide aria-hidden="true" name="send" class="w-3.5 h-3.5"></i-lucide>
@@ -1655,8 +1655,8 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
               *ngIf="pulidoresExpandidos.has(p.id)"
               tipo="pulidor"
               [ubicacionId]="p.id"
-              [puedeDespachar]="puedeGenerarDespacho"
-              [puedeReajustar]="puedeReajustarStock"
+              [puedeDespachar]="puedeDespacharPulidor"
+              [puedeReajustar]="puedeReajustarPulidor"
               [refreshToken]="stockRefreshToken"
               (despachar)="seleccionarParaDespachoPulidor(p, $event)"
               (reajustar)="abrirModalReajustePulidor(p, $event)">
@@ -1954,7 +1954,7 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
               <div class="flex items-center justify-end gap-1.5 whitespace-nowrap">
                 <button
                   type="button"
-                  *ngIf="puedeGenerarDespacho && (a.agencia || a.pulidor)"
+                  *ngIf="(puedeDespacharAgencia || puedeDespacharPulidor) && (a.agencia || a.pulidor)"
                   (click)="abrirDespachoDesdeAlerta(a)"
                   class="px-2.5 py-1 rounded-lg bg-easydry-blue hover:bg-blue-700 text-white font-bold text-xs transition shadow-2xs cursor-pointer inline-flex items-center gap-1">
                   <i-lucide aria-hidden="true" name="truck" class="w-3 h-3"></i-lucide>
@@ -3700,6 +3700,8 @@ export class InventarioComponent implements OnInit, OnDestroy {
   private inventarioService = inject(InventarioService);
   private toast = inject(ToastService);
   private auth = inject(AuthService);
+  /** Stock de los kits de pulidores: permiso aparte, los perfiles comerciales no lo tienen. */
+  get puedeVerKits(): boolean { return this.auth.puede('inventario.kits.ver'); }
   private sucursalService = inject(SucursalService);
   private usuarioService = inject(UsuarioService);
   private regionService = inject(RegionService);
@@ -3821,18 +3823,20 @@ export class InventarioComponent implements OnInit, OnDestroy {
 
   // ── Permisos: los mismos códigos que el backend exige en cada endpoint (el rol no se consulta por nombre) ──
   get puedeVerInventario(): boolean { return this.auth.puede('inventario.ver'); }
-  get puedeGestionarCatalogos(): boolean { return this.auth.puede('inventario.catalogos.gestionar'); }
-  get puedeGestionarBodegas(): boolean { return this.auth.puede('bodegas.gestionar'); }
-  get puedeAjustarStock(): boolean { return this.auth.puede('stock.ajustar'); }
+  get puedeGestionarCatalogos(): boolean { return this.auth.puedeAlguno('inventario.productos.gestionar', 'inventario.config.tipos', 'inventario.config.unidades'); }
+  get puedeGestionarBodegas(): boolean { return this.auth.puede('inventario.bodegas.gestionar'); }
+  get puedeEstadoBodegas(): boolean { return this.auth.puede('inventario.bodegas.estado'); }
+  get puedeEliminarBodegas(): boolean { return this.auth.puede('inventario.bodegas.eliminar'); }
+  get puedeAjustarStock(): boolean { return this.auth.puedeAlguno('inventario.bodegas.reajustar', 'inventario.agencias.reajustar', 'inventario.pulidores.reajustar'); }
   get puedeVerDespachos(): boolean { return this.auth.puede('despachos.ver'); }
   get puedeRecibirDespacho(): boolean { return this.auth.puede('despachos.recibir'); }
   get puedeVerAlertas(): boolean { return this.auth.puede('alertas.ver'); }
-  get puedeCrearAlerta(): boolean { return this.auth.puede('alertas.crear'); }
-  get puedeAtenderAlertas(): boolean { return this.auth.puede('alertas.atender'); }
+  get puedeCrearAlerta(): boolean { return this.auth.puede('inventario.alertas.crear'); }
+  get puedeAtenderAlertas(): boolean { return this.auth.puede('inventario.alertas.atender'); }
 
   /** Opera el stock de bodegas (ajustes, catálogo o compras): ve las pestañas de gestión de bodega. */
   get puedeOperarBodega(): boolean {
-    return this.puedeAjustarStock || this.puedeGestionarCatalogos || this.auth.puede('compras.registrar');
+    return this.puedeAjustarStock || this.puedeGestionarCatalogos || this.auth.puede('inventario.productos.compra');
   }
 
   /** Contexto de alcance del usuario (dato de su perfil, no un permiso). */
@@ -3866,7 +3870,7 @@ export class InventarioComponent implements OnInit, OnDestroy {
 
   /** Registrar compra/ingreso (siempre a la Bodega Central): permiso 'compras.registrar'. */
   get puedeRegistrarIngreso(): boolean {
-    return this.auth.puede('compras.registrar');
+    return this.auth.puede('inventario.productos.compra');
   }
 
   get puedeReajustarStock(): boolean {
@@ -3875,8 +3879,23 @@ export class InventarioComponent implements OnInit, OnDestroy {
 
   /** Generar despachos: permiso 'despachos.crear' (el servidor limita origen y destino según el alcance). */
   get puedeGenerarDespacho(): boolean {
-    return this.auth.puede('despachos.crear');
+    return this.auth.puedeAlguno('inventario.productos.despachar', 'inventario.bodegas.despachar', 'inventario.agencias.despachar', 'inventario.pulidores.despachar', 'inventario.stockbajo.despachar');
   }
+
+  // Cada pestaña se muestra solo si el rol tiene su sub-página.
+  get puedeSubProductos(): boolean { return this.auth.puede('pagina.inventario.productos'); }
+  get puedeSubBodegas(): boolean { return this.auth.puede('pagina.inventario.bodegas'); }
+  get puedeSubAgencias(): boolean { return this.auth.puede('pagina.inventario.agencias'); }
+  get puedeSubMovimientos(): boolean { return this.auth.puede('pagina.inventario.movimientos'); }
+  get puedeSubConfiguracion(): boolean { return this.auth.puede('pagina.inventario.configuracion'); }
+  get puedeReajustarBodega(): boolean { return this.auth.puede('inventario.bodegas.reajustar'); }
+  get puedeReajustarAgencia(): boolean { return this.auth.puede('inventario.agencias.reajustar'); }
+  get puedeReajustarPulidor(): boolean { return this.auth.puede('inventario.pulidores.reajustar'); }
+  // Cada pestaña despacha con su propia casilla.
+  get puedeDespacharStockBajo(): boolean { return this.auth.puede('inventario.stockbajo.despachar'); }
+  get puedeDespacharBodega(): boolean { return this.auth.puede('inventario.bodegas.despachar'); }
+  get puedeDespacharAgencia(): boolean { return this.auth.puede('inventario.agencias.despachar'); }
+  get puedeDespacharPulidor(): boolean { return this.auth.puede('inventario.pulidores.despachar'); }
 
   /** Despacho hacia bodegas: quien despacha y no opera desde una agencia (el líder nunca despacha a bodegas). */
   get puedeDespacharABodega(): boolean {
@@ -3885,7 +3904,7 @@ export class InventarioComponent implements OnInit, OnDestroy {
 
   /** Estado de la bodega central (stock bajo): mismo permiso que 'stock-bajo/list'. */
   get puedeVerStockBajoBodegaCentral(): boolean {
-    return this.puedeAjustarStock;
+    return this.auth.puede('pagina.inventario.stock-bajo');
   }
 
   /** Insumos de la sede del líder con alerta real (no “No necesario”). */
@@ -4250,6 +4269,9 @@ export class InventarioComponent implements OnInit, OnDestroy {
         const encontrada = this.sucursalesActivas.find(
           (s) => String(s.id) === String(this.miAgenciaId) || s.nombre.toLowerCase() === this.miAgenciaNombre.toLowerCase()
         );
+        // Solo se recarga si `miAgenciaId` realmente cambió con esta respuesta: si ya venía correcto desde
+        // `currentUser`, repetir aquí las mismas peticiones del inicio era puro duplicado.
+        const idPrevio = this.miAgenciaId;
         if (encontrada) {
           this.miAgenciaId = String(encontrada.id);
           this.miAgenciaNombre = encontrada.nombre;
@@ -4257,11 +4279,13 @@ export class InventarioComponent implements OnInit, OnDestroy {
           this.miAgenciaId = String(this.sucursalesActivas[0].id);
           this.miAgenciaNombre = this.sucursalesActivas[0].nombre;
         }
-        this.cargarInsumosPorServicios();
-        this.cargarDespachosPendientes();
-        this.cargarProductos();
-        // "Otras agencias" excluye la propia por su id: se vuelve a pedir ahora que ya se conoce.
-        if (this.isOperador) this.cargarStockAgencias();
+        if (String(idPrevio) !== String(this.miAgenciaId)) {
+          this.cargarInsumosPorServicios();
+          this.cargarDespachosPendientes();
+          this.cargarProductos();
+          // "Otras agencias" excluye la propia por su id: se vuelve a pedir ahora que ya se conoce.
+          if (this.isOperador) this.cargarStockAgencias();
+        }
       }
     });
   }
@@ -5500,7 +5524,7 @@ export class InventarioComponent implements OnInit, OnDestroy {
   }
 
   public cargarRegiones(): void {
-    this.regionService.getRegiones().subscribe({
+    this.regionService.getRegionesLista().subscribe({
       next: (regs) => {
         this.regionesDisponibles = (regs || []).filter((r) => r.estado === 'Activa' || (r.estado as any) === 1);
         if (!this.bodegaForm.regionId && this.regionesDisponibles.length > 0) {

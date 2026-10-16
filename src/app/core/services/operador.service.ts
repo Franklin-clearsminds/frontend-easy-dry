@@ -12,6 +12,8 @@ export interface ConsultaOperadores extends Partial<ConsultaTabla> {
   agenciaId?: string;
   /** PULIDOR | LAVADOR */
   categoriaRol?: string;
+  /** Rol concreto (LAVADOR, PULIDOR, PULIDOR_FIJO, TECNICO…) */
+  rol?: string;
   /** 1 activo, 0 inactivo */
   estado?: number;
   bahiaNombre?: string;
@@ -50,7 +52,7 @@ export class OperadorService {
     return postPagina<Operador>(
       this.http,
       apiUrl('/agencias/operadores/list'),
-      cuerpoConsulta(c, ['agenciaId', 'categoriaRol', 'estado', 'bahiaNombre', 'clienteNombre']),
+      cuerpoConsulta(c, ['agenciaId', 'categoriaRol', 'rol', 'estado', 'bahiaNombre', 'clienteNombre']),
     );
   }
 
@@ -103,10 +105,11 @@ export class OperadorService {
     );
   }
 
-  crearOperador(datos: Partial<Operador>): Observable<Operador> {
+  crearOperador(datos: Partial<Operador> & { password: string }): Observable<Operador> {
     const payload = {
       nombre: datos.nombre,
       cedula: datos.cedula,
+      password: datos.password,
       telefono: datos.telefono,
       rol: datos.rol || 'LAVADOR',
       agenciaId: datos.sucursalId ? String(datos.sucursalId) : datos.sucursal,
@@ -173,7 +176,9 @@ export class OperadorService {
       telefono: op.telefono,
       rol: op.rol,
       agenciaId: op.sucursalId ? String(op.sucursalId) : op.sucursal,
-      bahiaId: op.bahiaId || undefined,
+      // null = «dejar sin bahía (en reserva)» y viaja como cadena vacía; undefined = «no tocar la bahía» y el campo no viaja.
+      // Antes ambos se mandaban como undefined: el servidor entendía «sin cambios» y no se podía dejar en reserva.
+      bahiaId: op.bahiaId === null ? '' : (op.bahiaId ? String(op.bahiaId) : undefined),
       estado: op.estado === 'Inactivo' ? 0 : 1
     };
 

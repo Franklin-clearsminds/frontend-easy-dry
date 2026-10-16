@@ -26,10 +26,9 @@ import { MaquinaAccionesComponent } from '../maquina-acciones/maquina-acciones.c
 import { fechaHoraLocal, fechaProgramadaLocal, validarFotos } from '../../../core/utils/evidencia-maquinaria';
 import { badgeClase, BADGE_NO_ATENDIDO } from '../../../core/utils/badges';
 import {
-  puedeEditarMaquina, puedeActivarMaquina, puedeGestionarMaquina, puedeReportarIncidente,
+  puedeEditarMaquina, puedeCambiarArchivosMaquina, puedeActivarMaquina, puedeGestionarMaquina, puedeReportarIncidente,
   puedeVerTrazabilidad, puedeVerMantenimientos, puedeVerIncidentes, puedeResolverIncidentes,
-  puedeEjecutarMantenimientos, puedeAgregarEvidenciaMaquinaria, puedeSubirEvidenciaLimpieza, puedeVerLimpiezas,
-} from '../../../core/utils/maquinaria-permisos';
+  puedeEjecutarMantenimientos, puedeEditarMantenimientos, puedeAgregarEvidenciaMaquinaria, puedeSubirEvidenciaLimpieza, puedeVerLimpiezas, puedeAsignarTecnico, puedeProgramarMantenimiento } from '../../../core/utils/maquinaria-permisos';
 
 export type PestanaMaquina = 'resumen' | 'incidencias' | 'movimientos' | 'mantenimientos' | 'limpieza' | 'timeline';
 
@@ -722,7 +721,7 @@ export class MaquinariaDetalleModalComponent implements OnChanges, OnDestroy {
   private get miId(): string { return String(this.authService.getCurrentUser()?.id || ''); }
   private esMio(id?: string | number | null): boolean { return !!id && String(id) === this.miId; }
 
-  get puedeEditar(): boolean { return puedeEditarMaquina(this.authService); }
+  get puedeEditar(): boolean { return puedeEditarMaquina(this.authService) || puedeCambiarArchivosMaquina(this.authService); }
   get puedeActivar(): boolean { return puedeActivarMaquina(this.authService); }
   get puedeGestionar(): boolean { return puedeGestionarMaquina(this.authService); }
   get puedeVerLinea(): boolean { return puedeVerTrazabilidad(this.authService); }
@@ -732,7 +731,7 @@ export class MaquinariaDetalleModalComponent implements OnChanges, OnDestroy {
   get puedeAgregarEvidencia(): boolean { return puedeAgregarEvidenciaMaquinaria(this.authService); }
   get puedeSubirEvidenciaLimpieza(): boolean {
     return puedeSubirEvidenciaLimpieza(this.authService)
-      && (this.authService.hasRole('LIDER') || this.authService.hasRole('PULIDOR'));
+      && (this.authService.isLiderOperador() || this.authService.hasRole('PULIDOR'));
   }
   /**
    * Reportar: con el permiso, sobre máquinas activas. El líder puede reportar cualquier máquina de su agencia
@@ -740,7 +739,7 @@ export class MaquinariaDetalleModalComponent implements OnChanges, OnDestroy {
    */
   get puedeReportar(): boolean {
     if (!puedeReportarIncidente(this.authService) || !this.ficha?.activa) return false;
-    if (this.authService.hasRole('LIDER')) return true;
+    if (this.authService.isLiderOperador()) return true;
     return this.esMio(this.ficha?.operadorAsignado?.id);
   }
   get esTaller(): boolean { return String(this.ficha?.agenciaTipo || '').startsWith('TALLER'); }
@@ -756,7 +755,7 @@ export class MaquinariaDetalleModalComponent implements OnChanges, OnDestroy {
   }
 
   puedeAsignarInc(i: Incidente): boolean {
-    return this.puedeGestionar && i.estadoRaw !== 'RESUELTO' && i.estadoRaw !== 'CANCELADO';
+    return puedeAsignarTecnico(this.authService) && i.estadoRaw !== 'RESUELTO' && i.estadoRaw !== 'CANCELADO';
   }
   /** Técnico asignado, o coordinador/admin (que puede resolver una no asignada o una propia). */
   puedeResolverInc(i: Incidente): boolean {
@@ -768,13 +767,13 @@ export class MaquinariaDetalleModalComponent implements OnChanges, OnDestroy {
     return puedeResolverIncidentes(this.authService) && (this.puedeGestionar || this.esMio(i.tecnicoAsignadoId));
   }
   puedeAsignarMant(m: Mantenimiento): boolean {
-    return this.puedeGestionar && m.estadoRaw !== 'FINALIZADO';
+    return puedeProgramarMantenimiento(this.authService) && m.estadoRaw !== 'FINALIZADO';
   }
   puedeEjecutarMant(m: Mantenimiento): boolean {
     return m.estadoRaw !== 'FINALIZADO' && puedeEjecutarMantenimientos(this.authService) && this.esMio(m.tecnicoAsignadoId);
   }
   puedeEditarMant(m: Mantenimiento): boolean {
-    return puedeEjecutarMantenimientos(this.authService) && (this.puedeGestionar || this.esMio(m.tecnicoAsignadoId));
+    return puedeEditarMantenimientos(this.authService) && (this.puedeGestionar || this.esMio(m.tecnicoAsignadoId));
   }
 
   // ---- Carga ----

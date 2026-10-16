@@ -13,7 +13,7 @@ export interface Usuario {
   id: string | number;
   nombre: string;
   apellido: string;
-  rol: 'SuperAdmin' | 'Gerente' | 'Supervisor' | 'Técnico' | 'OPERADOR' | string;
+  rol: string;
   rolNombre?: string;
   agencia: string;
   sucursal?: string;
@@ -67,7 +67,7 @@ export interface Sucursal {
   telefono?: string;
   /** Si los servicios completados requieren aprobación gerencial antes del cierre diario. */
   requiereAprobacion?: boolean;
-  /** ID del usuario con rol GERENTE asignado como aprobador de esta sucursal. */
+  /** ID del usuario con rol APROBADOR asignado como aprobador de esta sucursal. */
   gerenteId?: number | string;
   /** Nombre denormalizado del gerente aprobador. */
   gerenteNombre?: string;
@@ -139,7 +139,7 @@ export interface Operador {
   id: number | string;
   nombre: string;
   cedula: string;
-  rol: 'OPERADOR' | string;
+  rol: string;
   sucursal: string;
   bahia: string;
   estado: 'Activo' | 'Inactivo' | 'En Capacitación' | string;
@@ -458,17 +458,6 @@ export interface Incidente {
   destinoTallerNombre?: string;
   fechaReporteIso?: string;
   evidencias?: EvidenciaMaquinaria[];
-}
-
-export interface Reporte {
-  id: number;
-  titulo: string;
-  tipo: 'Diario' | 'Mensual' | 'Productividad' | 'Servicios Especiales' | string;
-  agencia: string;
-  fechaGeneracion: string;
-  totalServicios: number | null;
-  /** Null cuando el servidor no calcula la eficiencia. */
-  eficienciaGeneral: number | null;
 }
 
 // =========================================================================

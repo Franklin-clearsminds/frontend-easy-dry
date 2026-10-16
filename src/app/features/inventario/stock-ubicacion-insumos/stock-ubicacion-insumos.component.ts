@@ -36,7 +36,16 @@ import { DataTableCellDirective, DataTableComponent, TableColumn } from '../../.
       (reintentar)="tabla.cargar(true)">
 
       <ng-template appCell="sku" let-i><span class="font-mono font-bold text-slate-800">{{ i.codigoSKU || i.sku }}</span></ng-template>
-      <ng-template appCell="nombre" let-i><span class="font-bold text-slate-900" [class.uppercase]="tipo === 'pulidor'">{{ i.nombre }}</span></ng-template>
+      <ng-template appCell="nombre" let-i>
+        <span class="font-bold text-slate-900" [class.uppercase]="tipo === 'pulidor'">{{ i.nombre }}</span>
+        <span
+          *ngIf="i.enTransitoUnidades > 0"
+          class="ml-1.5 inline-flex items-center gap-1 align-middle px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-sky-50 text-sky-700 border border-sky-200 whitespace-nowrap"
+          title="Ya se generó un envío de este insumo y está en camino">
+          <i-lucide aria-hidden="true" name="truck" class="w-3 h-3"></i-lucide>
+          En camino
+        </span>
+      </ng-template>
       <ng-template appCell="tipo" let-i>
         <span class="px-2 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-easydry-blue">{{ i.tipoProducto || i.categoria || 'General' }}</span>
       </ng-template>
@@ -58,6 +67,17 @@ import { DataTableCellDirective, DataTableComponent, TableColumn } from '../../.
           }">
           {{ i.stockActual | number:'1.0-2' }} {{ i.unidad }}
         </span>
+      </ng-template>
+      <ng-template appCell="transito" let-i>
+        <div *ngIf="i.enTransitoUnidades > 0; else sinTransito" class="whitespace-nowrap"
+          [title]="i.enTransitoDespachos + (i.enTransitoDespachos === 1 ? ' envío' : ' envíos') + ' en camino'">
+          <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md font-mono font-bold text-xs bg-sky-50 text-sky-700 border border-sky-200">
+            <i-lucide aria-hidden="true" name="truck" class="w-3 h-3"></i-lucide>
+            {{ i.enTransitoUnidades | number:'1.0-2' }} und
+          </span>
+          <span class="block text-[10px] text-slate-500 mt-0.5">{{ i.enTransitoDespachos }} {{ i.enTransitoDespachos === 1 ? 'envío' : 'envíos' }}</span>
+        </div>
+        <ng-template #sinTransito><span class="text-slate-400 font-mono">—</span></ng-template>
       </ng-template>
       <ng-template appCell="minimo" let-i>
         <div class="font-mono text-slate-600 whitespace-nowrap">
@@ -125,6 +145,7 @@ export class StockUbicacionInsumosComponent implements OnInit, OnChanges, OnDest
     { key: 'contenido', label: 'Contenido x Envase', sortable: true, defaultSort: 'desc' },
     { key: 'stockUnidades', label: 'Stock en Unidades' },
     { key: 'stock', label: 'Stock Contenido Total', sortable: true, defaultSort: 'asc' },
+    { key: 'transito', label: 'En Tránsito', sortable: true, defaultSort: 'desc' },
     { key: 'minimo', label: 'Stock Mínimo', sortable: true, defaultSort: 'desc' },
     { key: 'deficit', label: 'Déficit', sortable: true, defaultSort: 'desc' },
     { key: 'estado', label: 'Estado de Salud', sortable: true, defaultSort: 'asc' },

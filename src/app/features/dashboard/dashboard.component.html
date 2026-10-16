@@ -94,7 +94,6 @@
           </app-select-search>
         </div>
         }
-
         <!-- Filtro por Cliente / Marca -->
         @if (puedeFiltrarCliente) {
         <div class="w-44 transition-all" [class.ring-2]="clienteFiltro" [class.ring-amber-400]="clienteFiltro" [class.rounded-xl]="clienteFiltro">
@@ -104,9 +103,8 @@
           </app-select-search>
         </div>
         }
-
         <!-- Filtro por Agencia (requiere seleccionar Cliente cuando el usuario tiene alcance multicliente) -->
-        @if (puedeFiltrarAgencia && (vista === 'ejecutivo' || vista === 'especiales' || vista === 'bodega' || vista === 'taller')) {
+        @if (puedeFiltrarAgencia) {
         <div class="w-44 transition-all" [class.ring-2]="agenciaFiltro" [class.ring-easydry-green]="agenciaFiltro" [class.rounded-xl]="agenciaFiltro">
           <app-select-search [placeholder]="clienteFiltro ? 'Agencia' : 'Agencia (elija marca)'" todasLabel="Todas las agencias" ariaLabel="Filtrar por agencia"
             [cargar]="cargarAgencias" [value]="agenciaFiltro" [valueLabel]="agenciaLabel" [disabled]="!agenciaHabilitada || !clienteFiltro"
@@ -114,7 +112,6 @@
           </app-select-search>
         </div>
         }
-
         <!-- Filtro por Bahía (Aprobador, cuando hay agencia seleccionada o vista taller con agencia) -->
         @if (isAprobadorView || agenciaFiltro || esAlcanceAgencia) {
         <div class="w-44 transition-all" [class.ring-2]="bahiaFiltro" [class.ring-cyan-500]="bahiaFiltro" [class.rounded-xl]="bahiaFiltro">
@@ -124,7 +121,6 @@
           </app-select-search>
         </div>
         }
-
         <!-- Filtro por Pulidor -->
         @if ((vista === 'ejecutivo' || vista === 'especiales') && !isComercialView && !isPulidor && !isAprobadorView) {
         <div class="w-44 transition-all" [class.ring-2]="pulidorFiltro" [class.ring-violet-400]="pulidorFiltro" [class.rounded-xl]="pulidorFiltro">
@@ -268,15 +264,6 @@
         [ngClass]="activeExecutiveTab === 'inventario' ? 'bg-easydry-blue text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'">
         <i-lucide aria-hidden="true" name="package" class="w-4 h-4 shrink-0"></i-lucide>
         {{ tabInventarioTitle }}
-      </button>
-      }
-      @if (puedeVerAlertas) {
-      <button type="button" role="tab" id="tab-alertas" aria-controls="panel-alertas"
-        [attr.aria-selected]="activeExecutiveTab === 'alertas'" (click)="activeExecutiveTab = 'alertas'"
-        class="shrink-0 px-3 sm:px-3.5 2xl:px-4 py-2 text-xs sm:text-[13px] 2xl:text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap"
-        [ngClass]="activeExecutiveTab === 'alertas' ? 'bg-easydry-blue text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'">
-        <i-lucide aria-hidden="true" name="bell-ring" class="w-4 h-4 shrink-0"></i-lucide>
-        Alertas
       </button>
       }
     </div>
@@ -1004,15 +991,6 @@
   </div>
   }
 
-  <!-- Sección: Alertas -->
-  @if (puedeVerAlertas && !isAprobadorView) {
-  <div class="mb-4 animate-fade-in" role="tabpanel" id="panel-alertas" aria-labelledby="tab-alertas"
-    [class.hidden]="activeExecutiveTab !== 'alertas'">
-    <div class="w-full">
-      <app-alertas-widget [alertas]="alertasPanel"></app-alertas-widget>
-    </div>
-  </div>
-  }
   }
 
   <!-- ═══ DASHBOARD MANTENIMIENTO (Coordinador de Mantenimiento · Técnico) ═══ -->
@@ -1418,6 +1396,72 @@
       </div>
     </app-chart-card>
     }
+
+    <!-- Ranking de pulidores: fijos vs móviles -->
+    <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry p-6">
+      <div class="flex items-center justify-between gap-3 mb-4 flex-wrap">
+        <div>
+          <h3 class="text-base font-bold font-outfit text-slate-900 flex items-center gap-2">
+            <i-lucide name="users" class="w-4 h-4 text-easydry-blue"></i-lucide>
+            Rendimiento del Personal Especializado
+          </h3>
+          <p class="text-xs text-slate-400 mt-0.5">Pulidores Fijos (asignados a agencia) vs Móviles (cobertura regional)</p>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap">
+          <div class="inline-flex bg-slate-100 p-1 rounded-xl" role="tablist" aria-label="Tipo de pulidor">
+            <button type="button" role="tab" (click)="pulidoresTab = 'todos'"
+              [attr.aria-selected]="pulidoresTab === 'todos'"
+              class="px-4 h-8 text-xs font-bold rounded-lg transition-colors"
+              [ngClass]="pulidoresTab === 'todos' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'">
+              Todos
+            </button>
+            <button type="button" role="tab" (click)="pulidoresTab = 'fijos'"
+              [attr.aria-selected]="pulidoresTab === 'fijos'"
+              class="px-4 h-8 text-xs font-bold rounded-lg transition-colors"
+              [ngClass]="pulidoresTab === 'fijos' ? 'bg-white text-easydry-blue shadow-sm' : 'text-slate-500 hover:text-slate-700'">
+              Fijos
+            </button>
+            <button type="button" role="tab" (click)="pulidoresTab = 'moviles'"
+              [attr.aria-selected]="pulidoresTab === 'moviles'"
+              class="px-4 h-8 text-xs font-bold rounded-lg transition-colors"
+              [ngClass]="pulidoresTab === 'moviles' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'">
+              Móviles
+            </button>
+          </div>
+          <app-top-orden [orden]="pulidoresTablaTop" (ordenChange)="pulidoresTablaTop = $event"></app-top-orden>
+        </div>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="text-left text-slate-500 border-b border-slate-100">
+              <th class="w-12 pb-3 font-semibold text-center text-slate-400">#</th>
+              <th class="pb-3 font-semibold text-slate-600">Pulidor</th>
+              <th class="w-28 pb-3 font-semibold text-center text-slate-600">Servicios</th>
+              <th class="w-28 pb-3 font-semibold text-right text-slate-600 pr-2">Ingresos</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (p of pulidoresActuales; track p.nombre; let i = $index) {
+            <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+              <td class="py-3 font-bold text-slate-400 text-center font-mono text-xs">{{ i + 1 }}</td>
+              <td class="py-3 font-semibold text-slate-800">{{ p.nombre }}</td>
+              <td class="py-3 text-slate-700 text-center font-medium">{{ p.servicios }}</td>
+              <td class="py-3 font-bold text-easydry-green-text text-right pr-2">${{ p.ingresos }}</td>
+            </tr>
+            } @empty {
+            <tr>
+              <td colspan="4" class="py-8 text-center text-slate-400">
+                <i-lucide name="user-x" class="w-8 h-8 mx-auto mb-2 text-slate-300"></i-lucide>
+                Sin datos de pulidores registrados en el período seleccionado
+              </td>
+            </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+
   </div>
   }
 
@@ -1494,6 +1538,14 @@
         <app-chart-card [title]="tecnicoData?.chartCostoMaquinas ? 'Máquinas con Mayor Gasto en Reparaciones' : 'Máquinas con Más Fallas'"
           subtitle="Top equipos con más costos o incidencias reportadas" type="bar" [horizontal]="true"
           [data]="tecnicoData?.chartCostoMaquinas || tecnicoData?.chartTopMaquinas"></app-chart-card>
+      </div>
+      }
+      @if (agenciaFiltro && tecnicoData?.chartIncidentesPorBahia) {
+      <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry p-6 lg:col-span-2">
+        <app-chart-card title="Desglose de Incidentes por Bahía"
+          [subtitle]="'Incidentes reportados por cada bahía en ' + (agenciaLabel || 'la agencia seleccionada')"
+          type="bar" [horizontal]="true" [data]="tecnicoData.chartIncidentesPorBahia"
+          mensajeVacio="Sin incidentes registrados por bahía en esta agencia."></app-chart-card>
       </div>
       }
       @if (tecnicoData?.chartTipoMantenimiento || tecnicoData?.chartCostoTipoMantenimiento || tecnicoData?.chartTipoMaquinaria) {
@@ -1591,16 +1643,6 @@
     </div>
     }
 
-    <!-- Alertas activas de la sede -->
-    @if (alertasPanel.length > 0) {
-    <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry p-6">
-      <h3 class="text-base font-bold font-outfit text-slate-900 mb-4 flex items-center gap-2">
-        <i-lucide name="alert-circle" class="w-4 h-4 text-rose-500"></i-lucide>
-        Alertas de Reposición de Insumos
-      </h3>
-      <app-alertas-widget [alertas]="alertasPanel"></app-alertas-widget>
-    </div>
-    }
   </div>
   }
 
@@ -1646,13 +1688,6 @@
         [ngClass]="bodegaTab === 'consumo' ? 'bg-easydry-blue text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'">
         <i-lucide aria-hidden="true" name="boxes" class="w-4 h-4 shrink-0"></i-lucide>
         Consumo & Existencias
-      </button>
-      <button type="button" role="tab" id="tab-bod-alertas" aria-controls="panel-bod-alertas"
-        [attr.aria-selected]="bodegaTab === 'alertas'" (click)="bodegaTab = 'alertas'"
-        class="shrink-0 px-3 sm:px-3.5 2xl:px-4 py-2 text-xs sm:text-[13px] 2xl:text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap"
-        [ngClass]="bodegaTab === 'alertas' ? 'bg-easydry-blue text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'">
-        <i-lucide aria-hidden="true" name="bell" class="w-4 h-4 shrink-0"></i-lucide>
-        Alertas
       </button>
     </div>
   </div>
@@ -1800,13 +1835,6 @@
     </div>
   </div>
 
-  <!-- PESTAÑA: ALERTAS OPERATIVAS -->
-  <div class="mb-4 animate-fade-in" role="tabpanel" id="panel-bod-alertas" aria-labelledby="tab-bod-alertas"
-    [class.hidden]="bodegaTab !== 'alertas'">
-    <div class="w-full">
-      <app-alertas-widget [alertas]="alertasPanel"></app-alertas-widget>
-    </div>
-  </div>
   }
 
   @if (vista === 'ninguna') {

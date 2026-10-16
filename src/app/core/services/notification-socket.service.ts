@@ -27,11 +27,15 @@ export class NotificationSocketService {
   /** Emite cada vez que llega una notificación nueva mientras el socket está conectado. */
   readonly onNuevaNotificacion = this.nuevaNotificacion$.asObservable();
 
-  connect(token: string): void {
+  /**
+   * `obtenerToken` se vuelve a llamar en cada (re)conexión: el access token dura 15 minutos y se renueva, así que un token
+   * fijo quedaría vencido y el socket no podría volver a conectarse tras una caída de red.
+   */
+  connect(obtenerToken: () => string | null): void {
     if (this.socket?.connected) return;
     this.disconnect();
     this.socket = io(`${wsUrl()}/notifications`, {
-      auth: { token },
+      auth: (entregar) => entregar({ token: obtenerToken() }),
       reconnection: true,
       transports: ['websocket', 'polling'],
     });

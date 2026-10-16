@@ -8,7 +8,6 @@ import { ChartCardComponent } from '../../shared/components/chart-card/chart-car
 import { DashboardOperativoService } from '../../core/services/dashboard-operativo.service';
 import { AuthService } from '../../core/services/auth.service';
 import { ROLE_LABELS } from '../../core/models/roles.model';
-import { AlertasWidgetComponent } from './components/alertas-widget.component';
 import { AprobacionesWidgetComponent } from './components/aprobaciones-widget.component';
 import { RankingOperadoresWidgetComponent } from './components/ranking-operadores-widget.component';
 import { SelectSearchComponent } from '../../shared/components/select-search/select-search.component';
@@ -24,18 +23,8 @@ import { OrdenTop, ordenarSerieTop } from '../../shared/utils/serie-top';
 import { OpcionesService, CargadorOpciones } from '../../core/services/opciones.service';
 import { CHART_COLORS, interpolarHex } from '../../shared/theme/colors';
 import { DashboardChartData } from '../../core/models/dashboard.model';
-import { AlertaStockVM } from '../../core/models/alerta-stock.model';
-import { Observable, Subscription, forkJoin, tap, of } from 'rxjs';
+import { Observable, Subscription, forkJoin, tap } from 'rxjs';
 
-const CARGADOR_VACIO: CargadorOpciones = () => of({
-  items: [],
-  total: 0,
-  page: 1,
-  pageSize: 20,
-  totalPages: 0,
-  hasNextPage: false,
-  hasPrevPage: false,
-});
 
 /** Qué panel ve el usuario. Se decide por los permisos del rol (los mismos que exige el servidor), no por su nombre. */
 export type VistaDashboard = 'taller' | 'especiales' | 'bodega' | 'ejecutivo' | 'ninguna';
@@ -59,7 +48,6 @@ export type DimensionFiltro = 'GLOBAL' | 'REGION' | 'AGENCY' | 'POLISHER';
     LucideAngularModule,
     StatCardComponent,
     ChartCardComponent,
-    AlertasWidgetComponent,
     RankingOperadoresWidgetComponent,
     DatePipe,
     SelectSearchComponent,
@@ -124,11 +112,12 @@ export class DashboardComponent implements OnInit, OnDestroy {
     { id: 'RANGO', label: 'Rango' },
   ];
 
-  cargarRegiones: CargadorOpciones = this.opciones?.regiones ? this.opciones.regiones() : CARGADOR_VACIO;
-  cargarClientes: CargadorOpciones = this.opciones?.clientes ? this.opciones.clientes() : CARGADOR_VACIO;
-  cargarAgencias: CargadorOpciones = this.opciones?.agencias ? this.opciones.agencias() : CARGADOR_VACIO;
-  cargarBahias: CargadorOpciones = this.opciones?.bahias ? this.opciones.bahias() : CARGADOR_VACIO;
-  cargarPulidores: CargadorOpciones = this.opciones?.operadores ? this.opciones.operadores({ rol: 'PULIDOR' }) : CARGADOR_VACIO;
+  cargarRegiones = this.opciones.regiones();
+  cargarClientes = this.opciones.clientes();
+  cargarAgencias = this.opciones.agencias();
+  cargarBahias = this.opciones.bahias();
+  cargarPulidores = this.opciones.operadores({ rol: 'PULIDOR' });
+
 
   /** Suscripciones de la carga en curso: se cancelan al recargar para descartar respuestas obsoletas. */
   private carga = new Subscription();
@@ -154,7 +143,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   mantenimientoTab: 'parque' | 'fallas' | 'costos' | 'programacion' = 'parque';
 
   /** Pestaña principal del dashboard de bodega (COORD_BODEGA · ASISTENTE_BODEGA). */
-  bodegaTab: 'salud' | 'reposicion' | 'despachos' | 'consumo' | 'alertas' = 'salud';
+  bodegaTab: 'salud' | 'reposicion' | 'despachos' | 'consumo' = 'salud';
 
   /** Control de orden de los rankings del dashboard de bodega. */
   coberturaTop: OrdenTop = { tamano: 5, direccion: 'DESC' };
@@ -226,13 +215,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
     { id: 'ESPECIAL', label: 'Servicios especiales' },
   ];
 
-  activeExecutiveTab: 'analitica' | 'auditoria' | 'inventario' | 'operacion' | 'alertas' | 'taller' | 'aprobaciones' = 'analitica';
+  activeExecutiveTab: 'analitica' | 'auditoria' | 'inventario' | 'operacion' | 'taller' | 'aprobaciones' = 'analitica';
 
-  /** Alertas del panel: en la vista ejecutiva, las unificadas (stock + mantenimiento); si no, las de stock. */
-  get alertasPanel(): AlertaStockVM[] {
-    const ops = this.produccion?.alertasOperativas;
-    return ops && ops.length ? ops : this.alertas;
-  }
 
   /** Texto del rango consultado para la barra de resumen del período. */
   get periodoTexto(): string {
@@ -1059,9 +1043,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.pulidorLabel = '';
     this.activeDimension = regionId ? 'REGION' : 'GLOBAL';
     this.cargarClientes = this.opciones.clientes(regionId ? { regionId } : {});
-    this.cargarAgencias = this.opciones.agencias({
-      regionId: regionId || undefined,
-    });
+    this.cargarAgencias = this.opciones.agencias(regionId ? { regionId } : undefined);
+
     this.recargar();
   }
 
@@ -1083,7 +1066,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.agenciaFiltro = agenciaId;
     this.bahiaFiltro = null;
     this.bahiaLabel = '';
-    const userAgencia = this.auth.getCurrentUser()?.agenciaId || this.auth.getCurrentUser()?.sucursalId;
+    const u = this.auth.getCurrentUser();
+    const userAgencia = u?.agenciaId || u?.sucursalId;
+
     const agId = agenciaId || userAgencia;
     this.cargarBahias = this.opciones.bahias(agId ? { agenciaId: String(agId) } : {});
     if (!agenciaId) {
@@ -1108,10 +1093,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
     if (!pulidorId) this.pulidorLabel = '';
     this.regionFiltro = null;
     this.regionLabel = '';
-    this.agenciaFiltro = null;
-    this.agenciaLabel = '';
     this.clienteFiltro = null;
     this.clienteLabel = '';
+    this.agenciaFiltro = null;
+    this.agenciaLabel = '';
     this.bahiaFiltro = null;
     this.bahiaLabel = '';
     this.activeDimension = pulidorId ? 'POLISHER' : 'GLOBAL';
@@ -1121,6 +1106,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
   private limpiarAgenciaYPulidor(): void {
     this.agenciaFiltro = null;
     this.agenciaLabel = '';
+    this.bahiaFiltro = null;
+    this.bahiaLabel = '';
     this.pulidorFiltro = null;
     this.pulidorLabel = '';
   }
@@ -1216,7 +1203,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     return 'ninguna';
   }
 
-  get puedeVerAlertas(): boolean { return this.auth.puede('alertas.ver'); }
+  get puedeVerAlertas(): boolean { return this.auth.puede('dashboard.alertas.ver'); }
   get puedeVerMaquinaria(): boolean { return this.auth.puede('maquinaria.ver'); }
   get puedeVerInventario(): boolean { return this.auth.puede('inventario.ver'); }
   get puedeVerUsuarios(): boolean { return this.auth.puede('usuarios.ver'); }
@@ -1343,7 +1330,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     }
     if (this.puedeVerAlertas) {
       peticiones.push(this.dashboardService.getAlertas(filtro).pipe(tap((d) => (this.alertas = d))));
-      peticiones.push(this.dashboardService.getDashboardDistribuidor(filtro).pipe(tap((d) => (this.distribuidorData = d))));
+      peticiones.push(this.dashboardService.getDashboardDistribuidor(filtro, this.puedeVerAlertas).pipe(tap((d) => (this.distribuidorData = d))));
     }
     this.carga.add(forkJoin(peticiones).subscribe({
       next: () => (this.recargando = false),
@@ -1383,7 +1370,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     }
     if (this.puedeVerInventario) {
       peticiones.push(this.dashboardService.getDashboardBodegaDedicado(this.filtroActual).pipe(tap((d) => (this.bodegaData = d))));
-      peticiones.push(this.dashboardService.getDashboardDistribuidor(this.filtroActual).pipe(tap((d) => (this.distribuidorData = d))));
+      peticiones.push(this.dashboardService.getDashboardDistribuidor(this.filtroActual, this.puedeVerAlertas).pipe(tap((d) => (this.distribuidorData = d))));
       if (this.puedeVerAlertas) {
         peticiones.push(this.dashboardService.getAlertas(this.filtroActual).pipe(tap((d) => (this.alertas = d))));
       }
@@ -1397,7 +1384,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   private cargarBodega(): void {
     const peticiones: Observable<any>[] = [
       this.dashboardService.getDashboardBodegaDedicado(this.filtroActual).pipe(tap((d) => (this.bodegaData = d))),
-      this.dashboardService.getDashboardDistribuidor(this.filtroActual).pipe(tap((d) => (this.distribuidorData = d))),
+      this.dashboardService.getDashboardDistribuidor(this.filtroActual, this.puedeVerAlertas).pipe(tap((d) => (this.distribuidorData = d))),
     ];
     if (this.puedeVerAlertas) {
       peticiones.push(this.dashboardService.getAlertas(this.filtroActual).pipe(tap((d) => (this.alertas = d))));
@@ -1518,10 +1505,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   get posicionesOptimas(): number {
     return this.posicionesEnEstado('ÓPTIMO');
-  }
-
-  get posicionesSobrestock(): number {
-    return this.posicionesEnEstado('SOBRESTOCK');
   }
 
   /** Distribución del parque de maquinaria como serie de gráfico (operativas / mantenimiento / dañadas). */
