@@ -41,6 +41,9 @@ export const TIPOS_INSPECCION: { id: string; nombre: string }[] = [
   { id: 'SEGUIMIENTO', nombre: 'Seguimiento' },
   { id: 'EXTRAORDINARIA', nombre: 'Extraordinaria' },
   { id: 'CIERRE_MENSUAL', nombre: 'Cierre mensual' },
+  { id: 'APERTURA_AGENCIA', nombre: 'Apertura de agencia' },
+  { id: 'CIERRE_AGENCIA', nombre: 'Cierre de agencia' },
+  { id: 'NOVEDADES', nombre: 'Novedades' },
 ];
 export const CATEGORIAS_NOVEDAD: { id: string; nombre: string }[] = [
   { id: 'INFRAESTRUCTURA', nombre: 'Infraestructura' },
@@ -234,6 +237,18 @@ export type Semaforo = 'VERDE' | 'AMARILLO' | 'ROJO';
 export type EstadoAuditoria5s = 'BORRADOR' | 'EN_PROCESO' | 'FINALIZADA' | 'CERRADA';
 export type EstadoAccion = 'PENDIENTE' | 'EN_PROCESO' | 'EN_VERIFICACION' | 'CERRADA' | 'VENCIDA';
 export type CategoriaId = 'SEIRI' | 'SEITON' | 'SEISO' | 'SEIKETSU' | 'SHITSUKE';
+
+const JAPONES_5S: Record<CategoriaId, string> = { SEIRI: 'Seiri', SEITON: 'Seiton', SEISO: 'Seiso', SEIKETSU: 'Seiketsu', SHITSUKE: 'Shitsuke' };
+/**
+ * Nombre de una S en las dos lenguas: «Clasificar / Seiri». Según el formato de la auditoría, el catálogo trae el nombre en español
+ * (con la explicación en `traduccion`) o el japonés (con el español en `traduccion`): se resuelve aquí para mostrar siempre los dos.
+ */
+export function nombre5s(c: { id: CategoriaId; nombre: string; traduccion: string }): string {
+  const japones = JAPONES_5S[c.id];
+  const espanol = c.nombre === japones ? c.traduccion : c.nombre;
+  return `${espanol} / ${japones}`;
+}
+
 
 export const ESTADOS_AUDITORIA_5S: { id: EstadoAuditoria5s; nombre: string; clase: string }[] = [
   { id: 'BORRADOR', nombre: 'Borrador', clase: 'bg-slate-100 text-slate-700 border-slate-200' },

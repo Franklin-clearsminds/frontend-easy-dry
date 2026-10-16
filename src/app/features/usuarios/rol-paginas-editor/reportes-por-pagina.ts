@@ -21,6 +21,9 @@ export const REPORTES_POR_PAGINA: readonly ReporteDePagina[] = [
   { nombre: 'Stock por agencia, pulidor o bodega', pagina: 'inventario' },
   { nombre: 'Alertas de stock', pagina: 'inventario' },
   { nombre: 'Kardex de un producto', pagina: 'inventario' },
+  { nombre: 'Productividad de agencias', pagina: 'productividad' },
+  { nombre: 'Productividad de operarios', pagina: 'productividad' },
+  { nombre: 'Retos', pagina: 'productividad' },
   { nombre: 'Informes de inspección', pagina: 'informes' },
   { nombre: 'Auditorías 5S', pagina: 'inspecciones' },
 ];

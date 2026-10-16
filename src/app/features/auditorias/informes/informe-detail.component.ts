@@ -58,7 +58,7 @@ import { descargarPdfInforme } from './informe-pdf';
           <dl class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
             <div><dt class="field-label">Para</dt><dd class="font-semibold">{{ i.destinatarioNombre || '—' }}</dd></div>
             <div><dt class="field-label">De</dt><dd class="font-semibold">{{ i.inspectorNombre }}</dd></div>
-            <div><dt class="field-label">Informe mensual N.º</dt><dd class="font-semibold">{{ i.numeroMensual }} ({{ i.periodo }})</dd></div>
+            <div><dt class="field-label">N.º de visita</dt><dd class="font-semibold">{{ i.numeroMensual }} ({{ i.periodo }})</dd></div>
           </dl>
 
           @if (i.estado === 'RECHAZADO' && i.motivoRechazo) {

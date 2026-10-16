@@ -32,7 +32,7 @@ export async function descargarPdfInforme(i: InformeDetalle, storage: StorageUpl
     { etiqueta: 'PARA', valor: i.destinatarioNombre, ancho: 22 },
     { etiqueta: 'DE', valor: `${i.inspectorNombre} — ${i.agencia.nombre}`, ancho: 44 },
     { etiqueta: 'FECHA', valor: fechaLarga(i.fecha), ancho: 16 },
-    { etiqueta: 'INFORME MENSUAL N°', valor: `${i.numeroMensual} (${i.numero})`, ancho: 18 },
+    { etiqueta: 'N.º DE VISITA', valor: `${i.numeroMensual} (${i.numero})`, ancho: 18 },
   ]);
   flow.espacio(3);
   flow.filaEtiquetaValor('ASUNTO:', i.asunto);

@@ -74,6 +74,10 @@ function tituloDe(r: ReporteGenerado): string {
 
 function encabezadoDe(r: ReporteGenerado, g: GrupoReporte | null): Encabezado {
   const digitalizado = `${r.generadoPor} · ${fechaHoraCorta(r.generadoEn)}`;
+  // Cada hoja de un reto lleva los datos del propio reto en vez de los de una agencia.
+  if (g?.datos?.length) {
+    return { titulo: 'AVANCE DEL RETO', pares: [...g.datos.map((d) => ({ etiqueta: d.etiqueta, valor: d.valor })), { etiqueta: 'GENERADO POR', valor: digitalizado }] };
+  }
   const extras: Par[] = r.filtros.extras.map((e) => ({ etiqueta: e.etiqueta.toUpperCase(), valor: e.valor }));
   const agencia = g && g.tipo !== 'GENERAL';
   const region = agencia ? g!.region : r.filtros.region;
@@ -111,8 +115,10 @@ function encabezadoDe(r: ReporteGenerado, g: GrupoReporte | null): Encabezado {
 
 const slug = (s: string): string => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
-function nombreArchivo(r: ReporteGenerado, extension: 'xlsx' | 'pdf'): string {
-  return `reporte-${slug(r.reporte.nombre)}-${new Date().toISOString().slice(0, 10)}.${extension}`;
+/** `sufijo` distingue los archivos de un mismo reporte (p. ej. uno por agencia): sin él todos se llamarían igual. */
+function nombreArchivo(r: ReporteGenerado, extension: 'xlsx' | 'pdf', sufijo?: string): string {
+  const extra = sufijo ? `-${slug(sufijo)}` : '';
+  return `reporte-${slug(r.reporte.nombre)}${extra}-${new Date().toISOString().slice(0, 10)}.${extension}`;
 }
 
 /** Columnas de los totales que se repiten en todos los grupos (para la hoja de resumen). */
@@ -138,10 +144,10 @@ function nombreHoja(base: string, usados: Set<string>): string {
 
 const argb = (c: [number, number, number]): string => `FF${hex(c)}`;
 
-export async function exportarExcel(r: ReporteGenerado): Promise<void> {
+export async function exportarExcel(r: ReporteGenerado, sufijo?: string): Promise<void> {
   const wb = await construirExcel(r);
   const buffer = await wb.xlsx.writeBuffer();
-  descargar(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), nombreArchivo(r, 'xlsx'));
+  descargar(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), nombreArchivo(r, 'xlsx', sufijo));
 }
 
 /** Arma el libro (una hoja por agencia más el resumen) sin descargarlo. */
@@ -171,7 +177,7 @@ export async function construirExcel(r: ReporteGenerado, logoPropio?: ImagenCarg
 
     // --- Encabezado: logo + título + datos ---
     const enc = encabezadoDe(r, g);
-    const porFila = n >= 9 ? 2 : 1;
+    const porFila = n >= 7 ? 2 : 1;
     const filasPares = Math.ceil(enc.pares.length / porFila);
     const izquierda = Math.min(2, n - 1);
     const mitad = porFila === 2 ? izquierda + 1 + Math.floor((n - izquierda - 1) / 2) : n;
@@ -421,8 +427,8 @@ function descargar(blob: Blob, nombre: string): void {
 
 const PAGINA = { ancho: 297, alto: 210, margen: 10 };
 
-export async function exportarPdf(r: ReporteGenerado): Promise<void> {
-  (await construirPdf(r)).save(nombreArchivo(r, 'pdf'));
+export async function exportarPdf(r: ReporteGenerado, sufijo?: string): Promise<void> {
+  (await construirPdf(r)).save(nombreArchivo(r, 'pdf', sufijo));
 }
 
 /** Arma el documento (una sección por agencia más el resumen) sin descargarlo. */

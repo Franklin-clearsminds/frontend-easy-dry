@@ -25,7 +25,7 @@ export class ReporteService {
   }
 
   /** Deja constancia en la bitácora de que se exportó el reporte. */
-  registrarExportacion(filtros: FiltrosReporte, formato: 'EXCEL' | 'PDF', totalFilas: number): Observable<{ ok: true }> {
-    return this.http.post<{ ok: true }>(apiUrl('/reportes/exportaciones'), { ...filtros, formato, totalFilas });
+  registrarExportacion(filtros: FiltrosReporte, formato: 'EXCEL' | 'PDF', totalFilas: number, documentoId?: string): Observable<{ ok: true }> {
+    return this.http.post<{ ok: true }>(apiUrl('/reportes/exportaciones'), { ...filtros, formato, totalFilas, ...(documentoId ? { documentoId } : {}) });
   }
 }

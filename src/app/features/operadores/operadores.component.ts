@@ -1,3 +1,5 @@
+import { PasswordRequisitosComponent } from '../../shared/components/password-requisitos/password-requisitos.component';
+import { motivoPasswordDebil } from '../../core/utils/password-politica';
 import { Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -19,7 +21,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
 @Component({
   selector: 'app-operadores',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, PaginationComponent, FilterBarComponent],
+  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, PaginationComponent, FilterBarComponent, PasswordRequisitosComponent],
   template: `
     <div class="space-y-6 animate-fade-in">
       
@@ -317,6 +319,29 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                 class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 placeholder:text-slate-500 outline-none focus:ring-2 focus:ring-easydry-blue">
             </div>
           </div>
+
+          <!-- Contraseña inicial (solo al registrar): la define quien registra y se la comunica al operador -->
+          @if (!esEdicion) {
+            <div>
+              <label for="operadores-pw" class="block text-xs font-bold text-slate-700 uppercase mb-1">
+                Contraseña de acceso <span class="text-rose-500">*</span>
+              </label>
+              <div class="relative">
+                <input id="operadores-pw"
+                  [type]="verPassword ? 'text' : 'password'"
+                  autocomplete="new-password"
+                  [(ngModel)]="formOperador.password"
+                  placeholder="Mínimo 10 caracteres"
+                  class="w-full p-2.5 pr-10 bg-slate-50 border rounded-xl text-xs font-semibold text-slate-800 placeholder:text-slate-500 outline-none focus:ring-2 focus:ring-easydry-blue/30"
+                  [ngClass]="formOperador.password && motivoPassword ? 'border-rose-500' : 'border-slate-200'" />
+                <button type="button" (click)="verPassword = !verPassword" class="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-500 hover:text-easydry-blue cursor-pointer" [attr.aria-label]="verPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'">
+                  <i-lucide aria-hidden="true" [name]="verPassword ? 'eye-off' : 'eye'" class="w-4 h-4"></i-lucide>
+                </button>
+              </div>
+              <app-password-requisitos [password]="formOperador.password"></app-password-requisitos>
+              <p class="text-xs mt-2 text-slate-500">Anótala: se la entregas al operador y solo un administrador puede cambiarla después.</p>
+            </div>
+          }
 
           <!-- Rol Operativo y Estado -->
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -817,8 +842,10 @@ export class OperadoresComponent implements OnInit, OnDestroy {
     sucursalId: '',
     bahiaNombre: '',
     bahiaId: '',
-    estado: 'Activo'
+    estado: 'Activo',
+    password: ''
   };
+  verPassword = false;
   listaBahiasOperador: { id: string; nombre: string; operadorAsignado?: string | null; operadorId?: string | number | null; maxLavadoresPorBahia?: number; operadoresActivos?: { id: string; nombre: string }[] }[] = [];
 
   formAsignarBahia = {
@@ -974,8 +1001,10 @@ export class OperadoresComponent implements OnInit, OnDestroy {
       sucursalId: defaultSucursal ? String(defaultSucursal.id) : '',
       bahiaNombre: 'Sin Bahía Asignada',
       bahiaId: '',
-      estado: 'Activo'
+      estado: 'Activo',
+      password: ''
     };
+    this.verPassword = false;
 
     if (this.formOperador.sucursalId) {
       this.cargarBahiasParaCrear(this.formOperador.sucursalId);
@@ -1004,7 +1033,8 @@ export class OperadoresComponent implements OnInit, OnDestroy {
       sucursalId: suc ? String(suc.id) : String(op.sucursalId || ''),
       bahiaNombre: op.bahia || 'Sin Bahía Asignada',
       bahiaId: op.bahiaId || '',
-      estado: op.estado || 'Activo'
+      estado: op.estado || 'Activo',
+      password: ''
     };
 
     if (this.formOperador.sucursalId) {
@@ -1075,6 +1105,11 @@ export class OperadoresComponent implements OnInit, OnDestroy {
     }
   }
 
+  /** Por qué la contraseña escrita no cumple la política (o `null` si cumple). */
+  get motivoPassword(): string | null {
+    return motivoPasswordDebil(this.formOperador.password);
+  }
+
   guardarOperador(): void {
     if (!this.formOperador.nombre?.trim()) {
       this.toastService.warning('Campo Obligatorio', 'Por favor ingrese el nombre completo del lavador.');
@@ -1086,6 +1121,10 @@ export class OperadoresComponent implements OnInit, OnDestroy {
     }
     if (!this.formOperador.sucursalId && !this.formOperador.sucursalNombre) {
       this.toastService.warning('Campo Obligatorio', 'Por favor seleccione la agencia de asignación.');
+      return;
+    }
+    if (!this.esEdicion && (!this.formOperador.password?.trim() || this.motivoPassword)) {
+      this.toastService.warning('Contraseña no válida', this.formOperador.password?.trim() ? (this.motivoPassword as string) : 'Escribe la contraseña de acceso del operador.');
       return;
     }
 
@@ -1144,6 +1183,7 @@ export class OperadoresComponent implements OnInit, OnDestroy {
       this.operadorService.crearOperador({
         nombre: this.formOperador.nombre.trim(),
         cedula: this.formOperador.cedula.trim(),
+        password: this.formOperador.password.trim(),
         telefono: this.formOperador.telefono?.trim() || '',
         rol: this.formOperador.rol,
         sucursal: suc ? suc.nombre : this.formOperador.sucursalNombre,

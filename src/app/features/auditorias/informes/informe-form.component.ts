@@ -110,7 +110,7 @@ const aLocal = (iso: string) => {
                   <input id="f-fecha" type="date" class="field" [(ngModel)]="form.fecha" [disabled]="!editable">
                 </div>
                 <div>
-                  <label class="field-label" for="f-num">INFORME MENSUAL N.º</label>
+                  <label class="field-label" for="f-num">N.º DE VISITA</label>
                   <input id="f-num" class="field" [value]="detalle ? detalle.numeroMensual + '  ·  ' + detalle.numero : 'Automático al guardar'" disabled>
                 </div>
               </div>
@@ -130,7 +130,7 @@ const aLocal = (iso: string) => {
                     <input id="f-visita" type="datetime-local" class="field" [(ngModel)]="form.fechaVisita" [disabled]="!editable">
                   </div>
                   <div>
-                    <label class="field-label" for="f-tipo">Tipo de inspección</label>
+                    <label class="field-label" for="f-tipo">Tipo de informe</label>
                     <select id="f-tipo" class="field" [(ngModel)]="form.tipoInspeccion" [disabled]="!editable">
                       @for (t of tipos; track t.id) { <option [value]="t.id">{{ t.nombre }}</option> }
                     </select>
@@ -285,7 +285,7 @@ const aLocal = (iso: string) => {
                   <div class="p-3 border-r border-slate-200"><dt class="text-[11px] font-bold text-slate-500">PARA</dt><dd class="font-semibold">{{ vistaPara || '—' }}</dd></div>
                   <div class="p-3 border-r border-slate-200"><dt class="text-[11px] font-bold text-slate-500">DE</dt><dd class="font-semibold">{{ detalle?.inspectorNombre || usuarioNombre }}</dd></div>
                   <div class="p-3 border-r border-slate-200"><dt class="text-[11px] font-bold text-slate-500">FECHA</dt><dd class="font-semibold">{{ form.fecha | date:'dd/MM/yyyy' }}</dd></div>
-                  <div class="p-3"><dt class="text-[11px] font-bold text-slate-500">INFORME MENSUAL N.º</dt><dd class="font-semibold">{{ detalle?.numeroMensual || '—' }}</dd></div>
+                  <div class="p-3"><dt class="text-[11px] font-bold text-slate-500">N.º DE VISITA</dt><dd class="font-semibold">{{ detalle?.numeroMensual || '—' }}</dd></div>
                 </dl>
                 <div class="p-3 border-b border-slate-200"><strong>ASUNTO:</strong> {{ form.asunto || '—' }}</div>
                 <div class="p-3 border-b border-slate-300 whitespace-pre-line"><strong>ANTECEDENTES:</strong> {{ form.antecedentes || '—' }}</div>

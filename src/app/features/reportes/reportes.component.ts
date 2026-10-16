@@ -3,8 +3,13 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LucideAngularModule } from 'lucide-angular';
 import { HttpErrorResponse } from '@angular/common/http';
+import { firstValueFrom } from 'rxjs';
 import { ReporteService } from '../../core/services/reporte.service';
 import { AuthService } from '../../core/services/auth.service';
+import { Auditoria5sService } from '../../core/services/auditoria5s.service';
+import { InformesInspeccionService } from '../../core/services/informes-inspeccion.service';
+import { StorageUploadService } from '../../core/services/storage-upload.service';
+import { Catalogo5s, mensajeError } from '../../core/models/auditorias.model';
 import { ToastService } from '../../shared/services/toast.service';
 import { ModalComponent } from '../../shared/components/modal/modal.component';
 import { SelectSearchComponent } from '../../shared/components/select-search/select-search.component';
@@ -12,6 +17,7 @@ import { OpcionSelect } from '../../core/models/paginacion.model';
 import {
   BloqueReporte,
   ColumnaReporte,
+  FilaReporte,
   FiltrosReporte,
   GrupoReporte,
   ModoPeriodo,
@@ -23,6 +29,7 @@ import {
   ValorCelda,
 } from '../../core/models/reportes.model';
 import { fechaHoraCorta, formatearCelda, formatearTotal } from './reportes-export';
+import { AgenciaDestino, ResultadoPorAgencia, exportarPorAgencia } from './reporte-por-agencia';
 
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 const MODOS: { valor: ModoPeriodo; etiqueta: string }[] = [
@@ -92,24 +99,15 @@ const hoyLocal = (): string => {
           <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label class="field-label" for="r-region">Región</label>
-              <select id="r-region" class="field select-chevron" name="region" [(ngModel)]="regionId" (ngModelChange)="cambioRegion()">
-                <option value="">Todas</option>
-                @for (x of opciones?.regiones ?? []; track x.id) { <option [value]="x.id">{{ x.nombre }}</option> }
-              </select>
+              <app-select-search [opciones]="opcionesRegion" [value]="regionId || null" todasLabel="Todas" placeholder="Todas" buscadorPlaceholder="Buscar región…" ariaLabel="Región" (valueChange)="regionId = $event ?? ''; cambioRegion()"></app-select-search>
             </div>
             <div>
               <label class="field-label" for="r-cliente">Cliente</label>
-              <select id="r-cliente" class="field select-chevron" name="cliente" [(ngModel)]="clienteId" (ngModelChange)="cambioCliente()">
-                <option value="">Todos</option>
-                @for (x of clientesOpc; track x.id) { <option [value]="x.id">{{ x.nombre }}</option> }
-              </select>
+              <app-select-search [opciones]="opcionesCliente" [value]="clienteId || null" todasLabel="Todos" placeholder="Todos" buscadorPlaceholder="Buscar cliente…" ariaLabel="Cliente" (valueChange)="clienteId = $event ?? ''; cambioCliente()"></app-select-search>
             </div>
             <div>
               <label class="field-label" for="r-agencia">Agencia</label>
-              <select id="r-agencia" class="field select-chevron" name="agencia" [(ngModel)]="agenciaId" (ngModelChange)="lavadorId = ''">
-                <option value="">Todas ({{ agenciasOpc.length }})</option>
-                @for (x of agenciasOpc; track x.id) { <option [value]="x.id">{{ x.nombre }}{{ x.activa ? '' : ' (inactiva)' }}</option> }
-              </select>
+              <app-select-search [opciones]="opcionesAgencia" [value]="agenciaId || null" [todasLabel]="'Todas (' + agenciasOpc.length + ')'" placeholder="Todas" buscadorPlaceholder="Buscar agencia…" ariaLabel="Agencia" (valueChange)="agenciaId = $event ?? ''; lavadorId = ''; pulidorId = ''"></app-select-search>
             </div>
           </div>
 
@@ -160,16 +158,17 @@ const hoyLocal = (): string => {
               @if (reporte.extras.includes('estado')) {
                 <div><label class="field-label" for="r-estado">Estado</label>
                   <select id="r-estado" class="field select-chevron" name="estado" [(ngModel)]="estado">
-                    <option value="">{{ reporte.id === 'alertas-stock' ? 'Abiertas (pendientes y en proceso)' : 'Todos' }}</option>
+                    <option value="">{{ reporte.id === 'alertas-stock' ? 'Abiertas (pendientes y en proceso)' : reporte.id === 'retos' ? 'Activos' : 'Todos' }}</option>
                     @for (e of reporte.estados; track e.valor) { <option [value]="e.valor">{{ e.etiqueta }}</option> }
                   </select></div>
               }
               @if (reporte.extras.includes('lavador')) {
-                <div><label class="field-label" for="r-lavador">Lavador</label>
-                  <select id="r-lavador" class="field select-chevron" name="lavador" [(ngModel)]="lavadorId">
-                    <option value="">Todos</option>
-                    @for (l of lavadoresOpc; track l.id) { <option [value]="l.id">{{ l.nombre }}</option> }
-                  </select></div>
+                <div><label class="field-label" id="r-lavador-l">Lavador</label>
+                  <app-select-search [opciones]="opcionesLavador" [value]="lavadorId || null" todasLabel="Todos" placeholder="Todos" buscadorPlaceholder="Buscar lavador…" ariaLabel="Lavador" (valueChange)="lavadorId = $event ?? ''"></app-select-search></div>
+              }
+              @if (reporte.extras.includes('pulidor')) {
+                <div><label class="field-label" id="r-pulidor-l">Pulidor</label>
+                  <app-select-search [opciones]="opcionesPulidor" [value]="pulidorId || null" todasLabel="Todos" placeholder="Todos" buscadorPlaceholder="Buscar pulidor…" ariaLabel="Pulidor" (valueChange)="pulidorId = $event ?? ''"></app-select-search></div>
               }
               @if (reporte.extras.includes('ubicacion')) {
                 <div><label class="field-label" for="r-ubic">Ubicación</label>
@@ -196,6 +195,18 @@ const hoyLocal = (): string => {
             <button type="submit" class="btn-primary" [disabled]="cargando">
               <i-lucide name="search" class="w-4 h-4" aria-hidden="true"></i-lucide>{{ cargando ? 'Generando…' : 'Ver reporte' }}
             </button>
+            @if (puedePorAgencia) {
+              @if (puedeExcel) {
+                <button type="button" class="btn-secondary" (click)="pedirPorAgencia('EXCEL')" [disabled]="cargando || !!porAgencia" title="Genera un Excel por cada agencia, sin vista previa. Sirve para periodos largos.">
+                  <i-lucide name="file-spreadsheet" class="w-4 h-4 text-emerald-700" aria-hidden="true"></i-lucide>Excel por agencia
+                </button>
+              }
+              @if (puedePdf) {
+                <button type="button" class="btn-secondary" (click)="pedirPorAgencia('PDF')" [disabled]="cargando || !!porAgencia" title="Genera un PDF por cada agencia, sin vista previa. Sirve para periodos largos.">
+                  <i-lucide name="file-text" class="w-4 h-4 text-rose-700" aria-hidden="true"></i-lucide>PDF por agencia
+                </button>
+              }
+            }
             @if (errorGenerar) { <span class="text-xs font-semibold text-rose-700 flex items-center gap-1" role="alert"><i-lucide name="triangle-alert" class="w-3.5 h-3.5" aria-hidden="true"></i-lucide>{{ errorGenerar }}</span> }
           </div>
         </form>
@@ -253,6 +264,9 @@ const hoyLocal = (): string => {
                         <h3 class="font-extrabold text-slate-900 font-outfit flex items-center gap-2">
                           <i-lucide name="chevron-right" class="w-4 h-4 transition-transform" [class.rotate-90]="grupoAbierto(g.clave)" aria-hidden="true"></i-lucide>{{ g.titulo }}
                         </h3>
+                        @if (res.reporte.agrupar === 'RETO') {
+                          <p class="text-[11px] text-slate-500 ml-5">{{ datoDe(g, 'MODO') }} · {{ datoDe(g, 'SE MIDE') }} · {{ datoDe(g, 'DURACIÓN') }} · Premio: {{ datoDe(g, 'PREMIO') }}</p>
+                        }
                         @if (res.reporte.agrupar === 'AGENCIA') {
                           <p class="text-[11px] text-slate-500 ml-5">{{ g.region || 'Sin región' }} · {{ g.cliente || 'Sin cliente' }}@if (g.responsable) { · Responsable: {{ g.responsable }} }</p>
                         }
@@ -272,6 +286,7 @@ const hoyLocal = (): string => {
                                 <thead>
                                   <tr class="bg-[#A9C8EC] text-slate-900">
                                     @for (c of res.columnas; track c.clave) { <th scope="col" class="px-2.5 py-2 font-extrabold uppercase text-[10px] tracking-wide whitespace-nowrap" [ngClass]="alinear(c)">{{ c.titulo }}</th> }
+                                    @if (conDocumento(res)) { <th scope="col" class="px-2.5 py-2 font-extrabold uppercase text-[10px] tracking-wide whitespace-nowrap text-center">Documento</th> }
                                   </tr>
                                 </thead>
                                 <tbody>
@@ -283,6 +298,22 @@ const hoyLocal = (): string => {
                                             @if (f[c.clave] === 'SI') { <i-lucide name="check" class="w-4 h-4 text-emerald-600 inline-block" aria-label="Sí"></i-lucide> }
                                             @else if (f[c.clave] === 'NO') { <i-lucide name="x" class="w-4 h-4 text-rose-600 inline-block" aria-label="No"></i-lucide> }
                                           } @else { {{ celda(f[c.clave], c) }} }
+                                        </td>
+                                      }
+                                      @if (conDocumento(res)) {
+                                        <td class="px-2.5 py-1.5 text-center whitespace-nowrap">
+                                          @if (puedePdf) {
+                                            <button type="button" class="btn-icon" (click)="descargarDocumento(res, f, 'PDF')" [disabled]="!!documentoEnCurso"
+                                              [attr.aria-label]="'Exportar el documento completo en PDF de ' + etiquetaDocumento(res, f)" title="Documento completo en PDF">
+                                              <i-lucide [name]="documentoEnCurso === f['_id'] + '|PDF' ? 'refresh-cw' : 'file-text'" class="w-4 h-4 text-rose-700" [class.animate-spin]="documentoEnCurso === f['_id'] + '|PDF'" aria-hidden="true"></i-lucide>
+                                            </button>
+                                          }
+                                          @if (puedeExcel && res.reporte.id === 'auditorias-5s') {
+                                            <button type="button" class="btn-icon" (click)="descargarDocumento(res, f, 'EXCEL')" [disabled]="!!documentoEnCurso"
+                                              [attr.aria-label]="'Exportar el documento completo en Excel de ' + etiquetaDocumento(res, f)" title="Documento completo en Excel">
+                                              <i-lucide [name]="documentoEnCurso === f['_id'] + '|EXCEL' ? 'refresh-cw' : 'file-spreadsheet'" class="w-4 h-4 text-emerald-700" [class.animate-spin]="documentoEnCurso === f['_id'] + '|EXCEL'" aria-hidden="true"></i-lucide>
+                                            </button>
+                                          }
                                         </td>
                                       }
                                     </tr>
@@ -323,7 +354,42 @@ const hoyLocal = (): string => {
       }
       <div modal-footer class="flex justify-end gap-2">
         <button type="button" class="btn-secondary" (click)="avisoGrande = null">Cancelar</button>
+        @if (puedePorAgencia) {
+          <button type="button" class="btn-secondary" (click)="confirmarPorAgencia()">Un archivo por agencia</button>
+        }
         <button type="button" class="btn-primary" (click)="confirmarGrande()">Exportar de todos modos</button>
+      </div>
+    </app-modal>
+
+    <app-modal [isOpen]="!!porAgencia" [title]="porAgencia?.resultado ? 'Exportación terminada' : 'Exportando por agencia'" icon="file-spreadsheet" size="md" (close)="cerrarPorAgencia()">
+      @if (porAgencia; as p) {
+        <div class="space-y-3 text-sm text-slate-700">
+          @if (!p.resultado) {
+            <p>Agencia <strong>{{ p.actual }}</strong> de <strong>{{ p.total }}</strong>: {{ p.agencia || 'preparando…' }}</p>
+            <div class="h-2 rounded-full bg-slate-100 overflow-hidden" role="progressbar" [attr.aria-valuenow]="p.actual" aria-valuemin="0" [attr.aria-valuemax]="p.total">
+              <div class="h-full bg-easydry-green transition-all" [style.width.%]="p.total ? (p.actual / p.total) * 100 : 0"></div>
+            </div>
+            <p class="text-xs text-slate-500">Se descarga un archivo por agencia. Deja esta pestaña abierta hasta que termine; si el navegador pregunta por descargas múltiples, permítelas.</p>
+          } @else {
+            <p><strong>{{ p.resultado.exportadas.length }}</strong> {{ p.resultado.exportadas.length === 1 ? 'archivo descargado' : 'archivos descargados' }}.</p>
+            @if (p.resultado.sinDatos.length) { <p class="text-xs text-slate-600">Sin datos en el periodo (no se generó archivo): {{ p.resultado.sinDatos.join(', ') }}.</p> }
+            @if (p.resultado.fallidas.length) {
+              <div class="rounded-xl bg-rose-50 border border-rose-100 p-3 text-xs text-rose-800" role="alert">
+                <p class="font-bold mb-1">No se pudieron generar:</p>
+                @for (f of p.resultado.fallidas; track f.agencia) { <p>{{ f.agencia }}: {{ f.motivo }}</p> }
+              </div>
+            }
+            @if (p.resultado.cancelado) { <p class="text-xs text-amber-700">Cancelaste la exportación. Quedaron sin procesar: {{ p.resultado.pendientes.join(', ') }}.</p> }
+            @if (p.resultado.sinBitacora) { <p class="text-xs text-slate-500">{{ p.resultado.sinBitacora }} {{ p.resultado.sinBitacora === 1 ? 'archivo no pudo anotarse' : 'archivos no pudieron anotarse' }} en la bitácora.</p> }
+          }
+        </div>
+      }
+      <div modal-footer class="flex justify-end gap-2">
+        @if (porAgencia?.resultado) {
+          <button type="button" class="btn-primary" (click)="cerrarPorAgencia()">Cerrar</button>
+        } @else {
+          <button type="button" class="btn-secondary" (click)="cerrarPorAgencia()" [disabled]="cancelandoPorAgencia">{{ cancelandoPorAgencia ? 'Cancelando…' : 'Cancelar' }}</button>
+        }
       </div>
     </app-modal>
   `,
@@ -332,6 +398,12 @@ export class ReportesComponent implements OnInit {
   private reporteService = inject(ReporteService);
   private authService = inject(AuthService);
   private toast = inject(ToastService);
+  private informesApi = inject(InformesInspeccionService);
+  private auditorias5sApi = inject(Auditoria5sService);
+  private storage = inject(StorageUploadService);
+  private catalogo5s: Catalogo5s | null = null;
+  /** `id|formato` del documento que se está generando, para mostrar el indicador y no lanzar dos a la vez. */
+  documentoEnCurso = '';
 
   readonly modos = MODOS;
   readonly mesesNombres = MESES;
@@ -357,6 +429,7 @@ export class ReportesComponent implements OnInit {
   hasta = hoyLocal();
   estado = '';
   lavadorId = '';
+  pulidorId = '';
   productoId = '';
   ubicacion = '';
   semaforo = '';
@@ -368,12 +441,22 @@ export class ReportesComponent implements OnInit {
   private filtrosUsados: FiltrosReporte | null = null;
   exportando: 'EXCEL' | 'PDF' | null = null;
   avisoGrande: 'EXCEL' | 'PDF' | null = null;
+  /** Exportación de un archivo por agencia en curso (o recién terminada, con su resumen). */
+  porAgencia: { formato: 'EXCEL' | 'PDF'; actual: number; total: number; agencia: string; resultado: ResultadoPorAgencia | null } | null = null;
+  cancelandoPorAgencia = false;
+  private cancelarPorAgenciaPedido = false;
 
   private abiertos = new Set<string>();
   private tramos = new Map<string, number>();
 
   get puedeExcel(): boolean { return this.authService.puede('reportes.excel'); }
   get puedePdf(): boolean { return this.authService.puede('reportes.pdf'); }
+
+  /** Un archivo por agencia solo tiene sentido en reportes agrupados por agencia y si no se eligió ya una sola. */
+  get puedePorAgencia(): boolean {
+    const rep = this.reporte;
+    return !!rep && rep.agrupar === 'AGENCIA' && !this.agenciaId && this.agenciasOpc.length > 1 && (this.puedeExcel || this.puedePdf);
+  }
 
   get modulos(): string[] { return [...new Set(this.catalogo.map((r) => r.modulo))]; }
   get reportesDelModulo(): ReporteCatalogo[] { return this.catalogo.filter((r) => r.modulo === this.moduloSel); }
@@ -394,6 +477,35 @@ export class ReportesComponent implements OnInit {
   get lavadoresOpc() {
     const ids = new Set(this.agenciasOpc.filter((a) => !this.agenciaId || a.id === this.agenciaId).map((a) => a.id));
     return (this.opciones?.lavadores ?? []).filter((l) => !!l.agenciaId && ids.has(l.agenciaId));
+  }
+
+  get opcionesRegion(): OpcionSelect[] {
+    return (this.opciones?.regiones ?? []).map((r) => ({ value: r.id, label: r.nombre }));
+  }
+
+  get opcionesCliente(): OpcionSelect[] {
+    return this.clientesOpc.map((c) => ({ value: c.id, label: c.nombre }));
+  }
+
+  get opcionesAgencia(): OpcionSelect[] {
+    return this.agenciasOpc.map((a) => ({ value: a.id, label: `${a.nombre}${a.activa ? '' : ' (inactiva)'}` }));
+  }
+
+  get opcionesLavador(): OpcionSelect[] {
+    return this.lavadoresOpc.map((l) => ({ value: l.id, label: l.nombre }));
+  }
+
+  /**
+   * Pulidores del filtro: los fijos de las agencias que quedan elegidas y, si no se eligió una agencia, también los móviles de la
+   * región (o de todas las regiones si no se eligió ninguna).
+   */
+  get pulidoresOpc() {
+    const agencias = new Set(this.agenciasOpc.filter((a) => !this.agenciaId || a.id === this.agenciaId).map((a) => a.id));
+    return (this.opciones?.pulidores ?? []).filter((p) => (p.agenciaId ? agencias.has(p.agenciaId) : !this.agenciaId && (!this.regionId || p.regionId === this.regionId)));
+  }
+
+  get opcionesPulidor(): OpcionSelect[] {
+    return this.pulidoresOpc.map((p) => ({ value: p.id, label: p.nombre, sublabel: p.agenciaId ? undefined : 'Móvil' }));
   }
 
   get opcionesProducto(): OpcionSelect[] {
@@ -437,6 +549,7 @@ export class ReportesComponent implements OnInit {
     this.reporteId = id;
     this.estado = '';
     this.lavadorId = '';
+    this.pulidorId = '';
     this.ubicacion = '';
     this.semaforo = '';
     this.productoId = '';
@@ -456,6 +569,7 @@ export class ReportesComponent implements OnInit {
   private limpiarAgencia(): void {
     if (this.agenciaId && !this.agenciasOpc.some((a) => a.id === this.agenciaId)) this.agenciaId = '';
     this.lavadorId = '';
+    this.pulidorId = '';
   }
 
   private periodoActual(): PeriodoReporte {
@@ -477,6 +591,7 @@ export class ReportesComponent implements OnInit {
     if (rep.periodo) f.periodo = this.periodoActual();
     if (rep.extras.includes('estado') && this.estado) f.estado = this.estado;
     if (rep.extras.includes('lavador') && this.lavadorId) f.lavadorId = this.lavadorId;
+    if (rep.extras.includes('pulidor') && this.pulidorId) f.pulidorId = this.pulidorId;
     if (rep.extras.includes('producto') && this.productoId) f.productoId = this.productoId;
     if (rep.extras.includes('ubicacion') && this.ubicacion) f.ubicacion = this.ubicacion as FiltrosReporte['ubicacion'];
     if (rep.extras.includes('semaforo') && this.semaforo) f.semaforo = this.semaforo as FiltrosReporte['semaforo'];
@@ -555,9 +670,114 @@ export class ReportesComponent implements OnInit {
     }
   }
 
+  // --- Un archivo por agencia (reportes grandes) ---
+
+  /** Desde el formulario: no hay vista previa, así que los filtros son los que están en pantalla. */
+  pedirPorAgencia(formato: 'EXCEL' | 'PDF'): void {
+    const rep = this.reporte;
+    if (!rep || this.porAgencia) return;
+    const falta = this.pendiente(rep);
+    this.errorGenerar = falta ?? '';
+    if (falta) return;
+    void this.iniciarPorAgencia(formato, this.construirFiltros(rep));
+  }
+
+  /** Desde el aviso de reporte grande: se usan los filtros con los que se generó la vista previa. */
+  confirmarPorAgencia(): void {
+    const formato = this.avisoGrande;
+    const base = this.filtrosUsados;
+    this.avisoGrande = null;
+    if (formato && base) void this.iniciarPorAgencia(formato, base);
+  }
+
+  cerrarPorAgencia(): void {
+    if (this.porAgencia?.resultado) {
+      this.porAgencia = null;
+      return;
+    }
+    // En curso: se pide parar; termina la agencia que se está armando y se muestra el resumen.
+    this.cancelarPorAgenciaPedido = true;
+    this.cancelandoPorAgencia = true;
+  }
+
+  private agenciasDe(base: FiltrosReporte): AgenciaDestino[] {
+    return (this.opciones?.agencias ?? [])
+      .filter((a) => (!base.regionId || a.regionId === base.regionId) && (!base.clienteId || a.clienteId === base.clienteId))
+      .map((a) => ({ id: a.id, nombre: a.nombre }));
+  }
+
+  private async iniciarPorAgencia(formato: 'EXCEL' | 'PDF', filtros: FiltrosReporte): Promise<void> {
+    const { agenciaIds: _una, ...base } = filtros;
+    const agencias = this.agenciasDe(base);
+    if (!agencias.length) return;
+    this.cancelarPorAgenciaPedido = false;
+    this.cancelandoPorAgencia = false;
+    this.porAgencia = { formato, actual: 0, total: agencias.length, agencia: '', resultado: null };
+    try {
+      const modulo = await import('./reportes-export');
+      const resultado = await exportarPorAgencia(base, agencias, {
+        generar: (f) => firstValueFrom(this.reporteService.generar(f)).catch((e) => Promise.reject(new Error(this.mensajeDe(e, 'No se pudo generar el reporte.')))),
+        exportar: (res, agencia) => (formato === 'EXCEL' ? modulo.exportarExcel(res, agencia.nombre) : modulo.exportarPdf(res, agencia.nombre)),
+        registrar: async (f, total) => void (await firstValueFrom(this.reporteService.registrarExportacion(f, formato, total))),
+        progreso: (p) => {
+          if (this.porAgencia) this.porAgencia = { ...this.porAgencia, actual: p.actual, total: p.total, agencia: p.agencia };
+        },
+        cancelado: () => this.cancelarPorAgenciaPedido,
+      });
+      this.porAgencia = this.porAgencia ? { ...this.porAgencia, resultado } : null;
+    } catch {
+      this.porAgencia = null;
+      this.toast.error('No se pudo exportar', 'Ocurrió un error al preparar la exportación por agencia. Intenta de nuevo.');
+    } finally {
+      this.cancelandoPorAgencia = false;
+    }
+  }
+
   // --- Vista previa ---
 
+  /** Los informes y las auditorías 5S se pueden exportar completos, una por una, desde la vista previa. */
+  conDocumento(res: ReporteGenerado): boolean {
+    return res.reporte.id === 'informes-inspeccion' || res.reporte.id === 'auditorias-5s';
+  }
+
+  etiquetaDocumento(res: ReporteGenerado, fila: FilaReporte): string {
+    return String(fila[res.reporte.id === 'informes-inspeccion' ? 'numero' : 'codigo'] ?? '');
+  }
+
+  /** Descarga el documento formal de una auditoría: el mismo archivo que se baja desde su pantalla de detalle. */
+  async descargarDocumento(res: ReporteGenerado, fila: FilaReporte, formato: 'PDF' | 'EXCEL'): Promise<void> {
+    const id = String(fila['_id'] ?? '');
+    if (!id || this.documentoEnCurso) return;
+    this.documentoEnCurso = `${id}|${formato}`;
+    try {
+      if (res.reporte.id === 'informes-inspeccion') {
+        const informe = await firstValueFrom(this.informesApi.getDetalle(id));
+        const { descargarPdfInforme } = await import('../auditorias/informes/informe-pdf');
+        await descargarPdfInforme(informe, this.storage);
+      } else {
+        this.catalogo5s ??= await firstValueFrom(this.auditorias5sApi.getCatalogo());
+        const auditoria = await firstValueFrom(this.auditorias5sApi.getDetalle(id));
+        const formatoAuditoria = this.catalogo5s.formatos.find((f) => f.id === auditoria.formato);
+        if (!formatoAuditoria) throw new Error('No se encontró el formato de esta auditoría.');
+        const exportador = await import('../auditorias/auditoria5s/auditoria5s-export');
+        if (formato === 'PDF') await exportador.descargarPdf5s(auditoria, formatoAuditoria, this.storage);
+        else exportador.descargarExcel5s(auditoria, formatoAuditoria);
+      }
+      if (this.filtrosUsados) {
+        this.reporteService.registrarExportacion(this.filtrosUsados, formato, 1, id).subscribe({
+          error: () => this.toast.warning('Bitácora', 'El archivo se descargó, pero no se pudo registrar la exportación.'),
+        });
+      }
+    } catch (e) {
+      this.toast.error('No se pudo exportar la auditoría', mensajeError(e, 'Intenta de nuevo.'));
+    } finally {
+      this.documentoEnCurso = '';
+    }
+  }
+
   total(t: TotalReporte): string { return formatearTotal(t); }
+  /** Dato del encabezado de un grupo (los retos llevan los suyos: modo, duración, premio…). */
+  datoDe(g: GrupoReporte, etiqueta: string): string { return g.datos?.find((d) => d.etiqueta === etiqueta)?.valor ?? ''; }
   fechaHora(iso: string): string { return fechaHoraCorta(iso); }
   celda(valor: ValorCelda | undefined, c: ColumnaReporte): string { return formatearCelda(valor, c.tipo); }
   /** Todas las celdas van centradas. */

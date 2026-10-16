@@ -18,6 +18,7 @@ import {
   SEMAFORO,
   Semaforo,
   mensajeError,
+  nombre5s,
 } from '../../../core/models/auditorias.model';
 import { EvidenciasFotosComponent } from '../shared/evidencias-fotos.component';
 import { Semaforo5sComponent } from '../shared/semaforo-5s.component';
@@ -89,7 +90,7 @@ interface Respuesta {
                 <li><button type="button" (click)="irA(k + 1)" [attr.aria-current]="seccion === k + 1 ? 'step' : null"
                   class="px-3 min-h-10 rounded-xl text-xs font-bold whitespace-nowrap border flex items-center gap-1.5"
                   [ngClass]="seccion === k + 1 ? 'bg-easydry-blue text-white border-easydry-blue' : 'bg-white text-slate-600 border-slate-200'">
-                  {{ c.nombre }} <span class="tabular-nums opacity-80">{{ evaluadosDe(c.id) }}/{{ c.criterios.length }}</span></button></li>
+                  {{ nombreS(c) }} <span class="tabular-nums opacity-80">{{ evaluadosDe(c.id) }}/{{ c.criterios.length }}</span></button></li>
               }
               <li><button type="button" (click)="irA(6)" class="px-3 min-h-10 rounded-xl text-xs font-bold whitespace-nowrap border" [ngClass]="seccion === 6 ? 'bg-easydry-blue text-white border-easydry-blue' : 'bg-white text-slate-600 border-slate-200'">Resumen</button></li>
             </ol>
@@ -288,6 +289,7 @@ export class Auditoria5sFormComponent implements OnInit, OnDestroy {
   private readonly router = inject(Router);
   private sub?: Subscription;
 
+  readonly nombreS = nombre5s;
   readonly usuarioNombre = (() => { const u = this.auth.getCurrentUser(); return u ? `${u.nombre} ${u.apellido}`.trim() : ''; })();
   readonly opcionesSiNo = [{ valor: 1, texto: 'SI' }, { valor: 0, texto: 'NO' }];
 

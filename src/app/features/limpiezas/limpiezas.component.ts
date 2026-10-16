@@ -1,3 +1,4 @@
+import { celdaCsv } from '../../core/utils/csv';
 import { Component, Input, OnDestroy, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -266,7 +267,7 @@ export class LimpiezasComponent implements OnInit, OnDestroy {
         `${r.registradoPor?.name || ''} ${r.registradoPor?.lastname || ''}`.trim(),
         r.observaciones || '',
         String(r.fotos.length),
-      ].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(','));
+      ].map(celdaCsv).join(','));
       const csv = [encabezado.join(','), ...lineas].join('\r\n');
       const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);

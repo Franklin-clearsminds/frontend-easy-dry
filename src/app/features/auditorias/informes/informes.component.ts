@@ -127,7 +127,7 @@ import { HistorialInformeComponent } from './historial-informe.component';
 
         <ng-template appCell="numero" let-i>
           <a [routerLink]="['/informes-inspeccion', i.id]" class="font-mono font-extrabold text-easydry-blue hover:underline">{{ i.numero }}</a>
-          <p class="text-[11px] text-slate-500">Mensual N.º {{ i.numeroMensual }}</p>
+          <p class="text-[11px] text-slate-500">Visita N.º {{ i.numeroMensual }}</p>
         </ng-template>
         <ng-template appCell="fecha" let-i>
           <span class="whitespace-nowrap">{{ i.fecha | date:'dd/MM/yyyy' }}</span>

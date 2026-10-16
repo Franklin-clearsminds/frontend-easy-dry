@@ -260,8 +260,10 @@ export class DashboardOperativoService {
         return of({ vehiculosHoy: null, flujoHorario: null, distribucionModelos: null, tiemposBahias: null, topMaquinas: null, topAgencias: null, mixServicios: null, topMarcas: null, incidentesPorTipo: null });
       })
     );
-  }
-
+  }
+
+
+
     /**
    * Ranking de operadores por servicios atendidos (POST /agencias/operadores/list).
    */

@@ -8,7 +8,7 @@ import { mensajeError } from '../../../core/models/auditorias.model';
 
 /**
  * Fotos de evidencia de una novedad, actividad, plan, hallazgo o acción correctiva. Cada foto se sube al almacenamiento privado
- * (agencias/{agencia}/auditorias/…) y aquí solo se guardan sus direcciones. En el celular abre la cámara.
+ * (agencias/{agencia}/auditorias/…) y aquí solo se guardan sus direcciones. Se pueden tomar con la cámara o elegir de la galería o del equipo.
  */
 @Component({
   selector: 'app-evidencias-fotos',
@@ -30,11 +30,18 @@ import { mensajeError } from '../../../core/models/auditorias.model';
         </div>
       }
       @if (!deshabilitado && fotos.length < max) {
+        <!-- Dos entradas: "Tomar" abre la cámara en el celular; "Elegir" abre la galería o el explorador de archivos. -->
         <label class="w-20 h-20 rounded-xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center gap-1 text-slate-500 cursor-pointer hover:border-easydry-blue hover:text-easydry-blue transition-colors"
           [class.opacity-60]="subiendo" [class.pointer-events-none]="subiendo">
           <i-lucide [name]="subiendo ? 'loader' : 'camera'" class="w-5 h-5" [class.animate-spin]="subiendo" aria-hidden="true"></i-lucide>
-          <span class="text-[10px] font-bold">{{ subiendo ? 'Subiendo…' : 'Foto' }}</span>
-          <input type="file" accept="image/*" multiple capture="environment" class="sr-only" (change)="seleccionar($event)" [attr.aria-label]="etiqueta">
+          <span class="text-[10px] font-bold">{{ subiendo ? 'Subiendo…' : 'Tomar foto' }}</span>
+          <input type="file" accept="image/*" capture="environment" class="sr-only" (change)="seleccionar($event)" aria-label="Tomar una fotografía con la cámara">
+        </label>
+        <label class="w-20 h-20 rounded-xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center gap-1 text-slate-500 cursor-pointer hover:border-easydry-blue hover:text-easydry-blue transition-colors"
+          [class.opacity-60]="subiendo" [class.pointer-events-none]="subiendo">
+          <i-lucide name="image" class="w-5 h-5" aria-hidden="true"></i-lucide>
+          <span class="text-[10px] font-bold">Elegir</span>
+          <input type="file" accept="image/*" multiple class="sr-only" (change)="seleccionar($event)" [attr.aria-label]="etiqueta">
         </label>
       }
       @if (deshabilitado && !fotos.length) {

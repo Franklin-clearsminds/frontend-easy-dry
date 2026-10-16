@@ -2,7 +2,7 @@
 
 export type TipoColumna = 'texto' | 'numero' | 'dinero' | 'fecha' | 'hora' | 'marca';
 export type PlantillaReporte = 'CONTROL_ESPECIAL' | 'CONTROL_GENERAL' | 'TABLA';
-export type FiltroExtra = 'estado' | 'lavador' | 'producto' | 'ubicacion' | 'semaforo';
+export type FiltroExtra = 'estado' | 'lavador' | 'pulidor' | 'producto' | 'ubicacion' | 'semaforo';
 export type ModoPeriodo = 'HOY' | 'SEMANA' | 'MES' | 'ANIO' | 'DIA' | 'SEMANA_DE' | 'MES_DE' | 'ANIO_DE' | 'RANGO';
 export type ValorCelda = string | number | null;
 export type FilaReporte = Record<string, ValorCelda>;
@@ -25,7 +25,7 @@ export interface ReporteCatalogo {
   modulo: string;
   descripcion: string;
   periodo: boolean;
-  agrupar: 'AGENCIA' | 'UNICO';
+  agrupar: 'AGENCIA' | 'UNICO' | 'RETO';
   plantilla: PlantillaReporte;
   extras: FiltroExtra[];
   estados: OpcionFiltroReporte[];
@@ -40,6 +40,8 @@ export interface OpcionesReportes {
   agencias: { id: string; codigo: string; nombre: string; activa: boolean; regionId: string | null; clienteId: string | null }[];
   productos: { id: string; nombre: string }[];
   lavadores: { id: string; nombre: string; agenciaId: string | null }[];
+  /** Pulidores fijos (con agencia) y móviles (sin agencia, con su región). */
+  pulidores: { id: string; nombre: string; agenciaId: string | null; regionId: string | null }[];
 }
 
 export interface PeriodoReporte {
@@ -59,6 +61,7 @@ export interface FiltrosReporte {
   periodo?: PeriodoReporte;
   estado?: string;
   lavadorId?: string;
+  pulidorId?: string;
   productoId?: string;
   ubicacion?: 'AGENCIA' | 'PULIDOR' | 'BODEGA';
   semaforo?: 'VERDE' | 'AMARILLO' | 'ROJO';
@@ -81,7 +84,9 @@ export interface BloqueReporte {
 export interface GrupoReporte {
   clave: string;
   titulo: string;
-  tipo: 'AGENCIA' | 'BODEGA' | 'PULIDOR' | 'GENERAL';
+  tipo: 'AGENCIA' | 'BODEGA' | 'PULIDOR' | 'RETO' | 'GENERAL';
+  /** Datos propios del grupo para su encabezado (p. ej. los de un reto). */
+  datos?: { etiqueta: string; valor: string }[];
   region: string;
   cliente: string;
   agencia: string;
@@ -91,7 +96,7 @@ export interface GrupoReporte {
 }
 
 export interface ReporteGenerado {
-  reporte: { id: string; nombre: string; modulo: string; plantilla: PlantillaReporte; periodo: boolean; agrupar: 'AGENCIA' | 'UNICO' };
+  reporte: { id: string; nombre: string; modulo: string; plantilla: PlantillaReporte; periodo: boolean; agrupar: 'AGENCIA' | 'UNICO' | 'RETO' };
   generadoEn: string;
   generadoPor: string;
   filtros: {
