@@ -61,14 +61,29 @@ export class InfiniteScrollComponent implements AfterViewInit, OnChanges, OnDest
 
   @ViewChild('centinela', { static: true }) private centinela!: ElementRef<HTMLElement>;
   private observador: IntersectionObserver | null = null;
+  /**
+   * El IntersectionObserver dispara su callback de inmediato al hacer `observe()`, con el estado actual del
+   * centinela. Si este componente se está re-montando (p.ej. un `*ngIf` de pestaña que entra y sale) y la lista
+   * ya traía datos de antes, ese primer disparo es un falso aviso de "hay que pedir más" — no un scroll real
+   * del usuario — y pedía una página de más en cada cambio de pestaña. Se ignora solo esa primera vez cuando
+   * ya había contenido; los disparos siguientes (scroll real, o el reobservar tras cargar una página) sí cuentan.
+   */
+  private primerDisparoIgnorado = false;
 
   ngAfterViewInit(): void {
     if (typeof IntersectionObserver === 'undefined') return;
+    this.primerDisparoIgnorado = false;
+    const esRemontajeConDatos = this.total > 0;
     const raiz = this.contenedorConScroll();
     this.zone.runOutsideAngular(() => {
       this.observador = new IntersectionObserver(
         (entradas) => {
-          if (entradas.some((e) => e.isIntersecting)) this.pedir();
+          if (!entradas.some((e) => e.isIntersecting)) return;
+          if (!this.primerDisparoIgnorado) {
+            this.primerDisparoIgnorado = true;
+            if (esRemontajeConDatos) return;
+          }
+          this.pedir();
         },
         { root: raiz, rootMargin: `0px 0px ${this.margen}px 0px` },
       );
