@@ -28,7 +28,7 @@ import {
   TotalReporte,
   ValorCelda,
 } from '../../core/models/reportes.model';
-import { fechaHoraCorta, formatearCelda, formatearTotal } from './reportes-export';
+import { fechaHoraCorta, formatearCelda, formatearTotal } from './reportes-formato';
 import { AgenciaDestino, ResultadoPorAgencia, exportarPorAgencia } from './reporte-por-agencia';
 
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
