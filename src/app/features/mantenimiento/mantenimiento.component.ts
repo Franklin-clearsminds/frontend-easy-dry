@@ -424,12 +424,19 @@ export class MantenimientoComponent implements OnInit, OnDestroy {
     // El filter-bar entrega nombres de sucursal/marca y el servidor pide ids: se necesitan las sucursales cargadas.
     this.sucursalService.getSucursales().subscribe((list) => { this.sucursales = list; });
     this.reiniciar();
-    // Máquinas activas para el selector de "Programar" (el backend limita lo que cada rol ve).
-    if (puedeGestionarMaquina(this.authService) && puedeVerMaquinaria(this.authService)) {
-      this.maquinariaService.getMaquinaria({ activa: true }).subscribe(list => {
-        this.listaMaquinas = list;
-      });
-    }
+  }
+
+  /** Máquinas activas para el selector de "Programar": solo hacen falta al abrir ese modal, no en cada visita
+   * a la pantalla (el backend limita lo que cada rol ve). */
+  private maquinasProgramarCargadas = false;
+  private cargarMaquinasParaProgramarSiHaceFalta(onListo: () => void): void {
+    if (this.maquinasProgramarCargadas) { onListo(); return; }
+    if (!(puedeGestionarMaquina(this.authService) && puedeVerMaquinaria(this.authService))) { onListo(); return; }
+    this.maquinariaService.getMaquinaria({ activa: true }).subscribe(list => {
+      this.listaMaquinas = list;
+      this.maquinasProgramarCargadas = true;
+      onListo();
+    });
   }
 
   ngOnDestroy(): void {
@@ -610,7 +617,9 @@ export class MantenimientoComponent implements OnInit, OnDestroy {
   }
 
   programar(): void {
-    void this.acciones.programarMantenimiento(null, this.listaMaquinas);
+    this.cargarMaquinasParaProgramarSiHaceFalta(() => {
+      void this.acciones.programarMantenimiento(null, this.listaMaquinas);
+    });
   }
 
   /** Contadores de los filtros vigentes (dato del servidor). */
