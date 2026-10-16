@@ -56,7 +56,7 @@ import { ConsultaAgencias } from '../../core/services/sucursal.service';
       <div class="flex flex-wrap gap-2">
         @for (tab of tabsVisibles; track tab.id) {
           <button
-            (click)="tabActiva = tab.id"
+            (click)="seleccionarTab(tab.id)"
             class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-extrabold border transition-colors cursor-pointer"
             [ngClass]="tabActiva === tab.id
               ? 'bg-easydry-blue text-white border-easydry-blue shadow-sm'
@@ -1471,6 +1471,10 @@ export class SucursalesComponent implements OnInit, OnDestroy {
         this.busquedaAgencias = texto;
         this.agenciasLista.reiniciar();
       });
+    // La primera emisión de queryParams es síncrona (el valor actual de la URL): solo fija la pestaña, la
+    // carga inicial la hace `cargarTodo()` justo abajo. Las emisiones siguientes sí son navegación real
+    // (p.ej. un enlace "ver en mapa" desde otra pantalla) y ahí sí hay que pedir los datos de la pestaña nueva.
+    let primeraEmisionQueryParams = true;
     this.route.queryParams.subscribe(params => {
       if (params['tab'] && ['mapa', 'agencias', 'sucursales', 'regiones', 'marcas', 'clientes', 'gerentes'].includes(params['tab'])) {
         this.tabActiva = params['tab'] === 'sucursales' ? 'agencias' : (params['tab'] === 'marcas' ? 'clientes' : params['tab'] as any);
@@ -1479,6 +1483,8 @@ export class SucursalesComponent implements OnInit, OnDestroy {
         this.filtroSucursalMapaId = Number(params['sucursalId']);
       }
       this.asegurarTabPermitida();
+      if (!primeraEmisionQueryParams) this.cargarSegunTab(this.tabActiva);
+      primeraEmisionQueryParams = false;
     });
     this.cargarTodo();
   }
@@ -1560,18 +1566,50 @@ export class SucursalesComponent implements OnInit, OnDestroy {
     });
   }
 
+  /** Pestañas cuyos datos pesados (listas paginadas, movimientos, bahías/maquinaria del mapa) ya se pidieron. */
+  private tabsCargadas = new Set<string>();
+
+  /**
+   * Antes esto se pedía TODO de una sola vez en `cargarTodo()`, sin importar en qué pestaña estaba el usuario
+   * (Mapa, Regiones, Clientes y los movimientos de Agencias se cargaban siempre, aunque no se fueran a ver).
+   * Ahora cada pestaña pide lo suyo la primera vez que se entra a ella.
+   */
+  private cargarSegunTab(tab: typeof this.tabActiva): void {
+    const clave = tab === 'sucursales' ? 'agencias' : tab === 'marcas' ? 'clientes' : tab;
+    if (this.tabsCargadas.has(clave)) return;
+    this.tabsCargadas.add(clave);
+    switch (clave) {
+      case 'mapa':
+        this.bahiaService.getBahias().subscribe(list => { this.bahiasTodas = list; });
+        if (this.mapaVeMaquinaria) this.maquinariaService.getMaquinaria({ activa: true }).subscribe(list => { this.maquinasMapa = list; });
+        break;
+      case 'agencias':
+        this.agenciasLista.reiniciar();
+        this.sucursalService.getMovimientos().subscribe(list => { this.movimientos = list; });
+        break;
+      case 'regiones':
+        if (this.auth.puede('pagina.agencias.regiones')) this.regionesTabla.reiniciar();
+        break;
+      case 'clientes':
+        if (this.auth.puede('pagina.agencias.clientes')) this.clientesTabla.reiniciar();
+        break;
+    }
+  }
+
+  /** Cambia de pestaña desde los botones de arriba (y pide los datos de esa pestaña si es la primera vez). */
+  seleccionarTab(tab: typeof this.tabActiva): void {
+    this.tabActiva = tab;
+    this.cargarSegunTab(tab);
+  }
+
   cargarTodo(): void {
-    this.agenciasLista.reiniciar();
-    // `regionesTabla`/`clientesTabla` (las listas con buscador de las pestañas "Regiones" y
-    // "Clientes") no se cargan solas: a diferencia de `agenciasLista`, nadie las inicializaba acá,
-    // así que se quedaban en 0 registros hasta que el usuario escribía algo en su buscador (eso sí
-    // dispara `queryChange` → `cargar()`). El panel derecho no dependía de esto (usa getRegiones()/
-    // getMarcas() sin paginar), por eso mostraba datos reales mientras la lista de la izquierda
-    // parecía vacía.
+    this.tabsCargadas.clear();
+    this.cargarSegunTab(this.tabActiva);
+    // Lo de acá abajo es información de referencia (sucursales, regiones, clientes, usuarios) que usan los
+    // desplegables de varios modales (crear agencia, transferir, asignar aprobador...) alcanzables desde
+    // más de una pestaña, así que sí conviene tenerla lista desde el inicio.
     const verRegiones = this.auth.puede('pagina.agencias.regiones');
     const verClientes = this.auth.puede('pagina.agencias.clientes');
-    if (verRegiones) this.regionesTabla.reiniciar();
-    if (verClientes) this.clientesTabla.reiniciar();
     // Sin la pestaña Regiones/Clientes se usa la lista de opciones (la que ya piden los desplegables).
     (verRegiones ? this.regionService.getRegiones() : this.regionService.getRegionesLista()).subscribe(list => {
       this.regiones = list;
@@ -1592,15 +1630,6 @@ export class SucursalesComponent implements OnInit, OnDestroy {
       this.catalogoService.getServiciosActivos().subscribe(list => {
         this.catalogoServicios = list;
       });
-    }
-    this.sucursalService.getMovimientos().subscribe(list => {
-      this.movimientos = list;
-    });
-    this.bahiaService.getBahias().subscribe(list => {
-      this.bahiasTodas = list;
-    });
-    if (this.mapaVeMaquinaria) {
-      this.maquinariaService.getMaquinaria({ activa: true }).subscribe(list => (this.maquinasMapa = list));
     }
     this.usuarioService.usuarios$.subscribe(list => {
       if (list && list.length) {
