@@ -209,8 +209,9 @@ export class CatalogoServiciosComponent implements OnInit, OnDestroy {
       if (tabla === 'generales') this.recargar(this.generalesTabla, texto);
       else this.recargar(this.especialesTabla, texto);
     });
-    this.generalesTabla.reiniciar();
-    this.especialesTabla.reiniciar();
+    // Solo se pide la tabla de la pestaña activa; la otra se pide la primera vez que se entra a ella.
+    if (this.tabActiva === 'generales') this.generalesTabla.reiniciar();
+    else this.especialesTabla.reiniciar();
     // Los insumos solo hacen falta para armar recetas y requieren poder ver el inventario.
     if ((this.puedeEditarReceta('GENERAL') || this.puedeEditarReceta('ESPECIAL')) && this.authService.puede('inventario.ver')) {
       this.inventarioService.cargarItems();
@@ -218,6 +219,13 @@ export class CatalogoServiciosComponent implements OnInit, OnDestroy {
         this.productosInventario = items;
       });
     }
+  }
+
+  /** Cambia de pestaña y pide su tabla si todavía no se había cargado. */
+  seleccionarTab(tab: 'generales' | 'especiales'): void {
+    this.tabActiva = tab;
+    if (tab === 'generales' && !this.generalesTabla.inicializada) this.generalesTabla.reiniciar();
+    if (tab === 'especiales' && !this.especialesTabla.inicializada) this.especialesTabla.reiniciar();
   }
 
   /** Servicio nuevo: el servidor calcula el siguiente código (SER-### o ESP-###). */
