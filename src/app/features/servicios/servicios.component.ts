@@ -66,7 +66,7 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
               routerLink="/configuracion/servicios"
               class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold rounded-xl text-xs transition-all flex items-center gap-2 cursor-pointer shadow-2xs border border-slate-200">
               <i-lucide aria-hidden="true" name="layout-list" class="w-4 h-4 text-easydry-blue"></i-lucide>
-              <span class="hidden sm:inline">{{ authService.puede('catalogo.gestionar') ? 'Catálogo & Crear Servicios' : 'Catálogo de Servicios' }}</span>
+              <span class="hidden sm:inline">{{ (authService.puede('catalogo.generales.crear') || authService.puede('catalogo.especiales.crear')) ? 'Catálogo & Crear Servicios' : 'Catálogo de Servicios' }}</span>
               <span class="sm:hidden">Catálogo</span>
             </a>
           }
@@ -3329,7 +3329,7 @@ export class ServiciosComponent implements OnInit, OnDestroy {
   }
 
   puedeAgregarServicio(item: VehiculoServicio): boolean {
-    if (!this.puedeCrearGeneral) return false;
+    if (!this.puedeAgregarAOT) return false;
     const estado = String(item.estado || '').toUpperCase();
     return estado === 'EN PROCESO' || estado === 'EN_PROCESO' || estado === 'FINALIZADO';
   }
@@ -3548,16 +3548,21 @@ export class ServiciosComponent implements OnInit, OnDestroy {
   get veTodaLaRed(): boolean { return this.ambito === 'GLOBAL'; }
   /** Gestión total de OT (generales y especiales) con ámbito nacional: elige agencia, bahía y pulidor libremente. */
   get isAdmin(): boolean {
-    return this.veTodaLaRed && this.authService.puede('servicios.crear') && this.authService.puede('especiales.crear');
+    return this.veTodaLaRed && this.puedeCrearGeneral && this.puedeCrearEspecial;
   }
   get isSuperAdmin(): boolean { return this.isAdmin; }
-  get puedeVerGenerales(): boolean { return this.authService.puede('servicios.ver'); }
-  get puedeVerEspeciales(): boolean { return this.authService.puede('especiales.ver'); }
-  get puedeCrearGeneral(): boolean { return this.authService.puede('servicios.crear'); }
-  get puedeCrearEspecial(): boolean { return this.isCoordServiciosEspeciales; }
-  get puedeEditarGeneral(): boolean { return this.authService.puede('servicios.editar'); }
-  get puedeReasignarEspecial(): boolean { return this.authService.puede('especiales.reasignar'); }
-  get puedeVerCatalogoBoton(): boolean { return this.authService.puedeAlguno('catalogo.gestionar', 'servicios.crear'); }
+  // Cada pestaña y cada botón se rigen por su propia casilla de «Roles y Permisos» (los mismos permisos que exige el servidor).
+  get puedeVerGenerales(): boolean { return this.authService.puede('pagina.servicios.generales'); }
+  get puedeVerEspeciales(): boolean { return this.authService.puede('pagina.servicios.especiales'); }
+  get puedeCrearGeneral(): boolean { return this.authService.puede('servicios.generales.crear'); }
+  /** El botón «Crear OT especial» sale exactamente cuando el rol tiene esa casilla (antes dependía de «Reasignar pulidor»). */
+  get puedeCrearEspecial(): boolean { return this.authService.puede('servicios.especiales.crear'); }
+  get puedeEditarGeneral(): boolean { return this.authService.puede('servicios.generales.editar'); }
+  get puedeReasignarEspecial(): boolean { return this.authService.puede('servicios.especiales.reasignar'); }
+  /** Agregar un servicio a una OT que ya existe es otra casilla distinta de registrar una OT nueva. */
+  get puedeAgregarAOT(): boolean { return this.authService.puede('servicios.generales.agregar'); }
+  /** El enlace al catálogo solo sale si el rol tiene acceso a esa página (antes salía a cualquiera que pudiera crear OT). */
+  get puedeVerCatalogoBoton(): boolean { return this.authService.puede('pagina.catalogo'); }
   /** Solo registra sus propios servicios (ámbito PROPIO). */
   get isOperador(): boolean {
     return !this.isAdmin && this.ambito === 'PROPIO' && this.puedeCrearGeneral;
@@ -3568,11 +3573,11 @@ export class ServiciosComponent implements OnInit, OnDestroy {
   }
   /** Gestiona los servicios especiales de la red (reasigna) sin trabajar los generales. */
   get isCoordServiciosEspeciales(): boolean {
-    return !this.isAdmin && this.puedeReasignarEspecial;
+    return !this.isAdmin && (this.puedeCrearEspecial || this.puedeReasignarEspecial);
   }
   /** Ejecuta servicios especiales (los inicia, pausa y completa) sin gestionarlos. */
   get isPulidor(): boolean {
-    return !this.isAdmin && !this.isCoordServiciosEspeciales && this.authService.puede('especiales.operar');
+    return !this.isAdmin && !this.isCoordServiciosEspeciales && this.authService.puede('servicios.especiales.operar');
   }
   /** Modalidad del pulidor según su agencia (no según el nombre del rol): con agencia opera en su sede; sin agencia, por región. */
   get isPulidorFijo(): boolean {
@@ -3664,7 +3669,7 @@ export class ServiciosComponent implements OnInit, OnDestroy {
   }
   /** Iniciar, pausar, reanudar y completar: permiso 'especiales.operar' y ser el pulidor asignado (la gestión total también puede). */
   puedeRealizarOT(extra?: ServicioExtra): boolean {
-    if (!extra || !this.authService.puede('especiales.operar')) return false;
+    if (!extra || !this.authService.puede('servicios.especiales.operar')) return false;
     if (this.isAdmin) return true;
     const user = this.authService.getCurrentUser();
     if (!user) return false;
@@ -3688,7 +3693,7 @@ export class ServiciosComponent implements OnInit, OnDestroy {
     return this.authService.getCurrentUser()?.sucursalNombre || this.authService.getCurrentUser()?.sucursal;
   }
   get puedeReportarFalla() {
-    return !this.isAdmin && this.authService.puede('incidentes.reportar');
+    return !this.isAdmin && this.authService.puedeAlguno('maquinaria.incidente.reportar', 'taller.incidentes.reportar');
   }
 
   /** Alcance del usuario según su ámbito (el servidor lo aplica igual; esto solo acota lo que se pide). */
@@ -3708,14 +3713,14 @@ export class ServiciosComponent implements OnInit, OnDestroy {
 
   /** Anular un servicio general: permiso 'servicios.anular'; uno aprobado solo lo anula la gestión total (el servidor lo exige). */
   puedeAnularServicio(item: VehiculoServicio): boolean {
-    if (!this.authService.puede('servicios.anular')) return false;
+    if (!this.authService.puede('servicios.generales.anular')) return false;
     const estado = (item.estado || '').toUpperCase();
     if (estado === 'CANCELADO' || item.anuladoEn) return false;
     return estado !== 'APROBADO' || this.isAdmin;
   }
 
   puedeAnularEspecial(extra: ServicioExtra): boolean {
-    if (!this.authService.puede('especiales.anular')) return false;
+    if (!this.authService.puede('servicios.especiales.anular')) return false;
     return extra.estado !== 'Completado' && extra.estado !== 'Cancelado';
   }
 

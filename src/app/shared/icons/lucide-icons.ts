@@ -157,11 +157,23 @@ import {
   TriangleAlert,
   ZoomOut,
   List,
-  Receipt
+  Receipt,
+  FileSearch,
+  Eraser,
+  PenTool,
+  Paperclip,
+  Printer,
+  ChevronsUpDown
 } from 'lucide-angular';
 
 export const EASYDRY_ICONS = {
   // PascalCase
+  FileSearch,
+  Eraser,
+  PenTool,
+  Paperclip,
+  Printer,
+  ChevronsUpDown,
   Pause,
   PauseCircle,
   LayoutDashboard,
@@ -479,5 +491,11 @@ export const EASYDRY_ICONS = {
   'triangle-alert': TriangleAlert,
   'zoom-out': ZoomOut,
   'list': List,
-  'receipt': Receipt
+  'receipt': Receipt,
+  'file-search': FileSearch,
+  'eraser': Eraser,
+  'pen-tool': PenTool,
+  'paperclip': Paperclip,
+  'printer': Printer,
+  'chevrons-up-down': ChevronsUpDown
 };

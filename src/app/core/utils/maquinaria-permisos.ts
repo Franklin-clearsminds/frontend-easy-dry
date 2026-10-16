@@ -19,19 +19,27 @@ export const puedeExportarLimpiezas = (auth: AuthService) => auth.puede('reporte
 export const puedeGestionarMaquina = (auth: AuthService) =>
   puedeTrasladarMaquina(auth) || puedeAsignarResponsableMaquina(auth) || puedeAsignarTecnico(auth) || puedeProgramarMantenimiento(auth);
 /** Historial (línea de tiempo) y movimientos. */
-export const puedeVerTrazabilidad = (auth: AuthService) => auth.puede('maquinaria.trazabilidad');
+export const puedeVerTrazabilidad = (auth: AuthService) => auth.puede('maquinaria.trazabilidad.ver');
+/** Cambiar la foto o la ficha técnica es una casilla aparte de editar los datos. */
+export const puedeCambiarArchivosMaquina = (auth: AuthService) => auth.puede('maquinaria.archivos');
 export const puedeVerIncidentes = (auth: AuthService) => auth.puede('incidentes.ver');
 export const puedeVerMantenimientos = (auth: AuthService) => auth.puede('mantenimientos.ver');
-export const puedeReportarIncidente = (auth: AuthService) => auth.puede('incidentes.reportar');
+export const puedeReportarIncidente = (auth: AuthService) => auth.puedeAlguno('maquinaria.incidente.reportar', 'taller.incidentes.reportar');
 /** Resolver / editar incidentes (el servidor exige además ser el técnico asignado si no gestiona). */
-export const puedeResolverIncidentes = (auth: AuthService) => auth.puede('incidentes.resolver');
+export const puedeResolverIncidentes = (auth: AuthService) => auth.puede('taller.incidentes.resolver');
+export const puedeCancelarIncidentes = (auth: AuthService) => auth.puede('taller.incidentes.cancelar');
 /** Ejecutar / editar mantenimientos (el servidor exige además ser el técnico asignado si no gestiona). */
-export const puedeEjecutarMantenimientos = (auth: AuthService) => auth.puede('mantenimientos.ejecutar');
-export const puedeAgregarEvidenciaMaquinaria = (auth: AuthService) => auth.puede('maquinaria.evidencias');
-export const puedeSubirEvidenciaLimpieza = (auth: AuthService) => auth.puede('limpiezas.evidencias');
+export const puedeEjecutarMantenimientos = (auth: AuthService) => auth.puede('taller.mantenimientos.ejecutar');
+export const puedeEditarMantenimientos = (auth: AuthService) => auth.puede('taller.mantenimientos.editar');
+export const puedeGestionarChecklist = (auth: AuthService) => auth.puede('taller.checklist.gestionar');
+/** Evidencias de incidencias (reportar, resolver) y de mantenimientos (ejecutar): cada flujo tiene su casilla. */
+export const puedeEvidenciaIncidente = (auth: AuthService) => auth.puede('taller.incidentes.evidencias');
+export const puedeEvidenciaMantenimiento = (auth: AuthService) => auth.puede('taller.mantenimientos.evidencias');
+export const puedeAgregarEvidenciaMaquinaria = (auth: AuthService) => puedeEvidenciaIncidente(auth) || puedeEvidenciaMantenimiento(auth);
+export const puedeSubirEvidenciaLimpieza = (auth: AuthService) => auth.puede('taller.limpiezas.registrar');
 export const puedeVerLimpiezas = (auth: AuthService) => auth.puede('limpiezas.ver');
 /** Corregir observaciones o eliminar un registro de limpieza (el servidor acota además a su región). */
-export const puedeEditarLimpiezas = (auth: AuthService) => auth.puede('limpiezas.editar');
+export const puedeEditarLimpiezas = (auth: AuthService) => auth.puede('taller.limpiezas.editar');
 
 /**
  * Corregir el costo de un mantenimiento/incidencia ya cerrado (el técnico lo ingresa al cerrar, pero no

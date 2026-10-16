@@ -31,7 +31,7 @@ import { ESCALA_POR_PRESET, ETIQUETA_PRESET, UiScaleService } from '../../../cor
           <div class="w-2.5 h-2.5 rounded-full bg-easydry-green animate-pulse motion-reduce:animate-none" aria-hidden="true"></div>
           <i-lucide name="building-2" class="w-4 h-4 text-easydry-blue" aria-hidden="true"></i-lucide>
           <span class="text-xs font-bold text-slate-700 font-outfit">
-            Red Nacional {{ env.appName }}
+            {{ (user?.sucursal || user?.sucursalNombre) ? (user?.sucursal || user?.sucursalNombre) : ('Red Nacional ' + env.appName) }}
           </span>
         </div>
 

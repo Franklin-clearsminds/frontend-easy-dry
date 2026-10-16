@@ -14,6 +14,7 @@ import {
 import { RolService } from './rol.service';
 import { MaquinariaService } from './maquinaria.service';
 import { NotificationSocketService } from './notification-socket.service';
+import { LAST_ACTIVITY_KEY, SessionIdleService } from './session-idle.service';
 import { apiUrl, isRealProfilePhoto } from '../config/env';
 import { MENU_CONFIG } from '../config/menu.config';
 import { ToastService } from '../../shared/services/toast.service';
@@ -33,6 +34,7 @@ export class AuthService {
   private maquinariaService = inject(MaquinariaService);
   private notificationSocket = inject(NotificationSocketService);
   private toast = inject(ToastService);
+  private idle = inject(SessionIdleService);
 
   private currentUserSubject = new BehaviorSubject<UsuarioAuth | null>(this.getStoredUser());
   public currentUser$ = this.currentUserSubject.asObservable();
@@ -52,7 +54,24 @@ export class AuthService {
   constructor() {
     if (typeof window !== 'undefined') {
       window.addEventListener('focus', this.onWindowFocus);
+      window.addEventListener('storage', this.onStorageChange);
     }
+  }
+
+  /**
+   * La cookie del refresh token se comparte entre pestañas. Si en otra pestaña se cierra la sesión (a mano, por inactividad o porque
+   * el servidor la dio por terminada), esta debe cerrarse también: su token en memoria ya no podría renovarse.
+   */
+  private readonly onStorageChange = (e: StorageEvent): void => {
+    if (e.key === STORAGE_KEY && e.newValue === null && this.currentUserSubject.value) {
+      this.cerrarSesionLocal();
+      void this.router.navigate(['/login']);
+    }
+  };
+
+  /** Cierra la sesión al agotarse el tiempo sin actividad (con aviso previo, ver SessionIdleDialogComponent). */
+  private vigilarInactividad(): void {
+    this.idle.iniciar(() => this.logout('inactividad'));
   }
 
   /**
@@ -69,6 +88,7 @@ export class AuthService {
           this.cargarCatalogoDeRoles();
           this.refrescarPermisos();
           this.notificationSocket.connect(() => this.getAccessToken());
+          this.vigilarInactividad();
           return true;
         }
         if (this.refreshRechazado()) this.cerrarSesionLocal();
@@ -206,7 +226,7 @@ export class AuthService {
     this.refreshTimerId = setTimeout(() => {
       this.refreshSession().subscribe(ok => {
         if (!ok && this.refreshRechazado()) {
-          this.logout();
+          this.logout('expirada');
         } else if (ok) {
           // timer reprogramado en applyTokens
         } else {
@@ -431,6 +451,7 @@ export class AuthService {
       this.cargarCatalogoDeRoles();
       this.scheduleProactiveRefresh();
       this.notificationSocket.connect(() => this.getAccessToken());
+      this.vigilarInactividad();
     }
   }
 
@@ -464,7 +485,8 @@ export class AuthService {
   }
 
 
-  logout(): void {
+  /** `motivo`: 'inactividad' o 'expirada' llevan al login con el aviso «Tu sesión expiró». */
+  logout(motivo?: 'inactividad' | 'expirada'): void {
     // Revoca la sesión en el servidor y borra la cookie del refresh token. Si no hay red, igual se cierra en este navegador.
     if (this.currentUserSubject.value) {
       this.http.post(apiUrl('/auth/logout'), {}, {
@@ -473,17 +495,19 @@ export class AuthService {
       }).pipe(catchError(() => of(null))).subscribe();
     }
     this.cerrarSesionLocal();
-    this.router.navigate(['/login']);
+    this.router.navigate(['/login'], motivo ? { queryParams: { expired: 'true' } } : undefined);
   }
 
   /** Borra todo rastro de la sesión en este navegador (sin avisar al servidor ni navegar). */
   private cerrarSesionLocal(): void {
     this.clearRefreshTimer();
+    this.idle.detener();
     this.notificationSocket.disconnect();
     this.accessToken = null;
     localStorage.removeItem(STORAGE_KEY);
     localStorage.removeItem('easydry_access_token');
     localStorage.removeItem('easydry_refresh_token');
+    localStorage.removeItem(LAST_ACTIVITY_KEY);
     this.currentUserSubject.next(null);
     // Sin esto, un logout→login en la misma pestaña deja el caché en memoria de la sesión anterior:
     // si la próxima carga falla, el servicio puede servir la lista del usuario/rol de antes.

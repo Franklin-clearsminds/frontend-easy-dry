@@ -121,7 +121,8 @@ export class VisorArchivoComponent implements OnChanges, OnDestroy {
     this._url = valor || '';
     this.usandoRespaldo = false;
     this.imagenCargada = false;
-    this.urlSegura = this.srcActual ? this.sanitizer.bypassSecurityTrustResourceUrl(this.srcActual) : null;
+    // Solo se marcan como seguras direcciones http(s) o blob: (nunca `javascript:` ni `data:`), aunque la URL venga de un dato guardado.
+    this.urlSegura = this.srcActual && /^(https?:|blob:)/i.test(this.srcActual.trim()) ? this.sanitizer.bypassSecurityTrustResourceUrl(this.srcActual) : null;
     this.restablecer();
   }
   get url(): string {

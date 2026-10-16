@@ -5,6 +5,9 @@ import { RouterModule, ActivatedRoute } from '@angular/router';
 import { LucideAngularModule } from 'lucide-angular';
 import { SucursalService, PrecioServicioAgencia } from '../../core/services/sucursal.service';
 import { RegionService } from '../../core/services/region.service';
+import { ClienteService } from '../../core/services/cliente.service';
+import { MaquinariaService } from '../../core/services/maquinaria.service';
+import { Maquinaria } from '../../core/models';
 import { MarcaSucursalService } from '../../core/services/marca-sucursal.service';
 import { BahiaService } from '../../core/services/bahia.service';
 import { UsuarioService } from '../../core/services/usuario.service';
@@ -123,7 +126,7 @@ import { ConsultaAgencias } from '../../core/services/sucursal.service';
                     <span class="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-xl">
                       {{ getBahiasDeSucursal(suc.id).length }} Bahías Registradas
                     </span>
-                    @if (auth.hasModuleAccess('agencias')) {
+                    @if (puedeVerDetalleAgencia) {
                       <a [routerLink]="['/agencias', suc.id]" class="px-3 py-1.5 bg-easydry-blue/10 hover:bg-easydry-blue hover:text-white text-easydry-blue font-bold rounded-xl text-xs transition-colors flex items-center gap-1">
                         <span>Gestionar</span>
                         <i-lucide aria-hidden="true" name="chevron-right" class="w-3.5 h-3.5"></i-lucide>
@@ -167,7 +170,9 @@ import { ConsultaAgencias } from '../../core/services/sucursal.service';
                                   <i-lucide aria-hidden="true" name="user" class="w-3 h-3 text-easydry-blue"></i-lucide>
                                   <span>Operador Asignado</span>
                                 </div>
-                                @if (bahia.operadorAsignado) {
+                                @if (!mapaVeLavador) {
+                                  <p class="text-slate-400 italic text-xs">Sin acceso</p>
+                                } @else if (bahia.operadorAsignado) {
                                   <p class="font-bold text-slate-800 text-xs truncate">{{ bahia.operadorAsignado }}</p>
                                 } @else {
                                   <p class="text-slate-500 italic text-xs">Sin operador asignado</p>
@@ -177,16 +182,16 @@ import { ConsultaAgencias } from '../../core/services/sucursal.service';
 
                             <!-- Maquinaria e Insumos vinculados -->
                             <div class="mt-2 text-xs text-slate-500 space-y-1">
-                              @if (bahia.maquinariaAsignada && bahia.maquinariaAsignada.length > 0) {
+                              @if (mapaVeMaquinaria && maquinasDeBahia(bahia.id).length > 0) {
                                 <div class="flex items-center gap-1 text-slate-600">
                                   <i-lucide aria-hidden="true" name="wrench" class="w-3 h-3 text-slate-400"></i-lucide>
-                                  <span>{{ bahia.maquinariaAsignada.length }} máquina(s) en línea</span>
+                                  <span>{{ maquinasDeBahia(bahia.id).length }} máquina(s) asignada(s)</span>
                                 </div>
                               }
-                              @if (bahia.vehiculoActual) {
+                              @if (mapaVeVehiculo && bahia.ocupada) {
                                 <div class="flex items-center gap-1 text-easydry-blue font-bold">
                                   <i-lucide aria-hidden="true" name="car" class="w-3 h-3"></i-lucide>
-                                  <span>En atención: {{ bahia.vehiculoActual }}</span>
+                                  <span>En atención: {{ bahia.ocupada.placa }}</span>
                                 </div>
                               }
                             </div>
@@ -194,7 +199,7 @@ import { ConsultaAgencias } from '../../core/services/sucursal.service';
 
                           <div class="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
                             <span class="text-slate-500">Tipo: {{ bahia.tipo || 'General' }}</span>
-                            @if (auth.hasModuleAccess('agencias')) {
+                            @if (puedeVerDetalleAgencia) {
                               <a [routerLink]="['/agencias', suc.id]" class="text-easydry-blue font-bold hover:underline flex items-center gap-0.5">
                                 <span>Ver detalle</span>
                                 <i-lucide aria-hidden="true" name="arrow-right" class="w-3 h-3"></i-lucide>
@@ -332,7 +337,7 @@ import { ConsultaAgencias } from '../../core/services/sucursal.service';
 
               <!-- Acciones -->
               <div class="mt-5 pt-4 border-t border-slate-100 flex items-center gap-2">
-                @if (auth.hasModuleAccess('mapa-operativo')) {
+                @if (puedeVerMapa) {
                   <button (click)="verEnMapa(suc)" class="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer">
                     <i-lucide aria-hidden="true" name="map" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide><span>Mapa</span>
                   </button>
@@ -960,6 +965,24 @@ import { ConsultaAgencias } from '../../core/services/sucursal.service';
                     </p>
                   </div>
                 </div>
+                @if (puedeGestionarPrecios) {
+                  <div class="mt-3 space-y-1.5">
+                    <p class="text-xs font-bold text-amber-900">Precio de cada servicio especial en esta agencia</p>
+                    @for (s of serviciosEspeciales; track s.id) {
+                      <div class="flex items-center justify-between gap-2 px-2 py-1 rounded-lg bg-white/70 border border-amber-200">
+                        <span class="text-xs font-semibold text-slate-800 min-w-0 break-words">{{ s.nombre }}</span>
+                        <div class="flex items-center gap-1 shrink-0">
+                          <span class="text-xs text-slate-500">$</span>
+                          <input type="number" min="0" step="0.01"
+                            class="w-20 text-xs rounded-lg border border-slate-200 px-2 py-1"
+                            [value]="precioMostrado(s.id)"
+                            (change)="onPrecioServicioChange(s.id, $any($event.target).value)"
+                            placeholder="0.00">
+                        </div>
+                      </div>
+                    }
+                  </div>
+                }
               </div>
             }
           </div>
@@ -986,7 +1009,7 @@ import { ConsultaAgencias } from '../../core/services/sucursal.service';
                     <input type="checkbox" class="mt-0.5 rounded border-slate-300 text-easydry-blue focus:ring-easydry-blue" [checked]="servicioSeleccionado(s.id)" [disabled]="editandoSucursal && !puedeHabilitarServicios" (change)="toggleServicio(s.id, s.nombre)">
                     <span class="text-xs font-semibold text-slate-800">{{ s.nombre }}</span>
                   </label>
-                  @if (editandoSucursal && puedeGestionarPrecios && servicioSeleccionado(s.id)) {
+                  @if (puedeGestionarPrecios && servicioSeleccionado(s.id)) {
                     <div class="flex items-center gap-1 shrink-0" title="Precio para esta agencia">
                       <span class="text-xs text-slate-500">$</span>
                       <input type="number" min="0" step="0.01"
@@ -1001,7 +1024,7 @@ import { ConsultaAgencias } from '../../core/services/sucursal.service';
             </div>
             @if (editandoSucursal && puedeGestionarPrecios) {
               <div class="mt-2 flex items-center justify-between gap-2">
-                <p class="text-xs text-slate-500">Precio por agencia para servicios generales (si no se fija, rige el precio del catálogo).</p>
+                <p class="text-xs text-slate-500">Precio de cada servicio en esta agencia. El catálogo no tiene precio base: un servicio sin precio fijado vale $0.</p>
                 <button type="button" (click)="guardarPreciosServicios()" [disabled]="!hayPreciosPendientes || guardandoPrecios"
                   class="btn btn-secondary btn-sm shrink-0">
                   {{ guardandoPrecios ? 'Guardando...' : 'Guardar precios' }}
@@ -1206,13 +1229,21 @@ export class SucursalesComponent implements OnInit, OnDestroy {
   movimientos: MovimientoRedSucursal[] = [];
 
   tabActiva: 'mapa' | 'agencias' | 'sucursales' | 'regiones' | 'marcas' | 'clientes' | 'gerentes' = 'agencias';
+  /** Cada pestaña es una sub-página de «Agencias & Mapa Red»: se ve solo si el rol tiene su permiso. */
   tabs = [
-    { id: 'agencias' as const, label: 'Gestión de Agencias', icon: 'building-2' },
-    { id: 'mapa' as const, label: 'Mapa Operativo en Vivo', icon: 'map' },
-    { id: 'gerentes' as const, label: 'Gestión de Gerentes', icon: 'user-cog' },
-    { id: 'regiones' as const, label: 'Regiones', icon: 'map-pin' },
-    { id: 'clientes' as const, label: 'Clientes', icon: 'briefcase' }
+    { id: 'agencias' as const, label: 'Gestión de Agencias', icon: 'building-2', permiso: 'pagina.agencias.agencias' },
+    { id: 'mapa' as const, label: 'Mapa Operativo en Vivo', icon: 'map', permiso: 'pagina.agencias.mapa' },
+    { id: 'gerentes' as const, label: 'Aprobadores', icon: 'user-cog', permiso: 'pagina.agencias.aprobadores' },
+    { id: 'regiones' as const, label: 'Regiones', icon: 'map-pin', permiso: 'pagina.agencias.regiones' },
+    { id: 'clientes' as const, label: 'Clientes', icon: 'briefcase', permiso: 'pagina.agencias.clientes' }
   ];
+
+  /** Equipos de las bahías del mapa (solo se piden si el rol ve el bloque de maquinaria). */
+  maquinasMapa: Maquinaria[] = [];
+
+  maquinasDeBahia(bahiaId: string | number): Maquinaria[] {
+    return this.maquinasMapa.filter(m => m.bahiaId !== undefined && String(m.bahiaId) === String(bahiaId) && m.activa !== false);
+  }
 
   filtroRegionId: number | string = 0;
   filtroMarcaId: number | string = 0;
@@ -1291,6 +1322,8 @@ export class SucursalesComponent implements OnInit, OnDestroy {
   private marcaService = inject(MarcaSucursalService);
   private catalogoService = inject(CatalogoServiciosService);
   private bahiaService = inject(BahiaService);
+  private clienteService = inject(ClienteService);
+  private maquinariaService = inject(MaquinariaService);
   private usuarioService = inject(UsuarioService);
   private toastService = inject(ToastService);
   public auth = inject(AuthService);
@@ -1308,20 +1341,29 @@ export class SucursalesComponent implements OnInit, OnDestroy {
   get puedeCrearCliente(): boolean { return this.auth.puede('agencias.clientes.crear'); }
   get puedeEditarCliente(): boolean { return this.auth.puede('agencias.clientes.editar'); }
   get puedeGestionarClientes(): boolean { return this.puedeCrearCliente || this.puedeEditarCliente || this.auth.puede('agencias.clientes.estado'); }
-  get puedeAsignarPersonas(): boolean { return this.auth.puede('usuarios.gestionar'); }
-  get puedeVerUsuarios(): boolean { return this.auth.puede('usuarios.ver'); }
+  get puedeAsignarPersonas(): boolean { return this.auth.puede('agencias.aprobadores.asignar'); }
+  get puedeVerUsuarios(): boolean { return this.auth.puedeAlguno('agencias.personal.ver', 'agencias.aprobadores.asignar'); }
   /** Al crear una agencia se define el número de bahías; al editar, aumentarlo crea bahías nuevas y exige 'bahias.crear'. */
   get puedeCrearBahias(): boolean { return !this.editandoSucursal || this.auth.puede('agencias.bahias.crear'); }
   guardando = false;
 
   get tabsVisibles() {
-    return this.tabs.filter(t =>
-      (t.id === 'mapa'
-        ? this.auth.hasModuleAccess('mapa-operativo')
-        : this.auth.hasModuleAccess('agencias')) &&
-      (t.id !== 'gerentes' || this.puedeVerUsuarios)
-    );
+    return this.tabs.filter(t => this.auth.puede(t.permiso));
   }
+
+  /** Si la pestaña en uso no está permitida (o nunca lo estuvo), pasa a la primera que sí. */
+  private asegurarTabPermitida(): void {
+    const visibles = this.tabsVisibles;
+    const actual = this.tabActiva === 'sucursales' ? 'agencias' : this.tabActiva === 'marcas' ? 'clientes' : this.tabActiva;
+    if (visibles.length && !visibles.some(t => t.id === actual)) this.tabActiva = visibles[0].id;
+  }
+
+  // Bloques del mapa: cada uno se enciende por separado en el editor de roles.
+  get mapaVeLavador(): boolean { return this.auth.puede('mapa.lavador.ver'); }
+  get mapaVeMaquinaria(): boolean { return this.auth.puede('mapa.maquinaria.ver'); }
+  get mapaVeVehiculo(): boolean { return this.auth.puede('mapa.vehiculo.ver'); }
+  get puedeVerDetalleAgencia(): boolean { return this.auth.puede('pagina.agencias.agencias'); }
+  get puedeVerMapa(): boolean { return this.auth.puede('pagina.agencias.mapa'); }
 
   /** Mensaje del servidor (viene en español); si no hay, el de respaldo. */
   private mensajeError(err: any, respaldo: string): string {
@@ -1422,9 +1464,7 @@ export class SucursalesComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
-    if (this.route.snapshot.routeConfig?.path === 'mapa-operativo') {
-      this.tabActiva = 'mapa';
-    }
+    this.asegurarTabPermitida();
     this.busquedaSub = this.busqueda$
       .pipe(debounceTime(BUSQUEDA_DEBOUNCE_MS), distinctUntilChanged())
       .subscribe((texto) => {
@@ -1432,18 +1472,13 @@ export class SucursalesComponent implements OnInit, OnDestroy {
         this.agenciasLista.reiniciar();
       });
     this.route.queryParams.subscribe(params => {
-      if (this.route.snapshot.routeConfig?.path === 'mapa-operativo') {
-        this.tabActiva = 'mapa';
-      } else if (params['tab'] && ['mapa', 'agencias', 'sucursales', 'regiones', 'marcas', 'clientes', 'gerentes'].includes(params['tab'])) {
+      if (params['tab'] && ['mapa', 'agencias', 'sucursales', 'regiones', 'marcas', 'clientes', 'gerentes'].includes(params['tab'])) {
         this.tabActiva = params['tab'] === 'sucursales' ? 'agencias' : (params['tab'] === 'marcas' ? 'clientes' : params['tab'] as any);
-      }
-      if (this.tabActiva === 'mapa' && !this.auth.hasModuleAccess('mapa-operativo')) {
-        this.tabActiva = 'agencias';
       }
       if (params['sucursalId']) {
         this.filtroSucursalMapaId = Number(params['sucursalId']);
       }
-      if (this.tabActiva === 'gerentes' && !this.puedeVerUsuarios) this.tabActiva = 'agencias';
+      this.asegurarTabPermitida();
     });
     this.cargarTodo();
   }
@@ -1533,15 +1568,18 @@ export class SucursalesComponent implements OnInit, OnDestroy {
     // dispara `queryChange` → `cargar()`). El panel derecho no dependía de esto (usa getRegiones()/
     // getMarcas() sin paginar), por eso mostraba datos reales mientras la lista de la izquierda
     // parecía vacía.
-    this.regionesTabla.reiniciar();
-    this.clientesTabla.reiniciar();
-    this.regionService.getRegiones().subscribe(list => {
+    const verRegiones = this.auth.puede('pagina.agencias.regiones');
+    const verClientes = this.auth.puede('pagina.agencias.clientes');
+    if (verRegiones) this.regionesTabla.reiniciar();
+    if (verClientes) this.clientesTabla.reiniciar();
+    // Sin la pestaña Regiones/Clientes se usa la lista de opciones (la que ya piden los desplegables).
+    (verRegiones ? this.regionService.getRegiones() : this.regionService.getRegionesLista()).subscribe(list => {
       this.regiones = list;
       this.regionSeleccionada = this.regionSeleccionada
         ? list.find(r => r.id === this.regionSeleccionada!.id) || list[0]
         : list[0] || null;
     });
-    this.marcaService.getMarcas().subscribe(list => {
+    (verClientes ? this.marcaService.getMarcas() : this.clienteService.getClientesLista()).subscribe(list => {
       this.marcas = list;
       this.marcaSeleccionada = this.marcaSeleccionada
         ? list.find(m => m.id === this.marcaSeleccionada!.id) || list[0]
@@ -1561,6 +1599,9 @@ export class SucursalesComponent implements OnInit, OnDestroy {
     this.bahiaService.getBahias().subscribe(list => {
       this.bahiasTodas = list;
     });
+    if (this.mapaVeMaquinaria) {
+      this.maquinariaService.getMaquinaria({ activa: true }).subscribe(list => (this.maquinasMapa = list));
+    }
     this.usuarioService.usuarios$.subscribe(list => {
       if (list && list.length) {
         this.todosLosUsuarios = list;
@@ -1947,6 +1988,7 @@ export class SucursalesComponent implements OnInit, OnDestroy {
           this.guardando = false;
           this.bahiaService.sincronizarBahias(actualizada.id, actualizada.nombre, actualizada.cantidadBahias);
           this.toastService.success('Agencia Actualizada', 'Se guardaron los cambios de ' + actualizada.nombre + '.');
+          this.guardarPreciosPendientesTras(actualizada.id);
           this.cerrarModal();
           this.cargarTodo();
         },
@@ -1961,6 +2003,7 @@ export class SucursalesComponent implements OnInit, OnDestroy {
           this.guardando = false;
           this.bahiaService.sincronizarBahias(creada.id, creada.nombre, creada.cantidadBahias);
           this.toastService.success('Agencia Registrada', 'Se configuró ' + creada.nombre + ' correctamente.');
+          this.guardarPreciosPendientesTras(creada.id);
           this.cerrarModal();
           this.cargarTodo();
         },
@@ -2194,6 +2237,23 @@ export class SucursalesComponent implements OnInit, OnDestroy {
 
   get hayPreciosPendientes(): boolean {
     return Object.keys(this.preciosEditados).length > 0;
+  }
+
+  /**
+   * Los precios escritos en el formulario se guardan junto con la agencia: antes solo se guardaban con el botón «Guardar precios»,
+   * y si el servicio recién marcado aún no existía en la agencia, el valor escrito se perdía en silencio al guardar.
+   */
+  private guardarPreciosPendientesTras(agenciaId: string | number): void {
+    if (!this.puedeGestionarPrecios || !this.hayPreciosPendientes) return;
+    const seleccionados = new Set((this.nuevaSucursal.servicioIds || []).map(Number));
+    const precios = Object.entries(this.preciosEditados)
+      .map(([catalogoServicioId, precio]) => ({ catalogoServicioId: Number(catalogoServicioId), precio }))
+      .filter(p => seleccionados.has(p.catalogoServicioId));
+    this.preciosEditados = {};
+    if (!precios.length) return;
+    this.sucursalService.setPreciosServicios(agenciaId, precios).subscribe({
+      error: (err) => this.toastService.error('Precios sin guardar', this.mensajeError(err, 'La agencia se guardó, pero el servidor no aceptó los precios.')),
+    });
   }
 
   guardarPreciosServicios(): void {

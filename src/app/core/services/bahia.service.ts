@@ -70,7 +70,7 @@ export class BahiaService {
     );
   }
 
-  /** Activa o desactiva la bahía (permiso 'bahias.editar'). Si el servidor rechaza, el error se propaga. */
+  /** Activa o desactiva la bahía (casilla «Activar o desactivar bahía»). Si el servidor rechaza, el error se propaga. */
   actualizarEstadoBahia(id: string | number, nuevoEstado: Bahia['estado']): Observable<Bahia | null> {
     const activa = nuevoEstado !== 'Inactiva';
     return this.http.post<any>(apiUrl('/agencias/bahias/update'), { id: String(id), activa }).pipe(

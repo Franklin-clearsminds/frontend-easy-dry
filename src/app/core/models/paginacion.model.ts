@@ -30,6 +30,8 @@ export interface OpcionSelect {
   value: string;
   label: string;
   sublabel?: string;
+  /** Solo en las opciones de regiones y clientes: 1 = activo, 0 = inactivo. */
+  estado?: number;
 }
 
 /**

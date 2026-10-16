@@ -334,11 +334,11 @@ export class CrearRetoModalComponent implements OnInit {
       this.puedeCrear = false;
     }
 
-    this.regionService.getRegiones().subscribe(list => {
+    this.regionService.getRegionesLista().subscribe(list => {
       const activas = list.filter(r => r.estado === 'Activa');
       this.regiones = this.regionFija ? activas.filter(r => r.nombre.toLowerCase() === miRegion.toLowerCase()) : activas;
     });
-    this.clienteService.getClientes().subscribe(list => {
+    this.clienteService.getClientesLista().subscribe(list => {
       this.clientes = list.filter(c => c.estado === 'Activa');
     });
     this.sucursalService.getSucursales().subscribe(list => {

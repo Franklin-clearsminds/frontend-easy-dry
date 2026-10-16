@@ -38,7 +38,8 @@ export const jwtInterceptor: HttpInterceptorFn = (req, next) => {
         return authService.refreshSession().pipe(
           switchMap(ok => {
             if (!ok) {
-              authService.logout();
+              // Solo se cierra la sesión si el servidor la rechazó. Un corte de red o un 5xx no deben sacar al usuario.
+              if (authService.refreshRechazado()) authService.logout('expirada');
               return throwError(() => error);
             }
             return next(attachAuth(authService.getAccessToken()));
@@ -55,7 +56,7 @@ export const jwtInterceptor: HttpInterceptorFn = (req, next) => {
     return authService.refreshSession().pipe(
       switchMap(ok => {
         if (!ok && authService.refreshRechazado()) {
-          authService.logout();
+          authService.logout('expirada');
           return throwError(
             () => new HttpErrorResponse({ status: 401, statusText: 'Sesión expirada' })
           );

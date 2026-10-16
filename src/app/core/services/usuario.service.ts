@@ -325,4 +325,9 @@ export class UsuarioService {
       })
     );
   }
+
+  /** Asigna o restablece la contraseña de un usuario existente (requiere el permiso «Asignar y restablecer contraseñas»). */
+  asignarPassword(id: string | number, password: string): Observable<{ ok: true }> {
+    return this.http.post<{ ok: true }>(apiUrl('/agencias/usuarios/password'), { id: String(id), password: password.trim() });
+  }
 }

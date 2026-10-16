@@ -25,12 +25,14 @@ const TIPO_A_NOTIFICACION_TIPO: Record<string, NotificacionTipo> = {
   SERVICIO_ESPECIAL_ASIGNADO: 'info',
   SERVICIO_ESPECIAL_CERRADO: 'info',
   DESPACHO_CONFIRMADO: 'info',
+  DESPACHO_FALTANTE: 'alerta',
 };
 
 /** Módulo funcional de cada tipo de notificación del backend, para agrupar/filtrar por área. */
 const CATEGORIA_POR_TIPO: Record<string, NotificacionCategoria> = {
   STOCK_CRITICO: 'inventario',
   DESPACHO_PENDIENTE: 'inventario',
+  DESPACHO_FALTANTE: 'inventario',
   INCIDENTE_NUEVO: 'mantenimiento',
   INCIDENCIA_ASIGNADA: 'mantenimiento',
   INCIDENCIA_RESUELTA: 'mantenimiento',

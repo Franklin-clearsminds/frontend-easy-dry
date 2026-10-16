@@ -37,6 +37,9 @@ export interface DashboardTecnicoData {
   incidentesPorGravedad?: DashboardChartData | null;
   chartTopMaquinas?: DashboardChartData | null;
   topPulidores?: DashboardChartData | null;
+  bottomPulidores?: DashboardChartData | null;
+  topBahias?: DashboardChartData | null;
+  bottomBahias?: DashboardChartData | null;
   chartCostoMaquinas?: DashboardChartData | null;
   chartTipoMantenimiento?: DashboardChartData | null;
   chartTipoMaquinaria?: DashboardChartData | null;

@@ -1,6 +1,8 @@
+import { HttpClient } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { firstValueFrom } from 'rxjs';
 import { AuthService } from './auth.service';
+import { apiUrl } from '../config/env';
 import { Role, UsuarioAuth } from '../models/roles.model';
 import { esperar, iniciarSesion, mundo, postComo, proveedoresApiReal, requiereMundo } from '../../../testing/api-real';
 
@@ -58,10 +60,10 @@ describe('AuthService — sincronización de rol (refrescarPermisos)', () => {
 
   it('considera operativo a un usuario con módulo funcional aunque no tenga capacidades API', async () => {
     await iniciarSesion(service, 'lider');
-    estado().next({ ...service.getCurrentUser()!, modulosPermitidos: ['mapa-operativo'], capacidades: [] });
+    estado().next({ ...service.getCurrentUser()!, modulosPermitidos: ['agencias'], capacidades: [] });
 
     expect(service.sinAcceso()).toBe(false);
-    expect(service.rutaInicial()).toBe('/mapa-operativo');
+    expect(service.rutaInicial()).toBe('/agencias');
   });
 
   it('mantiene sin acceso al usuario cuyo único módulo es perfil', async () => {
@@ -74,7 +76,12 @@ describe('AuthService — sincronización de rol (refrescarPermisos)', () => {
 
   it('no autoriza una ruta con permisos locales antiguos si falla la validación del servidor', async () => {
     await iniciarSesion(service, 'lider');
-    // Token que el servidor rechaza (y sin cookie de refresh válida): la verificación falla de verdad.
+    // El refresh vive en una cookie HttpOnly que sigue válida tras el login: para que la verificación falle de verdad hay que
+    // cerrar la sesión en el servidor (revoca el refresh y borra la cookie) y dejar un access token que el servidor rechaza.
+    await firstValueFrom(TestBed.inject(HttpClient).post(apiUrl('/auth/logout'), {}, {
+      withCredentials: true,
+      headers: { 'X-Client': 'web', 'X-Skip-Auth-Refresh': '1' },
+    }));
     (service as unknown as { accessToken: string }).accessToken = 'token-invalido';
 
     const permitido = await firstValueFrom(service.validarAccesoModulo('maquinaria'));
@@ -95,6 +102,40 @@ describe('AuthService — sincronización de rol (refrescarPermisos)', () => {
 
     expect(service.isSuperAdmin()).toBe(true);
     expect(service.getCurrentUser()?.role).toBe(Role.SUPER_ADMIN);
+  });
+
+  it('refreshSession renueva el access token con la cookie HttpOnly (incluye el preflight CORS de las cabeceras de la app)', async () => {
+    await iniciarSesion(service, 'lider');
+
+    const ok = await firstValueFrom(service.refreshSession());
+
+    expect(ok).toBeTrue();
+    expect(service.getAccessToken()).toBeTruthy();
+    expect(service.refreshRechazado()).toBeFalse();
+  });
+
+  it('dos renovaciones seguidas con la misma cookie no cierran la sesión (dos pestañas a la vez)', async () => {
+    await iniciarSesion(service, 'lider');
+    const http = TestBed.inject(HttpClient);
+    const renovar = () => firstValueFrom(http.post<{ success: boolean; accessToken: string }>(
+      apiUrl('/auth/refresh'), {}, { withCredentials: true, headers: { 'X-Client': 'web', 'X-Skip-Auth-Refresh': '1', 'X-Silent-Fallback': '1' } }));
+
+    const [a, b] = await Promise.all([renovar(), renovar()]);
+
+    expect(a.accessToken).toBeTruthy();
+    expect(b.accessToken).toBeTruthy();
+  });
+
+  it('logout revoca la sesión en el servidor: la cookie ya no renueva', async () => {
+    await iniciarSesion(service, 'lider');
+    const http = TestBed.inject(HttpClient);
+    const renovar = () => firstValueFrom(http.post(apiUrl('/auth/refresh'), {},
+      { withCredentials: true, headers: { 'X-Client': 'web', 'X-Skip-Auth-Refresh': '1', 'X-Silent-Fallback': '1' } }));
+
+    service.logout();
+    await new Promise((r) => setTimeout(r, 600)); // el aviso al servidor es asíncrono
+
+    await expectAsync(renovar()).toBeRejected();
   });
 
   it('mantiene el token actual (/auth/me no devuelve tokens nuevos)', async () => {

@@ -1,3 +1,5 @@
+import { celdaCsv } from '../../core/utils/csv';
+import { PasswordRequisitosComponent } from '../../shared/components/password-requisitos/password-requisitos.component';
 import { Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Subject, Subscription, debounceTime, distinctUntilChanged, finalize, firstValueFrom } from 'rxjs';
@@ -24,7 +26,7 @@ import { ToastService } from '../../shared/services/toast.service';
 import { FilterBarComponent, FilterState } from '../../shared/components/filter-bar/filter-bar.component';
 import { isRealProfilePhoto } from '../../core/config/env';
 import { NotaAmbito, construirNotaAmbito } from './ambito-rol';
-import { passwordCumplePolitica } from '../../core/utils/password-politica';
+import { motivoPasswordDebil, passwordCumplePolitica } from '../../core/utils/password-politica';
 
 interface AmbitoInfo {
   codigo: string;
@@ -64,7 +66,7 @@ const COLUMNAS_ROLES: TableColumn[] = [
 @Component({
   selector: 'app-usuarios',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, DataTableComponent, DataTableCellDirective, FilterBarComponent, RolPaginasEditorComponent],
+  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, DataTableComponent, DataTableCellDirective, FilterBarComponent, RolPaginasEditorComponent, PasswordRequisitosComponent],
   template: `
     <div class="space-y-6 animate-fade-in">
       
@@ -285,7 +287,7 @@ const COLUMNAS_ROLES: TableColumn[] = [
                     (click)="abrirModalCrearUsuario()"
                     class="btn btn-cta">
                     <i-lucide aria-hidden="true" name="user-plus" class="w-4 h-4"></i-lucide>
-                    <span>{{ puedeGestionarUsuarios ? 'Registrar Usuario' : 'Registrar Backup' }}</span>
+                    <span>{{ puedeCrearUsuario ? 'Registrar Usuario' : 'Registrar Backup' }}</span>
                   </button>
                 }
               </div>
@@ -402,8 +404,8 @@ const COLUMNAS_ROLES: TableColumn[] = [
                 <button
                   type="button"
                   (click)="toggleEstadoUsuario(u)"
-                  [disabled]="!puedeGestionarUsuarios"
-                  [title]="!puedeGestionarUsuarios ? 'Tu rol no puede cambiar el estado de usuarios' : (u.estado === 'Activo' ? 'Click para marcar como Inactivo (Bloqueará login y asignación)' : 'Click para activar usuario')"
+                  [disabled]="!puedeEstadoUsuario"
+                  [title]="!puedeEstadoUsuario ? 'Tu rol no puede cambiar el estado de usuarios' : (u.estado === 'Activo' ? 'Click para marcar como Inactivo (Bloqueará login y asignación)' : 'Click para activar usuario')"
                   [attr.aria-label]="u.estado === 'Activo' ? 'Usuario activo. Marcar como inactivo' : 'Usuario inactivo. Activar usuario'"
                   class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border transition-all cursor-pointer select-none disabled:cursor-default"
                   [ngClass]="u.estado === 'Activo'
@@ -416,7 +418,7 @@ const COLUMNAS_ROLES: TableColumn[] = [
 
               <ng-template appCell="acciones" let-u>
                 <div class="flex items-center justify-end gap-1">
-                  @if (puedeGestionarUsuarios) {
+                  @if (puedeEstadoUsuario) {
                     <button
                       type="button"
                       (click)="toggleEstadoUsuario(u)"
@@ -435,7 +437,16 @@ const COLUMNAS_ROLES: TableColumn[] = [
                       <i-lucide aria-hidden="true" name="edit-3" class="w-4 h-4"></i-lucide>
                     </button>
                   }
-                  @if (puedeGestionarUsuarios) {
+                  @if (puedeSoloPassword(u)) {
+                    <button
+                      type="button"
+                      (click)="abrirModalPassword(u)"
+                      title="Cambiar contraseña"
+                      class="p-1.5 min-w-9 min-h-9 inline-flex items-center justify-center text-slate-500 hover:text-easydry-blue rounded-lg hover:bg-slate-100 transition-colors cursor-pointer" aria-label="Cambiar contraseña">
+                      <i-lucide aria-hidden="true" name="key" class="w-4 h-4"></i-lucide>
+                    </button>
+                  }
+                  @if (puedeEliminarUsuario) {
                     <button
                       type="button"
                       (click)="abrirModalEliminarUsuario(u)"
@@ -511,7 +522,7 @@ const COLUMNAS_ROLES: TableColumn[] = [
                 <span class="text-xs font-bold text-purple-700 bg-purple-50 px-3 py-1.5 rounded-xl border border-purple-200">
                   {{ roles.length }} roles en BD
                 </span>
-                @if (puedeGestionarRoles) {
+                @if (puedeCrearRol) {
                   <button
                     type="button"
                     (click)="abrirModalCrearRol()"
@@ -602,8 +613,8 @@ const COLUMNAS_ROLES: TableColumn[] = [
                 <button
                   type="button"
                   (click)="toggleEstadoRol(rol)"
-                  [disabled]="!puedeGestionarRoles"
-                  [title]="!puedeGestionarRoles ? 'Solo el Super Administrador cambia el estado de un rol' : (rol.estado === 'Activo' ? 'Click para desactivar rol' : 'Click para activar rol')"
+                  [disabled]="!puedeEditarRol"
+                  [title]="!puedeEditarRol ? 'Solo el Super Administrador cambia el estado de un rol' : (rol.estado === 'Activo' ? 'Click para desactivar rol' : 'Click para activar rol')"
                   class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border transition-all select-none disabled:cursor-default"
                   [ngClass]="rol.estado === 'Activo'
                     ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 cursor-pointer'
@@ -622,12 +633,12 @@ const COLUMNAS_ROLES: TableColumn[] = [
                   <button
                     type="button"
                     (click)="abrirModalEditarRol(rol)"
-                    [title]="puedeGestionarRoles ? 'Editar rol y permisos' : 'Ver permisos del rol'"
+                    [title]="puedeEditarRol ? 'Editar rol y permisos' : 'Ver permisos del rol'"
                     class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-bold transition-colors cursor-pointer border border-purple-200">
-                    <i-lucide aria-hidden="true" [name]="puedeGestionarRoles ? 'sliders' : 'eye'" class="w-3.5 h-3.5"></i-lucide>
-                    <span>{{ puedeGestionarRoles ? 'Editar' : 'Ver' }}</span>
+                    <i-lucide aria-hidden="true" [name]="puedeEditarRol ? 'sliders' : 'eye'" class="w-3.5 h-3.5"></i-lucide>
+                    <span>{{ puedeEditarRol ? 'Editar' : 'Ver' }}</span>
                   </button>
-                  @if (puedeGestionarRoles && !rol.esSistema) {
+                  @if (puedeEliminarRol && !rol.esSistema) {
                     <button
                       type="button"
                       (click)="abrirModalEliminarRol(rol)"
@@ -941,12 +952,7 @@ const COLUMNAS_ROLES: TableColumn[] = [
                       <i-lucide aria-hidden="true" [name]="showPassword ? 'eye-off' : 'eye'" class="w-4 h-4"></i-lucide>
                     </button>
                   </div>
-                  @if (passwordInvalido) {
-                    <p class="text-xs text-rose-600 font-semibold mt-1 flex items-center gap-1.5">
-                      <i-lucide aria-hidden="true" name="alert-circle" class="w-3.5 h-3.5 shrink-0"></i-lucide>
-                      La contraseña debe tener al menos 10 caracteres, con mayúscula, minúscula y número.
-                    </p>
-                  }
+                  <app-password-requisitos [password]="usuarioForm.password" [email]="usuarioForm.email"></app-password-requisitos>
                 </div>
 
                 <!-- Verificación de Contraseña -->
@@ -991,15 +997,15 @@ const COLUMNAS_ROLES: TableColumn[] = [
                     <i-lucide aria-hidden="true" name="check-circle-2" class="w-3.5 h-3.5 shrink-0"></i-lucide>
                     Contraseña verificada correctamente.
                   </span>
-                } @else if (usuarioForm.password && !passwordValida(usuarioForm.password)) {
-                  <span class="text-amber-600 font-medium flex items-center gap-1.5">
-                    <i-lucide aria-hidden="true" name="alert-triangle" class="w-3.5 h-3.5 shrink-0"></i-lucide>
-                    La contraseña debe tener al menos 10 caracteres, con mayúscula, minúscula y número.
+                } @else if (usuarioForm.password && !passwordValida(usuarioForm.password, usuarioForm.email)) {
+                  <span class="text-rose-600 font-semibold flex items-center gap-1.5">
+                    <i-lucide aria-hidden="true" name="alert-circle" class="w-3.5 h-3.5 shrink-0"></i-lucide>
+                    Cumple todos los requisitos de arriba antes de continuar.
                   </span>
                 } @else {
                   <span class="text-slate-500 flex items-center gap-1.5">
                     <i-lucide aria-hidden="true" name="info" class="w-3.5 h-3.5 shrink-0"></i-lucide>
-                    Mínimo 10 caracteres, con mayúscula, minúscula y número. Se almacenará de forma cifrada en el sistema.
+                    Se almacenará de forma cifrada en el sistema.
                   </span>
                 }
               </div>
@@ -1039,12 +1045,7 @@ const COLUMNAS_ROLES: TableColumn[] = [
                         <i-lucide aria-hidden="true" [name]="showPassword ? 'eye-off' : 'eye'" class="w-4 h-4"></i-lucide>
                       </button>
                     </div>
-                    @if (passwordInvalido) {
-                      <p class="text-xs text-rose-600 font-semibold mt-1 flex items-center gap-1.5">
-                        <i-lucide aria-hidden="true" name="alert-circle" class="w-3.5 h-3.5 shrink-0"></i-lucide>
-                        La nueva contraseña debe tener al menos 10 caracteres, con mayúscula, minúscula y número.
-                      </p>
-                    }
+                    <app-password-requisitos [password]="usuarioForm.password" [email]="usuarioForm.email"></app-password-requisitos>
                   </div>
 
                   <div>
@@ -1100,7 +1101,7 @@ const COLUMNAS_ROLES: TableColumn[] = [
       <!-- MODAL: CONFIGURAR ROL Y MATRIZ DE PERMISOS MODULARES    -->
       <!-- ======================================================== -->
       <app-modal
-        [isOpen]="modalRolOpen" size="xl"
+        [isOpen]="modalRolOpen" size="xl" sizeClass="max-w-[90rem]"
         [title]="editandoRol ? (soloLecturaRol ? 'Permisos del rol: ' : 'Configurar rol: ') + rolForm.nombre : 'Crear Nuevo Rol de Usuario'"
         icon="shield"
         (close)="modalRolOpen = false">
@@ -1245,6 +1246,38 @@ const COLUMNAS_ROLES: TableColumn[] = [
               <span>{{ guardandoRol ? 'Guardando…' : (editandoRol ? 'Guardar Cambios de Rol' : 'Crear Rol') }}</span>
             </button>
           }
+        </div>
+      </app-modal>
+
+      <!-- ======================================================== -->
+      <!-- MODAL: CAMBIAR CONTRASEÑA (solo el permiso de contraseñas) -->
+      <!-- ======================================================== -->
+      <app-modal [isOpen]="modalPasswordOpen" size="sm" title="Cambiar contraseña" icon="key" (close)="cerrarModalPassword()">
+        <div class="space-y-4 py-2">
+          @if (usuarioPassword) {
+            <p class="text-xs text-slate-600">
+              Nueva contraseña de <strong class="text-slate-900">{{ usuarioPassword.nombre }} {{ usuarioPassword.apellido }}</strong>
+              <span class="font-mono text-slate-500">({{ usuarioPassword.email }})</span>. Las sesiones abiertas del usuario se cerrarán.
+            </p>
+          }
+          <div>
+            <label for="usuarios-pw-nueva" class="block text-xs font-bold text-slate-700 uppercase mb-1">Nueva contraseña <span class="text-rose-500">*</span></label>
+            <input id="usuarios-pw-nueva" type="password" autocomplete="new-password" [(ngModel)]="passwordNueva" name="passwordNueva" class="w-full px-3 py-2.5 rounded-xl border text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-easydry-blue/30"
+              [ngClass]="passwordNueva && motivoPasswordNueva ? 'border-rose-500 bg-rose-50/20' : 'border-slate-200 bg-white'" placeholder="Mínimo 10 caracteres" />
+            <app-password-requisitos [password]="passwordNueva" [email]="usuarioPassword?.email"></app-password-requisitos>
+          </div>
+          <div>
+            <label for="usuarios-pw-confirmar" class="block text-xs font-bold text-slate-700 uppercase mb-1">Confirmar contraseña <span class="text-rose-500">*</span></label>
+            <input id="usuarios-pw-confirmar" type="password" autocomplete="new-password" [(ngModel)]="passwordConfirmar" name="passwordConfirmar" class="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-white text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-easydry-blue/30" placeholder="Repite la contraseña" />
+            @if (passwordConfirmar && passwordConfirmar.trim() !== passwordNueva.trim()) { <p class="text-xs text-rose-600 font-semibold mt-1">Las contraseñas no coinciden.</p> }
+          </div>
+        </div>
+        <div modal-footer class="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2.5">
+          <button type="button" (click)="cerrarModalPassword()" class="btn btn-secondary w-full sm:w-auto">Cancelar</button>
+          <button type="button" (click)="guardarPassword()" [disabled]="guardandoPassword || !passwordLista" class="btn btn-primary w-full sm:w-auto">
+            <i-lucide aria-hidden="true" name="key" class="w-4 h-4"></i-lucide>
+            <span>{{ guardandoPassword ? 'Guardando…' : 'Guardar contraseña' }}</span>
+          </button>
         </div>
       </app-modal>
 
@@ -1456,15 +1489,15 @@ export class UsuariosComponent implements OnInit, OnDestroy {
     return !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   }
 
-  passwordValida(p: string | null | undefined): boolean {
-    return passwordCumplePolitica(p);
+  passwordValida(p: string | null | undefined, email?: string | null): boolean {
+    return passwordCumplePolitica(p, email ?? this.usuarioForm?.email);
   }
 
   get passwordInvalido(): boolean {
     if (!this.usuarioFormSubmitted) return false;
     if (this.editandoUsuario && !this.usuarioForm.cambiarPassword) return false;
     const pass = this.usuarioForm.password?.trim();
-    return !pass || !passwordCumplePolitica(pass);
+    return !pass || !passwordCumplePolitica(pass, this.usuarioForm.email);
   }
 
   get confirmPasswordInvalido(): boolean {
@@ -1478,7 +1511,7 @@ export class UsuariosComponent implements OnInit, OnDestroy {
   get passwordsMatch(): boolean {
     const p = this.usuarioForm.password?.trim();
     const c = this.usuarioForm.confirmPassword?.trim();
-    return !!p && passwordCumplePolitica(p) && p === c;
+    return !!p && passwordCumplePolitica(p, this.usuarioForm.email) && p === c;
   }
 
   get passwordsMismatch(): boolean {
@@ -1561,6 +1594,12 @@ export class UsuariosComponent implements OnInit, OnDestroy {
 
   modalEliminarUsuarioOpen = false;
   usuarioAEliminar: Usuario | null = null;
+
+  modalPasswordOpen = false;
+  usuarioPassword: Usuario | null = null;
+  passwordNueva = '';
+  passwordConfirmar = '';
+  guardandoPassword = false;
 
   modalEliminarRolOpen = false;
   rolAEliminar: RolPersonalizado | null = null;
@@ -1704,8 +1743,8 @@ export class UsuariosComponent implements OnInit, OnDestroy {
   get motivoSinReinicioPassword(): string {
     const u = this.editandoUsuario;
     if (!u) return '';
-    if (!this.puedeGestionarUsuarios) {
-      return 'Solo Admin o Super Admin pueden restablecer contraseñas.';
+    if (!this.puedePasswordUsuario) {
+      return 'Tu rol no tiene el permiso para asignar contraseñas.';
     }
     const actual = this.authService.getCurrentUser();
     if (actual && String(actual.id) === String(u.id)) {
@@ -1747,7 +1786,7 @@ export class UsuariosComponent implements OnInit, OnDestroy {
     // Catálogo de módulos y permisos: solo con 'roles.ver' (lo exige el servidor).
     this.cargarCatalogoPermisos();
 
-    this.regionService.getRegiones().subscribe(list => {
+    this.regionService.getRegionesLista().subscribe(list => {
       if (list && list.length) {
         this.regionesDisponibles = list.filter(r => r.estado === 'Activa' || (r as any).estado === 1);
       }
@@ -1987,7 +2026,7 @@ export class UsuariosComponent implements OnInit, OnDestroy {
     const headers = Object.keys(rows[0]);
     const csvContent = [
       headers.join(';'),
-      ...rows.map(r => Object.values(r).map(v => `"${String(v).replace(/"/g, '""')}"`).join(';'))
+      ...rows.map(r => Object.values(r).map(celdaCsv).join(';'))
     ].join('\r\n');
 
     const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -2297,7 +2336,7 @@ export class UsuariosComponent implements OnInit, OnDestroy {
   }
 
   toggleEstadoUsuario(u: Usuario) {
-    if (!this.puedeGestionarUsuarios) return;
+    if (!this.puedeEstadoUsuario) return;
     const nuevoEstado: 'Activo' | 'Inactivo' = u.estado === 'Activo' ? 'Inactivo' : 'Activo';
     this.usuarioService.toggleEstado(u.id, nuevoEstado).subscribe({
       next: () => {
@@ -2318,6 +2357,58 @@ export class UsuariosComponent implements OnInit, OnDestroy {
       error: () => {
         this.toastService.error('Error', 'No se pudo cambiar el estado del usuario.');
       }
+    });
+  }
+
+  /**
+   * El botón «Cambiar contraseña» de la fila es para quien tiene SOLO ese permiso (quien también puede editar usuarios la cambia desde el
+   * formulario de edición). No se ofrece sobre uno mismo ni sobre el Super Administrador, ni sobre un Administrador si no se es Super Administrador.
+   */
+  puedeSoloPassword(u: Usuario): boolean {
+    if (!this.puedePasswordUsuario || this.puedeGestionarFilaUsuario(u)) return false;
+    const actual = this.authService.getCurrentUser();
+    if (actual && String(actual.id) === String(u.id)) return false;
+    const rol = String(u.rolNombre || u.rol || '').toUpperCase();
+    if (rol === 'SUPER_ADMIN') return false;
+    return !(rol === 'ADMIN' && !this.authService.isSuperAdmin());
+  }
+
+  abrirModalPassword(u: Usuario): void {
+    this.usuarioPassword = u;
+    this.passwordNueva = '';
+    this.passwordConfirmar = '';
+    this.modalPasswordOpen = true;
+  }
+
+  cerrarModalPassword(): void {
+    this.modalPasswordOpen = false;
+    this.usuarioPassword = null;
+    this.passwordNueva = '';
+    this.passwordConfirmar = '';
+  }
+
+  get motivoPasswordNueva(): string | null {
+    return motivoPasswordDebil(this.passwordNueva, this.usuarioPassword?.email);
+  }
+
+  get passwordLista(): boolean {
+    return !!this.passwordNueva.trim() && this.motivoPasswordNueva === null && this.passwordNueva.trim() === this.passwordConfirmar.trim();
+  }
+
+  guardarPassword(): void {
+    const u = this.usuarioPassword;
+    if (!u || !this.passwordLista || this.guardandoPassword) return;
+    this.guardandoPassword = true;
+    this.usuarioService.asignarPassword(u.id, this.passwordNueva).subscribe({
+      next: () => {
+        this.toastService.success('Contraseña actualizada', `Se asignó la nueva contraseña de ${u.nombre} ${u.apellido}. Sus sesiones abiertas se cerraron.`);
+        this.guardandoPassword = false;
+        this.cerrarModalPassword();
+      },
+      error: (err) => {
+        this.guardandoPassword = false;
+        this.toastService.error('No se pudo cambiar la contraseña', err?.error?.message || 'El servidor no aceptó el cambio.');
+      },
     });
   }
 
@@ -2414,8 +2505,8 @@ export class UsuariosComponent implements OnInit, OnDestroy {
         this.toastService.warning('Contraseña Requerida', 'Debe ingresar una contraseña para el nuevo usuario.');
         return;
       }
-      if (!passwordCumplePolitica(p)) {
-        this.toastService.warning('Contraseña Corta', 'La contraseña debe tener al menos 10 caracteres, con mayúscula, minúscula y número.');
+      if (!passwordCumplePolitica(p, this.usuarioForm.email)) {
+        this.toastService.warning('Contraseña Corta', 'La contraseña debe tener al menos 10 caracteres, con mayúscula, minúscula, número y un carácter especial (! @ # $ % & * ?).');
         return;
       }
       if (p !== c) {
@@ -2429,8 +2520,8 @@ export class UsuariosComponent implements OnInit, OnDestroy {
         this.toastService.warning('Contraseña Requerida', 'Ingrese la nueva contraseña o desmarque la opción de cambio.');
         return;
       }
-      if (!passwordCumplePolitica(p)) {
-        this.toastService.warning('Contraseña Corta', 'La nueva contraseña debe tener al menos 10 caracteres, con mayúscula, minúscula y número.');
+      if (!passwordCumplePolitica(p, this.usuarioForm.email)) {
+        this.toastService.warning('Contraseña Corta', 'La nueva contraseña debe tener al menos 10 caracteres, con mayúscula, minúscula, número y un carácter especial (! @ # $ % & * ?).');
         return;
       }
       if (p !== c) {
@@ -2703,24 +2794,30 @@ export class UsuariosComponent implements OnInit, OnDestroy {
     return this.authService.puede('roles.ver');
   }
 
-  get puedeGestionarRoles(): boolean {
-    return this.authService.puede('usuarios.roles.crear') || this.authService.puede('usuarios.roles.editar') || this.authService.puede('usuarios.roles.eliminar');
-  }
+  get puedeCrearRol(): boolean { return this.authService.puede('usuarios.roles.crear'); }
+  get puedeEditarRol(): boolean { return this.authService.puede('usuarios.roles.editar'); }
+  get puedeEliminarRol(): boolean { return this.authService.puede('usuarios.roles.eliminar'); }
+  /** Alguna acción sobre roles: con solo «ver» el editor se abre en lectura. */
+  get puedeGestionarRoles(): boolean { return this.puedeCrearRol || this.puedeEditarRol || this.puedeEliminarRol; }
 
-  get puedeGestionarUsuarios(): boolean {
-    return this.authService.puede('usuarios.gestionar');
-  }
+  get puedeCrearUsuario(): boolean { return this.authService.puede('usuarios.usuarios.crear'); }
+  get puedeEditarUsuario(): boolean { return this.authService.puede('usuarios.usuarios.editar'); }
+  get puedeEstadoUsuario(): boolean { return this.authService.puede('usuarios.usuarios.estado'); }
+  get puedeEliminarUsuario(): boolean { return this.authService.puede('usuarios.usuarios.eliminar'); }
+  get puedePasswordUsuario(): boolean { return this.authService.puede('usuarios.usuarios.password'); }
+  /** Crea o edita usuarios de cualquier rol (a diferencia de quien solo gestiona Backups de su región). */
+  get puedeGestionarUsuarios(): boolean { return this.puedeCrearUsuario || this.puedeEditarUsuario; }
 
   get puedeGestionarBackups(): boolean {
-    return this.authService.puede('backup.gestionar');
+    return this.authService.puede('usuarios.usuarios.backup');
   }
 
   get puedeCrearUsuarios(): boolean {
-    return this.puedeGestionarUsuarios || this.puedeGestionarBackups;
+    return this.puedeCrearUsuario || this.puedeGestionarBackups;
   }
 
   puedeGestionarFilaUsuario(usuario: Usuario): boolean {
-    if (this.puedeGestionarUsuarios) return true;
+    if (this.puedeEditarUsuario) return true;
     const regionActor = this.authService.currentUserValue?.regionId;
     return this.puedeGestionarBackups &&
       this.esBackupRol(usuario.rolNombre || usuario.rol) &&
@@ -2730,7 +2827,7 @@ export class UsuariosComponent implements OnInit, OnDestroy {
 
   /** Con solo 'roles.ver' el editor se abre en modo lectura. */
   get soloLecturaRol(): boolean {
-    return !this.puedeGestionarRoles;
+    return this.editandoRol ? !this.puedeEditarRol : !this.puedeCrearRol;
   }
 
   // ── Catálogo de permisos y ámbitos ──
@@ -2806,7 +2903,7 @@ export class UsuariosComponent implements OnInit, OnDestroy {
 
   // ── Acciones de Roles ──
   abrirModalCrearRol() {
-    if (!this.puedeGestionarRoles) return;
+    if (!this.puedeCrearRol) return;
     this.editandoRol = null;
     this.rolForm = {
       nombre: '',
@@ -2843,7 +2940,7 @@ export class UsuariosComponent implements OnInit, OnDestroy {
   }
 
   guardarRol() {
-    if (!this.puedeGestionarRoles || this.guardandoRol) return;
+    if (this.soloLecturaRol || this.guardandoRol) return;
 
     if (!this.editandoRol) {
       if (!this.rolForm.nombre.trim()) {
@@ -2889,7 +2986,7 @@ export class UsuariosComponent implements OnInit, OnDestroy {
   }
 
   toggleEstadoRol(rol: RolPersonalizado) {
-    if (!this.puedeGestionarRoles) return;
+    if (!this.puedeEditarRol) return;
     const nuevoEstado = rol.estado === 'Activo' ? 'Inactivo' : 'Activo';
     this.rolService.actualizarRol(rol.id, { estado: nuevoEstado === 'Activo' ? 1 : 0 }).subscribe({
       next: () => {
@@ -2905,7 +3002,7 @@ export class UsuariosComponent implements OnInit, OnDestroy {
   }
 
   abrirModalEliminarRol(rol: RolPersonalizado) {
-    if (!this.puedeGestionarRoles || rol.esSistema) return;
+    if (!this.puedeEliminarRol || rol.esSistema) return;
     this.rolAEliminar = rol;
     this.modalEliminarRolOpen = true;
   }

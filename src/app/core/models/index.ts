@@ -460,17 +460,6 @@ export interface Incidente {
   evidencias?: EvidenciaMaquinaria[];
 }
 
-export interface Reporte {
-  id: number;
-  titulo: string;
-  tipo: 'Diario' | 'Mensual' | 'Productividad' | 'Servicios Especiales' | string;
-  agencia: string;
-  fechaGeneracion: string;
-  totalServicios: number | null;
-  /** Null cuando el servidor no calcula la eficiencia. */
-  eficienciaGeneral: number | null;
-}
-
 // =========================================================================
 // SERVICIOS EXTRAS
 // =========================================================================

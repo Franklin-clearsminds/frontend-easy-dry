@@ -13,7 +13,7 @@
         @switch (vista) {
         @case ('ejecutivo') { Panel de Control EasyDry® }
         @case ('taller') { Dashboard Técnico & Taller }
-        @case ('especiales') { Dashboard Servicios Especiales }
+        @case ('especiales') { {{ isPulidor ? 'Panel Operativo de Detailing' : 'Dashboard Servicios Especiales' }} }
         @case ('bodega') { Dashboard de Inventario & Bodega }
         @default { Dashboard EasyDry® }
         }
@@ -39,9 +39,9 @@
       </a>
       }
       @if (vista === 'especiales') {
-      <a routerLink="/servicios"
+      <a routerLink="/servicios" [queryParams]="{ tab: 'especiales' }"
         class="px-4 py-2.5 bg-easydry-green hover:bg-easydry-green-dark text-slate-900 font-bold rounded-xl text-sm flex items-center gap-2">
-        <i-lucide aria-hidden="true" name="sparkles" class="w-4 h-4"></i-lucide> Cola de Servicios
+        <i-lucide aria-hidden="true" name="sparkles" class="w-4 h-4"></i-lucide> {{ isPulidor ? 'Ejecución de OTs' : 'Cola de Servicios' }}
       </a>
       }
       @if (vista === 'bodega') {
@@ -70,7 +70,7 @@
           {{ nivelAnalisisLabel }}
         </span>
         <span class="text-[11px] text-slate-400 hidden sm:inline">
-          {{ activeDimension === 'GLOBAL' ? 'Comparativa entre agencias y regiones' : (activeDimension === 'REGION' ? 'Comparativa de agencias dentro de la región' : (activeDimension === 'AGENCY' ? 'Detalle por bahía de trabajo' : 'Ficha individual del pulidor')) }}
+          {{ nivelAnalisisSubtitulo }}
         </span>
       </div>
 
@@ -85,7 +85,7 @@
     <div class="flex flex-col lg:flex-row lg:items-center gap-4 justify-between">
       <div class="flex flex-wrap items-center gap-3 flex-1">
         
-        @if (vista === 'ejecutivo') {
+        @if (vista === 'ejecutivo' || vista === 'especiales') {
         @if (puedeFiltrarRegion) {
         <div class="w-44 transition-all" [class.ring-2]="regionFiltro" [class.ring-easydry-blue]="regionFiltro" [class.rounded-xl]="regionFiltro">
           <app-select-search placeholder="Región" todasLabel="Todas las regiones" ariaLabel="Filtrar por región"
@@ -102,6 +102,7 @@
           </app-select-search>
         </div>
         }
+        @if (!isComercialView && !isPulidor) {
         <div class="w-44 transition-all" [class.ring-2]="pulidorFiltro" [class.ring-violet-400]="pulidorFiltro" [class.rounded-xl]="pulidorFiltro">
           <app-select-search placeholder="Pulidor" todasLabel="Todos los pulidores" ariaLabel="Filtrar por pulidor"
             [cargar]="cargarPulidores" [value]="pulidorFiltro" [valueLabel]="pulidorLabel" [disabled]="!pulidorHabilitado"
@@ -109,9 +110,10 @@
           </app-select-search>
         </div>
         }
+        }
 
-        <!-- Filtro de tipo de servicio: continuo, se combina con dimensión y fechas. El ancho da espacio al
-             texto más largo ("Servicios especiales") sin recortarlo en el control nativo. -->
+        <!-- Filtro de tipo de servicio: continuo, se combina con dimensión y fechas. Solo en vistas donde conviven general y especial. -->
+        @if (vista === 'ejecutivo' || vista === 'especiales') {
         <div class="relative w-48">
           <select [ngModel]="categoriaServicio" (ngModelChange)="onCategoriaServicioChange($event)"
             aria-label="Tipo de servicio" [attr.title]="etiquetaCategoriaServicio"
@@ -125,6 +127,7 @@
             <i-lucide name="layers" class="w-4 h-4" [ngClass]="categoriaServicio === 'TODOS' ? 'text-slate-400' : 'text-easydry-green-text'"></i-lucide>
           </div>
         </div>
+        }
 
         <!-- Dropdown de Periodo Global -->
         <div class="relative w-40">
@@ -154,7 +157,7 @@
       </div>
 
       <div class="flex items-center gap-2 shrink-0">
-        @if (hayDimensionEstructural) {
+        @if (hayDimensionEstructural && !isPulidor) {
         <button type="button" (click)="limpiarDimensiones()"
           class="h-10 px-3 rounded-xl text-xs font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-100 inline-flex items-center gap-1.5"
           title="Volver a la vista Global (mantiene las fechas)">
@@ -188,59 +191,65 @@
   @if (vista === 'ejecutivo') {
 
   <!-- Navegación entre dashboards (scroll horizontal en pantallas pequeñas) -->
+  @if (!isAprobadorView) {
   <div class="sticky top-4 z-40 mb-6 animate-fade-in-up">
-    <div class="dashboard-tabs flex items-center gap-1 p-1.5 bg-white/85 backdrop-blur-md rounded-2xl border border-slate-200/60 shadow-sm overflow-x-auto"
+    <div class="dashboard-tabs inline-flex items-center gap-1 sm:gap-1.5 p-1.5 bg-white/95 backdrop-blur-md rounded-2xl border border-slate-200/80 shadow-sm max-w-full overflow-x-auto scroll-smooth"
       role="tablist" aria-label="Secciones del dashboard">
+      @if (!isAprobadorView || isEjecutivoView) {
       <button type="button" role="tab" id="tab-analitica" aria-controls="panel-analitica"
         [attr.aria-selected]="activeExecutiveTab === 'analitica'" (click)="activeExecutiveTab = 'analitica'"
-        class="shrink-0 px-4 py-2 text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-2 whitespace-nowrap"
+        class="shrink-0 px-3 sm:px-3.5 2xl:px-4 py-2 text-xs sm:text-[13px] 2xl:text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap"
         [ngClass]="activeExecutiveTab === 'analitica' ? 'bg-easydry-blue text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'">
-        <i-lucide aria-hidden="true" name="bar-chart-2" class="w-4 h-4"></i-lucide>
+        <i-lucide aria-hidden="true" name="bar-chart-2" class="w-4 h-4 shrink-0"></i-lucide>
         {{ tabAnaliticaTitle }}
       </button>
-      @if (!isAprobadorView) {
+      }
+      @if (!isAprobadorView && !isComercialView) {
       <button type="button" role="tab" id="tab-auditoria" aria-controls="panel-auditoria"
         [attr.aria-selected]="activeExecutiveTab === 'auditoria'" (click)="activeExecutiveTab = 'auditoria'"
-        class="shrink-0 px-4 py-2 text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-2 whitespace-nowrap"
+        class="shrink-0 px-3 sm:px-3.5 2xl:px-4 py-2 text-xs sm:text-[13px] 2xl:text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap"
         [ngClass]="activeExecutiveTab === 'auditoria' ? 'bg-easydry-blue text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'">
-        <i-lucide aria-hidden="true" name="shield-check" class="w-4 h-4"></i-lucide>
+        <i-lucide aria-hidden="true" name="shield-check" class="w-4 h-4 shrink-0"></i-lucide>
         {{ tabAuditoriaTitle }}
       </button>
       }
-      @if (puedeVerAlertas && !isAprobadorView) {
+      @if (!isAprobadorView) {
       <button type="button" role="tab" id="tab-operacion" aria-controls="panel-operacion"
         [attr.aria-selected]="activeExecutiveTab === 'operacion'" (click)="activeExecutiveTab = 'operacion'"
-        class="shrink-0 px-4 py-2 text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-2 whitespace-nowrap"
+        class="shrink-0 px-3 sm:px-3.5 2xl:px-4 py-2 text-xs sm:text-[13px] 2xl:text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap"
         [ngClass]="activeExecutiveTab === 'operacion' ? 'bg-easydry-blue text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'">
-        <i-lucide aria-hidden="true" name="briefcase" class="w-4 h-4"></i-lucide>
+        <i-lucide aria-hidden="true" name="briefcase" class="w-4 h-4 shrink-0"></i-lucide>
         Operación & Servicios
       </button>
       }
       <button type="button" role="tab" id="tab-aprobaciones" aria-controls="panel-aprobaciones"
         [attr.aria-selected]="activeExecutiveTab === 'aprobaciones'" (click)="activeExecutiveTab = 'aprobaciones'"
-        class="shrink-0 px-4 py-2 text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-2 whitespace-nowrap"
+        class="shrink-0 px-3 sm:px-3.5 2xl:px-4 py-2 text-xs sm:text-[13px] 2xl:text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap"
         [ngClass]="activeExecutiveTab === 'aprobaciones' ? 'bg-easydry-blue text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'">
-        <i-lucide aria-hidden="true" name="clipboard-check" class="w-4 h-4"></i-lucide>
+        <i-lucide aria-hidden="true" name="clipboard-check" class="w-4 h-4 shrink-0"></i-lucide>
         Aprobaciones Comerciales
       </button>
       @if (puedeVerMaquinaria) {
       <button type="button" role="tab" id="tab-taller" aria-controls="panel-taller"
         [attr.aria-selected]="activeExecutiveTab === 'taller'" (click)="activeExecutiveTab = 'taller'"
-        class="shrink-0 px-4 py-2 text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-2 whitespace-nowrap"
+        class="shrink-0 px-3 sm:px-3.5 2xl:px-4 py-2 text-xs sm:text-[13px] 2xl:text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap"
         [ngClass]="activeExecutiveTab === 'taller' ? 'bg-easydry-blue text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'">
-        <i-lucide aria-hidden="true" name="wrench" class="w-4 h-4"></i-lucide>
+        <i-lucide aria-hidden="true" name="wrench" class="w-4 h-4 shrink-0"></i-lucide>
         {{ tabTallerTitle }}
       </button>
       }
+      @if (puedeVerInventario || isComercialView) {
       <button type="button" role="tab" id="tab-inventario" aria-controls="panel-inventario"
         [attr.aria-selected]="activeExecutiveTab === 'inventario'" (click)="activeExecutiveTab = 'inventario'"
-        class="shrink-0 px-4 py-2 text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-2 whitespace-nowrap"
+        class="shrink-0 px-3 sm:px-3.5 2xl:px-4 py-2 text-xs sm:text-[13px] 2xl:text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap"
         [ngClass]="activeExecutiveTab === 'inventario' ? 'bg-easydry-blue text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'">
-        <i-lucide aria-hidden="true" name="package" class="w-4 h-4"></i-lucide>
+        <i-lucide aria-hidden="true" name="package" class="w-4 h-4 shrink-0"></i-lucide>
         {{ tabInventarioTitle }}
       </button>
+      }
     </div>
   </div>
+  }
 
   <!-- Sección: Analítica y Productividad -->
   <div class="mb-4 animate-fade-in" role="tabpanel" id="panel-analitica" aria-labelledby="tab-analitica"
@@ -252,12 +261,21 @@
       [metricas]="periodoMetricas"></app-period-summary>
     }
 
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+    @if (isAdminView) {
+    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-6 mb-8">
       @for (k of resumenEjecutivo?.kpis || []; track k.label) {
       <app-stat-card [title]="k.label" [value]="k.value" [icon]="k.icon" [variant]="k.variant" [badge]="etiquetaRango"
         [tooltip]="k.tooltip"></app-stat-card>
       }
     </div>
+    } @else {
+    <div class="grid gap-6 mb-8" [ngClass]="isComercialView ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'">
+      @for (k of resumenEjecutivo?.kpis || []; track k.label) {
+      <app-stat-card [title]="k.label" [value]="k.value" [icon]="k.icon" [variant]="k.variant" [badge]="etiquetaRango"
+        [tooltip]="k.tooltip"></app-stat-card>
+      }
+    </div>
+    }
 
     <!-- Nota de cálculo y auditoría removida por solicitud -->
 
@@ -273,10 +291,11 @@
       <div [ngClass]="spanJerarquia">
         <app-chart-card [title]="produccion?.jerarquia?.titulo ?? 'Rendimiento Operativo'"
           [subtitle]="subtituloJerarquia"
-          type="bar" [data]="produccion?.jerarquiaChart"
+          type="bar" [data]="jerarquiaChartOrdenado"
           mensajeVacio="Sin servicios registrados para el nivel y los filtros seleccionados.">
-          @if (activeDimension === 'GLOBAL') {
-          <div chart-actions class="flex bg-slate-100 p-1 rounded-xl">
+          <div chart-actions class="flex flex-wrap items-center justify-end gap-2">
+          @if (activeDimension === 'GLOBAL' && !esAlcanceAgencia) {
+          <div class="flex bg-slate-100 p-1 rounded-xl">
             <button type="button" class="px-2.5 py-1 text-xs font-bold rounded-lg transition-colors"
               [ngClass]="desgloseTab === 'REGION' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
               [attr.aria-pressed]="desgloseTab === 'REGION'" (click)="cambiarDesglose('REGION')">
@@ -294,21 +313,47 @@
             </button>
           </div>
           }
+          @if (muestraOrdenJerarquia) {
+          <app-top-orden [orden]="jerarquiaTop" [mostrarTamano]="false" (ordenChange)="jerarquiaTop = $event"></app-top-orden>
+          }
+          </div>
         </app-chart-card>
       </div>
       }
 
       <!-- Cuellos de botella: reemplaza el estado de órdenes, que ya se ve en los KPI y en Servicios y Calidad -->
-      @if (esAnaliticaGlobal) {
+      @if (esAnaliticaGlobal && !isComercialView) {
       <div class="lg:col-span-4">
         <app-chart-card [title]="eficienciaTitulo" [subtitle]="eficienciaSubtitulo" type="bar" [horizontal]="true"
           [data]="eficienciaChart"
-          mensajeVacio="Sin servicios finalizados en el período para calcular tiempos."></app-chart-card>
+          mensajeVacio="Sin servicios finalizados en el período para calcular tiempos.">
+          <div chart-actions class="flex bg-slate-100 p-1 rounded-xl">
+            <button class="px-3 py-1 text-[11px] font-bold rounded-lg transition-colors"
+              [ngClass]="eficienciaSortTab === 'lentas' ? 'bg-white text-easydry-blue shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+              (click)="eficienciaSortTab = 'lentas'">Lentas</button>
+            <button class="px-3 py-1 text-[11px] font-bold rounded-lg transition-colors"
+              [ngClass]="eficienciaSortTab === 'rapidas' ? 'bg-white text-easydry-blue shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+              (click)="eficienciaSortTab = 'rapidas'">Rápidas</button>
+          </div>
+        </app-chart-card>
       </div>
-      } @else if (produccion?.mixServicios) {
+      } @else if (mixComercialItems.length) {
       <div class="lg:col-span-4">
-        <app-chart-card [title]="chart2Title" [subtitle]="chart2Subtitle" type="doughnut"
-          [data]="produccion.mixServicios"></app-chart-card>
+        <app-distribution-card [titulo]="chart2Title" [subtitulo]="chart2Subtitle"
+          etiquetaTotal="Servicios" [items]="mixComercialItems" layout="stacked">
+          <div card-actions class="flex shrink-0 bg-slate-100 p-1 rounded-xl">
+            <button type="button" class="px-2.5 py-1 text-xs font-bold rounded-lg transition-colors"
+              [ngClass]="mixComercialTab === 'servicios' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+              [attr.aria-pressed]="mixComercialTab === 'servicios'" (click)="mixComercialTab = 'servicios'">
+              Servicios
+            </button>
+            <button type="button" class="px-2.5 py-1 text-xs font-bold rounded-lg transition-colors"
+              [ngClass]="mixComercialTab === 'categorias' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+              [attr.aria-pressed]="mixComercialTab === 'categorias'" (click)="mixComercialTab = 'categorias'">
+              Categoría
+            </button>
+          </div>
+        </app-distribution-card>
       </div>
       }
 
@@ -332,7 +377,7 @@
       @if (tieneTopVehiculos) {
       <div [ngClass]="spanTopVehiculos">
         <app-distribution-card titulo="Top Vehículos" [subtitulo]="vehiculosSubtitulo"
-          etiquetaTotal="Vehículos" [items]="vehiculosItems">
+          etiquetaTotal="Vehículos" [items]="vehiculosItems" [layout]="spanTopVehiculos === 'lg:col-span-4' ? 'stacked' : 'side'">
           <div card-actions class="flex shrink-0 bg-slate-100 p-1 rounded-xl">
             <button type="button" class="px-2.5 py-1 text-xs font-bold rounded-lg transition-colors"
               [ngClass]="vehiculosTab === 'marcas' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
@@ -360,7 +405,18 @@
       <div [ngClass]="spanActividad">
         <app-ranking-list [titulo]="bajaActividadTitulo" [subtitulo]="bajaActividadSubtitulo" color="rojo"
           [mostrarProgreso]="false" [mostrarPosicion]="false" sufijo=" servicios"
-          [items]="bajaActividadItems"></app-ranking-list>
+          [items]="bajaActividadItems">
+          @if (muestraBajaActividadSort) {
+          <div ranking-actions class="flex bg-slate-100 p-1 rounded-xl">
+            <button type="button" class="px-2 py-0.5 text-[10px] font-bold rounded-lg transition-colors whitespace-nowrap"
+              [ngClass]="bajaActividadSort === 'asc' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+              (click)="bajaActividadSort = 'asc'">Menos</button>
+            <button type="button" class="px-2 py-0.5 text-[10px] font-bold rounded-lg transition-colors whitespace-nowrap"
+              [ngClass]="bajaActividadSort === 'desc' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+              (click)="bajaActividadSort = 'desc'">Más</button>
+          </div>
+          }
+        </app-ranking-list>
       </div>
       } @else if (muestraTopBottom) {
       <div [ngClass]="spanActividad">
@@ -368,17 +424,19 @@
       </div>
       }
 
-      <!-- Top Agencias (unificado): Productivas · Ganancia Neta · Reparaciones -->
+      <!-- Top Agencias (unificado): Productivas · Ganancia Neta · Reparaciones · Incidentes · Tiempos -->
       @if (tieneAgenciasChart || esAnaliticaGlobal) {
       <div [ngClass]="spanTopAgencias">
-        <app-chart-card title="Top Agencias" [subtitle]="agenciasSubtitulo" type="bar" [data]="chartAgenciasActivo"
+        <app-chart-card [title]="chartTituloAgencias" [subtitle]="agenciasSubtitulo" type="bar" [data]="chartAgenciasActivo"
           mensajeVacio="Sin agencias con actividad en el período seleccionado.">
-          <div chart-actions class="flex bg-slate-100 p-1 rounded-xl">
+          <div chart-actions class="flex flex-wrap items-center justify-end gap-2">
+          <div class="flex bg-slate-100 p-1 rounded-xl">
             <button type="button" class="px-3 py-1 text-xs font-bold rounded-lg transition-colors"
               [ngClass]="agenciasTab === 'productivas' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
               [attr.aria-pressed]="agenciasTab === 'productivas'" (click)="agenciasTab = 'productivas'">
-              Productivas
+              {{ esAlcanceAgencia ? 'Lavados' : 'Productivas' }}
             </button>
+            @if (!esAlcanceAgencia) {
             <button type="button" class="px-3 py-1 text-xs font-bold rounded-lg transition-colors"
               [ngClass]="agenciasTab === 'ganancia' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
               [attr.aria-pressed]="agenciasTab === 'ganancia'" (click)="agenciasTab = 'ganancia'">
@@ -389,43 +447,105 @@
               [attr.aria-pressed]="agenciasTab === 'reparaciones'" (click)="agenciasTab = 'reparaciones'">
               Gastos
             </button>
+            <button type="button" class="px-3 py-1 text-xs font-bold rounded-lg transition-colors"
+              [ngClass]="agenciasTab === 'incidentes' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+              [attr.aria-pressed]="agenciasTab === 'incidentes'" (click)="agenciasTab = 'incidentes'">
+              Incidentes
+            </button>
+            }
+            <button type="button" class="px-3 py-1 text-xs font-bold rounded-lg transition-colors"
+              [ngClass]="agenciasTab === 'tiempos' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+              [attr.aria-pressed]="agenciasTab === 'tiempos'" (click)="agenciasTab = 'tiempos'">
+              Tiempos
+            </button>
+          </div>
+          <app-top-orden [orden]="agenciasTop" (ordenChange)="agenciasTop = $event"></app-top-orden>
           </div>
         </app-chart-card>
       </div>
       }
 
-      <!-- Lavados por Bahía: se omite en la vista nacional, donde el drill-down por agencia ya baja a bahía -->
-      @if (muestraLavadosPorBahia && (produccion?.distribucionModelos || esAnaliticaGlobal)) {
+      <!-- Lavados por Bahía: SOLO en roles sin analítica global/ejecutiva -->
+      @if (muestraLavadosPorBahia && !esAnaliticaGlobal) {
       <div class="lg:col-span-12">
         <app-chart-card [title]="chart4Title" [subtitle]="chart4Subtitle" type="bar"
-          [data]="produccion?.distribucionModelos"
-          mensajeVacio="Sin vehículos registrados en el período seleccionado."></app-chart-card>
+          [data]="chart4Data"
+          mensajeVacio="Sin vehículos ni actividades registradas para el nivel y período seleccionados.">
+          <div chart-actions class="flex flex-wrap items-center justify-end gap-2">
+            @if (isSupervisorView) {
+            <div class="flex bg-slate-100 p-1 rounded-xl">
+              <button type="button" class="px-3 py-1 text-xs font-bold rounded-lg transition-colors"
+                [ngClass]="chart4Tab === 'lavados' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+                [attr.aria-pressed]="chart4Tab === 'lavados'" (click)="chart4Tab = 'lavados'">
+                Lavados
+              </button>
+              <button type="button" class="px-3 py-1 text-xs font-bold rounded-lg transition-colors"
+                [ngClass]="chart4Tab === 'incidentes' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+                [attr.aria-pressed]="chart4Tab === 'incidentes'" (click)="chart4Tab = 'incidentes'">
+                Incidentes
+              </button>
+              <button type="button" class="px-3 py-1 text-xs font-bold rounded-lg transition-colors"
+                [ngClass]="chart4Tab === 'gastos' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+                [attr.aria-pressed]="chart4Tab === 'gastos'" (click)="chart4Tab = 'gastos'">
+                Gastos
+              </button>
+              <button type="button" class="px-3 py-1 text-xs font-bold rounded-lg transition-colors"
+                [ngClass]="chart4Tab === 'tiempos' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+                [attr.aria-pressed]="chart4Tab === 'tiempos'" (click)="chart4Tab = 'tiempos'">
+                Tiempos
+              </button>
+            </div>
+            }
+            <app-top-orden [orden]="chart4Top" (ordenChange)="chart4Top = $event"></app-top-orden>
+          </div>
+        </app-chart-card>
       </div>
       }
     </div>
 
-
-    @if(isSupervisorView) {
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
-      @if (agenciasIncidentesItems.length) {
-      <app-ranking-list titulo="Top Agencias por Incidentes" subtitulo="Fallas de maquinaria en el periodo"
-        color="azul" [items]="agenciasIncidentesItems"></app-ranking-list>
-      }
-      @if (agenciasReparacionesItems.length) {
-      <app-ranking-list titulo="Agencias Críticas por Gastos"
-        subtitulo="USD acumulado en incidentes técnicos del periodo" prefijo="$" color="rojo"
-        [items]="agenciasReparacionesItems"></app-ranking-list>
-      }
-    </div>
-    }
-
   </div>
 
-  <!-- Sección: Servicios y Calidad -->
-  @if (!isAprobadorView) {
+  <!-- Sección: Auditoría y Roles / Servicios y Calidad -->
+  @if (!isAprobadorView && !isComercialView) {
   <div class="mb-4 animate-fade-in" role="tabpanel" id="panel-auditoria" aria-labelledby="tab-auditoria"
     [class.hidden]="activeExecutiveTab !== 'auditoria'">
 
+    @if (isAdminView) {
+    <!-- Indicadores de Auditoría y Roles para Administrador -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <app-stat-card [badge]="etiquetaRango" title="Usuarios Activos" 
+        [value]="(produccion?.kpisResumen?.usuariosActivos ?? 0) + ' / ' + (produccion?.kpisResumen?.totalUsuarios ?? 0)" 
+        icon="users" variant="primary" subtitle="Colaboradores en sistema"></app-stat-card>
+      <app-stat-card [badge]="etiquetaRango" title="Roles de Sistema" 
+        [value]="produccion?.kpisResumen?.rolesEnSistema ?? 0" 
+        icon="shield" variant="primary" subtitle="Matriz de roles activa"></app-stat-card>
+      <app-stat-card [badge]="etiquetaRango" title="Decisiones de Auditoría" 
+        [value]="produccion?.kpisResumen?.decisionesHoy ?? 0" 
+        icon="shield-check" variant="success" subtitle="Acciones registradas hoy"></app-stat-card>
+      <app-stat-card [badge]="etiquetaRango" title="Alertas Activas" 
+        [value]="alertas.length" icon="bell-ring" 
+        [subtitle]="alertasCriticas + ' críticas'" variant="warning"></app-stat-card>
+    </div>
+
+    <!-- Gráficos de Auditoría, Roles y Gobierno del Sistema -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+      <app-chart-card title="Auditoría Reciente" subtitle="Acciones y decisiones registradas en el sistema" type="bar"
+        [data]="produccion?.distribucionDecisionesChart ?? produccion?.distribucionModelos"
+        mensajeVacio="Sin acciones de auditoría registradas en el período seleccionado."></app-chart-card>
+
+      <app-chart-card title="Distribución de Roles" subtitle="Usuarios registrados por rol" type="doughnut"
+        [data]="produccion?.distribucionRolesChart ?? produccion?.mixServicios"
+        mensajeVacio="Sin roles asignados en el sistema."></app-chart-card>
+
+      <app-chart-card title="Disponibilidad de Equipos" subtitle="Estado del parque industrial" type="doughnut"
+        [data]="maquinaria?.distribucionEstado"
+        mensajeVacio="Sin maquinaria registrada para el alcance seleccionado."></app-chart-card>
+
+      <app-chart-card title="Servicios por Categoría" subtitle="Distribución del catálogo operativo" type="doughnut"
+        [data]="produccion?.distribucionCategoriasChart ?? produccion?.tiemposBahias"
+        mensajeVacio="Sin servicios registrados en el período seleccionado."></app-chart-card>
+    </div>
+    } @else {
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
       @if (serviciosData?.estados; as est) {
       <app-stat-card [badge]="etiquetaRango" title="En Espera" [value]="est.enEspera" icon="clock" variant="warning"></app-stat-card>
@@ -448,29 +568,52 @@
       <app-chart-card title="Servicios de Hoy" subtitle="Distribución por estado" type="doughnut"
         [data]="serviciosData?.estados?.chart"
         mensajeVacio="Sin servicios registrados en el período seleccionado."></app-chart-card>
-      <!-- Fallas de maquinaria: estas tarjetas necesitan el panel operativo (incidentes por equipo, agencia y
-           gravedad). Se muestran SIEMPRE dentro de los roles que sí traen esos datos —si el filtro deja el
-           alcance sin fallas, explican el motivo en vez de desaparecer— y se ocultan para ADMIN y COMERCIAL,
-           cuyos paneles no incluyen incidentes y solo mostrarían tarjetas vacías. -->
       @if (muestraFallasMaquinaria) {
-      <app-chart-card title="Equipos Vulnerables" subtitle="Top 5 con más daños" type="bar"
-        [data]="produccion?.topMaquinas"
-        mensajeVacio="Sin fallas de maquinaria en el período seleccionado."></app-chart-card>
-
-      <app-chart-card class="lg:col-span-2" [title]="incidentesTab === 'agencia' ? 'Incidentes por Agencia' : 'Incidentes por Pulidor'" subtitle="Fallas del período seleccionado"
-        type="bar" [data]="incidentesTab === 'agencia' ? produccion?.topAgencias : produccion?.topPulidores"
-        mensajeVacio="Sin incidentes registrados en el período seleccionado.">
+      <app-chart-card title="Equipos Vulnerables" [subtitle]="equiposVulnerablesTab === 'mas' ? 'Top 5 con más daños' : 'Top 5 con menos daños'" type="bar"
+        [data]="equiposVulnerablesTab === 'mas' ? produccion?.topMaquinas : produccion?.bottomMaquinas"
+        mensajeVacio="Sin fallas de maquinaria en el período seleccionado.">
         <div chart-actions class="flex bg-slate-100 p-1 rounded-xl">
           <button class="px-3 py-1 text-[11px] font-bold rounded-lg transition-colors"
-            [ngClass]="incidentesTab === 'agencia' ? 'bg-white text-easydry-blue shadow-sm' : 'text-slate-500 hover:text-slate-700'"
-            (click)="incidentesTab = 'agencia'">
-            Agencias
-          </button>
+            [ngClass]="equiposVulnerablesTab === 'mas' ? 'bg-white text-easydry-blue shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+            (click)="equiposVulnerablesTab = 'mas'">Más daños</button>
           <button class="px-3 py-1 text-[11px] font-bold rounded-lg transition-colors"
-            [ngClass]="incidentesTab === 'pulidor' ? 'bg-white text-easydry-blue shadow-sm' : 'text-slate-500 hover:text-slate-700'"
-            (click)="incidentesTab = 'pulidor'">
-            Pulidores
-          </button>
+            [ngClass]="equiposVulnerablesTab === 'menos' ? 'bg-white text-easydry-blue shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+            (click)="equiposVulnerablesTab = 'menos'">Menos daños</button>
+        </div>
+      </app-chart-card>
+
+      <app-chart-card class="lg:col-span-2" [title]="incidentesTitulo" subtitle="Fallas del período seleccionado"
+        type="bar" [data]="incidentesDataChart"
+        mensajeVacio="Sin incidentes registrados en el período seleccionado.">
+        <div chart-actions class="flex gap-2">
+          <div class="flex bg-slate-100 p-1 rounded-xl">
+            <button class="px-3 py-1 text-[11px] font-bold rounded-lg transition-colors"
+              [ngClass]="incidentesSortTab === 'mas' ? 'bg-white text-easydry-blue shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+              (click)="incidentesSortTab = 'mas'">Más incidentes</button>
+            <button class="px-3 py-1 text-[11px] font-bold rounded-lg transition-colors"
+              [ngClass]="incidentesSortTab === 'menos' ? 'bg-white text-easydry-blue shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+              (click)="incidentesSortTab = 'menos'">Menos incidentes</button>
+          </div>
+          <div class="flex bg-slate-100 p-1 rounded-xl">
+            @if (esAlcanceAgencia) {
+            <button class="px-3 py-1 text-[11px] font-bold rounded-lg transition-colors"
+              [ngClass]="incidentesTab === 'bahia' ? 'bg-white text-easydry-blue shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+              (click)="incidentesTab = 'bahia'">
+              Bahías
+            </button>
+            } @else {
+            <button class="px-3 py-1 text-[11px] font-bold rounded-lg transition-colors"
+              [ngClass]="incidentesTab === 'agencia' ? 'bg-white text-easydry-blue shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+              (click)="incidentesTab = 'agencia'">
+              Agencias
+            </button>
+            }
+            <button class="px-3 py-1 text-[11px] font-bold rounded-lg transition-colors"
+              [ngClass]="incidentesTab === 'pulidor' ? 'bg-white text-easydry-blue shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+              (click)="incidentesTab = 'pulidor'">
+              Pulidores
+            </button>
+          </div>
         </div>
       </app-chart-card>
       <app-chart-card [title]="danosTab === 'tipo' ? 'Fallas por Tipo' : 'Fallas por Gravedad'" subtitle="Distribución de las fallas del parque: por tipo de equipo y por gravedad" type="doughnut"
@@ -490,9 +633,8 @@
         </div>
       </app-chart-card>
       }
-
-
     </div>
+    }
   </div>
   }
 
@@ -514,17 +656,20 @@
         variant="primary" subtitle="Preventivo + correctivo"></app-stat-card>
       <app-stat-card [badge]="etiquetaRango" title="Tiempo de Reparación (MTTR)" [value]="(tecnicoData.tiempoPromedioResolucionHoras ?? 0) + ' h'" icon="clock"
         variant="warning" subtitle="Promedio por incidente resuelto"></app-stat-card>
-      <app-stat-card [badge]="etiquetaRango" title="Preventivos Vencidos" [value]="tecnicoData.mantenimientosVencidos" icon="calendar-clock"
+      <app-stat-card [badge]="etiquetaRango" title="Mantenimientos Vencidos" [value]="tecnicoData.mantenimientosVencidos" icon="calendar-clock"
         [variant]="tecnicoData.mantenimientosVencidos > 0 ? 'danger' : 'success'" subtitle="Programados y sin ejecutar"></app-stat-card>
     </div>
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+    <div class="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
       <app-chart-card class="lg:col-span-2" title="Costo por Agencia" subtitle="Reparaciones por fallas + mantenimiento (USD)"
         type="bar" [data]="tecnicoData?.chartCostoPorAgencia"
         mensajeVacio="Sin costos de reparación ni mantenimiento en el período seleccionado."></app-chart-card>
+      <app-chart-card title="Frecuencia Preventiva" subtitle="Cantidad de mantenimientos" type="doughnut"
+        [data]="tecnicoData?.chartTipoMantenimiento"
+        mensajeVacio="Sin intervenciones registradas."></app-chart-card>
       <app-chart-card title="Gasto: Preventivo vs Correctivo" subtitle="USD invertidos por tipo de mantenimiento" type="doughnut"
         [data]="tecnicoData?.chartCostoTipoMantenimiento"
         mensajeVacio="Sin mantenimientos registrados en el período seleccionado."></app-chart-card>
-      <app-chart-card class="lg:col-span-3" title="Tiempo de Resolución" [subtitle]="mttrSubtitulo" type="bar"
+      <app-chart-card class="lg:col-span-2" title="Tiempo de Resolución" [subtitle]="mttrSubtitulo" type="bar"
         [horizontal]="true" [data]="mttrChart"
         mensajeVacio="Sin tiempos que promediar con el período y los filtros actuales.">
         <div chart-actions class="flex bg-slate-100 p-1 rounded-xl">
@@ -540,7 +685,7 @@
           </button>
         </div>
       </app-chart-card>
-      <app-chart-card class="lg:col-span-3" title="Máquinas más Costosas" subtitle="USD acumulado en reparaciones por equipo" type="bar"
+      <app-chart-card class="lg:col-span-2" title="Máquinas más Costosas" subtitle="USD acumulado en reparaciones por equipo" type="bar"
         [horizontal]="true" [data]="tecnicoData?.chartCostoMaquinas"
         mensajeVacio="Sin costos de reparación registrados en el período seleccionado."></app-chart-card>
     </div>
@@ -601,18 +746,19 @@
       }
     </div>
 
-    @if (puedeVerUsuarios || isAdminView || isSuperAdminView) {
+    @if (puedeVerUsuarios || esAnaliticaGlobal) {
     <div class="mt-8 mb-4 border-b border-slate-200 pb-2 flex items-center gap-2">
       <i-lucide aria-hidden="true" name="users" class="w-5 h-5 text-easydry-blue"></i-lucide>
       <h3 class="text-lg font-bold font-outfit text-slate-800">Top Rendimiento de Personal</h3>
     </div>
     <div class="grid grid-cols-1" [ngClass]="puedeVerProductividad ? 'lg:grid-cols-2 gap-6' : 'gap-8'">
       <div [class.lg:col-span-2]="!puedeVerProductividad">
-        <app-ranking-operadores-widget title="Top Lavadores" [ranking]="rankingLavadores || []"></app-ranking-operadores-widget>
+        <app-ranking-operadores-widget title="Top Lavadores" [ranking]="rankingLavadores?.ranking || []" [rankingBottom]="rankingLavadores?.rankingBottom || []"></app-ranking-operadores-widget>
       </div>
       @if (puedeVerProductividad) {
       <app-ranking-operadores-widget title="Top Pulidores" [ranking]="rankingPulidores?.fijos || []"
-        [rankingMoviles]="rankingPulidores?.moviles || []" [showTabs]="true"></app-ranking-operadores-widget>
+        [rankingBottom]="rankingPulidores?.bottomFijos || []"
+        [rankingMoviles]="rankingPulidores?.moviles || []" [rankingBottomMoviles]="rankingPulidores?.bottomMoviles || []" [showTabs]="true"></app-ranking-operadores-widget>
       }
     </div>
     }
@@ -620,58 +766,106 @@
   </div>
   }
 
-  <!-- Sección: Aprobaciones Comerciales -->
+  <!-- Sección: Aprobaciones Comerciales y Calidad (Puro Dashboard) -->
   <div class="mb-4 animate-fade-in" role="tabpanel" id="panel-aprobaciones" aria-labelledby="tab-aprobaciones"
     [class.hidden]="activeExecutiveTab !== 'aprobaciones'">
     
     <!-- Resumen principal de aprobaciones -->
     @if (produccion?.metricasAprobaciones) {
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-      <app-stat-card [badge]="etiquetaRango" class="h-full" title="Pendientes" 
-        [value]="produccion.metricasAprobaciones.kpis?.pendientesHoy ?? 0"
-        icon="clock" variant="warning"></app-stat-card>
-        
-      <app-stat-card [badge]="etiquetaRango" class="h-full" title="Aprobadas Hoy" 
-        [value]="produccion.metricasAprobaciones.kpis?.aprobadasHoy ?? 0"
-        icon="check-circle-2" variant="success"></app-stat-card>
-        
-      <app-stat-card [badge]="etiquetaRango" class="h-full" title="Rechazadas Hoy" 
-        [value]="produccion.metricasAprobaciones.kpis?.rechazadasHoy ?? 0"
-        icon="x-circle" variant="danger"></app-stat-card>
-        
-      <app-stat-card [badge]="etiquetaRango" class="h-full" title="Monto Aprobado (USD)" 
-        [value]="'$' + (produccion.metricasAprobaciones.kpis?.montoAprobadoHoy ?? 0)"
-        icon="dollar-sign" variant="primary"></app-stat-card>
+    <!-- Encabezado minimalista de aprobaciones -->
+    <div class="mb-5">
+      <div class="flex items-center gap-2 mb-1">
+        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-easydry-blue border border-blue-200/60">
+          <i-lucide name="shield-check" class="w-3.5 h-3.5"></i-lucide>
+          Panel de Calidad y Gobernanza
+        </span>
+        <span class="text-xs text-slate-400">•</span>
+        <span class="text-xs font-semibold text-slate-500">{{ contextLabel }}</span>
+      </div>
+      <h3 class="text-xl font-bold font-outfit text-slate-900">Control de Solicitudes y Excepciones</h3>
+      <p class="text-xs text-slate-500 mt-0.5">Métricas analíticas de aprobaciones, resolución de solicitudes y auditoría de decisiones en tu agencia.</p>
     </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <!-- Flujo día a día a ancho completo: la dona de "Tipos de Solicitud" se retiró de este panel porque
-           duplicaba el gráfico de tipos de la pestaña de analítica. -->
-      <app-chart-card class="lg:col-span-2" title="Flujo de Aprobaciones" subtitle="Día a Día" type="bar"
+    <!-- 6 Tarjetas de KPIs con tooltips explicativos -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">
+      <app-stat-card [badge]="etiquetaRango" class="h-full" title="Pendientes" 
+        [value]="produccion.metricasAprobaciones.kpis?.totalPendientes ?? produccion.metricasAprobaciones.kpis?.pendientesHoy ?? 0"
+        icon="clock" variant="warning" subtitle="Por resolver"
+        tooltip="Solicitudes técnicas y comerciales que requieren revisión y decisión en tu agencia."></app-stat-card>
+        
+      <app-stat-card [badge]="etiquetaRango" class="h-full" title="Aprobadas" 
+        [value]="produccion.metricasAprobaciones.kpis?.totalAprobadas ?? produccion.metricasAprobaciones.kpis?.aprobadasHoy ?? 0"
+        icon="check-circle-2" variant="success" subtitle="Autorizadas"
+        tooltip="Solicitudes evaluadas y autorizadas favorablemente dentro del período consultado."></app-stat-card>
+        
+      <app-stat-card [badge]="etiquetaRango" class="h-full" title="Rechazadas" 
+        [value]="produccion.metricasAprobaciones.kpis?.totalRechazadas ?? produccion.metricasAprobaciones.kpis?.rechazadasHoy ?? 0"
+        icon="x-circle" variant="danger" subtitle="Denegadas"
+        tooltip="Solicitudes rechazadas por no cumplir con las políticas comerciales o de calidad."></app-stat-card>
+
+      <app-stat-card [badge]="etiquetaRango" class="h-full" title="Tasa de Rechazo" 
+        [value]="tasaRechazoAprobaciones + '%'"
+        icon="alert-triangle" variant="warning" subtitle="Incidencia"
+        tooltip="Porcentaje de solicitudes rechazadas respecto al total de decisiones tomadas."></app-stat-card>
+        
+      <app-stat-card [badge]="etiquetaRango" class="h-full" title="Monto Autorizado" 
+        [value]="'$' + (produccion.metricasAprobaciones.kpis?.montoAprobadoPeriodo ?? produccion.metricasAprobaciones.kpis?.montoAprobadoHoy ?? 0)"
+        icon="dollar-sign" variant="primary" subtitle="Descuentos USD"
+        tooltip="Total acumulado en USD de descuentos y excepciones comerciales autorizadas."></app-stat-card>
+
+      <app-stat-card [badge]="etiquetaRango" class="h-full" title="Tiempo Resolución" 
+        [value]="(produccion.metricasAprobaciones.kpis?.tiempoPromedioResolucionMin ?? 0) + ' min'"
+        icon="timer" variant="primary" subtitle="SLA Promedio"
+        tooltip="Tiempo medio transcurrido entre la creación de la solicitud y la decisión del aprobador."></app-stat-card>
+    </div>
+
+    <!-- Gráficos Analíticos Reciclados de Super Admin -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-6">
+      <!-- Flujo día a día (Tendencia de 7 días apilada) -->
+      <app-chart-card class="lg:col-span-8" title="Flujo de Decisiones" subtitle="Tendencia de solicitudes y resolución día a día (últimos 7 días)" type="bar" [stacked]="true"
         [data]="produccion.metricasAprobaciones.flujoSolicitudes"
         mensajeVacio="Sin movimientos de solicitudes en el período seleccionado."></app-chart-card>
         
-      <!-- Top Agencias -->
-      <app-chart-card title="Agencias con más aprobación" subtitle="Sucursales con más solicitudes aprobadas" type="bar" [horizontal]="true"
-        [data]="produccion.metricasAprobaciones.topAgencias"
-        mensajeVacio="Sin solicitudes aprobadas en el período seleccionado."></app-chart-card>
+      <!-- Tasa de Decisión y Eficacia (Dona) -->
+      <app-chart-card class="lg:col-span-4" title="Tasa de Decisión" subtitle="Aprobadas vs Rechazadas vs Pendientes" type="doughnut"
+        [data]="produccion.metricasAprobaciones.chartAprobaciones"
+        mensajeVacio="Sin solicitudes en el período seleccionado."></app-chart-card>
+    </div>
 
-      <!-- Top Solicitantes -->
-      <app-chart-card title="Líderes con más solicitudes aprobadas" subtitle="Líderes con más aprobaciones" type="bar" [horizontal]="true"
-        [data]="produccion.metricasAprobaciones.topSolicitantes"
-        mensajeVacio="Sin aprobaciones registradas en el período seleccionado."></app-chart-card>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+      <!-- Tipos de Solicitud (Dona / Categorías) -->
+      <app-chart-card title="Tipos de Requerimiento" subtitle="Distribución por tipo de requerimiento o excepción" type="doughnut"
+        [data]="produccion.metricasAprobaciones.chartTipos"
+        mensajeVacio="Sin tipos de solicitud registrados en el período."></app-chart-card>
+
+      <!-- Top Solicitantes / Líderes en la Agencia -->
+      <app-chart-card title="Líderes con Más Solicitudes" subtitle="Operadores y líderes que gestionan excepciones" type="bar" [horizontal]="true"
+        [data]="produccion.metricasAprobaciones.chartTopSolicitantes"
+        mensajeVacio="Sin solicitudes aprobadas en el período seleccionado."></app-chart-card>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+      <!-- Motivos Frecuentes de Rechazo -->
+      <app-chart-card title="Motivos Frecuentes de Rechazo" subtitle="Causas principales de excepciones denegadas en la agencia" type="bar" [horizontal]="true"
+        [data]="produccion.metricasAprobaciones.chartMotivosRechazo"
+        mensajeVacio="Sin rechazos registrados en el período seleccionado."></app-chart-card>
+
+      <!-- Auditoría de Decisiones Recientes (Reciclado de Super Admin) -->
+      <app-chart-card title="Auditoría de Decisiones" subtitle="Historial de aprobaciones, rechazos y anulaciones en la agencia" type="bar"
+        [data]="produccion.metricasAprobaciones.chartAuditoriaDecisiones"
+        mensajeVacio="Sin decisiones de auditoría en el período seleccionado."></app-chart-card>
     </div>
     } @else {
     <div class="text-center py-12 bg-white rounded-2xl shadow-sm ring-1 ring-slate-900/5">
       <i-lucide aria-hidden="true" name="inbox" class="w-12 h-12 text-slate-300 mx-auto mb-3"></i-lucide>
       <h3 class="text-lg font-medium text-slate-900">Sin datos de aprobaciones</h3>
-      <p class="mt-1 text-slate-500">No hay información comercial reciente.</p>
+      <p class="mt-1 text-slate-500">No hay información de calidad ni aprobaciones reciente para el alcance seleccionado.</p>
     </div>
     }
   </div>
 
-  <!-- Sección: Consumo e Inventario -->
-  @if (puedeVerAlertas && !isAprobadorView) {
+  <!-- Sección: Consumo e Inventario / Catálogo Comercial -->
+  @if ((puedeVerAlertas || puedeVerInventario || isComercialView) && !isAprobadorView) {
   <div class="mb-4 animate-fade-in" role="tabpanel" id="panel-inventario" aria-labelledby="tab-inventario"
     [class.hidden]="activeExecutiveTab !== 'inventario'">
 
@@ -703,24 +897,22 @@
     }
 
     @if (invSub === 'salud') {
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
       <app-chart-card title="Salud del Stock" subtitle="Posiciones según mínimo e ideal" type="doughnut"
         [data]="bodegaData?.chartSaludStock"
         mensajeVacio="Sin posiciones de stock evaluables para el alcance seleccionado."></app-chart-card>
       <app-chart-card class="lg:col-span-2" title="Alertas por Categoría y Nivel" subtitle="Agotado · Crítico · Bajo" type="bar"
         [data]="bodegaData?.chartAlertasCategoriaNivel"
         mensajeVacio="Sin alertas de stock en el alcance seleccionado."></app-chart-card>
-      <div class="lg:col-span-3">
-        <app-chart-card title="Ubicaciones con Stock bajo el Ideal"
-          subtitle="Primero las que combinan agotado con crítico/bajo mínimo/bajo ideal · luego las más agotadas" type="bar" [horizontal]="true"
-          [data]="bodegaData?.chartSaludPorUbicacion"
-          mensajeVacio="Ninguna ubicación por debajo de su nivel ideal."></app-chart-card>
-      </div>
-      <div class="lg:col-span-3">
-        <app-chart-card title="Stock vs Mínimo vs Ideal por Categoría"
-          subtitle="Unidades totales: existencia real frente a los umbrales" type="bar" [data]="bodegaData?.chartStockVsIdeal"
-          mensajeVacio="Sin existencias registradas en el alcance seleccionado."></app-chart-card>
-      </div>
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+      <app-chart-card title="Ubicaciones con Stock bajo el Ideal"
+        subtitle="Primero las que combinan agotado con crítico/bajo mínimo/bajo ideal · luego las más agotadas" type="bar" [horizontal]="true"
+        [data]="bodegaData?.chartSaludPorUbicacion"
+        mensajeVacio="Ninguna ubicación por debajo de su nivel ideal."></app-chart-card>
+      <app-chart-card title="Stock vs Mínimo vs Ideal por Categoría"
+        subtitle="Unidades totales: existencia real frente a los umbrales" type="bar" [data]="bodegaData?.chartStockVsIdeal"
+        mensajeVacio="Sin existencias registradas en el alcance seleccionado."></app-chart-card>
     </div>
     }
 
@@ -763,16 +955,25 @@
       <h3 class="text-lg font-bold font-outfit text-slate-800">Consumo y Rotación</h3>
     </div>
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <app-chart-card class="lg:col-span-2" title="Consumo de Insumos" subtitle="Insumos más consumidos" type="bar"
-        [data]="distribuidorData?.chartConsumoInsumos"></app-chart-card>
+      <!-- Consumo de insumos: una sola tarjeta resuelve "más consumidos" y "menos consumidos" con el control de
+           orden, en lugar de repetir el mismo ranking en dos gráficos (uno al revés del otro). -->
+      <app-chart-card class="lg:col-span-3" [title]="consumoInsumosTitulo"
+        subtitle="Unidades consumidas en el período seleccionado" type="bar" [horizontal]="true"
+        [data]="consumoInsumosChart"
+        mensajeVacio="Sin consumo de insumos registrado en el período seleccionado.">
+        <div chart-actions class="flex flex-wrap items-center justify-end gap-2">
+          <app-top-orden [orden]="consumoTop" (ordenChange)="consumoTop = $event"></app-top-orden>
+        </div>
+      </app-chart-card>
 
-      <app-chart-card title="Menos Consumidos" subtitle="Poco movimiento" type="bar"
-        [data]="distribuidorData?.chartInsumosMenosConsumidos"
-        mensajeVacio="Sin insumos con poco movimiento en el período."></app-chart-card>
       <app-chart-card class="lg:col-span-2" title="Consumo por Agencia"
-        subtitle="Agencias con mayor uso de insumos (unidades)" type="bar"
-        [data]="distribuidorData?.chartConsumoPorAgencia"
-        mensajeVacio="Sin consumo de insumos registrado en el período seleccionado."></app-chart-card>
+        [subtitle]="consumoAgenciaSubtitulo" type="bar" [horizontal]="true"
+        [data]="consumoAgenciaChart"
+        mensajeVacio="Sin consumo de insumos registrado en el período seleccionado.">
+        <div chart-actions class="flex flex-wrap items-center justify-end gap-2">
+          <app-top-orden [orden]="consumoAgenciaTop" (ordenChange)="consumoAgenciaTop = $event"></app-top-orden>
+        </div>
+      </app-chart-card>
       <app-chart-card title="Existencias por Categoría" subtitle="Unidades de stock disponible" type="bar"
         [data]="bodegaData?.chartUnidadesStockPorCategoria"
         mensajeVacio="Sin existencias registradas en el alcance seleccionado."></app-chart-card>
@@ -783,283 +984,625 @@
 
   }
 
-  <!-- ═══ DASHBOARD TÉCNICO / TALLER ═══ -->
+  <!-- ═══ DASHBOARD MANTENIMIENTO (Coordinador de Mantenimiento · Técnico) ═══ -->
   @if (vista === 'taller' && tecnicoData) {
 
-  <!-- KPIs superiores -->
-  <div class="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-    <app-stat-card [badge]="etiquetaRango" title="Incidentes Activos" [value]="tecnicoData.incidentesAbiertos" icon="alert-triangle"
-      variant="warning" subtitle="Abiertos + en proceso"></app-stat-card>
-    <app-stat-card [badge]="etiquetaRango" title="Equipos Operativos" [value]="tecnicoData.equiposOperativos" icon="shield-check"
-      variant="success" subtitle="Parque disponible"></app-stat-card>
-    <app-stat-card [badge]="etiquetaRango" title="En Mantenimiento" [value]="tecnicoData.mantenimientosPendientes" icon="calendar-clock"
-      variant="primary" subtitle="Máquinas intervenidas"></app-stat-card>
-    <app-stat-card [badge]="etiquetaRango" title="Fuera de Servicio" [value]="tecnicoData.maquinariaFueraServicio" icon="ban" variant="danger"
-      subtitle="Baja o fuera de servicio"></app-stat-card>
-  </div>
-
-  <!-- Segunda fila: KPIs de eficiencia -->
-  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-    <app-stat-card [badge]="etiquetaRango" title="Costo Reparaciones" [value]="'$' + tecnicoData.costoTotalReparaciones"
-      icon="dollar-sign" variant="warning" subtitle="Total en insumos y mano de obra"></app-stat-card>
-    <app-stat-card [badge]="etiquetaRango" title="Tiempo Promedio Resolución" [value]="(tecnicoData.tiempoPromedioResolucionHoras ?? 0) + ' h'"
-      icon="clock" variant="primary" subtitle="Por incidente resuelto"></app-stat-card>
-    <app-stat-card [badge]="etiquetaRango" title="Mantenimientos" [value]="tecnicoData.mantenimientosEjecutados30d" icon="wrench"
-      variant="success" subtitle="Preventivos + correctivos"></app-stat-card>
-  </div>
-
-  <!-- Gráficos principales -->
-  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-    @if (tecnicoData.chartEstadoParque) {
-    <app-chart-card title="Estado del Parque" subtitle="Distribución actual de maquinaria" type="doughnut"
-      [data]="tecnicoData.chartEstadoParque"></app-chart-card>
-    }
-    @if (tecnicoData.chartGravedadIncidentes) {
-    <app-chart-card title="Incidentes por Gravedad" subtitle="BAJA · MEDIA · ALTA · CRÍTICA" type="doughnut"
-      [data]="tecnicoData.chartGravedadIncidentes"></app-chart-card>
-    }
-    @if (tecnicoData.chartTopMaquinas) {
-    <app-chart-card title="Máquinas más Problemáticas" subtitle="Por cantidad de incidentes reportados" type="bar" [horizontal]="true"
-      [data]="tecnicoData.chartTopMaquinas"></app-chart-card>
-    }
-    @if (tecnicoData.chartCostoMaquinas) {
-    <app-chart-card title="Costo por Máquina" subtitle="USD acumulado en reparaciones" type="bar" [horizontal]="true"
-      [data]="tecnicoData.chartCostoMaquinas"></app-chart-card>
-    }
-  </div>
-
-  <!-- Próximos mantenimientos preventivos programados -->
-  @if (tecnicoData.proxMantenimientos?.length > 0) {
-  <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry p-6 mb-8">
-    <h3 class="text-base font-bold font-outfit text-slate-900 mb-4 flex items-center gap-2">
-      <i-lucide name="calendar-clock" class="w-4 h-4 text-easydry-blue"></i-lucide>
-      Próximos Mantenimientos Preventivos
-    </h3>
-    <div class="overflow-x-auto">
-      <table class="w-full text-sm">
-        <thead>
-          <tr class="text-left text-slate-500 border-b border-slate-100">
-            <th class="pb-3 font-semibold">Máquina</th>
-            <th class="pb-3 font-semibold">Código</th>
-            <th class="pb-3 font-semibold">Tipo</th>
-            <th class="pb-3 font-semibold">Fecha Programada</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (m of tecnicoData.proxMantenimientos; track m.codigo) {
-          <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors">
-            <td class="py-3 font-semibold text-slate-800">{{ m.nombre }}</td>
-            <td class="py-3 text-slate-500 font-mono text-xs">{{ m.codigo }}</td>
-            <td class="py-3">
-              <span class="px-2 py-0.5 rounded-full text-xs font-bold"
-                [ngClass]="m.tipo === 'PREVENTIVO' ? 'bg-easydry-blue/10 text-easydry-blue' : 'bg-amber-100 text-amber-700'">{{
-                m.tipo }}</span>
-            </td>
-            <td class="py-3 text-slate-600">{{ m.fechaProgramada | date:'dd MMM yyyy HH:mm' }}</td>
-          </tr>
-          }
-        </tbody>
-      </table>
+  <!-- Submenú flotante: agrupa las funcionalidades del rol sin salir de la página -->
+  <div class="sticky top-4 z-40 mb-6 animate-fade-in-up">
+    <div class="dashboard-tabs inline-flex items-center gap-1 sm:gap-1.5 p-1.5 bg-white/95 backdrop-blur-md rounded-2xl border border-slate-200/80 shadow-sm max-w-full overflow-x-auto scroll-smooth"
+      role="tablist" aria-label="Secciones del dashboard de mantenimiento">
+      <button type="button" role="tab" id="tab-mant-parque" aria-controls="panel-mant-parque"
+        [attr.aria-selected]="mantenimientoTab === 'parque'" (click)="mantenimientoTab = 'parque'"
+        class="shrink-0 px-3 sm:px-3.5 2xl:px-4 py-2 text-xs sm:text-[13px] 2xl:text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap"
+        [ngClass]="mantenimientoTab === 'parque' ? 'bg-easydry-blue text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'">
+        <i-lucide aria-hidden="true" name="activity" class="w-4 h-4 shrink-0"></i-lucide>
+        Estado del Parque
+      </button>
+      <button type="button" role="tab" id="tab-mant-fallas" aria-controls="panel-mant-fallas"
+        [attr.aria-selected]="mantenimientoTab === 'fallas'" (click)="mantenimientoTab = 'fallas'"
+        class="shrink-0 px-3 sm:px-3.5 2xl:px-4 py-2 text-xs sm:text-[13px] 2xl:text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap"
+        [ngClass]="mantenimientoTab === 'fallas' ? 'bg-easydry-blue text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'">
+        <i-lucide aria-hidden="true" name="alert-triangle" class="w-4 h-4 shrink-0"></i-lucide>
+        Fallas & Tiempos
+      </button>
+      <button type="button" role="tab" id="tab-mant-costos" aria-controls="panel-mant-costos"
+        [attr.aria-selected]="mantenimientoTab === 'costos'" (click)="mantenimientoTab = 'costos'"
+        class="shrink-0 px-3 sm:px-3.5 2xl:px-4 py-2 text-xs sm:text-[13px] 2xl:text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap"
+        [ngClass]="mantenimientoTab === 'costos' ? 'bg-easydry-blue text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'">
+        <i-lucide aria-hidden="true" name="dollar-sign" class="w-4 h-4 shrink-0"></i-lucide>
+        Costos
+      </button>
+      <button type="button" role="tab" id="tab-mant-programacion" aria-controls="panel-mant-programacion"
+        [attr.aria-selected]="mantenimientoTab === 'programacion'" (click)="mantenimientoTab = 'programacion'"
+        class="shrink-0 px-3 sm:px-3.5 2xl:px-4 py-2 text-xs sm:text-[13px] 2xl:text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap"
+        [ngClass]="mantenimientoTab === 'programacion' ? 'bg-easydry-blue text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'">
+        <i-lucide aria-hidden="true" name="calendar-clock" class="w-4 h-4 shrink-0"></i-lucide>
+        Programación
+      </button>
     </div>
   </div>
-  }
 
-  <!-- Gráficos de Inventario y Suministros para Taller -->
-  @if (bodegaData) {
-  <div class="mt-8 mb-6 animate-fade-in">
-    <h3 class="text-xl font-bold font-outfit text-slate-900 flex items-center gap-2 border-b border-slate-200 pb-2">
-      <i-lucide name="package" class="w-5 h-5 text-easydry-blue"></i-lucide>
-      Gestión de Inventario y Despachos
-    </h3>
-  </div>
-  
-  <div class="grid grid-cols-1 gap-6 mb-8 animate-fade-in-up"
-    [ngClass]="{
-      'lg:grid-cols-1': tallerBodegaColumns === 1,
-      'lg:grid-cols-2': tallerBodegaColumns === 2,
-      'lg:grid-cols-3': tallerBodegaColumns === 3
-    }">
-    @if (bodegaData.chartTopInsumosCriticos) {
-    <app-chart-card title="Top Insumos con Alerta" subtitle="Agencias con stock crítico" type="bar"
-      [data]="bodegaData.chartTopInsumosCriticos"></app-chart-card>
-    }
-    @if (bodegaData.chartTopInsumosConsumo) {
-    <app-chart-card title="Insumos Más Consumidos" subtitle="Unidades del período seleccionado" type="bar"
-      [data]="bodegaData.chartTopInsumosConsumo"></app-chart-card>
-    }
-    @if (bodegaData.chartDespachosEstado) {
-    <app-chart-card title="Estado de Despachos" subtitle="Distribución actual" type="doughnut"
-      [data]="bodegaData.chartDespachosEstado"></app-chart-card>
-    }
-  </div>
-  }
+  <!-- PESTAÑA: ESTADO DEL PARQUE -->
+  <div class="mb-4 animate-fade-in" role="tabpanel" id="panel-mant-parque" aria-labelledby="tab-mant-parque"
+    [class.hidden]="mantenimientoTab !== 'parque'">
 
-  <div class="text-center mt-6">
-    <a routerLink="/taller-tecnico"
-      class="inline-flex items-center gap-2 px-6 py-3 bg-easydry-green hover:bg-easydry-green-dark text-slate-900 font-bold rounded-xl text-sm transition-colors">
-      <i-lucide name="wrench" class="w-4 h-4"></i-lucide> Ir al Módulo de Taller Completo
-    </a>
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <app-stat-card [badge]="etiquetaRango" title="Incidentes Activos" [value]="tecnicoData.incidentesAbiertos" icon="alert-triangle"
+        variant="warning" subtitle="Abiertos + en proceso"></app-stat-card>
+      <app-stat-card [badge]="etiquetaRango" title="Equipos Operativos" [value]="tecnicoData.equiposOperativos" icon="shield-check"
+        variant="success" subtitle="Parque disponible"></app-stat-card>
+      <app-stat-card [badge]="etiquetaRango" title="En Mantenimiento" [value]="tecnicoData.mantenimientosPendientes" icon="calendar-clock"
+        variant="primary" subtitle="Máquinas intervenidas"></app-stat-card>
+      <app-stat-card [badge]="etiquetaRango" title="Fuera de Servicio" [value]="tecnicoData.maquinariaFueraServicio" icon="ban" variant="danger"
+        subtitle="Baja o fuera de servicio"></app-stat-card>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <app-chart-card title="Estado del Parque" subtitle="Distribución actual de la maquinaria del alcance" type="doughnut"
+        [data]="tecnicoData.chartEstadoParque"
+        mensajeVacio="Sin maquinaria registrada en el alcance seleccionado."></app-chart-card>
+      <app-chart-card title="Incidentes por Gravedad" subtitle="Fallas del período por severidad" type="doughnut"
+        [data]="tecnicoData.chartGravedadIncidentes"
+        mensajeVacio="Sin incidentes registrados en el período seleccionado."></app-chart-card>
+      <app-chart-card title="Estado de las Órdenes" subtitle="Abierto · En proceso · Resuelto" type="doughnut"
+        [data]="tecnicoData.chartEstadoIncidentes"
+        mensajeVacio="Sin órdenes de trabajo en el período seleccionado."></app-chart-card>
+    </div>
+  </div>
+
+  <!-- PESTAÑA: FALLAS & TIEMPOS -->
+  <div class="mb-4 animate-fade-in" role="tabpanel" id="panel-mant-fallas" aria-labelledby="tab-mant-fallas"
+    [class.hidden]="mantenimientoTab !== 'fallas'">
+
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
+      <app-stat-card [badge]="etiquetaRango" title="Equipos con Fallas" [value]="equiposConFallas" icon="wrench"
+        variant="warning" subtitle="Equipos con al menos un incidente"></app-stat-card>
+      <app-stat-card [badge]="etiquetaRango" title="Tiempo de Resolución (MTTR)" [value]="(tecnicoData.tiempoPromedioResolucionHoras ?? 0) + ' h'"
+        icon="clock" variant="primary" subtitle="Promedio por incidente resuelto"></app-stat-card>
+      <app-stat-card [badge]="etiquetaRango" title="Incidentes Activos" [value]="tecnicoData.incidentesAbiertos"
+        icon="alert-triangle" variant="danger" subtitle="Abiertos + en proceso"></app-stat-card>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-12 grid-flow-dense gap-6">
+      <app-chart-card class="lg:col-span-8" title="Tiempo de Resolución" [subtitle]="mttrSubtituloTaller" type="bar"
+        [horizontal]="true" [data]="mttrChartOrdenado"
+        mensajeVacio="Sin tiempos que promediar con el período y los filtros actuales.">
+        <div chart-actions class="flex flex-wrap items-center justify-end gap-2">
+          <div class="flex bg-slate-100 p-1 rounded-xl">
+            <button type="button" class="px-3 py-1 text-xs font-bold rounded-lg transition-colors"
+              [ngClass]="mttrTab === 'agencia' ? 'bg-white text-easydry-blue shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+              [attr.aria-pressed]="mttrTab === 'agencia'" (click)="mttrTab = 'agencia'">
+              Agencia
+            </button>
+            <button type="button" class="px-3 py-1 text-xs font-bold rounded-lg transition-colors"
+              [ngClass]="mttrTab === 'gravedad' ? 'bg-white text-easydry-blue shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+              [attr.aria-pressed]="mttrTab === 'gravedad'" (click)="mttrTab = 'gravedad'">
+              Gravedad
+            </button>
+          </div>
+          @if (mttrTab === 'agencia') {
+          <app-top-orden [orden]="mttrTop" (ordenChange)="mttrTop = $event"></app-top-orden>
+          }
+        </div>
+      </app-chart-card>
+
+      <app-chart-card class="lg:col-span-4" title="Tipo de Máquina" subtitle="Composición del parque por equipo" type="doughnut"
+        [data]="tecnicoData.chartTipoMaquinaria"
+        mensajeVacio="Sin tipos de máquina registrados en el alcance seleccionado."></app-chart-card>
+
+      <app-chart-card class="lg:col-span-12" title="Máquinas más Problemáticas" subtitle="Por cantidad de incidentes reportados"
+        type="bar" [horizontal]="true" [data]="maquinasProblematicasChart"
+        mensajeVacio="Sin incidentes asociados a equipos en el período seleccionado.">
+        <div chart-actions class="flex flex-wrap items-center justify-end gap-2">
+          <app-top-orden [orden]="maquinasTop" (ordenChange)="maquinasTop = $event"></app-top-orden>
+        </div>
+      </app-chart-card>
+    </div>
+  </div>
+
+  <!-- PESTAÑA: COSTOS -->
+  <div class="mb-4 animate-fade-in" role="tabpanel" id="panel-mant-costos" aria-labelledby="tab-mant-costos"
+    [class.hidden]="mantenimientoTab !== 'costos'">
+
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
+      <app-stat-card [badge]="etiquetaRango" title="Costo Reparaciones" [value]="'$' + (tecnicoData.costoTotalReparaciones ?? 0)"
+        icon="alert-triangle" variant="danger" subtitle="Fallas en el período"></app-stat-card>
+      <app-stat-card [badge]="etiquetaRango" title="Costo Mantenimiento" [value]="'$' + (tecnicoData.costoMantenimientos30d ?? 0)"
+        icon="wrench" variant="primary" subtitle="Preventivo + correctivo"></app-stat-card>
+      <app-stat-card [badge]="etiquetaRango" title="Costo Total del Parque" [value]="'$' + costoTotalParque"
+        icon="dollar-sign" variant="warning" subtitle="Reparaciones + mantenimiento"></app-stat-card>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-12 grid-flow-dense gap-6">
+      <app-chart-card class="lg:col-span-8" title="Costo por Agencia" subtitle="Reparaciones por fallas + mantenimiento (USD)"
+        type="bar" [horizontal]="true" [stacked]="true" [data]="costoAgenciaChart"
+        mensajeVacio="Sin costos de reparación ni mantenimiento en el período seleccionado.">
+        <div chart-actions class="flex flex-wrap items-center justify-end gap-2">
+          <app-top-orden [orden]="costoAgenciaTop" (ordenChange)="costoAgenciaTop = $event"></app-top-orden>
+        </div>
+      </app-chart-card>
+
+      <app-chart-card class="lg:col-span-4" title="Gasto: Preventivo vs Correctivo" subtitle="USD invertidos por tipo de mantenimiento" type="doughnut"
+        [data]="tecnicoData.chartCostoTipoMantenimiento"
+        mensajeVacio="Sin mantenimientos registrados en el período seleccionado."></app-chart-card>
+
+      <app-chart-card class="lg:col-span-12" title="Máquinas más Costosas" subtitle="USD acumulado en reparaciones por equipo"
+        type="bar" [horizontal]="true" [data]="maquinasCostosasChart"
+        mensajeVacio="Sin costos de reparación registrados en el período seleccionado.">
+        <div chart-actions class="flex flex-wrap items-center justify-end gap-2">
+          <app-top-orden [orden]="costoMaquinasTop" (ordenChange)="costoMaquinasTop = $event"></app-top-orden>
+        </div>
+      </app-chart-card>
+    </div>
+  </div>
+
+  <!-- PESTAÑA: PROGRAMACIÓN -->
+  <div class="mb-4 animate-fade-in" role="tabpanel" id="panel-mant-programacion" aria-labelledby="tab-mant-programacion"
+    [class.hidden]="mantenimientoTab !== 'programacion'">
+
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <app-stat-card [badge]="etiquetaRango" title="Mantenimientos Vencidos" [value]="tecnicoData.mantenimientosVencidos ?? 0"
+        icon="calendar-clock" [variant]="(tecnicoData.mantenimientosVencidos ?? 0) > 0 ? 'danger' : 'success'"
+        subtitle="Programados y sin ejecutar"></app-stat-card>
+      <app-stat-card [badge]="etiquetaRango" title="Mantenimientos Ejecutados" [value]="tecnicoData.mantenimientosEjecutados30d ?? 0"
+        icon="wrench" variant="success" subtitle="Del período seleccionado"></app-stat-card>
+      <app-stat-card [badge]="etiquetaRango" title="Preventivos" [value]="preventivosEjecutados" icon="shield-check"
+        variant="primary" subtitle="Mantenimiento planificado"></app-stat-card>
+      <app-stat-card [badge]="etiquetaRango" title="Correctivos" [value]="correctivosEjecutados" icon="alert-triangle"
+        variant="warning" subtitle="Intervenciones por falla"></app-stat-card>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+      <app-chart-card title="Frecuencia Preventiva" subtitle="Cantidad de mantenimientos por tipo" type="doughnut"
+        [data]="tecnicoData.chartTipoMantenimiento"
+        mensajeVacio="Sin intervenciones registradas en el período seleccionado."></app-chart-card>
+      <app-chart-card title="Gasto: Preventivo vs Correctivo" subtitle="USD invertidos por tipo de mantenimiento" type="doughnut"
+        [data]="tecnicoData.chartCostoTipoMantenimiento"
+        mensajeVacio="Sin costos de mantenimiento en el período seleccionado."></app-chart-card>
+    </div>
+
+    <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry p-6">
+      <div class="mb-4">
+        <h4 class="font-bold text-slate-900 text-base font-outfit">Próximos Mantenimientos Programados</h4>
+        <p class="text-xs text-slate-500 mt-0.5">Preventivos y correctivos programados a partir del inicio del período</p>
+      </div>
+      @if (tecnicoData.proxMantenimientos?.length) {
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="text-left text-slate-500 border-b border-slate-100">
+              <th class="pb-3 font-semibold">Máquina</th>
+              <th class="pb-3 font-semibold">Código</th>
+              <th class="pb-3 font-semibold">Tipo</th>
+              <th class="pb-3 font-semibold">Fecha Programada</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (m of tecnicoData.proxMantenimientos; track m.codigo + m.fechaProgramada) {
+            <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+              <td class="py-3 font-semibold text-slate-800">{{ m.nombre }}</td>
+              <td class="py-3 text-slate-500 font-mono text-xs">{{ m.codigo }}</td>
+              <td class="py-3">
+                <span class="px-2 py-0.5 rounded-full text-xs font-bold"
+                  [ngClass]="m.tipo === 'PREVENTIVO' ? 'bg-easydry-blue/10 text-easydry-blue' : 'bg-amber-100 text-amber-700'">{{
+                  m.tipo }}</span>
+              </td>
+              <td class="py-3 text-slate-600">{{ m.fechaProgramada | date:'dd MMM yyyy HH:mm' }}</td>
+            </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      } @else {
+      <div class="py-10 text-center">
+        <i-lucide name="calendar-clock" class="w-8 h-8 text-slate-300 mx-auto mb-2" aria-hidden="true"></i-lucide>
+        <p class="text-sm text-slate-400">
+          No hay mantenimientos preventivos programados para el alcance y el período seleccionados.
+        </p>
+      </div>
+      }
+    </div>
   </div>
   }
 
   <!-- ═══ DASHBOARD SERVICIOS ESPECIALES ═══ -->
   @if (vista === 'especiales' && especialesData) {
 
-  <!-- KPIs del día -->
-  <div class="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-    <app-stat-card [badge]="etiquetaRango" title="OTs Hoy" [value]="especialesData.kpis.serviciosHoy" icon="sparkles" variant="primary"
-      subtitle="Órdenes de trabajo creadas"></app-stat-card>
-    <app-stat-card [badge]="etiquetaRango" title="Completados" [value]="especialesData.kpis.completadosHoy" icon="check-circle"
-      variant="success" subtitle="Finalizados hoy"></app-stat-card>
-    <app-stat-card [badge]="etiquetaRango" title="En Proceso" [value]="especialesData.kpis.enProcesoHoy" icon="loader" variant="warning"
-      subtitle="Servicios activos ahora"></app-stat-card>
-    <app-stat-card [badge]="etiquetaRango" title="Pendientes" [value]="especialesData.kpis.pendientesHoy" icon="clock" variant="primary"
-      subtitle="En cola para iniciar"></app-stat-card>
-  </div>
-
-  <!-- KPIs de calidad e ingresos -->
-  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-    <app-stat-card [badge]="etiquetaRango" title="Ingreso Hoy" [value]="'$' + especialesData.kpis.ingresoHoy" icon="dollar-sign"
-      variant="success" subtitle="Por OTs completadas hoy"></app-stat-card>
-    <app-stat-card [badge]="etiquetaRango" title="Ingreso" [value]="'$' + especialesData.kpis.ingresoTotal30d" icon="bar-chart-2"
-      variant="primary" subtitle="Del período seleccionado"></app-stat-card>
-    <app-stat-card [badge]="etiquetaRango" title="Calificación Promedio" [value]="(especialesData.kpis.calificacionPromedio ?? 0) + ' / 5'" icon="star"
-      variant="success" subtitle="Calidad del servicio"></app-stat-card>
-    <app-stat-card [badge]="etiquetaRango" title="Tiempo Promedio" [value]="(especialesData.kpis.tiempoPromedioMin ?? 0) + ' min'" icon="timer"
-      variant="warning" subtitle="Tiempo efectivo por OT"></app-stat-card>
-  </div>
-
-  <!-- Gráficos -->
-  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-    <div class="lg:col-span-2">
-      @if (especialesData.chartFlujoSemanal) {
-      <app-chart-card title="OTs Creadas (últimos 7 días del período)" subtitle="Tendencia de cierre del período filtrado" type="line"
-        [data]="especialesData.chartFlujoSemanal"></app-chart-card>
+  <!-- Navegación entre pestañas de Servicios Especiales -->
+  <div class="sticky top-4 z-40 mb-6 animate-fade-in-up">
+    <div class="dashboard-tabs inline-flex items-center gap-1 sm:gap-1.5 p-1.5 bg-white/95 backdrop-blur-md rounded-2xl border border-slate-200/80 shadow-sm max-w-full overflow-x-auto scroll-smooth"
+      role="tablist" aria-label="Secciones del dashboard de especiales">
+      <button type="button" role="tab" id="tab-esp-resumen" aria-controls="panel-esp-resumen"
+        [attr.aria-selected]="especialesTab === 'resumen'" (click)="especialesTab = 'resumen'"
+        class="shrink-0 px-3 sm:px-3.5 2xl:px-4 py-2 text-xs sm:text-[13px] 2xl:text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap"
+        [ngClass]="especialesTab === 'resumen' ? 'bg-easydry-blue text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'">
+        <i-lucide aria-hidden="true" name="sparkles" class="w-4 h-4 shrink-0"></i-lucide>
+        {{ isPulidor ? 'Mi Jornada & OTs' : 'Métricas & OTs' }}
+      </button>
+      @if (puedeVerInventario) {
+      <button type="button" role="tab" id="tab-esp-insumos" aria-controls="panel-esp-insumos"
+        [attr.aria-selected]="especialesTab === 'insumos'" (click)="especialesTab = 'insumos'"
+        class="shrink-0 px-3 sm:px-3.5 2xl:px-4 py-2 text-xs sm:text-[13px] 2xl:text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap"
+        [ngClass]="especialesTab === 'insumos' ? 'bg-easydry-blue text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'">
+        <i-lucide aria-hidden="true" name="boxes" class="w-4 h-4 shrink-0"></i-lucide>
+        Insumos & Stock
+      </button>
       }
-    </div>
-    <div class="flex flex-col gap-8">
-      @if (especialesData.chartEstadosHoy) {
-      <app-chart-card title="Estados Hoy" subtitle="Distribución de OTs del día" type="doughnut"
-        [data]="especialesData.chartEstadosHoy"></app-chart-card>
+      @if (puedeVerMaquinaria) {
+      <button type="button" role="tab" id="tab-esp-maquinaria" aria-controls="panel-esp-maquinaria"
+        [attr.aria-selected]="especialesTab === 'maquinaria'" (click)="especialesTab = 'maquinaria'"
+        class="shrink-0 px-3 sm:px-3.5 2xl:px-4 py-2 text-xs sm:text-[13px] 2xl:text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap"
+        [ngClass]="especialesTab === 'maquinaria' ? 'bg-easydry-blue text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'">
+        <i-lucide aria-hidden="true" name="wrench" class="w-4 h-4 shrink-0"></i-lucide>
+        Equipos & Detailing
+      </button>
       }
-    </div>
-  </div>
-
-  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-    @if (especialesData.chartTipoServicio) {
-    <app-chart-card title="Mix de Servicios" subtitle="Tipos más demandados" type="doughnut"
-      [data]="especialesData.chartTipoServicio"></app-chart-card>
-    }
-    @if (especialesData.chartPrioridad) {
-    <app-chart-card title="Por Prioridad" subtitle="Alta · Media · Baja · Urgente" type="bar"
-      [data]="especialesData.chartPrioridad"></app-chart-card>
-    }
-    @if (especialesData.chartTopOperadores) {
-    <app-chart-card title="Top Pulidores" subtitle="Por cantidad de OTs completadas" type="bar"
-      [data]="especialesData.chartTopOperadores"></app-chart-card>
-    }
-  </div>
-
-  <!-- Ranking de pulidores: fijos vs móviles (cantidad de servicios + dinero generado) -->
-  <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry p-6 mb-8">
-    <div class="flex items-center justify-between gap-3 mb-4 flex-wrap">
-      <h3 class="text-base font-bold font-outfit text-slate-900 flex items-center gap-2">
-        <i-lucide name="users" class="w-4 h-4 text-easydry-blue"></i-lucide>
+      @if (!isPulidor) {
+      <button type="button" role="tab" id="tab-esp-pulidores" aria-controls="panel-esp-pulidores"
+        [attr.aria-selected]="especialesTab === 'pulidores'" (click)="especialesTab = 'pulidores'"
+        class="shrink-0 px-3 sm:px-3.5 2xl:px-4 py-2 text-xs sm:text-[13px] 2xl:text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap"
+        [ngClass]="especialesTab === 'pulidores' ? 'bg-easydry-blue text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'">
+        <i-lucide aria-hidden="true" name="users" class="w-4 h-4 shrink-0"></i-lucide>
         Ranking de Pulidores
-      </h3>
-      <div class="inline-flex bg-slate-100 p-1 rounded-xl" role="tablist" aria-label="Tipo de pulidor">
-        <button type="button" role="tab" (click)="pulidoresTab = 'fijos'"
-          [attr.aria-selected]="pulidoresTab === 'fijos'"
-          class="px-4 h-8 text-xs font-bold rounded-lg transition-colors"
-          [ngClass]="pulidoresTab === 'fijos' ? 'bg-white text-easydry-blue shadow-sm' : 'text-slate-500 hover:text-slate-700'">
-          Fijos
-        </button>
-        <button type="button" role="tab" (click)="pulidoresTab = 'moviles'"
-          [attr.aria-selected]="pulidoresTab === 'moviles'"
-          class="px-4 h-8 text-xs font-bold rounded-lg transition-colors"
-          [ngClass]="pulidoresTab === 'moviles' ? 'bg-white text-easydry-blue shadow-sm' : 'text-slate-500 hover:text-slate-700'">
-          Móviles
-        </button>
+      </button>
+      }
+    </div>
+  </div>
+
+  <!-- PESTAÑA 1: MÉTRICAS & OTS -->
+  @if (especialesTab === 'resumen') {
+  <div class="space-y-6 animate-fade-in">
+    <!-- KPIs del período -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-6">
+      <app-stat-card [badge]="etiquetaRango" [title]="rangoFiltro === 'HOY' ? 'OTs Hoy' : 'OTs del Período'"
+        [value]="especialesData.kpis.serviciosHoy" icon="sparkles" variant="primary"
+        subtitle="Órdenes de trabajo creadas"></app-stat-card>
+      <app-stat-card [badge]="etiquetaRango" [title]="rangoFiltro === 'HOY' ? 'Completados Hoy' : 'Completados'"
+        [value]="especialesData.kpis.completadosHoy" icon="check-circle"
+        variant="success" subtitle="Finalizados en el período"></app-stat-card>
+      <app-stat-card [badge]="etiquetaRango" title="En Proceso" [value]="especialesData.kpis.enProcesoHoy" icon="loader" variant="warning"
+        subtitle="Servicios activos ahora"></app-stat-card>
+      <app-stat-card [badge]="etiquetaRango" title="Pendientes" [value]="especialesData.kpis.pendientesHoy" icon="clock" variant="primary"
+        subtitle="En cola para iniciar"></app-stat-card>
+    </div>
+
+    <!-- KPIs de calidad, eficiencia e insumos/ingresos -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      @if (isPulidor) {
+      <app-stat-card [badge]="etiquetaRango" title="Herramientas Operativas"
+        [value]="herramientasOperativasPulidor" icon="wrench" variant="primary"
+        subtitle="Listas en bahía de pulido"></app-stat-card>
+      <app-stat-card [badge]="etiquetaRango" title="Insumos Bajo Mínimo"
+        [value]="insumosCriticosPulidor" icon="alert-triangle"
+        [variant]="insumosCriticosPulidor > 0 ? 'danger' : 'success'"
+        subtitle="Compuestos y pastas de pulir"></app-stat-card>
+      } @else {
+      <app-stat-card [badge]="etiquetaRango" [title]="rangoFiltro === 'HOY' ? 'Ingreso Hoy' : 'Ingresos del Período'"
+        [value]="'$' + especialesData.kpis.ingresoHoy" icon="dollar-sign"
+        variant="success" subtitle="Por OTs completadas"></app-stat-card>
+      <app-stat-card [badge]="etiquetaRango" title="Ingreso 30 Días" [value]="'$' + especialesData.kpis.ingresoTotal30d" icon="bar-chart-2"
+        variant="primary" subtitle="Acumulado del período"></app-stat-card>
+      }
+      <app-stat-card [badge]="etiquetaRango" title="Calificación Promedio" [value]="(especialesData.kpis.calificacionPromedio ?? 0) + ' / 5'" icon="star"
+        variant="success" subtitle="Calidad y acabado percibido"></app-stat-card>
+      <app-stat-card [badge]="etiquetaRango" title="Tiempo Promedio" [value]="(especialesData.kpis.tiempoPromedioMin ?? 0) + ' min'" icon="timer"
+        variant="warning" subtitle="Tiempo efectivo por OT"></app-stat-card>
+    </div>
+
+    <!-- Gráficos de tendencias y estados -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div class="lg:col-span-2">
+        @if (especialesData.chartFlujoSemanal) {
+        <app-chart-card [title]="tituloFlujoEspeciales" [subtitle]="subtituloFlujoEspeciales" type="line"
+          [data]="especialesData.chartFlujoSemanal"></app-chart-card>
+        }
+      </div>
+      <div>
+        @if (especialesData.chartEstadosHoy) {
+        <app-chart-card title="Distribución por Estado" subtitle="Completadas · En Proceso · Pendientes" type="doughnut"
+          [data]="especialesData.chartEstadosHoy"></app-chart-card>
+        }
       </div>
     </div>
-    <div class="overflow-x-auto">
-      <table class="w-full text-sm">
-        <thead>
-          <tr class="text-left text-slate-500 border-b border-slate-100">
-            <th class="pb-3 font-semibold">#</th>
-            <th class="pb-3 font-semibold">Pulidor</th>
-            <th class="pb-3 font-semibold">Servicios</th>
-            <th class="pb-3 font-semibold">Ingresos</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (p of pulidoresActuales; track p.nombre; let i = $index) {
-          <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors">
-            <td class="py-3 font-bold text-slate-400">{{ i + 1 }}</td>
-            <td class="py-3 font-semibold text-slate-800">{{ p.nombre }}</td>
-            <td class="py-3 text-slate-700">{{ p.servicios }}</td>
-            <td class="py-3 font-bold text-easydry-green-text">${{ p.ingresos }}</td>
-          </tr>
-          } @empty {
-          <tr>
-            <td colspan="4" class="py-6 text-center text-slate-400">Sin datos en el periodo</td>
-          </tr>
-          }
-        </tbody>
-      </table>
-    </div>
-  </div>
 
-  <!-- Cola activa (OTs pendientes o en proceso, ordenadas por prioridad) -->
-  @if (especialesData.colaActiva?.length > 0) {
-  <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry p-6 mb-8">
-    <h3 class="text-base font-bold font-outfit text-slate-900 mb-4 flex items-center gap-2">
-      <i-lucide name="list-ordered" class="w-4 h-4 text-easydry-blue"></i-lucide>
-      Cola Activa de Servicios Especiales
-    </h3>
-    <div class="overflow-x-auto">
-      <table class="w-full text-sm">
-        <thead>
-          <tr class="text-left text-slate-500 border-b border-slate-100">
-            <th class="pb-3 font-semibold">Placa</th>
-            <th class="pb-3 font-semibold">Cliente</th>
-            <th class="pb-3 font-semibold">Tipo</th>
-            <th class="pb-3 font-semibold">Estado</th>
-            <th class="pb-3 font-semibold">Prioridad</th>
-            <th class="pb-3 font-semibold">Fecha Prog.</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (ot of especialesData.colaActiva; track ot.placa) {
-          <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors">
-            <td class="py-3 font-mono font-bold text-slate-900">{{ ot.placa }}</td>
-            <td class="py-3 text-slate-700">{{ ot.cliente || '—' }}</td>
-            <td class="py-3 text-slate-600 text-xs">{{ ot.tipo }}</td>
-            <td class="py-3">
-              <span class="px-2 py-0.5 rounded-full text-xs font-bold"
-                [ngClass]="ot.estado === 'En Proceso' ? 'bg-easydry-blue/10 text-easydry-blue' : 'bg-amber-100 text-amber-700'">
-                {{ ot.estado }}
-              </span>
-            </td>
-            <td class="py-3">
-              <span class="px-2 py-0.5 rounded-full text-xs font-bold"
-                [ngClass]="ot.prioridad === 'Alta' || ot.prioridad === 'Urgente' ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 text-slate-700'">
-                {{ ot.prioridad }}
-              </span>
-            </td>
-            <td class="py-3 text-slate-500">{{ ot.fecha ? (ot.fecha | date:'dd/MM HH:mm') : '—' }}</td>
-          </tr>
-          }
-        </tbody>
-      </table>
+    <!-- Gráfico de Mix de Tratamientos (Generales & Especiales) -->
+    @if (especialesData.chartTipoServicio) {
+    <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry p-6">
+      @if (mixEspecialesVista === 'distribucion') {
+      <app-distribution-card [titulo]="categoriaServicio === 'TODOS' ? 'Mix de Servicios (Generales & Especiales)' : (categoriaServicio === 'GENERAL' ? 'Mix de Servicios Generales' : 'Mix de Servicios Especiales')"
+        [subtitulo]="categoriaServicio === 'TODOS' ? 'Tratamientos generales y especiales más demandados' : ('Servicios de ' + (categoriaServicio === 'GENERAL' ? 'lavado general' : 'detailing especial') + ' más demandados')"
+        etiquetaTotal="OTs" [items]="mixEspecialesItems">
+        <div card-actions class="flex items-center gap-2 flex-wrap justify-end">
+          <div class="flex bg-slate-100 p-1 rounded-xl">
+            <button type="button" class="px-2.5 py-1 text-xs font-bold rounded-lg transition-colors text-slate-500 hover:text-slate-700"
+              (click)="mixEspecialesVista = 'barras'">
+              Barras
+            </button>
+            <button type="button" class="px-2.5 py-1 text-xs font-bold rounded-lg transition-colors bg-white text-slate-900 shadow-sm"
+              (click)="mixEspecialesVista = 'distribucion'">
+              Dona
+            </button>
+          </div>
+          <app-top-orden [orden]="mixEspecialesTop" (ordenChange)="mixEspecialesTop = $event"></app-top-orden>
+        </div>
+      </app-distribution-card>
+      } @else {
+      <app-chart-card [title]="categoriaServicio === 'TODOS' ? 'Mix de Servicios (Generales & Especiales)' : (categoriaServicio === 'GENERAL' ? 'Mix de Servicios Generales' : 'Mix de Servicios Especiales')"
+        [subtitle]="categoriaServicio === 'TODOS' ? 'Tratamientos generales y especiales más demandados' : ('Servicios de ' + (categoriaServicio === 'GENERAL' ? 'lavado general' : 'detailing especial') + ' más demandados')"
+        type="bar" [horizontal]="true"
+        [data]="chartTipoServicioOrdenado">
+        <div chart-actions class="flex items-center gap-2 flex-wrap justify-end">
+          <div class="flex bg-slate-100 p-1 rounded-xl">
+            <button type="button" class="px-2.5 py-1 text-xs font-bold rounded-lg transition-colors bg-white text-slate-900 shadow-sm"
+              (click)="mixEspecialesVista = 'barras'">
+              Barras
+            </button>
+            <button type="button" class="px-2.5 py-1 text-xs font-bold rounded-lg transition-colors text-slate-500 hover:text-slate-700"
+              (click)="mixEspecialesVista = 'distribucion'">
+              Dona
+            </button>
+          </div>
+          <app-top-orden [orden]="mixEspecialesTop" (ordenChange)="mixEspecialesTop = $event"></app-top-orden>
+        </div>
+      </app-chart-card>
+      }
+    </div>
+    }
+  </div>
+  }
+
+  <!-- PESTAÑA 2: RANKING DE PULIDORES -->
+  @if (especialesTab === 'pulidores') {
+  <div class="space-y-6 animate-fade-in">
+    @if (especialesData.chartTopOperadores) {
+    <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry p-6">
+      <app-chart-card title="Top Pulidores Más Productivos" subtitle="Por cantidad de OTs completadas" type="bar"
+        [data]="chartTopOperadoresOrdenado">
+        <div chart-actions>
+          <app-top-orden [orden]="pulidoresChartTop" (ordenChange)="pulidoresChartTop = $event"></app-top-orden>
+        </div>
+      </app-chart-card>
+    </div>
+    }
+
+    <!-- Ranking de pulidores: fijos vs móviles -->
+    <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry p-6">
+      <div class="flex items-center justify-between gap-3 mb-4 flex-wrap">
+        <div>
+          <h3 class="text-base font-bold font-outfit text-slate-900 flex items-center gap-2">
+            <i-lucide name="users" class="w-4 h-4 text-easydry-blue"></i-lucide>
+            Rendimiento del Personal Especializado
+          </h3>
+          <p class="text-xs text-slate-400 mt-0.5">Pulidores Fijos (asignados a agencia) vs Móviles (cobertura regional)</p>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap">
+          <div class="inline-flex bg-slate-100 p-1 rounded-xl" role="tablist" aria-label="Tipo de pulidor">
+            <button type="button" role="tab" (click)="pulidoresTab = 'fijos'"
+              [attr.aria-selected]="pulidoresTab === 'fijos'"
+              class="px-4 h-8 text-xs font-bold rounded-lg transition-colors"
+              [ngClass]="pulidoresTab === 'fijos' ? 'bg-white text-easydry-blue shadow-sm' : 'text-slate-500 hover:text-slate-700'">
+              Fijos
+            </button>
+            <button type="button" role="tab" (click)="pulidoresTab = 'moviles'"
+              [attr.aria-selected]="pulidoresTab === 'moviles'"
+              class="px-4 h-8 text-xs font-bold rounded-lg transition-colors"
+              [ngClass]="pulidoresTab === 'moviles' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'">
+              Móviles
+            </button>
+          </div>
+          <app-top-orden [orden]="pulidoresTablaTop" (ordenChange)="pulidoresTablaTop = $event"></app-top-orden>
+        </div>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="text-left text-slate-500 border-b border-slate-100">
+              <th class="w-12 pb-3 font-semibold text-center text-slate-400">#</th>
+              <th class="pb-3 font-semibold text-slate-600">Pulidor</th>
+              <th class="w-28 pb-3 font-semibold text-center text-slate-600">Servicios</th>
+              <th class="w-28 pb-3 font-semibold text-right text-slate-600 pr-2">Ingresos</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (p of pulidoresActuales; track p.nombre; let i = $index) {
+            <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+              <td class="py-3 font-bold text-slate-400 text-center font-mono text-xs">{{ i + 1 }}</td>
+              <td class="py-3 font-semibold text-slate-800">{{ p.nombre }}</td>
+              <td class="py-3 text-slate-700 text-center font-medium">{{ p.servicios }}</td>
+              <td class="py-3 font-bold text-easydry-green-text text-right pr-2">${{ p.ingresos }}</td>
+            </tr>
+            } @empty {
+            <tr>
+              <td colspan="4" class="py-8 text-center text-slate-400">
+                <i-lucide name="user-x" class="w-8 h-8 mx-auto mb-2 text-slate-300"></i-lucide>
+                Sin datos de pulidores registrados en el período seleccionado
+              </td>
+            </tr>
+            }
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
   }
 
+  <!-- PESTAÑA 3: EQUIPOS & DETAILING -->
+  @if (especialesTab === 'maquinaria' && puedeVerMaquinaria) {
+  <div class="space-y-6 animate-fade-in">
+    <div class="bg-gradient-to-r from-easydry-blue/10 via-blue-50 to-transparent p-4 rounded-2xl border border-slate-200/80 flex items-center justify-between gap-4 flex-wrap">
+      <div>
+        <h2 class="text-base font-bold text-slate-900 font-outfit flex items-center gap-2">
+          <i-lucide name="wrench" class="w-4 h-4 text-easydry-blue"></i-lucide>
+          Equipos, Pulidoras y Herramientas de Detailing
+        </h2>
+        <p class="text-xs text-slate-500 mt-0.5">Estado operativo, preventivos y mantenimiento de maquinaria asignada a su sede.</p>
+      </div>
+      <a routerLink="/maquinaria"
+        class="px-3.5 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-800 text-xs font-bold rounded-xl transition-colors inline-flex items-center gap-1.5 shadow-sm">
+        <i-lucide name="wrench" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide> Ver Módulo de Maquinaria
+      </a>
+    </div>
+
+    @if (tecnicoData || maquinaria) {
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-6">
+      <app-stat-card [badge]="etiquetaRango" title="Equipos Totales"
+        [value]="tecnicoData ? (tecnicoData.equiposOperativos + tecnicoData.mantenimientosPendientes + tecnicoData.maquinariaFueraServicio) : (maquinaria?.total || 0)"
+        icon="wrench" variant="primary" subtitle="Herramientas y maquinaria"></app-stat-card>
+      <app-stat-card [badge]="etiquetaRango" title="Operativas"
+        [value]="tecnicoData?.equiposOperativos ?? (maquinaria?.operativas || 0)"
+        icon="check-circle" variant="success" subtitle="Listas para uso"></app-stat-card>
+      <app-stat-card [badge]="etiquetaRango" title="En Mantenimiento"
+        [value]="tecnicoData?.mantenimientosPendientes ?? (maquinaria?.mantenimiento || 0)"
+        icon="calendar-clock" variant="warning" subtitle="En taller técnico"></app-stat-card>
+      <app-stat-card [badge]="etiquetaRango" title="Incidentes Abiertos"
+        [value]="tecnicoData?.incidentesAbiertos ?? 0"
+        icon="alert-triangle" variant="danger" subtitle="Averías reportadas"></app-stat-card>
+    </div>
+
+    <!-- KPIs de Costos de Maquinaria y Eficiencia de Mantenimiento -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-6">
+      <app-stat-card [badge]="etiquetaRango" title="Costo Reparaciones"
+        [value]="'$' + (tecnicoData?.costoTotalReparaciones ?? 0)"
+        icon="dollar-sign" variant="danger" subtitle="Averías y repuestos del período"></app-stat-card>
+      <app-stat-card [badge]="etiquetaRango" title="Costo Mantenimiento"
+        [value]="'$' + (tecnicoData?.costoMantenimientos30d ?? 0)"
+        icon="wrench" variant="warning" subtitle="Preventivo y correctivo"></app-stat-card>
+      <app-stat-card [badge]="etiquetaRango" title="Tiempo Promedio Resolución"
+        [value]="(tecnicoData?.tiempoPromedioResolucionHoras ?? 0) + ' hrs'"
+        icon="clock" variant="primary" subtitle="MTTR (reporte a solución)"></app-stat-card>
+      <app-stat-card [badge]="etiquetaRango" title="Mantenimientos"
+        [value]="tecnicoData?.mantenimientosEjecutados30d ?? 0"
+        icon="check-circle" variant="success" subtitle="Ejecutados en el período"></app-stat-card>
+    </div>
+    }
+
+    <!-- Gráficos del estado de maquinaria e incidentes -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      @if (tecnicoData?.chartEstadoParque || maquinaria?.distribucionEstado) {
+      <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry p-6">
+        <app-chart-card title="Estado del Parque de Maquinaria y Equipos" subtitle="Operativas · En Mantenimiento · Fuera de Servicio" type="doughnut"
+          [data]="tecnicoData?.chartEstadoParque || maquinaria?.distribucionEstado"></app-chart-card>
+      </div>
+      }
+      @if (tecnicoData?.chartGravedadIncidentes) {
+      <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry p-6">
+        <app-chart-card title="Incidentes por Gravedad" subtitle="Fallas registradas en herramientas y equipos" type="doughnut"
+          [data]="tecnicoData.chartGravedadIncidentes"></app-chart-card>
+      </div>
+      }
+    </div>
+
+    <!-- Gráficos analíticos de costos y tipos de mantenimiento -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      @if (tecnicoData?.chartCostoMaquinas || tecnicoData?.chartTopMaquinas) {
+      <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry p-6">
+        <app-chart-card [title]="tecnicoData?.chartCostoMaquinas ? 'Máquinas con Mayor Gasto en Reparaciones' : 'Máquinas con Más Fallas'"
+          subtitle="Top equipos con más costos o incidencias reportadas" type="bar" [horizontal]="true"
+          [data]="tecnicoData?.chartCostoMaquinas || tecnicoData?.chartTopMaquinas"></app-chart-card>
+      </div>
+      }
+      @if (tecnicoData?.chartTipoMantenimiento || tecnicoData?.chartCostoTipoMantenimiento || tecnicoData?.chartTipoMaquinaria) {
+      <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry p-6">
+        <app-chart-card [title]="tecnicoData?.chartCostoTipoMantenimiento ? 'Costo por Tipo de Mantenimiento' : (tecnicoData?.chartTipoMantenimiento ? 'Mantenimiento Preventivo vs Correctivo' : 'Distribución por Tipo de Equipo')"
+          [subtitle]="tecnicoData?.chartCostoTipoMantenimiento ? 'Inversión en prevención vs correctivo' : 'Composición del mantenimiento ejecutado'"
+          type="doughnut"
+          [data]="tecnicoData?.chartCostoTipoMantenimiento || tecnicoData?.chartTipoMantenimiento || tecnicoData?.chartTipoMaquinaria"></app-chart-card>
+      </div>
+      }
+    </div>
+
+    <!-- Próximos mantenimientos preventivos programados -->
+    @if (tecnicoData?.proxMantenimientos?.length > 0) {
+    <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry p-6">
+      <h3 class="text-base font-bold font-outfit text-slate-900 mb-4 flex items-center gap-2">
+        <i-lucide name="calendar-clock" class="w-4 h-4 text-easydry-blue"></i-lucide>
+        Próximos Mantenimientos Preventivos de Equipos
+      </h3>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="text-left text-slate-500 border-b border-slate-100">
+              <th class="pb-3 font-semibold">Equipo / Máquina</th>
+              <th class="pb-3 font-semibold">Código</th>
+              <th class="pb-3 font-semibold">Tipo</th>
+              <th class="pb-3 font-semibold">Fecha Programada</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (m of tecnicoData.proxMantenimientos; track m.codigo) {
+            <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+              <td class="py-3 font-semibold text-slate-800">{{ m.nombre }}</td>
+              <td class="py-3 text-slate-500 font-mono text-xs">{{ m.codigo }}</td>
+              <td class="py-3">
+                <span class="px-2 py-0.5 rounded-full text-xs font-bold"
+                  [ngClass]="m.tipo === 'PREVENTIVO' ? 'bg-easydry-blue/10 text-easydry-blue' : 'bg-amber-100 text-amber-700'">
+                  {{ m.tipo }}
+                </span>
+              </td>
+              <td class="py-3 text-slate-600">{{ m.fechaProgramada | date:'dd MMM yyyy HH:mm' }}</td>
+            </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+    }
+  </div>
+  }
+
+  <!-- PESTAÑA: INSUMOS & STOCK DE DETAILING -->
+  @if (especialesTab === 'insumos' && puedeVerInventario) {
+  <div class="space-y-6 animate-fade-in">
+    <div class="bg-gradient-to-r from-easydry-blue/10 via-emerald-50 to-transparent p-4 rounded-2xl border border-slate-200/80 flex items-center justify-between gap-4 flex-wrap">
+      <div>
+        <h2 class="text-base font-bold text-slate-900 font-outfit flex items-center gap-2">
+          <i-lucide name="boxes" class="w-4 h-4 text-easydry-blue"></i-lucide>
+          Insumos y Químicos de Detailing
+        </h2>
+        <p class="text-xs text-slate-500 mt-0.5">Control de existencias de pastas de pulir, ceras, microfibras y compuestos asignados a su agencia.</p>
+      </div>
+      <a routerLink="/inventario"
+        class="px-3.5 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-800 text-xs font-bold rounded-xl transition-colors inline-flex items-center gap-1.5 shadow-sm">
+        <i-lucide name="package" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide> Ver Catálogo de Inventario
+      </a>
+    </div>
+
+    @if (bodegaData) {
+    <!-- KPIs de Insumos -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-6">
+      <app-stat-card [badge]="etiquetaRango" title="Posiciones Evaluadas" [value]="bodegaData.kpis.posicionesEvaluadas ?? 0"
+        icon="archive" variant="primary" subtitle="Insumos asignados a la sede"></app-stat-card>
+      <app-stat-card [badge]="etiquetaRango" title="Bajo el Mínimo" [value]="bodegaData.kpis.posicionesBajoMinimo ?? 0"
+        icon="alert-triangle" variant="danger" subtitle="Agotado, crítico o bajo mínimo"></app-stat-card>
+      <app-stat-card [badge]="etiquetaRango" title="Bajo el Ideal" [value]="bodegaData.kpis.posicionesBajoIdeal ?? 0"
+        icon="trending-down" variant="warning" subtitle="Sin reserva de seguridad"></app-stat-card>
+      <app-stat-card [badge]="etiquetaRango" title="Unidades a Reponer" [value]="bodegaData.kpis.unidadesReponer ?? 0"
+        icon="package-plus" variant="primary" subtitle="Unidades requeridas"></app-stat-card>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      @if (bodegaData.chartSaludStock) {
+      <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry p-6">
+        <app-chart-card title="Salud del Stock de Detailing" subtitle="Distribución de insumos según nivel de reserva"
+          type="doughnut" [data]="bodegaData.chartSaludStock"></app-chart-card>
+      </div>
+      }
+      @if (bodegaData.chartTopDeficit) {
+      <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry p-6">
+        <app-chart-card title="Insumos con Mayor Déficit" subtitle="Productos más alejados de su stock ideal"
+          type="bar" [horizontal]="true" [data]="bodegaData.chartTopDeficit"></app-chart-card>
+      </div>
+      }
+    </div>
+    }
+
+  </div>
+  }
+
   <div class="text-center mt-6">
-    <a routerLink="/servicios"
+    <a routerLink="/servicios" [queryParams]="{ tab: 'especiales' }"
       class="inline-flex items-center gap-2 px-6 py-3 bg-easydry-green hover:bg-easydry-green-dark text-slate-900 font-bold rounded-xl text-sm transition-colors">
-      <i-lucide name="sparkles" class="w-4 h-4"></i-lucide> Ir a la Cola de Servicios Especiales
+      <i-lucide name="sparkles" class="w-4 h-4"></i-lucide> {{ isPulidor ? 'Ir a la Mesa de Ejecución de OTs' : 'Ir a la Cola de Servicios Especiales' }}
     </a>
   </div>
   }
@@ -1067,74 +1610,186 @@
   <!-- ═══ DASHBOARD BODEGA ═══ -->
   @if (vista === 'bodega' && bodegaData) {
 
-  <!-- KPIs principales -->
-  <div class="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-    <app-stat-card [badge]="etiquetaRango" title="Alertas Activas" [value]="bodegaData.kpis.totalAlertasActivas" icon="bell-ring"
-      variant="warning" subtitle="Sin resolver"></app-stat-card>
-    <app-stat-card [badge]="etiquetaRango" title="Críticas / Agotadas" [value]="bodegaData.kpis.alertasCriticas" icon="alert-triangle"
-      variant="danger" subtitle="Requieren despacho urgente"></app-stat-card>
-    <app-stat-card [badge]="etiquetaRango" title="Despachos en Tránsito" [value]="bodegaData.kpis.despachosEnTransito" icon="truck"
-      variant="primary" subtitle="Movimientos activos"></app-stat-card>
-    <app-stat-card [badge]="etiquetaRango" title="Despachos Pendientes" [value]="bodegaData.kpis.despachosPendientes" icon="package"
-      variant="warning" subtitle="Por confirmar envío"></app-stat-card>
+  <!-- Submenú flotante: agrupa las funcionalidades del rol sin salir de la página -->
+  <div class="sticky top-4 z-40 mb-6 animate-fade-in-up">
+    <div class="dashboard-tabs inline-flex items-center gap-1 sm:gap-1.5 p-1.5 bg-white/95 backdrop-blur-md rounded-2xl border border-slate-200/80 shadow-sm max-w-full overflow-x-auto scroll-smooth"
+      role="tablist" aria-label="Secciones del dashboard de bodega">
+      <button type="button" role="tab" id="tab-bod-salud" aria-controls="panel-bod-salud"
+        [attr.aria-selected]="bodegaTab === 'salud'" (click)="bodegaTab = 'salud'"
+        class="shrink-0 px-3 sm:px-3.5 2xl:px-4 py-2 text-xs sm:text-[13px] 2xl:text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap"
+        [ngClass]="bodegaTab === 'salud' ? 'bg-easydry-blue text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'">
+        <i-lucide aria-hidden="true" name="activity" class="w-4 h-4 shrink-0"></i-lucide>
+        Salud del Stock
+      </button>
+      <button type="button" role="tab" id="tab-bod-reposicion" aria-controls="panel-bod-reposicion"
+        [attr.aria-selected]="bodegaTab === 'reposicion'" (click)="bodegaTab = 'reposicion'"
+        class="shrink-0 px-3 sm:px-3.5 2xl:px-4 py-2 text-xs sm:text-[13px] 2xl:text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap"
+        [ngClass]="bodegaTab === 'reposicion' ? 'bg-easydry-blue text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'">
+        <i-lucide aria-hidden="true" name="package-plus" class="w-4 h-4 shrink-0"></i-lucide>
+        Reposición
+      </button>
+      <button type="button" role="tab" id="tab-bod-despachos" aria-controls="panel-bod-despachos"
+        [attr.aria-selected]="bodegaTab === 'despachos'" (click)="bodegaTab = 'despachos'"
+        class="shrink-0 px-3 sm:px-3.5 2xl:px-4 py-2 text-xs sm:text-[13px] 2xl:text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap"
+        [ngClass]="bodegaTab === 'despachos' ? 'bg-easydry-blue text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'">
+        <i-lucide aria-hidden="true" name="truck" class="w-4 h-4 shrink-0"></i-lucide>
+        Despachos
+      </button>
+      <button type="button" role="tab" id="tab-bod-consumo" aria-controls="panel-bod-consumo"
+        [attr.aria-selected]="bodegaTab === 'consumo'" (click)="bodegaTab = 'consumo'"
+        class="shrink-0 px-3 sm:px-3.5 2xl:px-4 py-2 text-xs sm:text-[13px] 2xl:text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap"
+        [ngClass]="bodegaTab === 'consumo' ? 'bg-easydry-blue text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'">
+        <i-lucide aria-hidden="true" name="boxes" class="w-4 h-4 shrink-0"></i-lucide>
+        Consumo & Existencias
+      </button>
+    </div>
   </div>
 
-  <!-- KPIs de volumen: todo el bloque de suministro se mide en unidades, no en USD -->
-  <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-8">
-    <app-stat-card [badge]="etiquetaRango" title="Unidades en Tránsito" [value]="bodegaData.kpis.unidadesEnTransito" icon="boxes"
-      variant="warning" subtitle="Unidades en movimientos no recibidos"></app-stat-card>
-    <app-stat-card [badge]="etiquetaRango" title="Unidades en Stock" [value]="bodegaData.kpis.unidadesStock" icon="archive"
-      variant="success" subtitle="Existencias disponibles del alcance"></app-stat-card>
+  <!-- PESTAÑA: SALUD DEL STOCK -->
+  <div class="mb-4 animate-fade-in" role="tabpanel" id="panel-bod-salud" aria-labelledby="tab-bod-salud"
+    [class.hidden]="bodegaTab !== 'salud'">
+
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <app-stat-card [badge]="etiquetaRango" title="Posiciones Evaluadas" [value]="bodegaData.kpis.posicionesEvaluadas ?? 0"
+        icon="archive" variant="primary" subtitle="Ubicaciones de stock con insumo asignado"></app-stat-card>
+      <app-stat-card [badge]="etiquetaRango" title="Bajo el Mínimo" [value]="bodegaData.kpis.posicionesBajoMinimo ?? 0"
+        icon="alert-triangle" variant="danger" subtitle="Agotado, crítico o bajo mínimo"></app-stat-card>
+      <app-stat-card [badge]="etiquetaRango" title="Bajo el Ideal" [value]="bodegaData.kpis.posicionesBajoIdeal ?? 0"
+        icon="trending-down" variant="warning" subtitle="Aún sobre el mínimo pero sin reserva"></app-stat-card>
+      <app-stat-card [badge]="etiquetaRango" title="% Bajo el Ideal" [value]="(bodegaData.kpis.pctBajoIdeal ?? 0) + '%'"
+        icon="pie-chart" [variant]="(bodegaData.kpis.pctBajoIdeal ?? 0) > 50 ? 'danger' : 'success'"
+        subtitle="Proporción del alcance evaluado"></app-stat-card>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-12 grid-flow-dense gap-6">
+      <app-chart-card class="lg:col-span-5" title="Salud del Stock" subtitle="Posiciones según mínimo e ideal" type="doughnut"
+        [data]="bodegaData?.chartSaludStock"
+        mensajeVacio="Sin posiciones de stock evaluables para el alcance seleccionado."></app-chart-card>
+      <app-chart-card class="lg:col-span-7" title="Stock vs Mínimo vs Ideal por Categoría"
+        subtitle="Unidades totales: existencia real frente a los umbrales" type="bar" [data]="bodegaData?.chartStockVsIdeal"
+        mensajeVacio="Sin existencias registradas en el alcance seleccionado."></app-chart-card>
+      <app-chart-card class="lg:col-span-12" title="Alertas por Categoría y Nivel" subtitle="Agotado · Crítico · Bajo"
+        type="bar" [stacked]="true" [data]="bodegaData?.chartAlertasCategoriaNivel"
+        mensajeVacio="Sin alertas de stock en el alcance seleccionado."></app-chart-card>
+    </div>
   </div>
 
-  <!-- Gráficos -->
-  <div class="grid grid-cols-1 gap-6 mb-8 animate-fade-in-up"
-    [ngClass]="{
-      'lg:grid-cols-1': bodegaMainColumns === 1,
-      'lg:grid-cols-2': bodegaMainColumns === 2,
-      'lg:grid-cols-3': bodegaMainColumns === 3
-    }">
-    @if (bodegaData.chartNivelAlertas) {
-    <app-chart-card title="Nivel de Alertas de Stock" subtitle="Distribución por criticidad" type="doughnut"
-      [data]="bodegaData.chartNivelAlertas"></app-chart-card>
-    }
-    @if (bodegaData.chartDespachosEstado) {
-    <app-chart-card title="Estado de Despachos" subtitle="PENDIENTE · EN TRÁNSITO · RECIBIDO" type="doughnut"
-      [data]="bodegaData.chartDespachosEstado"></app-chart-card>
-    }
-    @if (bodegaData.chartTopInsumosCriticos) {
-    <app-chart-card title="Top Insumos con Alertas" subtitle="Insumos con más reportes de stock bajo" type="bar" [horizontal]="true"
-      [data]="bodegaData.chartTopInsumosCriticos"></app-chart-card>
-    }
-    @if (bodegaData.chartTopAgenciasConAlertas) {
-    <app-chart-card title="Top Agencias con Alertas" subtitle="Sucursales con más urgencias de stock" type="bar" [horizontal]="true"
-      [data]="bodegaData.chartTopAgenciasConAlertas"></app-chart-card>
-    }
-    @if (bodegaData.chartTopInsumosConsumo) {
-    <app-chart-card title="Top Insumos por Rotación" subtitle="Insumos con más unidades despachadas" type="bar" [horizontal]="true"
-      [data]="bodegaData.chartTopInsumosConsumo"></app-chart-card>
-    }
-    @if (bodegaData.chartConsumoPorCategoria) {
-    <app-chart-card title="Consumo por Categoría" subtitle="Unidades despachadas por tipo de insumo" type="bar" [horizontal]="true"
-      [data]="bodegaData.chartConsumoPorCategoria"></app-chart-card>
-    }
-    @if (bodegaData.chartTopAgenciasConsumo) {
-    <app-chart-card title="Top Agencias por Consumo" subtitle="Agencias que solicitaron más insumos" type="bar" [horizontal]="true"
-      [data]="bodegaData.chartTopAgenciasConsumo"></app-chart-card>
-    }
-    @if (bodegaData.chartUnidadesStockPorCategoria) {
-    <app-chart-card title="Existencias por Categoría" subtitle="Unidades de stock disponible por tipo de insumo" type="bar" [horizontal]="true"
-      [data]="bodegaData.chartUnidadesStockPorCategoria"></app-chart-card>
-    }
+  <!-- PESTAÑA: REPOSICIÓN -->
+  <div class="mb-4 animate-fade-in" role="tabpanel" id="panel-bod-reposicion" aria-labelledby="tab-bod-reposicion"
+    [class.hidden]="bodegaTab !== 'reposicion'">
+
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <app-stat-card [badge]="etiquetaRango" title="Unidades a Reponer" [value]="bodegaData.kpis.unidadesReponer ?? 0"
+        icon="package-plus" variant="danger" subtitle="Total para llegar al nivel ideal"></app-stat-card>
+      <app-stat-card [badge]="etiquetaRango" title="Insumos con Déficit" [value]="bodegaData.kpis.insumosConDeficit ?? 0"
+        icon="boxes" variant="warning" subtitle="Del catálogo monitoreado"></app-stat-card>
+      <app-stat-card [badge]="etiquetaRango" title="Ubicaciones con Déficit" [value]="bodegaData.kpis.ubicacionesConDeficit ?? 0"
+        icon="map-pin" variant="warning" subtitle="Puntos que requieren resurtido"></app-stat-card>
+      <app-stat-card [badge]="etiquetaRango" title="Cobertura Crítica" [value]="bodegaData.kpis.insumosCoberturaCritica ?? 0"
+        icon="clock" [variant]="(bodegaData.kpis.insumosCoberturaCritica ?? 0) > 0 ? 'danger' : 'success'"
+        subtitle="Insumos con menos de 7 días de stock"></app-stat-card>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-12 grid-flow-dense gap-6">
+      <app-chart-card class="lg:col-span-6" title="Cobertura de Stock"
+        subtitle="Días que dura cada insumo al ritmo de consumo diario (promedio de 30 días)" type="bar"
+        [horizontal]="true" [data]="coberturaChart"
+        mensajeVacio="Sin consumo registrado en el período para estimar la cobertura.">
+        <div chart-actions class="flex flex-wrap items-center justify-end gap-2">
+          <app-top-orden [orden]="coberturaTop" (ordenChange)="coberturaTop = $event"></app-top-orden>
+        </div>
+      </app-chart-card>
+
+      <app-chart-card class="lg:col-span-6" title="Mayor Faltante de Reposición"
+        subtitle="Unidades que faltan para llegar al nivel ideal, en la unidad de medida de cada insumo" type="bar"
+        [horizontal]="true" [data]="deficitChart"
+        mensajeVacio="Ningún insumo por debajo de su nivel ideal.">
+        <div chart-actions class="flex flex-wrap items-center justify-end gap-2">
+          <app-top-orden [orden]="deficitTop" (ordenChange)="deficitTop = $event"></app-top-orden>
+        </div>
+      </app-chart-card>
+
+      <app-chart-card class="lg:col-span-12" title="Ubicaciones con Stock bajo el Ideal"
+        subtitle="Primero las que combinan agotado con crítico/bajo mínimo/bajo ideal · luego las más agotadas"
+        type="bar" [horizontal]="true" [stacked]="true" [data]="ubicacionesChart"
+        mensajeVacio="Ninguna ubicación por debajo de su nivel ideal.">
+        <div chart-actions class="flex flex-wrap items-center justify-end gap-2">
+          <app-top-orden [orden]="ubicacionesTop" (ordenChange)="ubicacionesTop = $event"></app-top-orden>
+        </div>
+      </app-chart-card>
+    </div>
   </div>
 
+  <!-- PESTAÑA: DESPACHOS -->
+  <div class="mb-4 animate-fade-in" role="tabpanel" id="panel-bod-despachos" aria-labelledby="tab-bod-despachos"
+    [class.hidden]="bodegaTab !== 'despachos'">
 
-  <div class="text-center mt-6">
-    <a routerLink="/inventario"
-      class="inline-flex items-center gap-2 px-6 py-3 bg-easydry-green hover:bg-easydry-green-dark text-slate-900 font-bold rounded-xl text-sm transition-colors">
-      <i-lucide name="package" class="w-4 h-4"></i-lucide> Ir al Módulo de Inventario
-    </a>
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <app-stat-card [badge]="etiquetaRango" title="Despachos del Período" [value]="bodegaData.kpis.despachos30d ?? 0"
+        icon="truck" variant="primary" subtitle="Movimientos de salida registrados"></app-stat-card>
+      <app-stat-card [badge]="etiquetaRango" title="Despachos en Tránsito" [value]="bodegaData.kpis.despachosEnTransito ?? 0"
+        icon="arrow-right" variant="warning" subtitle="Enviados sin confirmar recepción"></app-stat-card>
+      <app-stat-card [badge]="etiquetaRango" title="Despachos Pendientes" [value]="bodegaData.kpis.despachosPendientes ?? 0"
+        icon="clock" [variant]="(bodegaData.kpis.despachosPendientes ?? 0) > 0 ? 'warning' : 'success'"
+        subtitle="Por confirmar envío"></app-stat-card>
+      <app-stat-card [badge]="etiquetaRango" title="Unidades en Tránsito" [value]="bodegaData.kpis.unidadesEnTransito ?? 0"
+        icon="boxes" variant="warning" subtitle="Unidades enviadas sin recibir"></app-stat-card>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-12 grid-flow-dense gap-6">
+      <app-chart-card class="lg:col-span-4" title="Estado de Despachos" subtitle="Pendiente · En tránsito · Recibido" type="doughnut"
+        [data]="bodegaData?.chartDespachosEstado"
+        mensajeVacio="Sin despachos registrados en el período seleccionado."></app-chart-card>
+      <app-chart-card class="lg:col-span-8" title="Ubicaciones con más Alertas" subtitle="Alertas de stock sin resolver, por ubicación" type="bar"
+        [horizontal]="true" [data]="bodegaData?.chartTopAgenciasConAlertas"
+        mensajeVacio="Sin alertas de stock en el alcance seleccionado."></app-chart-card>
+    </div>
   </div>
+
+  <!-- PESTAÑA: CONSUMO & EXISTENCIAS -->
+  <div class="mb-4 animate-fade-in" role="tabpanel" id="panel-bod-consumo" aria-labelledby="tab-bod-consumo"
+    [class.hidden]="bodegaTab !== 'consumo'">
+
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
+      <app-stat-card [badge]="etiquetaRango" title="Unidades en Stock" [value]="bodegaData.kpis.unidadesStock ?? 0"
+        icon="archive" variant="success" subtitle="Existencias disponibles del alcance"></app-stat-card>
+      <app-stat-card [badge]="etiquetaRango" title="Posiciones Óptimas" [value]="posicionesOptimas" icon="shield-check"
+        variant="success" subtitle="Dentro del rango ideal"></app-stat-card>
+      <app-stat-card [badge]="etiquetaRango" title="Posiciones en Sobrestock" [value]="posicionesSobrestock" icon="trending-up"
+        variant="warning" subtitle="Por encima del 150% del ideal"></app-stat-card>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-12 grid-flow-dense gap-6">
+      <app-chart-card class="lg:col-span-6" title="Insumos por Rotación" subtitle="Unidades despachadas desde bodega en el período"
+        type="bar" [horizontal]="true" [data]="consumoInsumosBodegaChart"
+        mensajeVacio="Sin despachos de insumos registrados en el período seleccionado.">
+        <div chart-actions class="flex flex-wrap items-center justify-end gap-2">
+          <app-top-orden [orden]="consumoInsumosTop" (ordenChange)="consumoInsumosTop = $event"></app-top-orden>
+        </div>
+      </app-chart-card>
+
+      <app-chart-card class="lg:col-span-6" title="Agencias por Consumo" subtitle="Destinos que recibieron más unidades"
+        type="bar" [horizontal]="true" [data]="consumoAgenciasBodegaChart"
+        mensajeVacio="Sin destinos con despachos en el período seleccionado.">
+        <div chart-actions class="flex flex-wrap items-center justify-end gap-2">
+          <app-top-orden [orden]="consumoAgenciasTop" (ordenChange)="consumoAgenciasTop = $event"></app-top-orden>
+        </div>
+      </app-chart-card>
+
+      <app-chart-card class="lg:col-span-6" title="Existencias por Categoría" subtitle="Unidades de stock disponible por tipo de insumo"
+        type="bar" [horizontal]="true" [data]="bodegaData?.chartUnidadesStockPorCategoria"
+        mensajeVacio="Sin existencias registradas en el alcance seleccionado."></app-chart-card>
+
+      <app-chart-card class="lg:col-span-6" title="Consumo por Categoría" subtitle="Unidades despachadas por tipo de insumo"
+        type="bar" [horizontal]="true" [data]="bodegaData?.chartConsumoPorCategoria"
+        mensajeVacio="Sin consumo registrado en el período seleccionado."></app-chart-card>
+
+      <app-chart-card class="lg:col-span-12" title="Insumos con más Alertas" subtitle="Insumos con más reportes de stock bajo"
+        type="bar" [horizontal]="true" [data]="bodegaData?.chartTopInsumosCriticos"
+        mensajeVacio="Sin alertas de stock en el alcance seleccionado."></app-chart-card>
+    </div>
+  </div>
+
   }
 
   @if (vista === 'ninguna') {
