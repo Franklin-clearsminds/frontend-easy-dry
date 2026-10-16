@@ -94,6 +94,14 @@
           </app-select-search>
         </div>
         }
+        @if (puedeFiltrarCliente) {
+        <div class="w-44 transition-all" [class.ring-2]="clienteFiltro" [class.ring-amber-400]="clienteFiltro" [class.rounded-xl]="clienteFiltro">
+          <app-select-search placeholder="Cliente / Marca" todasLabel="Todos los clientes" ariaLabel="Filtrar por cliente"
+            [cargar]="cargarClientes" [value]="clienteFiltro" [valueLabel]="clienteLabel"
+            (valueChange)="onClienteChange($event)" (seleccion)="clienteLabel = $event?.label || ''">
+          </app-select-search>
+        </div>
+        }
         @if (puedeFiltrarAgencia) {
         <div class="w-44 transition-all" [class.ring-2]="agenciaFiltro" [class.ring-easydry-green]="agenciaFiltro" [class.rounded-xl]="agenciaFiltro">
           <app-select-search placeholder="Agencia" todasLabel="Todas las agencias" ariaLabel="Filtrar por agencia"
@@ -102,7 +110,15 @@
           </app-select-search>
         </div>
         }
-        @if (!isComercialView && !isPulidor) {
+        @if (isAprobadorView || agenciaFiltro || esAlcanceAgencia) {
+        <div class="w-44 transition-all" [class.ring-2]="bahiaFiltro" [class.ring-cyan-500]="bahiaFiltro" [class.rounded-xl]="bahiaFiltro">
+          <app-select-search placeholder="Bahía" todasLabel="Todas las bahías" ariaLabel="Filtrar por bahía"
+            [cargar]="cargarBahias" [value]="bahiaFiltro" [valueLabel]="bahiaLabel"
+            (valueChange)="onBahiaChange($event)" (seleccion)="bahiaLabel = $event?.label || ''">
+          </app-select-search>
+        </div>
+        }
+        @if (!isComercialView && !isPulidor && !isAprobadorView) {
         <div class="w-44 transition-all" [class.ring-2]="pulidorFiltro" [class.ring-violet-400]="pulidorFiltro" [class.rounded-xl]="pulidorFiltro">
           <app-select-search placeholder="Pulidor" todasLabel="Todos los pulidores" ariaLabel="Filtrar por pulidor"
             [cargar]="cargarPulidores" [value]="pulidorFiltro" [valueLabel]="pulidorLabel" [disabled]="!pulidorHabilitado"
@@ -1377,6 +1393,12 @@
         </div>
         <div class="flex items-center gap-2 flex-wrap">
           <div class="inline-flex bg-slate-100 p-1 rounded-xl" role="tablist" aria-label="Tipo de pulidor">
+            <button type="button" role="tab" (click)="pulidoresTab = 'todos'"
+              [attr.aria-selected]="pulidoresTab === 'todos'"
+              class="px-4 h-8 text-xs font-bold rounded-lg transition-colors"
+              [ngClass]="pulidoresTab === 'todos' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'">
+              Todos
+            </button>
             <button type="button" role="tab" (click)="pulidoresTab = 'fijos'"
               [attr.aria-selected]="pulidoresTab === 'fijos'"
               class="px-4 h-8 text-xs font-bold rounded-lg transition-colors"
@@ -1499,6 +1521,14 @@
         <app-chart-card [title]="tecnicoData?.chartCostoMaquinas ? 'Máquinas con Mayor Gasto en Reparaciones' : 'Máquinas con Más Fallas'"
           subtitle="Top equipos con más costos o incidencias reportadas" type="bar" [horizontal]="true"
           [data]="tecnicoData?.chartCostoMaquinas || tecnicoData?.chartTopMaquinas"></app-chart-card>
+      </div>
+      }
+      @if (agenciaFiltro && tecnicoData?.chartIncidentesPorBahia) {
+      <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry p-6 lg:col-span-2">
+        <app-chart-card title="Desglose de Incidentes por Bahía"
+          [subtitle]="'Incidentes reportados por cada bahía en ' + (agenciaLabel || 'la agencia seleccionada')"
+          type="bar" [horizontal]="true" [data]="tecnicoData.chartIncidentesPorBahia"
+          mensajeVacio="Sin incidentes registrados por bahía en esta agencia."></app-chart-card>
       </div>
       }
       @if (tecnicoData?.chartTipoMantenimiento || tecnicoData?.chartCostoTipoMantenimiento || tecnicoData?.chartTipoMaquinaria) {
@@ -1750,13 +1780,11 @@
   <div class="mb-4 animate-fade-in" role="tabpanel" id="panel-bod-consumo" aria-labelledby="tab-bod-consumo"
     [class.hidden]="bodegaTab !== 'consumo'">
 
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-8">
       <app-stat-card [badge]="etiquetaRango" title="Unidades en Stock" [value]="bodegaData.kpis.unidadesStock ?? 0"
         icon="archive" variant="success" subtitle="Existencias disponibles del alcance"></app-stat-card>
       <app-stat-card [badge]="etiquetaRango" title="Posiciones Óptimas" [value]="posicionesOptimas" icon="shield-check"
         variant="success" subtitle="Dentro del rango ideal"></app-stat-card>
-      <app-stat-card [badge]="etiquetaRango" title="Posiciones en Sobrestock" [value]="posicionesSobrestock" icon="trending-up"
-        variant="warning" subtitle="Por encima del 150% del ideal"></app-stat-card>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-12 grid-flow-dense gap-6">

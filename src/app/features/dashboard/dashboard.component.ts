@@ -85,9 +85,13 @@ export class DashboardComponent implements OnInit, OnDestroy {
   fechaHastaFiltro = '';
   regionFiltro: string | null = null;
   agenciaFiltro: string | null = null;
+  clienteFiltro: string | null = null;
+  bahiaFiltro: string | null = null;
   pulidorFiltro: string | null = null;
   regionLabel = '';
   agenciaLabel = '';
+  clienteLabel = '';
+  bahiaLabel = '';
   pulidorLabel = '';
   recargando = false;
 
@@ -108,7 +112,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
   ];
 
   cargarRegiones = this.opciones.regiones();
+  cargarClientes = this.opciones.clientes();
   cargarAgencias = this.opciones.agencias();
+  cargarBahias = this.opciones.bahias();
   cargarPulidores = this.opciones.operadores({ rol: 'PULIDOR' });
 
   /** Suscripciones de la carga en curso: se cancelan al recargar para descartar respuestas obsoletas. */
@@ -128,8 +134,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
   especialesData: any = null;
   /** Pestaña principal para la vista de Servicios Especiales */
   especialesTab: 'resumen' | 'pulidores' | 'maquinaria' | 'insumos' = 'resumen';
-  /** Pestaña del ranking de pulidores (fijos vs móviles). */
-  pulidoresTab: 'fijos' | 'moviles' = 'fijos';
+  /** Pestaña del ranking de pulidores (todos vs fijos vs móviles). */
+  pulidoresTab: 'todos' | 'fijos' | 'moviles' = 'todos';
 
   /** Pestaña principal del dashboard de mantenimiento (COORD_MANTENIMIENTO · TECNICO). */
   mantenimientoTab: 'parque' | 'fallas' | 'costos' | 'programacion' = 'parque';
@@ -642,14 +648,33 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   get pulidoresActuales(): any[] {
     if (!this.especialesData) return [];
-    const raw = this.pulidoresTab === 'fijos' ? (this.especialesData.pulidoresFijos || []) : (this.especialesData.pulidoresMoviles || []);
+    const raw = this.pulidoresTab === 'fijos'
+      ? (this.especialesData.pulidoresFijos || [])
+      : this.pulidoresTab === 'moviles'
+      ? (this.especialesData.pulidoresMoviles || [])
+      : [...(this.especialesData.pulidoresFijos || []), ...(this.especialesData.pulidoresMoviles || [])];
     const asc = this.pulidoresTablaTop.direccion === 'ASC';
     const sorted = [...raw].sort((a: any, b: any) => asc ? (a.servicios - b.servicios) : (b.servicios - a.servicios));
     return sorted.slice(0, this.pulidoresTablaTop.tamano);
   }
 
   get chartTopOperadoresOrdenado(): any {
-    return ordenarSerieTop(this.especialesData?.chartTopOperadores, this.pulidoresChartTop);
+    if (!this.especialesData) return null;
+    let serieBase: any = this.especialesData?.chartTopOperadores;
+    if (this.pulidoresTab === 'fijos') {
+      const fijos = this.especialesData.pulidoresFijos || [];
+      serieBase = fijos.length ? {
+        labels: fijos.map((p: any) => p.nombre),
+        datasets: [{ label: 'Servicios', data: fijos.map((p: any) => p.servicios), backgroundColor: CHART_COLORS.blue }],
+      } : { labels: [], datasets: [{ label: 'Servicios', data: [] }] };
+    } else if (this.pulidoresTab === 'moviles') {
+      const moviles = this.especialesData.pulidoresMoviles || [];
+      serieBase = moviles.length ? {
+        labels: moviles.map((p: any) => p.nombre),
+        datasets: [{ label: 'Servicios', data: moviles.map((p: any) => p.servicios), backgroundColor: CHART_COLORS.amber }],
+      } : { labels: [], datasets: [{ label: 'Servicios', data: [] }] };
+    }
+    return ordenarSerieTop(serieBase, this.pulidoresChartTop);
   }
 
   get chartTipoServicioOrdenado(): any {
@@ -871,6 +896,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
       dimension: this.activeDimension,
       regionId: this.regionFiltro || undefined,
       agenciaId: this.agenciaFiltro || undefined,
+      clienteId: this.clienteFiltro || undefined,
+      bahiaId: this.bahiaFiltro || undefined,
       pulidorId: this.pulidorFiltro || undefined,
       // Modificador continuo: se combina con la dimensión y las fechas.
       categoriaServicio: this.categoriaServicio === 'TODOS' ? undefined : this.categoriaServicio,
@@ -891,8 +918,13 @@ export class DashboardComponent implements OnInit, OnDestroy {
     return u?.ambito === 'GLOBAL' || u?.role === 'SUPER_ADMIN' || u?.ambito === 'REGION';
   }
 
+  /** El filtro de cliente/marca aplica a quien puede ver múltiples agencias (global o regional). */
+  get puedeFiltrarCliente(): boolean {
+    return this.puedeFiltrarAgencia;
+  }
+
   get hayFiltrosActivos(): boolean {
-    return !!this.regionFiltro || !!this.agenciaFiltro || !!this.pulidorFiltro || this.rangoFiltro !== 'HOY' || this.categoriaServicio !== 'TODOS';
+    return !!this.regionFiltro || !!this.agenciaFiltro || !!this.clienteFiltro || !!this.bahiaFiltro || !!this.pulidorFiltro || this.rangoFiltro !== 'HOY' || this.categoriaServicio !== 'TODOS';
   }
 
   // ── Filtros exclusivos: se habilita GLOBAL y la propia dimensión activa ──
@@ -910,6 +942,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
       case 'AGENCY': return `Agencia · ${this.agenciaLabel || 'seleccionada'}`;
       case 'POLISHER': return `Pulidor · ${this.pulidorLabel || 'seleccionado'}`;
       default:
+        if (this.clienteFiltro) {
+          return `Cliente · ${this.clienteLabel || 'seleccionado'}`;
+        }
         if (this.vista === 'especiales') {
           return this.isPulidor
             ? `Agencia · ${u?.sucursal || u?.sucursalNombre || this.contextLabel || 'Asignada'}`
@@ -932,6 +967,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
       case 'AGENCY': return 'Detalle por bahía de trabajo';
       case 'POLISHER': return 'Ficha individual del pulidor';
       default:
+        if (this.clienteFiltro) {
+          return `Consolidado de agencias de ${this.clienteLabel || 'este cliente'}`;
+        }
         if (this.vista === 'especiales') {
           return this.isPulidor
             ? 'Monitoreo de órdenes de trabajo, insumos y herramientas de detailing'
@@ -993,17 +1031,42 @@ export class DashboardComponent implements OnInit, OnDestroy {
   onRegionChange(regionId: string | null): void {
     this.regionFiltro = regionId;
     if (!regionId) this.regionLabel = '';
+    this.clienteFiltro = null;
+    this.clienteLabel = '';
     this.agenciaFiltro = null;
     this.agenciaLabel = '';
+    this.bahiaFiltro = null;
+    this.bahiaLabel = '';
     this.pulidorFiltro = null;
     this.pulidorLabel = '';
     this.activeDimension = regionId ? 'REGION' : 'GLOBAL';
+    this.cargarClientes = this.opciones.clientes(regionId ? { regionId } : {});
     this.cargarAgencias = this.opciones.agencias(regionId ? { regionId } : undefined);
+    this.recargar();
+  }
+
+  onClienteChange(clienteId: string | null): void {
+    this.clienteFiltro = clienteId;
+    if (!clienteId) this.clienteLabel = '';
+    this.agenciaFiltro = null;
+    this.agenciaLabel = '';
+    this.bahiaFiltro = null;
+    this.bahiaLabel = '';
+    this.cargarAgencias = this.opciones.agencias({
+      regionId: this.regionFiltro || undefined,
+      clienteId: clienteId || undefined,
+    });
     this.recargar();
   }
 
   onAgenciaChange(agenciaId: string | null): void {
     this.agenciaFiltro = agenciaId;
+    this.bahiaFiltro = null;
+    this.bahiaLabel = '';
+    const u = this.auth.getCurrentUser();
+    const userAgencia = u?.agenciaId || u?.sucursalId;
+    const agId = agenciaId || userAgencia;
+    this.cargarBahias = this.opciones.bahias(agId ? { agenciaId: String(agId) } : {});
     if (!agenciaId) {
       this.agenciaLabel = '';
       this.activeDimension = this.regionFiltro ? 'REGION' : 'GLOBAL';
@@ -1015,13 +1078,23 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.recargar();
   }
 
+  onBahiaChange(bahiaId: string | null): void {
+    this.bahiaFiltro = bahiaId;
+    if (!bahiaId) this.bahiaLabel = '';
+    this.recargar();
+  }
+
   onPulidorChange(pulidorId: string | null): void {
     this.pulidorFiltro = pulidorId;
     if (!pulidorId) this.pulidorLabel = '';
     this.regionFiltro = null;
     this.regionLabel = '';
+    this.clienteFiltro = null;
+    this.clienteLabel = '';
     this.agenciaFiltro = null;
     this.agenciaLabel = '';
+    this.bahiaFiltro = null;
+    this.bahiaLabel = '';
     this.activeDimension = pulidorId ? 'POLISHER' : 'GLOBAL';
     this.recargar();
   }
@@ -1029,29 +1102,44 @@ export class DashboardComponent implements OnInit, OnDestroy {
   private limpiarAgenciaYPulidor(): void {
     this.agenciaFiltro = null;
     this.agenciaLabel = '';
+    this.bahiaFiltro = null;
+    this.bahiaLabel = '';
     this.pulidorFiltro = null;
     this.pulidorLabel = '';
   }
 
   /** Reset estructural: vuelve a GLOBAL y mantiene el rango de fechas seleccionado. */
   limpiarDimensiones(): void {
+    const u = this.auth.getCurrentUser();
+    const regId = u?.ambito === 'REGION' && u?.regionId ? String(u.regionId) : undefined;
     this.regionFiltro = null;
     this.agenciaFiltro = null;
+    this.clienteFiltro = null;
+    this.bahiaFiltro = null;
     this.pulidorFiltro = null;
     this.regionLabel = '';
     this.agenciaLabel = '';
+    this.clienteLabel = '';
+    this.bahiaLabel = '';
     this.pulidorLabel = '';
     this.activeDimension = 'GLOBAL';
-    this.cargarAgencias = this.opciones.agencias();
+    this.cargarClientes = this.opciones.clientes(regId ? { regionId: regId } : {});
+    this.cargarAgencias = this.opciones.agencias(regId ? { regionId: regId } : {});
     this.recargar();
   }
 
   limpiarFiltros(): void {
+    const u = this.auth.getCurrentUser();
+    const regId = u?.ambito === 'REGION' && u?.regionId ? String(u.regionId) : undefined;
     this.regionFiltro = null;
     this.agenciaFiltro = null;
+    this.clienteFiltro = null;
+    this.bahiaFiltro = null;
     this.pulidorFiltro = null;
     this.regionLabel = '';
     this.agenciaLabel = '';
+    this.clienteLabel = '';
+    this.bahiaLabel = '';
     this.pulidorLabel = '';
     this.categoriaServicio = 'TODOS';
     this.desgloseTab = 'REGION';
@@ -1060,7 +1148,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.fechaDesdeFiltro = '';
     this.fechaHastaFiltro = '';
     this.fechaActual = new Date();
-    this.cargarAgencias = this.opciones.agencias();
+    this.cargarClientes = this.opciones.clientes(regId ? { regionId: regId } : {});
+    this.cargarAgencias = this.opciones.agencias(regId ? { regionId: regId } : {});
     this.recargar();
   }
 
@@ -1160,6 +1249,21 @@ export class DashboardComponent implements OnInit, OnDestroy {
     if (rolNombre === 'APROBADOR' || rolNombre === 'GERENTE') {
       this.activeExecutiveTab = 'aprobaciones';
       this.isAprobadorView = true;
+    }
+
+    if (this.vista === 'especiales' || rolNombre === 'COORD_SERVICIOS_ESPECIALES' || rolNombre === 'PULIDOR') {
+      this.categoriaServicio = 'ESPECIAL';
+    }
+
+    if (user?.ambito === 'REGION' && user?.regionId) {
+      const regId = String(user.regionId);
+      this.cargarClientes = this.opciones.clientes({ regionId: regId });
+      this.cargarAgencias = this.opciones.agencias({ regionId: regId });
+    }
+
+    const agId = user?.agenciaId || user?.sucursalId;
+    if (agId) {
+      this.cargarBahias = this.opciones.bahias({ agenciaId: String(agId) });
     }
 
     this.recargar();
@@ -1397,10 +1501,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   get posicionesOptimas(): number {
     return this.posicionesEnEstado('ÓPTIMO');
-  }
-
-  get posicionesSobrestock(): number {
-    return this.posicionesEnEstado('SOBRESTOCK');
   }
 
   /** Distribución del parque de maquinaria como serie de gráfico (operativas / mantenimiento / dañadas). */
