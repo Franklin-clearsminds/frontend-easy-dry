@@ -1,4 +1,5 @@
 import { PasswordRequisitosComponent } from '../../shared/components/password-requisitos/password-requisitos.component';
+import { AvatarSrcDirective } from '../../shared/directives/avatar-src.directive';
 import { motivoPasswordDebil } from '../../core/utils/password-politica';
 import { Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -21,7 +22,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
 @Component({
   selector: 'app-operadores',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, PaginationComponent, FilterBarComponent, PasswordRequisitosComponent],
+  imports: [AvatarSrcDirective, CommonModule, FormsModule, LucideAngularModule, ModalComponent, PaginationComponent, FilterBarComponent, PasswordRequisitosComponent],
   template: `
     <div class="space-y-6 animate-fade-in">
       
@@ -124,8 +125,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                     <div class="flex items-center gap-3">
                       @if (op.avatar) {
                         <img loading="lazy" decoding="async"
-                          [src]="op.avatar"
-                          (error)="onAvatarError($event)"
+                          [appAvatar]="op.avatar" [appAvatarIniciales]="(op.nombre || '?').charAt(0)"
                           alt="Foto de operador"
                           class="w-9 h-9 rounded-full object-cover border-2 border-easydry-green shrink-0">
                       } @else {
@@ -538,7 +538,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
             <!-- Operator Profile Banner -->
             <div class="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-3">
               <div class="flex items-center gap-4">
-                <img loading="lazy" decoding="async" [src]="operadorSeleccionado.avatar" alt="Foto de operador" class="w-14 h-14 rounded-full object-cover border-2 border-easydry-green shrink-0">
+                <img loading="lazy" decoding="async" [appAvatar]="operadorSeleccionado.avatar" [appAvatarIniciales]="(operadorSeleccionado.nombre || '?').charAt(0)" alt="Foto de operador" class="w-14 h-14 rounded-full object-cover border-2 border-easydry-green shrink-0">
                 <div class="flex-1">
                   <div class="flex items-center justify-between">
                     <h3 class="font-extrabold text-slate-900 text-lg font-outfit">{{ operadorSeleccionado.nombre }}</h3>

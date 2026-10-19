@@ -1,4 +1,5 @@
 import { celdaCsv } from '../../core/utils/csv';
+import { AvatarSrcDirective } from '../../shared/directives/avatar-src.directive';
 import { PasswordRequisitosComponent } from '../../shared/components/password-requisitos/password-requisitos.component';
 import { Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
@@ -66,7 +67,7 @@ const COLUMNAS_ROLES: TableColumn[] = [
 @Component({
   selector: 'app-usuarios',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, DataTableComponent, DataTableCellDirective, FilterBarComponent, RolPaginasEditorComponent, PasswordRequisitosComponent],
+  imports: [AvatarSrcDirective, CommonModule, FormsModule, LucideAngularModule, ModalComponent, DataTableComponent, DataTableCellDirective, FilterBarComponent, RolPaginasEditorComponent, PasswordRequisitosComponent],
   template: `
     <div class="space-y-6 animate-fade-in">
       
@@ -317,7 +318,7 @@ const COLUMNAS_ROLES: TableColumn[] = [
               <ng-template appCell="nombre" let-u>
                 <div class="flex items-center gap-3">
                   @if (isRealProfilePhoto(u.avatar)) {
-                    <img loading="lazy" decoding="async" [src]="u.avatar" alt="Foto de {{ u.nombre }} {{ u.apellido }}" class="w-9 h-9 rounded-full object-cover border-2" [ngClass]="u.estado === 'Activo' ? 'border-easydry-blue/20' : 'border-slate-300 grayscale'">
+                    <img loading="lazy" decoding="async" [appAvatar]="u.avatar" [appAvatarIniciales]="(u.nombre || '?').charAt(0) + (u.apellido || '').charAt(0)" alt="Foto de {{ u.nombre }} {{ u.apellido }}" class="w-9 h-9 rounded-full object-cover border-2" [ngClass]="u.estado === 'Activo' ? 'border-easydry-blue/20' : 'border-slate-300 grayscale'">
                   } @else {
                     <div class="w-9 h-9 rounded-full bg-slate-100 border-2 flex items-center justify-center text-xs font-extrabold text-slate-500" [ngClass]="u.estado === 'Activo' ? 'border-easydry-blue/20' : 'border-slate-300 grayscale'">
                       {{ (u.nombre || '?').charAt(0) }}{{ (u.apellido || '').charAt(0) }}

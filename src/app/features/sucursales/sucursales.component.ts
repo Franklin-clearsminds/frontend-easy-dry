@@ -1,4 +1,5 @@
 import { Component, OnDestroy, OnInit, inject } from '@angular/core';
+import { AvatarSrcDirective } from '../../shared/directives/avatar-src.directive';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule, ActivatedRoute } from '@angular/router';
@@ -35,7 +36,7 @@ const TODAS_LAS_REFERENCIAS: GrupoReferencia[] = ['regiones', 'marcas', 'sucursa
 @Component({
   selector: 'app-sucursales',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, LucideAngularModule, ModalComponent, FilterBarComponent, DataTableComponent, DataTableCellDirective, InfiniteScrollComponent, SelectSearchComponent],
+  imports: [AvatarSrcDirective, CommonModule, FormsModule, RouterModule, LucideAngularModule, ModalComponent, FilterBarComponent, DataTableComponent, DataTableCellDirective, InfiniteScrollComponent, SelectSearchComponent],
   template: `
     <div class="space-y-6 animate-fade-in">
 
@@ -649,7 +650,7 @@ const TODAS_LAS_REFERENCIAS: GrupoReferencia[] = ['regiones', 'marcas', 'sucursa
                     <div class="flex items-center gap-3">
                       @if (ger.avatar) {
                         <img loading="lazy" decoding="async"
-                          [src]="ger.avatar"
+                          [appAvatar]="ger.avatar" [appAvatarIniciales]="(ger.nombre || '?').charAt(0) + (ger.apellido || '').charAt(0)"
                           alt="Foto de gerente"
                           class="w-11 h-11 rounded-full object-cover ring-2 ring-purple-300">
                       } @else {

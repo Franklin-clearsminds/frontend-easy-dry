@@ -1,4 +1,5 @@
 import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
+import { AvatarSrcDirective } from '../../shared/directives/avatar-src.directive';
 import { Component, HostListener, OnDestroy, OnInit, ViewChild, inject } from '@angular/core';
 import { VerMediaDirective } from '../../shared/directives/ver-media.directive';
 import { CommonModule } from '@angular/common';
@@ -43,7 +44,7 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
 @Component({
   selector: 'app-inventario',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule, VerMediaDirective, ModalComponent, ModalPortalDirective, ImageUploaderComponent, ConsumoServiciosComponent, ThumbSrcDirective, DataTableComponent, DataTableCellDirective, InfiniteScrollComponent, StockUbicacionInsumosComponent, PaginationComponent],
+  imports: [AvatarSrcDirective, CommonModule, FormsModule, LucideAngularModule, VerMediaDirective, ModalComponent, ModalPortalDirective, ImageUploaderComponent, ConsumoServiciosComponent, ThumbSrcDirective, DataTableComponent, DataTableCellDirective, InfiniteScrollComponent, StockUbicacionInsumosComponent, PaginationComponent],
   template: `
     <div class="space-y-6 animate-fade-in pb-16">
 
@@ -1068,7 +1069,7 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
               <div class="relative shrink-0">
                 <img loading="lazy" decoding="async"
                   *ngIf="asis.avatar"
-                  [src]="asis.avatar"
+                  [appAvatar]="asis.avatar" [appAvatarIniciales]="(asis.nombre || 'A').charAt(0)"
                   [alt]="asis.nombre"
                   class="w-11 h-11 rounded-full object-cover border-2 border-white shadow-xs" />
                 <div
