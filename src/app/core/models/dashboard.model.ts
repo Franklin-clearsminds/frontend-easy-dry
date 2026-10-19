@@ -42,13 +42,11 @@ export interface DashboardTecnicoData {
   topBahias?: DashboardChartData | null;
   bottomBahias?: DashboardChartData | null;
   chartCostoMaquinas?: DashboardChartData | null;
-  chartTipoMantenimiento?: DashboardChartData | null;
   chartTipoMaquinaria?: DashboardChartData | null;
   proxMantenimientos?: any[];
   // Costos y fiabilidad del parque
   costoMantenimientos30d?: number;
   mantenimientosVencidos?: number;
-  chartCostoTipoMantenimiento?: DashboardChartData | null;
   chartCostoPorAgencia?: DashboardChartData | null;
   /** Tiempo medio de resolución por gravedad (BAJA · MEDIA · ALTA · CRÍTICA). */
   chartMttrGravedad?: DashboardChartData | null;

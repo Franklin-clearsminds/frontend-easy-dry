@@ -677,7 +677,7 @@
       <app-stat-card [badge]="etiquetaRango" title="Costo Reparaciones" [value]="'$' + tecnicoData.costoTotalReparaciones" icon="alert-triangle"
         variant="danger" subtitle="Fallas en el periodo"></app-stat-card>
       <app-stat-card [badge]="etiquetaRango" title="Costo Mantenimiento" [value]="'$' + tecnicoData.costoMantenimientos30d" icon="wrench"
-        variant="primary" subtitle="Preventivo + correctivo"></app-stat-card>
+        variant="primary" subtitle="Mantenimientos del período"></app-stat-card>
       <app-stat-card [badge]="etiquetaRango" title="Tiempo de Reparación (MTTR)" [value]="(tecnicoData.tiempoPromedioResolucionHoras ?? 0) + ' h'" icon="clock"
         variant="warning" subtitle="Promedio por incidente resuelto"></app-stat-card>
       <app-stat-card [badge]="etiquetaRango" title="Mantenimientos Vencidos" [value]="tecnicoData.mantenimientosVencidos" icon="calendar-clock"
@@ -687,12 +687,6 @@
       <app-chart-card class="lg:col-span-2" title="Costo por Agencia" subtitle="Reparaciones por fallas + mantenimiento (USD)"
         type="bar" [data]="tecnicoData?.chartCostoPorAgencia"
         mensajeVacio="Sin costos de reparación ni mantenimiento en el período seleccionado."></app-chart-card>
-      <app-chart-card title="Frecuencia Preventiva" subtitle="Cantidad de mantenimientos" type="doughnut"
-        [data]="tecnicoData?.chartTipoMantenimiento"
-        mensajeVacio="Sin intervenciones registradas."></app-chart-card>
-      <app-chart-card title="Gasto: Preventivo vs Correctivo" subtitle="USD invertidos por tipo de mantenimiento" type="doughnut"
-        [data]="tecnicoData?.chartCostoTipoMantenimiento"
-        mensajeVacio="Sin mantenimientos registrados en el período seleccionado."></app-chart-card>
       <app-chart-card class="lg:col-span-2" title="Tiempo de Resolución" [subtitle]="mttrSubtitulo" type="bar"
         [horizontal]="true" [data]="mttrChart"
         mensajeVacio="Sin tiempos que promediar con el período y los filtros actuales.">
@@ -1132,7 +1126,7 @@
       <app-stat-card [badge]="etiquetaRango" title="Costo Reparaciones" [value]="'$' + (tecnicoData.costoTotalReparaciones ?? 0)"
         icon="alert-triangle" variant="danger" subtitle="Fallas en el período"></app-stat-card>
       <app-stat-card [badge]="etiquetaRango" title="Costo Mantenimiento" [value]="'$' + (tecnicoData.costoMantenimientos30d ?? 0)"
-        icon="wrench" variant="primary" subtitle="Preventivo + correctivo"></app-stat-card>
+        icon="wrench" variant="primary" subtitle="Mantenimientos del período"></app-stat-card>
       <app-stat-card [badge]="etiquetaRango" title="Costo Total del Parque" [value]="'$' + costoTotalParque"
         icon="dollar-sign" variant="warning" subtitle="Reparaciones + mantenimiento"></app-stat-card>
     </div>
@@ -1145,10 +1139,6 @@
           <app-top-orden [orden]="costoAgenciaTop" (ordenChange)="costoAgenciaTop = $event"></app-top-orden>
         </div>
       </app-chart-card>
-
-      <app-chart-card class="lg:col-span-4" title="Gasto: Preventivo vs Correctivo" subtitle="USD invertidos por tipo de mantenimiento" type="doughnut"
-        [data]="tecnicoData.chartCostoTipoMantenimiento"
-        mensajeVacio="Sin mantenimientos registrados en el período seleccionado."></app-chart-card>
 
       <app-chart-card class="lg:col-span-12" title="Máquinas más Costosas" subtitle="USD acumulado en reparaciones por equipo"
         type="bar" [horizontal]="true" [data]="maquinasCostosasChart"
@@ -1164,31 +1154,18 @@
   <div class="mb-4 animate-fade-in" role="tabpanel" id="panel-mant-programacion" aria-labelledby="tab-mant-programacion"
     [class.hidden]="mantenimientoTab !== 'programacion'">
 
-    <div class="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-8">
       <app-stat-card [badge]="etiquetaRango" title="Mantenimientos Vencidos" [value]="tecnicoData.mantenimientosVencidos ?? 0"
         icon="calendar-clock" [variant]="(tecnicoData.mantenimientosVencidos ?? 0) > 0 ? 'danger' : 'success'"
         subtitle="Programados y sin ejecutar"></app-stat-card>
       <app-stat-card [badge]="etiquetaRango" title="Mantenimientos Ejecutados" [value]="tecnicoData.mantenimientosEjecutados30d ?? 0"
         icon="wrench" variant="success" subtitle="Del período seleccionado"></app-stat-card>
-      <app-stat-card [badge]="etiquetaRango" title="Preventivos" [value]="preventivosEjecutados" icon="shield-check"
-        variant="primary" subtitle="Mantenimiento planificado"></app-stat-card>
-      <app-stat-card [badge]="etiquetaRango" title="Correctivos" [value]="correctivosEjecutados" icon="alert-triangle"
-        variant="warning" subtitle="Intervenciones por falla"></app-stat-card>
-    </div>
-
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-      <app-chart-card title="Frecuencia Preventiva" subtitle="Cantidad de mantenimientos por tipo" type="doughnut"
-        [data]="tecnicoData.chartTipoMantenimiento"
-        mensajeVacio="Sin intervenciones registradas en el período seleccionado."></app-chart-card>
-      <app-chart-card title="Gasto: Preventivo vs Correctivo" subtitle="USD invertidos por tipo de mantenimiento" type="doughnut"
-        [data]="tecnicoData.chartCostoTipoMantenimiento"
-        mensajeVacio="Sin costos de mantenimiento en el período seleccionado."></app-chart-card>
     </div>
 
     <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry p-6">
       <div class="mb-4">
         <h4 class="font-bold text-slate-900 text-base font-outfit">Próximos Mantenimientos Programados</h4>
-        <p class="text-xs text-slate-500 mt-0.5">Preventivos y correctivos programados a partir del inicio del período</p>
+        <p class="text-xs text-slate-500 mt-0.5">Mantenimientos programados a partir del inicio del período</p>
       </div>
       @if (tecnicoData.proxMantenimientos?.length) {
       <div class="overflow-x-auto">
@@ -1197,7 +1174,6 @@
             <tr class="text-left text-slate-500 border-b border-slate-100">
               <th class="pb-3 font-semibold">Máquina</th>
               <th class="pb-3 font-semibold">Código</th>
-              <th class="pb-3 font-semibold">Tipo</th>
               <th class="pb-3 font-semibold">Fecha Programada</th>
             </tr>
           </thead>
@@ -1206,11 +1182,6 @@
             <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors">
               <td class="py-3 font-semibold text-slate-800">{{ m.nombre }}</td>
               <td class="py-3 text-slate-500 font-mono text-xs">{{ m.codigo }}</td>
-              <td class="py-3">
-                <span class="px-2 py-0.5 rounded-full text-xs font-bold"
-                  [ngClass]="m.tipo === 'PREVENTIVO' ? 'bg-easydry-blue/10 text-easydry-blue' : 'bg-amber-100 text-amber-700'">{{
-                  m.tipo }}</span>
-              </td>
               <td class="py-3 text-slate-600">{{ m.fechaProgramada | date:'dd MMM yyyy HH:mm' }}</td>
             </tr>
             }
@@ -1496,7 +1467,7 @@
         icon="dollar-sign" variant="danger" subtitle="Averías y repuestos del período"></app-stat-card>
       <app-stat-card [badge]="etiquetaRango" title="Costo Mantenimiento"
         [value]="'$' + (tecnicoData?.costoMantenimientos30d ?? 0)"
-        icon="wrench" variant="warning" subtitle="Preventivo y correctivo"></app-stat-card>
+        icon="wrench" variant="warning" subtitle="Del período seleccionado"></app-stat-card>
       <app-stat-card [badge]="etiquetaRango" title="Tiempo Promedio Resolución"
         [value]="(tecnicoData?.tiempoPromedioResolucionHoras ?? 0) + ' hrs'"
         icon="clock" variant="primary" subtitle="MTTR (reporte a solución)"></app-stat-card>
@@ -1539,12 +1510,10 @@
           mensajeVacio="Sin incidentes registrados por bahía en esta agencia."></app-chart-card>
       </div>
       }
-      @if (tecnicoData?.chartTipoMantenimiento || tecnicoData?.chartCostoTipoMantenimiento || tecnicoData?.chartTipoMaquinaria) {
+      @if (tecnicoData?.chartTipoMaquinaria) {
       <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry p-6">
-        <app-chart-card [title]="tecnicoData?.chartCostoTipoMantenimiento ? 'Costo por Tipo de Mantenimiento' : (tecnicoData?.chartTipoMantenimiento ? 'Mantenimiento Preventivo vs Correctivo' : 'Distribución por Tipo de Equipo')"
-          [subtitle]="tecnicoData?.chartCostoTipoMantenimiento ? 'Inversión en prevención vs correctivo' : 'Composición del mantenimiento ejecutado'"
-          type="doughnut"
-          [data]="tecnicoData?.chartCostoTipoMantenimiento || tecnicoData?.chartTipoMantenimiento || tecnicoData?.chartTipoMaquinaria"></app-chart-card>
+        <app-chart-card title="Distribución por Tipo de Equipo" subtitle="Composición del parque" type="doughnut"
+          [data]="tecnicoData?.chartTipoMaquinaria"></app-chart-card>
       </div>
       }
     </div>
@@ -1562,7 +1531,6 @@
             <tr class="text-left text-slate-500 border-b border-slate-100">
               <th class="pb-3 font-semibold">Equipo / Máquina</th>
               <th class="pb-3 font-semibold">Código</th>
-              <th class="pb-3 font-semibold">Tipo</th>
               <th class="pb-3 font-semibold">Fecha Programada</th>
             </tr>
           </thead>
@@ -1571,12 +1539,6 @@
             <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors">
               <td class="py-3 font-semibold text-slate-800">{{ m.nombre }}</td>
               <td class="py-3 text-slate-500 font-mono text-xs">{{ m.codigo }}</td>
-              <td class="py-3">
-                <span class="px-2 py-0.5 rounded-full text-xs font-bold"
-                  [ngClass]="m.tipo === 'PREVENTIVO' ? 'bg-easydry-blue/10 text-easydry-blue' : 'bg-amber-100 text-amber-700'">
-                  {{ m.tipo }}
-                </span>
-              </td>
               <td class="py-3 text-slate-600">{{ m.fechaProgramada | date:'dd MMM yyyy HH:mm' }}</td>
             </tr>
             }

@@ -6,6 +6,7 @@ import { LucideAngularModule } from 'lucide-angular';
 import { ConsultaServicios, ServicioLavadoService } from '../../core/services/servicio-lavado.service';
 import { AuthService } from '../../core/services/auth.service';
 import { InventarioService } from '../../core/services/inventario.service';
+import { VisorMediaService } from '../../shared/services/visor-media.service';
 import { StorageUploadService } from '../../core/services/storage-upload.service';
 import {
   VehiculoServicio,
@@ -3418,6 +3419,7 @@ export class ServiciosComponent implements OnInit, OnDestroy {
   private inventarioService = inject(InventarioService);
   private servicioService = inject(ServicioLavadoService);
   public storageUploadService = inject(StorageUploadService);
+  private readonly visorMedia = inject(VisorMediaService);
   public authService = inject(AuthService);
   private toastService = inject(ToastService);
   private maquinariaService = inject(MaquinariaService);
@@ -4836,10 +4838,15 @@ export class ServiciosComponent implements OnInit, OnDestroy {
   }
 
   async verVideoEvidencia(item: VehiculoServicio) {
+    const url = item.videoUrl || item.video || item.fotoIngresoUrl || item.fotoSalidaUrl;
+    // Una foto o un PDF se ven en el visor común; solo el video usa este reproductor.
+    if (url && this.visorMedia.tipoDe(url) !== 'video') {
+      void this.visorMedia.abrir(url, { titulo: `Evidencia: ${item.placa}` });
+      return;
+    }
     this.servicioSeleccionado = item;
     this.videoEvidenciaUrl = '';
     this.modalVideoOpen = true;
-    const url = item.videoUrl || item.video || item.fotoIngresoUrl || item.fotoSalidaUrl;
     if (!url) return;
     // Resuelve primero la URL prefirmada (si el archivo es privado) en vez de intentar /storage/file
     // directamente, que respondería 403 para evidencias privadas.
@@ -5487,6 +5494,11 @@ export class ServiciosComponent implements OnInit, OnDestroy {
   async verVideoGenerico(url?: string | null, titulo: string = 'Vídeo de Evidencia') {
     if (!url) {
       this.toastService.warning('Vídeo no disponible', 'No hay vídeo registrado para esta evidencia.');
+      return;
+    }
+    // La evidencia de ingreso o salida puede ser una foto: se abre en el visor común en vez de intentar reproducirla.
+    if (this.visorMedia.tipoDe(url) !== 'video') {
+      void this.visorMedia.abrir(url, { titulo });
       return;
     }
     this.videoGenericoTitulo = titulo;

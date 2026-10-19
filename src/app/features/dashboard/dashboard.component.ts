@@ -1516,22 +1516,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
     return this.tecnicoData?.maquinasProblematicasRank?.labels?.length ?? 0;
   }
 
-  /** Conteo de mantenimientos por tipo (preventivo / correctivo) para los KPI de programación. */
-  private conteoPorTipoMantenimiento(tipo: string): number {
-    const serie = this.tecnicoData?.chartTipoMantenimiento;
-    const labels: string[] = serie?.labels ?? [];
-    const datos: number[] = serie?.datasets?.[0]?.data ?? [];
-    return Number(datos[labels.indexOf(tipo)]) || 0;
-  }
-
-  get preventivosEjecutados(): number {
-    return this.conteoPorTipoMantenimiento('PREVENTIVO');
-  }
-
-  get correctivosEjecutados(): number {
-    return this.conteoPorTipoMantenimiento('CORRECTIVO');
-  }
-
   // ── Rankings del dashboard de bodega (Top 5 / Top 10, asc o desc) ──
   // Igual que en mantenimiento: se ordena sobre la serie que envía el backend para el control, no sobre la
   // recortada que consume el panel ejecutivo.

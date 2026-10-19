@@ -1,5 +1,6 @@
 import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
 import { Component, HostListener, OnDestroy, OnInit, ViewChild, inject } from '@angular/core';
+import { VerMediaDirective } from '../../shared/directives/ver-media.directive';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
@@ -42,7 +43,7 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
 @Component({
   selector: 'app-inventario',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, ModalPortalDirective, ImageUploaderComponent, ConsumoServiciosComponent, ThumbSrcDirective, DataTableComponent, DataTableCellDirective, InfiniteScrollComponent, StockUbicacionInsumosComponent, PaginationComponent],
+  imports: [CommonModule, FormsModule, LucideAngularModule, VerMediaDirective, ModalComponent, ModalPortalDirective, ImageUploaderComponent, ConsumoServiciosComponent, ThumbSrcDirective, DataTableComponent, DataTableCellDirective, InfiniteScrollComponent, StockUbicacionInsumosComponent, PaginationComponent],
   template: `
     <div class="space-y-6 animate-fade-in pb-16">
 
@@ -2429,7 +2430,7 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
                   (change)="onImagenEntradaSeleccionada($event)">
                 
                 <div *ngIf="imagenEntradaPreview" class="relative w-full flex flex-col items-center justify-center">
-                  <img loading="lazy" decoding="async" [src]="imagenEntradaPreview" alt="Evidencia de Entrada" class="max-h-36 rounded-lg object-contain border border-emerald-200 mb-2 shadow-xs" />
+                  <img loading="lazy" decoding="async" [src]="imagenEntradaPreview" [appVerMedia]="imagenEntradaPreview" appVerMediaTitulo="Evidencia de entrada" alt="Evidencia de Entrada" class="max-h-36 rounded-lg object-contain border border-emerald-200 mb-2 shadow-xs" />
                   <div class="flex items-center gap-2 text-emerald-800">
                     <i-lucide aria-hidden="true" name="check-circle-2" class="w-4 h-4"></i-lucide>
                     <span class="text-xs font-bold">{{ imagenEntradaNombre || 'Evidencia cargada' }}</span>
