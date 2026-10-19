@@ -1,3 +1,4 @@
+import { VerMediaDirective } from '../../directives/ver-media.directive';
 import { Component, ElementRef, EventEmitter, Input, OnDestroy, Output, ViewChild, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { LucideAngularModule } from 'lucide-angular';
@@ -39,7 +40,7 @@ export interface ArchivoEvidencia {
 @Component({
   selector: 'app-evidencia-selector',
   standalone: true,
-  imports: [CommonModule, LucideAngularModule],
+  imports: [CommonModule, LucideAngularModule, VerMediaDirective],
   template: `
     <div class="space-y-4">
       <!-- Fotos y videos -->
@@ -77,9 +78,9 @@ export interface ArchivoEvidencia {
             @for (a of multimedia; track a.id) {
               <div class="relative bg-white border rounded-xl p-2 shadow-xs">
                 @if (a.kind === 'FOTO') {
-                  <img [src]="a.previewUrl" [alt]="'Vista previa de ' + a.nombre" class="w-full h-24 object-cover rounded-lg">
+                  <img [src]="a.previewUrl" [appVerMedia]="a.previewUrl" [appVerMediaTitulo]="a.nombre" [appVerMediaTipo]="'imagen'" [alt]="'Vista previa de ' + a.nombre" class="w-full h-24 object-cover rounded-lg">
                 } @else {
-                  <video [src]="a.previewUrl" [attr.aria-label]="'Vista previa del video ' + a.nombre" class="w-full h-24 object-cover rounded-lg bg-black" muted preload="metadata"></video>
+                  <video [src]="a.previewUrl" [appVerMedia]="a.previewUrl" [appVerMediaTitulo]="a.nombre" [appVerMediaTipo]="'video'" class="w-full h-24 object-cover rounded-lg bg-black" muted preload="metadata"></video>
                 }
                 <p class="text-xs font-semibold text-slate-700 truncate mt-1">{{ a.nombre }}</p>
                 <p class="text-xs text-slate-500 font-mono">

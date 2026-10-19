@@ -4,6 +4,7 @@ import { LucideAngularModule } from 'lucide-angular';
 import { StorageUploadService } from '../../../core/services/storage-upload.service';
 import { ToastService } from '../../../shared/services/toast.service';
 import { ThumbSrcDirective } from '../../../shared/directives/thumb-src.directive';
+import { VisorMediaService } from '../../../shared/services/visor-media.service';
 import { mensajeError } from '../../../core/models/auditorias.model';
 
 /**
@@ -52,6 +53,7 @@ import { mensajeError } from '../../../core/models/auditorias.model';
 })
 export class EvidenciasFotosComponent {
   private readonly storage = inject(StorageUploadService);
+  private readonly visor = inject(VisorMediaService);
   private readonly toast = inject(ToastService);
 
   @Input() fotos: string[] = [];
@@ -106,11 +108,7 @@ export class EvidenciasFotosComponent {
     this.fotosChange.emit(this.fotos);
   }
 
-  async abrir(foto: string): Promise<void> {
-    try {
-      window.open(await this.storage.resolveMediaUrlStrict(foto), '_blank', 'noopener');
-    } catch (e) {
-      this.toast.error('No se pudo abrir la foto', mensajeError(e));
-    }
+  abrir(foto: string): void {
+    void this.visor.abrir(foto, { titulo: 'Evidencia fotográfica', tipo: 'imagen' });
   }
 }

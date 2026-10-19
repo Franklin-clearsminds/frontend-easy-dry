@@ -1,3 +1,4 @@
+import { VerMediaDirective } from '../../directives/ver-media.directive';
 import { Component, Input, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { LucideAngularModule } from 'lucide-angular';
@@ -6,7 +7,7 @@ import { ArchivoAdjunto } from '../../../core/models';
 @Component({
   selector: 'app-file-uploader',
   standalone: true,
-  imports: [CommonModule, LucideAngularModule],
+  imports: [CommonModule, LucideAngularModule, VerMediaDirective],
   template: `
     <div class="space-y-3">
 
@@ -78,10 +79,10 @@ import { ArchivoAdjunto } from '../../../core/models';
               <!-- Thumbnail / Video Preview -->
               <div class="h-24 bg-slate-900/5 relative overflow-hidden flex items-center justify-center">
                 @if (item.tipo === 'imagen') {
-                  <img [src]="item.url" [alt]="item.nombre" class="w-full h-full object-cover">
+                  <img [src]="item.url" [appVerMedia]="item.url" [appVerMediaTitulo]="item.nombre" [appVerMediaTipo]="'imagen'" [alt]="item.nombre" class="w-full h-full object-cover">
                 } @else if (item.tipo === 'video') {
                   <div class="w-full h-full flex items-center justify-center bg-slate-900 text-white relative">
-                    <video [src]="item.url" [attr.aria-label]="'Vista previa del video ' + item.nombre" class="w-full h-full object-cover opacity-80" muted preload="metadata"></video>
+                    <video [src]="item.url" [appVerMedia]="item.url" [appVerMediaTitulo]="item.nombre" [appVerMediaTipo]="'video'" class="w-full h-full object-cover opacity-80" muted preload="metadata"></video>
                     <span class="absolute p-2 rounded-full bg-white/20 backdrop-blur-xs text-white">
                       <i-lucide name="play" class="w-4 h-4" aria-hidden="true"></i-lucide>
                     </span>

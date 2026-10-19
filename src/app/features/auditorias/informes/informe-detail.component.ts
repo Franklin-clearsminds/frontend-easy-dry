@@ -1,3 +1,4 @@
+import { VerMediaDirective } from '../../../shared/directives/ver-media.directive';
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -32,7 +33,7 @@ import { descargarPdfInforme } from './informe-pdf';
 @Component({
   selector: 'app-informe-detail',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, LucideAngularModule, ModalComponent, ThumbSrcDirective, EvidenciasFotosComponent, HistorialInformeComponent],
+  imports: [CommonModule, FormsModule, RouterLink, LucideAngularModule, ModalComponent, ThumbSrcDirective, VerMediaDirective, EvidenciasFotosComponent, HistorialInformeComponent],
   template: `
     <div class="space-y-5 animate-fade-in max-w-5xl mx-auto">
       <a routerLink="/informes-inspeccion" class="btn btn-ghost btn-sm w-fit"><i-lucide name="arrow-left" class="w-4 h-4" aria-hidden="true"></i-lucide> Informes</a>
@@ -104,7 +105,7 @@ import { descargarPdfInforme } from './informe-pdf';
                     <span class="badge" [ngClass]="clasePrioridad(n.prioridad)">{{ n.prioridad }}</span>
                     @if (n.area) { <span class="text-xs text-slate-500">{{ n.area }}</span> }</div>
                   @if (n.descripcion) { <p class="whitespace-pre-line text-slate-700">{{ n.descripcion }}</p> }
-                  <div class="flex flex-wrap gap-2">@for (f of n.fotos; track f) { <img [appThumb]="f" class="w-20 h-20 object-cover rounded-lg border border-slate-200" alt="Evidencia de la novedad"> }</div>
+                  <div class="flex flex-wrap gap-2">@for (f of n.fotos; track f) { <img [appThumb]="f" [appVerMedia]="f" class="w-20 h-20 object-cover rounded-lg border border-slate-200" alt="Evidencia de la novedad"> }</div>
                 </article>
               }
             </div>
@@ -121,7 +122,7 @@ import { descargarPdfInforme } from './informe-pdf';
                   @if (a.descripcion) { <p>{{ a.descripcion }}</p> }
                   @if (a.resultado) { <p><strong>Resultado:</strong> {{ a.resultado }}</p> }
                   @if (a.observaciones) { <p class="text-slate-600">{{ a.observaciones }}</p> }
-                  <div class="flex flex-wrap gap-2">@for (f of a.fotos; track f) { <img [appThumb]="f" class="w-16 h-16 object-cover rounded-lg border border-slate-200" alt="Evidencia de la actividad"> }</div>
+                  <div class="flex flex-wrap gap-2">@for (f of a.fotos; track f) { <img [appThumb]="f" [appVerMedia]="f" class="w-16 h-16 object-cover rounded-lg border border-slate-200" alt="Evidencia de la actividad"> }</div>
                 </article>
               }
             </div>
@@ -141,7 +142,7 @@ import { descargarPdfInforme } from './informe-pdf';
                   <p>{{ p.accionRequerida || '—' }}</p>
                   <p class="text-xs text-slate-500">{{ p.areaResponsable || 'Sin área' }} · {{ p.personaResponsable || 'Sin responsable' }} · Compromiso: {{ p.fechaCompromiso ? (p.fechaCompromiso | date:'dd/MM/yyyy') : '—' }}</p>
                   @if (p.observaciones) { <p class="text-slate-600">{{ p.observaciones }}</p> }
-                  <div class="flex flex-wrap gap-2">@for (f of p.evidenciaCumplimiento; track f) { <img [appThumb]="f" class="w-16 h-16 object-cover rounded-lg border border-slate-200" alt="Evidencia de cumplimiento"> }</div>
+                  <div class="flex flex-wrap gap-2">@for (f of p.evidenciaCumplimiento; track f) { <img [appThumb]="f" [appVerMedia]="f" class="w-16 h-16 object-cover rounded-lg border border-slate-200" alt="Evidencia de cumplimiento"> }</div>
                   @if (i.permisos.puedeSeguimiento && puedeSeguir) {
                     <button type="button" class="btn btn-secondary btn-sm" (click)="abrirSeguimiento(p)"><i-lucide name="clipboard-check" class="w-3.5 h-3.5" aria-hidden="true"></i-lucide> Dar seguimiento</button>
                   }

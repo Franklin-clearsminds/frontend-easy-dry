@@ -1,6 +1,7 @@
 import { Component, Input, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { LucideAngularModule } from 'lucide-angular';
+import { VerMediaDirective } from '../../shared/directives/ver-media.directive';
 import { StorageUploadService } from '../../core/services/storage-upload.service';
 
 interface FotoPendiente {
@@ -15,14 +16,14 @@ interface FotoPendiente {
 @Component({
   selector: 'app-evidencias-envio',
   standalone: true,
-  imports: [CommonModule, LucideAngularModule],
+  imports: [CommonModule, LucideAngularModule, VerMediaDirective],
   template: `
     <div class="space-y-2">
       <span class="block text-xs font-bold text-slate-700">Fotos de evidencia <span class="font-normal text-slate-500">(opcional, hasta {{ maximo }})</span></span>
       <div class="flex flex-wrap gap-2">
         @for (f of fotos; track f.vista; let i = $index) {
           <div class="relative w-16 h-16 rounded-lg overflow-hidden border border-slate-200">
-            <img [src]="f.vista" alt="Foto de evidencia" class="w-full h-full object-cover">
+            <img [src]="f.vista" [appVerMedia]="f.vista" appVerMediaTitulo="Foto de evidencia" alt="Foto de evidencia" class="w-full h-full object-cover">
             <button type="button" (click)="quitar(i)" class="absolute top-0 right-0 bg-white/90 rounded-bl-lg p-0.5 cursor-pointer" aria-label="Quitar foto">
               <i-lucide aria-hidden="true" name="x" class="w-3 h-3 text-rose-600"></i-lucide>
             </button>
