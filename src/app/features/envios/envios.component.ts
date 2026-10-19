@@ -19,13 +19,13 @@ import { resolverRangoFechas } from '../../core/utils/fecha-rango';
 import { EnvioSuministro, EstadoEnvio, Sucursal, InventarioItem } from '../../core/models';
 import { BodegaInventario } from '../../core/models/inventario.model';
 import { apiUrl } from '../../core/config/env';
-import { FaltantesEnvioComponent } from './faltantes-envio.component';
+import { ResolverEnvioComponent } from './resolver-envio.component';
 import { EvidenciasEnvioComponent } from './evidencias-envio.component';
 
 @Component({
   selector: 'app-envios',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, FaltantesEnvioComponent, EvidenciasEnvioComponent, FilterBarComponent, DataTableComponent, DataTableCellDirective],
+  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, ResolverEnvioComponent, EvidenciasEnvioComponent, FilterBarComponent, DataTableComponent, DataTableCellDirective],
   template: `
     <div class="space-y-6 animate-fade-in pb-12">
 
@@ -48,9 +48,6 @@ import { EvidenciasEnvioComponent } from './evidencias-envio.component';
           </p>
         </div>
       </div>
-
-      <!-- Faltantes de recepciones parciales por resolver (bodega de origen) -->
-      <app-faltantes-envio />
 
       <!-- Banner KPIs Generales / Sede -->
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -160,15 +157,27 @@ import { EvidenciasEnvioComponent } from './evidencias-envio.component';
             [ngClass]="{
               'bg-amber-100 text-amber-800 border border-amber-200': env.estado === 'PENDIENTE',
               'bg-blue-100 text-blue-800 border border-blue-200': env.estado === 'ENVIADO',
-              'bg-emerald-100 text-emerald-800 border border-emerald-200': env.estado === 'RECIBIDO',
-              'bg-rose-100 text-rose-800 border border-rose-200': env.estado === 'RECHAZADO'
+              'bg-emerald-100 text-emerald-800 border border-emerald-200': env.estado === 'RECIBIDO' && !esDesconforme(env),
+              'bg-rose-100 text-rose-800 border border-rose-200': env.estado === 'RECHAZADO' || esDesconforme(env)
             }">
-            {{ env.estado === 'ENVIADO' ? 'EN TRÁNSITO' : env.estado }}
+            {{ env.estado === 'ENVIADO' ? 'EN TRÁNSITO' : (esDesconforme(env) ? 'DESCONFORMIDAD' : env.estado) }}
           </span>
         </ng-template>
 
         <ng-template appCell="recepcion" let-env>
-          @if (env.estado === 'RECIBIDO') {
+          @if (env.estado === 'RECIBIDO' && esDesconforme(env)) {
+            <div class="inline-flex flex-col items-center">
+              <span class="text-xs font-extrabold text-rose-800 flex items-center gap-1 font-mono">
+                <i-lucide aria-hidden="true" name="alert-circle" class="w-3.5 h-3.5 text-rose-600"></i-lucide>
+                {{ getFechaResolucion(env) }}
+              </span>
+              <span class="text-xs text-rose-700 font-extrabold font-mono">{{ getHoraResolucion(env) || '09:45' }}</span>
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 mt-0.5 rounded text-xs font-extrabold bg-rose-100 text-rose-800 border border-rose-300">
+                <i-lucide aria-hidden="true" name="x" class="w-2.5 h-2.5"></i-lucide>
+                <span>Desconformidad</span>
+              </span>
+            </div>
+          } @else if (env.estado === 'RECIBIDO') {
             <div class="inline-flex flex-col items-center">
               <span class="text-xs font-extrabold text-emerald-800 flex items-center gap-1 font-mono">
                 <i-lucide aria-hidden="true" name="check-circle" class="w-3.5 h-3.5 text-emerald-600"></i-lucide>
@@ -227,6 +236,14 @@ import { EvidenciasEnvioComponent } from './evidencias-envio.component';
               <i-lucide aria-hidden="true" name="truck" class="w-3.5 h-3.5"></i-lucide>
               <span>En tránsito · Esperando aceptación</span>
             </span>
+          } @else if (env.estado === 'RECIBIDO' && esDesconforme(env)) {
+            <div class="inline-flex flex-col items-end gap-1 text-right">
+              <span class="inline-flex items-center gap-1 text-xs font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200">
+                <i-lucide aria-hidden="true" name="alert-circle" class="w-3.5 h-3.5 text-rose-600"></i-lucide>
+                <span>Llegó incompleto: {{ resumenFaltante(env) }}</span>
+              </span>
+              <ng-container *ngTemplateOutlet="botonResolver; context: { $implicit: env }"></ng-container>
+            </div>
           } @else if (env.estado === 'RECIBIDO') {
             <span class="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
               <i-lucide aria-hidden="true" name="check-circle" class="w-3.5 h-3.5 text-emerald-600"></i-lucide>
@@ -244,12 +261,35 @@ import { EvidenciasEnvioComponent } from './evidencias-envio.component';
                   <span><b>Razón:</b> {{ env.motivoRechazo || env.observaciones }}</span>
                 </span>
               }
+              @if (env.faltantes?.length) {
+                <ng-container *ngTemplateOutlet="botonResolver; context: { $implicit: env }"></ng-container>
+              }
             </div>
           } @else {
             <span class="text-xs text-slate-500 italic">Esperando despacho</span>
           }
         </ng-template>
       </app-data-table>
+
+      <!-- «Resolver» solo aparece con producto retenido por decidir (y permiso); con todo resuelto queda «Ver detalle» -->
+      <ng-template #botonResolver let-env>
+        @if (faltantesPendientes(env) > 0 && puedeResolverFaltantes) {
+          <button type="button" (click)="envioResolviendo = env"
+            class="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 shadow-2xs">
+            <i-lucide aria-hidden="true" name="package-x" class="w-3.5 h-3.5"></i-lucide>
+            <span>Resolver</span>
+          </button>
+        } @else if (faltantesPendientes(env) > 0) {
+          <span class="text-xs font-bold text-amber-800">Pendiente de resolver por la bodega</span>
+        } @else {
+          <button type="button" (click)="envioResolviendo = env"
+            class="px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-lg text-xs font-bold transition-colors cursor-pointer">
+            Ver detalle
+          </button>
+        }
+      </ng-template>
+
+      <app-resolver-envio [envio]="envioResolviendo" (closed)="envioResolviendo = null" (resuelto)="alResolver()" />
 
       <!-- MODAL CONFIRMAR / RECHAZAR RECEPCIÓN: la cantidad que se recibió y la observación -->
       <app-modal size="md"
@@ -569,7 +609,34 @@ export class EnviosComponent implements OnInit, OnDestroy {
   /** Los últimos rechazados (aviso destacado) y cuántos hay en total dentro del alcance del usuario. */
   private subTabla?: Subscription;
 
-  readonly claseFila = (env: EnvioSuministro): string => (env.estado === 'RECHAZADO' ? 'bg-rose-50/60 hover:bg-rose-50' : '');
+  readonly claseFila = (env: EnvioSuministro): string => (env.estado === 'RECHAZADO' || this.esDesconforme(env) ? 'bg-rose-50/60 hover:bg-rose-50' : '');
+
+  /** Envío cuyo detalle de faltantes se está revisando o resolviendo en el modal. */
+  envioResolviendo: any = null;
+
+  get puedeResolverFaltantes(): boolean { return this.auth.puede('envios.faltantes'); }
+
+  /** Recibido, pero llegó menos de lo despachado (o el servidor registró faltantes de esa guía). */
+  esDesconforme = (env: EnvioSuministro): boolean => {
+    if (env.estado !== 'RECIBIDO') return false;
+    const e = env as any;
+    if (e.faltantes?.length) return true;
+    return (e.detalles || []).some((d: any) => d.cantidadRecibida != null && Number(d.cantidadRecibida) < Number(d.cantidadEnviada));
+  };
+
+  faltantesPendientes(env: any): number {
+    return (env.faltantes || []).filter((f: any) => f.estado === 'PENDIENTE').length;
+  }
+
+  resumenFaltante(env: any): string {
+    const sin = (env.faltantes || []).reduce((t: number, f: any) => t + Number(f.cantidadUnd || 0), 0);
+    return sin > 0 ? `${sin} und sin recibir` : 'faltante registrado';
+  }
+
+  alResolver(): void {
+    this.envioResolviendo = null;
+    this.cargarPagina(true);
+  }
 
   // Catálogos dinámicos
   sucursalesDisponibles: Sucursal[] = [];
@@ -901,7 +968,9 @@ export class EnviosComponent implements OnInit, OnDestroy {
         cantidad: Number(d.cantidadEnviada || 0),
         unidad: 'und'
       })),
-      detalles: (m.detalles || []).map((d: any) => ({ id: d.id, detalleId: d.id, cantidadEnviada: d.cantidadEnviada })),
+      detalles: (m.detalles || []).map((d: any) => ({ id: d.id, detalleId: d.id, cantidadEnviada: d.cantidadEnviada, cantidadRecibida: d.cantidadRecibida })),
+      faltantes: m.faltantes || [],
+      evidencias: m.evidencias || [],
       responsableEnvio: userDesp,
       responsableRecepcion: userRec,
       estado,
