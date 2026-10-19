@@ -2833,7 +2833,7 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
                     class="w-full p-2.5 pr-14 rounded-xl border border-slate-200" />
                   <span class="absolute right-3 top-2.5 text-xs font-bold text-slate-500">und</span>
                 </div>
-                <p class="text-xs text-slate-500 mt-1">
+                <p *ngIf="formProducto.stockMinimoBodega && formProducto.stockMinimoBodega > 0" class="text-xs text-slate-500 mt-1">
                   ≈ {{ getCantidadDesdeUnidades(formProducto.stockMinimoBodega, formProducto.contenidoNeto) | number:'1.0-2' }}
                   <span *ngIf="getSimboloUnidadSeleccionada()"> {{ getSimboloUnidadSeleccionada() }}</span>
                   <span *ngIf="!getSimboloUnidadSeleccionada()"> (cantidad base)</span>
@@ -2853,7 +2853,7 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
                     class="w-full p-2.5 pr-14 rounded-xl border border-slate-200" />
                   <span class="absolute right-3 top-2.5 text-xs font-bold text-slate-500">und</span>
                 </div>
-                <p class="text-xs text-slate-500 mt-1">
+                <p *ngIf="formProducto.stockOptimoBodega && formProducto.stockOptimoBodega > 0" class="text-xs text-slate-500 mt-1">
                   ≈ {{ getCantidadDesdeUnidades(formProducto.stockOptimoBodega, formProducto.contenidoNeto) | number:'1.0-2' }}
                   <span *ngIf="getSimboloUnidadSeleccionada()"> {{ getSimboloUnidadSeleccionada() }}</span>
                   <span *ngIf="!getSimboloUnidadSeleccionada()"> (cantidad base)</span>
@@ -2873,7 +2873,7 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
                     class="w-full p-2.5 pr-14 rounded-xl border border-slate-200" />
                   <span class="absolute right-3 top-2.5 text-xs font-bold text-slate-500">und</span>
                 </div>
-                <p class="text-xs text-slate-500 mt-1">
+                <p *ngIf="formProducto.stockMinimoAgencia && formProducto.stockMinimoAgencia > 0" class="text-xs text-slate-500 mt-1">
                   ≈ {{ getCantidadDesdeUnidades(formProducto.stockMinimoAgencia, formProducto.contenidoNeto) | number:'1.0-2' }}
                   <span *ngIf="getSimboloUnidadSeleccionada()"> {{ getSimboloUnidadSeleccionada() }}</span>
                   <span *ngIf="!getSimboloUnidadSeleccionada()"> (cantidad base)</span>
@@ -3426,8 +3426,8 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
                   class="w-full p-2.5 rounded-xl border border-slate-200 bg-white font-medium text-slate-800 focus:outline-none focus:border-purple-500"
                   required>
                   <option value="" disabled>Seleccione insumo a despachar...</option>
-                  <option *ngFor="let p of insumosDisponiblesDespacho" [value]="p.id">
-                    {{ p.nombre }} (SKU: {{ p.codigoSKU }} | Stock: {{ getStockEnUnidades(p.stockActual, p.contenidoNeto) | number:'1.0-0' }} und)
+                  <option *ngFor="let p of insumosDisponiblesDespacho" [value]="p.id" [disabled]="getStockEnUnidades(p.stockActual, p.contenidoNeto) <= 0">
+                    {{ p.nombre }} (SKU: {{ p.codigoSKU }} | Stock: {{ getStockEnUnidades(p.stockActual, p.contenidoNeto) | number:'1.0-0' }} und{{ getStockEnUnidades(p.stockActual, p.contenidoNeto) <= 0 ? ' — SIN STOCK' : '' }})
                   </option>
                 </select>
                 <p *ngIf="insumosDisponiblesDespacho.length === 0" class="text-xs text-rose-600 font-medium">
@@ -4802,6 +4802,18 @@ export class InventarioComponent implements OnInit, OnDestroy {
     if (!targetInsumoId) {
       this.toast.warning('Insumo Requerido', 'Selecciona el insumo a despachar');
       return;
+    }
+    const insumoSel = this.productoDespachoFijo || this.insumosDisponiblesDespacho.find((p) => String(p.id) === String(targetInsumoId)) || this.productos.find((p) => String(p.id) === String(targetInsumoId));
+    if (insumoSel) {
+      const stockDisponible = this.getStockEnUnidades(insumoSel.stockActual ?? insumoSel.stock ?? 0, insumoSel.contenidoNeto);
+      if (stockDisponible <= 0) {
+        this.toast.warning('Stock Insuficiente', `El insumo "${insumoSel.nombre}" no cuenta con existencias disponibles en origen (0 und). No es posible despachar.`);
+        return;
+      }
+      if (Number(this.despachoAgenciaForm.cantidad) > stockDisponible) {
+        this.toast.warning('Stock Insuficiente', `Stock insuficiente de "${insumoSel.nombre}": disponible ${stockDisponible} und, requerido ${this.despachoAgenciaForm.cantidad} und.`);
+        return;
+      }
     }
     if (!this.despachoAgenciaForm.cantidad || this.despachoAgenciaForm.cantidad <= 0) {
       this.toast.warning('Cantidad Inválida', 'La cantidad debe ser mayor a 0');
@@ -6554,13 +6566,18 @@ export class InventarioComponent implements OnInit, OnDestroy {
     this.imagenInsumoPreview = null;
     this.imagenInsumoNombre = '';
     this.imageUploader?.reset();
+    const tipoInicial = this.tiposProducto[0];
+    const esTipoLiquido = tipoInicial && /líquido|liquido|químico|quimico/i.test(tipoInicial.nombre);
+    const unidadVolumen = this.unidadesMedida.find(u => /mililitro|litro|ml|l\b/i.test(u.nombre) || /ml|l/i.test(u.simbolo));
+    const unidadIdInicial = (esTipoLiquido && unidadVolumen ? unidadVolumen.id : (this.unidadesMedida[0]?.id || ''));
+
     this.formProducto = {
       id: '',
       codigoSKU: `INS-${Date.now().toString().slice(-4)}`,
       nombre: '',
       categoria: '',
-      tipoProductoId: this.tiposProducto[0]?.id || '',
-      unidadMedidaId: this.unidadesMedida[0]?.id || '',
+      tipoProductoId: tipoInicial?.id || '',
+      unidadMedidaId: unidadIdInicial,
       contenidoNeto: 1,
       stockMinimoBodega: null,
       stockMinimoAgencia: null,

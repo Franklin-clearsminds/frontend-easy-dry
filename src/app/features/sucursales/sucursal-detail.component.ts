@@ -195,40 +195,98 @@ import { AuthService } from '../../core/services/auth.service';
         title="Editar servicios de la sucursal"
         icon="sparkles"
         (close)="modalServiciosOpen = false">
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-64 overflow-y-auto">
-          <div class="border border-slate-200 rounded-xl p-3 bg-slate-50">
-            <div class="flex items-center justify-between mb-2">
-              <p class="text-[11px] font-extrabold uppercase text-easydry-blue">Generales</p>
-              <span class="text-xs font-bold text-easydry-blue bg-blue-100 px-2 py-0.5 rounded-full">
-                {{ cantidadGeneralesSeleccionadosEdit }} / {{ serviciosGenerales.length }}
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+          
+          <!-- Columna Izquierda: Servicios Generales (Scroll interno independiente) -->
+          <div class="border border-slate-200 rounded-2xl p-4 bg-slate-50/70 flex flex-col">
+            <div class="flex items-center justify-between pb-3 mb-2 border-b border-slate-200/80">
+              <div class="flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-easydry-blue"></span>
+                <p class="text-xs font-extrabold uppercase tracking-wide text-slate-800">Servicios Generales</p>
+              </div>
+              <span class="text-xs font-extrabold text-easydry-blue bg-blue-100/80 px-2.5 py-0.5 rounded-full border border-blue-200/60">
+                {{ cantidadGeneralesSeleccionadosEdit }} de {{ serviciosGenerales.length }} seleccionados
               </span>
             </div>
-            @for (s of serviciosGenerales; track s.id) {
-              <label class="flex items-start gap-2 py-1.5 cursor-pointer hover:bg-white/60 px-1.5 rounded-lg transition-colors">
-                <input type="checkbox" class="mt-0.5 rounded border-slate-300" [checked]="servicioSeleccionado(s.id)" (change)="toggleServicio(s.id, s.nombre)">
-                <span class="text-xs font-semibold text-slate-800">{{ s.nombre }}</span>
-              </label>
-            }
+
+            <p class="text-[11px] text-slate-500 mb-2">Selecciona los servicios de lavado estándar disponibles en la agencia:</p>
+
+            <div class="max-h-72 overflow-y-auto pr-1 space-y-1.5 custom-scrollbar">
+              @for (s of serviciosGenerales; track s.id) {
+                <label class="flex items-center gap-3 p-2 rounded-xl transition-all cursor-pointer border select-none"
+                       [ngClass]="servicioSeleccionado(s.id) ? 'bg-white border-easydry-blue/30 shadow-2xs text-slate-900' : 'bg-slate-100/50 border-transparent hover:bg-white text-slate-600'">
+                  <input type="checkbox"
+                         class="rounded border-slate-300 text-easydry-blue focus:ring-easydry-blue/30 w-4 h-4 cursor-pointer"
+                         [checked]="servicioSeleccionado(s.id)"
+                         (change)="toggleServicio(s.id, s.nombre)">
+                  <span class="text-xs font-semibold leading-tight flex-1">{{ s.nombre }}</span>
+                </label>
+              }
+            </div>
           </div>
-          <div class="border border-amber-200 rounded-xl p-3 bg-amber-50/50">
-            <div class="flex items-center justify-between mb-2">
-              <p class="text-[11px] font-extrabold uppercase text-amber-700">Especiales</p>
-              <span class="text-xs font-bold text-amber-800 bg-amber-200 px-2 py-0.5 rounded-full">
-                {{ cantidadEspecialesSeleccionadosEdit }} / {{ serviciosEspeciales.length }}
+
+          <!-- Columna Derecha: Servicios Especiales (Compacta, directa y 100% visible sin scroll) -->
+          <div class="border border-amber-200/90 rounded-2xl p-4 bg-gradient-to-b from-amber-50/70 to-amber-100/30 flex flex-col gap-3">
+            
+            <!-- Cabecera Especiales -->
+            <div class="flex items-center justify-between pb-3 border-b border-amber-200/80">
+              <div class="flex items-center gap-2">
+                <div class="w-6 h-6 rounded-lg bg-amber-200 text-amber-800 flex items-center justify-center">
+                  <i-lucide aria-hidden="true" name="star" class="w-3.5 h-3.5 fill-amber-500 text-amber-700"></i-lucide>
+                </div>
+                <p class="text-xs font-extrabold uppercase tracking-wide text-amber-900">Servicios Especiales</p>
+              </div>
+              <span class="text-xs font-extrabold px-2.5 py-0.5 rounded-full border transition-colors"
+                    [ngClass]="tieneServiciosEspecialesEdit ? 'bg-amber-200 text-amber-900 border-amber-300' : 'bg-slate-200/80 text-slate-600 border-slate-300'">
+                {{ tieneServiciosEspecialesEdit ? 'Catálogo Completo (' + serviciosEspeciales.length + ')' : 'Deshabilitados (0)' }}
               </span>
             </div>
-            @for (s of serviciosEspeciales; track s.id) {
-              <label class="flex items-start gap-2 py-1.5 cursor-pointer hover:bg-amber-100/50 px-1.5 rounded-lg transition-colors">
-                <input type="checkbox" class="mt-0.5 rounded border-amber-300" [checked]="servicioSeleccionado(s.id)" (change)="toggleServicio(s.id, s.nombre)">
-                <span class="text-xs font-semibold text-slate-800">{{ s.nombre }}</span>
-              </label>
+
+            <!-- Switch Todo o Nada -->
+            <div (click)="toggleTieneEspecialesEdit()"
+                 class="flex items-center justify-between p-3.5 rounded-xl border transition-all cursor-pointer select-none"
+                 [ngClass]="tieneServiciosEspecialesEdit ? 'bg-white border-amber-400 shadow-xs' : 'bg-white/80 border-slate-200 hover:border-slate-300'">
+              <div class="pr-2">
+                <div class="flex items-center gap-2">
+                  <p class="text-xs font-extrabold" [ngClass]="tieneServiciosEspecialesEdit ? 'text-amber-900' : 'text-slate-700'">
+                    {{ tieneServiciosEspecialesEdit ? 'Servicios Especiales Habilitados' : 'Servicios Especiales Deshabilitados' }}
+                  </p>
+                </div>
+                <p class="text-[11px] text-slate-500 mt-0.5 leading-snug">
+                  {{ tieneServiciosEspecialesEdit ? 'Esta agencia ofrece todos los vitrificados, sellados y pulidos.' : 'La agencia no realiza servicios especiales.' }}
+                </p>
+              </div>
+
+              <!-- Switch Pill -->
+              <div class="relative w-11 h-6 rounded-full transition-colors shrink-0"
+                   [ngClass]="tieneServiciosEspecialesEdit ? 'bg-amber-500' : 'bg-slate-300'">
+                <span class="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all"
+                      [ngClass]="tieneServiciosEspecialesEdit ? 'left-5.5' : 'left-0.5'"></span>
+              </div>
+            </div>
+
+
+            <!-- Micro-resumen cuando está activo -->
+            @if (tieneServiciosEspecialesEdit) {
+              <div class="px-3 py-2 bg-white/80 border border-amber-200 rounded-xl flex items-center justify-between text-[11px] text-amber-900">
+                <span class="font-semibold flex items-center gap-1.5">
+                  <i-lucide aria-hidden="true" name="check-circle" class="w-3.5 h-3.5 text-emerald-600"></i-lucide>
+                  Pulidos y tratamientos activos
+                </span>
+                <span class="font-mono font-bold bg-amber-100 px-2 py-0.5 rounded-md text-amber-900">
+                  +{{ serviciosEspeciales.length }} servicios
+                </span>
+              </div>
             }
+
           </div>
+
         </div>
-        <div modal-footer class="w-full flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-easydry-blue/10 text-easydry-blue border border-easydry-blue/20 text-xs font-extrabold">
-            <i-lucide aria-hidden="true" name="sparkles" class="w-4 h-4"></i-lucide>
-            <span>{{ idsServiciosEdit.length }} servicios seleccionados</span>
+
+        <div modal-footer class="w-full flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+          <div class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-easydry-blue/10 text-easydry-blue border border-easydry-blue/20 text-xs font-extrabold">
+            <i-lucide aria-hidden="true" name="sparkles" class="w-4 h-4 text-easydry-blue"></i-lucide>
+            <span>{{ totalServiciosSeleccionadosEdit }} servicios activos en total</span>
           </div>
           <div class="flex items-center gap-2 self-end sm:self-auto">
             <button (click)="modalServiciosOpen = false" class="btn btn-secondary w-full sm:w-auto">Cancelar</button>
@@ -247,7 +305,7 @@ export class SucursalDetailComponent implements OnInit {
   idsServiciosEdit: number[] = [];
   nombresServiciosEdit: string[] = [];
   modalServiciosOpen = false;
-  
+
   private route = inject(ActivatedRoute);
   private sucursalService = inject(SucursalService);
   private bahiaService = inject(BahiaService);
@@ -271,7 +329,7 @@ export class SucursalDetailComponent implements OnInit {
   }
 
   get serviciosEspeciales(): CatalogoServicio[] {
-    return this.catalogoServicios.filter(s => 
+    return this.catalogoServicios.filter(s =>
       (s.categoria?.trim().toUpperCase() === 'ESPECIAL' || s.categoria?.trim().toUpperCase() === 'EXTRA') && s.estado === 'Activo'
     );
   }
@@ -288,7 +346,7 @@ export class SucursalDetailComponent implements OnInit {
 
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id') || '';
-    
+
     this.sucursalService.getSucursalById(id).subscribe(suc => {
       this.sucursal = suc;
     });
@@ -323,10 +381,22 @@ export class SucursalDetailComponent implements OnInit {
     });
   }
 
+  tieneServiciosEspecialesEdit = false;
+
+  get totalServiciosSeleccionadosEdit(): number {
+    return this.cantidadGeneralesSeleccionadosEdit + (this.tieneServiciosEspecialesEdit ? this.serviciosEspeciales.length : 0);
+  }
+
+  toggleTieneEspecialesEdit(): void {
+    this.tieneServiciosEspecialesEdit = !this.tieneServiciosEspecialesEdit;
+  }
+
   abrirModalServicios() {
     if (!this.sucursal || !this.puedeEditarServicios) return;
     this.idsServiciosEdit = [...(this.sucursal.servicioIds || [])];
     this.nombresServiciosEdit = [...(this.sucursal.serviciosNombres || [])];
+    this.tieneServiciosEspecialesEdit = this.sucursal.tieneServiciosEspeciales === true ||
+      this.serviciosEspeciales.some(s => this.idsServiciosEdit.includes(Number(s.id)));
     this.modalServiciosOpen = true;
   }
 
@@ -348,13 +418,22 @@ export class SucursalDetailComponent implements OnInit {
 
   guardarServiciosSucursal() {
     if (!this.sucursal) return;
-    if (!this.idsServiciosEdit.length) {
+    const user = this.auth.getCurrentUser();
+
+    // Filtrar solo los servicios generales seleccionados
+    const generalesIds = new Set(this.serviciosGenerales.map(s => Number(s.id)));
+    let cleanIds = this.idsServiciosEdit.map(Number).filter(id => generalesIds.has(id));
+
+    if (this.tieneServiciosEspecialesEdit) {
+      // Si está activo, son TODOS los servicios especiales corporativos
+      const espIds = this.serviciosEspeciales.map(s => Number(s.id));
+      cleanIds = Array.from(new Set([...cleanIds, ...espIds]));
+    }
+
+    if (!cleanIds.length) {
       this.toastService.warning('Servicios requeridos', 'Seleccione al menos un servicio del catálogo.');
       return;
     }
-    const user = this.auth.getCurrentUser();
-    const cleanIds = Array.from(new Set(this.idsServiciosEdit.map(Number)));
-    const tieneEsp = this.serviciosEspeciales.some(s => cleanIds.includes(Number(s.id)));
 
     const actualizada: Sucursal = {
       ...this.sucursal,
@@ -362,7 +441,7 @@ export class SucursalDetailComponent implements OnInit {
       serviciosNombres: this.catalogoServicios
         .filter(s => cleanIds.includes(Number(s.id)))
         .map(s => s.nombre),
-      tieneServiciosEspeciales: tieneEsp
+      tieneServiciosEspeciales: this.tieneServiciosEspecialesEdit
     };
     this.sucursalService.actualizarSucursal(actualizada, {
       motivo: 'Actualización de servicios de sucursal',

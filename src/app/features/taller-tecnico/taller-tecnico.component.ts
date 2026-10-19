@@ -7,6 +7,9 @@ import { puedeVerIncidentes, puedeVerMantenimientos } from '../../core/utils/maq
 import { MantenimientoComponent } from '../mantenimiento/mantenimiento.component';
 import { ChecklistPlantillasComponent } from './checklist-plantillas/checklist-plantillas.component';
 import { LimpiezasComponent } from '../limpiezas/limpiezas.component';
+import { IncidenteService } from '../../core/services/incidente.service';
+import { of } from 'rxjs';
+import { catchError, map } from 'rxjs/operators';
 
 @Component({
   selector: 'app-taller-tecnico',
@@ -59,14 +62,16 @@ import { LimpiezasComponent } from '../limpiezas/limpiezas.component';
             [ngClass]="activeTab === 'incidentes' ? 'border-rose-500 text-rose-600' : 'border-transparent text-slate-500 hover:text-slate-700'">
             <i-lucide name="alert-triangle" class="w-4 h-4" aria-hidden="true"></i-lucide>
             <span>Registro de Incidentes</span>
-            <span class="inline-flex items-center justify-center -translate-y-1 ml-0.5">
-              <svg class="w-3.5 h-3.5 shrink-0 drop-shadow-xs text-rose-500" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                <circle cx="12" cy="12" r="12" fill="currentColor"/>
-                <path d="M10.2 6.4C10.2 5.4 11 4.6 12 4.6C13 4.6 13.8 5.4 13.8 6.4L13.4 14.2C13.4 15 12.8 15.6 12 15.6C11.2 15.6 10.6 15 10.6 14.2L10.2 6.4Z" fill="white"/>
-                <circle cx="12" cy="18.6" r="1.6" fill="white"/>
-              </svg>
-              <span class="sr-only">Hay incidencias sin atender</span>
-            </span>
+            @if (hayIncidentesPendientes$ | async) {
+              <span class="inline-flex items-center justify-center -translate-y-1 ml-0.5">
+                <svg class="w-3.5 h-3.5 shrink-0 drop-shadow-xs text-rose-500" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                  <circle cx="12" cy="12" r="12" fill="currentColor"/>
+                  <path d="M10.2 6.4C10.2 5.4 11 4.6 12 4.6C13 4.6 13.8 5.4 13.8 6.4L13.4 14.2C13.4 15 12.8 15.6 12 15.6C11.2 15.6 10.6 15 10.6 14.2L10.2 6.4Z" fill="white"/>
+                  <circle cx="12" cy="18.6" r="1.6" fill="white"/>
+                </svg>
+                <span class="sr-only">Hay incidencias sin atender</span>
+              </span>
+            }
           </button>
           }
 
@@ -140,4 +145,12 @@ export class TallerTecnicoComponent {
   verLimpiezas = this.auth.puede('limpiezas.ver');
   activeTab: 'mantenimiento' | 'incidentes' | 'checklist' | 'limpiezas' =
     this.verMantenimientos ? 'mantenimiento' : (this.verIncidentes ? 'incidentes' : (this.verChecklist ? 'checklist' : 'limpiezas'));
+
+  private incidenteService = inject(IncidenteService);
+  hayIncidentesPendientes$ = this.verIncidentes
+    ? this.incidenteService.getIncidentesPagina({ soloNoAtendidas: true, pageSize: 1, incluirResumen: true }).pipe(
+        map(res => (res.resumen?.noAtendidas ?? res.pagina.total ?? res.pagina.items?.length ?? 0) > 0),
+        catchError(() => of(false))
+      )
+    : of(false);
 }

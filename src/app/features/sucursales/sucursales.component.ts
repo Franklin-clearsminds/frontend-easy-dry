@@ -86,6 +86,11 @@ import { ConsultaAgencias } from '../../core/services/sucursal.service';
                   <option [ngValue]="suc.id">{{ suc.nombre }} ({{ suc.ciudad }})</option>
                 }
               </select>
+              <div class="relative min-w-48 sm:min-w-64">
+                <i-lucide aria-hidden="true" name="search" class="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"></i-lucide>
+                <input type="text" [(ngModel)]="busquedaTextoMapa" placeholder="Buscar por nombre o ciudad…"
+                       class="w-full bg-slate-50 border border-slate-200 text-xs font-medium rounded-xl pl-8 pr-3 py-2 focus:ring-2 focus:ring-easydry-blue focus:bg-white outline-none">
+              </div>
             </div>
 
             <!-- Leyenda de Estados de Bahía -->
@@ -616,9 +621,35 @@ import { ConsultaAgencias } from '../../core/services/sucursal.service';
             }
           </div>
 
+          <!-- Barra de Filtro para Gerentes / Aprobadores -->
+          <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-xs flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center gap-3 flex-wrap flex-1">
+              <div class="relative min-w-56 flex-1 max-w-md">
+                <i-lucide aria-hidden="true" name="search" class="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"></i-lucide>
+                <input type="text" [(ngModel)]="busquedaGerentesTexto" placeholder="Buscar aprobador por nombre, email o agencia…"
+                       class="w-full bg-slate-50 border border-slate-200 text-xs font-medium rounded-xl pl-8 pr-3 py-2 focus:ring-2 focus:ring-purple-500 focus:bg-white outline-none">
+              </div>
+              <select [(ngModel)]="filtroGerentesAgencia" class="bg-slate-50 border border-slate-200 text-xs font-bold rounded-xl px-3 py-2 min-w-44 focus:ring-2 focus:ring-purple-500">
+                <option value="">Todas las agencias</option>
+                <option value="__SIN_ASIGNAR__">Sin agencia asignada</option>
+                @for (suc of sucursales; track suc.id) {
+                  <option [value]="suc.nombre">{{ suc.nombre }}</option>
+                }
+              </select>
+            </div>
+            <span class="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1 rounded-full">
+              {{ gerentesUsuariosFiltrados.length }} aprobador(es)
+            </span>
+          </div>
+
           <!-- Matriz de Gerentes y Agencias Asignadas -->
           <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            @for (ger of gerentesUsuarios; track ger.id) {
+            @if (gerentesUsuariosFiltrados.length === 0) {
+              <div class="col-span-full p-8 text-center bg-white rounded-2xl border border-slate-100">
+                <p class="text-xs font-bold text-slate-500">No se encontraron aprobadores con los filtros aplicados.</p>
+              </div>
+            }
+            @for (ger of gerentesUsuariosFiltrados; track ger.id) {
               <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry p-5 flex flex-col justify-between hover:border-purple-200 transition-all">
                 <div>
                   <div class="flex items-start justify-between gap-3 mb-3">
@@ -854,7 +885,7 @@ import { ConsultaAgencias } from '../../core/services/sucursal.service';
 
           @if (puedeAsignarPersonas) {
           <div>
-            <label for="sucursales-f8" class="block text-xs font-bold text-slate-700 uppercase mb-1 flex items-center gap-1">
+            <label for="sucursales-f8" class="text-xs font-bold text-slate-700 uppercase mb-1 flex items-center gap-1">
               <i-lucide aria-hidden="true" name="crown" class="w-3.5 h-3.5 text-teal-600"></i-lucide>
               Líder Operador
             </label>
@@ -1078,7 +1109,7 @@ import { ConsultaAgencias } from '../../core/services/sucursal.service';
             <input id="sucursales-f11" type="text" [(ngModel)]="formRegion.descripcion" name="regionDesc" class="w-full p-2.5 border rounded-xl text-sm">
           </div>
           <div>
-            <label for="sucursales-f12" class="block text-xs font-bold text-slate-700 uppercase mb-1 flex items-center justify-between">
+            <label for="sucursales-f12" class="text-xs font-bold text-slate-700 uppercase mb-1 flex items-center justify-between">
               <span>
                 <i-lucide aria-hidden="true" name="user-check" class="w-3.5 h-3.5 inline mr-1 text-easydry-blue"></i-lucide>
                 Responsable (Supervisor Regional)
@@ -1211,6 +1242,29 @@ import { ConsultaAgencias } from '../../core/services/sucursal.service';
         </div>
       </app-modal>
 
+      <!-- Modal Confirmar Cambio de Estado de Agencia (Reemplaza alert/confirm nativo) -->
+      <app-modal
+        [isOpen]="modalConfirmarEstadoOpen" size="sm"
+        [title]="agenciaEstadoCambiar?.activar ? 'Activar Agencia' : 'Desactivar Agencia'"
+        [icon]="agenciaEstadoCambiar?.activar ? 'check-circle' : 'alert-triangle'"
+        (close)="modalConfirmarEstadoOpen = false">
+        <div class="space-y-3 py-2 text-slate-700">
+          <p class="text-sm">
+            ¿Confirmas que deseas <strong>{{ agenciaEstadoCambiar?.activar ? 'activar' : 'desactivar' }}</strong> la agencia <strong>{{ agenciaEstadoCambiar?.suc?.nombre }}</strong>?
+          </p>
+          <p class="text-xs text-slate-500" *ngIf="!agenciaEstadoCambiar?.activar">
+            Al desactivarla, dejará de operar y no recibirá nuevos servicios hasta que sea reactivada.
+          </p>
+        </div>
+        <div modal-footer class="flex items-center justify-end gap-2 w-full">
+          <button (click)="modalConfirmarEstadoOpen = false" class="btn btn-secondary w-full sm:w-auto">Cancelar</button>
+          <button (click)="ejecutarCambioEstadoAgencia()"
+                  [class]="agenciaEstadoCambiar?.activar ? 'btn btn-primary w-full sm:w-auto' : 'px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs transition-colors w-full sm:w-auto'">
+            {{ agenciaEstadoCambiar?.activar ? 'Activar Agencia' : 'Sí, Desactivar' }}
+          </button>
+        </div>
+      </app-modal>
+
     </div>
   `
 })
@@ -1229,6 +1283,11 @@ export class SucursalesComponent implements OnInit, OnDestroy {
   movimientos: MovimientoRedSucursal[] = [];
 
   tabActiva: 'mapa' | 'agencias' | 'sucursales' | 'regiones' | 'marcas' | 'clientes' | 'gerentes' = 'agencias';
+  busquedaTextoMapa = '';
+  busquedaGerentesTexto = '';
+  filtroGerentesAgencia = '';
+  modalConfirmarEstadoOpen = false;
+  agenciaEstadoCambiar: { suc: Sucursal; activar: boolean } | null = null;
   /** Cada pestaña es una sub-página de «Agencias & Mapa Red»: se ve solo si el rol tiene su permiso. */
   tabs = [
     { id: 'agencias' as const, label: 'Gestión de Agencias', icon: 'building-2', permiso: 'pagina.agencias.agencias' },
@@ -1268,6 +1327,27 @@ export class SucursalesComponent implements OnInit, OnDestroy {
   todosLosUsuarios: Usuario[] = [];
 
   gerentesUsuarios: Usuario[] = [];
+
+  get gerentesUsuariosFiltrados(): Usuario[] {
+    let lista = this.gerentesUsuarios;
+    if (this.filtroGerentesAgencia) {
+      if (this.filtroGerentesAgencia === '__SIN_ASIGNAR__') {
+        lista = lista.filter(g => !g.agencia);
+      } else {
+        lista = lista.filter(g => g.agencia === this.filtroGerentesAgencia);
+      }
+    }
+    if (this.busquedaGerentesTexto?.trim()) {
+      const q = this.busquedaGerentesTexto.trim().toLowerCase();
+      lista = lista.filter(g =>
+        (g.nombre && g.nombre.toLowerCase().includes(q)) ||
+        (g.apellido && g.apellido.toLowerCase().includes(q)) ||
+        (g.email && g.email.toLowerCase().includes(q)) ||
+        (g.agencia && g.agencia.toLowerCase().includes(q))
+      );
+    }
+    return lista;
+  }
   modalAsignarGerenteOpen = false;
   formAsignarGerente: {
     gerenteId: string | number;
@@ -1555,8 +1635,14 @@ export class SucursalesComponent implements OnInit, OnDestroy {
   alternarEstadoAgencia(suc: Sucursal): void {
     if (!this.puedeCambiarEstadoAgencia) return;
     const activar = suc.estado === 'Inactivo';
-    const pregunta = activar ? ('¿Activar la agencia ' + suc.nombre + '?') : ('¿Desactivar la agencia ' + suc.nombre + '? Dejará de operar hasta que se active de nuevo.');
-    if (!window.confirm(pregunta)) return;
+    this.agenciaEstadoCambiar = { suc, activar };
+    this.modalConfirmarEstadoOpen = true;
+  }
+
+  ejecutarCambioEstadoAgencia(): void {
+    if (!this.agenciaEstadoCambiar) return;
+    const { suc, activar } = this.agenciaEstadoCambiar;
+    this.modalConfirmarEstadoOpen = false;
     this.sucursalService.cambiarEstadoAgencia(suc.id, activar).subscribe({
       next: () => {
         this.toastService.success(activar ? 'Agencia activada' : 'Agencia desactivada', suc.nombre);
@@ -1700,8 +1786,19 @@ export class SucursalesComponent implements OnInit, OnDestroy {
   }
 
   get sucursalesMapa(): Sucursal[] {
-    if (!this.filtroSucursalMapaId || this.filtroSucursalMapaId === 0 || this.filtroSucursalMapaId === '0') return this.sucursales;
-    return this.sucursales.filter(s => String(s.id) === String(this.filtroSucursalMapaId));
+    let lista = this.sucursales;
+    if (this.filtroSucursalMapaId && this.filtroSucursalMapaId !== 0 && this.filtroSucursalMapaId !== '0') {
+      lista = lista.filter(s => String(s.id) === String(this.filtroSucursalMapaId));
+    }
+    if (this.busquedaTextoMapa?.trim()) {
+      const q = this.busquedaTextoMapa.trim().toLowerCase();
+      lista = lista.filter(s =>
+        (s.nombre && s.nombre.toLowerCase().includes(q)) ||
+        (s.ciudad && s.ciudad.toLowerCase().includes(q)) ||
+        (s.regionNombre && s.regionNombre.toLowerCase().includes(q))
+      );
+    }
+    return lista;
   }
 
   getBahiasDeSucursal(sucursalId: number | string): Bahia[] {
@@ -1988,8 +2085,9 @@ export class SucursalesComponent implements OnInit, OnDestroy {
       }
     }
 
-    if (this.puedeCrearAgencia && !this.nuevaSucursal.ciudad?.trim()) {
-      this.nuevaSucursal.ciudad = this.nuevaSucursal.regionNombre || '';
+    if (!this.nuevaSucursal.ciudad?.trim()) {
+      this.toastService.warning('Ciudad requerida', 'Ingrese la ciudad donde se ubica la agencia.');
+      return;
     }
     if (!this.nuevaSucursal.direccion?.trim()) {
       this.toastService.warning('Dirección requerida', 'Ingrese la dirección de la agencia.');
