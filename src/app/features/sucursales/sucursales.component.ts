@@ -23,10 +23,14 @@ import { OpcionesService } from '../../core/services/opciones.service';
 import { SelectSearchComponent } from '../../shared/components/select-search/select-search.component';
 import { ListaInfinita } from '../../core/utils/lista-infinita';
 import { InfiniteScrollComponent } from '../../shared/components/infinite-scroll/infinite-scroll.component';
-import { Subject, Subscription } from 'rxjs';
-import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
+import { Observable, Subject, Subscription, forkJoin, of } from 'rxjs';
+import { catchError, debounceTime, distinctUntilChanged, tap } from 'rxjs/operators';
 import { BUSQUEDA_DEBOUNCE_MS, BUSQUEDA_MIN_CARACTERES, PAGE_SIZE_INFINITO } from '../../core/config/paginacion';
 import { ConsultaAgencias } from '../../core/services/sucursal.service';
+
+/** Listas de referencia de la pantalla de agencias; cada pestaña pide solo las suyas. */
+type GrupoReferencia = 'regiones' | 'marcas' | 'sucursales' | 'catalogo' | 'usuarios';
+const TODAS_LAS_REFERENCIAS: GrupoReferencia[] = ['regiones', 'marcas', 'sucursales', 'catalogo', 'usuarios'];
 
 @Component({
   selector: 'app-sucursales',
@@ -1490,6 +1494,7 @@ export class SucursalesComponent implements OnInit, OnDestroy {
   }
 
   abrirModalAsignarGerente(): void {
+    if (!this.conReferencias(() => this.abrirModalAsignarGerente())) return;
     if (!this.puedeAsignarPersonas) return;
     this.formAsignarGerente = {
       gerenteId: this.gerentesUsuarios[0]?.id || 0,
@@ -1499,6 +1504,7 @@ export class SucursalesComponent implements OnInit, OnDestroy {
   }
 
   abrirModalReasignar(ger: Usuario): void {
+    if (!this.conReferencias(() => this.abrirModalReasignar(ger))) return;
     if (!this.puedeAsignarPersonas) return;
     const suc = this.sucursales.find(s => s.nombre === ger.agencia);
     this.formAsignarGerente = {
@@ -1576,6 +1582,7 @@ export class SucursalesComponent implements OnInit, OnDestroy {
    */
   private cargarSegunTab(tab: typeof this.tabActiva): void {
     const clave = tab === 'sucursales' ? 'agencias' : tab === 'marcas' ? 'clientes' : tab;
+    this.cargarReferencias(this.referenciasDeTab(clave));
     if (this.tabsCargadas.has(clave)) return;
     this.tabsCargadas.add(clave);
     switch (clave) {
@@ -1604,61 +1611,98 @@ export class SucursalesComponent implements OnInit, OnDestroy {
 
   cargarTodo(): void {
     this.tabsCargadas.clear();
+    this.referenciasCargadas.clear();
     this.cargarSegunTab(this.tabActiva);
-    // Lo de acá abajo es información de referencia (sucursales, regiones, clientes, usuarios) que usan los
-    // desplegables de varios modales (crear agencia, transferir, asignar aprobador...) alcanzables desde
-    // más de una pestaña, así que sí conviene tenerla lista desde el inicio.
-    const verRegiones = this.auth.puede('pagina.agencias.regiones');
-    const verClientes = this.auth.puede('pagina.agencias.clientes');
-    // Sin la pestaña Regiones/Clientes se usa la lista de opciones (la que ya piden los desplegables).
-    (verRegiones ? this.regionService.getRegiones() : this.regionService.getRegionesLista()).subscribe(list => {
-      this.regiones = list;
-      this.regionSeleccionada = this.regionSeleccionada
-        ? list.find(r => r.id === this.regionSeleccionada!.id) || list[0]
-        : list[0] || null;
-    });
-    (verClientes ? this.marcaService.getMarcas() : this.clienteService.getClientesLista()).subscribe(list => {
-      this.marcas = list;
-      this.marcaSeleccionada = this.marcaSeleccionada
-        ? list.find(m => m.id === this.marcaSeleccionada!.id) || list[0]
-        : list[0] || null;
-    });
-    this.sucursalService.getSucursales().subscribe(list => {
-      this.sucursales = list;
-    });
-    if (this.auth.puede('catalogo.ver')) {
-      this.catalogoService.getServiciosActivos().subscribe(list => {
-        this.catalogoServicios = list;
-      });
+  }
+
+  /**
+   * Listas de referencia (regiones, clientes, agencias, catálogo y usuarios) que alimentan las tablas y los desplegables de los modales.
+   * Antes se pedían todas al entrar; ahora cada pestaña pide las suyas y los modales completan lo que falte antes de abrirse.
+   */
+  private referenciasCargadas = new Set<GrupoReferencia>();
+
+  private referenciasDeTab(clave: string): GrupoReferencia[] {
+    switch (clave) {
+      case 'mapa': return ['sucursales', 'usuarios'];
+      case 'agencias': return ['sucursales', 'marcas', 'regiones', 'catalogo', 'usuarios'];
+      case 'regiones': return ['regiones', 'sucursales', 'usuarios'];
+      case 'clientes': return ['marcas', 'sucursales'];
+      case 'gerentes': return ['sucursales', 'usuarios', 'regiones', 'marcas', 'catalogo'];
+      default: return [];
     }
-    this.usuarioService.usuarios$.subscribe(list => {
-      if (list && list.length) {
-        this.todosLosUsuarios = list;
-        this.gerentesUsuarios = list.filter(u => {
-          const r = (u.rol || u.rolNombre || '').toUpperCase();
-          const activo = u.estado === 'Activo' || (u as any).estado === 1;
-          return activo && r === 'APROBADOR';
-        });
-        this.supervisoresUsuarios = list.filter(u =>
-          (u.estado === 'Activo' || (u as any).estado === 1) &&
-          (u.rol === 'SUPERVISOR' || u.rol === 'Supervisor Regional' || u.rol.toLowerCase().includes('supervisor'))
-        );
+  }
+
+  private referenciasListas(grupos: GrupoReferencia[]): boolean {
+    return grupos.every((g) => this.referenciasCargadas.has(g));
+  }
+
+  /** Pide las listas que faltan (una sola vez cada una) y avisa cuando todas llegaron. */
+  private cargarReferencias(grupos: GrupoReferencia[], alTerminar?: () => void): void {
+    const peticiones: Observable<unknown>[] = [];
+    for (const g of grupos) {
+      if (this.referenciasCargadas.has(g)) continue;
+      this.referenciasCargadas.add(g);
+      const peticion = this.peticionReferencia(g);
+      if (peticion) peticiones.push(peticion.pipe(catchError(() => of(null))));
+    }
+    if (!peticiones.length) {
+      alTerminar?.();
+      return;
+    }
+    forkJoin(peticiones).subscribe(() => alTerminar?.());
+  }
+
+  /** Abre un modal solo cuando ya están todas las listas que usa su formulario (las pide la primera vez). */
+  private conReferencias(abrir: () => void): boolean {
+    if (this.referenciasListas(TODAS_LAS_REFERENCIAS)) return true;
+    this.cargarReferencias(TODAS_LAS_REFERENCIAS, abrir);
+    return false;
+  }
+
+  private peticionReferencia(grupo: GrupoReferencia): Observable<unknown> | null {
+    switch (grupo) {
+      case 'regiones': {
+        // Sin la pestaña Regiones se usa la lista de opciones (la que ya piden los desplegables).
+        const verRegiones = this.auth.puede('pagina.agencias.regiones');
+        return (verRegiones ? this.regionService.getRegiones() : this.regionService.getRegionesLista()).pipe(tap((list) => {
+          this.regiones = list;
+          this.regionSeleccionada = this.regionSeleccionada
+            ? list.find(r => r.id === this.regionSeleccionada!.id) || list[0]
+            : list[0] || null;
+        }));
       }
-    });
-    if (this.puedeVerUsuarios) this.usuarioService.getUsuarios().subscribe(list => {
-      if (list && list.length) {
-        this.todosLosUsuarios = list;
-        this.gerentesUsuarios = list.filter(u => {
-          const r = (u.rol || u.rolNombre || '').toUpperCase();
-          const activo = u.estado === 'Activo' || (u as any).estado === 1;
-          return activo && r === 'APROBADOR';
-        });
-        this.supervisoresUsuarios = list.filter(u =>
-          (u.estado === 'Activo' || (u as any).estado === 1) &&
-          (u.rol === 'SUPERVISOR' || u.rol === 'Supervisor Regional' || u.rol.toLowerCase().includes('supervisor'))
-        );
+      case 'marcas': {
+        const verClientes = this.auth.puede('pagina.agencias.clientes');
+        return (verClientes ? this.marcaService.getMarcas() : this.clienteService.getClientesLista()).pipe(tap((list) => {
+          this.marcas = list;
+          this.marcaSeleccionada = this.marcaSeleccionada
+            ? list.find(m => m.id === this.marcaSeleccionada!.id) || list[0]
+            : list[0] || null;
+        }));
       }
-    });
+      case 'sucursales':
+        return this.sucursalService.getSucursales().pipe(tap((list) => { this.sucursales = list; }));
+      case 'catalogo':
+        if (!this.auth.puede('catalogo.ver')) return null;
+        return this.catalogoService.getServiciosActivos().pipe(tap((list) => { this.catalogoServicios = list; }));
+      case 'usuarios': {
+        const aplicar = (list: Usuario[]) => {
+          if (!list || !list.length) return;
+          this.todosLosUsuarios = list;
+          this.gerentesUsuarios = list.filter(u => {
+            const r = (u.rol || u.rolNombre || '').toUpperCase();
+            const activo = u.estado === 'Activo' || (u as any).estado === 1;
+            return activo && r === 'APROBADOR';
+          });
+          this.supervisoresUsuarios = list.filter(u =>
+            (u.estado === 'Activo' || (u as any).estado === 1) &&
+            (u.rol === 'SUPERVISOR' || u.rol === 'Supervisor Regional' || u.rol.toLowerCase().includes('supervisor'))
+          );
+        };
+        this.usuarioService.usuarios$.subscribe(aplicar);
+        return this.puedeVerUsuarios ? this.usuarioService.getUsuarios().pipe(tap(aplicar)) : null;
+      }
+    }
   }
 
   getLiderOperador(suc: Sucursal): string {
@@ -1721,6 +1765,7 @@ export class SucursalesComponent implements OnInit, OnDestroy {
   }
 
   abrirModalCrearSucursal(): void {
+    if (!this.conReferencias(() => this.abrirModalCrearSucursal())) return;
     if (!this.puedeCrearAgencia) return;
     this.editandoSucursal = false;
     this.nuevaSucursal = this.sucursalVacia();
@@ -1736,6 +1781,7 @@ export class SucursalesComponent implements OnInit, OnDestroy {
   }
 
   abrirModalEditar(suc: Sucursal): void {
+    if (!this.conReferencias(() => this.abrirModalEditar(suc))) return;
     if (!this.puedeEditarAgencia) return;
     this.editandoSucursal = true;
     this.preciosServicios = [];
@@ -2045,6 +2091,7 @@ export class SucursalesComponent implements OnInit, OnDestroy {
   }
 
   abrirModalRegion(region?: RegionOperativa): void {
+    if (!this.conReferencias(() => this.abrirModalRegion(region))) return;
     if (region ? !this.puedeEditarRegion : !this.puedeCrearRegion) return;
     this.editandoRegion = !!region;
     let supId: string | number = '';
@@ -2111,6 +2158,7 @@ export class SucursalesComponent implements OnInit, OnDestroy {
   }
 
   abrirModalMarca(marca?: MarcaSucursal): void {
+    if (!this.conReferencias(() => this.abrirModalMarca(marca))) return;
     if (marca ? !this.puedeEditarCliente : !this.puedeCrearCliente) return;
     this.editandoMarca = !!marca;
     this.formMarca = marca
@@ -2152,6 +2200,7 @@ export class SucursalesComponent implements OnInit, OnDestroy {
   }
 
   abrirModalTransferir(suc: Sucursal): void {
+    if (!this.conReferencias(() => this.abrirModalTransferir(suc))) return;
     if (!this.puedeCrearAgencia) return;
     this.formTransfer = {
       sucursalId: suc.id,
@@ -2163,6 +2212,7 @@ export class SucursalesComponent implements OnInit, OnDestroy {
   }
 
   abrirAsignarARegion(region: RegionOperativa): void {
+    if (!this.conReferencias(() => this.abrirAsignarARegion(region))) return;
     if (!this.puedeCrearAgencia) return;
     const candidata = this.sucursales.find(s => String(s.regionId) !== String(region.id)) || this.sucursales[0];
     this.formTransfer = {
@@ -2175,6 +2225,7 @@ export class SucursalesComponent implements OnInit, OnDestroy {
   }
 
   abrirAsignarAMarca(marca: MarcaSucursal): void {
+    if (!this.conReferencias(() => this.abrirAsignarAMarca(marca))) return;
     if (!this.puedeCrearAgencia) return;
     const candidata = this.sucursales.find(s => String(s.marcaId) !== String(marca.id)) || this.sucursales[0];
     this.formTransfer = {

@@ -4,6 +4,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterModule } from '@angular/router';
 import { LucideAngularModule } from 'lucide-angular';
+import { AuthService } from '../../core/services/auth.service';
 import { NotificacionService } from '../../core/services/notificacion.service';
 import { Notificacion, NotificacionCategoria, NotificacionTipo, Pendiente, PendienteSeveridad } from '../../core/models/notificacion.model';
 import { EmptyStateComponent } from '../../shared/components/empty-state/empty-state.component';
@@ -70,9 +71,9 @@ const CATEGORIA_BADGE: Record<NotificacionCategoria, string> = {
       </div>
 
       <!-- Una sola bandeja: avisos (se leen) y pendientes (siguen hasta que se resuelve el problema) -->
-      @if (pendientes !== null) {
+      @if (puedeVerPendientes) {
         <div class="inline-flex bg-slate-100 p-1 rounded-xl" role="tablist" aria-label="Tipo de elementos">
-          <button type="button" role="tab" [attr.aria-selected]="pestana === 'avisos'" (click)="pestana = 'avisos'"
+          <button type="button" role="tab" [attr.aria-selected]="pestana === 'avisos'" (click)="seleccionarPestana('avisos')"
             class="px-4 py-2 text-xs font-bold rounded-lg transition-colors inline-flex items-center gap-2"
             [ngClass]="pestana === 'avisos' ? 'bg-white text-easydry-blue shadow-sm' : 'text-slate-500 hover:text-slate-700'">
             Avisos
@@ -80,11 +81,11 @@ const CATEGORIA_BADGE: Record<NotificacionCategoria, string> = {
               <span class="px-1.5 rounded-md text-[10px] font-extrabold bg-rose-100 text-rose-700">{{ noLeidas }}</span>
             }
           </button>
-          <button type="button" role="tab" [attr.aria-selected]="pestana === 'pendientes'" (click)="pestana = 'pendientes'"
+          <button type="button" role="tab" [attr.aria-selected]="pestana === 'pendientes'" (click)="seleccionarPestana('pendientes')"
             class="px-4 py-2 text-xs font-bold rounded-lg transition-colors inline-flex items-center gap-2"
             [ngClass]="pestana === 'pendientes' ? 'bg-white text-easydry-blue shadow-sm' : 'text-slate-500 hover:text-slate-700'">
             Pendientes
-            @if (pendientes.length > 0) {
+            @if (pendientes && pendientes.length > 0) {
               <span class="px-1.5 rounded-md text-[10px] font-extrabold"
                     [ngClass]="criticos > 0 ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'">{{ pendientes.length }}</span>
             }
@@ -269,7 +270,12 @@ const CATEGORIA_BADGE: Record<NotificacionCategoria, string> = {
           </div>
         </div>
 
-        @if (pendientesFiltrados.length === 0) {
+        @if (cargandoPendientes) {
+          <div role="status" aria-live="polite" class="flex items-center justify-center gap-3 py-10 text-sm font-semibold text-slate-500">
+            <span class="w-5 h-5 rounded-full border-2 border-slate-200 border-t-easydry-blue animate-spin" aria-hidden="true"></span>
+            Cargando pendientes…
+          </div>
+        } @else if (pendientesFiltrados.length === 0) {
           <div class="bg-white rounded-2xl border border-slate-100 p-12">
             <app-empty-state
               icon="check-circle-2"
@@ -320,6 +326,7 @@ export class NotificacionesComponent implements OnInit {
   private notificacionService = inject(NotificacionService);
   private destroyRef = inject(DestroyRef);
   private route = inject(ActivatedRoute);
+  private auth = inject(AuthService);
 
   /** Avisos (se leen) o pendientes (siguen hasta que se resuelve el problema). */
   pestana: 'avisos' | 'pendientes' = 'avisos';
@@ -378,10 +385,32 @@ export class NotificacionesComponent implements OnInit {
     this.notificacionService.getNotificaciones().pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
       this.cargando = false;
     });
+    // Los pendientes son otro cálculo del servidor: solo se piden al abrir su pestaña. El enlace «Ver bandeja» del dashboard
+    // llega con ?tab=pendientes.
+    if (this.puedeVerPendientes && this.route.snapshot.queryParamMap.get('tab') === 'pendientes') this.seleccionarPestana('pendientes');
+  }
+
+  /** Mismos permisos que exige el servidor para calcular los pendientes (si no tiene ninguno, la pestaña no aparece). */
+  get puedeVerPendientes(): boolean {
+    return this.auth.puede('alertas.ver') || this.auth.puede('incidentes.ver') || this.auth.puede('mantenimientos.ver');
+  }
+
+  cargandoPendientes = false;
+  private pendientesPedidos = false;
+
+  seleccionarPestana(pestana: 'avisos' | 'pendientes'): void {
+    this.pestana = pestana;
+    if (pestana !== 'pendientes' || this.pendientesPedidos) return;
+    this.pendientesPedidos = true;
+    this.cargandoPendientes = true;
     this.notificacionService.getPendientes().pipe(takeUntilDestroyed(this.destroyRef)).subscribe((lista) => {
       this.pendientes = lista;
-      // El enlace «Ver bandeja» del dashboard llega con ?tab=pendientes.
-      if (lista !== null && this.route.snapshot.queryParamMap.get('tab') === 'pendientes') this.pestana = 'pendientes';
+      this.cargandoPendientes = false;
+      // Sin acceso a ninguno de los orígenes (el servidor respondió que no): se vuelve a avisos y se permite reintentar.
+      if (lista === null) {
+        this.pendientesPedidos = false;
+        this.pestana = 'avisos';
+      }
     });
   }
 

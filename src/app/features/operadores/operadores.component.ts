@@ -871,7 +871,6 @@ export class OperadoresComponent implements OnInit, OnDestroy {
         this.busquedaAplicada = texto;
         this.tabla.reiniciar();
       });
-    this.cargarDatos();
     this.tabla.reiniciar();
   }
 
@@ -891,29 +890,9 @@ export class OperadoresComponent implements OnInit, OnDestroy {
     return ambito !== 'AGENCIA' && ambito !== 'PROPIO';
   }
 
+  /** Vuelve a pedir la página que se está viendo (tras registrar o cambiar a alguien). La tabla se pide paginada desde el servidor. */
   cargarDatos(): void {
-    this.cargando = true;
-    const currentUser = this.authService.getCurrentUser();
-    const esAgencia = currentUser?.ambito === 'AGENCIA';
-    const categoriaRol = this.isCoordServiciosEspeciales ? 'PULIDOR' : (esAgencia && !this.esLider ? 'LAVADOR' : undefined);
-    const rawAgenciaId = currentUser?.agenciaId || currentUser?.sucursalId;
-    const agenciaId = esAgencia && rawAgenciaId ? String(rawAgenciaId) : undefined;
-
-    this.operadorService.getOperadores(agenciaId, categoriaRol).subscribe({
-      next: (list) => {
-        this.operadores = list;
-        this.cargando = false;
-      },
-      error: () => {
-        this.cargando = false;
-      }
-    });
-
-    this.operadorService.operadores$.subscribe(list => {
-      this.operadores = list;
-      this.cargando = false;
-    });
-
+    this.tabla.refrescar();
   }
 
   /** Sucursales: solo hacen falta en los modales de crear/editar operador y asignar bahía — antes se pedían

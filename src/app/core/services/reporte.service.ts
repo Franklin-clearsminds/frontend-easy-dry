@@ -16,8 +16,9 @@ export class ReporteService {
     return this.http.post<ReporteCatalogo[]>(apiUrl('/reportes/catalogo'), {});
   }
 
-  opciones(): Observable<OpcionesReportes> {
-    return this.http.post<OpcionesReportes>(apiUrl('/reportes/opciones'), {});
+  /** `incluir`: listas largas que hacen falta además de regiones, clientes y agencias (sin él, el servidor devuelve todo). */
+  opciones(incluir?: ('productos' | 'lavadores' | 'pulidores')[]): Observable<OpcionesReportes> {
+    return this.http.post<OpcionesReportes>(apiUrl('/reportes/opciones'), incluir ? { incluir } : {});
   }
 
   generar(filtros: FiltrosReporte): Observable<ReporteGenerado> {

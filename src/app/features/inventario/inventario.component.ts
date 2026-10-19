@@ -171,7 +171,7 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
           <!-- 7. Movimientos (Kardex) -->
           <button
             *ngIf="puedeVerInventario && puedeOperarBodega && puedeSubMovimientos"
-            (click)="activeTab = 'movimientos'"
+            (click)="activeTab = 'movimientos'; cargarDatosDeTab('movimientos')"
             class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
             [ngClass]="activeTab === 'movimientos' ? 'bg-blue-50 text-easydry-blue font-extrabold shadow-2xs' : 'text-slate-600 hover:bg-slate-50'">
             <i-lucide aria-hidden="true" name="refresh-cw" class="w-4 h-4"></i-lucide>
@@ -5052,10 +5052,8 @@ export class InventarioComponent implements OnInit, OnDestroy {
     this.cargarTiposMovimiento();
     this.cargarProductos();
     this.cargarDashboardResumen();
-    this.cargarHistorialMovimientos();
-    this.cargarStockBajo();
-    this.cargarStockBodega();
-    this.cargarStockAgencias();
+    // El Kardex, el stock bajo, el de bodega y el de agencias son datos de pestaña: se piden con `cargarDatosDeTab`
+    // al abrir cada una (antes también se pedían aquí, todos de golpe y otra vez al entrar a su pestaña).
   }
 
   public cargarTiposProducto(): void {
@@ -5396,6 +5394,7 @@ export class InventarioComponent implements OnInit, OnDestroy {
       case 'pulidores': this.cargarStockPulidoresResumen(); break;
       case 'stock_bajo': this.cargarStockBajo(); break;
       case 'alertas_reabastecimiento': this.cargarAlertasStock(); break;
+      case 'movimientos': this.cargarHistorialMovimientos(); break;
     }
   }
 

@@ -523,8 +523,10 @@ export class ReportesComponent implements OnInit {
         if (catalogo.length) {
           this.moduloSel = catalogo[0].modulo;
           this.reporteId = catalogo[0].id;
-          this.reporteService.opciones().subscribe({
-            next: (o) => { this.opciones = o; this.cargandoInicial = false; },
+          // Regiones, clientes y agencias siempre; lavadores, pulidores y productos solo si el reporte elegido los filtra.
+          const listas = this.listasDelReporte();
+          this.reporteService.opciones(listas).subscribe({
+            next: (o) => { this.opciones = o; listas.forEach((l) => this.listasCargadas.add(l)); this.cargandoInicial = false; },
             error: (e) => this.falloInicial(e),
           });
         } else {
@@ -545,6 +547,32 @@ export class ReportesComponent implements OnInit {
     this.elegirReporte(this.reportesDelModulo[0]?.id ?? '');
   }
 
+  private listasCargadas = new Set<'productos' | 'lavadores' | 'pulidores'>();
+
+  /** Listas largas que necesita el filtro del reporte elegido. */
+  private listasDelReporte(): ('productos' | 'lavadores' | 'pulidores')[] {
+    const extras = this.reporte?.extras ?? [];
+    const listas: ('productos' | 'lavadores' | 'pulidores')[] = [];
+    if (extras.includes('lavador')) listas.push('lavadores');
+    if (extras.includes('pulidor')) listas.push('pulidores');
+    if (extras.includes('producto')) listas.push('productos');
+    return listas;
+  }
+
+  /** Pide las listas que el reporte elegido necesita y todavía no se cargaron (una sola vez cada una). */
+  private asegurarListasDelReporte(): void {
+    const faltan = this.listasDelReporte().filter((l) => !this.listasCargadas.has(l));
+    if (!faltan.length || !this.opciones) return;
+    faltan.forEach((l) => this.listasCargadas.add(l));
+    this.reporteService.opciones(faltan).subscribe({
+      next: (o) => {
+        if (!this.opciones) return;
+        this.opciones = { ...this.opciones, ...Object.fromEntries(faltan.map((l) => [l, o[l]])) } as OpcionesReportes;
+      },
+      error: () => faltan.forEach((l) => this.listasCargadas.delete(l)),
+    });
+  }
+
   elegirReporte(id: string): void {
     this.reporteId = id;
     this.estado = '';
@@ -555,6 +583,7 @@ export class ReportesComponent implements OnInit {
     this.productoId = '';
     this.resultado = null;
     this.errorGenerar = '';
+    this.asegurarListasDelReporte();
   }
 
   cambioRegion(): void {

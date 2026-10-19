@@ -213,7 +213,7 @@
       role="tablist" aria-label="Secciones del dashboard">
       @if (!isAprobadorView || isEjecutivoView) {
       <button type="button" role="tab" id="tab-analitica" aria-controls="panel-analitica"
-        [attr.aria-selected]="activeExecutiveTab === 'analitica'" (click)="activeExecutiveTab = 'analitica'"
+        [attr.aria-selected]="activeExecutiveTab === 'analitica'" (click)="seleccionarTab('analitica')"
         class="shrink-0 px-3 sm:px-3.5 2xl:px-4 py-2 text-xs sm:text-[13px] 2xl:text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap"
         [ngClass]="activeExecutiveTab === 'analitica' ? 'bg-easydry-blue text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'">
         <i-lucide aria-hidden="true" name="bar-chart-2" class="w-4 h-4 shrink-0"></i-lucide>
@@ -222,7 +222,7 @@
       }
       @if (!isAprobadorView && !isComercialView) {
       <button type="button" role="tab" id="tab-auditoria" aria-controls="panel-auditoria"
-        [attr.aria-selected]="activeExecutiveTab === 'auditoria'" (click)="activeExecutiveTab = 'auditoria'"
+        [attr.aria-selected]="activeExecutiveTab === 'auditoria'" (click)="seleccionarTab('auditoria')"
         class="shrink-0 px-3 sm:px-3.5 2xl:px-4 py-2 text-xs sm:text-[13px] 2xl:text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap"
         [ngClass]="activeExecutiveTab === 'auditoria' ? 'bg-easydry-blue text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'">
         <i-lucide aria-hidden="true" name="shield-check" class="w-4 h-4 shrink-0"></i-lucide>
@@ -231,7 +231,7 @@
       }
       @if (!isAprobadorView) {
       <button type="button" role="tab" id="tab-operacion" aria-controls="panel-operacion"
-        [attr.aria-selected]="activeExecutiveTab === 'operacion'" (click)="activeExecutiveTab = 'operacion'"
+        [attr.aria-selected]="activeExecutiveTab === 'operacion'" (click)="seleccionarTab('operacion')"
         class="shrink-0 px-3 sm:px-3.5 2xl:px-4 py-2 text-xs sm:text-[13px] 2xl:text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap"
         [ngClass]="activeExecutiveTab === 'operacion' ? 'bg-easydry-blue text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'">
         <i-lucide aria-hidden="true" name="briefcase" class="w-4 h-4 shrink-0"></i-lucide>
@@ -239,7 +239,7 @@
       </button>
       }
       <button type="button" role="tab" id="tab-aprobaciones" aria-controls="panel-aprobaciones"
-        [attr.aria-selected]="activeExecutiveTab === 'aprobaciones'" (click)="activeExecutiveTab = 'aprobaciones'"
+        [attr.aria-selected]="activeExecutiveTab === 'aprobaciones'" (click)="seleccionarTab('aprobaciones')"
         class="shrink-0 px-3 sm:px-3.5 2xl:px-4 py-2 text-xs sm:text-[13px] 2xl:text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap"
         [ngClass]="activeExecutiveTab === 'aprobaciones' ? 'bg-easydry-blue text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'">
         <i-lucide aria-hidden="true" name="clipboard-check" class="w-4 h-4 shrink-0"></i-lucide>
@@ -247,7 +247,7 @@
       </button>
       @if (puedeVerMaquinaria) {
       <button type="button" role="tab" id="tab-taller" aria-controls="panel-taller"
-        [attr.aria-selected]="activeExecutiveTab === 'taller'" (click)="activeExecutiveTab = 'taller'"
+        [attr.aria-selected]="activeExecutiveTab === 'taller'" (click)="seleccionarTab('taller')"
         class="shrink-0 px-3 sm:px-3.5 2xl:px-4 py-2 text-xs sm:text-[13px] 2xl:text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap"
         [ngClass]="activeExecutiveTab === 'taller' ? 'bg-easydry-blue text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'">
         <i-lucide aria-hidden="true" name="wrench" class="w-4 h-4 shrink-0"></i-lucide>
@@ -256,7 +256,7 @@
       }
       @if (puedeVerInventario || isComercialView) {
       <button type="button" role="tab" id="tab-inventario" aria-controls="panel-inventario"
-        [attr.aria-selected]="activeExecutiveTab === 'inventario'" (click)="activeExecutiveTab = 'inventario'"
+        [attr.aria-selected]="activeExecutiveTab === 'inventario'" (click)="seleccionarTab('inventario')"
         class="shrink-0 px-3 sm:px-3.5 2xl:px-4 py-2 text-xs sm:text-[13px] 2xl:text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap"
         [ngClass]="activeExecutiveTab === 'inventario' ? 'bg-easydry-blue text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'">
         <i-lucide aria-hidden="true" name="package" class="w-4 h-4 shrink-0"></i-lucide>
@@ -264,6 +264,14 @@
       </button>
       }
     </div>
+  </div>
+  }
+
+  <!-- Al abrir una pestaña por primera vez (o cambiar filtros) se piden sus datos: se avisa mientras llegan -->
+  @if (recargando && !cargando) {
+  <div role="status" aria-live="polite" class="flex items-center justify-center gap-3 py-3 text-xs font-semibold text-slate-500">
+    <span class="w-4 h-4 rounded-full border-2 border-slate-200 border-t-easydry-blue animate-spin" aria-hidden="true"></span>
+    Cargando datos de esta sección…
   </div>
   }
 
@@ -1229,7 +1237,7 @@
     <div class="dashboard-tabs inline-flex items-center gap-1 sm:gap-1.5 p-1.5 bg-white/95 backdrop-blur-md rounded-2xl border border-slate-200/80 shadow-sm max-w-full overflow-x-auto scroll-smooth"
       role="tablist" aria-label="Secciones del dashboard de especiales">
       <button type="button" role="tab" id="tab-esp-resumen" aria-controls="panel-esp-resumen"
-        [attr.aria-selected]="especialesTab === 'resumen'" (click)="especialesTab = 'resumen'"
+        [attr.aria-selected]="especialesTab === 'resumen'" (click)="seleccionarTabEspeciales('resumen')"
         class="shrink-0 px-3 sm:px-3.5 2xl:px-4 py-2 text-xs sm:text-[13px] 2xl:text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap"
         [ngClass]="especialesTab === 'resumen' ? 'bg-easydry-blue text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'">
         <i-lucide aria-hidden="true" name="sparkles" class="w-4 h-4 shrink-0"></i-lucide>
@@ -1237,7 +1245,7 @@
       </button>
       @if (puedeVerInventario) {
       <button type="button" role="tab" id="tab-esp-insumos" aria-controls="panel-esp-insumos"
-        [attr.aria-selected]="especialesTab === 'insumos'" (click)="especialesTab = 'insumos'"
+        [attr.aria-selected]="especialesTab === 'insumos'" (click)="seleccionarTabEspeciales('insumos')"
         class="shrink-0 px-3 sm:px-3.5 2xl:px-4 py-2 text-xs sm:text-[13px] 2xl:text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap"
         [ngClass]="especialesTab === 'insumos' ? 'bg-easydry-blue text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'">
         <i-lucide aria-hidden="true" name="boxes" class="w-4 h-4 shrink-0"></i-lucide>
@@ -1246,7 +1254,7 @@
       }
       @if (puedeVerMaquinaria) {
       <button type="button" role="tab" id="tab-esp-maquinaria" aria-controls="panel-esp-maquinaria"
-        [attr.aria-selected]="especialesTab === 'maquinaria'" (click)="especialesTab = 'maquinaria'"
+        [attr.aria-selected]="especialesTab === 'maquinaria'" (click)="seleccionarTabEspeciales('maquinaria')"
         class="shrink-0 px-3 sm:px-3.5 2xl:px-4 py-2 text-xs sm:text-[13px] 2xl:text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap"
         [ngClass]="especialesTab === 'maquinaria' ? 'bg-easydry-blue text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'">
         <i-lucide aria-hidden="true" name="wrench" class="w-4 h-4 shrink-0"></i-lucide>
@@ -1255,7 +1263,7 @@
       }
       @if (!isPulidor) {
       <button type="button" role="tab" id="tab-esp-pulidores" aria-controls="panel-esp-pulidores"
-        [attr.aria-selected]="especialesTab === 'pulidores'" (click)="especialesTab = 'pulidores'"
+        [attr.aria-selected]="especialesTab === 'pulidores'" (click)="seleccionarTabEspeciales('pulidores')"
         class="shrink-0 px-3 sm:px-3.5 2xl:px-4 py-2 text-xs sm:text-[13px] 2xl:text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap"
         [ngClass]="especialesTab === 'pulidores' ? 'bg-easydry-blue text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'">
         <i-lucide aria-hidden="true" name="users" class="w-4 h-4 shrink-0"></i-lucide>
@@ -1645,28 +1653,28 @@
     <div class="dashboard-tabs inline-flex items-center gap-1 sm:gap-1.5 p-1.5 bg-white/95 backdrop-blur-md rounded-2xl border border-slate-200/80 shadow-sm max-w-full overflow-x-auto scroll-smooth"
       role="tablist" aria-label="Secciones del dashboard de bodega">
       <button type="button" role="tab" id="tab-bod-salud" aria-controls="panel-bod-salud"
-        [attr.aria-selected]="bodegaTab === 'salud'" (click)="bodegaTab = 'salud'"
+        [attr.aria-selected]="bodegaTab === 'salud'" (click)="seleccionarTabBodega('salud')"
         class="shrink-0 px-3 sm:px-3.5 2xl:px-4 py-2 text-xs sm:text-[13px] 2xl:text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap"
         [ngClass]="bodegaTab === 'salud' ? 'bg-easydry-blue text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'">
         <i-lucide aria-hidden="true" name="activity" class="w-4 h-4 shrink-0"></i-lucide>
         Salud del Stock
       </button>
       <button type="button" role="tab" id="tab-bod-reposicion" aria-controls="panel-bod-reposicion"
-        [attr.aria-selected]="bodegaTab === 'reposicion'" (click)="bodegaTab = 'reposicion'"
+        [attr.aria-selected]="bodegaTab === 'reposicion'" (click)="seleccionarTabBodega('reposicion')"
         class="shrink-0 px-3 sm:px-3.5 2xl:px-4 py-2 text-xs sm:text-[13px] 2xl:text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap"
         [ngClass]="bodegaTab === 'reposicion' ? 'bg-easydry-blue text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'">
         <i-lucide aria-hidden="true" name="package-plus" class="w-4 h-4 shrink-0"></i-lucide>
         Reposición
       </button>
       <button type="button" role="tab" id="tab-bod-despachos" aria-controls="panel-bod-despachos"
-        [attr.aria-selected]="bodegaTab === 'despachos'" (click)="bodegaTab = 'despachos'"
+        [attr.aria-selected]="bodegaTab === 'despachos'" (click)="seleccionarTabBodega('despachos')"
         class="shrink-0 px-3 sm:px-3.5 2xl:px-4 py-2 text-xs sm:text-[13px] 2xl:text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap"
         [ngClass]="bodegaTab === 'despachos' ? 'bg-easydry-blue text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'">
         <i-lucide aria-hidden="true" name="truck" class="w-4 h-4 shrink-0"></i-lucide>
         Despachos
       </button>
       <button type="button" role="tab" id="tab-bod-consumo" aria-controls="panel-bod-consumo"
-        [attr.aria-selected]="bodegaTab === 'consumo'" (click)="bodegaTab = 'consumo'"
+        [attr.aria-selected]="bodegaTab === 'consumo'" (click)="seleccionarTabBodega('consumo')"
         class="shrink-0 px-3 sm:px-3.5 2xl:px-4 py-2 text-xs sm:text-[13px] 2xl:text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap"
         [ngClass]="bodegaTab === 'consumo' ? 'bg-easydry-blue text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'">
         <i-lucide aria-hidden="true" name="boxes" class="w-4 h-4 shrink-0"></i-lucide>

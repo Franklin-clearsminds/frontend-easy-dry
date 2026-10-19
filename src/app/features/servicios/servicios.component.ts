@@ -2663,6 +2663,8 @@ export class ServiciosComponent implements OnInit, OnDestroy {
     if (!this.puedeAgregarServicio(item)) return;
 
     this.agregarServicioOTFuente = item;
+
+    this.asegurarServiciosCompletos();
     this.lavadorIdsSeleccionados = (item.operadoresAsignados || []).map((op) => String(op.id));
 
     // Misma inicialización base que abrirModalNuevaOT pero manteniendo los datos del vehículo
@@ -3774,6 +3776,24 @@ export class ServiciosComponent implements OnInit, OnDestroy {
     return null;
   }
 
+  /**
+   * Lista completa de servicios generales (hasta el máximo por página). Solo la usa el modal de agregar un servicio a una OT; la tabla
+   * ya se pide paginada desde el servidor. Se pide la primera vez que hace falta y, desde entonces, se actualiza tras cada cambio.
+   */
+  private serviciosCompletosPedidos = false;
+  private asegurarServiciosCompletos(): void {
+    if (this.serviciosCompletosPedidos || !this.puedeVerGenerales) return;
+    this.serviciosCompletosPedidos = true;
+    this.refrescarServiciosCompletos(true);
+  }
+
+  private refrescarServiciosCompletos(forzar = false): void {
+    if (!this.puedeVerGenerales || !(forzar || this.serviciosCompletosPedidos)) return;
+    this.servicioService.getServicios(this._getFiltrosUsuario()).subscribe(list => {
+      this.servicios = list;
+    });
+  }
+
   ngOnInit(): void {
     const user = this.authService.getCurrentUser();
 
@@ -3795,12 +3815,6 @@ export class ServiciosComponent implements OnInit, OnDestroy {
       this.nuevoRegistro.empleado = nombreCompleto;
       if (user.sucursalNombre) this.nuevoRegistro.agencia = user.sucursalNombre;
       if (user.bahiaNombre) this.nuevoRegistro.bahia = user.bahiaNombre;
-    }
-
-    if (this.puedeVerGenerales) {
-      this.servicioService.getServicios(this._getFiltrosUsuario()).subscribe(list => {
-        this.servicios = list;
-      });
     }
 
     this.iniciarVistaServidor();
@@ -4557,9 +4571,7 @@ export class ServiciosComponent implements OnInit, OnDestroy {
         this.agregarServicioOTFuente = null;
 
         if (this.authService.puede('inventario.ver')) this.inventarioService.cargarItems();
-        this.servicioService.getServicios(this._getFiltrosUsuario()).subscribe(list => {
-          this.servicios = list;
-        });
+        this.refrescarServiciosCompletos();
         // La OT nueva es la más reciente: solo se ve en la primera página, así que aquí sí se vuelve a la 1.
         this.paginaG = 1;
         this.refrescarGenerales();
@@ -4655,9 +4667,7 @@ export class ServiciosComponent implements OnInit, OnDestroy {
         if (res) {
           // Un servicio finalizado siempre queda pendiente de aprobación (no hay aprobación automática).
           this.toastService.success('Servicio finalizado', `Vehículo ${item.placa} finalizado con evidencia de entrega. Queda pendiente de aprobación.`);
-          this.servicioService.getServicios(this._getFiltrosUsuario()).subscribe(list => {
-            this.servicios = list;
-          });
+          this.refrescarServiciosCompletos();
           this.refrescarGenerales();
         }
       },
@@ -4688,9 +4698,7 @@ export class ServiciosComponent implements OnInit, OnDestroy {
     this.servicioService.aprobarServicioGerente(item.id).subscribe({
       next: () => {
         this.toastService.success('Servicio aprobado', `Servicio ${item.placa} aprobado.`);
-        this.servicioService.getServicios(this._getFiltrosUsuario()).subscribe(list => {
-          this.servicios = list;
-        });
+        this.refrescarServiciosCompletos();
         this.refrescarGenerales();
       },
       error: (err) => {
@@ -4734,7 +4742,7 @@ export class ServiciosComponent implements OnInit, OnDestroy {
         this.modalDetalleEspecialOpen = false;
         this.toastService.success('Servicio anulado', `${objetivo.titulo} quedó anulado; se guardó tu motivo.`);
         if (objetivo.tipo === 'general') {
-          this.servicioService.getServicios(this._getFiltrosUsuario()).subscribe(list => { this.servicios = list; });
+          this.refrescarServiciosCompletos();
           this.refrescarGenerales();
         } else {
           this.cargarServiciosEspeciales();

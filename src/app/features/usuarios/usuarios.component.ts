@@ -2,7 +2,7 @@ import { celdaCsv } from '../../core/utils/csv';
 import { PasswordRequisitosComponent } from '../../shared/components/password-requisitos/password-requisitos.component';
 import { Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
-import { Subject, Subscription, debounceTime, distinctUntilChanged, finalize, firstValueFrom } from 'rxjs';
+import { Subject, Subscription, catchError, debounceTime, distinctUntilChanged, finalize, firstValueFrom, forkJoin, of } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LucideAngularModule } from 'lucide-angular';
@@ -1779,6 +1779,34 @@ export class UsuariosComponent implements OnInit, OnDestroy {
     );
   }
 
+  /**
+   * Servicios especiales y bodegas solo alimentan el formulario de crear o editar usuario: se piden la primera vez que se abre,
+   * no al entrar a la pantalla. El formulario se abre cuando ya llegaron (usa el catálogo al elegir el rol).
+   */
+  private catalogosFormularioPedidos = false;
+  private conCatalogosDelFormulario(abrir: () => void): boolean {
+    if (this.catalogosFormularioPedidos) return true;
+    this.catalogosFormularioPedidos = true;
+    this.inventarioService.bodegas$.subscribe(list => {
+      if (list && list.length) {
+        this.bodegasDisponibles = list;
+      }
+    });
+    forkJoin([
+      this.catalogoServiciosService.getServicios().pipe(catchError(() => of([] as CatalogoServicio[]))),
+      this.inventarioService.getBodegas().pipe(catchError(() => of([] as BodegaInventario[]))),
+    ]).subscribe(([servicios, bodegas]) => {
+      this.serviciosEspecialesCatalogo = (servicios || []).filter(s => {
+        const cat = String(s.categoria || '').trim().toUpperCase();
+        const activo = s.estado === 'Activo' || (s as any).estado === 1 || s.estado == null;
+        return activo && (cat === 'ESPECIAL' || cat === 'EXTRA' || cat.includes('ESPECIAL'));
+      });
+      if (bodegas && bodegas.length) this.bodegasDisponibles = bodegas;
+      abrir();
+    });
+    return false;
+  }
+
   ngOnInit(): void {
     if (!this.puedeCrearUsuarios) {
       this.columnasUsuarios = COLUMNAS_USUARIOS.filter(c => c.key !== 'acciones');
@@ -1790,26 +1818,6 @@ export class UsuariosComponent implements OnInit, OnDestroy {
     this.regionService.getRegionesLista().subscribe(list => {
       if (list && list.length) {
         this.regionesDisponibles = list.filter(r => r.estado === 'Activa' || (r as any).estado === 1);
-      }
-    });
-
-    this.catalogoServiciosService.getServicios().subscribe(list => {
-      this.serviciosEspecialesCatalogo = (list || []).filter(s => {
-        const cat = String(s.categoria || '').trim().toUpperCase();
-        const activo = s.estado === 'Activo' || (s as any).estado === 1 || s.estado == null;
-        return activo && (cat === 'ESPECIAL' || cat === 'EXTRA' || cat.includes('ESPECIAL'));
-      });
-    });
-
-    this.inventarioService.bodegas$.subscribe(list => {
-      if (list && list.length) {
-        this.bodegasDisponibles = list;
-      }
-    });
-
-    this.inventarioService.getBodegas().subscribe(list => {
-      if (list && list.length) {
-        this.bodegasDisponibles = list;
       }
     });
 
@@ -2224,6 +2232,7 @@ export class UsuariosComponent implements OnInit, OnDestroy {
 
   // ── Acciones de Usuario ──
   abrirModalCrearUsuario() {
+    if (!this.conCatalogosDelFormulario(() => this.abrirModalCrearUsuario())) return;
     if (!this.puedeCrearUsuarios) return;
     this.editandoUsuario = null;
     this.usuarioFormSubmitted = false;
@@ -2256,6 +2265,7 @@ export class UsuariosComponent implements OnInit, OnDestroy {
   }
 
   editarUsuario(u: Usuario) {
+    if (!this.conCatalogosDelFormulario(() => this.editarUsuario(u))) return;
     if (!this.puedeGestionarFilaUsuario(u)) return;
     this.editandoUsuario = u;
     this.usuarioFormSubmitted = false;
