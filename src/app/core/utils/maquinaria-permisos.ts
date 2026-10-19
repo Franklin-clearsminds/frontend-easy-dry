@@ -31,7 +31,6 @@ export const puedeCancelarIncidentes = (auth: AuthService) => auth.puede('taller
 /** Ejecutar / editar mantenimientos (el servidor exige además ser el técnico asignado si no gestiona). */
 export const puedeEjecutarMantenimientos = (auth: AuthService) => auth.puede('taller.mantenimientos.ejecutar');
 export const puedeEditarMantenimientos = (auth: AuthService) => auth.puede('taller.mantenimientos.editar');
-export const puedeGestionarChecklist = (auth: AuthService) => auth.puede('taller.checklist.gestionar');
 /** Evidencias de incidencias (reportar, resolver) y de mantenimientos (ejecutar): cada flujo tiene su casilla. */
 export const puedeEvidenciaIncidente = (auth: AuthService) => auth.puede('taller.incidentes.evidencias');
 export const puedeEvidenciaMantenimiento = (auth: AuthService) => auth.puede('taller.mantenimientos.evidencias');

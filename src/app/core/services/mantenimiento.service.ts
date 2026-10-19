@@ -13,13 +13,12 @@ import { mapEvidenciasMaquinaria, fechaProgramadaISO, fechaISOLocal, fechaHoraLo
 export interface ConsultaMantenimientos {
   page?: number;
   pageSize?: number;
-  /** fecha (programada) | ejecucion | estado | tipo | maquina | agencia | tecnico. Sin él: vencidos, pendientes, ejecutados. */
+  /** fecha (programada) | ejecucion | estado | maquina | agencia | tecnico. Sin él: vencidos, pendientes, ejecutados. */
   sortField?: string | null;
   sortOrder?: OrdenDir;
   search?: string;
   maquinariaId?: string;
   tecnicoId?: string;
-  tipo?: string;
   /** PENDIENTE | EN_PROCESO | FINALIZADO */
   estado?: string;
   agenciaId?: string;
@@ -48,7 +47,6 @@ export interface RespuestaMantenimientosPagina {
 export interface ProgramarMantenimientoPayload {
   maquinariaId: string;
   tecnicoId?: string;
-  tipo: 'PREVENTIVO' | 'CORRECTIVO';
   observaciones: string;
   /** YYYY-MM-DD */
   fechaProgramada?: string;
@@ -73,7 +71,6 @@ export class MantenimientoService {
     const proximo = m.proximoMantenimiento ? fechaProgramadaISO(m.proximoMantenimiento) : undefined;
     const evidencias = mapEvidenciasMaquinaria(m.evidencias);
     const estadoRaw = String(m.estado || '');
-    const tipoRaw = String(m.tipo || '');
     const documentos: ArchivoAdjunto[] = evidencias.filter(e => e.kind === 'DOCUMENTO').map(e => ({
       id: e.id,
       nombre: e.descripcion || 'Documento',
@@ -88,7 +85,6 @@ export class MantenimientoService {
       frecuenciaDias: Number(m.frecuenciaDias || 0),
       proximoMantenimiento: proximo,
       maquina: maquinaNombre,
-      tipo: tipoRaw === 'CALIBRACION' || tipoRaw === 'Calibración' ? 'Calibración' : (tipoRaw === 'CORRECTIVO' ? 'Correctivo' : 'Preventivo'),
       fecha: fechaStr,
       tecnico: tecnicoNombre,
       estado: estadoRaw === 'FINALIZADO' ? 'Completado' : (estadoRaw === 'EN_PROCESO' ? 'En Proceso' : (estadoRaw === 'CANCELADO' ? 'Cancelado' : 'Programado')),
@@ -107,7 +103,6 @@ export class MantenimientoService {
       maquinariaCodigo: m.maquinaria?.codigo,
       regionId: m.maquinaria?.agencia?.regionId || undefined,
       estadoRaw,
-      tipoRaw,
       fechaProgramada: m.fechaProgramada || m.fechaMantenimiento || undefined,
       fechaEjecucion: m.fechaEjecucion || undefined,
       fechaFin: m.fechaEjecucion ? fechaISOLocal(m.fechaEjecucion) : undefined,
@@ -133,7 +128,7 @@ export class MantenimientoService {
     if (c.sortField) { body['sortField'] = c.sortField; body['sortOrder'] = c.sortOrder || 'desc'; }
     const texto = (c.search || '').trim();
     if (texto.length >= BUSQUEDA_MIN_CARACTERES) body['search'] = texto;
-    const claves: (keyof ConsultaMantenimientos)[] = ['maquinariaId', 'tecnicoId', 'tipo', 'estado', 'agenciaId', 'regionId', 'clienteId', 'fechaDesde', 'fechaHasta'];
+    const claves: (keyof ConsultaMantenimientos)[] = ['maquinariaId', 'tecnicoId', 'estado', 'agenciaId', 'regionId', 'clienteId', 'fechaDesde', 'fechaHasta'];
     for (const k of claves) {
       const v = c[k];
       if (v !== undefined && v !== null && v !== '') body[k] = v;
@@ -195,7 +190,6 @@ export class MantenimientoService {
 
   editarMantenimiento(payload: {
     mantenimientoId: string | number;
-    tipo?: 'PREVENTIVO' | 'CORRECTIVO';
     observaciones?: string;
     repuestosUsados?: any;
     costoTotal?: number;
