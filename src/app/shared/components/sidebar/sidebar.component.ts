@@ -7,6 +7,7 @@ import { AuthService } from '../../../core/services/auth.service';
 import { PermissionService } from '../../../core/services/permission.service';
 import { StorageUploadService } from '../../../core/services/storage-upload.service';
 import { UiStateService } from '../../../core/services/ui-state.service';
+import { MenuIndicadoresService } from '../../../core/services/menu-indicadores.service';
 import { SIDEBAR_HOVER_CLOSE_DELAY_MS } from '../../../core/config/sidebar.constants';
 import { MenuItem } from '../../../core/config/menu.config';
 import { isRealProfilePhoto } from '../../../core/config/env';
@@ -151,7 +152,7 @@ interface MenuGroup {
                           <i-lucide [name]="item.icon" class="w-5 h-5 transition-transform duration-200 group-hover:scale-110" aria-hidden="true"
                             [ngClass]="rla.isActive ? 'text-easydry-green stroke-[2.2]' : 'text-slate-300 group-hover:text-white'">
                           </i-lucide>
-                          @if (!showLabels() && (item.badgeIcon || item.badge)) {
+                          @if (!showLabels() && tieneBadge(item)) {
                             <span class="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-rose-500 ring-2 ring-easydry-blue" aria-hidden="true"></span>
                           }
                         </div>
@@ -163,7 +164,7 @@ interface MenuGroup {
                           {{ item.label }}
                         </span>
 
-                        @if (showLabels() && (item.badgeIcon || item.badge)) {
+                        @if (showLabels() && tieneBadge(item)) {
                           <span class="ml-auto flex-shrink-0 whitespace-nowrap flex items-center justify-center transition-opacity duration-200 ease-out">
                             @if (item.badgeIcon === 'alert-circle-filled' || item.badgeIcon === 'alert-triangle' || item.badge === '!') {
                               <svg class="w-4 h-4 shrink-0 drop-shadow-xs" aria-hidden="true" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -320,6 +321,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
   private permissionService = inject(PermissionService);
   private storageUpload = inject(StorageUploadService);
   private cdr = inject(ChangeDetectorRef);
+  private indicadores = inject(MenuIndicadoresService);
   private router = inject(Router);
   private subs = new Subscription();
 
@@ -375,8 +377,11 @@ export class SidebarComponent implements OnInit, OnDestroy {
       }),
     );
 
+    this.indicadores.iniciar();
+
     this.subs.add(
       this.router.events.pipe(filter((e) => e instanceof NavigationEnd)).subscribe(() => {
+        this.indicadores.refrescar();
         this.uiState.resetTransientState();
         this.autoExpandGrupoActivo();
       }),
@@ -422,6 +427,12 @@ export class SidebarComponent implements OnInit, OnDestroy {
   onItemClick(): void {
     this.uiState.closeMobile();
     this.uiState.setHoverPreview(false);
+  }
+
+  /** Punto del menú: los ítems con indicador solo lo muestran mientras haya algo por atender; el resto, si traen insignia fija. */
+  tieneBadge(item: MenuItem): boolean {
+    if (item.indicador) return this.indicadores.conteos()[item.indicador] > 0;
+    return !!(item.badgeIcon || item.badge);
   }
 
   private refreshMenu(): void {

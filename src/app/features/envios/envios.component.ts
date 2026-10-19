@@ -20,6 +20,7 @@ import { EnvioSuministro, EstadoEnvio, Sucursal, InventarioItem } from '../../co
 import { BodegaInventario } from '../../core/models/inventario.model';
 import { apiUrl } from '../../core/config/env';
 import { ResolverEnvioComponent } from './resolver-envio.component';
+import { MenuIndicadoresService } from '../../core/services/menu-indicadores.service';
 import { EvidenciasEnvioComponent } from './evidencias-envio.component';
 
 @Component({
@@ -493,6 +494,7 @@ import { EvidenciasEnvioComponent } from './evidencias-envio.component';
 export class EnviosComponent implements OnInit, OnDestroy {
   private http = inject(HttpClient);
   private auth = inject(AuthService);
+  private indicadores = inject(MenuIndicadoresService);
   private toastService = inject(ToastService);
   private sucursalService = inject(SucursalService);
   private inventarioService = inject(InventarioService);
@@ -802,6 +804,8 @@ export class EnviosComponent implements OnInit, OnDestroy {
 
   /** Pide la página actual. `conResumen`: también recalcula los contadores (cambió un filtro o una acción). */
   cargarPagina(conResumen = false): void {
+    // Cada recarga de la tabla (tras confirmar, rechazar o resolver) también actualiza los puntos del menú.
+    this.indicadores.refrescar();
     this.subTabla?.unsubscribe();
     this.cargandoTabla = true;
     this.errorTabla = null;
