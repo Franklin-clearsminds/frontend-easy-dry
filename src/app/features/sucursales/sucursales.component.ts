@@ -77,19 +77,34 @@ const TODAS_LAS_REFERENCIAS: GrupoReferencia[] = ['regiones', 'marcas', 'sucursa
       @if (tabActiva === 'mapa') {
         <div class="space-y-6 animate-fade-in">
           
-          <!-- Barra de Filtro de Sucursal para el Mapa -->
+          <!-- Buscador y filtros del mapa (se aplican a lo ya cargado: agencias, bahías y operadores) -->
+          <app-filter-bar
+            [showRegion]="true"
+            [showCliente]="true"
+            [showSucursal]="true"
+            [showOperador]="false"
+            [showBahia]="false"
+            [showEstado]="true"
+            [listaEstados]="estadosBahiaMapa"
+            [showFechas]="false"
+            [showBusqueda]="true"
+            placeholderBusqueda="Buscar agencia, ciudad, responsable, bahía, operador o placa…"
+            (filterChange)="aplicarFiltrosMapa($event)">
+          </app-filter-bar>
+
           <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-xs flex flex-wrap items-center justify-between gap-4">
             <div class="flex items-center gap-3 flex-wrap flex-1">
-              <div class="flex items-center gap-2">
-                <i-lucide aria-hidden="true" name="filter" class="w-4 h-4 text-easydry-blue"></i-lucide>
-                <span class="text-xs font-bold text-slate-700 uppercase">Filtrar Agencia:</span>
-              </div>
-              <select [(ngModel)]="filtroSucursalMapaId" class="bg-slate-50 border border-slate-200 text-xs font-bold rounded-xl px-3 py-2 min-w-56 focus:ring-2 focus:ring-easydry-blue">
-                <option [ngValue]="0">Toda la Red Nacional (Todas las agencias)</option>
-                @for (suc of sucursales; track suc.id) {
-                  <option [ngValue]="suc.id">{{ suc.nombre }} ({{ suc.ciudad }})</option>
-                }
-              </select>
+              <span class="text-xs font-bold text-slate-600">
+                {{ sucursalesMapa.length }} de {{ sucursales.length }} agencias
+              </span>
+              @if (filtroSucursalMapaId && filtroSucursalMapaId !== 0 && filtroSucursalMapaId !== '0') {
+                <button type="button" (click)="filtroSucursalMapaId = 0"
+                  class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-easydry-blue/10 text-easydry-blue text-xs font-bold cursor-pointer hover:bg-easydry-blue/20"
+                  aria-label="Quitar el filtro de agencia elegido desde otra pantalla">
+                  <span>Solo una agencia elegida</span>
+                  <i-lucide aria-hidden="true" name="x" class="w-3.5 h-3.5"></i-lucide>
+                </button>
+              }
             </div>
 
             <!-- Leyenda de Estados de Bahía -->
@@ -104,6 +119,11 @@ const TODAS_LAS_REFERENCIAS: GrupoReferencia[] = ['regiones', 'marcas', 'sucursa
 
           <!-- Árbol Operativo Jerárquico: Sucursal -> Bahía -> Operador & Maquinaria -->
           <div class="space-y-6">
+            @if (sucursalesMapa.length === 0) {
+              <div class="bg-white rounded-2xl border border-slate-100 p-12 text-center text-sm text-slate-500">
+                Ninguna agencia coincide con la búsqueda y los filtros.
+              </div>
+            }
             @for (suc of sucursalesMapa; track suc.id) {
               <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry overflow-hidden">
                 <!-- Cabecera de la Sucursal -->
@@ -141,11 +161,11 @@ const TODAS_LAS_REFERENCIAS: GrupoReferencia[] = ['regiones', 'marcas', 'sucursa
 
                 <!-- Grilla de Bahías de la Sucursal -->
                 <div class="p-5">
-                  @if (getBahiasDeSucursal(suc.id).length === 0) {
-                    <p class="text-xs text-slate-500 italic py-4 text-center">No hay bahías configuradas para esta agencia.</p>
+                  @if (bahiasVisibles(suc).length === 0) {
+                    <p class="text-xs text-slate-500 italic py-4 text-center">{{ getBahiasDeSucursal(suc.id).length === 0 ? 'No hay bahías configuradas para esta agencia.' : 'Ninguna bahía de esta agencia coincide con los filtros.' }}</p>
                   } @else {
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      @for (bahia of getBahiasDeSucursal(suc.id); track bahia.id) {
+                      @for (bahia of bahiasVisibles(suc); track bahia.id) {
                         <div class="p-4 rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-white hover:shadow-md transition-all flex flex-col justify-between">
                           <div>
                             <!-- Header de Bahía -->
@@ -1743,9 +1763,69 @@ export class SucursalesComponent implements OnInit, OnDestroy {
     this.tabActiva = 'mapa';
   }
 
+  /** Estados de bahía que se pueden filtrar en el mapa («Ocupada» agrupa lo que está en atención). */
+  readonly estadosBahiaMapa = ['Todos', 'Disponible', 'Ocupada', 'Lavado', 'Secado', 'Aspirado', 'Mantenimiento', 'Inactiva'];
+
+  private filtrosMapa: FilterState = { sucursal: 'Todas', operador: 'Todos', bahia: 'Todas', estado: 'Todos', fecha: 'Mes' };
+
+  aplicarFiltrosMapa(filtros: FilterState): void {
+    this.filtrosMapa = filtros;
+  }
+
+  private neutroMapa(v: unknown, ...neutros: string[]): string {
+    const t = String(v ?? '').trim();
+    return !t || neutros.includes(t) ? '' : t.toLowerCase();
+  }
+
+  private incluyeMapa(texto: unknown, buscado: string): boolean {
+    return String(texto ?? '').toLowerCase().includes(buscado);
+  }
+
+  /** ¿La bahía está en el estado elegido? «Ocupada» incluye lavado, secado, aspirado y cualquier vehículo en atención. */
+  private bahiaEnEstado(b: Bahia, estado: string): boolean {
+    const e = String(b.estado ?? '').toLowerCase();
+    if (estado === 'ocupada') return e === 'ocupada' || e === 'lavado' || e === 'secado' || e === 'aspirado' || !!b.ocupada;
+    return e === estado;
+  }
+
+  /** ¿La bahía coincide con el texto buscado (nombre, operador o placa en atención)? */
+  private bahiaCoincideTexto(b: Bahia, q: string): boolean {
+    return this.incluyeMapa(b.nombre, q) || this.incluyeMapa(b.operadorAsignado, q) || this.incluyeMapa(b.ocupada?.placa, q);
+  }
+
+  private agenciaCoincideTexto(s: Sucursal, q: string): boolean {
+    return [s.nombre, s.codigo, s.ciudad, s.responsable, s.regionNombre, s.clienteNombre, s.marcaNombre, this.getLiderOperador(s)].some((v) => this.incluyeMapa(v, q));
+  }
+
   get sucursalesMapa(): Sucursal[] {
-    if (!this.filtroSucursalMapaId || this.filtroSucursalMapaId === 0 || this.filtroSucursalMapaId === '0') return this.sucursales;
-    return this.sucursales.filter(s => String(s.id) === String(this.filtroSucursalMapaId));
+    const f = this.filtrosMapa;
+    const region = this.neutroMapa(f.region, 'Todas', 'Todos');
+    const cliente = this.neutroMapa(f.cliente ?? f.marca, 'Todas', 'Todos');
+    const agencia = this.neutroMapa(f.sucursal, 'Todas', 'Todos');
+    const estado = this.neutroMapa(f.estado, 'Todos');
+    const q = this.neutroMapa(f.busqueda);
+    const unaSola = this.filtroSucursalMapaId && this.filtroSucursalMapaId !== 0 && this.filtroSucursalMapaId !== '0' ? String(this.filtroSucursalMapaId) : '';
+    return this.sucursales.filter((s) => {
+      if (unaSola && String(s.id) !== unaSola) return false;
+      if (region && String(s.regionNombre ?? '').toLowerCase() !== region) return false;
+      if (cliente && String(s.clienteNombre || s.marcaNombre || '').toLowerCase() !== cliente) return false;
+      if (agencia && String(s.nombre ?? '').toLowerCase() !== agencia) return false;
+      const bahias = this.getBahiasDeSucursal(s.id);
+      if (estado && !bahias.some((b) => this.bahiaEnEstado(b, estado))) return false;
+      if (q && !this.agenciaCoincideTexto(s, q) && !bahias.some((b) => this.bahiaCoincideTexto(b, q))) return false;
+      return true;
+    });
+  }
+
+  /** Bahías de la agencia que se muestran: las del estado elegido y, si se buscó texto que no es de la agencia, las que coinciden. */
+  bahiasVisibles(suc: Sucursal): Bahia[] {
+    const f = this.filtrosMapa;
+    const estado = this.neutroMapa(f.estado, 'Todos');
+    const q = this.neutroMapa(f.busqueda);
+    let bahias = this.getBahiasDeSucursal(suc.id);
+    if (estado) bahias = bahias.filter((b) => this.bahiaEnEstado(b, estado));
+    if (q && !this.agenciaCoincideTexto(suc, q)) bahias = bahias.filter((b) => this.bahiaCoincideTexto(b, q));
+    return bahias;
   }
 
   getBahiasDeSucursal(sucursalId: number | string): Bahia[] {
