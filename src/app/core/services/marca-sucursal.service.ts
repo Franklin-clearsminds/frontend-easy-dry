@@ -32,7 +32,12 @@ export class MarcaSucursalService {
     return this.clienteService.crear(marca);
   }
 
-  actualizar(marca: MarcaSucursal): Observable<MarcaSucursal> {
-    return this.clienteService.actualizar(marca);
+  actualizar(marca: MarcaSucursal, incluirEstado = true): Observable<MarcaSucursal> {
+    return this.clienteService.actualizar(marca, incluirEstado);
+  }
+
+  /** Activa o desactiva un cliente (permiso 'agencias.clientes.estado'). El error del servidor se propaga. */
+  cambiarEstado(id: string | number, activo: boolean): Observable<any> {
+    return this.clienteService.toggleEstado(String(id), activo ? 1 : 0);
   }
 }

@@ -208,6 +208,7 @@ export interface VehiculoServicio {
   modelo: string;
   anio: number;
   color: string;
+  cliente?: string;
   categoriaServicio: 'Servicios Generales' | 'Servicios Especiales' | 'Servicios Extras' | 'GENERAL' | 'ESPECIAL' | 'EXTRA' | string;
   servicioId?: number;
   servicio: 'Express' | 'Completo' | 'Deluxe' | 'Retoque' | 'Pulido' | 'Micro pulido' | 'Recubrimiento Cerámico' | 'Lavado motor' | 'Tratamientos especiales' | string;

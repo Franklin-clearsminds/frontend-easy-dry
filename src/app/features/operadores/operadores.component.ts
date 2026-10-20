@@ -144,7 +144,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                             • Act: <span class="font-mono text-slate-600">{{ op.fechaModificacion | date:'dd/MM/yyyy' }}</span>
                           }
                         </p>
-                        @if (op.email && !op.email.includes('local') && !op.email.includes('internal')) {
+                        @if (op.email && !op.email.endsWith('@easydry.internal')) {
                           <p class="text-xs text-slate-500">{{ op.email }}</p>
                         }
                       </div>
@@ -345,19 +345,20 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
 
           <!-- Rol Operativo y Estado -->
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            @if (!esEdicion) {
             <div>
               <label for="operadores-f4" class="block text-xs font-bold text-slate-700 uppercase mb-1">
                 Rol Operativo
               </label>
               <select id="operadores-f4"
-                [disabled]="rolBloqueado"
                 [(ngModel)]="formOperador.rol"
                 class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-easydry-blue">
-                @for (r of rolesOperativosDisponibles; track r) {
+                @for (r of rolesParaFormulario; track r) {
                   <option [value]="r">{{ r }}</option>
                 }
               </select>
             </div>
+            }
 
             <div>
               <label for="operadores-f5" class="block text-xs font-bold text-slate-700 uppercase mb-1">
@@ -807,6 +808,13 @@ export class OperadoresComponent implements OnInit, OnDestroy {
     return this.isCoordServiciosEspeciales ? this.rolesOperativosPulidor : this.rolesOperativosLavador;
   }
 
+  /** Opciones del selector de rol: las de la categoría más el rol actual de quien se edita (p. ej. PULIDOR visto desde lavadores), para que llegue preseleccionado. */
+  get rolesParaFormulario(): string[] {
+    const base = this.rolesOperativosDisponibles;
+    const actual = (this.formOperador.rol || '').trim();
+    return actual && !base.some(r => r.toUpperCase() === actual.toUpperCase()) ? [actual, ...base] : base;
+  }
+
   /**
    * Roles entre los que se puede filtrar la lista. Quien ve solo una categoría (pulidores, o lavadores de su agencia)
    * no necesita el filtro; el resto elige entre los roles que la pantalla puede mostrar.
@@ -911,16 +919,14 @@ export class OperadoresComponent implements OnInit, OnDestroy {
   get canRegistrar(): boolean { return this.authService.puede('operadores.registrar'); }
   /** Editar datos, cambiar el rol y mover de bahía son tres permisos distintos: el botón «Editar» sale si tiene alguno. */
   get canEditarDatos(): boolean { return this.authService.puede('operadores.editar'); }
-  get canCambiarRol(): boolean { return this.authService.puede('operadores.rol'); }
-  get canEditar(): boolean { return this.canEditarDatos || this.canCambiarRol || this.canAsignarBahia || this.canQuitarBahia; }
+  get canEditar(): boolean { return this.canEditarDatos || this.canAsignarBahia || this.canQuitarBahia; }
   /** El campo de bahía de los formularios: al editar sirve para asignar o para dejar en reserva; al registrar, solo para asignar. */
   get bahiaVisibleEnFormulario(): boolean { return this.esEdicion ? (this.canAsignarBahia || this.canQuitarBahia) : this.canAsignarBahia; }
   /** «Sin bahía (en reserva)»: al editar exige «Quitar de bahía»; al registrar siempre se puede (no hay bahía que quitar). */
   get puedeElegirSinBahia(): boolean { return !this.esEdicion || this.canQuitarBahia || !this.formOperador.bahiaId; }
-  get puedeVerFicha(): boolean { return this.authService.puede('operadores.ficha.ver'); }
+  get puedeVerFicha(): boolean { return this.authService.puede('pagina.operadores'); }
   /** Al editar, cada campo se bloquea si el rol no tiene el permiso de ese tipo de cambio. */
   get datosBloqueados(): boolean { return this.esEdicion && !this.canEditarDatos; }
-  get rolBloqueado(): boolean { return this.esEdicion && !this.canCambiarRol; }
   /** Bahías ofrecidas: sin «Asignar a bahía» solo se muestra la actual (para poder dejarla en reserva). */
   get bahiasOfrecidas(): any[] {
     return this.canAsignarBahia ? this.listaBahiasOperador : this.listaBahiasOperador.filter((b: any) => b.id === this.formOperador.bahiaId);
@@ -935,7 +941,7 @@ export class OperadoresComponent implements OnInit, OnDestroy {
   }
 
   get canQuitarBahia(): boolean {
-    return this.authService.puede('operadores.bahia.quitar');
+    return this.authService.puede('operadores.bahia.asignar');
   }
 
   private mensajeError(err: any, respaldo: string): string {
@@ -1148,7 +1154,7 @@ export class OperadoresComponent implements OnInit, OnDestroy {
         nombre: datos ? this.formOperador.nombre.trim() : '',
         cedula: datos ? this.formOperador.cedula.trim() : '',
         telefono: datos ? (this.formOperador.telefono?.trim() || '') : '',
-        rol: this.canCambiarRol ? this.formOperador.rol : '',
+        rol: '',
         sucursal: datos ? (suc ? suc.nombre : this.formOperador.sucursalNombre) : '',
         sucursalId: datos ? (suc ? suc.id : this.formOperador.sucursalId) : '',
         bahia: bahiaSelected ? bahiaSelected.nombre : 'Sin Bahía Asignada',

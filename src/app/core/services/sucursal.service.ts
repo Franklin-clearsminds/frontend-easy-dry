@@ -233,13 +233,13 @@ export class SucursalService {
 
   /**
    * Guarda los cambios de una agencia. Cada bloque solo se envía si quien llama tiene el permiso que el servidor exige:
-   * región y cliente ('agencias.crear'), estado ('agencias.estado'), bahías ('bahias.crear') y personas ('usuarios.gestionar').
+   * región ('regiones.transferir'), cliente ('agencias.transferir'), estado ('agencias.estado'), bahías ('agencias.editar') y personas ('usuarios.gestionar').
    * Si el servidor rechaza, el error se propaga para que la pantalla lo muestre.
    */
   actualizarSucursal(
     suc: Sucursal,
     auditoria?: { motivo?: string; realizadoPor?: string },
-    incluir: { region?: boolean; estado?: boolean; bahias?: boolean; personas?: boolean } = {}
+    incluir: { region?: boolean; cliente?: boolean; estado?: boolean; bahias?: boolean; personas?: boolean } = {}
   ): Observable<Sucursal> {
     const regionIdStr = (suc.regionId && suc.regionId !== 0 && suc.regionId !== '0') ? String(suc.regionId) : undefined;
     const rawClienteId = suc.clienteId || suc.marcaId;
@@ -251,7 +251,6 @@ export class SucursalService {
       nombre: suc.nombre,
       direccion: suc.direccion,
       telefono: suc.telefono,
-      maxLavadoresPorBahia: Number(suc.maxLavadoresPorBahia) || 1,
       servicioIds: Array.isArray(suc.servicioIds) ? suc.servicioIds.map(Number).filter(n => !isNaN(n) && n > 0) : [],
       serviciosNombres: Array.isArray(suc.serviciosNombres) ? suc.serviciosNombres : [],
       tieneServiciosEspeciales: suc.tieneServiciosEspeciales === true
@@ -259,11 +258,17 @@ export class SucursalService {
     if (incluir.region) {
       payload.region = suc.ciudad;
       payload.regionId = regionIdStr;
+    }
+    if (incluir.cliente) {
       payload.clienteId = clienteIdStr;
       payload.marcaId = clienteIdStr;
     }
     if (incluir.estado) payload.estado = suc.estado === 'Inactivo' ? 0 : 1;
-    if (incluir.bahias) payload.numeroBahias = Number(suc.cantidadBahias);
+    // Cantidad de bahías y máximo de lavadores por bahía los exige el permiso de editar la agencia: sin él no se envían.
+    if (incluir.bahias) {
+      payload.numeroBahias = Number(suc.cantidadBahias);
+      payload.maxLavadoresPorBahia = Number(suc.maxLavadoresPorBahia) || 1;
+    }
     if (incluir.personas) {
       payload.gerenteId = gerenteIdStr;
       payload.liderOperadorId = suc.liderOperadorId ? String(suc.liderOperadorId) : '';

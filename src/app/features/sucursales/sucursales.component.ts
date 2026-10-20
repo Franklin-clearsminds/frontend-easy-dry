@@ -370,7 +370,7 @@ const TODAS_LAS_REFERENCIAS: GrupoReferencia[] = ['regiones', 'marcas', 'sucursa
                 <a [routerLink]="['/agencias', suc.id]" class="flex-1 py-2 bg-easydry-blue/10 hover:bg-easydry-blue hover:text-white text-easydry-blue font-bold rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5">
                   <i-lucide aria-hidden="true" name="eye" class="w-3.5 h-3.5"></i-lucide><span>Detalle</span>
                 </a>
-@if (puedeCrearAgencia) {
+@if (puedeTransferirAlguno) {
                 <button (click)="abrirModalTransferir(suc)" class="p-2 min-w-9 min-h-9 inline-flex items-center justify-center bg-amber-50 hover:bg-amber-500 text-amber-600 hover:text-white rounded-xl transition-colors" title="Transferir región o marca" aria-label="Transferir región o marca">
                   <i-lucide aria-hidden="true" name="refresh-cw" class="w-4 h-4"></i-lucide>
                 </button>
@@ -490,7 +490,12 @@ const TODAS_LAS_REFERENCIAS: GrupoReferencia[] = ['regiones', 'marcas', 'sucursa
                   @if (puedeEditarRegion) {
                   <button (click)="abrirModalRegion(regionSeleccionada)" class="px-3 py-2 bg-slate-100 text-slate-700 font-bold rounded-xl text-xs">Editar</button>
                   }
-                  @if (puedeCrearAgencia) {
+                  @if (puedeCambiarEstadoRegion) {
+                  <button (click)="cambiarEstadoRegion(regionSeleccionada)" class="px-3 py-2 bg-slate-100 text-slate-700 font-bold rounded-xl text-xs">
+                    {{ regionSeleccionada.estado === 'Activa' ? 'Desactivar' : 'Activar' }}
+                  </button>
+                  }
+                  @if (puedeTransferirRegion) {
                   <button (click)="abrirAsignarARegion(regionSeleccionada)" class="px-3 py-2 bg-easydry-green text-slate-950 font-bold rounded-xl text-xs">
                     Pasar agencia a esta región
                   </button>
@@ -505,7 +510,7 @@ const TODAS_LAS_REFERENCIAS: GrupoReferencia[] = ['regiones', 'marcas', 'sucursa
                       <p class="text-xs text-slate-500">{{ suc.ciudad }} · {{ suc.marcaNombre }}</p>
                     </div>
                     <div class="flex gap-2">
-                      @if (puedeCrearAgencia) {
+                      @if (puedeTransferirRegion) {
                       <button (click)="abrirModalTransferir(suc)" class="px-2.5 py-1.5 text-xs font-bold text-amber-700 bg-amber-50 rounded-lg">Transferir</button>
                       }
                       <a [routerLink]="['/agencias', suc.id]" class="px-2.5 py-1.5 text-xs font-bold text-easydry-blue bg-easydry-blue/10 rounded-lg">Ver</a>
@@ -582,7 +587,12 @@ const TODAS_LAS_REFERENCIAS: GrupoReferencia[] = ['regiones', 'marcas', 'sucursa
                   @if (puedeEditarCliente) {
                   <button (click)="abrirModalMarca(marcaSeleccionada)" class="px-3 py-2 bg-slate-100 text-slate-700 font-bold rounded-xl text-xs">Editar</button>
                   }
-                  @if (puedeCrearAgencia) {
+                  @if (puedeCambiarEstadoCliente) {
+                  <button (click)="cambiarEstadoCliente(marcaSeleccionada)" class="px-3 py-2 bg-slate-100 text-slate-700 font-bold rounded-xl text-xs">
+                    {{ marcaSeleccionada.estado === 'Activa' ? 'Desactivar' : 'Activar' }}
+                  </button>
+                  }
+                  @if (puedeTransferirCliente) {
                   <button (click)="abrirAsignarAMarca(marcaSeleccionada)" class="px-3 py-2 bg-easydry-green text-slate-950 font-bold rounded-xl text-xs">
                     Asignar agencia a este cliente
                   </button>
@@ -597,7 +607,7 @@ const TODAS_LAS_REFERENCIAS: GrupoReferencia[] = ['regiones', 'marcas', 'sucursa
                       <p class="text-xs text-slate-500">{{ suc.ciudad }} · Región {{ suc.regionNombre }}</p>
                     </div>
                     <div class="flex gap-2">
-                      @if (puedeCrearAgencia) {
+                      @if (puedeTransferirCliente) {
                       <button (click)="abrirModalTransferir(suc)" class="px-2.5 py-1.5 text-xs font-bold text-amber-700 bg-amber-50 rounded-lg">Cambiar</button>
                       }
                       <a [routerLink]="['/agencias', suc.id]" class="px-2.5 py-1.5 text-xs font-bold text-easydry-blue bg-easydry-blue/10 rounded-lg">Ver</a>
@@ -801,8 +811,9 @@ const TODAS_LAS_REFERENCIAS: GrupoReferencia[] = ['regiones', 'marcas', 'sucursa
             <input id="sucursales-f3" type="text" [(ngModel)]="nuevaSucursal.nombre" name="nombre" placeholder="ej. EasyDry Guayaquil Samborondón" class="w-full p-2.5 border rounded-xl text-sm" required>
           </div>
 
-          @if (puedeCrearAgencia) {
+          @if (puedeElegirRegionCliente) {
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            @if (puedeElegirRegion) {
             <div>
               <div class="flex items-center justify-between mb-1">
                 <label class="block text-xs font-bold text-slate-700 uppercase">Región</label>
@@ -827,6 +838,8 @@ const TODAS_LAS_REFERENCIAS: GrupoReferencia[] = ['regiones', 'marcas', 'sucursa
                 </div>
               }
             </div>
+            }
+            @if (puedeElegirCliente) {
             <div>
               <div class="flex items-center justify-between mb-1">
                 <label class="block text-xs font-bold text-slate-700 uppercase">Cliente de agencia</label>
@@ -851,6 +864,7 @@ const TODAS_LAS_REFERENCIAS: GrupoReferencia[] = ['regiones', 'marcas', 'sucursa
                 </div>
               }
             </div>
+            }
           </div>
 
           }
@@ -869,7 +883,7 @@ const TODAS_LAS_REFERENCIAS: GrupoReferencia[] = ['regiones', 'marcas', 'sucursa
           <div class="grid grid-cols-2 gap-4">
             <div>
               <label for="sucursales-f6" class="block text-xs font-bold text-slate-700 uppercase mb-1">Máximo Lavadores por Bahía</label>
-              <input id="sucursales-f6" type="number" [(ngModel)]="nuevaSucursal.maxLavadoresPorBahia" name="maxLavadoresPorBahia" min="1" max="10" class="w-full p-2.5 border rounded-xl text-sm" required>
+              <input id="sucursales-f6" type="number" [(ngModel)]="nuevaSucursal.maxLavadoresPorBahia" [disabled]="!puedeCrearBahias" name="maxLavadoresPorBahia" min="1" max="10" class="w-full p-2.5 border rounded-xl text-sm disabled:opacity-60" required>
             </div>
             <div>
               <label for="sucursales-f7" class="block text-xs font-bold text-slate-700 uppercase mb-1">Dirección Exacta</label>
@@ -1139,7 +1153,7 @@ const TODAS_LAS_REFERENCIAS: GrupoReferencia[] = ['regiones', 'marcas', 'sucursa
           </div>
           <div>
             <label for="sucursales-f13" class="block text-xs font-bold text-slate-700 uppercase mb-1">Estado</label>
-            <select id="sucursales-f13" [(ngModel)]="formRegion.estado" name="regionEstado" class="w-full p-2.5 border rounded-xl text-sm font-semibold">
+            <select id="sucursales-f13" [(ngModel)]="formRegion.estado" [disabled]="!puedeCambiarEstadoRegion" name="regionEstado" class="w-full p-2.5 border rounded-xl text-sm font-semibold disabled:opacity-60">
               <option value="Activa">Activa</option>
               <option value="Inactiva">Inactiva</option>
             </select>
@@ -1169,7 +1183,7 @@ const TODAS_LAS_REFERENCIAS: GrupoReferencia[] = ['regiones', 'marcas', 'sucursa
             </div>
             <div>
               <label for="sucursales-f17" class="block text-xs font-bold text-slate-700 uppercase mb-1">Estado</label>
-              <select id="sucursales-f17" [(ngModel)]="formMarca.estado" name="marcaEstado" class="w-full p-2.5 border rounded-xl text-sm">
+              <select id="sucursales-f17" [(ngModel)]="formMarca.estado" [disabled]="!puedeCambiarEstadoCliente" name="marcaEstado" class="w-full p-2.5 border rounded-xl text-sm disabled:opacity-60">
                 <option value="Activa">Activa</option>
                 <option value="Inactiva">Inactiva</option>
               </select>
@@ -1194,6 +1208,7 @@ const TODAS_LAS_REFERENCIAS: GrupoReferencia[] = ['regiones', 'marcas', 'sucursa
             </select>
           </div>
           <div class="space-y-4">
+            @if (puedeTransferirRegion) {
             <div>
               <label for="sucursales-f19" class="block text-xs font-bold text-slate-700 uppercase mb-1">Nueva región</label>
               <app-select-search
@@ -1209,6 +1224,8 @@ const TODAS_LAS_REFERENCIAS: GrupoReferencia[] = ['regiones', 'marcas', 'sucursa
                 (seleccion)="null">
               </app-select-search>
             </div>
+            }
+            @if (puedeTransferirCliente) {
             <div>
               <label for="sucursales-f20" class="block text-xs font-bold text-slate-700 uppercase mb-1">Nuevo cliente</label>
               <app-select-search
@@ -1224,6 +1241,7 @@ const TODAS_LAS_REFERENCIAS: GrupoReferencia[] = ['regiones', 'marcas', 'sucursa
                 (seleccion)="null">
               </app-select-search>
             </div>
+            }
           </div>
           <div>
             <label for="sucursales-f21" class="block text-xs font-bold text-slate-700 uppercase mb-1">Motivo del cambio</label>
@@ -1356,20 +1374,29 @@ export class SucursalesComponent implements OnInit, OnDestroy {
 
   // Permisos: son los mismos que el servidor exige en cada endpoint. Sin ellos la pantalla queda en solo lectura.
   get puedeCrearAgencia(): boolean { return this.auth.puede('agencias.agencias.crear'); }
+  get puedeTransferirCliente(): boolean { return this.auth.puede('agencias.clientes.transferir'); }
+  get puedeTransferirRegion(): boolean { return this.auth.puede('agencias.regiones.transferir'); }
+  get puedeTransferirAlguno(): boolean { return this.puedeTransferirCliente || this.puedeTransferirRegion; }
+  /** Región y cliente se eligen al crear la agencia (permiso de crear) y se cambian al editarla (permiso de transferir). */
+  get puedeElegirRegion(): boolean { return this.editandoSucursal ? this.puedeTransferirRegion : this.puedeCrearAgencia; }
+  get puedeElegirCliente(): boolean { return this.editandoSucursal ? this.puedeTransferirCliente : this.puedeCrearAgencia; }
+  get puedeElegirRegionCliente(): boolean { return this.puedeElegirRegion || this.puedeElegirCliente; }
   get puedeEditarAgencia(): boolean { return this.auth.puede('agencias.agencias.editar'); }
   get puedeHabilitarServicios(): boolean { return this.auth.puede('agencias.agencias.servicios'); }
   get puedeCambiarEstadoAgencia(): boolean { return this.auth.puede('agencias.agencias.estado'); }
   get puedeGestionarPrecios(): boolean { return this.auth.puede('agencias.precios.fijar'); }
   get puedeCrearRegion(): boolean { return this.auth.puede('agencias.regiones.crear'); }
   get puedeEditarRegion(): boolean { return this.auth.puede('agencias.regiones.editar'); }
+  get puedeCambiarEstadoRegion(): boolean { return this.auth.puede('agencias.regiones.estado'); }
   get puedeGestionarRegiones(): boolean { return this.puedeCrearRegion || this.puedeEditarRegion || this.auth.puede('agencias.regiones.estado'); }
   get puedeCrearCliente(): boolean { return this.auth.puede('agencias.clientes.crear'); }
   get puedeEditarCliente(): boolean { return this.auth.puede('agencias.clientes.editar'); }
+  get puedeCambiarEstadoCliente(): boolean { return this.auth.puede('agencias.clientes.estado'); }
   get puedeGestionarClientes(): boolean { return this.puedeCrearCliente || this.puedeEditarCliente || this.auth.puede('agencias.clientes.estado'); }
   get puedeAsignarPersonas(): boolean { return this.auth.puede('agencias.aprobadores.asignar'); }
   get puedeVerUsuarios(): boolean { return this.auth.puedeAlguno('agencias.personal.ver', 'agencias.aprobadores.asignar'); }
-  /** Al crear una agencia se define el número de bahías; al editar, aumentarlo crea bahías nuevas y exige 'bahias.crear'. */
-  get puedeCrearBahias(): boolean { return !this.editandoSucursal || this.auth.puede('agencias.bahias.crear'); }
+  /** Al crear una agencia se define el número de bahías; al editar, aumentarlo crea bahías nuevas (lo permite editar la agencia). */
+  get puedeCrearBahias(): boolean { return !this.editandoSucursal || this.auth.puede('agencias.agencias.editar'); }
   guardando = false;
 
   get tabsVisibles() {
@@ -2051,11 +2078,11 @@ export class SucursalesComponent implements OnInit, OnDestroy {
     }
 
     // Quien crea la agencia debe elegir región y cliente (no se asignan por su cuenta).
-    if (this.puedeCrearAgencia) {
-      if (!this.nuevaSucursal.regionId || this.nuevaSucursal.regionId === 0 || this.nuevaSucursal.regionId === '0') {
-        this.toastService.warning('Región requerida', 'Seleccione la región de la agencia.');
-        return;
-      }
+    if (this.puedeElegirRegion && (!this.nuevaSucursal.regionId || this.nuevaSucursal.regionId === 0 || this.nuevaSucursal.regionId === '0')) {
+      this.toastService.warning('Región requerida', 'Seleccione la región de la agencia.');
+      return;
+    }
+    if (this.puedeElegirCliente) {
       if (!this.nuevaSucursal.marcaId || this.nuevaSucursal.marcaId === 0 || this.nuevaSucursal.marcaId === '0') {
         this.toastService.warning('Cliente requerido', 'Seleccione el cliente de la agencia.');
         return;
@@ -2136,7 +2163,8 @@ export class SucursalesComponent implements OnInit, OnDestroy {
         motivo: 'Actualización desde ficha de agencia',
         realizadoPor: this.nombreUsuarioActual()
       }, {
-        region: this.puedeCrearAgencia,
+        region: this.puedeTransferirRegion,
+        cliente: this.puedeTransferirCliente,
         bahias: this.puedeCrearBahias,
         personas: this.puedeAsignarPersonas
       }).subscribe({
@@ -2206,13 +2234,27 @@ export class SucursalesComponent implements OnInit, OnDestroy {
     }
   }
 
+  cambiarEstadoRegion(region: RegionOperativa): void {
+    if (!this.puedeCambiarEstadoRegion) return;
+    const activar = region.estado !== 'Activa';
+    this.regionService.cambiarEstado(region.id, activar).subscribe({
+      next: (actualizada) => {
+        this.toastService.success(activar ? 'Región activada' : 'Región desactivada', actualizada.nombre);
+        this.regionSeleccionada = { ...region, estado: actualizada.estado };
+        this.regionesTabla.refrescar();
+        this.cargarTodo();
+      },
+      error: (err) => this.toastService.error('No se pudo cambiar el estado', this.mensajeError(err, 'El servidor no aceptó el cambio.'))
+    });
+  }
+
   guardarRegion(): void {
     if (!this.formRegion.nombre?.trim()) {
       this.toastService.warning('Nombre requerido', 'Ingrese el nombre de la región.');
       return;
     }
     if (this.editandoRegion && this.formRegion.id) {
-      this.regionService.actualizar(this.formRegion as RegionOperativa).subscribe({
+      this.regionService.actualizar(this.formRegion as RegionOperativa, this.puedeCambiarEstadoRegion).subscribe({
         next: (actualizada) => {
           this.sucursalService.sincronizarNombresCatalogo();
           this.toastService.success('Región actualizada', actualizada.nombre);
@@ -2248,13 +2290,27 @@ export class SucursalesComponent implements OnInit, OnDestroy {
     this.modalMarcaOpen = true;
   }
 
+  cambiarEstadoCliente(marca: MarcaSucursal): void {
+    if (!this.puedeCambiarEstadoCliente) return;
+    const activar = marca.estado !== 'Activa';
+    this.marcaService.cambiarEstado(marca.id, activar).subscribe({
+      next: (res) => {
+        this.toastService.success(activar ? 'Cliente activado' : 'Cliente desactivado', marca.nombre);
+        this.marcaSeleccionada = { ...marca, estado: res?.estado === 1 ? 'Activa' : 'Inactiva' };
+        this.clientesTabla.refrescar();
+        this.cargarTodo();
+      },
+      error: (err) => this.toastService.error('No se pudo cambiar el estado', this.mensajeError(err, 'El servidor no aceptó el cambio.'))
+    });
+  }
+
   guardarMarca(): void {
     if (!this.formMarca.nombre?.trim()) {
       this.toastService.warning('Nombre requerido', 'Ingrese el nombre del cliente.');
       return;
     }
     if (this.editandoMarca && this.formMarca.id) {
-      this.marcaService.actualizar(this.formMarca as MarcaSucursal).subscribe({
+      this.marcaService.actualizar(this.formMarca as MarcaSucursal, this.puedeCambiarEstadoCliente).subscribe({
         next: (actualizada) => {
           this.sucursalService.sincronizarNombresCatalogo();
           this.toastService.success('Cliente actualizado', actualizada.nombre);
@@ -2282,7 +2338,7 @@ export class SucursalesComponent implements OnInit, OnDestroy {
 
   abrirModalTransferir(suc: Sucursal): void {
     if (!this.conReferencias(() => this.abrirModalTransferir(suc))) return;
-    if (!this.puedeCrearAgencia) return;
+    if (!this.puedeTransferirAlguno) return;
     this.formTransfer = {
       sucursalId: suc.id,
       regionId: suc.regionId || 0,
@@ -2294,7 +2350,7 @@ export class SucursalesComponent implements OnInit, OnDestroy {
 
   abrirAsignarARegion(region: RegionOperativa): void {
     if (!this.conReferencias(() => this.abrirAsignarARegion(region))) return;
-    if (!this.puedeCrearAgencia) return;
+    if (!this.puedeTransferirRegion) return;
     const candidata = this.sucursales.find(s => String(s.regionId) !== String(region.id)) || this.sucursales[0];
     this.formTransfer = {
       sucursalId: candidata?.id || 0,
@@ -2307,7 +2363,7 @@ export class SucursalesComponent implements OnInit, OnDestroy {
 
   abrirAsignarAMarca(marca: MarcaSucursal): void {
     if (!this.conReferencias(() => this.abrirAsignarAMarca(marca))) return;
-    if (!this.puedeCrearAgencia) return;
+    if (!this.puedeTransferirCliente) return;
     const candidata = this.sucursales.find(s => String(s.marcaId) !== String(marca.id)) || this.sucursales[0];
     this.formTransfer = {
       sucursalId: candidata?.id || 0,
@@ -2328,15 +2384,17 @@ export class SucursalesComponent implements OnInit, OnDestroy {
       this.toastService.warning('Motivo requerido', 'Indique por qué se transfiere o cambia.');
       return;
     }
-    if (this.formTransfer.regionId === suc.regionId && this.formTransfer.marcaId === suc.marcaId) {
+    const cambiaRegion = this.puedeTransferirRegion && this.formTransfer.regionId !== suc.regionId;
+    const cambiaCliente = this.puedeTransferirCliente && this.formTransfer.marcaId !== suc.marcaId;
+    if (!cambiaRegion && !cambiaCliente) {
       this.toastService.warning('Sin cambios', 'Seleccione una región o marca distinta.');
       return;
     }
 
     this.sucursalService.transferirSucursal({
       sucursalId: suc.id,
-      regionId: this.formTransfer.regionId,
-      marcaId: this.formTransfer.marcaId,
+      regionId: cambiaRegion ? this.formTransfer.regionId : undefined,
+      marcaId: cambiaCliente ? this.formTransfer.marcaId : undefined,
       motivo: this.formTransfer.motivo.trim(),
       realizadoPor: this.nombreUsuarioActual()
     }).subscribe({

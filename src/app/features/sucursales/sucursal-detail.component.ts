@@ -257,7 +257,7 @@ export class SucursalDetailComponent implements OnInit {
 
   // Permisos: los mismos que exige el servidor.
   get puedeEditarServicios(): boolean { return this.auth.puede('agencias.agencias.servicios'); }
-  get puedeEditarBahias(): boolean { return this.auth.puede('agencias.bahias.estado'); }
+  get puedeEditarBahias(): boolean { return this.auth.puede('agencias.agencias.editar'); }
   get puedeAsignarOperadores(): boolean { return this.auth.puede('agencias.bahias.asignar'); }
 
   private mensajeError(err: any, respaldo: string): string {

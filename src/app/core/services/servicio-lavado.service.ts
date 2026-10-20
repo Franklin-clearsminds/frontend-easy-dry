@@ -118,6 +118,7 @@ export class ServicioLavadoService {
       modelo: s.modelo || '',
       anio: s.anio || new Date().getFullYear(),
       color: s.color || '',
+      cliente: s.cliente || '',
       categoriaServicio,
       servicioId: s.servicioCatalogoId || s.catalogo?.id || s.catalogoRel?.id,
       servicio: servicioNombre,
@@ -271,6 +272,22 @@ export class ServicioLavadoService {
         console.error('Error al registrar servicio en backend:', err);
         throw err;
       })
+    );
+  }
+
+  /** Corrige los datos del vehículo y del cliente de una OT (casilla «Editar OT»); el servidor los aplica a todos los servicios de la OT. */
+  editarServicio(id: string | number, datos: { placa: string; marca: string; modelo: string; color: string; cliente: string; observaciones: string; servicioCatalogoId?: number }): Observable<VehiculoServicio | null> {
+    return this.http.post<any>(apiUrl('/operaciones/servicios/update'), { id: String(id), ...datos }).pipe(
+      map(res => this.mapBackendServicio(res)),
+      tap(updated => {
+        if (!updated) return;
+        const current = this.serviciosSubject.value;
+        const idx = current.findIndex(s => String(s.id) === String(id));
+        if (idx !== -1) {
+          current[idx] = { ...current[idx], ...updated };
+          this.serviciosSubject.next([...current]);
+        }
+      }),
     );
   }
 

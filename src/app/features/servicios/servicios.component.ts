@@ -147,7 +147,7 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
         }
 
         <!-- Pestaña 2: Servicios Especiales (visible para Admin, Super Admin, pulidores y agencias con especiales) -->
-        @if (puedeVerEspeciales && (tieneServiciosEspeciales || isOperadorEspeciales || isAdmin)) {
+        @if (puedeVerEspeciales) {
           <button
             (click)="cambiarTab('especiales')"
             [ngClass]="tabActiva === 'especiales' ? 'bg-white text-amber-700 shadow-md font-extrabold' : 'text-slate-600 hover:text-slate-900 font-semibold'"
@@ -329,6 +329,13 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
                                       class="px-2.5 py-1 bg-easydry-blue/10 hover:bg-easydry-blue text-easydry-blue hover:text-white rounded-lg transition-colors cursor-pointer inline-flex items-center gap-1.5 text-xs font-bold shadow-2xs">
                                       <i-lucide aria-hidden="true" name="check-circle" class="w-3.5 h-3.5"></i-lucide>
                                       <span>Finalizar</span>
+                                    </button>
+                                  }
+
+                                  @if (puedeEditarServicio(item)) {
+                                    <button type="button" (click)="abrirModalEditarServicio(item); $event.stopPropagation()" title="Editar los datos de la OT"
+                                      class="px-2.5 py-1 bg-slate-50 hover:bg-slate-700 text-slate-700 hover:text-white border border-slate-200 rounded-lg text-xs font-bold cursor-pointer transition-colors inline-flex items-center gap-1">
+                                      <i-lucide aria-hidden="true" name="pencil" class="w-3.5 h-3.5"></i-lucide><span>Editar</span>
                                     </button>
                                   }
 
@@ -684,12 +691,14 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
                                         <span>Pausar</span>
                                       </button>
 
+                                      @if (puedeFinalizarOT(extra)) {
                                       <button
                                         (click)="abrirModalFinalizarEspecial(extra)"
                                         class="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-lg text-xs inline-flex items-center gap-1 shadow-2xs transition-all cursor-pointer">
                                         <i-lucide aria-hidden="true" name="check-circle-2" class="w-3.5 h-3.5"></i-lucide>
                                         <span>Finalizar</span>
                                       </button>
+                                      }
                                     } @else {
                                       <span class="text-xs text-amber-700 font-semibold px-1.5 py-0.5 bg-amber-50 rounded">En proceso</span>
                                     }
@@ -716,6 +725,10 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
                                     </span>
                                   }
 
+                                  @if (puedeEditarExtra(extra)) {
+                                    <button type="button" (click)="abrirModalEditarEspecial(extra)" title="Editar los datos de la OT especial"
+                                      class="px-2.5 py-1 bg-slate-50 hover:bg-slate-700 text-slate-700 hover:text-white border border-slate-200 rounded-lg text-xs font-bold cursor-pointer transition-colors">Editar</button>
+                                  }
                                   @if (puedeReasignarExtra(extra)) {
                                     <button type="button" (click)="abrirModalReasignar(extra)" title="Cambiar el pulidor asignado"
                                       class="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-600 text-indigo-700 hover:text-white border border-indigo-200 rounded-lg text-xs font-bold cursor-pointer transition-colors">Reasignar</button>
@@ -835,7 +848,9 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
                     @if (extra.estado === 'En Proceso') {
                       @if (puedeRealizarOT(extra)) {
                         <button (click)="abrirModalPausarEspecial(extra)" class="px-2 py-1 bg-amber-500/20 text-amber-900 border border-amber-400 rounded-lg text-xs font-bold">Pausar</button>
-                        <button (click)="abrirModalFinalizarEspecial(extra)" class="px-2.5 py-1 bg-emerald-600 text-white rounded-lg text-xs font-bold">Finalizar</button>
+                        @if (puedeFinalizarOT(extra)) {
+                          <button (click)="abrirModalFinalizarEspecial(extra)" class="px-2.5 py-1 bg-emerald-600 text-white rounded-lg text-xs font-bold">Finalizar</button>
+                        }
                       } @else {
                         <span class="text-xs text-amber-600">En proceso</span>
                       }
@@ -846,6 +861,9 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
                       } @else {
                         <span class="text-xs text-orange-600">Pausado</span>
                       }
+                    }
+                    @if (puedeEditarExtra(extra)) {
+                      <button type="button" (click)="abrirModalEditarEspecial(extra)" class="px-2 py-1 bg-slate-50 text-slate-700 border border-slate-200 rounded-lg text-xs font-bold">Editar</button>
                     }
                     @if (puedeReasignarExtra(extra)) {
                       <button type="button" (click)="abrirModalReasignar(extra)" class="px-2 py-1 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-bold">Reasignar</button>
@@ -1041,6 +1059,13 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
 
         <div modal-footer class="flex flex-col gap-2 w-full">
           @if (servicioDetalleSeleccionado) {
+            @if (puedeEditarServicio(servicioDetalleSeleccionado)) {
+              <button
+                (click)="modalDetalleOpen = false; abrirModalEditarServicio(servicioDetalleSeleccionado)"
+                class="w-full px-4 py-2.5 bg-slate-100 text-slate-700 font-bold rounded-xl text-xs flex items-center justify-center gap-2 cursor-pointer">
+                <i-lucide aria-hidden="true" name="pencil" class="w-4 h-4"></i-lucide> Editar OT
+              </button>
+            }
             @if (canFinalizar(servicioDetalleSeleccionado)) {
               <button
                 (click)="modalDetalleOpen = false; abrirModalFinalizarServicio(servicioDetalleSeleccionado)"
@@ -1099,6 +1124,79 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
           <button type="button" (click)="confirmarAnulacion()" [disabled]="motivoAnulacion.trim().length < 5 || anulando"
             class="px-4 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white disabled:opacity-50 cursor-pointer w-full sm:w-auto justify-center">
             Anular servicio
+          </button>
+        </div>
+      </app-modal>
+
+      <!-- Modal: editar OT (general o especial) -->
+      <app-modal size="md"
+        [isOpen]="modalEditarOpen"
+        title="Editar OT"
+        icon="pencil"
+        (close)="modalEditarOpen = false">
+        @if (editarObjetivo) {
+          <div class="space-y-3 text-xs">
+            <p class="text-slate-600">Corrige los datos de <b>{{ editarObjetivo.titulo }}</b>. @if (editarObjetivo.tipo === 'general') { El cambio se aplica a todos los servicios de la misma OT. }</p>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label for="srv-edit-placa" class="block font-bold text-slate-700 mb-1">Placa *</label>
+                <input id="srv-edit-placa" type="text" [(ngModel)]="formEditar.placa" name="editPlaca" maxlength="20" class="w-full p-2.5 rounded-xl border border-slate-200 uppercase focus:outline-none focus:ring-2 focus:ring-easydry-blue" />
+              </div>
+              <div>
+                <label for="srv-edit-cliente" class="block font-bold text-slate-700 mb-1">Cliente</label>
+                <input id="srv-edit-cliente" type="text" [(ngModel)]="formEditar.cliente" name="editCliente" maxlength="120" class="w-full p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-easydry-blue" />
+              </div>
+              <div>
+                <label for="srv-edit-marca" class="block font-bold text-slate-700 mb-1">Marca</label>
+                <input id="srv-edit-marca" type="text" [(ngModel)]="formEditar.marca" name="editMarca" maxlength="60" class="w-full p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-easydry-blue" />
+              </div>
+              <div>
+                <label for="srv-edit-modelo" class="block font-bold text-slate-700 mb-1">Modelo @if (editarObjetivo.tipo === 'general') { * }</label>
+                <input id="srv-edit-modelo" type="text" [(ngModel)]="formEditar.modelo" name="editModelo" maxlength="60" class="w-full p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-easydry-blue" />
+              </div>
+              <div>
+                <label for="srv-edit-color" class="block font-bold text-slate-700 mb-1">Color</label>
+                <input id="srv-edit-color" type="text" [(ngModel)]="formEditar.color" name="editColor" maxlength="40" class="w-full p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-easydry-blue" />
+              </div>
+              @if (editarObjetivo.tipo === 'especial') {
+                <div>
+                  <label for="srv-edit-prioridad" class="block font-bold text-slate-700 mb-1">Prioridad</label>
+                  <select id="srv-edit-prioridad" [(ngModel)]="formEditar.prioridad" name="editPrioridad" class="w-full p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-easydry-blue">
+                    <option value="Baja">Baja</option>
+                    <option value="Media">Media</option>
+                    <option value="Alta">Alta</option>
+                    <option value="Urgente">Urgente</option>
+                  </select>
+                </div>
+              }
+            </div>
+            @if (editarObjetivo.tipo === 'general' && opcionesServicioEdicion.length > 0) {
+              <div>
+                <label for="srv-edit-servicio" class="block font-bold text-slate-700 mb-1">Servicio</label>
+                <select id="srv-edit-servicio" [(ngModel)]="formEditar.servicioId" name="editServicio" [disabled]="!puedeCambiarServicioEdicion"
+                  class="w-full p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-easydry-blue disabled:opacity-60">
+                  @for (opc of opcionesServicioEdicion; track opc.id) {
+                    <option [ngValue]="opc.id">{{ opc.nombre }}</option>
+                  }
+                </select>
+                @if (puedeCambiarServicioEdicion) {
+                  <p class="mt-1 text-[11px] text-slate-500">Si cambias el servicio se devuelven al inventario los insumos del anterior, se descuentan los del nuevo y se recalcula el precio. Solo si hay stock suficiente.</p>
+                } @else {
+                  <p class="mt-1 text-[11px] text-slate-500">El servicio solo se puede cambiar mientras la OT está en espera o en proceso.</p>
+                }
+              </div>
+            }
+            <div>
+              <label for="srv-edit-obs" class="block font-bold text-slate-700 mb-1">Observaciones</label>
+              <textarea id="srv-edit-obs" [(ngModel)]="formEditar.observaciones" name="editObs" rows="3" class="w-full p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-easydry-blue"></textarea>
+            </div>
+          </div>
+        }
+        <div modal-footer class="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 w-full">
+          <button type="button" (click)="modalEditarOpen = false" class="btn btn-secondary w-full sm:w-auto">Cancelar</button>
+          <button type="button" (click)="confirmarEdicion()" [disabled]="guardandoEdicion"
+            class="px-4 py-2 rounded-xl text-xs font-bold bg-easydry-blue hover:bg-easydry-blue/90 text-white disabled:opacity-50 cursor-pointer w-full sm:w-auto justify-center">
+            Guardar cambios
           </button>
         </div>
       </app-modal>
@@ -3573,6 +3671,9 @@ export class ServiciosComponent implements OnInit, OnDestroy {
   /** El botón «Crear OT especial» sale exactamente cuando el rol tiene esa casilla (antes dependía de «Reasignar pulidor»). */
   get puedeCrearEspecial(): boolean { return this.authService.puede('servicios.especiales.crear'); }
   get puedeEditarGeneral(): boolean { return this.authService.puede('servicios.generales.editar'); }
+  /** Finalizar una OT: solo «Finalizar OT» (registrar, finalizar, anular y editar son casillas distintas). */
+  get puedeFinalizarGeneral(): boolean { return this.authService.puede('servicios.generales.finalizar'); }
+  get puedeEditarEspecial(): boolean { return this.authService.puede('servicios.especiales.editar'); }
   get puedeReasignarEspecial(): boolean { return this.authService.puede('servicios.especiales.reasignar'); }
   /** Agregar un servicio a una OT que ya existe es otra casilla distinta de registrar una OT nueva. */
   get puedeAgregarAOT(): boolean { return this.authService.puede('servicios.generales.agregar'); }
@@ -3682,9 +3783,16 @@ export class ServiciosComponent implements OnInit, OnDestroy {
   isPulidorDeAgenciaActual(op: any): boolean {
     return Boolean(op?.agenciaId && String(op.agenciaId) === String(this.extraFormAgenciaId));
   }
-  /** Iniciar, pausar, reanudar y completar: permiso 'especiales.operar' y ser el pulidor asignado (la gestión total también puede). */
+  /** Iniciar, pausar y reanudar: permiso «Ejecutar» y ser el pulidor asignado (la gestión total también puede). */
   puedeRealizarOT(extra?: ServicioExtra): boolean {
-    if (!extra || !this.authService.puede('servicios.especiales.operar')) return false;
+    return this.esPulidorDe(extra, 'servicios.especiales.operar');
+  }
+  /** Completar: permiso «Finalizar OT especial» y ser el pulidor asignado (la gestión total también puede). */
+  puedeFinalizarOT(extra?: ServicioExtra): boolean {
+    return this.esPulidorDe(extra, 'servicios.especiales.finalizar');
+  }
+  private esPulidorDe(extra: ServicioExtra | undefined, permiso: string): boolean {
+    if (!extra || !this.authService.puede(permiso)) return false;
     if (this.isAdmin) return true;
     const user = this.authService.getCurrentUser();
     if (!user) return false;
@@ -3719,9 +3827,9 @@ export class ServiciosComponent implements OnInit, OnDestroy {
     return undefined;
   }
 
-  /** Finalizar un servicio general = actualizarlo (permiso 'servicios.editar'); solo si sigue en proceso o en cola. */
+  /** Finalizar un servicio general (permiso «Finalizar OT»); solo si sigue en proceso o en cola. */
   canFinalizar(item: VehiculoServicio): boolean {
-    if (!this.puedeEditarGeneral) return false;
+    if (!this.puedeFinalizarGeneral) return false;
     const estado = (item.estado || '').toUpperCase();
     return estado === 'EN PROCESO' || estado === 'EN_PROCESO' || estado === 'EN COLA' || estado === 'EN_ESPERA';
   }
@@ -3732,6 +3840,18 @@ export class ServiciosComponent implements OnInit, OnDestroy {
     const estado = (item.estado || '').toUpperCase();
     if (estado === 'CANCELADO' || item.anuladoEn) return false;
     return estado !== 'APROBADO' || this.isAdmin;
+  }
+
+  /** Editar una OT general: casilla «Editar OT»; no si ya está aprobada ni anulada. */
+  puedeEditarServicio(item: VehiculoServicio): boolean {
+    if (!this.puedeEditarGeneral) return false;
+    const estado = (item.estado || '').toUpperCase();
+    return estado !== 'APROBADO' && estado !== 'CANCELADO' && !item.anuladoEn;
+  }
+
+  /** Editar una OT especial: casilla «Editar OT especial»; no si ya está completada o cancelada. */
+  puedeEditarExtra(extra: ServicioExtra): boolean {
+    return this.puedeEditarEspecial && extra.estado !== 'Completado' && extra.estado !== 'Cancelado';
   }
 
   puedeAnularEspecial(extra: ServicioExtra): boolean {
@@ -3973,6 +4093,12 @@ export class ServiciosComponent implements OnInit, OnDestroy {
   recalcularTieneServiciosEspeciales(): void {
     const user = this.authService.getCurrentUser();
     if (!user) { this.tieneServiciosEspeciales = false; return; }
+
+    // Quien tiene la pestaña «Servicios especiales» activa en su rol la ve siempre: el permiso manda, no el flag de la agencia.
+    if (this.puedeVerEspeciales) {
+      this.tieneServiciosEspeciales = true;
+      return;
+    }
 
     // Admin y Super Admin: siempre tienen acceso completo a servicios especiales y generales
     if (this.isSuperAdmin || this.isAdmin) {
@@ -4588,7 +4714,7 @@ export class ServiciosComponent implements OnInit, OnDestroy {
   }
 
   abrirModalFinalizarServicio(item: VehiculoServicio) {
-    if (!this.puedeEditarGeneral) {
+    if (!this.puedeFinalizarGeneral) {
       this.toastService.warning('Acceso restringido', 'Tu rol no tiene permiso para finalizar servicios.');
       return;
     }
@@ -4758,6 +4884,97 @@ export class ServiciosComponent implements OnInit, OnDestroy {
   }
 
   // ── Reasignar servicio especial (permiso 'especiales.reasignar') ──
+  // ── Editar OT (general o especial) ──
+  modalEditarOpen = false;
+  guardandoEdicion = false;
+  editarObjetivo: { tipo: 'general' | 'especial'; id: string | number; titulo: string } | null = null;
+  formEditar: { placa: string; marca: string; modelo: string; color: string; cliente: string; prioridad: string; observaciones: string; servicioId: number | null } =
+    { placa: '', marca: '', modelo: '', color: '', cliente: '', prioridad: 'Media', observaciones: '', servicioId: null };
+  /** Servicio con el que se abrió la edición y servicios generales que la agencia de la OT tiene habilitados (para poder cambiarlo). */
+  servicioIdOriginalEdicion: number | null = null;
+  opcionesServicioEdicion: CatalogoServicio[] = [];
+  /** El servicio solo se cambia mientras la OT está en espera o en proceso (después los insumos ya se consumieron). */
+  puedeCambiarServicioEdicion = false;
+
+  abrirModalEditarServicio(item: VehiculoServicio): void {
+    if (!this.puedeEditarServicio(item)) return;
+    this.editarObjetivo = { tipo: 'general', id: item.id, titulo: `OT ${item.ordenTrabajoOT || item.placa}` };
+    this.formEditar = { placa: item.placa || '', marca: item.marca || '', modelo: item.modelo || '', color: item.color || '', cliente: item.cliente || '', prioridad: 'Media', observaciones: item.notas || '', servicioId: item.servicioId != null ? Number(item.servicioId) : null };
+    this.servicioIdOriginalEdicion = this.formEditar.servicioId;
+    const estado = (item.estado || '').toUpperCase();
+    this.puedeCambiarServicioEdicion = ['EN PROCESO', 'EN_PROCESO', 'EN COLA', 'EN_ESPERA'].includes(estado) && item.servicioId != null;
+    const suc = this.sucursales.find((x) => String(x.id) === String(item.agenciaId));
+    const habilitados = Array.isArray(suc?.servicioIds) ? suc!.servicioIds.map(Number) : null;
+    this.opcionesServicioEdicion = (this.catalogoCompleto || []).filter(
+      (c) => c.categoria === 'GENERAL' && (c.estado == null || c.estado === 'Activo') && (!habilitados || habilitados.includes(Number(c.id)) || Number(c.id) === this.servicioIdOriginalEdicion),
+    );
+    this.modalEditarOpen = true;
+  }
+
+  abrirModalEditarEspecial(extra: ServicioExtra): void {
+    if (!this.puedeEditarExtra(extra)) return;
+    this.editarObjetivo = { tipo: 'especial', id: extra.id, titulo: `OT ${extra.codigoSE || extra.placa || ''}` };
+    this.formEditar = {
+      placa: extra.placa || '', marca: extra.marca || '', modelo: extra.modelo || '', color: extra.color || '',
+      cliente: extra.cliente || extra.clienteNombre || '', prioridad: extra.prioridad || 'Media', observaciones: (extra as any).observaciones || '', servicioId: null,
+    };
+    this.puedeCambiarServicioEdicion = false;
+    this.modalEditarOpen = true;
+  }
+
+  /** Cambiar el servicio devuelve y descuenta insumos de la agencia: se vuelve a leer lo que depende del stock. */
+  private cargarDatosInsumosTrasCambio(): void {
+    this.cargarStockPulidor();
+  }
+
+  confirmarEdicion(): void {
+    const objetivo = this.editarObjetivo;
+    if (!objetivo) return;
+    const f = this.formEditar;
+    if (!f.placa.trim()) {
+      this.toastService.warning('Placa requerida', 'Indique la placa del vehículo.');
+      return;
+    }
+    if (objetivo.tipo === 'general' && !f.modelo.trim()) {
+      this.toastService.warning('Modelo requerido', 'Indique el modelo del vehículo.');
+      return;
+    }
+    this.guardandoEdicion = true;
+    const alTerminar = () => {
+      this.guardandoEdicion = false;
+      this.modalEditarOpen = false;
+    };
+    const alFallar = (err: any) => {
+      this.guardandoEdicion = false;
+      const msg = err?.error?.message || err?.message || 'El servidor no aceptó los cambios.';
+      this.toastService.error('No se pudo editar la OT', Array.isArray(msg) ? msg.join('. ') : msg);
+    };
+    if (objetivo.tipo === 'general') {
+      const cambiaServicio = this.puedeCambiarServicioEdicion && f.servicioId != null && f.servicioId !== this.servicioIdOriginalEdicion;
+      this.servicioService.editarServicio(objetivo.id, {
+        placa: f.placa, marca: f.marca, modelo: f.modelo, color: f.color, cliente: f.cliente, observaciones: f.observaciones,
+        ...(cambiaServicio ? { servicioCatalogoId: f.servicioId as number } : {}),
+      }).subscribe({
+        next: () => {
+          alTerminar();
+          this.toastService.success('OT actualizada', objetivo.titulo);
+          this.refrescarServiciosCompletos(true);
+          if (cambiaServicio) this.cargarDatosInsumosTrasCambio();
+        },
+        error: alFallar,
+      });
+    } else {
+      this.extrasService.editarServicioExtra(objetivo.id, { placa: f.placa, marca: f.marca, modelo: f.modelo, color: f.color, cliente: f.cliente, prioridad: f.prioridad, observaciones: f.observaciones }).subscribe({
+        next: () => {
+          alTerminar();
+          this.toastService.success('OT especial actualizada', objetivo.titulo);
+          this.cargarServiciosEspeciales();
+        },
+        error: alFallar,
+      });
+    }
+  }
+
   abrirModalReasignar(extra: ServicioExtra) {
     if (!this.puedeReasignarExtra(extra)) return;
     this.extraReasignar = extra;
@@ -5300,7 +5517,7 @@ export class ServiciosComponent implements OnInit, OnDestroy {
   }
 
   abrirModalFinalizarEspecial(extra: ServicioExtra) {
-    if (!this.puedeRealizarOT(extra)) {
+    if (!this.puedeFinalizarOT(extra)) {
       this.toastService.warning('Acceso Restringido', 'Solo el pulidor asignado a esta orden de trabajo puede finalizarla.');
       return;
     }
@@ -5312,7 +5529,7 @@ export class ServiciosComponent implements OnInit, OnDestroy {
   }
 
   async confirmarFinalizarEspecial() {
-    if (!this.puedeRealizarOT(this.servicioEspecialSeleccionado)) {
+    if (!this.puedeFinalizarOT(this.servicioEspecialSeleccionado)) {
       this.toastService.warning('Acceso Restringido', 'Solo el pulidor asignado a esta orden de trabajo puede finalizar el servicio.');
       return;
     }

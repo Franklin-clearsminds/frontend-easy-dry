@@ -314,6 +314,14 @@ export class ServiciosExtrasService {
     );
   }
 
+  /** Corrige vehículo, cliente, prioridad y observaciones de un servicio especial (permiso 'servicios.especiales.editar'). */
+  editarServicioExtra(id: number | string, datos: { placa: string; marca: string; modelo: string; color: string; cliente: string; prioridad: string; observaciones: string }): Observable<ServicioExtra> {
+    return this.http.post<any>(apiUrl('/operaciones/servicios-especiales/editar'), { id: String(id), ...datos }).pipe(
+      map(res => this.mapBackend(res)),
+      tap(updated => this._updateLocal(id, updated)),
+    );
+  }
+
   /** Cambia los pulidores asignados; el primero será responsable del kit (permiso 'especiales.reasignar'). */
   reasignarServicioExtra(id: number | string, operadoresIds: string[]): Observable<ServicioExtra> {
     return this.http.post<any>(apiUrl('/operaciones/servicios-especiales/reasignar'), {

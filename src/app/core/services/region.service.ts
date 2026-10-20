@@ -95,7 +95,23 @@ export class RegionService {
     );
   }
 
-  actualizar(region: RegionOperativa): Observable<RegionOperativa> {
+  /** Activa o desactiva una región (permiso 'agencias.regiones.estado'). El error del servidor se propaga. */
+  cambiarEstado(id: string | number, activa: boolean): Observable<RegionOperativa> {
+    return this.http.post<any>(apiUrl('/agencias/regiones/toggle-estado'), { id: String(id), estado: activa ? 1 : 0 }).pipe(
+      map(res => this.mapBackendRegion(res)),
+      tap(act => {
+        const current = this.regionesSubject.value;
+        const index = current.findIndex(r => String(r.id) === String(act.id));
+        if (index !== -1) {
+          current[index] = { ...current[index], estado: act.estado };
+          this.regionesSubject.next([...current]);
+        }
+      })
+    );
+  }
+
+  /** El estado solo se envía si quien guarda puede activar o desactivar regiones. */
+  actualizar(region: RegionOperativa, incluirEstado = true): Observable<RegionOperativa> {
     return this.http.post<any>(apiUrl('/agencias/regiones/update'), {
       id: String(region.id),
       codigo: region.codigo,
@@ -103,7 +119,7 @@ export class RegionService {
       descripcion: region.descripcion,
       supervisorId: region.supervisorId || undefined,
       responsable: region.responsable || undefined,
-      estado: region.estado === 'Inactiva' ? 0 : 1
+      ...(incluirEstado ? { estado: region.estado === 'Inactiva' ? 0 : 1 } : {})
     }).pipe(
       map(res => this.mapBackendRegion(res)),
       tap(act => {

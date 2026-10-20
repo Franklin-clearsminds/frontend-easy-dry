@@ -91,11 +91,12 @@ export class ClienteService {
     );
   }
 
-  actualizar(cliente: ClienteSucursal): Observable<ClienteSucursal> {
+  /** El estado solo se envía si quien guarda puede activar o desactivar clientes. */
+  actualizar(cliente: ClienteSucursal, incluirEstado = true): Observable<ClienteSucursal> {
     return this.http.post<any>(apiUrl('/agencias/clientes/update'), {
       id: String(cliente.id),
       nombre: cliente.nombre,
-      estado: cliente.estado === 'Inactiva' ? 0 : 1
+      ...(incluirEstado ? { estado: cliente.estado === 'Inactiva' ? 0 : 1 } : {})
     }).pipe(
       map(res => this.mapBackendCliente({ ...res, color: cliente.color })),
       tap(act => {
