@@ -1,4 +1,5 @@
 import { PasswordRequisitosComponent } from '../../shared/components/password-requisitos/password-requisitos.component';
+import { AvatarSrcDirective } from '../../shared/directives/avatar-src.directive';
 import { motivoPasswordDebil } from '../../core/utils/password-politica';
 import { Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -21,7 +22,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
 @Component({
   selector: 'app-operadores',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, PaginationComponent, FilterBarComponent, PasswordRequisitosComponent],
+  imports: [AvatarSrcDirective, CommonModule, FormsModule, LucideAngularModule, ModalComponent, PaginationComponent, FilterBarComponent, PasswordRequisitosComponent],
   template: `
     <div class="space-y-6 animate-fade-in">
       
@@ -124,8 +125,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                     <div class="flex items-center gap-3">
                       @if (op.avatar) {
                         <img loading="lazy" decoding="async"
-                          [src]="op.avatar"
-                          (error)="onAvatarError($event)"
+                          [appAvatar]="op.avatar" [appAvatarIniciales]="(op.nombre || '?').charAt(0)"
                           alt="Foto de operador"
                           class="w-9 h-9 rounded-full object-cover border-2 border-easydry-green shrink-0">
                       } @else {
@@ -545,7 +545,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
             <!-- Operator Profile Banner -->
             <div class="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-3">
               <div class="flex items-center gap-4">
-                <img loading="lazy" decoding="async" [src]="operadorSeleccionado.avatar" alt="Foto de operador" class="w-14 h-14 rounded-full object-cover border-2 border-easydry-green shrink-0">
+                <img loading="lazy" decoding="async" [appAvatar]="operadorSeleccionado.avatar" [appAvatarIniciales]="(operadorSeleccionado.nombre || '?').charAt(0)" alt="Foto de operador" class="w-14 h-14 rounded-full object-cover border-2 border-easydry-green shrink-0">
                 <div class="flex-1">
                   <div class="flex items-center justify-between">
                     <h3 class="font-extrabold text-slate-900 text-lg font-outfit">{{ operadorSeleccionado.nombre }}</h3>
@@ -878,7 +878,6 @@ export class OperadoresComponent implements OnInit, OnDestroy {
         this.busquedaAplicada = texto;
         this.tabla.reiniciar();
       });
-    this.cargarDatos();
     this.tabla.reiniciar();
   }
 
@@ -898,31 +897,20 @@ export class OperadoresComponent implements OnInit, OnDestroy {
     return ambito !== 'AGENCIA' && ambito !== 'PROPIO';
   }
 
+  /** Vuelve a pedir la página que se está viendo (tras registrar o cambiar a alguien). La tabla se pide paginada desde el servidor. */
   cargarDatos(): void {
-    this.cargando = true;
-    const currentUser = this.authService.getCurrentUser();
-    const esAgencia = currentUser?.ambito === 'AGENCIA';
-    const categoriaRol = this.isCoordServiciosEspeciales ? 'PULIDOR' : (esAgencia && !this.esLider ? 'LAVADOR' : undefined);
-    const rawAgenciaId = currentUser?.agenciaId || currentUser?.sucursalId;
-    const agenciaId = esAgencia && rawAgenciaId ? String(rawAgenciaId) : undefined;
+    this.tabla.refrescar();
+  }
 
-    this.operadorService.getOperadores(agenciaId, categoriaRol).subscribe({
-      next: (list) => {
-        this.operadores = list;
-        this.cargando = false;
-      },
-      error: () => {
-        this.cargando = false;
-      }
-    });
-
-    this.operadorService.operadores$.subscribe(list => {
-      this.operadores = list;
-      this.cargando = false;
-    });
-
+  /** Sucursales: solo hacen falta en los modales de crear/editar operador y asignar bahía — antes se pedían
+   * siempre al entrar a la pantalla, aunque el usuario nunca abriera ninguno de los tres. */
+  private sucursalesOperadoresCargadas = false;
+  private cargarSucursalesSiHaceFalta(onListo: () => void): void {
+    if (this.sucursalesOperadoresCargadas) { onListo(); return; }
     this.sucursalService.getSucursales().subscribe(list => {
       this.sucursales = list;
+      this.sucursalesOperadoresCargadas = true;
+      onListo();
     });
   }
 
@@ -990,33 +978,35 @@ export class OperadoresComponent implements OnInit, OnDestroy {
       this.toastService.warning('Sin permiso', 'Tu rol no puede registrar personal operativo.');
       return;
     }
-    this.esEdicion = false;
-    this.operadorEnEdicionId = undefined;
-    this.conflictoAsignacion = null;
-    this.modalConfirmarConflictoOpen = false;
-    
-    const defaultSucursal = this.sucursales[0];
+    this.cargarSucursalesSiHaceFalta(() => {
+      this.esEdicion = false;
+      this.operadorEnEdicionId = undefined;
+      this.conflictoAsignacion = null;
+      this.modalConfirmarConflictoOpen = false;
 
-    const defaultRol = this.isCoordServiciosEspeciales ? 'PULIDOR' : 'LAVADOR';
+      const defaultSucursal = this.sucursales[0];
 
-    this.formOperador = {
-      nombre: '',
-      cedula: '',
-      telefono: '',
-      rol: defaultRol,
-      sucursalNombre: defaultSucursal?.nombre || '',
-      sucursalId: defaultSucursal ? String(defaultSucursal.id) : '',
-      bahiaNombre: 'Sin Bahía Asignada',
-      bahiaId: '',
-      estado: 'Activo',
-      password: ''
-    };
-    this.verPassword = false;
+      const defaultRol = this.isCoordServiciosEspeciales ? 'PULIDOR' : 'LAVADOR';
 
-    if (this.formOperador.sucursalId) {
-      this.cargarBahiasParaCrear(this.formOperador.sucursalId);
-    }
-    this.modalCrearOpen = true;
+      this.formOperador = {
+        nombre: '',
+        cedula: '',
+        telefono: '',
+        rol: defaultRol,
+        sucursalNombre: defaultSucursal?.nombre || '',
+        sucursalId: defaultSucursal ? String(defaultSucursal.id) : '',
+        bahiaNombre: 'Sin Bahía Asignada',
+        bahiaId: '',
+        estado: 'Activo',
+        password: ''
+      };
+      this.verPassword = false;
+
+      if (this.formOperador.sucursalId) {
+        this.cargarBahiasParaCrear(this.formOperador.sucursalId);
+      }
+      this.modalCrearOpen = true;
+    });
   }
 
   abrirModalEditar(op: Operador): void {
@@ -1024,30 +1014,32 @@ export class OperadoresComponent implements OnInit, OnDestroy {
       this.toastService.warning('Sin permiso', 'Tu rol no puede editar personal operativo.');
       return;
     }
-    this.esEdicion = true;
-    this.operadorEnEdicionId = op.id;
-    this.conflictoAsignacion = null;
-    this.modalConfirmarConflictoOpen = false;
+    this.cargarSucursalesSiHaceFalta(() => {
+      this.esEdicion = true;
+      this.operadorEnEdicionId = op.id;
+      this.conflictoAsignacion = null;
+      this.modalConfirmarConflictoOpen = false;
 
-    const suc = this.sucursales.find(s => s.nombre === op.sucursal || String(s.id) === String(op.sucursalId));
+      const suc = this.sucursales.find(s => s.nombre === op.sucursal || String(s.id) === String(op.sucursalId));
 
-    this.formOperador = {
-      nombre: op.nombre,
-      cedula: op.cedula,
-      telefono: op.telefono || '',
-      rol: op.rol || 'LAVADOR',
-      sucursalNombre: op.sucursal,
-      sucursalId: suc ? String(suc.id) : String(op.sucursalId || ''),
-      bahiaNombre: op.bahia || 'Sin Bahía Asignada',
-      bahiaId: op.bahiaId || '',
-      estado: op.estado || 'Activo',
-      password: ''
-    };
+      this.formOperador = {
+        nombre: op.nombre,
+        cedula: op.cedula,
+        telefono: op.telefono || '',
+        rol: op.rol || 'LAVADOR',
+        sucursalNombre: op.sucursal,
+        sucursalId: suc ? String(suc.id) : String(op.sucursalId || ''),
+        bahiaNombre: op.bahia || 'Sin Bahía Asignada',
+        bahiaId: op.bahiaId || '',
+        estado: op.estado || 'Activo',
+        password: ''
+      };
 
-    if (this.formOperador.sucursalId) {
-      this.cargarBahiasParaCrear(this.formOperador.sucursalId);
-    }
-    this.modalCrearOpen = true;
+      if (this.formOperador.sucursalId) {
+        this.cargarBahiasParaCrear(this.formOperador.sucursalId);
+      }
+      this.modalCrearOpen = true;
+    });
   }
 
   cerrarModalCrear(): void {
@@ -1231,25 +1223,27 @@ export class OperadoresComponent implements OnInit, OnDestroy {
       this.toastService.warning('Lavador Inactivo', 'No se puede asignar bahías a un colaborador inactivo. Debe activarlo primero.');
       return;
     }
-    this.operadorSeleccionado = op;
-    this.conflictoAsignacion = null;
-    this.modalConfirmarConflictoOpen = false;
+    this.cargarSucursalesSiHaceFalta(() => {
+      this.operadorSeleccionado = op;
+      this.conflictoAsignacion = null;
+      this.modalConfirmarConflictoOpen = false;
 
-    const suc = this.sucursales.find(s => s.nombre === op.sucursal || String(s.id) === String(op.sucursalId)) || this.sucursales[0];
+      const suc = this.sucursales.find(s => s.nombre === op.sucursal || String(s.id) === String(op.sucursalId)) || this.sucursales[0];
 
-    this.formAsignarBahia = {
-      operadorId: op.id,
-      sucursalId: suc ? String(suc.id) : '',
-      sucursalNombre: suc ? suc.nombre : op.sucursal,
-      bahiaId: op.bahiaId || '',
-      bahiaNombre: op.bahia || 'Sin Bahía Asignada',
-      motivo: ''
-    };
+      this.formAsignarBahia = {
+        operadorId: op.id,
+        sucursalId: suc ? String(suc.id) : '',
+        sucursalNombre: suc ? suc.nombre : op.sucursal,
+        bahiaId: op.bahiaId || '',
+        bahiaNombre: op.bahia || 'Sin Bahía Asignada',
+        motivo: ''
+      };
 
-    if (this.formAsignarBahia.sucursalId) {
-      this.cargarBahiasParaAsignar(this.formAsignarBahia.sucursalId);
-    }
-    this.modalAsignarBahiaOpen = true;
+      if (this.formAsignarBahia.sucursalId) {
+        this.cargarBahiasParaAsignar(this.formAsignarBahia.sucursalId);
+      }
+      this.modalAsignarBahiaOpen = true;
+    });
   }
 
   onSucursalAsignarChange(): void {

@@ -1,4 +1,6 @@
 import { Component, HostListener, inject, OnInit } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { firstValueFrom } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LucideAngularModule } from 'lucide-angular';
@@ -9,12 +11,15 @@ import { isRealProfilePhoto } from '../../core/config/env';
 import { ToastService } from '../../shared/services/toast.service';
 import { ROLE_LABELS, UsuarioAuth } from '../../core/models/roles.model';
 import { ModalPortalDirective } from '../../shared/directives/modal-portal.directive';
+import { PasswordRequisitosComponent } from '../../shared/components/password-requisitos/password-requisitos.component';
+import { passwordCumplePolitica } from '../../core/utils/password-politica';
+import { apiUrl } from '../../core/config/env';
 import { ImageCropModalComponent } from '../../shared/components/image-crop-modal/image-crop-modal.component';
 
 @Component({
   selector: 'app-perfil',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule, ModalPortalDirective, ImageCropModalComponent],
+  imports: [CommonModule, FormsModule, LucideAngularModule, ModalPortalDirective, ImageCropModalComponent, PasswordRequisitosComponent],
   template: `
     <div class="space-y-6 animate-fade-in pb-12">
       
@@ -280,7 +285,7 @@ import { ImageCropModalComponent } from '../../shared/components/image-crop-moda
             </form>
           </div>
 
-          <!-- Seguridad: las contraseñas las asigna únicamente un administrador -->
+          <!-- Seguridad: Super Administrador y Administrador cambian la suya; el resto la recibe de un administrador -->
           <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry overflow-hidden">
             <div class="p-5 border-b border-slate-100">
               <h3 class="font-bold text-slate-900 flex items-center gap-2 text-sm">
@@ -290,6 +295,36 @@ import { ImageCropModalComponent } from '../../shared/components/image-crop-moda
             </div>
 
             <div class="p-6">
+              @if (puedeCambiarPassword) {
+                <form (ngSubmit)="cambiarPassword()" class="space-y-4" autocomplete="off">
+                  <p class="text-xs text-slate-600 leading-relaxed">
+                    Como {{ currentUser?.rolNombre || 'administrador' }} puedes cambiar tu propia contraseña. Al guardarla se cierran todas tus sesiones y tendrás que iniciar sesión de nuevo.
+                  </p>
+                  <div>
+                    <label for="pw-actual" class="block text-xs font-bold text-slate-700 mb-1">Contraseña actual</label>
+                    <input id="pw-actual" name="pw-actual" type="password" [(ngModel)]="pwActual" autocomplete="current-password"
+                      class="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-easydry-blue">
+                  </div>
+                  <div>
+                    <label for="pw-nueva" class="block text-xs font-bold text-slate-700 mb-1">Nueva contraseña</label>
+                    <input id="pw-nueva" name="pw-nueva" type="password" [(ngModel)]="pwNueva" autocomplete="new-password"
+                      class="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-easydry-blue">
+                    <app-password-requisitos [password]="pwNueva" [email]="currentUser?.email" />
+                  </div>
+                  <div>
+                    <label for="pw-confirmar" class="block text-xs font-bold text-slate-700 mb-1">Confirmar nueva contraseña</label>
+                    <input id="pw-confirmar" name="pw-confirmar" type="password" [(ngModel)]="pwConfirmar" autocomplete="new-password"
+                      class="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-easydry-blue">
+                    @if (pwConfirmar && pwConfirmar !== pwNueva) {
+                      <p class="text-xs text-rose-600 mt-1" role="alert">Las contraseñas no coinciden.</p>
+                    }
+                  </div>
+                  <button type="submit" [disabled]="!passwordListo || cambiandoPassword"
+                    class="px-4 py-2.5 rounded-xl bg-easydry-blue text-white text-xs font-bold disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer">
+                    {{ cambiandoPassword ? 'Guardando...' : 'Cambiar contraseña' }}
+                  </button>
+                </form>
+              } @else {
               <div class="flex items-start gap-3 p-4 rounded-xl border border-slate-200 bg-slate-50">
                 <div class="w-9 h-9 rounded-lg bg-white border border-slate-200 text-slate-600 flex items-center justify-center shrink-0">
                   <i-lucide aria-hidden="true" name="lock" class="w-4 h-4"></i-lucide>
@@ -302,6 +337,7 @@ import { ImageCropModalComponent } from '../../shared/components/image-crop-moda
                   </p>
                 </div>
               </div>
+              }
             </div>
           </div>
 
@@ -455,6 +491,36 @@ export class PerfilComponent implements OnInit {
   private storageUpload = inject(StorageUploadService);
   private toastService = inject(ToastService);
   private uiScaleService = inject(UiScaleService);
+  private http = inject(HttpClient);
+
+  pwActual = '';
+  pwNueva = '';
+  pwConfirmar = '';
+  cambiandoPassword = false;
+
+  /** Solo Super Administrador y Administrador cambian su propia contraseña; el resto la recibe de un administrador. */
+  get puedeCambiarPassword(): boolean {
+    return this.authService.isAdmin();
+  }
+
+  get passwordListo(): boolean {
+    return !!this.pwActual && this.pwNueva === this.pwConfirmar && passwordCumplePolitica(this.pwNueva, this.currentUser?.email);
+  }
+
+  async cambiarPassword(): Promise<void> {
+    if (!this.passwordListo || this.cambiandoPassword) return;
+    this.cambiandoPassword = true;
+    try {
+      await firstValueFrom(this.http.post(apiUrl('/auth/cambiar-password'), { passwordActual: this.pwActual, passwordNueva: this.pwNueva }, { withCredentials: true }));
+      this.toastService.success('Contraseña actualizada', 'Por seguridad se cerraron tus sesiones. Inicia sesión con la nueva contraseña.');
+      this.pwActual = this.pwNueva = this.pwConfirmar = '';
+      this.authService.logout();
+    } catch (err: any) {
+      this.toastService.error('No se pudo cambiar la contraseña', err?.error?.message || err?.message || 'Intenta de nuevo.');
+    } finally {
+      this.cambiandoPassword = false;
+    }
+  }
 
   currentUser: UsuarioAuth | null = this.authService.getCurrentUser();
 

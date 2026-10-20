@@ -6,6 +6,7 @@ import { LucideAngularModule } from 'lucide-angular';
 import { ConsultaServicios, ServicioLavadoService } from '../../core/services/servicio-lavado.service';
 import { AuthService } from '../../core/services/auth.service';
 import { InventarioService } from '../../core/services/inventario.service';
+import { VisorMediaService } from '../../shared/services/visor-media.service';
 import { StorageUploadService } from '../../core/services/storage-upload.service';
 import {
   VehiculoServicio,
@@ -2599,6 +2600,17 @@ export class ServiciosComponent implements OnInit, OnDestroy {
     if (tab === 'especiales' && !this.puedeVerEspeciales && this.puedeVerGenerales) tab = 'generales';
     this.tabActiva = tab;
     this.cargarVistaActual();
+    if (tab === 'especiales' && this.puedeVerEspeciales) this.cargarDatosEspeciales();
+  }
+
+  /** Pulidores de la región, stock del pulidor y servicios extras: solo hacen falta en la pestaña Especiales. */
+  private datosEspecialesCargados = false;
+  private cargarDatosEspeciales(): void {
+    if (this.datosEspecialesCargados) return;
+    this.datosEspecialesCargados = true;
+    this.cargarServiciosEspeciales(false);
+    this.cargarPulidoresRegion();
+    if (this.isPulidor) this.cargarStockPulidor();
   }
 
   abrirModalNuevaOT() {
@@ -2660,6 +2672,8 @@ export class ServiciosComponent implements OnInit, OnDestroy {
     if (!this.puedeAgregarServicio(item)) return;
 
     this.agregarServicioOTFuente = item;
+
+    this.asegurarServiciosCompletos();
     this.lavadorIdsSeleccionados = (item.operadoresAsignados || []).map((op) => String(op.id));
 
     // Misma inicialización base que abrirModalNuevaOT pero manteniendo los datos del vehículo
@@ -3415,6 +3429,7 @@ export class ServiciosComponent implements OnInit, OnDestroy {
   private inventarioService = inject(InventarioService);
   private servicioService = inject(ServicioLavadoService);
   public storageUploadService = inject(StorageUploadService);
+  private readonly visorMedia = inject(VisorMediaService);
   public authService = inject(AuthService);
   private toastService = inject(ToastService);
   private maquinariaService = inject(MaquinariaService);
@@ -3773,6 +3788,24 @@ export class ServiciosComponent implements OnInit, OnDestroy {
     return null;
   }
 
+  /**
+   * Lista completa de servicios generales (hasta el máximo por página). Solo la usa el modal de agregar un servicio a una OT; la tabla
+   * ya se pide paginada desde el servidor. Se pide la primera vez que hace falta y, desde entonces, se actualiza tras cada cambio.
+   */
+  private serviciosCompletosPedidos = false;
+  private asegurarServiciosCompletos(): void {
+    if (this.serviciosCompletosPedidos || !this.puedeVerGenerales) return;
+    this.serviciosCompletosPedidos = true;
+    this.refrescarServiciosCompletos(true);
+  }
+
+  private refrescarServiciosCompletos(forzar = false): void {
+    if (!this.puedeVerGenerales || !(forzar || this.serviciosCompletosPedidos)) return;
+    this.servicioService.getServicios(this._getFiltrosUsuario()).subscribe(list => {
+      this.servicios = list;
+    });
+  }
+
   ngOnInit(): void {
     const user = this.authService.getCurrentUser();
 
@@ -3794,12 +3827,6 @@ export class ServiciosComponent implements OnInit, OnDestroy {
       this.nuevoRegistro.empleado = nombreCompleto;
       if (user.sucursalNombre) this.nuevoRegistro.agencia = user.sucursalNombre;
       if (user.bahiaNombre) this.nuevoRegistro.bahia = user.bahiaNombre;
-    }
-
-    if (this.puedeVerGenerales) {
-      this.servicioService.getServicios(this._getFiltrosUsuario()).subscribe(list => {
-        this.servicios = list;
-      });
     }
 
     this.iniciarVistaServidor();
@@ -3862,13 +3889,11 @@ export class ServiciosComponent implements OnInit, OnDestroy {
       });
     }
 
-    // Cargar Servicios Especiales Regionales (la vista paginada ya la carga iniciarVistaServidor)
-    if (this.puedeVerEspeciales) {
-      this.cargarServiciosEspeciales(false);
-      this.cargarPulidoresRegion();
-      if (this.isPulidor) {
-        this.cargarStockPulidor();
-      }
+    // Cargar Servicios Especiales Regionales (la vista paginada ya la carga iniciarVistaServidor). Solo hacen
+    // falta para la pestaña Especiales (modal de reasignar, stock del pulidor): si se arranca en Generales se
+    // piden recién al entrar a Especiales (ver `cambiarTab`).
+    if (this.tabActiva === 'especiales' && this.puedeVerEspeciales) {
+      this.cargarDatosEspeciales();
     }
 
     if (this.isOperadorEspeciales) {
@@ -4558,9 +4583,7 @@ export class ServiciosComponent implements OnInit, OnDestroy {
         this.agregarServicioOTFuente = null;
 
         if (this.authService.puede('inventario.ver')) this.inventarioService.cargarItems();
-        this.servicioService.getServicios(this._getFiltrosUsuario()).subscribe(list => {
-          this.servicios = list;
-        });
+        this.refrescarServiciosCompletos();
         // La OT nueva es la más reciente: solo se ve en la primera página, así que aquí sí se vuelve a la 1.
         this.paginaG = 1;
         this.refrescarGenerales();
@@ -4656,9 +4679,7 @@ export class ServiciosComponent implements OnInit, OnDestroy {
         if (res) {
           // Un servicio finalizado siempre queda pendiente de aprobación (no hay aprobación automática).
           this.toastService.success('Servicio finalizado', `Vehículo ${item.placa} finalizado con evidencia de entrega. Queda pendiente de aprobación.`);
-          this.servicioService.getServicios(this._getFiltrosUsuario()).subscribe(list => {
-            this.servicios = list;
-          });
+          this.refrescarServiciosCompletos();
           this.refrescarGenerales();
         }
       },
@@ -4689,9 +4710,7 @@ export class ServiciosComponent implements OnInit, OnDestroy {
     this.servicioService.aprobarServicioGerente(item.id).subscribe({
       next: () => {
         this.toastService.success('Servicio aprobado', `Servicio ${item.placa} aprobado.`);
-        this.servicioService.getServicios(this._getFiltrosUsuario()).subscribe(list => {
-          this.servicios = list;
-        });
+        this.refrescarServiciosCompletos();
         this.refrescarGenerales();
       },
       error: (err) => {
@@ -4735,7 +4754,7 @@ export class ServiciosComponent implements OnInit, OnDestroy {
         this.modalDetalleEspecialOpen = false;
         this.toastService.success('Servicio anulado', `${objetivo.titulo} quedó anulado; se guardó tu motivo.`);
         if (objetivo.tipo === 'general') {
-          this.servicioService.getServicios(this._getFiltrosUsuario()).subscribe(list => { this.servicios = list; });
+          this.refrescarServiciosCompletos();
           this.refrescarGenerales();
         } else {
           this.cargarServiciosEspeciales();
@@ -4829,10 +4848,15 @@ export class ServiciosComponent implements OnInit, OnDestroy {
   }
 
   async verVideoEvidencia(item: VehiculoServicio) {
+    const url = item.videoUrl || item.video || item.fotoIngresoUrl || item.fotoSalidaUrl;
+    // Una foto o un PDF se ven en el visor común; solo el video usa este reproductor.
+    if (url && this.visorMedia.tipoDe(url) !== 'video') {
+      void this.visorMedia.abrir(url, { titulo: `Evidencia: ${item.placa}` });
+      return;
+    }
     this.servicioSeleccionado = item;
     this.videoEvidenciaUrl = '';
     this.modalVideoOpen = true;
-    const url = item.videoUrl || item.video || item.fotoIngresoUrl || item.fotoSalidaUrl;
     if (!url) return;
     // Resuelve primero la URL prefirmada (si el archivo es privado) en vez de intentar /storage/file
     // directamente, que respondería 403 para evidencias privadas.
@@ -5480,6 +5504,11 @@ export class ServiciosComponent implements OnInit, OnDestroy {
   async verVideoGenerico(url?: string | null, titulo: string = 'Vídeo de Evidencia') {
     if (!url) {
       this.toastService.warning('Vídeo no disponible', 'No hay vídeo registrado para esta evidencia.');
+      return;
+    }
+    // La evidencia de ingreso o salida puede ser una foto: se abre en el visor común en vez de intentar reproducirla.
+    if (this.visorMedia.tipoDe(url) !== 'video') {
+      void this.visorMedia.abrir(url, { titulo });
       return;
     }
     this.videoGenericoTitulo = titulo;

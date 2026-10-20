@@ -5,7 +5,6 @@ import { IncidentesComponent } from '../incidentes/incidentes.component';
 import { AuthService } from '../../core/services/auth.service';
 import { puedeVerIncidentes, puedeVerMantenimientos } from '../../core/utils/maquinaria-permisos';
 import { MantenimientoComponent } from '../mantenimiento/mantenimiento.component';
-import { ChecklistPlantillasComponent } from './checklist-plantillas/checklist-plantillas.component';
 import { LimpiezasComponent } from '../limpiezas/limpiezas.component';
 import { IncidenteService } from '../../core/services/incidente.service';
 import { of } from 'rxjs';
@@ -14,7 +13,7 @@ import { catchError, map } from 'rxjs/operators';
 @Component({
   selector: 'app-taller-tecnico',
   standalone: true,
-  imports: [CommonModule, LucideAngularModule, IncidentesComponent, MantenimientoComponent, ChecklistPlantillasComponent, LimpiezasComponent],
+  imports: [CommonModule, LucideAngularModule, IncidentesComponent, MantenimientoComponent, LimpiezasComponent],
   template: `
     <div class="space-y-6 animate-fade-in">
       
@@ -75,21 +74,6 @@ import { catchError, map } from 'rxjs/operators';
           </button>
           }
 
-          @if (verChecklist) {
-          <button
-            type="button"
-            role="tab"
-            id="tab-taller-checklist"
-            aria-controls="panel-taller-checklist"
-            [attr.aria-selected]="activeTab === 'checklist'"
-            (click)="activeTab = 'checklist'"
-            class="pb-3 min-h-10 text-sm font-bold border-b-2 transition-colors flex items-center gap-2"
-            [ngClass]="activeTab === 'checklist' ? 'border-easydry-blue text-easydry-blue' : 'border-transparent text-slate-500 hover:text-slate-700'">
-            <i-lucide name="check-circle-2" class="w-4 h-4" aria-hidden="true"></i-lucide>
-            Checklist
-          </button>
-          }
-
           @if (verLimpiezas) {
           <button
             type="button"
@@ -119,11 +103,6 @@ import { catchError, map } from 'rxjs/operators';
             <app-incidentes [hideHeader]="true"></app-incidentes>
           </div>
         }
-        @if (activeTab === 'checklist' && verChecklist) {
-          <div role="tabpanel" id="panel-taller-checklist" aria-labelledby="tab-taller-checklist">
-            <app-checklist-plantillas></app-checklist-plantillas>
-          </div>
-        }
         @if (activeTab === 'limpiezas' && verLimpiezas) {
           <div role="tabpanel" id="panel-taller-limpiezas" aria-labelledby="tab-taller-limpiezas">
             <app-limpiezas [hideHeader]="true"></app-limpiezas>
@@ -138,13 +117,11 @@ export class TallerTecnicoComponent {
   private auth = inject(AuthService);
   verMantenimientos = puedeVerMantenimientos(this.auth);
   verIncidentes = puedeVerIncidentes(this.auth);
-  // Editar las plantillas del checklist es del coordinador de mantenimiento y los administradores.
-  verChecklist = this.auth.puede('taller.checklist.gestionar');
   // Auditoría de limpiezas: admin/super admin (todo el país), supervisor y coord. mantenimiento (su
   // región), coord. de servicios especiales (sus pulidores) — el backend resuelve el alcance.
   verLimpiezas = this.auth.puede('limpiezas.ver');
-  activeTab: 'mantenimiento' | 'incidentes' | 'checklist' | 'limpiezas' =
-    this.verMantenimientos ? 'mantenimiento' : (this.verIncidentes ? 'incidentes' : (this.verChecklist ? 'checklist' : 'limpiezas'));
+  activeTab: 'mantenimiento' | 'incidentes' | 'limpiezas' =
+    this.verMantenimientos ? 'mantenimiento' : (this.verIncidentes ? 'incidentes' : 'limpiezas');
 
   private incidenteService = inject(IncidenteService);
   hayIncidentesPendientes$ = this.verIncidentes

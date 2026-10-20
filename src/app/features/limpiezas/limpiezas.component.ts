@@ -12,6 +12,7 @@ import { InfiniteScrollComponent } from '../../shared/components/infinite-scroll
 import { ModalComponent } from '../../shared/components/modal/modal.component';
 import { SkeletonLoaderComponent } from '../../shared/components/skeleton-loader/skeleton-loader.component';
 import { ThumbSrcDirective } from '../../shared/directives/thumb-src.directive';
+import { VisorMediaService } from '../../shared/services/visor-media.service';
 import { fechaLocal } from '../../core/utils/evidencia-maquinaria';
 import { puedeEditarLimpiezas, puedeExportarLimpiezas } from '../../core/utils/maquinaria-permisos';
 import { PAGE_SIZE_INFINITO } from '../../core/config/paginacion';
@@ -138,12 +139,6 @@ import { PAGE_SIZE_INFINITO } from '../../core/config/paginacion';
         </app-infinite-scroll>
       }
 
-      <app-modal [isOpen]="!!fotoAmpliada" title="Foto de limpieza" icon="sparkles" size="md" (close)="fotoAmpliada = null">
-        @if (fotoAmpliada) {
-          <img [appThumb]="fotoAmpliada" class="w-full rounded-xl" alt="Foto de limpieza ampliada">
-        }
-      </app-modal>
-
       <app-modal [isOpen]="!!editando" title="Editar observaciones" icon="pencil" size="sm" (close)="cerrarEditar()">
         @if (editando) {
           <div class="space-y-3">
@@ -168,9 +163,9 @@ export class LimpiezasComponent implements OnInit, OnDestroy {
   private maquinariaService = inject(MaquinariaService);
   private authService = inject(AuthService);
   private toastService = inject(ToastService);
+  private visor = inject(VisorMediaService);
 
   pendientes = 0;
-  fotoAmpliada: string | null = null;
   maquinas: { id: string; codigo: string; nombre: string }[] = [];
   filtroMaquinariaId = '';
   exportando = false;
@@ -205,7 +200,7 @@ export class LimpiezasComponent implements OnInit, OnDestroy {
   }
 
   abrirFoto(url: string): void {
-    this.fotoAmpliada = url;
+    void this.visor.abrir(url, { titulo: 'Foto de limpieza', tipo: 'imagen' });
   }
 
   fecha(iso: string): string {

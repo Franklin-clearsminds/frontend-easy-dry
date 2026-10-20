@@ -9,6 +9,8 @@ export interface MenuItem {
   badge?: string;
   badgeIcon?: string; // Icono para badges gráficos (ej. 'alert-triangle')
   badgeColor?: string;
+  /** Si está, el punto del menú es dinámico: solo se ve mientras ese indicador tenga algo por atender. */
+  indicador?: 'notificaciones' | 'taller' | 'envios' | 'aprobaciones';
   group?: string;
 }
 
@@ -40,6 +42,7 @@ export const MENU_CONFIG: MenuItem[] = [
     icon: 'bell',
     moduloCodigo: 'notificaciones',
     group: 'Panel Principal',
+    indicador: 'notificaciones',
     badgeIcon: 'alert-circle-filled',
     badgeColor: 'bg-rose-500 text-white'
   },
@@ -80,7 +83,10 @@ export const MENU_CONFIG: MenuItem[] = [
     route: '/aprobaciones',
     icon: 'shield-check',
     moduloCodigo: 'aprobaciones',
-    group: 'Servicios de Lavado'
+    group: 'Servicios de Lavado',
+    indicador: 'aprobaciones',
+    badgeIcon: 'alert-circle-filled',
+    badgeColor: 'bg-amber-500 text-white'
   },
   {
     label: 'Productividad & Reto',
@@ -104,6 +110,7 @@ export const MENU_CONFIG: MenuItem[] = [
     icon: 'wrench',
     moduloCodigo: 'taller-tecnico',
     group: 'Activos & Taller',
+    indicador: 'taller',
     badgeIcon: 'alert-circle-filled',
     badgeColor: 'bg-rose-500 text-white'
   },
@@ -120,6 +127,7 @@ export const MENU_CONFIG: MenuItem[] = [
     icon: 'send',
     moduloCodigo: 'envios',
     group: 'Activos & Taller',
+    indicador: 'envios',
     badgeIcon: 'alert-circle-filled',
     badgeColor: 'bg-amber-500 text-white'
   },

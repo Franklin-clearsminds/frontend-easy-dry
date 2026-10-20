@@ -1,3 +1,4 @@
+import { VerMediaDirective } from '../../../shared/directives/ver-media.directive';
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -32,7 +33,7 @@ import { descargarExcel5s, descargarPdf5s } from './auditoria5s-export';
 @Component({
   selector: 'app-auditoria5s-detail',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, LucideAngularModule, ModalComponent, ChartCardComponent, ThumbSrcDirective, EvidenciasFotosComponent, Semaforo5sComponent, HistorialInformeComponent],
+  imports: [CommonModule, FormsModule, RouterLink, LucideAngularModule, ModalComponent, ChartCardComponent, ThumbSrcDirective, VerMediaDirective, EvidenciasFotosComponent, Semaforo5sComponent, HistorialInformeComponent],
   template: `
     <div class="space-y-5 animate-fade-in max-w-6xl mx-auto">
       <a routerLink="/auditorias-5s" class="btn btn-ghost btn-sm w-fit"><i-lucide name="arrow-left" class="w-4 h-4" aria-hidden="true"></i-lucide> Auditorías 5S</a>
@@ -114,7 +115,7 @@ import { descargarExcel5s, descargarPdf5s } from './auditoria5s-export';
                     @if (q.accionCorrectiva) { <p class="text-slate-700"><strong>Acción:</strong> {{ q.accionCorrectiva }}</p> }
                     @if (q.responsable || q.fechaCompromiso) { <p class="text-xs text-slate-500">{{ q.responsable || 'Sin responsable' }}@if (q.fechaCompromiso) { · compromiso {{ q.fechaCompromiso | date:'dd/MM/yyyy' }} }</p> }
                     @if (q.observaciones) { <p class="text-xs text-slate-500">{{ q.observaciones }}</p> }
-                    @if (q.fotos.length) { <div class="flex flex-wrap gap-2 pt-1">@for (f of q.fotos; track f) { <img [appThumb]="f" class="w-14 h-14 object-cover rounded-lg border border-slate-200" alt="Evidencia fotográfica del criterio"> }</div> }
+                    @if (q.fotos.length) { <div class="flex flex-wrap gap-2 pt-1">@for (f of q.fotos; track f) { <img [appThumb]="f" [appVerMedia]="f" appVerMediaTitulo="Evidencia del criterio" class="w-14 h-14 object-cover rounded-lg border border-slate-200" alt="Evidencia fotográfica del criterio"> }</div> }
                     @if (q.estadoAccion) { <span class="badge" [ngClass]="claseAccion(q.estadoAccion)">{{ nombreAccion(q.estadoAccion) }}</span> }
                   </div>
                   @if (a.formato === 'SI_NO_50') {
@@ -146,8 +147,8 @@ import { descargarExcel5s, descargarPdf5s } from './auditoria5s-export';
               <p><strong>Acción:</strong> {{ x.accion || '—' }}</p>
               @if (x.observaciones) { <p class="text-slate-600 whitespace-pre-line">{{ x.observaciones }}</p> }
               <div class="flex flex-wrap gap-2">
-                @for (f of x.evidenciaInicial; track f) { <img [appThumb]="f" class="w-14 h-14 object-cover rounded-lg border border-slate-200" alt="Evidencia inicial"> }
-                @for (f of x.evidenciaCorreccion; track f) { <img [appThumb]="f" class="w-14 h-14 object-cover rounded-lg border-2 border-emerald-300" alt="Evidencia de la corrección"> }
+                @for (f of x.evidenciaInicial; track f) { <img [appThumb]="f" [appVerMedia]="f" appVerMediaTitulo="Evidencia inicial" class="w-14 h-14 object-cover rounded-lg border border-slate-200" alt="Evidencia inicial"> }
+                @for (f of x.evidenciaCorreccion; track f) { <img [appThumb]="f" [appVerMedia]="f" appVerMediaTitulo="Evidencia de la corrección" class="w-14 h-14 object-cover rounded-lg border-2 border-emerald-300" alt="Evidencia de la corrección"> }
               </div>
               @if (x.estado === 'CERRADA') { <p class="text-xs text-emerald-700 font-semibold">Cerrada el {{ x.cerradaEn | date:'dd/MM/yyyy' }} · verificada por {{ x.verificadaPorNombre }}</p> }
               <div class="flex flex-wrap gap-2">

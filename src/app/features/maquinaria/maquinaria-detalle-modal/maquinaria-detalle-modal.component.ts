@@ -1,4 +1,5 @@
 import { Component, ElementRef, EventEmitter, Input, OnChanges, OnDestroy, Output, SimpleChanges, ViewChild, inject } from '@angular/core';
+import { VerMediaDirective } from '../../../shared/directives/ver-media.directive';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LucideAngularModule } from 'lucide-angular';
@@ -21,7 +22,6 @@ import { PAGE_SIZE_INFINITO } from '../../../core/config/paginacion';
 import { EvidenciaGaleriaComponent } from '../../../shared/components/evidencia-galeria/evidencia-galeria.component';
 import { ThumbSrcDirective } from '../../../shared/directives/thumb-src.directive';
 import { TrabajoAccionesComponent, mensajeError } from '../trabajo-acciones/trabajo-acciones.component';
-import { ChecklistOrdenComponent } from '../../mantenimiento/checklist-orden/checklist-orden.component';
 import { MaquinaAccionesComponent } from '../maquina-acciones/maquina-acciones.component';
 import { fechaHoraLocal, fechaProgramadaLocal, validarFotos } from '../../../core/utils/evidencia-maquinaria';
 import { badgeClase, BADGE_NO_ATENDIDO } from '../../../core/utils/badges';
@@ -51,7 +51,7 @@ interface EventoVista {
   standalone: true,
   imports: [
     CommonModule, FormsModule, LucideAngularModule, ModalComponent, EvidenciaGaleriaComponent, VisorArchivoComponent,
-    ThumbSrcDirective, TrabajoAccionesComponent, MaquinaAccionesComponent, InfiniteScrollComponent, ChecklistOrdenComponent,
+    ThumbSrcDirective, VerMediaDirective, TrabajoAccionesComponent, MaquinaAccionesComponent, InfiniteScrollComponent,
   ],
   template: `
     <app-modal
@@ -74,7 +74,7 @@ interface EventoVista {
           <!-- Cabecera -->
           <div class="flex flex-col sm:flex-row gap-4 items-start">
             @if (ficha.fotoUrl) {
-              <img [appThumb]="ficha.fotoUrl" [alt]="'Foto de ' + ficha.nombre" class="w-full sm:w-44 h-32 object-cover rounded-2xl border border-slate-200 bg-slate-100">
+              <img [appThumb]="ficha.fotoUrl" [appVerMedia]="ficha.fotoUrl" [appVerMediaTitulo]="'Foto de ' + ficha.nombre" [alt]="'Foto de ' + ficha.nombre" class="w-full sm:w-44 h-32 object-cover rounded-2xl border border-slate-200 bg-slate-100">
             }
             <div class="flex-1 min-w-0 space-y-2">
               <div class="flex items-center gap-2 flex-wrap">
@@ -352,7 +352,6 @@ interface EventoVista {
                           <span [class]="badgeNoAtendido">No atendido</span>
                         }
                         <span [class]="badgeClase('mantenimiento', m.estadoRaw)">{{ m.estado }}</span>
-                        <span class="badge badge-neutral">{{ m.tipo }}</span>
                       </div>
                       <p class="font-bold text-sm mt-1" [ngClass]="m.noAtendido ? 'text-rose-800' : 'text-slate-900'">Programado: {{ fechaProg(m.fechaProgramada) }}</p>
                       <p class="text-xs text-slate-500">
@@ -381,9 +380,6 @@ interface EventoVista {
                       <p class="text-slate-700 break-words"><strong>Observaciones:</strong> {{ m.descripcion || '—' }}</p>
                       @if (m.frecuenciaDias) { <p class="text-slate-700"><strong>Frecuencia:</strong> cada {{ m.frecuenciaDias }} días</p> }
                       @if (m.repuestosUtilizados?.length) { <p class="text-slate-700"><strong>Repuestos:</strong> {{ m.repuestosUtilizados!.join(', ') }}</p> }
-                      @if (m.estadoRaw === 'FINALIZADO') {
-                        <app-checklist-orden [mantenimientoId]="'' + m.id" [editable]="false"></app-checklist-orden>
-                      }
                       <app-evidencia-galeria [evidencias]="m.evidencias || []"></app-evidencia-galeria>
                     </div>
                   }
@@ -420,7 +416,7 @@ interface EventoVista {
               @if (ficha.limpieza.ultimasFotos.length) {
                 <div class="flex items-center gap-1.5 flex-wrap">
                   @for (foto of ficha.limpieza.ultimasFotos; track foto) {
-                    <img [appThumb]="foto" class="w-10 h-10 rounded-lg object-cover border border-slate-200" alt="Foto de la última limpieza">
+                    <img [appThumb]="foto" [appVerMedia]="foto" appVerMediaTitulo="Última limpieza" class="w-10 h-10 rounded-lg object-cover border border-slate-200" alt="Foto de la última limpieza">
                   }
                 </div>
               }
@@ -462,7 +458,7 @@ interface EventoVista {
                   @if (l.fotos.length) {
                     <div class="flex items-center gap-1.5 flex-wrap">
                       @for (foto of l.fotos; track foto) {
-                        <img [appThumb]="foto" class="w-12 h-12 rounded-lg object-cover border border-slate-200" alt="Foto de limpieza">
+                        <img [appThumb]="foto" [appVerMedia]="foto" appVerMediaTitulo="Foto de limpieza" class="w-12 h-12 rounded-lg object-cover border border-slate-200" alt="Foto de limpieza">
                       }
                     </div>
                   }

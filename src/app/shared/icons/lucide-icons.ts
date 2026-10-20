@@ -150,6 +150,8 @@ import {
   Crown,
   Edit2,
   Maximize,
+  Maximize2,
+  Minimize2,
   PackageX,
   Phone,
   Power,
@@ -326,6 +328,8 @@ export const EASYDRY_ICONS = {
   Edit2,
   Maximize,
   PackageX,
+  Maximize2,
+  Minimize2,
   Phone,
   Power,
   Square,
@@ -497,5 +501,7 @@ export const EASYDRY_ICONS = {
   'pen-tool': PenTool,
   'paperclip': Paperclip,
   'printer': Printer,
-  'chevrons-up-down': ChevronsUpDown
+  'chevrons-up-down': ChevronsUpDown,
+  'maximize-2': Maximize2,
+  'minimize-2': Minimize2
 };

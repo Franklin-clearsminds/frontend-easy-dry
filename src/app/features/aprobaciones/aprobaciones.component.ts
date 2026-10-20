@@ -12,6 +12,7 @@ import { AuthService } from '../../core/services/auth.service';
 import { VehiculoServicio } from '../../core/models';
 import { ModalComponent } from '../../shared/components/modal/modal.component';
 import { ToastService } from '../../shared/services/toast.service';
+import { VisorMediaService } from '../../shared/services/visor-media.service';
 import { StorageUploadService } from '../../core/services/storage-upload.service';
 import { FilterBarComponent, FilterState } from '../../shared/components/filter-bar/filter-bar.component';
 
@@ -175,7 +176,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                 (click)="verVideo(item)"
                 class="w-full py-2 bg-slate-100 hover:bg-easydry-blue hover:text-white text-slate-700 font-bold rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5">
                 <i-lucide aria-hidden="true" name="film" class="w-3.5 h-3.5 text-easydry-green"></i-lucide>
-                <span>Inspeccionar Evidencia Vídeo</span>
+                <span>Inspeccionar evidencia (vídeos y fotos)</span>
               </button>
 
               @if (item.estado === 'FINALIZADO') {
@@ -326,27 +327,29 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
         </div>
       </app-modal>
 
-      <!-- Modal: inspección de la evidencia en video -->
-      <app-modal size="lg"
+      <!-- Modal: evidencia del servicio. Lista todo lo registrado y cada archivo se abre en el visor común -->
+      <app-modal size="md"
         [isOpen]="modalVideoOpen"
-        [title]="'Evidencia en Vídeo: ' + (servicioVideo?.placa || '')"
+        [title]="'Evidencia del servicio: ' + (servicioVideo?.placa || '')"
         icon="film"
         (close)="modalVideoOpen = false">
         @if (servicioVideo) {
           <div class="space-y-4">
-            <div class="aspect-video bg-black rounded-2xl overflow-hidden shadow-inner flex items-center justify-center">
-              @if (servicioVideo.videoUrl || servicioVideo.video) {
-                <video
-                  aria-label="Vídeo de evidencia del servicio"
-                  [src]="videoEvidenciaUrl"
-                  controls
-                  autoplay
-                  class="w-full h-full object-contain">
-                </video>
-              } @else {
-                <p class="text-white/80 text-sm font-medium px-6 text-center">No hay vídeo de evidencia registrado para este servicio.</p>
-              }
-            </div>
+            @for (e of evidenciasServicio; track e.url) {
+              <button type="button" (click)="abrirEvidencia(e)"
+                class="w-full flex items-center gap-3 p-3 rounded-xl border border-slate-200 bg-slate-50 hover:bg-white hover:border-easydry-blue transition-colors cursor-pointer text-left">
+                <span class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                  [ngClass]="e.tipo === 'video' ? 'bg-slate-900 text-white' : 'bg-easydry-blue/10 text-easydry-blue'">
+                  <i-lucide aria-hidden="true" [name]="e.tipo === 'video' ? 'play' : 'image'" class="w-5 h-5"></i-lucide>
+                </span>
+                <span class="flex-1 min-w-0">
+                  <span class="block text-sm font-bold text-slate-900">{{ e.etiqueta }}</span>
+                  <span class="block text-xs text-slate-500">{{ e.tipo === 'video' ? 'Clic para reproducir' : 'Clic para ver en grande' }}</span>
+                </span>
+              </button>
+            } @empty {
+              <p class="estado-vacio">Este servicio no tiene evidencia multimedia registrada.</p>
+            }
             <div class="p-3 bg-slate-50 rounded-xl text-xs space-y-1">
               <p class="font-bold text-slate-900">{{ servicioVideo.marca }} {{ servicioVideo.modelo }} ({{ servicioVideo.placa }})</p>
               <p class="text-slate-500">Orden: <strong>{{ servicioVideo.ordenTrabajoOT }}</strong> • Atendido por: <strong>{{ servicioVideo.empleado }}</strong></p>
@@ -354,7 +357,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
           </div>
         }
         <div modal-footer>
-          <button (click)="modalVideoOpen = false" class="btn btn-secondary w-full sm:w-auto">Cerrar Inspección</button>
+          <button (click)="modalVideoOpen = false" class="btn btn-secondary w-full sm:w-auto">Cerrar</button>
         </div>
       </app-modal>
     </div>
@@ -383,8 +386,6 @@ export class AprobacionesComponent implements OnInit, OnDestroy {
 
   modalRechazarOpen = false;
   modalVideoOpen = false;
-  /** URL ya resuelta (prefirmada si el archivo es privado) para el <video> del modal `modalVideoOpen`. */
-  videoEvidenciaUrl = '';
   modalAprobarTodosOpen = false;
   modalAnularOpen = false;
   motivoRechazo = '';
@@ -399,6 +400,7 @@ export class AprobacionesComponent implements OnInit, OnDestroy {
   private authService = inject(AuthService);
   private toastService = inject(ToastService);
   readonly storageUploadService = inject(StorageUploadService);
+  private readonly visorMedia = inject(VisorMediaService);
 
   get totalAprobados(): number { return this.resumen?.porEstado?.['APROBADO'] ?? 0; }
   get totalServicios(): number { return this.resumen?.total ?? 0; }
@@ -633,18 +635,28 @@ export class AprobacionesComponent implements OnInit, OnDestroy {
     });
   }
 
-  async verVideo(item: VehiculoServicio) {
+  /** Evidencias del servicio abierto: video de ingreso, video de salida y fotos, cada una con su nombre. */
+  evidenciasServicio: { tipo: 'video' | 'imagen'; etiqueta: string; url: string }[] = [];
+
+  verVideo(item: VehiculoServicio): void {
     this.servicioVideo = item;
-    this.videoEvidenciaUrl = '';
+    const lista: { tipo: 'video' | 'imagen'; etiqueta: string; url: string }[] = [];
+    const agregar = (etiqueta: string, url?: string | null) => {
+      const limpia = String(url ?? '').trim();
+      if (!limpia || lista.some((e) => e.url === limpia)) return;
+      lista.push({ tipo: this.visorMedia.tipoDe(limpia) === 'video' ? 'video' : 'imagen', etiqueta, url: limpia });
+    };
+    // `videoUrl` del servidor es «el final, o el inicial si no hay final»: solo sirve si no llegaron los dos de verdad.
+    agregar('Video de ingreso', item.videoInicialUrl);
+    agregar('Video de salida', item.videoFinalUrl);
+    if (!item.videoInicialUrl && !item.videoFinalUrl) agregar('Video del servicio', item.videoUrl || item.video);
+    agregar('Foto de ingreso', item.fotoIngresoUrl);
+    agregar('Foto de salida', item.fotoSalidaUrl);
+    this.evidenciasServicio = lista;
     this.modalVideoOpen = true;
-    const url = item.videoUrl || item.video;
-    if (!url) return;
-    // Resuelve primero la URL prefirmada (si el archivo es privado) en vez de intentar /storage/file
-    // directamente, que respondería 403 para evidencias privadas.
-    try {
-      this.videoEvidenciaUrl = await this.storageUploadService.getDirectStreamingUrl(url);
-    } catch {
-      this.videoEvidenciaUrl = this.storageUploadService.resolveBackendUrl(url);
-    }
+  }
+
+  abrirEvidencia(e: { tipo: 'video' | 'imagen'; etiqueta: string; url: string }): void {
+    void this.visorMedia.abrir(e.url, { titulo: `${e.etiqueta}: ${this.servicioVideo?.placa ?? ''}`.trim(), tipo: e.tipo });
   }
 }

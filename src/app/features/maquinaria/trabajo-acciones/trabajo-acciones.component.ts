@@ -15,7 +15,6 @@ import { ModalComponent } from '../../../shared/components/modal/modal.component
 import { TecnicoSearchSelectComponent, TecnicoOpcion } from '../../../shared/components/tecnico-search-select/tecnico-search-select.component';
 import { EvidenciaSelectorComponent } from '../../../shared/components/evidencia-selector/evidencia-selector.component';
 import { ToastService } from '../../../shared/services/toast.service';
-import { ChecklistOrdenComponent, EstadoChecklist } from '../../mantenimiento/checklist-orden/checklist-orden.component';
 import { puedeAgregarEvidenciaMaquinaria, puedeCorregirCostoMaquinaria, puedeEvidenciaIncidente, puedeEvidenciaMantenimiento, puedeResolverIncidentes, puedeCancelarIncidentes } from '../../../core/utils/maquinaria-permisos';
 
 /** Mensaje de error del backend tal cual (400/403...) o el del propio cliente. */
@@ -40,7 +39,7 @@ const TIPOS_FALLA = [
 @Component({
   selector: 'app-trabajo-acciones',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, TecnicoSearchSelectComponent, EvidenciaSelectorComponent, ChecklistOrdenComponent],
+  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, TecnicoSearchSelectComponent, EvidenciaSelectorComponent],
   template: `
     <!-- ================= REPORTAR INCIDENCIA ================= -->
     <app-modal [isOpen]="rep.open" title="Reportar incidencia" icon="alert-triangle" size="lg" zClass="z-[10100]" (close)="rep.open = false">
@@ -261,12 +260,6 @@ const TIPOS_FALLA = [
 
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label for="ta-prog-tipo" class="field-label">Tipo</label>
-              <select id="ta-prog-tipo" [(ngModel)]="prog.tipo" name="prog-tipo" class="field select-chevron">
-                <option value="PREVENTIVO">Preventivo</option><option value="CORRECTIVO">Correctivo</option>
-              </select>
-            </div>
-            <div>
               <label for="ta-prog-fecha" class="field-label">Fecha programada</label>
               <input id="ta-prog-fecha" type="date" [(ngModel)]="prog.fecha" name="prog-fecha" class="field">
             </div>
@@ -322,10 +315,6 @@ const TIPOS_FALLA = [
             <input id="ta-eje-costo" type="number" min="0" step="0.01" [(ngModel)]="eje.costoTotal" name="eje-costo" class="field" placeholder="0.00">
           </div>
 
-          <app-checklist-orden [mantenimientoId]="eje.id" [editable]="eje.puedeMarcar"
-            soloLecturaMotivo="solo el técnico asignado o un administrador puede marcar los pasos"
-            (estado)="estadoChecklist = $event"></app-checklist-orden>
-
           @if (puedeSubirEvidenciasMantenimiento) {
             <app-evidencia-selector #selEjecutar
               contexto="MANTENIMIENTO"
@@ -341,10 +330,7 @@ const TIPOS_FALLA = [
       }
       <div modal-footer>
         <button type="button" (click)="eje.open = false" [disabled]="enviando" class="btn btn-secondary w-full sm:w-auto">Cancelar</button>
-        @if (estadoChecklist.requerido && estadoChecklist.obligatoriosPendientes > 0) {
-          <span class="text-xs font-semibold text-amber-700 sm:mr-auto" role="status">Faltan {{ estadoChecklist.obligatoriosPendientes }} pasos obligatorios del checklist.</span>
-        }
-        <button type="button" (click)="confirmarEjecucion()" [disabled]="enviando || eje.costoTotal == null || (estadoChecklist.requerido && estadoChecklist.obligatoriosPendientes > 0)" class="btn btn-primary w-full sm:w-auto">
+        <button type="button" (click)="confirmarEjecucion()" [disabled]="enviando || eje.costoTotal == null" class="btn btn-primary w-full sm:w-auto">
           {{ enviando ? 'Guardando...' : 'Confirmar ejecución' }}
         </button>
       </div>
@@ -356,12 +342,6 @@ const TIPOS_FALLA = [
         <div class="space-y-4">
           <p class="text-xs text-slate-500">Los cambios quedan registrados en la línea de tiempo con el valor anterior y el nuevo.</p>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label for="ta-emt-tipo" class="field-label">Tipo</label>
-              <select id="ta-emt-tipo" [(ngModel)]="emt.tipo" name="emt-tipo" class="field select-chevron">
-                <option value="PREVENTIVO">Preventivo</option><option value="CORRECTIVO">Correctivo</option>
-              </select>
-            </div>
             @if (!emt.finalizado) {
               <div>
                 <label for="ta-emt-fecha" class="field-label">Fecha programada</label>
@@ -475,11 +455,9 @@ export class TrabajoAccionesComponent {
   asg = { open: false, tipo: 'INCIDENTE' as 'INCIDENTE' | 'MANTENIMIENTO', id: '', titulo: '', actualNombre: '', tecnicoId: '', destinoTallerId: '', opciones: [] as TecnicoOpcion[] };
   res = { open: false, id: '', maquinaId: '', maquinaCodigo: '', titulo: '', descripcion: '', estado: 'RESUELTO' as 'RESUELTO' | 'CANCELADO', solucion: '', repuestos: '', costoTotal: null as number | null };
   edi = { open: false, id: '', titulo: '', descripcion: '', gravedad: 'MEDIA', solucion: '', tieneSolucion: false, costoTotal: null as number | null };
-  prog = { open: false, fija: false, maquinas: [] as Maquinaria[], maquinaId: '', tipo: 'PREVENTIVO' as 'PREVENTIVO' | 'CORRECTIVO', fecha: '', frecuenciaDias: 30, tecnicoId: '', observaciones: '', opciones: [] as TecnicoOpcion[] };
+  prog = { open: false, fija: false, maquinas: [] as Maquinaria[], maquinaId: '', fecha: '', frecuenciaDias: 30, tecnicoId: '', observaciones: '', opciones: [] as TecnicoOpcion[] };
   eje = { open: false, id: '', maquinaId: '', maquinaCodigo: '', titulo: '', fechaProgramada: '', observaciones: '', costoTotal: null as number | null, puedeMarcar: false };
-  /** Resumen del checklist de la orden que se está ejecutando (lo emite el componente del checklist). */
-  estadoChecklist: EstadoChecklist = { cargado: false, requerido: false, obligatoriosPendientes: 0 };
-  emt = { open: false, id: '', tipo: 'PREVENTIVO' as 'PREVENTIVO' | 'CORRECTIVO', fecha: '', frecuenciaDias: 0, costoTotal: null as number | null, repuestos: '', observaciones: '', finalizado: false };
+  emt = { open: false, id: '', fecha: '', frecuenciaDias: 0, costoTotal: null as number | null, repuestos: '', observaciones: '', finalizado: false };
   evi = { open: false, entidad: 'INCIDENTE' as 'INCIDENTE' | 'MANTENIMIENTO', id: '', maquinaId: '', maquinaCodigo: '', titulo: '', etapa: 'REPORTE' as 'REPORTE' | 'REPARACION', reemplazaId: '', existentes: [] as EvidenciaMaquinaria[] };
 
   get miId(): string {
@@ -600,7 +578,7 @@ export class TrabajoAccionesComponent {
     const opciones = await this.opcionesTecnicos(m.regionId);
     this.asg = {
       open: true, tipo: 'MANTENIMIENTO', id: String(m.id),
-      titulo: `${m.maquina} · ${m.tipo} · ${m.fecha}`,
+      titulo: `${m.maquina} · ${m.fecha}`,
       actualNombre: m.tecnicoAsignadoId ? (m.tecnicoAsignadoNombre || '') : '', tecnicoId: '', destinoTallerId: '',
       opciones,
     };
@@ -720,7 +698,7 @@ export class TrabajoAccionesComponent {
     const opciones = await this.opcionesTecnicos(primera.regionId);
     this.prog = {
       open: true, fija: !!maq, maquinas: lista, maquinaId: String(primera.id),
-      tipo: 'PREVENTIVO', fecha: new Date().toISOString().substring(0, 10), frecuenciaDias: 30, tecnicoId: '',
+      fecha: new Date().toISOString().substring(0, 10), frecuenciaDias: 30, tecnicoId: '',
       observaciones: '', opciones,
     };
   }
@@ -740,7 +718,6 @@ export class TrabajoAccionesComponent {
       const creado = await firstValueFrom(this.mantenimientoService.programarMantenimiento({
         maquinariaId: this.prog.maquinaId,
         tecnicoId: this.prog.tecnicoId || undefined,
-        tipo: this.prog.tipo,
         observaciones: this.prog.observaciones.trim(),
         fechaProgramada: this.prog.fecha,
         frecuenciaDias: Number(this.prog.frecuenciaDias || 0),
@@ -756,13 +733,12 @@ export class TrabajoAccionesComponent {
 
   ejecutarMantenimiento(m: Mantenimiento): void {
     this.reset();
-    this.estadoChecklist = { cargado: false, requerido: false, obligatoriosPendientes: 0 };
     // Marcan el técnico asignado o quien gestiona maquinaria (administradores); el servidor valida igual.
     const puedeMarcar = this.authService.puede('mantenimientos.ejecutar')
       && (this.authService.puede('maquinaria.gestionar') || String(m.tecnicoAsignadoId || '') === this.miId);
     this.eje = {
       open: true, id: String(m.id), maquinaId: String(m.maquinariaId || ''), maquinaCodigo: m.maquinariaCodigo || '',
-      titulo: `${m.maquina} · ${m.tipo}`, fechaProgramada: m.fecha, observaciones: '', costoTotal: null, puedeMarcar,
+      titulo: m.maquina, fechaProgramada: m.fecha, observaciones: '', costoTotal: null, puedeMarcar,
     };
   }
 
@@ -794,7 +770,7 @@ export class TrabajoAccionesComponent {
   editarMantenimiento(m: Mantenimiento): void {
     this.reset();
     this.emt = {
-      open: true, id: String(m.id), tipo: m.tipoRaw === 'CORRECTIVO' ? 'CORRECTIVO' : 'PREVENTIVO',
+      open: true, id: String(m.id),
       fecha: m.fecha, frecuenciaDias: m.frecuenciaDias || 0, costoTotal: m.costoTotal ?? null,
       repuestos: (m.repuestosUtilizados || []).join(', '), observaciones: m.descripcion,
       finalizado: m.estadoRaw === 'FINALIZADO',
@@ -808,7 +784,6 @@ export class TrabajoAccionesComponent {
       const repuestos = this.emt.repuestos.split(',').map(r => r.trim()).filter(Boolean);
       await firstValueFrom(this.mantenimientoService.editarMantenimiento({
         mantenimientoId: this.emt.id,
-        tipo: this.emt.tipo,
         observaciones: this.emt.observaciones.trim() || undefined,
         repuestosUsados: repuestos.length ? repuestos : undefined,
         costoTotal: this.puedeCorregirCosto && this.emt.costoTotal != null && this.emt.costoTotal !== ('' as any) ? Number(this.emt.costoTotal) : undefined,

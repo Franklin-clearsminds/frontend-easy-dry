@@ -209,15 +209,31 @@ export class CatalogoServiciosComponent implements OnInit, OnDestroy {
       if (tabla === 'generales') this.recargar(this.generalesTabla, texto);
       else this.recargar(this.especialesTabla, texto);
     });
-    this.generalesTabla.reiniciar();
-    this.especialesTabla.reiniciar();
-    // Los insumos solo hacen falta para armar recetas y requieren poder ver el inventario.
-    if ((this.puedeEditarReceta('GENERAL') || this.puedeEditarReceta('ESPECIAL')) && this.authService.puede('inventario.ver')) {
-      this.inventarioService.cargarItems();
-      this.inventarioService.getItems().subscribe(items => {
-        this.productosInventario = items;
-      });
-    }
+    // Solo se pide la tabla de la pestaña activa; la otra se pide la primera vez que se entra a ella.
+    if (this.tabActiva === 'generales') this.generalesTabla.reiniciar();
+    else this.especialesTabla.reiniciar();
+  }
+
+  /**
+   * Los insumos solo hacen falta para armar recetas (dentro del modal de crear o editar) y requieren poder ver el inventario:
+   * se piden la primera vez que se abre uno, no al entrar a la pantalla.
+   */
+  private insumosRecetaPedidos = false;
+  private cargarInsumosSiHaceFalta(): void {
+    if (this.insumosRecetaPedidos) return;
+    if (!(this.puedeEditarReceta('GENERAL') || this.puedeEditarReceta('ESPECIAL')) || !this.authService.puede('inventario.ver')) return;
+    this.insumosRecetaPedidos = true;
+    this.inventarioService.cargarItems();
+    this.inventarioService.getItems().subscribe(items => {
+      this.productosInventario = items;
+    });
+  }
+
+  /** Cambia de pestaña y pide su tabla si todavía no se había cargado. */
+  seleccionarTab(tab: 'generales' | 'especiales'): void {
+    this.tabActiva = tab;
+    if (tab === 'generales' && !this.generalesTabla.inicializada) this.generalesTabla.reiniciar();
+    if (tab === 'especiales' && !this.especialesTabla.inicializada) this.especialesTabla.reiniciar();
   }
 
   /** Servicio nuevo: el servidor calcula el siguiente código (SER-### o ESP-###). */
@@ -232,6 +248,7 @@ export class CatalogoServiciosComponent implements OnInit, OnDestroy {
 
   // ── Modal de creación / edición (Generales y Especiales) ─────────────────
   abrirModalNuevo(categoria: 'GENERAL' | 'ESPECIAL' = 'GENERAL') {
+    this.cargarInsumosSiHaceFalta();
     if (!this.puedeCrear(categoria)) return;
     this.isEditing = false;
     this.servicioActual = {
@@ -254,6 +271,7 @@ export class CatalogoServiciosComponent implements OnInit, OnDestroy {
   }
 
   abrirModalEditar(servicio: CatalogoServicio) {
+    this.cargarInsumosSiHaceFalta();
     this.isEditing = true;
     this.servicioActual = {
       ...servicio,

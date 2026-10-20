@@ -38,6 +38,10 @@ export type RangoPeriodo = 'HOY' | 'SEMANA' | 'MES' | 'TRIMESTRE' | 'SEMESTRE' |
  */
 export type DimensionFiltro = 'GLOBAL' | 'REGION' | 'AGENCY' | 'POLISHER';
 
+/** Bloques de datos del dashboard ejecutivo; cada pestaña pide solo los suyos. */
+type GrupoEjecutivo = 'especiales' | 'produccion' | 'resumen' | 'servicios' | 'operadores' | 'pulidores' | 'maquinaria' | 'tecnico' | 'bodega' | 'alertas' | 'distribuidor';
+type TabEjecutivo = 'analitica' | 'auditoria' | 'inventario' | 'operacion' | 'taller' | 'aprobaciones';
+
 @Component({
   selector: 'app-dashboard',
   standalone: true,
@@ -121,6 +125,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   /** Suscripciones de la carga en curso: se cancelan al recargar para descartar respuestas obsoletas. */
   private carga = new Subscription();
+  /** Grupos de datos del dashboard ejecutivo ya pedidos con los filtros actuales (se vacía al cambiar los filtros). */
+  private readonly gruposCargados = new Set<GrupoEjecutivo>();
 
   rolLabel = '';
   contextLabel = '';
@@ -215,7 +221,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     { id: 'ESPECIAL', label: 'Servicios especiales' },
   ];
 
-  activeExecutiveTab: 'analitica' | 'auditoria' | 'inventario' | 'operacion' | 'taller' | 'aprobaciones' = 'analitica';
+  activeExecutiveTab: TabEjecutivo = 'analitica';
 
 
   /** Texto del rango consultado para la barra de resumen del período. */
@@ -1273,69 +1279,140 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.recargar();
   }
 
-  /** Solo se llama a los endpoints para los que el rol tiene permiso (evita errores 403 de fondo). */
+  /**
+   * Dashboard ejecutivo: al entrar solo se piden los datos de la pestaña abierta (y la producción, que define qué pestañas ve el rol).
+   * Los de las demás pestañas se piden la primera vez que se abren, y se vuelven a pedir cuando cambian los filtros. Cada pedido se
+   * limita a los endpoints para los que el rol tiene permiso (evita errores 403 de fondo).
+   */
   private cargarEjecutivo(): void {
+    this.gruposCargados.clear();
+    this.cargarGruposDeTab(this.activeExecutiveTab);
+  }
+
+  /** Cambia de pestaña y pide lo que le falta (si ya se cargó con los filtros actuales, no vuelve a pedir nada). */
+  seleccionarTab(tab: TabEjecutivo): void {
+    this.activeExecutiveTab = tab;
+    this.cargarGruposDeTab(tab);
+  }
+
+  /** Qué datos pinta cada pestaña. La producción va siempre: de ella salen las banderas que deciden qué pestañas ve cada rol. */
+  private gruposDeTab(tab: TabEjecutivo): GrupoEjecutivo[] {
+    switch (tab) {
+      case 'analitica': return ['produccion', 'resumen'];
+      case 'auditoria': return ['produccion', 'servicios', 'maquinaria', 'alertas'];
+      case 'operacion': return ['produccion', 'operadores', 'pulidores'];
+      case 'aprobaciones': return ['produccion'];
+      case 'taller': return ['produccion', 'tecnico'];
+      case 'inventario': return ['produccion', 'bodega', 'alertas', 'distribuidor'];
+    }
+  }
+
+  private cargarGruposDeTab(tab: TabEjecutivo): void {
+    this.cargarGrupos(this.gruposDeTab(tab), () => {
+      // La producción puede cambiar la pestaña (p. ej. el aprobador): se piden también los datos de la que quedó abierta.
+      if (this.activeExecutiveTab !== tab) this.cargarGruposDeTab(this.activeExecutiveTab);
+    });
+  }
+
+  /** Pide los grupos de datos que todavía no se cargaron con los filtros actuales; `alTerminar` corre cuando llegan. */
+  private cargarGrupos(grupos: GrupoEjecutivo[], alTerminar?: () => void): void {
     const filtro = this.filtroActual;
-    const peticiones: Observable<any>[] = [
-      this.dashboardService.getProduccion(filtro).pipe(tap((d) => {
-        this.isAdminView = d?.isAdminView || false;
-        this.isSupervisorView = d?.isSupervisorView || false;
-        this.isComercialView = d?.isComercialView || false;
-        this.isAprobadorView = d?.isAprobadorView || false;
-        this.isSuperAdminView = d?.isSuperAdminView || false;
-        this.isEjecutivoView = d?.isEjecutivoView || false;
-        
-        // Forzar vista de aprobaciones por defecto para el aprobador
-        if (this.isAprobadorView && !this.isEjecutivoView) {
-          this.activeExecutiveTab = 'aprobaciones';
-        }
-        
-        this.produccion = this.normalizeProduccion(d);
-        if (this.esAlcanceAgencia) {
-          if (this.incidentesTab === 'agencia') {
-            this.incidentesTab = 'bahia';
-          }
-        } else {
-          if (this.incidentesTab === 'bahia') {
-            this.incidentesTab = 'agencia';
-          }
-          if ((this.produccion?.topAgencias?.labels?.length ?? 0) <= 1 && (this.produccion?.topPulidores?.labels?.length ?? 0) > 0) {
-            this.incidentesTab = 'pulidor';
-          }
-        }
-      })),
-      this.dashboardService.getServiciosData(filtro).pipe(tap((d) => (this.serviciosData = d))),
-      this.dashboardService.getResumenEjecutivo(filtro).pipe(tap((d) => (this.resumenEjecutivo = d))),
-    ];
-    if (this.puedeVerUsuarios) {
-      peticiones.push(this.dashboardService.getOperadores(filtro).pipe(tap((d) => (this.operadores = d))));
-      peticiones.push(this.dashboardService.getRankingLavadores(filtro).pipe(tap((d) => (this.rankingLavadores = d))));
+    const pendientes = grupos.filter((g) => !this.gruposCargados.has(g));
+    const peticiones: Observable<any>[] = [];
+    const pedidos: GrupoEjecutivo[] = [];
+    for (const grupo of pendientes) {
+      const peticion = this.peticionDeGrupo(grupo, filtro);
+      this.gruposCargados.add(grupo); // también los que el rol no puede ver: no se vuelven a evaluar
+      if (!peticion) continue;
+      peticiones.push(peticion);
+      pedidos.push(grupo);
     }
-    if (this.puedeVerProductividad) {
-      peticiones.push(this.dashboardService.getRankingPulidores(filtro).pipe(tap((d) => (this.rankingPulidores = d))));
+    if (!peticiones.length) {
+      this.recargando = false;
+      return;
     }
-    if (this.puedeVerMaquinaria) {
-      peticiones.push(this.dashboardService.getMaquinaria(filtro).pipe(tap((d) => (this.maquinaria = this.aChartMaquinaria(d)))));
-      // Costos, MTTR y deuda de mantenimiento para el tab de Activos & Taller.
-      peticiones.push(this.dashboardService.getDashboardTecnico(filtro).pipe(tap((d) => {
-        this.tecnicoData = d;
-        if ((d?.mttrAgencia?.length ?? 0) <= 1 && (d?.mttrGravedad?.length ?? 0) > 0) {
-          this.mttrTab = 'gravedad';
-        }
-      })));
-    }
-    if (this.puedeVerAlertas || this.isComercialView || this.puedeVerInventario) {
-      // Salud de stock vs mínimo/ideal, déficit y alertas por categoría para el tab de Inventario / Catálogo Comercial.
-      peticiones.push(this.dashboardService.getDashboardBodegaDedicado(filtro).pipe(tap((d) => (this.bodegaData = d))));
-    }
-    if (this.puedeVerAlertas) {
-      peticiones.push(this.dashboardService.getAlertas(filtro).pipe(tap((d) => (this.alertas = d))));
-      peticiones.push(this.dashboardService.getDashboardDistribuidor(filtro, this.puedeVerAlertas).pipe(tap((d) => (this.distribuidorData = d))));
-    }
+    this.recargando = true;
     this.carga.add(forkJoin(peticiones).subscribe({
-      next: () => (this.recargando = false),
-      error: () => (this.recargando = false),
+      next: () => {
+        this.recargando = false;
+        alTerminar?.();
+      },
+      error: () => {
+        // Que se pueda reintentar al volver a abrir la pestaña.
+        for (const g of pedidos) this.gruposCargados.delete(g);
+        this.recargando = false;
+      },
     }));
+  }
+
+  private peticionDeGrupo(grupo: GrupoEjecutivo, filtro: any): Observable<any> | null {
+    switch (grupo) {
+      case 'especiales':
+        return this.dashboardService.getDashboardEspeciales(filtro).pipe(tap((d) => (this.especialesData = d)));
+      case 'produccion':
+        return this.dashboardService.getProduccion(filtro).pipe(tap((d) => {
+          this.isAdminView = d?.isAdminView || false;
+          this.isSupervisorView = d?.isSupervisorView || false;
+          this.isComercialView = d?.isComercialView || false;
+          this.isAprobadorView = d?.isAprobadorView || false;
+          this.isSuperAdminView = d?.isSuperAdminView || false;
+          this.isEjecutivoView = d?.isEjecutivoView || false;
+
+          // Forzar vista de aprobaciones por defecto para el aprobador
+          if (this.isAprobadorView && !this.isEjecutivoView) {
+            this.activeExecutiveTab = 'aprobaciones';
+          }
+
+          this.produccion = this.normalizeProduccion(d);
+          if (this.esAlcanceAgencia) {
+            if (this.incidentesTab === 'agencia') {
+              this.incidentesTab = 'bahia';
+            }
+          } else {
+            if (this.incidentesTab === 'bahia') {
+              this.incidentesTab = 'agencia';
+            }
+            if ((this.produccion?.topAgencias?.labels?.length ?? 0) <= 1 && (this.produccion?.topPulidores?.labels?.length ?? 0) > 0) {
+              this.incidentesTab = 'pulidor';
+            }
+          }
+        }));
+      case 'resumen':
+        return this.dashboardService.getResumenEjecutivo(filtro).pipe(tap((d) => (this.resumenEjecutivo = d)));
+      case 'servicios':
+        return this.dashboardService.getServiciosData(filtro).pipe(tap((d) => (this.serviciosData = d)));
+      case 'operadores':
+        if (!this.puedeVerUsuarios) return null;
+        return forkJoin([
+          this.dashboardService.getOperadores(filtro).pipe(tap((d) => (this.operadores = d))),
+          this.dashboardService.getRankingLavadores(filtro).pipe(tap((d) => (this.rankingLavadores = d))),
+        ]);
+      case 'pulidores':
+        if (!this.puedeVerProductividad) return null;
+        return this.dashboardService.getRankingPulidores(filtro).pipe(tap((d) => (this.rankingPulidores = d)));
+      case 'maquinaria':
+        if (!this.puedeVerMaquinaria) return null;
+        return this.dashboardService.getMaquinaria(filtro).pipe(tap((d) => (this.maquinaria = this.aChartMaquinaria(d))));
+      case 'tecnico':
+        // Costos, MTTR y deuda de mantenimiento para el tab de Activos & Taller.
+        if (!this.puedeVerMaquinaria) return null;
+        return this.dashboardService.getDashboardTecnico(filtro).pipe(tap((d) => {
+          this.tecnicoData = d;
+          if ((d?.mttrAgencia?.length ?? 0) <= 1 && (d?.mttrGravedad?.length ?? 0) > 0) {
+            this.mttrTab = 'gravedad';
+          }
+        }));
+      case 'bodega':
+        // Salud de stock vs mínimo/ideal, déficit y alertas por categoría para el tab de Inventario / Catálogo Comercial.
+        if (!(this.puedeVerAlertas || this.isComercialView || this.puedeVerInventario)) return null;
+        return this.dashboardService.getDashboardBodegaDedicado(filtro).pipe(tap((d) => (this.bodegaData = d)));
+      case 'alertas':
+        if (!this.puedeVerAlertas) return null;
+        return this.dashboardService.getAlertas(filtro).pipe(tap((d) => (this.alertas = d)));
+      case 'distribuidor':
+        if (!this.puedeVerAlertas) return null;
+        return this.dashboardService.getDashboardDistribuidor(filtro, this.puedeVerAlertas).pipe(tap((d) => (this.distribuidorData = d)));
+    }
   }
 
   private cargarTaller(): void {
@@ -1355,44 +1432,45 @@ export class DashboardComponent implements OnInit, OnDestroy {
     }));
   }
 
+  /** Servicios especiales: cada pestaña pide solo lo suyo (las de maquinaria e insumos, al abrirlas). */
   private cargarEspeciales(): void {
-    const peticiones: Observable<any>[] = [
-      this.dashboardService.getDashboardEspeciales(this.filtroActual).pipe(tap((d) => (this.especialesData = d))),
-    ];
-    if (this.puedeVerMaquinaria) {
-      peticiones.push(this.dashboardService.getMaquinaria(this.filtroActual).pipe(tap((d) => (this.maquinaria = this.aChartMaquinaria(d)))));
-      peticiones.push(this.dashboardService.getDashboardTecnico(this.filtroActual).pipe(tap((d) => {
-        this.tecnicoData = d;
-        if ((d?.mttrAgencia?.length ?? 0) <= 1 && (d?.mttrGravedad?.length ?? 0) > 0) {
-          this.mttrTab = 'gravedad';
-        }
-      })));
-    }
-    if (this.puedeVerInventario) {
-      peticiones.push(this.dashboardService.getDashboardBodegaDedicado(this.filtroActual).pipe(tap((d) => (this.bodegaData = d))));
-      peticiones.push(this.dashboardService.getDashboardDistribuidor(this.filtroActual, this.puedeVerAlertas).pipe(tap((d) => (this.distribuidorData = d))));
-      if (this.puedeVerAlertas) {
-        peticiones.push(this.dashboardService.getAlertas(this.filtroActual).pipe(tap((d) => (this.alertas = d))));
-      }
-    }
-    this.carga.add(forkJoin(peticiones).subscribe({
-      next: () => (this.recargando = false),
-      error: () => (this.recargando = false),
-    }));
+    this.gruposCargados.clear();
+    this.cargarGrupos(this.gruposDeEspeciales(this.especialesTab));
   }
 
-  private cargarBodega(): void {
-    const peticiones: Observable<any>[] = [
-      this.dashboardService.getDashboardBodegaDedicado(this.filtroActual).pipe(tap((d) => (this.bodegaData = d))),
-      this.dashboardService.getDashboardDistribuidor(this.filtroActual, this.puedeVerAlertas).pipe(tap((d) => (this.distribuidorData = d))),
-    ];
-    if (this.puedeVerAlertas) {
-      peticiones.push(this.dashboardService.getAlertas(this.filtroActual).pipe(tap((d) => (this.alertas = d))));
+  seleccionarTabEspeciales(tab: typeof this.especialesTab): void {
+    this.especialesTab = tab;
+    this.cargarGrupos(this.gruposDeEspeciales(tab));
+  }
+
+  private gruposDeEspeciales(tab: typeof this.especialesTab): GrupoEjecutivo[] {
+    switch (tab) {
+      // Los KPIs de resumen muestran también las herramientas operativas (técnico) y los insumos bajo mínimo (bodega).
+      case 'resumen': return ['especiales', 'tecnico', 'bodega'];
+      case 'pulidores': return ['especiales'];
+      case 'maquinaria': return ['especiales', 'tecnico', 'maquinaria'];
+      case 'insumos': return ['especiales', 'bodega', 'distribuidor', 'alertas'];
     }
-    this.carga.add(forkJoin(peticiones).subscribe({
-      next: () => (this.recargando = false),
-      error: () => (this.recargando = false),
-    }));
+  }
+
+  /** Bodega: el panel de bodega va siempre; alertas y consumo se piden con la pestaña que los muestra. */
+  private cargarBodega(): void {
+    this.gruposCargados.clear();
+    this.cargarGrupos(this.gruposDeBodega(this.bodegaTab));
+  }
+
+  seleccionarTabBodega(tab: typeof this.bodegaTab): void {
+    this.bodegaTab = tab;
+    this.cargarGrupos(this.gruposDeBodega(tab));
+  }
+
+  private gruposDeBodega(tab: typeof this.bodegaTab): GrupoEjecutivo[] {
+    switch (tab) {
+      case 'salud': return ['bodega', 'alertas'];
+      case 'reposicion': return ['bodega'];
+      case 'despachos': return ['bodega', 'alertas'];
+      case 'consumo': return ['bodega', 'alertas', 'distribuidor'];
+    }
   }
 
   // ── Rankings del dashboard de mantenimiento (Top 5 / Top 10, asc o desc) ──
@@ -1440,22 +1518,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
   /** Equipos distintos que registraron al menos una falla en el período. */
   get equiposConFallas(): number {
     return this.tecnicoData?.maquinasProblematicasRank?.labels?.length ?? 0;
-  }
-
-  /** Conteo de mantenimientos por tipo (preventivo / correctivo) para los KPI de programación. */
-  private conteoPorTipoMantenimiento(tipo: string): number {
-    const serie = this.tecnicoData?.chartTipoMantenimiento;
-    const labels: string[] = serie?.labels ?? [];
-    const datos: number[] = serie?.datasets?.[0]?.data ?? [];
-    return Number(datos[labels.indexOf(tipo)]) || 0;
-  }
-
-  get preventivosEjecutados(): number {
-    return this.conteoPorTipoMantenimiento('PREVENTIVO');
-  }
-
-  get correctivosEjecutados(): number {
-    return this.conteoPorTipoMantenimiento('CORRECTIVO');
   }
 
   // ── Rankings del dashboard de bodega (Top 5 / Top 10, asc o desc) ──

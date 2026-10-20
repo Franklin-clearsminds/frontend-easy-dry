@@ -504,14 +504,30 @@ export class MaquinariaComponent implements OnInit, OnDestroy {
         this.lista.reiniciar();
       });
     this.recargar();
+  }
 
+  /** Sucursales/bahías solo hacen falta en el modal "Registrar Nuevo Activo": antes se pedían siempre al entrar
+   * a la pantalla, aunque el usuario nunca fuera a registrar nada. */
+  private catalogosMaquinariaCargados = false;
+  private cargarCatalogosMaquinariaSiHaceFalta(): void {
+    if (this.catalogosMaquinariaCargados) return;
+    this.catalogosMaquinariaCargados = true;
     this.sucursalService.getSucursales().subscribe(list => {
       this.sucursales = list;
+      this.aplicarDefaultSucursalNuevaMaquina();
     });
-
     this.bahiaService.getBahias().subscribe(list => {
       this.todasLasBahias = list;
     });
+  }
+
+  /** Reaplica el default de sucursal/bahía si el catálogo llegó después de abrir el modal (primera vez). */
+  private aplicarDefaultSucursalNuevaMaquina(): void {
+    if (!this.modalCrearOpen || this.nuevaMaquina.agencia) return;
+    const sucursalInicial = this.sucursales[0]?.nombre || '';
+    if (!sucursalInicial) return;
+    this.nuevaMaquina.agencia = sucursalInicial;
+    this.nuevaMaquina.bahia = this.getBahiasDisponibles(sucursalInicial)[0] || '';
   }
 
   ngOnDestroy(): void {
@@ -642,6 +658,7 @@ export class MaquinariaComponent implements OnInit, OnDestroy {
   }
 
   abrirModalCrear() {
+    this.cargarCatalogosMaquinariaSiHaceFalta();
     const sucursalInicial = this.sucursales[0]?.nombre || '';
     const bahiasIniciales = this.getBahiasDisponibles(sucursalInicial);
     this.nuevaMaquina = {

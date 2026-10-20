@@ -303,7 +303,6 @@ export interface Maquinaria {
 export interface Mantenimiento {
   id: string | number;
   maquina: string;
-  tipo: 'Preventivo' | 'Correctivo' | 'Calibración' | string;
   fecha: string;
   fechaInicio?: string;
   horaInicio?: string;
@@ -339,7 +338,6 @@ export interface Mantenimiento {
   maquinariaCodigo?: string;
   regionId?: string;
   estadoRaw?: string;
-  tipoRaw?: string;
   fechaProgramada?: string;
   /** Fecha y hora reales de ejecución (independiente de la programada). */
   fechaEjecucion?: string;

@@ -462,14 +462,12 @@ export class DashboardOperativoService {
             labels: d.topMaquinasCostosas.map((m: any) => m.nombre),
             datasets: [{ label: 'Costo USD', data: d.topMaquinasCostosas.map((m: any) => m.costoTotal), backgroundColor: [CHART_COLORS.rose, CHART_COLORS.amber, CHART_COLORS.blue, CHART_COLORS.green, CHART_COLORS.slate] }]
           } : null,
-          chartTipoMantenimiento: toDonut(d?.tipoMantenimiento, 'nombre', 'cantidad'),
           chartTipoMaquinaria: toDonut(d?.distribucionTipoMaquinaria, 'nombre', 'total'),
           // Tabla próximos mantenimientos
           proxMantenimientos: d?.proxMantenimientos || [],
           // Costos y fiabilidad
           costoMantenimientos30d: d?.kpis?.costoMantenimientos30d ?? 0,
           mantenimientosVencidos: d?.kpis?.mantenimientosVencidos ?? 0,
-          chartCostoTipoMantenimiento: toDonut(d?.costoPorTipoMantenimiento, 'nombre', 'costo'),
           chartMttrGravedad: d?.mttrPorGravedad?.length ? {
             labels: d.mttrPorGravedad.map((x: any) => x.nombre),
             datasets: [{ 

@@ -1,5 +1,7 @@
 import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
+import { AvatarSrcDirective } from '../../shared/directives/avatar-src.directive';
 import { Component, HostListener, OnDestroy, OnInit, ViewChild, inject } from '@angular/core';
+import { VerMediaDirective } from '../../shared/directives/ver-media.directive';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
@@ -42,7 +44,7 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
 @Component({
   selector: 'app-inventario',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, ModalPortalDirective, ImageUploaderComponent, ConsumoServiciosComponent, ThumbSrcDirective, DataTableComponent, DataTableCellDirective, InfiniteScrollComponent, StockUbicacionInsumosComponent, PaginationComponent],
+  imports: [AvatarSrcDirective, CommonModule, FormsModule, LucideAngularModule, VerMediaDirective, ModalComponent, ModalPortalDirective, ImageUploaderComponent, ConsumoServiciosComponent, ThumbSrcDirective, DataTableComponent, DataTableCellDirective, InfiniteScrollComponent, StockUbicacionInsumosComponent, PaginationComponent],
   template: `
     <div class="space-y-6 animate-fade-in pb-16">
 
@@ -106,7 +108,7 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
           <!-- 2. Bodegas — CENTRAL / REGIONAL -->
           <button
             *ngIf="puedeVerInventario && puedeOperarBodega && puedeSubBodegas"
-            (click)="activeTab = 'bodegas'"
+            (click)="activeTab = 'bodegas'; cargarDatosDeTab('bodegas')"
             class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
             [ngClass]="activeTab === 'bodegas' ? 'bg-blue-50 text-easydry-blue font-extrabold shadow-2xs' : 'text-slate-600 hover:bg-slate-50'">
             <i-lucide aria-hidden="true" name="warehouse" class="w-4 h-4"></i-lucide>
@@ -117,7 +119,7 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
                para elegir destino de despacho ya usa el botón "Despachar", que no depende de esta pestaña) -->
           <button
             *ngIf="puedeVerInventario && !operaDesdeAgencia && puedeSubAgencias"
-            (click)="activeTab = 'agencias'"
+            (click)="activeTab = 'agencias'; cargarDatosDeTab('agencias')"
             class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
             [ngClass]="activeTab === 'agencias' ? 'bg-purple-50 text-purple-700 font-extrabold border border-purple-200 shadow-2xs' : 'text-slate-600 hover:bg-slate-50'">
             <i-lucide aria-hidden="true" name="store" class="w-4 h-4"></i-lucide>
@@ -145,7 +147,7 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
                líder, que ya tiene "Alertas de Reabastecimiento" filtrado a su propia sede) -->
           <button
             *ngIf="puedeVerStockBajoBodegaCentral"
-            (click)="activeTab = 'stock_bajo'"
+            (click)="activeTab = 'stock_bajo'; cargarDatosDeTab('stock_bajo')"
             class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
             [ngClass]="activeTab === 'stock_bajo' ? 'bg-rose-50 text-rose-700 font-extrabold border border-rose-200 shadow-2xs' : 'text-slate-600 hover:bg-slate-50'">
             <i-lucide aria-hidden="true" name="alert-triangle" class="w-4 h-4"></i-lucide>
@@ -158,7 +160,7 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
           <!-- 6. Alertas de Reabastecimiento -->
           <button
             *ngIf="puedeVerAlertas"
-            (click)="activeTab = 'alertas_reabastecimiento'"
+            (click)="activeTab = 'alertas_reabastecimiento'; cargarDatosDeTab('alertas_reabastecimiento')"
             class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
             [ngClass]="activeTab === 'alertas_reabastecimiento' ? 'bg-amber-50 text-amber-800 font-extrabold border border-amber-200 shadow-2xs' : 'text-slate-600 hover:bg-slate-50'">
             <i-lucide aria-hidden="true" name="bell-ring" class="w-4 h-4 text-amber-600"></i-lucide>
@@ -171,7 +173,7 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
           <!-- 7. Movimientos (Kardex) -->
           <button
             *ngIf="puedeVerInventario && puedeOperarBodega && puedeSubMovimientos"
-            (click)="activeTab = 'movimientos'"
+            (click)="activeTab = 'movimientos'; cargarDatosDeTab('movimientos')"
             class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
             [ngClass]="activeTab === 'movimientos' ? 'bg-blue-50 text-easydry-blue font-extrabold shadow-2xs' : 'text-slate-600 hover:bg-slate-50'">
             <i-lucide aria-hidden="true" name="refresh-cw" class="w-4 h-4"></i-lucide>
@@ -1067,7 +1069,7 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
               <div class="relative shrink-0">
                 <img loading="lazy" decoding="async"
                   *ngIf="asis.avatar"
-                  [src]="asis.avatar"
+                  [appAvatar]="asis.avatar" [appAvatarIniciales]="(asis.nombre || 'A').charAt(0)"
                   [alt]="asis.nombre"
                   class="w-11 h-11 rounded-full object-cover border-2 border-white shadow-xs" />
                 <div
@@ -2429,7 +2431,7 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
                   (change)="onImagenEntradaSeleccionada($event)">
                 
                 <div *ngIf="imagenEntradaPreview" class="relative w-full flex flex-col items-center justify-center">
-                  <img loading="lazy" decoding="async" [src]="imagenEntradaPreview" alt="Evidencia de Entrada" class="max-h-36 rounded-lg object-contain border border-emerald-200 mb-2 shadow-xs" />
+                  <img loading="lazy" decoding="async" [src]="imagenEntradaPreview" [appVerMedia]="imagenEntradaPreview" appVerMediaTitulo="Evidencia de entrada" alt="Evidencia de Entrada" class="max-h-36 rounded-lg object-contain border border-emerald-200 mb-2 shadow-xs" />
                   <div class="flex items-center gap-2 text-emerald-800">
                     <i-lucide aria-hidden="true" name="check-circle-2" class="w-4 h-4"></i-lucide>
                     <span class="text-xs font-bold">{{ imagenEntradaNombre || 'Evidencia cargada' }}</span>
@@ -4256,11 +4258,7 @@ export class InventarioComponent implements OnInit, OnDestroy {
     this.cargarInsumosPorServicios();
     this.cargarDespachosPendientes();
     this.cargarDespachosRechazadosSuperAdmin();
-    this.cargarStockBodega();
-    this.cargarStockAgencias();
-    this.cargarStockPulidoresResumen();
-    this.cargarAlertasStock();
-    this.cargarStockBajo();
+    this.cargarDatosDeTab(this.activeTab);
 
     // Cargar sedes activas para el selector de agencias
     if (this.auth.puede('agencias.ver')) this.sucursalService.getSucursales().subscribe((sucursales) => {
@@ -5068,10 +5066,8 @@ export class InventarioComponent implements OnInit, OnDestroy {
     this.cargarTiposMovimiento();
     this.cargarProductos();
     this.cargarDashboardResumen();
-    this.cargarHistorialMovimientos();
-    this.cargarStockBajo();
-    this.cargarStockBodega();
-    this.cargarStockAgencias();
+    // El Kardex, el stock bajo, el de bodega y el de agencias son datos de pestaña: se piden con `cargarDatosDeTab`
+    // al abrir cada una (antes también se pedían aquí, todos de golpe y otra vez al entrar a su pestaña).
   }
 
   public cargarTiposProducto(): void {
@@ -5396,6 +5392,24 @@ export class InventarioComponent implements OnInit, OnDestroy {
   public cargarStockBajo(): void {
     if (!this.puedeVerStockBajoBodegaCentral) return;
     this.stockBajoTabla.refrescar();
+  }
+
+  /**
+   * Pide el resumen de la pestaña dada la primera vez que se entra a ella (bodegas/agencias/stock bajo/alertas
+   * usan esto). Antes `ngOnInit` pedía el resumen de las 5 pestañas de golpe, sin importar cuál se iba a ver.
+   */
+  private readonly tabsInventarioCargadas = new Set<string>();
+  cargarDatosDeTab(tab: string): void {
+    if (this.tabsInventarioCargadas.has(tab)) return;
+    this.tabsInventarioCargadas.add(tab);
+    switch (tab) {
+      case 'bodegas': this.cargarStockBodega(); break;
+      case 'agencias': this.cargarStockAgencias(); break;
+      case 'pulidores': this.cargarStockPulidoresResumen(); break;
+      case 'stock_bajo': this.cargarStockBajo(); break;
+      case 'alertas_reabastecimiento': this.cargarAlertasStock(); break;
+      case 'movimientos': this.cargarHistorialMovimientos(); break;
+    }
   }
 
   // ── Alertas de stock: páginas numeradas, orden, búsqueda y filtros en el servidor ──

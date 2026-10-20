@@ -5,11 +5,10 @@ import { LucideAngularModule } from 'lucide-angular';
 import { filter, Subscription } from 'rxjs';
 import { AuthService } from '../../../core/services/auth.service';
 import { PermissionService } from '../../../core/services/permission.service';
-import { StorageUploadService } from '../../../core/services/storage-upload.service';
 import { UiStateService } from '../../../core/services/ui-state.service';
+import { MenuIndicadoresService } from '../../../core/services/menu-indicadores.service';
 import { SIDEBAR_HOVER_CLOSE_DELAY_MS } from '../../../core/config/sidebar.constants';
 import { MenuItem } from '../../../core/config/menu.config';
-import { isRealProfilePhoto } from '../../../core/config/env';
 
 interface MenuGroup {
   title: string;
@@ -151,7 +150,7 @@ interface MenuGroup {
                           <i-lucide [name]="item.icon" class="w-5 h-5 transition-transform duration-200 group-hover:scale-110" aria-hidden="true"
                             [ngClass]="rla.isActive ? 'text-easydry-green stroke-[2.2]' : 'text-slate-300 group-hover:text-white'">
                           </i-lucide>
-                          @if (!showLabels() && (item.badgeIcon || item.badge)) {
+                          @if (!showLabels() && tieneBadge(item)) {
                             <span class="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-rose-500 ring-2 ring-easydry-blue" aria-hidden="true"></span>
                           }
                         </div>
@@ -163,7 +162,7 @@ interface MenuGroup {
                           {{ item.label }}
                         </span>
 
-                        @if (showLabels() && (item.badgeIcon || item.badge)) {
+                        @if (showLabels() && tieneBadge(item)) {
                           <span class="ml-auto flex-shrink-0 whitespace-nowrap flex items-center justify-center transition-opacity duration-200 ease-out">
                             @if (item.badgeIcon === 'alert-circle-filled' || item.badgeIcon === 'alert-triangle' || item.badge === '!') {
                               <svg class="w-4 h-4 shrink-0 drop-shadow-xs" aria-hidden="true" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -231,33 +230,10 @@ interface MenuGroup {
           </div>
         }
 
-        <!-- Tarjeta de usuario: sin padding horizontal en modo mini (el nav de arriba tampoco lo
+        <!-- Perfil y cierre de sesión: sin padding horizontal en modo mini (el nav de arriba tampoco lo
              tiene); si no, el p-2.5 se suma al ml-2.5 de cada fila y corre todo el bloque hacia la
              derecha, desalineándolo de la columna de íconos del menú. -->
         <div class="border-t border-white/10 bg-black/20 flex-shrink-0 py-2.5 space-y-1.5" [class.px-2.5]="showLabels()">
-          @if (user; as u) {
-            <div class="flex items-center rounded-xl py-1 ml-2.5 transition-[width,margin,padding] duration-200 ease-out"
-              [class.w-12]="!showLabels()" [class.justify-center]="!showLabels()"
-              [class.w-[calc(100%-1.25rem)]]="showLabels()" [class.px-1.5]="showLabels()" [class.gap-2.5]="showLabels()">
-              @if (avatarUrl(u.avatar) && !avatarFailed) {
-                <img [src]="avatarUrl(u.avatar)" [alt]="'Foto de ' + u.nombre" (error)="avatarFailed = true"
-                  class="w-9 h-9 rounded-full object-cover ring-2 ring-white/20 flex-shrink-0">
-              } @else {
-                <div class="w-9 h-9 rounded-full bg-white/10 ring-2 ring-white/20 flex items-center justify-center text-xs font-extrabold text-white flex-shrink-0" aria-hidden="true">
-                  {{ (u.nombre || '?').charAt(0) }}{{ (u.apellido || '').charAt(0) }}
-                </div>
-              }
-              @if (showLabels()) {
-                <div class="flex flex-col min-w-0">
-                  <span class="text-xs font-bold text-white leading-tight truncate">{{ u.nombre }} {{ u.apellido }}</span>
-                  <span class="text-[10px] font-extrabold text-easydry-lime/90 leading-tight uppercase tracking-wider truncate">
-                    {{ u.rolNombre || u.role }}
-                  </span>
-                </div>
-              }
-            </div>
-          }
-
           <!-- Perfil -->
           <a routerLink="/perfil" routerLinkActive="active-menu-item" ariaCurrentWhenActive="page"
             aria-label="Configuración de Perfil" #rlaPerfil="routerLinkActive"
@@ -318,14 +294,12 @@ export class SidebarComponent implements OnInit, OnDestroy {
 
   public authService = inject(AuthService);
   private permissionService = inject(PermissionService);
-  private storageUpload = inject(StorageUploadService);
   private cdr = inject(ChangeDetectorRef);
+  private indicadores = inject(MenuIndicadoresService);
   private router = inject(Router);
   private subs = new Subscription();
 
   menuGroups: MenuGroup[] = [];
-  avatarFailed = false;
-  private lastAvatarSrc = '';
   private hoverCloseTimeout: ReturnType<typeof setTimeout> | null = null;
 
   /** Vista previa flotante activa: modo mini, pantalla grande y con el cursor/foco encima. */
@@ -351,18 +325,6 @@ export class SidebarComponent implements OnInit, OnDestroy {
     return 260;
   });
 
-  get user() { return this.authService.getCurrentUser(); }
-
-  avatarUrl(value?: string): string {
-    if (!isRealProfilePhoto(value)) return '';
-    const resolved = this.storageUpload.resolveBackendUrl(value);
-    if (resolved !== this.lastAvatarSrc) {
-      this.lastAvatarSrc = resolved;
-      this.avatarFailed = false;
-    }
-    return resolved;
-  }
-
   ngOnInit(): void {
     this.uiState.resetTransientState();
     this.refreshMenu();
@@ -375,8 +337,11 @@ export class SidebarComponent implements OnInit, OnDestroy {
       }),
     );
 
+    this.indicadores.iniciar();
+
     this.subs.add(
       this.router.events.pipe(filter((e) => e instanceof NavigationEnd)).subscribe(() => {
+        this.indicadores.refrescar();
         this.uiState.resetTransientState();
         this.autoExpandGrupoActivo();
       }),
@@ -422,6 +387,12 @@ export class SidebarComponent implements OnInit, OnDestroy {
   onItemClick(): void {
     this.uiState.closeMobile();
     this.uiState.setHoverPreview(false);
+  }
+
+  /** Punto del menú: los ítems con indicador solo lo muestran mientras haya algo por atender; el resto, si traen insignia fija. */
+  tieneBadge(item: MenuItem): boolean {
+    if (item.indicador) return this.indicadores.conteos()[item.indicador] > 0;
+    return !!(item.badgeIcon || item.badge);
   }
 
   private refreshMenu(): void {

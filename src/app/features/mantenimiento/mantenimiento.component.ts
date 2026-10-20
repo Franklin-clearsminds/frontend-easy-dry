@@ -20,7 +20,6 @@ import { SucursalService } from '../../core/services/sucursal.service';
 import { fechaHoraLocal, fechaProgramadaLocal } from '../../core/utils/evidencia-maquinaria';
 import { puedeGestionarMaquina, puedeEjecutarMantenimientos, puedeEditarMantenimientos, puedeVerMaquinaria, puedeProgramarMantenimiento } from '../../core/utils/maquinaria-permisos';
 import { TrabajoAccionesComponent } from '../maquinaria/trabajo-acciones/trabajo-acciones.component';
-import { ChecklistOrdenComponent } from './checklist-orden/checklist-orden.component';
 import { MaquinariaDetalleModalComponent } from '../maquinaria/maquinaria-detalle-modal/maquinaria-detalle-modal.component';
 import { SkeletonLoaderComponent } from '../../shared/components/skeleton-loader/skeleton-loader.component';
 import { badgeClase, BADGE_NO_ATENDIDO } from '../../core/utils/badges';
@@ -30,7 +29,7 @@ import { badgeClase, BADGE_NO_ATENDIDO } from '../../core/utils/badges';
   standalone: true,
   imports: [
     CommonModule, FormsModule, LucideAngularModule, ModalComponent, DataTableComponent, DataTableCellDirective, InfiniteScrollComponent, FilterBarComponent,
-    EvidenciaGaleriaComponent, TrabajoAccionesComponent, MaquinariaDetalleModalComponent, SkeletonLoaderComponent, ChecklistOrdenComponent,
+    EvidenciaGaleriaComponent, TrabajoAccionesComponent, MaquinariaDetalleModalComponent, SkeletonLoaderComponent,
   ],
   template: `
     <div class="space-y-6 animate-fade-in">
@@ -38,7 +37,7 @@ import { badgeClase, BADGE_NO_ATENDIDO } from '../../core/utils/badges';
       @if (!hideHeader) {
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-100 shadow-easydry">
           <div>
-            <h1 class="text-2xl font-extrabold text-slate-900 font-outfit">Plan de Mantenimiento Preventivo & Correctivo</h1>
+            <h1 class="text-2xl font-extrabold text-slate-900 font-outfit">Plan de Mantenimiento Preventivo</h1>
             <p class="text-slate-500 text-xs mt-1">Programación de intervenciones técnicas. Los mantenimientos vencidos y sin ejecutar aparecen primero, en rojo.</p>
           </div>
         </div>
@@ -138,11 +137,6 @@ import { badgeClase, BADGE_NO_ATENDIDO } from '../../core/utils/badges';
               <span class="font-bold text-xs" [ngClass]="m.noAtendido ? 'text-rose-800' : 'text-slate-900'">{{ m.maquina }}</span>
             </ng-template>
 
-            <ng-template appCell="tipo" let-m>
-              <span class="px-2.5 py-1 rounded-lg text-xs font-semibold"
-                [ngClass]="m.tipo === 'Correctivo' ? 'bg-rose-100 text-rose-800' : 'bg-blue-100 text-blue-800'">{{ m.tipo }}</span>
-            </ng-template>
-
             <ng-template appCell="tecnico" let-m>
               <span class="text-xs text-slate-700 font-medium">{{ m.tecnicoAsignadoNombre || 'Sin asignar' }}</span>
             </ng-template>
@@ -208,7 +202,6 @@ import { badgeClase, BADGE_NO_ATENDIDO } from '../../core/utils/badges';
                   <span class="text-center" [class]="badgeClase('mantenimiento', m.estado)">{{ m.estado }}</span>
                 </div>
                 <div class="flex items-center justify-between mt-2 text-xs">
-                  <span class="px-2 py-0.5 rounded-md font-semibold text-xs" [ngClass]="m.tipo === 'Correctivo' ? 'bg-rose-100 text-rose-800' : 'bg-blue-100 text-blue-800'">{{ m.tipo }}</span>
                   <div class="font-semibold text-slate-700 truncate max-w-[150px]">{{ m.tecnicoAsignadoNombre || 'Sin asignar' }}</div>
                 </div>
                 <div class="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-slate-100" (click)="$event.stopPropagation()" (keydown.enter)="$event.stopPropagation()" (keydown.space)="$event.stopPropagation()">
@@ -270,7 +263,6 @@ import { badgeClase, BADGE_NO_ATENDIDO } from '../../core/utils/badges';
               <div class="flex flex-wrap items-center gap-2">
                 @if (m.noAtendido) { <span [class]="badgeNoAtendido">No atendido</span> }
                 <span [class]="badgeClase('mantenimiento', m.estado)">{{ m.estado }}</span>
-                <span class="badge badge-neutral">{{ m.tipo }}</span>
               </div>
             </div>
 
@@ -293,10 +285,6 @@ import { badgeClase, BADGE_NO_ATENDIDO } from '../../core/utils/badges';
               <span class="block text-[11px] text-slate-500 font-bold uppercase mb-1">Observaciones</span>
               <p class="text-slate-800 leading-relaxed break-words">{{ m.descripcion || 'Sin observaciones.' }}</p>
             </div>
-
-            @if (m.estadoRaw === 'FINALIZADO') {
-              <app-checklist-orden [mantenimientoId]="'' + m.id" [editable]="false"></app-checklist-orden>
-            }
 
             <div>
               <h4 class="font-bold text-slate-900 text-xs uppercase mb-2">Evidencias</h4>
@@ -364,7 +352,6 @@ export class MantenimientoComponent implements OnInit, OnDestroy {
   readonly columnas: TableColumn[] = [
     { key: 'fecha', label: 'Fecha Programada', sortable: true, defaultSort: 'desc' },
     { key: 'maquina', label: 'Maquinaria', sortable: true, defaultSort: 'asc' },
-    { key: 'tipo', label: 'Tipo', sortable: true, defaultSort: 'asc' },
     { key: 'tecnico', label: 'Técnico', sortable: true, defaultSort: 'asc' },
     { key: 'estado', label: 'Estado', sortable: true, defaultSort: 'asc' },
     { key: 'ejecucion', label: 'Ejecución', sortable: true, defaultSort: 'desc' },
@@ -424,12 +411,19 @@ export class MantenimientoComponent implements OnInit, OnDestroy {
     // El filter-bar entrega nombres de sucursal/marca y el servidor pide ids: se necesitan las sucursales cargadas.
     this.sucursalService.getSucursales().subscribe((list) => { this.sucursales = list; });
     this.reiniciar();
-    // Máquinas activas para el selector de "Programar" (el backend limita lo que cada rol ve).
-    if (puedeGestionarMaquina(this.authService) && puedeVerMaquinaria(this.authService)) {
-      this.maquinariaService.getMaquinaria({ activa: true }).subscribe(list => {
-        this.listaMaquinas = list;
-      });
-    }
+  }
+
+  /** Máquinas activas para el selector de "Programar": solo hacen falta al abrir ese modal, no en cada visita
+   * a la pantalla (el backend limita lo que cada rol ve). */
+  private maquinasProgramarCargadas = false;
+  private cargarMaquinasParaProgramarSiHaceFalta(onListo: () => void): void {
+    if (this.maquinasProgramarCargadas) { onListo(); return; }
+    if (!(puedeGestionarMaquina(this.authService) && puedeVerMaquinaria(this.authService))) { onListo(); return; }
+    this.maquinariaService.getMaquinaria({ activa: true }).subscribe(list => {
+      this.listaMaquinas = list;
+      this.maquinasProgramarCargadas = true;
+      onListo();
+    });
   }
 
   ngOnDestroy(): void {
@@ -610,7 +604,9 @@ export class MantenimientoComponent implements OnInit, OnDestroy {
   }
 
   programar(): void {
-    void this.acciones.programarMantenimiento(null, this.listaMaquinas);
+    this.cargarMaquinasParaProgramarSiHaceFalta(() => {
+      void this.acciones.programarMantenimiento(null, this.listaMaquinas);
+    });
   }
 
   /** Contadores de los filtros vigentes (dato del servidor). */

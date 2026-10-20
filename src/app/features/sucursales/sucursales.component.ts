@@ -1,4 +1,5 @@
 import { Component, OnDestroy, OnInit, inject } from '@angular/core';
+import { AvatarSrcDirective } from '../../shared/directives/avatar-src.directive';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule, ActivatedRoute } from '@angular/router';
@@ -23,15 +24,19 @@ import { OpcionesService } from '../../core/services/opciones.service';
 import { SelectSearchComponent } from '../../shared/components/select-search/select-search.component';
 import { ListaInfinita } from '../../core/utils/lista-infinita';
 import { InfiniteScrollComponent } from '../../shared/components/infinite-scroll/infinite-scroll.component';
-import { Subject, Subscription } from 'rxjs';
-import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
+import { Observable, Subject, Subscription, forkJoin, of } from 'rxjs';
+import { catchError, debounceTime, distinctUntilChanged, tap } from 'rxjs/operators';
 import { BUSQUEDA_DEBOUNCE_MS, BUSQUEDA_MIN_CARACTERES, PAGE_SIZE_INFINITO } from '../../core/config/paginacion';
 import { ConsultaAgencias } from '../../core/services/sucursal.service';
+
+/** Listas de referencia de la pantalla de agencias; cada pestaña pide solo las suyas. */
+type GrupoReferencia = 'regiones' | 'marcas' | 'sucursales' | 'catalogo' | 'usuarios';
+const TODAS_LAS_REFERENCIAS: GrupoReferencia[] = ['regiones', 'marcas', 'sucursales', 'catalogo', 'usuarios'];
 
 @Component({
   selector: 'app-sucursales',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, LucideAngularModule, ModalComponent, FilterBarComponent, DataTableComponent, DataTableCellDirective, InfiniteScrollComponent, SelectSearchComponent],
+  imports: [AvatarSrcDirective, CommonModule, FormsModule, RouterModule, LucideAngularModule, ModalComponent, FilterBarComponent, DataTableComponent, DataTableCellDirective, InfiniteScrollComponent, SelectSearchComponent],
   template: `
     <div class="space-y-6 animate-fade-in">
 
@@ -73,7 +78,21 @@ import { ConsultaAgencias } from '../../core/services/sucursal.service';
       @if (tabActiva === 'mapa') {
         <div class="space-y-6 animate-fade-in">
           
-          <!-- Barra de Filtro de Sucursal para el Mapa -->
+          <!-- Buscador y filtros del mapa (se aplican a lo ya cargado: agencias, bahías y operadores) -->
+          <app-filter-bar
+            [showRegion]="true"
+            [showCliente]="true"
+            [showSucursal]="true"
+            [showOperador]="false"
+            [showBahia]="false"
+            [showEstado]="true"
+            [listaEstados]="estadosBahiaMapa"
+            [showFechas]="false"
+            [showBusqueda]="true"
+            placeholderBusqueda="Buscar agencia, ciudad, responsable, bahía, operador o placa…"
+            (filterChange)="aplicarFiltrosMapa($event)">
+          </app-filter-bar>
+
           <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-xs flex flex-wrap items-center justify-between gap-4">
             <div class="flex items-center gap-3 flex-wrap flex-1">
               <div class="flex items-center gap-2">
@@ -91,6 +110,17 @@ import { ConsultaAgencias } from '../../core/services/sucursal.service';
                 <input type="text" [(ngModel)]="busquedaTextoMapa" placeholder="Buscar por nombre o ciudad…"
                        class="w-full bg-slate-50 border border-slate-200 text-xs font-medium rounded-xl pl-8 pr-3 py-2 focus:ring-2 focus:ring-easydry-blue focus:bg-white outline-none">
               </div>
+              <span class="text-xs font-bold text-slate-600">
+                {{ sucursalesMapa.length }} de {{ sucursales.length }} agencias
+              </span>
+              @if (filtroSucursalMapaId && filtroSucursalMapaId !== 0 && filtroSucursalMapaId !== '0') {
+                <button type="button" (click)="filtroSucursalMapaId = 0"
+                  class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-easydry-blue/10 text-easydry-blue text-xs font-bold cursor-pointer hover:bg-easydry-blue/20"
+                  aria-label="Quitar el filtro de agencia elegido desde otra pantalla">
+                  <span>Solo una agencia elegida</span>
+                  <i-lucide aria-hidden="true" name="x" class="w-3.5 h-3.5"></i-lucide>
+                </button>
+              }
             </div>
 
             <!-- Leyenda de Estados de Bahía -->
@@ -105,6 +135,11 @@ import { ConsultaAgencias } from '../../core/services/sucursal.service';
 
           <!-- Árbol Operativo Jerárquico: Sucursal -> Bahía -> Operador & Maquinaria -->
           <div class="space-y-6">
+            @if (sucursalesMapa.length === 0) {
+              <div class="bg-white rounded-2xl border border-slate-100 p-12 text-center text-sm text-slate-500">
+                Ninguna agencia coincide con la búsqueda y los filtros.
+              </div>
+            }
             @for (suc of sucursalesMapa; track suc.id) {
               <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry overflow-hidden">
                 <!-- Cabecera de la Sucursal -->
@@ -142,11 +177,11 @@ import { ConsultaAgencias } from '../../core/services/sucursal.service';
 
                 <!-- Grilla de Bahías de la Sucursal -->
                 <div class="p-5">
-                  @if (getBahiasDeSucursal(suc.id).length === 0) {
-                    <p class="text-xs text-slate-500 italic py-4 text-center">No hay bahías configuradas para esta agencia.</p>
+                  @if (bahiasVisibles(suc).length === 0) {
+                    <p class="text-xs text-slate-500 italic py-4 text-center">{{ getBahiasDeSucursal(suc.id).length === 0 ? 'No hay bahías configuradas para esta agencia.' : 'Ninguna bahía de esta agencia coincide con los filtros.' }}</p>
                   } @else {
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      @for (bahia of getBahiasDeSucursal(suc.id); track bahia.id) {
+                      @for (bahia of bahiasVisibles(suc); track bahia.id) {
                         <div class="p-4 rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-white hover:shadow-md transition-all flex flex-col justify-between">
                           <div>
                             <!-- Header de Bahía -->
@@ -656,7 +691,7 @@ import { ConsultaAgencias } from '../../core/services/sucursal.service';
                     <div class="flex items-center gap-3">
                       @if (ger.avatar) {
                         <img loading="lazy" decoding="async"
-                          [src]="ger.avatar"
+                          [appAvatar]="ger.avatar" [appAvatarIniciales]="(ger.nombre || '?').charAt(0) + (ger.apellido || '').charAt(0)"
                           alt="Foto de gerente"
                           class="w-11 h-11 rounded-full object-cover ring-2 ring-purple-300">
                       } @else {
@@ -1570,6 +1605,7 @@ export class SucursalesComponent implements OnInit, OnDestroy {
   }
 
   abrirModalAsignarGerente(): void {
+    if (!this.conReferencias(() => this.abrirModalAsignarGerente())) return;
     if (!this.puedeAsignarPersonas) return;
     this.formAsignarGerente = {
       gerenteId: this.gerentesUsuarios[0]?.id || 0,
@@ -1579,6 +1615,7 @@ export class SucursalesComponent implements OnInit, OnDestroy {
   }
 
   abrirModalReasignar(ger: Usuario): void {
+    if (!this.conReferencias(() => this.abrirModalReasignar(ger))) return;
     if (!this.puedeAsignarPersonas) return;
     const suc = this.sucursales.find(s => s.nombre === ger.agencia);
     this.formAsignarGerente = {
@@ -1662,6 +1699,7 @@ export class SucursalesComponent implements OnInit, OnDestroy {
    */
   private cargarSegunTab(tab: typeof this.tabActiva): void {
     const clave = tab === 'sucursales' ? 'agencias' : tab === 'marcas' ? 'clientes' : tab;
+    this.cargarReferencias(this.referenciasDeTab(clave));
     if (this.tabsCargadas.has(clave)) return;
     this.tabsCargadas.add(clave);
     switch (clave) {
@@ -1690,61 +1728,98 @@ export class SucursalesComponent implements OnInit, OnDestroy {
 
   cargarTodo(): void {
     this.tabsCargadas.clear();
+    this.referenciasCargadas.clear();
     this.cargarSegunTab(this.tabActiva);
-    // Lo de acá abajo es información de referencia (sucursales, regiones, clientes, usuarios) que usan los
-    // desplegables de varios modales (crear agencia, transferir, asignar aprobador...) alcanzables desde
-    // más de una pestaña, así que sí conviene tenerla lista desde el inicio.
-    const verRegiones = this.auth.puede('pagina.agencias.regiones');
-    const verClientes = this.auth.puede('pagina.agencias.clientes');
-    // Sin la pestaña Regiones/Clientes se usa la lista de opciones (la que ya piden los desplegables).
-    (verRegiones ? this.regionService.getRegiones() : this.regionService.getRegionesLista()).subscribe(list => {
-      this.regiones = list;
-      this.regionSeleccionada = this.regionSeleccionada
-        ? list.find(r => r.id === this.regionSeleccionada!.id) || list[0]
-        : list[0] || null;
-    });
-    (verClientes ? this.marcaService.getMarcas() : this.clienteService.getClientesLista()).subscribe(list => {
-      this.marcas = list;
-      this.marcaSeleccionada = this.marcaSeleccionada
-        ? list.find(m => m.id === this.marcaSeleccionada!.id) || list[0]
-        : list[0] || null;
-    });
-    this.sucursalService.getSucursales().subscribe(list => {
-      this.sucursales = list;
-    });
-    if (this.auth.puede('catalogo.ver')) {
-      this.catalogoService.getServiciosActivos().subscribe(list => {
-        this.catalogoServicios = list;
-      });
+  }
+
+  /**
+   * Listas de referencia (regiones, clientes, agencias, catálogo y usuarios) que alimentan las tablas y los desplegables de los modales.
+   * Antes se pedían todas al entrar; ahora cada pestaña pide las suyas y los modales completan lo que falte antes de abrirse.
+   */
+  private referenciasCargadas = new Set<GrupoReferencia>();
+
+  private referenciasDeTab(clave: string): GrupoReferencia[] {
+    switch (clave) {
+      case 'mapa': return ['sucursales', 'usuarios'];
+      case 'agencias': return ['sucursales', 'marcas', 'regiones', 'catalogo', 'usuarios'];
+      case 'regiones': return ['regiones', 'sucursales', 'usuarios'];
+      case 'clientes': return ['marcas', 'sucursales'];
+      case 'gerentes': return ['sucursales', 'usuarios', 'regiones', 'marcas', 'catalogo'];
+      default: return [];
     }
-    this.usuarioService.usuarios$.subscribe(list => {
-      if (list && list.length) {
-        this.todosLosUsuarios = list;
-        this.gerentesUsuarios = list.filter(u => {
-          const r = (u.rol || u.rolNombre || '').toUpperCase();
-          const activo = u.estado === 'Activo' || (u as any).estado === 1;
-          return activo && r === 'APROBADOR';
-        });
-        this.supervisoresUsuarios = list.filter(u =>
-          (u.estado === 'Activo' || (u as any).estado === 1) &&
-          (u.rol === 'SUPERVISOR' || u.rol === 'Supervisor Regional' || u.rol.toLowerCase().includes('supervisor'))
-        );
+  }
+
+  private referenciasListas(grupos: GrupoReferencia[]): boolean {
+    return grupos.every((g) => this.referenciasCargadas.has(g));
+  }
+
+  /** Pide las listas que faltan (una sola vez cada una) y avisa cuando todas llegaron. */
+  private cargarReferencias(grupos: GrupoReferencia[], alTerminar?: () => void): void {
+    const peticiones: Observable<unknown>[] = [];
+    for (const g of grupos) {
+      if (this.referenciasCargadas.has(g)) continue;
+      this.referenciasCargadas.add(g);
+      const peticion = this.peticionReferencia(g);
+      if (peticion) peticiones.push(peticion.pipe(catchError(() => of(null))));
+    }
+    if (!peticiones.length) {
+      alTerminar?.();
+      return;
+    }
+    forkJoin(peticiones).subscribe(() => alTerminar?.());
+  }
+
+  /** Abre un modal solo cuando ya están todas las listas que usa su formulario (las pide la primera vez). */
+  private conReferencias(abrir: () => void): boolean {
+    if (this.referenciasListas(TODAS_LAS_REFERENCIAS)) return true;
+    this.cargarReferencias(TODAS_LAS_REFERENCIAS, abrir);
+    return false;
+  }
+
+  private peticionReferencia(grupo: GrupoReferencia): Observable<unknown> | null {
+    switch (grupo) {
+      case 'regiones': {
+        // Sin la pestaña Regiones se usa la lista de opciones (la que ya piden los desplegables).
+        const verRegiones = this.auth.puede('pagina.agencias.regiones');
+        return (verRegiones ? this.regionService.getRegiones() : this.regionService.getRegionesLista()).pipe(tap((list) => {
+          this.regiones = list;
+          this.regionSeleccionada = this.regionSeleccionada
+            ? list.find(r => r.id === this.regionSeleccionada!.id) || list[0]
+            : list[0] || null;
+        }));
       }
-    });
-    if (this.puedeVerUsuarios) this.usuarioService.getUsuarios().subscribe(list => {
-      if (list && list.length) {
-        this.todosLosUsuarios = list;
-        this.gerentesUsuarios = list.filter(u => {
-          const r = (u.rol || u.rolNombre || '').toUpperCase();
-          const activo = u.estado === 'Activo' || (u as any).estado === 1;
-          return activo && r === 'APROBADOR';
-        });
-        this.supervisoresUsuarios = list.filter(u =>
-          (u.estado === 'Activo' || (u as any).estado === 1) &&
-          (u.rol === 'SUPERVISOR' || u.rol === 'Supervisor Regional' || u.rol.toLowerCase().includes('supervisor'))
-        );
+      case 'marcas': {
+        const verClientes = this.auth.puede('pagina.agencias.clientes');
+        return (verClientes ? this.marcaService.getMarcas() : this.clienteService.getClientesLista()).pipe(tap((list) => {
+          this.marcas = list;
+          this.marcaSeleccionada = this.marcaSeleccionada
+            ? list.find(m => m.id === this.marcaSeleccionada!.id) || list[0]
+            : list[0] || null;
+        }));
       }
-    });
+      case 'sucursales':
+        return this.sucursalService.getSucursales().pipe(tap((list) => { this.sucursales = list; }));
+      case 'catalogo':
+        if (!this.auth.puede('catalogo.ver')) return null;
+        return this.catalogoService.getServiciosActivos().pipe(tap((list) => { this.catalogoServicios = list; }));
+      case 'usuarios': {
+        const aplicar = (list: Usuario[]) => {
+          if (!list || !list.length) return;
+          this.todosLosUsuarios = list;
+          this.gerentesUsuarios = list.filter(u => {
+            const r = (u.rol || u.rolNombre || '').toUpperCase();
+            const activo = u.estado === 'Activo' || (u as any).estado === 1;
+            return activo && r === 'APROBADOR';
+          });
+          this.supervisoresUsuarios = list.filter(u =>
+            (u.estado === 'Activo' || (u as any).estado === 1) &&
+            (u.rol === 'SUPERVISOR' || u.rol === 'Supervisor Regional' || u.rol.toLowerCase().includes('supervisor'))
+          );
+        };
+        this.usuarioService.usuarios$.subscribe(aplicar);
+        return this.puedeVerUsuarios ? this.usuarioService.getUsuarios().pipe(tap(aplicar)) : null;
+      }
+    }
   }
 
   getLiderOperador(suc: Sucursal): string {
@@ -1785,20 +1860,69 @@ export class SucursalesComponent implements OnInit, OnDestroy {
     this.tabActiva = 'mapa';
   }
 
+  /** Estados de bahía que se pueden filtrar en el mapa («Ocupada» agrupa lo que está en atención). */
+  readonly estadosBahiaMapa = ['Todos', 'Disponible', 'Ocupada', 'Lavado', 'Secado', 'Aspirado', 'Mantenimiento', 'Inactiva'];
+
+  private filtrosMapa: FilterState = { sucursal: 'Todas', operador: 'Todos', bahia: 'Todas', estado: 'Todos', fecha: 'Mes' };
+
+  aplicarFiltrosMapa(filtros: FilterState): void {
+    this.filtrosMapa = filtros;
+  }
+
+  private neutroMapa(v: unknown, ...neutros: string[]): string {
+    const t = String(v ?? '').trim();
+    return !t || neutros.includes(t) ? '' : t.toLowerCase();
+  }
+
+  private incluyeMapa(texto: unknown, buscado: string): boolean {
+    return String(texto ?? '').toLowerCase().includes(buscado);
+  }
+
+  /** ¿La bahía está en el estado elegido? «Ocupada» incluye lavado, secado, aspirado y cualquier vehículo en atención. */
+  private bahiaEnEstado(b: Bahia, estado: string): boolean {
+    const e = String(b.estado ?? '').toLowerCase();
+    if (estado === 'ocupada') return e === 'ocupada' || e === 'lavado' || e === 'secado' || e === 'aspirado' || !!b.ocupada;
+    return e === estado;
+  }
+
+  /** ¿La bahía coincide con el texto buscado (nombre, operador o placa en atención)? */
+  private bahiaCoincideTexto(b: Bahia, q: string): boolean {
+    return this.incluyeMapa(b.nombre, q) || this.incluyeMapa(b.operadorAsignado, q) || this.incluyeMapa(b.ocupada?.placa, q);
+  }
+
+  private agenciaCoincideTexto(s: Sucursal, q: string): boolean {
+    return [s.nombre, s.codigo, s.ciudad, s.responsable, s.regionNombre, s.clienteNombre, s.marcaNombre, this.getLiderOperador(s)].some((v) => this.incluyeMapa(v, q));
+  }
+
   get sucursalesMapa(): Sucursal[] {
-    let lista = this.sucursales;
-    if (this.filtroSucursalMapaId && this.filtroSucursalMapaId !== 0 && this.filtroSucursalMapaId !== '0') {
-      lista = lista.filter(s => String(s.id) === String(this.filtroSucursalMapaId));
-    }
-    if (this.busquedaTextoMapa?.trim()) {
-      const q = this.busquedaTextoMapa.trim().toLowerCase();
-      lista = lista.filter(s =>
-        (s.nombre && s.nombre.toLowerCase().includes(q)) ||
-        (s.ciudad && s.ciudad.toLowerCase().includes(q)) ||
-        (s.regionNombre && s.regionNombre.toLowerCase().includes(q))
-      );
-    }
-    return lista;
+    const f = this.filtrosMapa;
+    const region = this.neutroMapa(f.region, 'Todas', 'Todos');
+    const cliente = this.neutroMapa(f.cliente ?? f.marca, 'Todas', 'Todos');
+    const agencia = this.neutroMapa(f.sucursal, 'Todas', 'Todos');
+    const estado = this.neutroMapa(f.estado, 'Todos');
+    const q = this.neutroMapa(f.busqueda) || this.neutroMapa(this.busquedaTextoMapa);
+    const unaSola = this.filtroSucursalMapaId && this.filtroSucursalMapaId !== 0 && this.filtroSucursalMapaId !== '0' ? String(this.filtroSucursalMapaId) : '';
+    return this.sucursales.filter((s) => {
+      if (unaSola && String(s.id) !== unaSola) return false;
+      if (region && String(s.regionNombre ?? '').toLowerCase() !== region) return false;
+      if (cliente && String(s.clienteNombre || s.marcaNombre || '').toLowerCase() !== cliente) return false;
+      if (agencia && String(s.nombre ?? '').toLowerCase() !== agencia) return false;
+      const bahias = this.getBahiasDeSucursal(s.id);
+      if (estado && !bahias.some((b) => this.bahiaEnEstado(b, estado))) return false;
+      if (q && !this.agenciaCoincideTexto(s, q) && !bahias.some((b) => this.bahiaCoincideTexto(b, q))) return false;
+      return true;
+    });
+  }
+
+  /** Bahías de la agencia que se muestran: las del estado elegido y, si se buscó texto que no es de la agencia, las que coinciden. */
+  bahiasVisibles(suc: Sucursal): Bahia[] {
+    const f = this.filtrosMapa;
+    const estado = this.neutroMapa(f.estado, 'Todos');
+    const q = this.neutroMapa(f.busqueda) || this.neutroMapa(this.busquedaTextoMapa);
+    let bahias = this.getBahiasDeSucursal(suc.id);
+    if (estado) bahias = bahias.filter((b) => this.bahiaEnEstado(b, estado));
+    if (q && !this.agenciaCoincideTexto(suc, q)) bahias = bahias.filter((b) => this.bahiaCoincideTexto(b, q));
+    return bahias;
   }
 
   getBahiasDeSucursal(sucursalId: number | string): Bahia[] {
@@ -1818,6 +1942,7 @@ export class SucursalesComponent implements OnInit, OnDestroy {
   }
 
   abrirModalCrearSucursal(): void {
+    if (!this.conReferencias(() => this.abrirModalCrearSucursal())) return;
     if (!this.puedeCrearAgencia) return;
     this.editandoSucursal = false;
     this.nuevaSucursal = this.sucursalVacia();
@@ -1833,6 +1958,7 @@ export class SucursalesComponent implements OnInit, OnDestroy {
   }
 
   abrirModalEditar(suc: Sucursal): void {
+    if (!this.conReferencias(() => this.abrirModalEditar(suc))) return;
     if (!this.puedeEditarAgencia) return;
     this.editandoSucursal = true;
     this.preciosServicios = [];
@@ -2143,6 +2269,7 @@ export class SucursalesComponent implements OnInit, OnDestroy {
   }
 
   abrirModalRegion(region?: RegionOperativa): void {
+    if (!this.conReferencias(() => this.abrirModalRegion(region))) return;
     if (region ? !this.puedeEditarRegion : !this.puedeCrearRegion) return;
     this.editandoRegion = !!region;
     let supId: string | number = '';
@@ -2209,6 +2336,7 @@ export class SucursalesComponent implements OnInit, OnDestroy {
   }
 
   abrirModalMarca(marca?: MarcaSucursal): void {
+    if (!this.conReferencias(() => this.abrirModalMarca(marca))) return;
     if (marca ? !this.puedeEditarCliente : !this.puedeCrearCliente) return;
     this.editandoMarca = !!marca;
     this.formMarca = marca
@@ -2250,6 +2378,7 @@ export class SucursalesComponent implements OnInit, OnDestroy {
   }
 
   abrirModalTransferir(suc: Sucursal): void {
+    if (!this.conReferencias(() => this.abrirModalTransferir(suc))) return;
     if (!this.puedeCrearAgencia) return;
     this.formTransfer = {
       sucursalId: suc.id,
@@ -2261,6 +2390,7 @@ export class SucursalesComponent implements OnInit, OnDestroy {
   }
 
   abrirAsignarARegion(region: RegionOperativa): void {
+    if (!this.conReferencias(() => this.abrirAsignarARegion(region))) return;
     if (!this.puedeCrearAgencia) return;
     const candidata = this.sucursales.find(s => String(s.regionId) !== String(region.id)) || this.sucursales[0];
     this.formTransfer = {
@@ -2273,6 +2403,7 @@ export class SucursalesComponent implements OnInit, OnDestroy {
   }
 
   abrirAsignarAMarca(marca: MarcaSucursal): void {
+    if (!this.conReferencias(() => this.abrirAsignarAMarca(marca))) return;
     if (!this.puedeCrearAgencia) return;
     const candidata = this.sucursales.find(s => String(s.marcaId) !== String(marca.id)) || this.sucursales[0];
     this.formTransfer = {
