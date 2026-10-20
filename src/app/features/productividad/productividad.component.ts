@@ -350,7 +350,12 @@ import {
               <i-lucide aria-hidden="true" name="users" class="w-5 h-5 text-easydry-blue"></i-lucide>
               <span>Ranking de Personal Operativo</span>
             </h3>
-            <span class="text-xs text-slate-500 font-semibold">Destacados</span>
+            <div class="flex items-center gap-1.5 bg-slate-50 border border-slate-200 p-1 rounded-lg">
+              <span class="text-[11px] text-slate-500 font-semibold px-1.5">Top:</span>
+              <button type="button" (click)="limiteRankingLavadores = 5" [class]="limiteRankingLavadores === 5 ? 'px-2 py-0.5 text-xs font-bold bg-easydry-blue text-white rounded-md shadow-xs' : 'px-2 py-0.5 text-xs font-medium text-slate-600 hover:bg-white rounded-md cursor-pointer'">5</button>
+              <button type="button" (click)="limiteRankingLavadores = 10" [class]="limiteRankingLavadores === 10 ? 'px-2 py-0.5 text-xs font-bold bg-easydry-blue text-white rounded-md shadow-xs' : 'px-2 py-0.5 text-xs font-medium text-slate-600 hover:bg-white rounded-md cursor-pointer'">10</button>
+              <button type="button" (click)="limiteRankingLavadores = 999" [class]="limiteRankingLavadores === 999 ? 'px-2 py-0.5 text-xs font-bold bg-easydry-blue text-white rounded-md shadow-xs' : 'px-2 py-0.5 text-xs font-medium text-slate-600 hover:bg-white rounded-md cursor-pointer'">Todos</button>
+            </div>
           </div>
 
           @if (rankingLavadores.length === 0) {
@@ -359,7 +364,7 @@ import {
             </div>
           } @else {
             <div class="space-y-4">
-              @for (lavador of rankingLavadores; track lavador.operadorId) {
+              @for (lavador of rankingLavadoresVisible; track lavador.operadorId) {
                 <div class="p-4 border border-slate-100 rounded-xl hover:border-easydry-blue/40 transition-all flex items-center justify-between">
                   <div class="flex items-center gap-4">
                     <div
@@ -559,6 +564,11 @@ export class ProductividadComponent implements OnInit, OnDestroy {
   carouselInterval: any;
   rankingRefreshInterval: any;
   rankingLavadores: any[] = [];
+  limiteRankingLavadores = 5;
+
+  get rankingLavadoresVisible(): any[] {
+    return this.rankingLavadores.slice(0, this.limiteRankingLavadores);
+  }
 
   comparativaChartData = {
     labels: [] as string[],
@@ -643,7 +653,13 @@ export class ProductividadComponent implements OnInit, OnDestroy {
   }
 
   cargarRankingLavadores(filtro: { agenciaId?: string; regionId?: string; fechaDesde?: string; fechaHasta?: string } = {}): void {
-    this.dashboardOperativoService.getRankingLavadores(filtro).subscribe(data => {
+    const payload: Record<string, any> = {};
+    if (filtro.agenciaId) payload['agenciaId'] = filtro.agenciaId;
+    if (filtro.regionId) payload['regionId'] = filtro.regionId;
+    if (filtro.fechaDesde && filtro.fechaDesde.trim()) payload['fechaDesde'] = filtro.fechaDesde.trim();
+    if (filtro.fechaHasta && filtro.fechaHasta.trim()) payload['fechaHasta'] = filtro.fechaHasta.trim();
+
+    this.dashboardOperativoService.getRankingLavadores(payload).subscribe(data => {
       this.rankingLavadores = data.ranking;
     });
   }
@@ -855,10 +871,14 @@ export class ProductividadComponent implements OnInit, OnDestroy {
     const agenciaFiltrada = filtros.sucursal && filtros.sucursal !== 'Todas'
       ? this.todasLasAgencias.find(a => a.nombre.toLowerCase() === filtros.sucursal.toLowerCase())
       : undefined;
+
+    const fDesde = (filtros.fechaInicio && filtros.fechaInicio.trim() && filtros.fechaInicio.length >= 10) ? filtros.fechaInicio.trim() : undefined;
+    const fHasta = (filtros.fechaFin && filtros.fechaFin.trim() && filtros.fechaFin.length >= 10) ? filtros.fechaFin.trim() : undefined;
+
     this.cargarRankingLavadores({
       agenciaId: agenciaFiltrada ? String(agenciaFiltrada.id) : undefined,
-      fechaDesde: filtros.fechaInicio,
-      fechaHasta: filtros.fechaFin,
+      fechaDesde: fDesde,
+      fechaHasta: fHasta,
     });
   }
 

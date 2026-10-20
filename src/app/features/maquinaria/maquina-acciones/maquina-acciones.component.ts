@@ -436,6 +436,15 @@ export class MaquinaAccionesComponent {
         this.ok('Operador asignado', `${this.tra.codigo} quedó a cargo de ${pulidor?.nombre || 'el pulidor elegido'}.`, 'OPERADOR_ASIGNADO');
       } else {
         if (!this.tra.motivo.trim()) { this.error = 'Indica el motivo de la transferencia.'; this.enviando = false; return; }
+        if (this.tra.ficha) {
+          const mismaAgencia = String(this.tra.ficha.agenciaId || '') === String(this.tra.destino);
+          const mismaBahia = (this.tra.ficha.bahiaId || '') === (this.tra.bahiaId || '');
+          if (mismaAgencia && mismaBahia) {
+            this.error = 'La máquina ya se encuentra en esa misma ubicación.';
+            this.enviando = false;
+            return;
+          }
+        }
         await firstValueFrom(this.maquinariaService.transferirMaquinaria({
           maquinariaId: this.tra.id,
           destinoAgenciaId: this.tra.destino,

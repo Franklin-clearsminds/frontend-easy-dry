@@ -342,8 +342,11 @@ export class CatalogoServiciosComponent implements OnInit, OnDestroy {
     if (this.servicioActual.insumosReceta?.[index]) {
       const actual = Number(this.servicioActual.insumosReceta[index].cantidadSugerida || 0);
       const step = actual <= 1 ? 0.05 : 0.5;
-      if (actual > step) {
-        this.servicioActual.insumosReceta[index].cantidadSugerida = Math.round((actual - step) * 100) / 100;
+      const nuevo = Math.round((actual - step) * 100) / 100;
+      if (nuevo > 0) {
+        this.servicioActual.insumosReceta[index].cantidadSugerida = nuevo;
+      } else {
+        this.eliminarInsumoReceta(index);
       }
     }
   }

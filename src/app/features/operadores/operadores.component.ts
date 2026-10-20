@@ -203,7 +203,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                           type="button"
                           (click)="abrirModalEditar(op)"
                           [title]="isCoordServiciosEspeciales ? 'Editar pulidor' : 'Editar lavador'"
-                          class="p-1.5 min-w-9 min-h-9 inline-flex items-center justify-center text-slate-500 hover:text-easydry-blue hover:bg-slate-100 rounded-lg transition-colors cursor-pointer flex items-center justify-center" [attr.aria-label]="isCoordServiciosEspeciales ? 'Editar pulidor' : 'Editar lavador'">
+                          class="p-1.5 min-w-9 min-h-9 inline-flex items-center justify-center text-slate-500 hover:text-easydry-blue hover:bg-slate-100 rounded-lg transition-colors cursor-pointer" [attr.aria-label]="isCoordServiciosEspeciales ? 'Editar pulidor' : 'Editar lavador'">
                           <i-lucide aria-hidden="true" name="edit-3" class="w-4 h-4"></i-lucide>
                         </button>
 
@@ -214,7 +214,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                           type="button"
                           (click)="abrirModalAsignar(op)"
                           [title]="op.bahia && !op.bahia.includes('Sin') && op.bahia !== 'undefined' ? 'Cambiar bahía' : 'Asignar a bahía'"
-                          class="p-1.5 min-w-9 min-h-9 inline-flex items-center justify-center text-slate-500 hover:text-easydry-blue hover:bg-slate-100 rounded-lg transition-colors cursor-pointer flex items-center justify-center" [attr.aria-label]="op.bahia && !op.bahia.includes('Sin') && op.bahia !== 'undefined' ? 'Cambiar bahía' : 'Asignar a bahía'">
+                          class="p-1.5 min-w-9 min-h-9 inline-flex items-center justify-center text-slate-500 hover:text-easydry-blue hover:bg-slate-100 rounded-lg transition-colors cursor-pointer" [attr.aria-label]="op.bahia && !op.bahia.includes('Sin') && op.bahia !== 'undefined' ? 'Cambiar bahía' : 'Asignar a bahía'">
                           <i-lucide aria-hidden="true" name="refresh-cw" class="w-4 h-4"></i-lucide>
                         </button>
                       }
@@ -225,7 +225,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                             type="button"
                             (click)="desactivarAsignacion(op)"
                             title="Desactivar asignación de bahía"
-                            class="p-1.5 min-w-9 min-h-9 inline-flex items-center justify-center text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer flex items-center justify-center" aria-label="Desactivar asignación de bahía">
+                            class="p-1.5 min-w-9 min-h-9 inline-flex items-center justify-center text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer" aria-label="Desactivar asignación de bahía">
                             <i-lucide aria-hidden="true" name="user-x" class="w-4 h-4"></i-lucide>
                           </button>
                         }
@@ -237,7 +237,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                         type="button"
                         (click)="verFichaOperador(op)" 
                         title="Ver productividad y ficha técnica"
-                        class="p-1.5 min-w-9 min-h-9 inline-flex items-center justify-center text-slate-500 hover:text-easydry-blue hover:bg-slate-100 rounded-lg transition-colors cursor-pointer flex items-center justify-center" aria-label="Ver productividad y ficha técnica">
+                        class="p-1.5 min-w-9 min-h-9 inline-flex items-center justify-center text-slate-500 hover:text-easydry-blue hover:bg-slate-100 rounded-lg transition-colors cursor-pointer" aria-label="Ver productividad y ficha técnica">
                         <i-lucide aria-hidden="true" name="bar-chart-2" class="w-4 h-4"></i-lucide>
                       </button>
                       }
@@ -324,14 +324,19 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
           @if (!esEdicion) {
             <div>
               <label for="operadores-pw" class="block text-xs font-bold text-slate-700 uppercase mb-1">
-                Contraseña de acceso <span class="text-rose-500">*</span>
+                Contraseña de acceso
+                @if (esLavador(formOperador.rol)) {
+                  <span class="text-slate-400 font-normal lowercase">(opcional, se autogenera si se omite)</span>
+                } @else {
+                  <span class="text-rose-500">*</span>
+                }
               </label>
               <div class="relative">
                 <input id="operadores-pw"
                   [type]="verPassword ? 'text' : 'password'"
                   autocomplete="new-password"
                   [(ngModel)]="formOperador.password"
-                  placeholder="Mínimo 10 caracteres"
+                  [placeholder]="esLavador(formOperador.rol) ? 'Opcional (se autogenera si se deja vacío)' : 'Mínimo 10 caracteres'"
                   class="w-full p-2.5 pr-10 bg-slate-50 border rounded-xl text-xs font-semibold text-slate-800 placeholder:text-slate-500 outline-none focus:ring-2 focus:ring-easydry-blue/30"
                   [ngClass]="formOperador.password && motivoPassword ? 'border-rose-500' : 'border-slate-200'" />
                 <button type="button" (click)="verPassword = !verPassword" class="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-500 hover:text-easydry-blue cursor-pointer" [attr.aria-label]="verPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'">
@@ -339,7 +344,9 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                 </button>
               </div>
               <app-password-requisitos [password]="formOperador.password"></app-password-requisitos>
-              <p class="text-xs mt-2 text-slate-500">Anótala: se la entregas al operador y solo un administrador puede cambiarla después.</p>
+              <p class="text-xs mt-2 text-slate-500">
+                {{ esLavador(formOperador.rol) ? 'El lavador no usa el software (el líder registra OTs). Si la defines, compártela de forma segura.' : 'Anótala: se la entregas al operador y solo un administrador puede cambiarla después.' }}
+              </p>
             </div>
           }
 
@@ -1121,9 +1128,14 @@ export class OperadoresComponent implements OnInit, OnDestroy {
       this.toastService.warning('Campo Obligatorio', 'Por favor seleccione la agencia de asignación.');
       return;
     }
-    if (!this.esEdicion && (!this.formOperador.password?.trim() || this.motivoPassword)) {
-      this.toastService.warning('Contraseña no válida', this.formOperador.password?.trim() ? (this.motivoPassword as string) : 'Escribe la contraseña de acceso del operador.');
-      return;
+    if (!this.esEdicion) {
+      if (this.esLavador(this.formOperador.rol) && !this.formOperador.password?.trim()) {
+        // Autogenerar contraseña segura internamente para el lavador (sin acceso al software)
+        this.formOperador.password = `EasyDry${Math.floor(1000 + Math.random() * 9000)}*!`;
+      } else if (!this.formOperador.password?.trim() || this.motivoPassword) {
+        this.toastService.warning('Contraseña no válida', this.formOperador.password?.trim() ? (this.motivoPassword as string) : 'Escribe la contraseña de acceso del operador.');
+        return;
+      }
     }
 
     // Solo los lavadores van a bahía: con otro rol se descarta la bahía elegida antes de validar cupo.

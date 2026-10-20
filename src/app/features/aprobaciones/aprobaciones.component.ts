@@ -70,7 +70,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
               </span>
             }
           </h3>
-          <p class="text-xs text-slate-200">
+          <p class="text-xs text-slate-500">
             Sucursal: <strong>{{ filtrosGlobales.sucursal === 'Todas' ? 'Todas las sucursales (elige una para cerrar su día)' : filtrosGlobales.sucursal }}</strong>
             • Bahía: <strong>{{ filtrosGlobales.bahia === 'Todas' ? 'Todas las Bahías' : filtrosGlobales.bahia }}</strong>
             • Fecha: <strong>{{ fechaActual }}</strong>

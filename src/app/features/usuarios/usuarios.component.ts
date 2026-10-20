@@ -2453,7 +2453,11 @@ export class UsuariosComponent implements OnInit, OnDestroy {
   onRolUsuarioChange() {
     if (this.esOperadorEspecialesRol(this.usuarioForm.rol)) {
       this.onPulidorAgenciaChange(this.usuarioForm.agencia || '');
-    } else if (this.esBackupRol(this.usuarioForm.rol)) {
+    } else {
+      this.usuarioForm.modalidadPulidor = undefined as any;
+      this.usuarioForm.servicioIds = [];
+    }
+    if (this.esBackupRol(this.usuarioForm.rol)) {
       this.usuarioForm.bodegaId = '';
       if (!this.usuarioForm.region && this.authService.currentUserValue?.regionId) {
         this.usuarioForm.region = this.regionesDisponibles.find(
@@ -2493,6 +2497,8 @@ export class UsuariosComponent implements OnInit, OnDestroy {
       return { agencia: bod?.nombre || `Bodega Regional ${this.usuarioForm.region || 'Regional'}`, modalidadPulidor: undefined };
     }
     if (!esRolOperadorEspeciales(this.usuarioForm.rol)) {
+      this.usuarioForm.modalidadPulidor = undefined as any;
+      this.usuarioForm.servicioIds = [];
       return { agencia: this.usuarioForm.agencia?.trim() || 'Sin asignar', modalidadPulidor: undefined };
     }
     if (this.usuarioForm.agencia?.trim()) {
@@ -2673,7 +2679,7 @@ export class UsuariosComponent implements OnInit, OnDestroy {
         bodegaId: isAsistente ? (this.usuarioForm.bodegaId || undefined) : undefined,
         estado: nuevoEstado,
         email: this.usuarioForm.email.trim(),
-        modalidadPulidor: modalidad.modalidadPulidor,
+        modalidadPulidor: isPulidor ? modalidad.modalidadPulidor : undefined,
         servicioIds: isPulidor ? this.serviciosEspecialesCatalogo.map(s => Number(s.id)) : [],
         ...(this.usuarioForm.cambiarPassword && this.usuarioForm.password?.trim()
           ? { password: this.usuarioForm.password.trim() }
@@ -2757,7 +2763,7 @@ export class UsuariosComponent implements OnInit, OnDestroy {
         email: this.usuarioForm.email.trim(),
         fechaAsignacion: new Date().toISOString().split('T')[0],
         avatar: '',
-        modalidadPulidor: modalidad.modalidadPulidor,
+        modalidadPulidor: isPulidor ? modalidad.modalidadPulidor : undefined,
         servicioIds: isPulidor ? this.serviciosEspecialesCatalogo.map(s => Number(s.id)) : [],
         password: this.usuarioForm.password?.trim(),
         roleId: roleIdToSend

@@ -110,12 +110,12 @@ describe('reportes-export', () => {
   describe('archivos', () => {
     it('el Excel lleva una hoja por agencia y una de resumen', async () => {
       const wb = await construirExcel(reporte('CONTROL_ESPECIAL', [grupo('Agencia Norte', 3), grupo('Agencia Sur', 2)]), null);
-      expect(wb.worksheets.map((w) => w.name)).toEqual(['Agencia Norte', 'Agencia Sur', 'Resumen']);
+      expect(wb.worksheets.map((w: any) => w.name)).toEqual(['Agencia Norte', 'Agencia Sur', 'Resumen']);
     });
 
     it('con una sola agencia no agrega resumen', async () => {
       const wb = await construirExcel(reporte('TABLA', [grupo('Agencia Norte', 3)]), null);
-      expect(wb.worksheets.map((w) => w.name)).toEqual(['Agencia Norte']);
+      expect(wb.worksheets.map((w: any) => w.name)).toEqual(['Agencia Norte']);
     });
 
     it('el PDF abre cada agencia en su propia página y agrega el resumen', async () => {

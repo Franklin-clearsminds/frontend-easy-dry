@@ -357,7 +357,7 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
                                     <button
                                       (click)="aprobarServicio(item)"
                                       title="Aprobar servicio"
-                                      class="inline-flex items-center justify-center min-w-9 min-h-9 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer flex items-center justify-center" aria-label="Aprobar servicio">
+                                      class="inline-flex items-center justify-center min-w-9 min-h-9 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer" aria-label="Aprobar servicio">
                                       <i-lucide aria-hidden="true" name="check" class="w-4 h-4"></i-lucide>
                                     </button>
                                   }
@@ -1603,8 +1603,15 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
             [agenciaId]="agenciaFormId || userSucursal"
             [servicioId]="nuevoRegistro.ordenTrabajoOT || nuevoRegistro.placa"
             [(videoUrl)]="nuevoRegistro.videoUrl"
-            [required]="true">
+            [required]="!excepcionSinVideo">
           </app-video-recorder>
+
+          <div class="mt-2.5 flex items-center gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+            <input type="checkbox" id="srv-sin-video" [(ngModel)]="excepcionSinVideo" [ngModelOptions]="{standalone: true}" class="rounded text-easydry-blue focus:ring-0 cursor-pointer">
+            <label for="srv-sin-video" class="text-xs text-slate-700 font-medium cursor-pointer">
+              Excepción administrativa / contingencia (registrar OT sin vídeo de ingreso)
+            </label>
+          </div>
           }
 
         </form>
@@ -2738,6 +2745,7 @@ export class ServiciosComponent implements OnInit, OnDestroy {
     this.nuevoRegistro.color = '';
     this.nuevoRegistro.foto = '';
     this.nuevoRegistro.videoUrl = '';
+    this.excepcionSinVideo = false;
     this.nuevoRegistro.bahiaId = '';
     this.nuevoRegistro.fecha = new Date().toISOString().substring(0, 10);
     this.asignarHorasAutomaticasOT();
@@ -3358,6 +3366,8 @@ export class ServiciosComponent implements OnInit, OnDestroy {
     foto: '',
     videoUrl: ''
   };
+
+  excepcionSinVideo = false;
 
   placaTocada = false;
 
@@ -4637,10 +4647,10 @@ export class ServiciosComponent implements OnInit, OnDestroy {
     }
 
     // Al agregar servicios, la evidencia de ingreso ya se registró con la OT original.
-    if (!modoAgregar && !this.nuevoRegistro.videoUrl?.trim()) {
+    if (!modoAgregar && !this.nuevoRegistro.videoUrl?.trim() && !this.excepcionSinVideo) {
       this.toastService.warning(
         'Vídeo de Ingreso Requerido',
-        'El vídeo de evidencia de ingreso (recepción) es un campo obligatorio para registrar la orden de trabajo.'
+        'El vídeo de evidencia de ingreso (recepción) es un campo obligatorio para registrar la orden de trabajo, o active la casilla de excepción administrativa.'
       );
       this.guardandoServicio = false;
       return;

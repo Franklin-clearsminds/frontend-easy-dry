@@ -20,10 +20,11 @@ import { HourlyPatternCardComponent } from '../../shared/components/hourly-patte
 import { TopBottomComponent, TopBottomItem } from '../../shared/components/top-bottom/top-bottom.component';
 import { TopOrdenComponent } from '../../shared/components/top-orden/top-orden.component';
 import { OrdenTop, ordenarSerieTop } from '../../shared/utils/serie-top';
-import { OpcionesService } from '../../core/services/opciones.service';
+import { OpcionesService, CargadorOpciones } from '../../core/services/opciones.service';
 import { CHART_COLORS, interpolarHex } from '../../shared/theme/colors';
 import { DashboardChartData } from '../../core/models/dashboard.model';
 import { Observable, Subscription, forkJoin, tap } from 'rxjs';
+
 
 /** Qué panel ve el usuario. Se decide por los permisos del rol (los mismos que exige el servidor), no por su nombre. */
 export type VistaDashboard = 'taller' | 'especiales' | 'bodega' | 'ejecutivo' | 'ninguna';
@@ -120,6 +121,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   cargarAgencias = this.opciones.agencias();
   cargarBahias = this.opciones.bahias();
   cargarPulidores = this.opciones.operadores({ rol: 'PULIDOR' });
+
 
   /** Suscripciones de la carga en curso: se cancelan al recargar para descartar respuestas obsoletas. */
   private carga = new Subscription();
@@ -918,15 +920,15 @@ export class DashboardComponent implements OnInit, OnDestroy {
     return u?.ambito === 'GLOBAL' || u?.role === 'SUPER_ADMIN';
   }
 
+  /** El filtro de cliente/marca aplica a quien puede ver múltiples agencias (global o regional). */
+  get puedeFiltrarCliente(): boolean {
+    return this.puedeFiltrarAgencia;
+  }
+
   /** El filtro de agencia aplica a alcance global o regional (el de agencia ya está acotado a la suya). */
   get puedeFiltrarAgencia(): boolean {
     const u = this.auth.getCurrentUser();
     return u?.ambito === 'GLOBAL' || u?.role === 'SUPER_ADMIN' || u?.ambito === 'REGION';
-  }
-
-  /** El filtro de cliente/marca aplica a quien puede ver múltiples agencias (global o regional). */
-  get puedeFiltrarCliente(): boolean {
-    return this.puedeFiltrarAgencia;
   }
 
   get hayFiltrosActivos(): boolean {
@@ -1048,6 +1050,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.activeDimension = regionId ? 'REGION' : 'GLOBAL';
     this.cargarClientes = this.opciones.clientes(regionId ? { regionId } : {});
     this.cargarAgencias = this.opciones.agencias(regionId ? { regionId } : undefined);
+
     this.recargar();
   }
 
@@ -1071,6 +1074,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.bahiaLabel = '';
     const u = this.auth.getCurrentUser();
     const userAgencia = u?.agenciaId || u?.sucursalId;
+
     const agId = agenciaId || userAgencia;
     this.cargarBahias = this.opciones.bahias(agId ? { agenciaId: String(agId) } : {});
     if (!agenciaId) {
@@ -1147,7 +1151,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.clienteLabel = '';
     this.bahiaLabel = '';
     this.pulidorLabel = '';
-    this.categoriaServicio = 'TODOS';
+    this.categoriaServicio = this.vista === 'especiales' ? 'ESPECIAL' : 'TODOS';
     this.desgloseTab = 'REGION';
     this.activeDimension = 'GLOBAL';
     this.rangoFiltro = 'HOY';

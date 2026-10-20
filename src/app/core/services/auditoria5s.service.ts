@@ -74,8 +74,14 @@ export class Auditoria5sService {
     return this.http.post<{ success: boolean }>(apiUrl(`${this.base}/delete`), { id });
   }
 
-  getAcciones(estado: string, page = 1, pageSize = 25, agenciaId?: string): Observable<PaginaConResumen<AccionCorrectiva>> {
-    return postPagina<AccionCorrectiva>(this.http, apiUrl(`${this.base}/acciones/list`), { estado, page, pageSize, ...(agenciaId ? { agenciaId } : {}) });
+  getAcciones(estado?: string, page = 1, pageSize = 25, agenciaId?: string): Observable<PaginaConResumen<AccionCorrectiva>> {
+    const estadoLimpio = estado && estado !== 'Todas' && estado.trim() !== '' ? estado.trim() : undefined;
+    return postPagina<AccionCorrectiva>(this.http, apiUrl(`${this.base}/acciones/list`), {
+      ...(estadoLimpio ? { estado: estadoLimpio } : {}),
+      page,
+      pageSize,
+      ...(agenciaId ? { agenciaId } : {})
+    });
   }
 
   seguimientoAccion(id: string, estado: string, observaciones?: string, evidenciaCorreccion?: string[]): Observable<Auditoria5sDetalle> {

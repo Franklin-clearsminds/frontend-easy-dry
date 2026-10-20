@@ -513,7 +513,7 @@ function dibujarEncabezadoPdf(doc: jsPDF, r: ReporteGenerado, g: GrupoReporte | 
     body: filas,
     styles: { font: 'helvetica', fontSize: 8, cellPadding: 1.4, textColor: TEXTO, lineColor: TEXTO, lineWidth: 0.2, valign: 'middle' },
     columnStyles: { 0: { cellWidth: 46 }, 1: { cellWidth: 30 }, 2: { cellWidth: valorAncho }, 3: { cellWidth: 30 }, 4: { cellWidth: valorAncho } },
-    didDrawCell: (d) => {
+    didDrawCell: (d: any) => {
       if (d.section === 'body' && d.row.index === 0 && d.column.index === 0 && logo) {
         const alto = Math.min(d.cell.height - 4, 16);
         const ancho = Math.min((alto * logo.ancho) / logo.alto, d.cell.width - 4);

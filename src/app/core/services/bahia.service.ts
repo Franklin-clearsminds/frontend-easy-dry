@@ -1,8 +1,9 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { BehaviorSubject, Observable, of } from 'rxjs';
-import { map, tap, catchError } from 'rxjs/operators';
+import { BehaviorSubject, Observable, of, EMPTY } from 'rxjs';
+import { map, tap, catchError, expand, reduce } from 'rxjs/operators';
 import { Bahia } from '../models';
+import { normalizarPagina } from '../models/paginacion.model';
 import { apiUrl } from '../config/env';
 
 @Injectable({
@@ -50,7 +51,10 @@ export class BahiaService {
   }
 
   getBahias(): Observable<Bahia[]> {
-    return this.http.post<any[]>(apiUrl('/agencias/bahias/list'), {}).pipe(
+    const pedir = (page: number) => this.http.post<any>(apiUrl('/agencias/bahias/list'), { page, pageSize: 100 });
+    return pedir(1).pipe(
+      expand(res => (res && res.hasNextPage ? pedir(Number(res.page || 1) + 1) : EMPTY)),
+      reduce((acc: any[], res: any) => acc.concat(normalizarPagina<any>(res, 1, 100).items), [] as any[]),
       map(items => (items || []).map(b => this.mapBackendBahia(b))),
       tap(mapped => this.bahiasSubject.next(mapped)),
       catchError(() => of(this.bahiasSubject.value))

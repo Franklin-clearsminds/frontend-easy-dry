@@ -111,13 +111,17 @@ import { fechaProgramadaLocal, fechaProgramadaISO } from '../../core/utils/evide
           <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry overflow-hidden group hover:shadow-easydry-hover transition-shadow duration-300 flex flex-col justify-between">
 
             <div>
-              <div class="h-44 bg-slate-900 relative overflow-hidden">
-                <img loading="lazy" decoding="async" [appThumb]="urlMedia(maq.imagen)" [alt]="'Foto de ' + maq.nombre" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-90">
-                <div class="absolute top-3 left-3 px-3 py-1 rounded-lg bg-easydry-blue/90 text-white text-xs font-mono font-bold backdrop-blur-xs">
+              <div class="h-44 bg-slate-900 relative overflow-hidden flex items-center justify-center">
+                <div class="w-full h-full flex flex-col items-center justify-center text-slate-600 absolute inset-0 select-none">
+                  <i-lucide aria-hidden="true" name="wrench" class="w-10 h-10 stroke-[1.5] text-slate-700"></i-lucide>
+                  <span class="text-[10px] text-slate-600 font-medium mt-1">EasyDry® Activo</span>
+                </div>
+                <img loading="lazy" decoding="async" [appThumb]="urlMedia(maq.imagen)" [alt]="'Foto de ' + maq.nombre" (error)="$any($event.target).classList.add('opacity-0')" class="relative z-10 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-90">
+                <div class="absolute top-3 left-3 px-3 py-1 rounded-lg bg-easydry-blue/90 text-white text-xs font-mono font-bold backdrop-blur-xs z-20">
                   {{ maq.codigo }}
                 </div>
 
-                <div class="absolute top-3 right-3">
+                <div class="absolute top-3 right-3 z-20">
                   <span class="inline-flex rounded-full bg-white shadow-xs">
                     <span [class]="badgeClase('maquina', maq.estado, { activa: maq.activa })">
                       {{ maq.activa === false ? 'De baja' : maq.estado }}
@@ -632,12 +636,22 @@ export class MaquinariaComponent implements OnInit, OnDestroy {
   getBahiasDisponibles(sucursalNombre: string): string[] {
     if (!sucursalNombre) return [];
     return this.todasLasBahias
-      .filter(b => b.sucursalNombre === sucursalNombre)
+      .filter(b => b.sucursalNombre === sucursalNombre || b.agenciaNombre === sucursalNombre)
       .map(b => b.nombre);
   }
 
   onCambioSucursalNuevaMaquina(sucursalNombre: string): void {
     this.nuevaMaquina.agencia = sucursalNombre;
+    const suc = this.sucursales.find(s => s.nombre === sucursalNombre);
+    if (suc?.id) {
+      this.bahiaService.getBahiasPorSucursal(suc.id).subscribe(bahias => {
+        const otras = this.todasLasBahias.filter(b => String(b.sucursalId) !== String(suc.id) && String(b.agenciaId) !== String(suc.id));
+        this.todasLasBahias = [...otras, ...bahias];
+        if (!this.nuevaMaquina.bahia && bahias.length > 0) {
+          this.nuevaMaquina.bahia = bahias[0].nombre;
+        }
+      });
+    }
     const bahias = this.getBahiasDisponibles(sucursalNombre);
     this.nuevaMaquina.bahia = bahias[0] || '';
     this.erroresMaquina.bahia = '';
@@ -738,8 +752,16 @@ export class MaquinariaComponent implements OnInit, OnDestroy {
 
     this.guardandoActivo = true;
     try {
-      const sucursalId = this.sucursalIdDeNombre(this.nuevaMaquina.agencia);
+      let sucursalId = this.sucursalIdDeNombre(this.nuevaMaquina.agencia);
       const bahiaId = this.bahiaIdDeNombre(this.nuevaMaquina.agencia, this.nuevaMaquina.bahia);
+
+      if (bahiaId) {
+        const bahiaObj = this.todasLasBahias.find(b => String(b.id) === String(bahiaId));
+        if (bahiaObj?.sucursalId || bahiaObj?.agenciaId) {
+          sucursalId = String(bahiaObj.sucursalId || bahiaObj.agenciaId);
+        }
+      }
+
       const codigo = this.nuevaMaquina.codigo.trim();
 
       this.nuevaMaquina.imagen = await this.subirFotoPendiente(
