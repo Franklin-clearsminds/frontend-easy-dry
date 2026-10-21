@@ -75,6 +75,13 @@ export class RetosService {
     );
   }
 
+  /** Corrige título, descripción, premio y vigencia de un reto activo. */
+  editarReto(id: string, datos: { titulo: string; descripcion: string; premio: string; fechaInicio: string; fechaFin: string }): Observable<Reto> {
+    return this.http.post<any>(apiUrl('/retos/update'), { id, ...datos }).pipe(
+      map((item) => this.mapReto(item)),
+    );
+  }
+
   /** Cierra el reto ya. El ganador no se elige: el servidor lo toma del ranking. */
   cerrarReto(id: string, datos: { resultado?: string }): Observable<Reto> {
     return this.http.post<any>(apiUrl('/retos/cerrar'), { id, ...datos }).pipe(

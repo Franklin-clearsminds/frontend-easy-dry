@@ -69,7 +69,7 @@ export class ServicioLavadoService {
     const fecha = s.horaIngreso ? new Date(s.horaIngreso).toISOString().split('T')[0] : (s.fecha || new Date().toISOString().split('T')[0]);
 
     const catRaw = s.categoriaServicio || s.catalogo?.categoria || s.catalogoRel?.categoria || 'GENERAL';
-    const isEspecial = catRaw === 'ESPECIAL' || catRaw === 'EXTRA' || String(catRaw).toLowerCase().includes('especial') || String(catRaw).toLowerCase().includes('extra');
+    const isEspecial = catRaw === 'ESPECIAL' || String(catRaw).toLowerCase().includes('especial');
     const categoriaServicio = isEspecial ? 'Servicios Especiales' : 'Servicios Generales';
 
     const servicioNombre = s.servicio || s.servicioNombre || s.catalogo?.nombre || s.catalogoRel?.nombre || '';
@@ -113,6 +113,7 @@ export class ServicioLavadoService {
     return {
       id: s.id,
       ordenTrabajoOT,
+      precio: s.precio != null ? Number(s.precio) : null,
       placa: s.placa || '',
       marca: s.marca || s.modelo?.split(' ')[0] || '',
       modelo: s.modelo || '',
@@ -340,24 +341,6 @@ export class ServicioLavadoService {
     }).pipe(
       map(res => this.mapBackendServicio(res)),
       tap(updated => this.reemplazarLocal(id, updated)),
-    );
-  }
-
-  /** Cierre del día de UNA agencia (la agencia es obligatoria). Solo aprueba lo que el usuario puede decidir. */
-  aprobarTodosLosServiciosDelDia(
-    agenciaId: string,
-    opciones?: { fecha?: string; requiereFotoSalida?: boolean },
-  ): Observable<{ aprobadosCount: number; omitidosSinFotoCount: number; mensaje: string }> {
-    return this.http.post<any>(apiUrl('/operaciones/servicios/aprobar-todos'), {
-      agenciaId,
-      ...(opciones?.fecha ? { fecha: opciones.fecha } : {}),
-      ...(opciones?.requiereFotoSalida === false ? { requiereFotoSalida: false } : {}),
-    }).pipe(
-      map(res => ({
-        aprobadosCount: Number(res?.aprobadosCount ?? 0),
-        omitidosSinFotoCount: Number(res?.omitidosSinFotoCount ?? 0),
-        mensaje: String(res?.mensaje || ''),
-      })),
     );
   }
 

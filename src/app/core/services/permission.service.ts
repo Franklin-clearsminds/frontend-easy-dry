@@ -44,7 +44,6 @@ export class PermissionService {
   canCambiarBahiaOperador(): boolean { return this.can('cambiarBahiaOperador'); }
   canAprobarServicios(): boolean { return this.can('aprobarServicios'); }
   canRechazarServicios(): boolean { return this.can('rechazarServicios'); }
-  canCerrarDia(): boolean { return this.can('cerrarDia'); }
   canRegistrarServicio(): boolean { return this.can('registrarServicio'); }
   canVerMaquinaria(): boolean { return this.can('verMaquinaria'); }
   canGestionarMantenimiento(): boolean { return this.can('gestionarMantenimiento'); }

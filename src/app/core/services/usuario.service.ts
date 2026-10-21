@@ -315,16 +315,6 @@ export class UsuarioService {
     );
   }
 
-  eliminarUsuario(usuarioId: string | number): Observable<boolean> {
-    return this.http.post<any>(apiUrl('/agencias/usuarios/delete'), { id: String(usuarioId) }).pipe(
-      map(() => {
-        const current = this.usuariosSubject.value;
-        const filtered = current.filter(u => String(u.id) !== String(usuarioId));
-        this.usuariosSubject.next(filtered);
-        return true;
-      })
-    );
-  }
 
   /** Asigna o restablece la contraseña de un usuario existente (requiere el permiso «Asignar y restablecer contraseñas»). */
   asignarPassword(id: string | number, password: string): Observable<{ ok: true }> {

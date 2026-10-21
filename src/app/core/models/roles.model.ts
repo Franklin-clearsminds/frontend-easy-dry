@@ -195,7 +195,6 @@ export interface PermisosRol {
   cambiarBahiaOperador: boolean;
   aprobarServicios: boolean;
   rechazarServicios: boolean;
-  cerrarDia: boolean;
   registrarServicio: boolean;
   verTodosServicios: boolean;
   verMaquinaria: boolean;
@@ -221,7 +220,6 @@ export const ACCIONES_VACIAS: PermisosRol = {
   cambiarBahiaOperador: false,
   aprobarServicios: false,
   rechazarServicios: false,
-  cerrarDia: false,
   registrarServicio: false,
   verTodosServicios: false,
   verMaquinaria: false,

@@ -248,6 +248,60 @@ import {
         </div>
       }
 
+      <!-- Modal de Edición de Reto -->
+      @if (showEditarModal) {
+        <div appModalPortal role="dialog" aria-modal="true" aria-labelledby="reto-editar-title" class="fixed inset-0 z-[10050] flex items-center justify-center animate-fade-in">
+          <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" (click)="showEditarModal = false"></div>
+
+          <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden max-h-[90dvh] flex flex-col border border-slate-100">
+            <div class="shrink-0 bg-blue-50 border-b border-blue-100 px-6 py-4 flex items-center justify-between">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center shadow-sm border border-blue-200">
+                  <i-lucide aria-hidden="true" name="pencil" class="w-5 h-5 text-easydry-blue"></i-lucide>
+                </div>
+                <h3 id="reto-editar-title" class="font-extrabold text-slate-900 text-lg">Editar Reto</h3>
+              </div>
+              <button type="button" aria-label="Cerrar" (click)="showEditarModal = false" class="p-1.5 min-w-9 min-h-9 inline-flex items-center justify-center hover:bg-blue-100 rounded-full transition-colors text-slate-400 hover:text-slate-600">
+                <i-lucide aria-hidden="true" name="x" class="w-5 h-5"></i-lucide>
+              </button>
+            </div>
+
+            <div class="flex-1 min-h-0 overflow-y-auto p-6 space-y-4">
+              <p class="text-xs text-slate-500">Puedes corregir el texto, el premio y la vigencia. Los participantes y la forma de elegir al ganador no cambian, porque el ranking depende de ellos.</p>
+              <div>
+                <label for="reto-edit-titulo" class="block text-xs font-bold text-slate-600 mb-1.5">Título *</label>
+                <input id="reto-edit-titulo" type="text" [(ngModel)]="formEditarReto.titulo" maxlength="160" class="w-full px-3.5 py-2.5 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-easydry-blue focus:border-easydry-blue">
+              </div>
+              <div>
+                <label for="reto-edit-desc" class="block text-xs font-bold text-slate-600 mb-1.5">Descripción</label>
+                <textarea id="reto-edit-desc" [(ngModel)]="formEditarReto.descripcion" rows="3" maxlength="1000" class="w-full px-3.5 py-2.5 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-easydry-blue focus:border-easydry-blue resize-none"></textarea>
+              </div>
+              <div>
+                <label for="reto-edit-premio" class="block text-xs font-bold text-slate-600 mb-1.5">Premio</label>
+                <input id="reto-edit-premio" type="text" [(ngModel)]="formEditarReto.premio" maxlength="300" class="w-full px-3.5 py-2.5 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-easydry-blue focus:border-easydry-blue">
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div>
+                  <label for="reto-edit-inicio" class="block text-xs font-bold text-slate-600 mb-1.5">Inicio *</label>
+                  <input id="reto-edit-inicio" type="date" [(ngModel)]="formEditarReto.fechaInicio" class="w-full px-3.5 py-2.5 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-easydry-blue focus:border-easydry-blue">
+                </div>
+                <div>
+                  <label for="reto-edit-fin" class="block text-xs font-bold text-slate-600 mb-1.5">Fin *</label>
+                  <input id="reto-edit-fin" type="date" [(ngModel)]="formEditarReto.fechaFin" class="w-full px-3.5 py-2.5 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-easydry-blue focus:border-easydry-blue">
+                </div>
+              </div>
+            </div>
+
+            <div class="shrink-0 px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
+              <button (click)="showEditarModal = false" class="btn btn-secondary">Cancelar</button>
+              <button (click)="confirmarEditarReto()" [disabled]="guardandoEdicionReto" class="px-5 py-2 font-bold text-sm text-white bg-easydry-blue hover:bg-easydry-blue/90 disabled:opacity-50 rounded-xl transition-colors shadow-sm">
+                Guardar cambios
+              </button>
+            </div>
+          </div>
+        </div>
+      }
+
       <!-- Modal de Cierre de Reto -->
       @if (showCerrarModal) {
         <div appModalPortal role="dialog" aria-modal="true" aria-labelledby="reto-cerrar-title" class="fixed inset-0 z-[10050] flex items-center justify-center animate-fade-in">
@@ -487,6 +541,15 @@ import {
 
           <ng-template appCell="acciones" let-reto>
             <div class="flex items-center justify-end gap-1">
+              @if (canEditarReto(reto)) {
+                <button
+                  type="button"
+                  (click)="iniciarEditarReto(reto)"
+                  title="Editar Reto"
+                  class="p-1.5 min-w-9 min-h-9 inline-flex items-center justify-center text-slate-500 hover:text-easydry-blue hover:bg-blue-50 rounded-lg transition-colors cursor-pointer" aria-label="Editar Reto">
+                  <i-lucide aria-hidden="true" name="pencil" class="w-4 h-4"></i-lucide>
+                </button>
+              }
               @if (canCerrarReto(reto) && (reto.estado || 'ACTIVO').toUpperCase() === 'ACTIVO') {
                 <button
                   type="button"
@@ -558,6 +621,10 @@ export class ProductividadComponent implements OnInit, OnDestroy {
   showCrearRetoModal = false;
   showDeleteConfirmModal = false;
   retoToDelete: Reto | null = null;
+  showEditarModal = false;
+  guardandoEdicionReto = false;
+  retoToEditar: Reto | null = null;
+  formEditarReto = { titulo: '', descripcion: '', premio: '', fechaInicio: '', fechaFin: '' };
   showCerrarModal = false;
   retoToCerrar: Reto | null = null;
   cierreResultado = '';
@@ -790,6 +857,11 @@ export class ProductividadComponent implements OnInit, OnDestroy {
     return this.authService.puede('productividad.retos.eliminar') && this.esCreadorOGlobal(reto);
   }
 
+  /** Editar exige su casilla, ser el creador o tener alcance nacional, y que el reto siga activo. */
+  canEditarReto(reto: Reto): boolean {
+    return this.authService.puede('productividad.retos.editar') && this.esCreadorOGlobal(reto) && (reto.estado || 'ACTIVO').toUpperCase() === 'ACTIVO';
+  }
+
   canCerrarReto(reto: Reto): boolean {
     return this.authService.puede('productividad.retos.cerrar') && this.esCreadorOGlobal(reto);
   }
@@ -818,6 +890,47 @@ export class ProductividadComponent implements OnInit, OnDestroy {
         }
       });
     }
+  }
+
+  iniciarEditarReto(reto: Reto) {
+    this.retoToEditar = reto;
+    this.formEditarReto = {
+      titulo: reto.titulo,
+      descripcion: reto.descripcion || '',
+      premio: reto.premio || '',
+      fechaInicio: reto.fechaInicio,
+      fechaFin: reto.fechaFin,
+    };
+    this.showEditarModal = true;
+  }
+
+  confirmarEditarReto() {
+    const reto = this.retoToEditar;
+    if (!reto) return;
+    const f = this.formEditarReto;
+    if (!f.titulo.trim()) {
+      this.toast.warning('Título requerido', 'Escribe el título del reto.');
+      return;
+    }
+    if (!f.fechaInicio || !f.fechaFin) {
+      this.toast.warning('Fechas requeridas', 'Indica la fecha de inicio y la de fin.');
+      return;
+    }
+    this.guardandoEdicionReto = true;
+    this.retosService.editarReto(reto.id, { ...f, titulo: f.titulo.trim() }).subscribe({
+      next: () => {
+        this.guardandoEdicionReto = false;
+        this.showEditarModal = false;
+        this.retoToEditar = null;
+        this.toast.success('Reto actualizado', f.titulo.trim());
+        this.cargarRetos();
+      },
+      error: (err) => {
+        this.guardandoEdicionReto = false;
+        const m = err?.error?.message;
+        this.toast.error('No se pudo editar el reto', Array.isArray(m) ? m.join(' ') : (typeof m === 'string' && m ? m : 'El servidor no aceptó los cambios.'));
+      }
+    });
   }
 
   iniciarCerrarReto(reto: Reto) {

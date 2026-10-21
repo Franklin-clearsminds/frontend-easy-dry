@@ -61,12 +61,16 @@ export class CatalogoServiciosComponent implements OnInit, OnDestroy {
     if (!servicio.id || !this.puedeCambiarEstado(servicio.categoria)) return;
     this.catalogoService.cambiarEstado(servicio.id).subscribe({
       next: () => {
-        this.toast.success(servicio.estado === 'Activo' ? 'Servicio desactivado' : 'Servicio activado', servicio.nombre);
+        const desactivado = servicio.estado === 'Activo';
+        this.toast.success(desactivado ? 'Servicio desactivado' : 'Servicio activado', servicio.nombre);
+        servicio.estado = desactivado ? 'Inactivo' : 'Activo';
         this.refrescarTablas();
       },
       error: (err) => this.toast.error('Error', err?.error?.message || 'No se pudo cambiar el estado del servicio.'),
     });
   }
+  /** El precio se ve solo con `precios.ver` y para quien tiene sede: es el que su agencia tiene fijado (el catálogo global no tiene precio). */
+  get mostrarPrecioAgencia(): boolean { return !!this.agenciaCtx && this.authService.puede('precios.ver'); }
   get tieneServiciosEspeciales(): boolean { return this.agenciaCtx?.tieneServiciosEspeciales ?? false; }
   /** La sede tiene el catálogo vacío: nada asignado y nada que mostrar. */
   get sinServiciosConfigurados(): boolean {
@@ -82,9 +86,8 @@ export class CatalogoServiciosComponent implements OnInit, OnDestroy {
   // ── Generales y especiales: páginas numeradas, búsqueda y orden en el servidor ──
   readonly generalesTabla = new TablaServidor<CatalogoServicio, AgenciaCatalogoCtx>(
     (c) => this.catalogoService.getServiciosPagina({ ...c, categoria: 'GENERAL' }), { sortField: 'codigo', sortOrder: 'asc' });
-  /** Los servicios extra cuentan como especiales. */
   readonly especialesTabla = new TablaServidor<CatalogoServicio, AgenciaCatalogoCtx>(
-    (c) => this.catalogoService.getServiciosPagina({ ...c, categoria: 'ESPECIAL,EXTRA' }), { sortField: 'codigo', sortOrder: 'asc' });
+    (c) => this.catalogoService.getServiciosPagina({ ...c, categoria: 'ESPECIAL' }), { sortField: 'codigo', sortOrder: 'asc' });
   productosInventario: InventarioItem[] = [];
   busquedaGenerales = '';
   busquedaEspeciales = '';

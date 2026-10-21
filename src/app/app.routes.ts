@@ -191,15 +191,6 @@ export const routes: Routes = [
       },
 
       {
-        path: 'auditorias',
-        loadComponent: () =>
-          import('./features/auditorias/auditorias-dashboard.component').then(m => m.AuditoriasDashboardComponent),
-        canActivate: [
-          authGuard,
-          moduloGuard('auditorias')
-        ]
-      },
-      {
         path: 'informes-inspeccion',
         loadComponent: () =>
           import('./features/auditorias/informes/informes.component').then(m => m.InformesComponent),

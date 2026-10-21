@@ -51,6 +51,7 @@ export class CatalogoServiciosService {
       descripcion: s.descripcion || '',
       estado: s.estado === 'Inactivo' ? 'Inactivo' : 'Activo',
       precio: Number(s.precio || 0),
+      precioAgencia: s.precioAgencia != null ? Number(s.precioAgencia) : null,
       tiempoEstimadoMin: s.tiempoEstimadoMin != null ? Number(s.tiempoEstimadoMin) : 0,
       requiereFoto: s.categoria === 'ESPECIAL',
       requiereVideo: s.categoria === 'ESPECIAL',

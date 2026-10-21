@@ -82,21 +82,6 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
             <span class="text-3xl font-extrabold font-outfit text-easydry-lime">{{ totalAprobados }} / {{ totalServicios }}</span>
             <span class="text-xs text-slate-500 block font-semibold">Servicios Aprobados</span>
           </div>
-          @if (puedeAprobarTodosPermiso) {
-            @if (agenciaObjetivo; as ag) {
-              @if (hayDecidiblesEnAgencia) {
-                <button
-                  type="button"
-                  (click)="modalAprobarTodosOpen = true"
-                  class="px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-glow-green flex items-center gap-2 cursor-pointer">
-                  <i-lucide aria-hidden="true" name="check-circle-2" class="w-4 h-4"></i-lucide>
-                  <span>Aprobar todos de {{ ag.nombre }}</span>
-                </button>
-              }
-            } @else {
-              <span class="text-[11px] font-semibold text-slate-500 max-w-[260px]">Para aprobar todos, elige una sucursal en el filtro: el cierre se hace de una agencia a la vez.</span>
-            }
-          }
         </div>
       </div>
 
@@ -247,27 +232,6 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
 
       }
 
-      <!-- Modal: confirmar aprobar todos de una agencia -->
-      <app-modal size="md"
-        [isOpen]="modalAprobarTodosOpen"
-        title="Aprobar todos los servicios de la agencia"
-        icon="check-circle-2"
-        (close)="modalAprobarTodosOpen = false">
-        @if (agenciaObjetivo; as ag) {
-          <p class="text-xs text-slate-600">
-            Se aprobarán todos los servicios finalizados de <b>{{ ag.nombre }}</b> que tengan evidencia de salida. Quedará registrado tu nombre, la fecha y la regla con la que decides.
-            Los que no tengan evidencia se omiten.
-          </p>
-        }
-        <div modal-footer class="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 w-full">
-          <button type="button" (click)="modalAprobarTodosOpen = false" class="btn btn-secondary w-full sm:w-auto">Cancelar</button>
-          <button type="button" (click)="aprobarTodos()" [disabled]="aprobandoTodos"
-            class="px-4 py-2 rounded-xl text-xs font-bold bg-easydry-green hover:bg-easydry-green-dark text-slate-950 disabled:opacity-50 cursor-pointer w-full sm:w-auto justify-center">
-            Confirmar aprobación
-          </button>
-        </div>
-      </app-modal>
-
       <!-- Modal: anular con motivo -->
       <app-modal size="md"
         [isOpen]="modalAnularOpen"
@@ -386,14 +350,12 @@ export class AprobacionesComponent implements OnInit, OnDestroy {
 
   modalRechazarOpen = false;
   modalVideoOpen = false;
-  modalAprobarTodosOpen = false;
   modalAnularOpen = false;
   motivoRechazo = '';
   motivoAnulacion = '';
   servicioAnular?: VehiculoServicio;
   /** Servicio que se está aprobando o rechazando (evita doble clic). */
   procesandoId: string | number | null = null;
-  aprobandoTodos = false;
   anulando = false;
 
   private servicioService = inject(ServicioLavadoService);
@@ -498,32 +460,8 @@ export class AprobacionesComponent implements OnInit, OnDestroy {
   get puedeVer(): boolean { return this.authService.puede('servicios.ver'); }
   get puedeAprobarPermiso(): boolean { return this.authService.puede('aprobaciones.aprobar'); }
   get puedeRechazarPermiso(): boolean { return this.authService.puede('aprobaciones.rechazar'); }
-  get puedeAprobarTodosPermiso(): boolean { return this.authService.puede('aprobaciones.aprobar.todos'); }
   get puedeDecidirPermiso(): boolean { return this.puedeAprobarPermiso || this.puedeRechazarPermiso; }
   get puedeAnularPermiso(): boolean { return this.authService.puede('aprobaciones.anular'); }
-
-  /** Agencia sobre la que opera «Aprobar todos»: la del filtro (su id sale de los servicios cargados) o la del ámbito del usuario. */
-  get agenciaObjetivo(): { id: string; nombre: string } | null {
-    const user = this.authService.getCurrentUser();
-    const nombreFiltro = this.neutro(this.filtrosGlobales.sucursal, 'Todas');
-    if (nombreFiltro) {
-      const conId = this.lista.items.find((s) => s.agenciaId && s.agencia === nombreFiltro);
-      if (conId?.agenciaId) return { id: String(conId.agenciaId), nombre: nombreFiltro };
-      if (user?.agenciaId && (user.sucursalNombre === nombreFiltro)) return { id: String(user.agenciaId), nombre: nombreFiltro };
-      return null;
-    }
-    if (user?.ambito === 'AGENCIA' && user.agenciaId) {
-      return { id: String(user.agenciaId), nombre: user.sucursalNombre || 'tu agencia' };
-    }
-    return null;
-  }
-
-  /** Hay al menos un servicio finalizado de la agencia objetivo que el usuario puede decidir ahora. */
-  get hayDecidiblesEnAgencia(): boolean {
-    const ag = this.agenciaObjetivo;
-    if (!ag) return false;
-    return this.lista.items.some((s) => s.estado === 'FINALIZADO' && s.puedeDecidir && String(s.agenciaId) === ag.id);
-  }
 
   /** " (aprobador de la agencia)" o " (respaldo)" según la regla con la que se decidió. */
   etiquetaRegla(item: VehiculoServicio): string {
@@ -609,28 +547,6 @@ export class AprobacionesComponent implements OnInit, OnDestroy {
       error: (err) => {
         this.anulando = false;
         this.toastService.error('No se pudo anular', this.mensajeError(err, 'No se pudo anular el servicio.'));
-      }
-    });
-  }
-
-  /** Cierre de UNA agencia: el servidor solo aprueba lo que el usuario puede decidir y devuelve cuántos y cuántos omitió. */
-  aprobarTodos() {
-    const ag = this.agenciaObjetivo;
-    if (!ag) {
-      this.toastService.warning('Elige una agencia', 'Selecciona una sucursal en el filtro: el cierre se hace de una agencia a la vez.');
-      return;
-    }
-    this.aprobandoTodos = true;
-    this.servicioService.aprobarTodosLosServiciosDelDia(ag.id).subscribe({
-      next: (r) => {
-        this.aprobandoTodos = false;
-        this.modalAprobarTodosOpen = false;
-        this.toastService.success('Cierre registrado', r.mensaje || `Se aprobaron ${r.aprobadosCount} servicios de ${ag.nombre}.`);
-        this.lista.reiniciar();
-      },
-      error: (err) => {
-        this.aprobandoTodos = false;
-        this.toastService.error('No se pudo aprobar todos', this.mensajeError(err, 'No se pudo cerrar el día de la agencia.'));
       }
     });
   }

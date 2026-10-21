@@ -330,7 +330,7 @@ export class SucursalDetailComponent implements OnInit {
 
   get serviciosEspeciales(): CatalogoServicio[] {
     return this.catalogoServicios.filter(s =>
-      (s.categoria?.trim().toUpperCase() === 'ESPECIAL' || s.categoria?.trim().toUpperCase() === 'EXTRA') && s.estado === 'Activo'
+      s.categoria?.trim().toUpperCase() === 'ESPECIAL' && s.estado === 'Activo'
     );
   }
 

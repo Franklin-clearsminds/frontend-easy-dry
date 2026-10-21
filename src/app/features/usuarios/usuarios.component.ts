@@ -447,15 +447,6 @@ const COLUMNAS_ROLES: TableColumn[] = [
                       <i-lucide aria-hidden="true" name="key" class="w-4 h-4"></i-lucide>
                     </button>
                   }
-                  @if (puedeEliminarUsuario) {
-                    <button
-                      type="button"
-                      (click)="abrirModalEliminarUsuario(u)"
-                      title="Eliminar Usuario"
-                      class="p-1.5 min-w-9 min-h-9 inline-flex items-center justify-center text-slate-500 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer" aria-label="Eliminar Usuario">
-                      <i-lucide aria-hidden="true" name="trash-2" class="w-4 h-4"></i-lucide>
-                    </button>
-                  }
                 </div>
               </ng-template>
             </app-data-table>
@@ -1283,65 +1274,6 @@ const COLUMNAS_ROLES: TableColumn[] = [
       </app-modal>
 
       <!-- ======================================================== -->
-      <!-- MODAL: CONFIRMAR ELIMINACIÓN DE USUARIO                  -->
-      <!-- ======================================================== -->
-      <app-modal
-        [isOpen]="modalEliminarUsuarioOpen" size="sm"
-        title="Confirmar Eliminación de Usuario"
-        icon="alert-triangle"
-        (close)="modalEliminarUsuarioOpen = false">
-        
-        <div class="space-y-4 py-2">
-          <div class="flex items-center gap-3.5 p-3.5 bg-rose-50 border border-rose-200 rounded-2xl">
-            <div class="w-10 h-10 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
-              <i-lucide aria-hidden="true" name="trash-2" class="w-5 h-5"></i-lucide>
-            </div>
-            <div>
-              <h4 class="text-sm font-bold text-slate-900">¿Estás seguro de eliminar este usuario?</h4>
-              <p class="text-xs text-rose-700 font-medium">Esta acción eliminará el acceso y los registros del colaborador en la plataforma.</p>
-            </div>
-          </div>
-
-          @if (usuarioAEliminar) {
-            <div class="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2.5">
-              <div class="flex items-center justify-between text-xs">
-                <span class="text-slate-500 font-bold uppercase">Colaborador:</span>
-                <span class="font-bold text-slate-900">{{ usuarioAEliminar.nombre }} {{ usuarioAEliminar.apellido }}</span>
-              </div>
-              <div class="flex items-center justify-between text-xs">
-                <span class="text-slate-500 font-bold uppercase">Correo Electrónico:</span>
-                <span class="font-mono text-slate-700">{{ usuarioAEliminar.email }}</span>
-              </div>
-              <div class="flex items-center justify-between text-xs">
-                <span class="text-slate-500 font-bold uppercase">Rol Asignado:</span>
-                <span class="font-bold text-easydry-blue">{{ usuarioAEliminar.rol }}</span>
-              </div>
-              <div class="flex items-center justify-between text-xs">
-                <span class="text-slate-500 font-bold uppercase">Agencia / Local:</span>
-                <span class="text-slate-700 font-medium">{{ usuarioAEliminar.agencia || 'Sin asignar' }}</span>
-              </div>
-            </div>
-          }
-        </div>
-
-        <div modal-footer class="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2.5">
-          <button
-            type="button"
-            (click)="modalEliminarUsuarioOpen = false"
-            class="btn btn-secondary w-full sm:w-auto">
-            Cancelar
-          </button>
-          <button
-            type="button"
-            (click)="confirmarEliminarUsuario()"
-            class="btn btn-danger w-full sm:w-auto">
-            <i-lucide aria-hidden="true" name="trash-2" class="w-4 h-4"></i-lucide>
-            <span>Eliminar Usuario</span>
-          </button>
-        </div>
-      </app-modal>
-
-      <!-- ======================================================== -->
       <!-- MODAL: CONFIRMAR ELIMINACIÓN DE ROL                      -->
       <!-- ======================================================== -->
       <app-modal
@@ -1593,9 +1525,6 @@ export class UsuariosComponent implements OnInit, OnDestroy {
   errorCatalogo: string | null = null;
   guardandoRol = false;
 
-  modalEliminarUsuarioOpen = false;
-  usuarioAEliminar: Usuario | null = null;
-
   modalPasswordOpen = false;
   usuarioPassword: Usuario | null = null;
   passwordNueva = '';
@@ -1800,7 +1729,7 @@ export class UsuariosComponent implements OnInit, OnDestroy {
       this.serviciosEspecialesCatalogo = (servicios || []).filter(s => {
         const cat = String(s.categoria || '').trim().toUpperCase();
         const activo = s.estado === 'Activo' || (s as any).estado === 1 || s.estado == null;
-        return activo && (cat === 'ESPECIAL' || cat === 'EXTRA' || cat.includes('ESPECIAL'));
+        return activo && cat.includes('ESPECIAL');
       });
       if (bodegas && bodegas.length) this.bodegasDisponibles = bodegas;
       abrir();
@@ -2424,32 +2353,6 @@ export class UsuariosComponent implements OnInit, OnDestroy {
     });
   }
 
-  abrirModalEliminarUsuario(u: Usuario) {
-    this.usuarioAEliminar = u;
-    this.modalEliminarUsuarioOpen = true;
-  }
-
-  confirmarEliminarUsuario() {
-    if (!this.usuarioAEliminar) return;
-    const u = this.usuarioAEliminar;
-    this.usuarioService.eliminarUsuario(u.id).subscribe({
-      next: () => {
-        this.usuarios = this.usuarios.filter(user => String(user.id) !== String(u.id));
-        this.refrescarUsuarios(true);
-        this.toastService.success(
-          'Usuario Eliminado',
-          `El usuario ${u.nombre} ${u.apellido} ha sido eliminado del sistema.`
-        );
-        this.modalEliminarUsuarioOpen = false;
-        this.usuarioAEliminar = null;
-      },
-      error: () => {
-        this.modalEliminarUsuarioOpen = false;
-        this.usuarioAEliminar = null;
-      }
-    });
-  }
-
   onRolUsuarioChange() {
     if (this.esOperadorEspecialesRol(this.usuarioForm.rol)) {
       this.onPulidorAgenciaChange(this.usuarioForm.agencia || '');
@@ -2821,7 +2724,6 @@ export class UsuariosComponent implements OnInit, OnDestroy {
   get puedeCrearUsuario(): boolean { return this.authService.puede('usuarios.usuarios.crear'); }
   get puedeEditarUsuario(): boolean { return this.authService.puede('usuarios.usuarios.editar'); }
   get puedeEstadoUsuario(): boolean { return this.authService.puede('usuarios.usuarios.estado'); }
-  get puedeEliminarUsuario(): boolean { return this.authService.puede('usuarios.usuarios.eliminar'); }
   get puedePasswordUsuario(): boolean { return this.authService.puede('usuarios.usuarios.password'); }
   /** Crea o edita usuarios de cualquier rol (a diferencia de quien solo gestiona Backups de su región). */
   get puedeGestionarUsuarios(): boolean { return this.puedeCrearUsuario || this.puedeEditarUsuario; }

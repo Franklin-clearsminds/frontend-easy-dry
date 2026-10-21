@@ -1806,6 +1806,12 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
           <ng-template appCell="stockNuevo" let-m>
             <span class="font-mono font-bold text-slate-800">{{ m.stockNuevo | number:'1.0-2' }}</span>
           </ng-template>
+          <ng-template appCell="costoUnitario" let-m>
+            <span class="font-mono text-slate-700">{{ m.costoUnitario != null ? ('$' + (m.costoUnitario | number:'1.2-2')) : '—' }}</span>
+          </ng-template>
+          <ng-template appCell="costoTotal" let-m>
+            <span class="font-mono font-bold text-slate-800">{{ m.costoTotal != null ? ('$' + (m.costoTotal | number:'1.2-2')) : '—' }}</span>
+          </ng-template>
           <ng-template appCell="responsable" let-m>
             <span class="text-slate-600 whitespace-nowrap">{{ m.responsable ? (m.responsable.name + ' ' + m.responsable.lastname) : 'Sistema' }}</span>
           </ng-template>
@@ -4083,7 +4089,7 @@ export class InventarioComponent implements OnInit, OnDestroy {
   filtroMovimientoFechaHasta = '';
 
   // ── Kardex (tabla con páginas numeradas; orden, búsqueda y filtros en el servidor) ──
-  readonly columnasMovimientos: TableColumn[] = [
+  private readonly columnasMovimientosBase: TableColumn[] = [
     { key: 'fecha', label: 'Fecha', sortable: true, defaultSort: 'desc' },
     { key: 'comprobante', label: 'Comprobante', sortable: true },
     { key: 'producto', label: 'Producto', sortable: true },
@@ -4097,6 +4103,16 @@ export class InventarioComponent implements OnInit, OnDestroy {
     { key: 'observacion', label: 'Observación' },
     { key: 'evidencia', label: 'Evidencia' },
   ];
+  /** Con `precios.ver` el Kardex suma el costo unitario y el total, antes de Responsable. */
+  private readonly columnasMovimientosConCosto: TableColumn[] = [
+    ...this.columnasMovimientosBase.slice(0, 9),
+    { key: 'costoUnitario', label: 'Costo Unit.', sortable: true, align: 'right' },
+    { key: 'costoTotal', label: 'Costo Total', sortable: true, align: 'right' },
+    ...this.columnasMovimientosBase.slice(9),
+  ];
+  get columnasMovimientos(): TableColumn[] {
+    return this.auth.puede('precios.ver') ? this.columnasMovimientosConCosto : this.columnasMovimientosBase;
+  }
   paginaMovimientos = 1;
   pageSizeMovimientos = PAGE_SIZE_TABLA;
   sortFieldMovimientos: string | null = 'fecha';

@@ -56,6 +56,8 @@ export class ServiciosExtrasService {
       id: item.id,
       codigoSE: item.codigoSE || `SE-${String(item.id).substring(0, 6).toUpperCase()}`,
       ordenTrabajoOT: item.ordenTrabajoOT || item.codigoSE || '',
+      precio: item.precio != null ? Number(item.precio) : null,
+      servicioCatalogoId: item.servicioCatalogoId != null ? Number(item.servicioCatalogoId) : null,
       servicioNombre: item.tipoServicio || item.servicioNombre || 'Servicio Especial',
       servicioDescripcion: item.observaciones || item.servicioDescripcion || '',
       operadorId: item.operadorId || item.operadoresIds?.[0] || item.operador?.id || '',
@@ -315,7 +317,7 @@ export class ServiciosExtrasService {
   }
 
   /** Corrige vehículo, cliente, prioridad y observaciones de un servicio especial (permiso 'servicios.especiales.editar'). */
-  editarServicioExtra(id: number | string, datos: { placa: string; marca: string; modelo: string; color: string; cliente: string; prioridad: string; observaciones: string }): Observable<ServicioExtra> {
+  editarServicioExtra(id: number | string, datos: { placa: string; marca: string; modelo: string; color: string; cliente: string; prioridad: string; observaciones: string; servicioCatalogoId?: number }): Observable<ServicioExtra> {
     return this.http.post<any>(apiUrl('/operaciones/servicios-especiales/editar'), { id: String(id), ...datos }).pipe(
       map(res => this.mapBackend(res)),
       tap(updated => this._updateLocal(id, updated)),

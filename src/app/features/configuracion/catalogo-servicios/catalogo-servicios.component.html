@@ -151,7 +151,7 @@
               <th scope="col" class="px-6 py-4">Categoría</th>
               @if (puedeVerReceta('GENERAL')) {<th scope="col" class="px-6 py-4">Insumos Sugeridos (Receta)</th>}
               <th scope="col" class="px-6 py-4">Tiempo</th>
-              <th scope="col" class="px-6 py-4">Requisitos</th>
+              @if (mostrarPrecioAgencia) {<th scope="col" class="px-6 py-4">Precio</th>}
               <th scope="col" class="px-6 py-4">Estado</th>
               <th scope="col" class="px-6 py-4 text-right">Acciones</th>
             </tr>
@@ -194,19 +194,11 @@
                     {{ srv.tiempoEstimadoMin }} min
                   </span>
                 </td>
-                <td class="px-6 py-4">
-                  <div class="flex gap-2">
-                    @if (srv.requiereFoto) {
-                      <span class="text-easydry-blue" title="Requiere Fotografía"><i-lucide name="image" class="w-4 h-4"></i-lucide></span>
-                    }
-                    @if (srv.requiereVideo) {
-                      <span class="text-purple-600" title="Requiere Vídeo"><i-lucide name="film" class="w-4 h-4"></i-lucide></span>
-                    }
-                    @if (!srv.requiereFoto && !srv.requiereVideo) {
-                      <span class="text-slate-500 text-xs italic">Estándar</span>
-                    }
-                  </div>
-                </td>
+                @if (mostrarPrecioAgencia) {
+                  <td class="px-6 py-4 font-mono font-bold text-slate-800 whitespace-nowrap">
+                    {{ srv.precioAgencia != null ? ('$' + (srv.precioAgencia | number:'1.2-2')) : '—' }}
+                  </td>
+                }
                 <td class="px-6 py-4">
                   <span
                     class="px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider border inline-block"
@@ -233,7 +225,7 @@
               </tr>
             } @empty {
               <tr>
-                <td colspan="7" class="px-6 py-12 text-center text-slate-500 text-xs">
+                <td [attr.colspan]="mostrarPrecioAgencia ? 7 : 6" class="px-6 py-12 text-center text-slate-500 text-xs">
                   No se encontraron servicios generales con los filtros aplicados.
                 </td>
               </tr>
@@ -320,7 +312,7 @@
               <th scope="col" class="px-6 py-4">Categoría</th>
               @if (puedeVerReceta('ESPECIAL')) {<th scope="col" class="px-6 py-4">Insumos Sugeridos (Receta)</th>}
               <th scope="col" class="px-6 py-4">Tiempo</th>
-              <th scope="col" class="px-6 py-4">Evidencias Requeridas</th>
+              @if (mostrarPrecioAgencia) {<th scope="col" class="px-6 py-4">Precio</th>}
               <th scope="col" class="px-6 py-4">Estado</th>
               <th scope="col" class="px-6 py-4 text-right">Acciones</th>
             </tr>
@@ -363,23 +355,11 @@
                     {{ srv.tiempoEstimadoMin }} min
                   </span>
                 </td>
-                <td class="px-6 py-4">
-                  <div class="flex gap-2">
-                    @if (srv.requiereFoto) {
-                      <span class="px-2 py-0.5 rounded bg-blue-50 text-blue-700 text-xs font-bold inline-flex items-center gap-1" title="Foto Obligatoria">
-                        <i-lucide name="image" class="w-3.5 h-3.5"></i-lucide> Foto
-                      </span>
-                    }
-                    @if (srv.requiereVideo) {
-                      <span class="px-2 py-0.5 rounded bg-purple-50 text-purple-700 text-xs font-bold inline-flex items-center gap-1" title="Vídeo Obligatorio">
-                        <i-lucide name="film" class="w-3.5 h-3.5"></i-lucide> Vídeo
-                      </span>
-                    }
-                    @if (!srv.requiereFoto && !srv.requiereVideo) {
-                      <span class="text-slate-500 text-xs italic">Opcional</span>
-                    }
-                  </div>
-                </td>
+                @if (mostrarPrecioAgencia) {
+                  <td class="px-6 py-4 font-mono font-bold text-slate-800 whitespace-nowrap">
+                    {{ srv.precioAgencia != null ? ('$' + (srv.precioAgencia | number:'1.2-2')) : '—' }}
+                  </td>
+                }
                 <td class="px-6 py-4">
                   <span
                     class="px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider border inline-block"
@@ -406,7 +386,7 @@
               </tr>
             } @empty {
               <tr>
-                <td colspan="7" class="px-6 py-12 text-center text-slate-500 text-xs">
+                <td [attr.colspan]="mostrarPrecioAgencia ? 7 : 6" class="px-6 py-12 text-center text-slate-500 text-xs">
                   No se encontraron servicios especiales con los filtros aplicados.
                 </td>
               </tr>
@@ -479,8 +459,30 @@
               <option value="ESPECIAL">Servicio Especial</option>
             </select>
           </div>
-          
+
         </div>
+
+        <!-- Estado: al editar, activar o desactivar el servicio (se guarda al instante; nunca se elimina) -->
+        @if (isEditing && servicioActual.id) {
+          <div class="flex items-center justify-between gap-3 p-3 rounded-xl border"
+            [ngClass]="servicioActual.estado === 'Activo' ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-200'">
+            <div>
+              <p class="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Estado del servicio</p>
+              <p class="text-xs font-bold" [ngClass]="servicioActual.estado === 'Activo' ? 'text-emerald-700' : 'text-slate-500'">
+                {{ servicioActual.estado === 'Activo' ? 'Activo: se puede usar en nuevas OT' : 'Inactivo: no se puede usar en nuevas OT' }}
+              </p>
+            </div>
+            @if (puedeCambiarEstado(servicioActual.categoria)) {
+              <button type="button" (click)="alternarEstado($any(servicioActual))"
+                class="px-3 py-1.5 rounded-lg text-xs font-bold border cursor-pointer transition-colors"
+                [ngClass]="servicioActual.estado === 'Activo' ? 'bg-white text-rose-700 border-rose-200 hover:bg-rose-50' : 'bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700'">
+                {{ servicioActual.estado === 'Activo' ? 'Desactivar' : 'Activar' }}
+              </button>
+            } @else {
+              <span class="text-[11px] text-slate-500">Sin permiso para cambiarlo</span>
+            }
+          </div>
+        }
 
         <!-- Fila 2: Nombre del Servicio -->
         <div>

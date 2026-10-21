@@ -251,6 +251,10 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
             </div>
           </ng-template>
 
+          <ng-template appCell="precio" let-item>
+            <span class="font-mono font-bold text-slate-800">{{ item.precio != null ? ('$' + (item.precio | number:'1.2-2')) : '—' }}</span>
+          </ng-template>
+
           <ng-template appCell="fecha" let-item>
             <div class="text-xs font-mono">
                                 <p class="text-slate-700 font-semibold">Ing: {{ item.horaIngreso || '08:30' }}</p>
@@ -548,6 +552,10 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
                                   <span class="truncate">{{ extra.agenciaNombre || extra.agencia?.nombre || 'Sede Zonal' }}</span>
                                 </div>
             </div>
+          </ng-template>
+
+          <ng-template appCell="precio" let-extra>
+            <span class="font-mono font-bold text-slate-800">{{ extra.precio != null ? ('$' + (extra.precio | number:'1.2-2')) : '—' }}</span>
           </ng-template>
 
           <ng-template appCell="region" let-extra>
@@ -1170,7 +1178,7 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
                 </div>
               }
             </div>
-            @if (editarObjetivo.tipo === 'general' && opcionesServicioEdicion.length > 0) {
+            @if (opcionesServicioEdicion.length > 0) {
               <div>
                 <label for="srv-edit-servicio" class="block font-bold text-slate-700 mb-1">Servicio</label>
                 <select id="srv-edit-servicio" [(ngModel)]="formEditar.servicioId" name="editServicio" [disabled]="!puedeCambiarServicioEdicion"
@@ -1179,7 +1187,9 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
                     <option [ngValue]="opc.id">{{ opc.nombre }}</option>
                   }
                 </select>
-                @if (puedeCambiarServicioEdicion) {
+                @if (puedeCambiarServicioEdicion && editarObjetivo.tipo === 'especial') {
+                  <p class="mt-1 text-[11px] text-slate-500">Si cambias el servicio se recalcula el precio y los insumos de la receta. Solo si el kit del pulidor responsable tiene stock suficiente.</p>
+                } @else if (puedeCambiarServicioEdicion) {
                   <p class="mt-1 text-[11px] text-slate-500">Si cambias el servicio se devuelven al inventario los insumos del anterior, se descuentan los del nuevo y se recalcula el precio. Solo si hay stock suficiente.</p>
                 } @else {
                   <p class="mt-1 text-[11px] text-slate-500">El servicio solo se puede cambiar mientras la OT está en espera o en proceso.</p>
@@ -1209,20 +1219,26 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
         (close)="modalReasignarOpen = false">
         @if (extraReasignar) {
           <div class="space-y-3 text-xs">
-            <p class="text-slate-600">Servicio <b>{{ extraReasignar.codigoSE }}</b>. Selecciona uno o varios pulidores de la misma región. El primero seleccionado será responsable de la OT y de los insumos, y debe tener el kit requerido.</p>
+            <p class="text-slate-600">Servicio <b>{{ extraReasignar.codigoSE }}</b>. Solo se listan pulidores de la región de la OT. Selecciona uno o varios. El primero seleccionado será responsable de la OT y de los insumos, y debe tener el kit requerido.</p>
+            @if (asignadosNoPulidores.length > 0) {
+              <p class="rounded-lg border border-amber-300 bg-amber-50 p-2.5 text-[11px] font-semibold text-amber-800">
+                {{ asignadosNoPulidores.join(', ') }} está asignado a esta OT pero no es un pulidor activo. Elige al pulidor que la va a operar.
+              </p>
+            }
             <div class="space-y-2 max-h-64 overflow-y-auto">
-              @for (p of pulidoresDisponiblesRegion; track p.id) {
-                <label class="flex items-center gap-2 rounded-lg border border-slate-200 bg-white p-2.5 cursor-pointer hover:bg-slate-50">
+              @for (p of pulidoresReasignables; track p.id) {
+                <label class="flex items-center gap-2 rounded-lg border p-2.5 cursor-pointer"
+                  [ngClass]="esResponsableReasignacion(p.id) ? 'border-amber-300 bg-amber-50 hover:bg-amber-100' : 'border-slate-200 bg-white hover:bg-slate-50'">
                   <input type="checkbox"
                     [checked]="estaPulidorReasignado(p.id)"
                     [disabled]="esPulidorFijoReasignacion(p) && estaPulidorReasignado(p.id)"
                     (change)="cambiarPulidorReasignacion(p, $event)"
                     class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
                   <span class="font-semibold text-slate-700">{{ p.name }} {{ p.lastname }}</span>
-                  @if (esPulidorFijoReasignacion(p)) {
-                    <span class="ml-auto text-[10px] font-bold text-amber-700">Pulidor fijo · responsable</span>
-                  } @else if (esResponsableReasignacion(p.id)) {
-                    <span class="ml-auto text-[10px] font-bold text-indigo-700">Responsable e insumos</span>
+                  @if (esResponsableReasignacion(p.id)) {
+                    <span class="ml-auto text-xs font-bold text-amber-800">{{ esPulidorFijoReasignacion(p) ? 'Pulidor fijo · responsable · se descuenta de su kit' : 'Responsable · se descuenta de su kit' }}</span>
+                  } @else if (esPulidorFijoReasignacion(p)) {
+                    <span class="ml-auto text-xs font-bold text-amber-700">Pulidor fijo</span>
                   }
                 </label>
               }
@@ -2376,37 +2392,68 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
                 }
               </div>
 
-              <!-- Pulidores asignados: el primero opera y se valida contra su kit. -->
+              <!-- Pulidores asignados: el primero es el responsable (opera y se valida contra su kit). -->
               <div>
-                <label class="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                  Pulidores Asignados *
-                  @if (pulidorFijoAgenciaSeleccionada) {
-                    <span class="text-emerald-700 font-bold text-xs">(Fijo primero)</span>
-                  } @else {
-                    <span class="text-blue-700 font-bold text-xs">(Seleccione uno o varios)</span>
-                  }
-                </label>
-                <div class="max-h-48 overflow-y-auto rounded-xl border border-blue-200 bg-white divide-y divide-slate-100">
-                  @for (p of pulidoresDisponiblesParaAgencia; track p.id) {
-                    <label class="flex items-center gap-2.5 p-2.5 cursor-pointer hover:bg-blue-50">
-                      <input
-                        type="checkbox"
-                        [name]="'operadorExtra-' + p.id"
-                        [checked]="estaPulidorSeleccionado(p.id)"
-                        [disabled]="esPulidorFijoAsignado(p)"
-                        (change)="onOperadorExtraToggle(p, $event)"
-                        class="rounded border-slate-300 text-blue-700 focus:ring-blue-600">
-                      <span class="min-w-0 flex-1 text-xs font-semibold text-slate-800">{{ p.name }} {{ p.lastname }}</span>
-                      @if (esPulidorFijoAsignado(p)) {
-                        <span class="text-xs font-bold text-emerald-700">Fijo · Responsable principal</span>
-                      } @else {
-                        <span class="text-xs text-slate-500">{{ p.agenciaId || p.agencia?.id ? 'Fijo' : 'Móvil' }}</span>
+                @if (mostrarInterruptorModo) {
+                  <div class="mb-2 inline-flex rounded-xl border border-slate-200 bg-white p-0.5 text-xs font-bold" role="group" aria-label="Para quién es la OT">
+                    <button type="button" (click)="cambiarModoCrearEspecial('mi')"
+                      [ngClass]="modoCrearEspecialEfectivo === 'mi' ? 'bg-amber-500 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50'"
+                      class="px-3 py-1.5 rounded-lg transition-colors cursor-pointer">Para mí</button>
+                    <button type="button" (click)="cambiarModoCrearEspecial('otro')"
+                      [ngClass]="modoCrearEspecialEfectivo === 'otro' ? 'bg-amber-500 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50'"
+                      class="px-3 py-1.5 rounded-lg transition-colors cursor-pointer">Para otro pulidor</button>
+                  </div>
+                }
+                @if (modoCrearEspecialEfectivo === 'mi') {
+                  <label class="block text-[11px] font-bold text-slate-700 uppercase mb-1">Pulidor asignado</label>
+                  <div class="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-xs font-semibold text-slate-800 flex items-center justify-between gap-2">
+                    <span class="min-w-0 truncate">{{ miNombreCompleto || 'Tú' }}</span>
+                    <span class="text-xs font-bold text-amber-800 shrink-0">Responsable · tu kit</span>
+                  </div>
+                  @if (puedeSumarPulidores && pulidoresSeleccionables.length > 0) {
+                    <label class="block text-[11px] font-bold text-slate-700 uppercase mt-3 mb-1">Sumar otros pulidores (opcional)</label>
+                    <div class="max-h-40 overflow-y-auto rounded-xl border border-blue-200 bg-white divide-y divide-slate-100">
+                      @for (p of pulidoresSeleccionables; track p.id) {
+                        <label class="flex items-center gap-2.5 p-2.5 cursor-pointer hover:bg-blue-50">
+                          <input type="checkbox" [name]="'operadorExtra-' + p.id" [checked]="estaPulidorSeleccionado(p.id)"
+                            [disabled]="esPulidorFijoAsignado(p)" (change)="onOperadorExtraToggle(p, $event)"
+                            class="rounded border-slate-300 text-blue-700 focus:ring-blue-600">
+                          <span class="min-w-0 flex-1 text-xs font-semibold text-slate-800">{{ p.name }} {{ p.lastname }}</span>
+                          <span class="text-xs text-slate-500">{{ p.agenciaId || p.agencia?.id ? 'Fijo' : 'Móvil' }}</span>
+                        </label>
                       }
-                    </label>
+                    </div>
                   }
-                </div>
+                } @else {
+                  <label class="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                    Pulidores Asignados *
+                    @if (pulidorFijoAgenciaSeleccionada) {
+                      <span class="text-emerald-700 font-bold text-xs">(Fijo primero)</span>
+                    } @else {
+                      <span class="text-blue-700 font-bold text-xs">(Seleccione uno o varios; el primero es el responsable)</span>
+                    }
+                  </label>
+                  <div class="max-h-48 overflow-y-auto rounded-xl border border-blue-200 bg-white divide-y divide-slate-100">
+                    @for (p of pulidoresSeleccionables; track p.id) {
+                      <label class="flex items-center gap-2.5 p-2.5 cursor-pointer"
+                        [ngClass]="esPulidorResponsable(p.id) ? 'bg-amber-50 hover:bg-amber-100' : 'hover:bg-blue-50'">
+                        <input type="checkbox" [name]="'operadorExtra-' + p.id" [checked]="estaPulidorSeleccionado(p.id)"
+                          [disabled]="esPulidorFijoAsignado(p)" (change)="onOperadorExtraToggle(p, $event)"
+                          class="rounded border-slate-300 text-blue-700 focus:ring-blue-600">
+                        <span class="min-w-0 flex-1 text-xs font-semibold text-slate-800">{{ p.name }} {{ p.lastname }}</span>
+                        @if (esPulidorResponsable(p.id)) {
+                          <span class="text-xs font-bold text-amber-800">Responsable · se descuenta de su kit</span>
+                        } @else if (esPulidorFijoAsignado(p)) {
+                          <span class="text-xs font-bold text-emerald-700">Fijo · Responsable principal</span>
+                        } @else {
+                          <span class="text-xs text-slate-500">{{ p.agenciaId || p.agencia?.id ? 'Fijo' : 'Móvil' }}</span>
+                        }
+                      </label>
+                    }
+                  </div>
+                }
                 <p class="text-xs text-slate-500 mt-1">
-                  Todos recibirán la OT. Solo el primero seleccionado podrá operarla y registrar evidencias; sus insumos se validan contra su kit.
+                  Todos recibirán la OT. Solo el primero podrá operarla y registrar evidencias; sus insumos se validan contra su kit.
                 </p>
               </div>
             </div>
@@ -2713,8 +2760,10 @@ export class ServiciosComponent implements OnInit, OnDestroy {
 
   abrirModalNuevaOT() {
     if (this.tabActiva === 'especiales') {
-      if (!this.puedeCrearEspecial) {
-        this.toastService.warning('Acceso restringido', 'Tu rol no tiene permiso para crear servicios especiales.');
+      if (!this.puedeCrearEspecialAhora) {
+        this.toastService.warning('Acceso restringido', this.puedeCrearParaOtro && this.ambito === 'AGENCIA'
+            ? 'Con alcance de agencia solo puedes asignarte la OT a ti mismo.'
+            : 'Tu rol no tiene permiso para crear servicios especiales.');
         return;
       }
       this.abrirModalNuevoExtra();
@@ -2840,7 +2889,7 @@ export class ServiciosComponent implements OnInit, OnDestroy {
 
     const espIds = new Set(
       (this.catalogoCompleto || [])
-        .filter((c) => c.categoria === 'ESPECIAL' || c.categoria === 'EXTRA')
+        .filter((c) => c.categoria === 'ESPECIAL')
         .map((c) => c.id),
     );
     return Boolean(suc.servicioIds?.some((id: number) => espIds.has(id)));
@@ -2897,7 +2946,8 @@ export class ServiciosComponent implements OnInit, OnDestroy {
   conteoEspeciales = 0;
 
   // ── Generales ──
-  readonly columnasGenerales: TableColumn[] = [
+  private readonly columnaPrecio: TableColumn = { key: 'precio', label: 'Precio', sortable: true, align: 'right' };
+  private readonly columnasGeneralesBase: TableColumn[] = [
     { key: 'ot', label: 'Nº OT', sortable: true },
     { key: 'placa', label: 'Vehículo', sortable: true },
     { key: 'servicio', label: 'Categoría & Servicio', sortable: true },
@@ -2909,6 +2959,15 @@ export class ServiciosComponent implements OnInit, OnDestroy {
     { key: 'evFin', label: 'Evidencia Fin', align: 'center' },
     { key: 'acciones', label: 'Acciones', align: 'right', sticky: true },
   ];
+  private readonly columnasGeneralesConPrecio: TableColumn[] = [
+    ...this.columnasGeneralesBase.slice(0, 4),
+    this.columnaPrecio,
+    ...this.columnasGeneralesBase.slice(4),
+  ];
+  /** Con `precios.ver` la tabla suma el precio congelado de la OT, después de Sucursal / Bahía. */
+  get columnasGenerales(): TableColumn[] {
+    return this.authService.puede('precios.ver') ? this.columnasGeneralesConPrecio : this.columnasGeneralesBase;
+  }
   filasG: VehiculoServicio[] = [];
   totalG = 0;
   paginaG = 1;
@@ -2927,7 +2986,7 @@ export class ServiciosComponent implements OnInit, OnDestroy {
   );
 
   // ── Especiales ──
-  readonly columnasEspeciales: TableColumn[] = [
+  private readonly columnasEspecialesBase: TableColumn[] = [
     { key: 'ot', label: 'Nº OT', sortable: true },
     { key: 'placa', label: 'Vehículo & Placa', sortable: true },
     { key: 'servicio', label: 'Servicio Especial', sortable: true },
@@ -2943,6 +3002,15 @@ export class ServiciosComponent implements OnInit, OnDestroy {
     { key: 'estado', label: 'Estado', sortable: true },
     { key: 'acciones', label: 'Acciones', align: 'right', sticky: true },
   ];
+  private readonly columnasEspecialesConPrecio: TableColumn[] = [
+    ...this.columnasEspecialesBase.slice(0, 5),
+    this.columnaPrecio,
+    ...this.columnasEspecialesBase.slice(5),
+  ];
+  /** Con `precios.ver` la tabla suma el precio de la OT especial, después de Región. */
+  get columnasEspeciales(): TableColumn[] {
+    return this.authService.puede('precios.ver') ? this.columnasEspecialesConPrecio : this.columnasEspecialesBase;
+  }
   filasE: ServicioExtra[] = [];
   totalE = 0;
   paginaE = 1;
@@ -3533,7 +3601,7 @@ export class ServiciosComponent implements OnInit, OnDestroy {
   private maquinariaService = inject(MaquinariaService);
   private incidenteService = inject(IncidenteService);
 
-  // ── Servicios Extras / Asignaciones Especiales ──
+  // ── Servicios especiales / asignaciones a pulidores ──
   serviciosExtras: ServicioExtra[] = [];
   operadores: Operador[] = [];
   sucursales: Sucursal[] = [];
@@ -3679,12 +3747,73 @@ export class ServiciosComponent implements OnInit, OnDestroy {
   get puedeVerEspeciales(): boolean { return this.authService.puede('pagina.servicios.especiales'); }
   get puedeCrearGeneral(): boolean { return this.authService.puede('servicios.generales.crear'); }
   /** El botón «Crear OT especial» sale exactamente cuando el rol tiene esa casilla (antes dependía de «Reasignar pulidor»). */
+  /** «Crear OT especial (para mí)»: la OT queda asignada a quien la crea. */
   get puedeCrearEspecial(): boolean { return this.authService.puede('servicios.especiales.crear'); }
+  /** «Crear OT especial y asignarla a otro pulidor» (también reasigna al editar). */
+  get puedeCrearParaOtro(): boolean { return this.authService.puede('servicios.especiales.asignar'); }
+  /** El usuario es un pulidor: solo un pulidor puede asignarse una OT especial a sí mismo. */
+  get soyPulidorRol(): boolean {
+    const u: any = this.authService.getCurrentUser();
+    return String(u?.role?.namerol || u?.role || u?.rolNombre || '').toUpperCase() === 'PULIDOR';
+  }
+  /** Puede crear «para mí»: basta la casilla, sea cual sea su rol (el servidor decide igual). */
+  get puedeAsignarmeEspecial(): boolean { return this.puedeCrearEspecial; }
+  /** Puede crear «para otro»: tiene la casilla y su alcance no es una sola agencia (no hay otros pulidores que elegir). */
+  get puedeAsignarAOtros(): boolean { return this.puedeCrearParaOtro && this.ambito !== 'AGENCIA'; }
+  /** Puede abrir el formulario de crear una OT especial: para sí mismo o para otro. */
+  get puedeCrearEspecialAhora(): boolean { return this.puedeAsignarmeEspecial || this.puedeAsignarAOtros; }
+  /** Con las dos opciones aparece el interruptor «Para mí / Para otro pulidor». */
+  get mostrarInterruptorModo(): boolean { return this.puedeAsignarmeEspecial && this.puedeAsignarAOtros; }
+  /** Sumar pulidores de apoyo a su propia OT: cualquiera con alcance mayor a una agencia. */
+  get puedeSumarPulidores(): boolean { return this.ambito !== 'AGENCIA'; }
+  modoCrearEspecial: 'mi' | 'otro' = 'otro';
+  get modoCrearEspecialEfectivo(): 'mi' | 'otro' {
+    if (!this.puedeAsignarAOtros) return 'mi';
+    if (!this.puedeAsignarmeEspecial) return 'otro';
+    return this.modoCrearEspecial;
+  }
+  get yoId(): string { return String(this.authService.getCurrentUser()?.id ?? ''); }
+  get miNombreCompleto(): string {
+    const u = this.authService.getCurrentUser();
+    return `${u?.nombre || ''} ${u?.apellido || ''}`.trim();
+  }
+  /** Pulidores que se pueden elegir además de uno mismo (el modo «Para mí» ya incluye al creador). */
+  get pulidoresSeleccionables(): any[] {
+    const yo = this.yoId;
+    return this.pulidoresDisponiblesParaAgencia.filter((p) => String(p.id) !== yo);
+  }
+  cambiarModoCrearEspecial(modo: 'mi' | 'otro'): void {
+    this.modoCrearEspecial = modo;
+    this.normalizarOperadoresExtra(true);
+  }
+  /**
+   * Deja la lista de pulidores de la OT como la exige el servidor: en «Para mí» el creador va primero; en «Para otro» el creador no está;
+   * y si la agencia tiene pulidor fijo, es siempre el primero. Con `reiniciar` se vuelve a la sugerencia inicial del modo.
+   */
+  private normalizarOperadoresExtra(reiniciar = false): void {
+    const yo = this.yoId;
+    const fijoId = this.pulidorFijoAgenciaSeleccionada ? String(this.pulidorFijoAgenciaSeleccionada.id) : '';
+    const permitidos = new Set(this.pulidoresDisponiblesParaAgencia.map((p) => String(p.id)));
+    let ids = reiniciar ? [] : this.extraForm.operadoresIds.map(String);
+    if (this.modoCrearEspecialEfectivo === 'mi') {
+      ids = [yo, ...ids.filter((id) => id !== yo && permitidos.has(id) && this.puedeSumarPulidores)];
+    } else {
+      ids = ids.filter((id) => id !== yo && permitidos.has(id));
+      if (!ids.length && !fijoId) {
+        const primero = this.pulidoresSeleccionables.find((p) => !p.agenciaId && !p.agencia?.id) || this.pulidoresSeleccionables[0];
+        if (primero) ids = [String(primero.id)];
+      }
+    }
+    if (fijoId) ids = [fijoId, ...ids.filter((id) => id !== fijoId)];
+    this.extraForm.operadoresIds = ids;
+    this.actualizarOperadorResponsableExtra();
+  }
   get puedeEditarGeneral(): boolean { return this.authService.puede('servicios.generales.editar'); }
   /** Finalizar una OT: solo «Finalizar OT» (registrar, finalizar, anular y editar son casillas distintas). */
   get puedeFinalizarGeneral(): boolean { return this.authService.puede('servicios.generales.finalizar'); }
   get puedeEditarEspecial(): boolean { return this.authService.puede('servicios.especiales.editar'); }
-  get puedeReasignarEspecial(): boolean { return this.authService.puede('servicios.especiales.reasignar'); }
+  /** Reasignar el pulidor va dentro de editar, pero solo con «asignarla a otro pulidor». */
+  get puedeReasignarEspecial(): boolean { return this.authService.puede('servicios.especiales.editar') && this.authService.puede('servicios.especiales.asignar'); }
   /** Agregar un servicio a una OT que ya existe es otra casilla distinta de registrar una OT nueva. */
   get puedeAgregarAOT(): boolean { return this.authService.puede('servicios.generales.agregar'); }
   /** El enlace al catálogo solo sale si el rol tiene acceso a esa página (antes salía a cualquiera que pudiera crear OT). */
@@ -3699,7 +3828,7 @@ export class ServiciosComponent implements OnInit, OnDestroy {
   }
   /** Gestiona los servicios especiales de la red (reasigna) sin trabajar los generales. */
   get isCoordServiciosEspeciales(): boolean {
-    return !this.isAdmin && (this.puedeCrearEspecial || this.puedeReasignarEspecial);
+    return !this.isAdmin && (this.puedeCrearParaOtro || this.puedeReasignarEspecial);
   }
   /** Ejecuta servicios especiales (los inicia, pausa y completa) sin gestionarlos. */
   get isPulidor(): boolean {
@@ -3725,7 +3854,7 @@ export class ServiciosComponent implements OnInit, OnDestroy {
       (this.catalogoCompleto || [])
         .filter((c) => {
           const cat = (c.categoria || '').toUpperCase();
-          return cat === 'ESPECIAL' || cat === 'EXTRA' || cat.includes('ESPECIAL');
+          return cat.includes('ESPECIAL');
         })
         .map((c) => c.id),
     );
@@ -3761,16 +3890,33 @@ export class ServiciosComponent implements OnInit, OnDestroy {
     return this.pulidoresDisponiblesRegion.filter(p => !p.agenciaId && !p.agencia?.id);
   }
 
+  /** Región de la agencia donde se programa la OT (vacía si aún no se eligió agencia). */
+  private get regionAgenciaExtraForm(): string {
+    const agId = String(this.extraFormAgenciaId || '');
+    if (!agId) return '';
+    const suc: any = this.sucursales.find((x) => String(x.id) === agId);
+    return suc?.regionId ? String(suc.regionId) : '';
+  }
+
+  /** Pulidores de la región de la agencia elegida: los fijos de esa agencia y los móviles de su misma región. */
   get pulidoresDisponiblesParaAgencia(): any[] {
     const agId = String(this.extraFormAgenciaId || '');
+    const region = this.regionAgenciaExtraForm;
     return this.pulidoresDisponiblesRegion.filter((pulidor) => {
       const agenciaPulidorId = String(pulidor.agenciaId || pulidor.agencia?.id || '');
-      return !agenciaPulidorId || agenciaPulidorId === agId;
+      if (agenciaPulidorId && agenciaPulidorId !== agId) return false;
+      const regionPulidor = String(pulidor.regionId || pulidor.agencia?.regionId || '');
+      return !region || regionPulidor === region;
     });
   }
 
   estaPulidorSeleccionado(id: string | number): boolean {
     return this.extraForm.operadoresIds.includes(String(id));
+  }
+
+  /** El primero de la lista es el responsable: opera la OT y sus insumos se descuentan de su kit. */
+  esPulidorResponsable(id: string | number): boolean {
+    return this.extraForm.operadoresIds[0] === String(id);
   }
 
   esPulidorFijoAsignado(pulidor: any): boolean {
@@ -3820,13 +3966,13 @@ export class ServiciosComponent implements OnInit, OnDestroy {
     return !this.isAdmin && this.ambito === 'REGION';
   }
   get canCrearOT(): boolean {
-    return this.tabActiva === 'especiales' ? this.puedeCrearEspecial : this.puedeCrearGeneral;
+    return this.tabActiva === 'especiales' ? this.puedeCrearEspecialAhora : this.puedeCrearGeneral;
   }
   get userSucursal(): string | undefined {
     return this.authService.getCurrentUser()?.sucursalNombre || this.authService.getCurrentUser()?.sucursal;
   }
   get puedeReportarFalla() {
-    return !this.isAdmin && this.authService.puedeAlguno('maquinaria.incidente.reportar', 'taller.incidentes.reportar');
+    return !this.isAdmin && this.authService.puede('taller.incidentes.reportar');
   }
 
   /** Alcance del usuario según su ámbito (el servidor lo aplica igual; esto solo acota lo que se pide). */
@@ -4155,7 +4301,7 @@ export class ServiciosComponent implements OnInit, OnDestroy {
     } else {
       const espIds = new Set(
         (this.catalogoCompleto || [])
-          .filter(c => c.categoria === 'ESPECIAL' || c.categoria === 'EXTRA')
+          .filter(c => c.categoria === 'ESPECIAL')
           .map(c => c.id)
       );
       this.tieneServiciosEspeciales = Boolean(suc.servicioIds?.some((id: number) => espIds.has(id)));
@@ -4250,7 +4396,7 @@ export class ServiciosComponent implements OnInit, OnDestroy {
   onCategoriaChange() {
     if (this.nuevoRegistro.categoriaServicio === 'ESPECIAL') {
       this.opcionesServicios = this.catalogoCompleto.filter(
-        s => s.categoria === 'ESPECIAL' || s.categoria === 'EXTRA'
+        s => s.categoria === 'ESPECIAL'
       );
     } else {
       this.opcionesServicios = this.catalogoCompleto.filter(s => s.categoria === 'GENERAL');
@@ -4467,7 +4613,10 @@ export class ServiciosComponent implements OnInit, OnDestroy {
     this.extraFormBahiaId = '';
     this.extraFormBahia = '';
 
-    if (this.isPulidor) return;
+    if (this.isPulidor) {
+      this.normalizarOperadoresExtra(false);
+      return;
+    }
 
     const fijo = this.pulidoresDisponiblesRegion.find(p => String(p.agenciaId || p.agencia?.id) === String(agId));
     if (fijo) {
@@ -4482,7 +4631,7 @@ export class ServiciosComponent implements OnInit, OnDestroy {
         if (primerMovil) this.extraForm.operadoresIds = [String(primerMovil.id)];
       }
     }
-    this.actualizarOperadorResponsableExtra();
+    this.normalizarOperadoresExtra(false);
   }
 
   onOperadorExtraToggle(pulidor: any, event: Event): void {
@@ -4492,17 +4641,15 @@ export class ServiciosComponent implements OnInit, OnDestroy {
     if (!marcado && id === fijoId) return;
     const seleccionados = this.extraForm.operadoresIds.filter((actual) => actual !== id);
     if (marcado) seleccionados.push(id);
-    this.extraForm.operadoresIds = fijoId
-      ? [fijoId, ...seleccionados.filter((actual) => actual !== fijoId)]
-      : seleccionados;
-    this.actualizarOperadorResponsableExtra();
+    this.extraForm.operadoresIds = seleccionados;
+    this.normalizarOperadoresExtra(false);
   }
 
   private actualizarOperadorResponsableExtra(): void {
     const operadorId = this.extraForm.operadoresIds[0] || '';
     const operador = this.pulidoresDisponiblesRegion.find((p) => String(p.id) === operadorId);
     this.extraForm.operadorId = operadorId;
-    this.extraForm.operadorNombre = operador ? `${operador.name} ${operador.lastname}`.trim() : '';
+    this.extraForm.operadorNombre = operador ? `${operador.name} ${operador.lastname}`.trim() : operadorId === this.yoId ? this.miNombreCompleto : '';
     if (operadorId) {
       this.cargarStockPulidorParaOT(operadorId);
     } else {
@@ -4893,7 +5040,7 @@ export class ServiciosComponent implements OnInit, OnDestroy {
     });
   }
 
-  // ── Reasignar servicio especial (permiso 'especiales.reasignar') ──
+  // ── Reasignar servicio especial (parte de «Editar OT especial») ──
   // ── Editar OT (general o especial) ──
   modalEditarOpen = false;
   guardandoEdicion = false;
@@ -4928,7 +5075,17 @@ export class ServiciosComponent implements OnInit, OnDestroy {
       placa: extra.placa || '', marca: extra.marca || '', modelo: extra.modelo || '', color: extra.color || '',
       cliente: extra.cliente || extra.clienteNombre || '', prioridad: extra.prioridad || 'Media', observaciones: (extra as any).observaciones || '', servicioId: null,
     };
-    this.puedeCambiarServicioEdicion = false;
+    // Como en las generales, el servicio se puede cambiar mientras la OT no esté completada ni cancelada (puedeEditarExtra ya lo exige).
+    const nombre = (extra.servicioNombre || '').trim().toLowerCase();
+    const especiales = (this.catalogoCompleto || []).filter((c) => String(c.categoria || '').toUpperCase() === 'ESPECIAL');
+    const actual = especiales.find((c) => extra.servicioCatalogoId != null && Number(c.id) === Number(extra.servicioCatalogoId))
+      || especiales.find((c) => (c.nombre || '').trim().toLowerCase() === nombre);
+    this.formEditar.servicioId = actual ? Number(actual.id) : null;
+    this.servicioIdOriginalEdicion = this.formEditar.servicioId;
+    this.opcionesServicioEdicion = especiales.filter(
+      (c) => c.estado == null || c.estado === 'Activo' || Number(c.id) === this.servicioIdOriginalEdicion,
+    );
+    this.puedeCambiarServicioEdicion = this.opcionesServicioEdicion.length > 0;
     this.modalEditarOpen = true;
   }
 
@@ -4974,7 +5131,11 @@ export class ServiciosComponent implements OnInit, OnDestroy {
         error: alFallar,
       });
     } else {
-      this.extrasService.editarServicioExtra(objetivo.id, { placa: f.placa, marca: f.marca, modelo: f.modelo, color: f.color, cliente: f.cliente, prioridad: f.prioridad, observaciones: f.observaciones }).subscribe({
+      const cambiaServicio = this.puedeCambiarServicioEdicion && f.servicioId != null && f.servicioId !== this.servicioIdOriginalEdicion;
+      this.extrasService.editarServicioExtra(objetivo.id, {
+        placa: f.placa, marca: f.marca, modelo: f.modelo, color: f.color, cliente: f.cliente, prioridad: f.prioridad, observaciones: f.observaciones,
+        ...(cambiaServicio ? { servicioCatalogoId: f.servicioId as number } : {}),
+      }).subscribe({
         next: () => {
           alTerminar();
           this.toastService.success('OT especial actualizada', objetivo.titulo);
@@ -4992,14 +5153,47 @@ export class ServiciosComponent implements OnInit, OnDestroy {
       ? extra.operadoresIds
       : extra.operadorId
         ? [String(extra.operadorId)]
-        : []).map(String);
-    const pulidorFijo = this.pulidoresDisponiblesRegion.find(
-      (p) => String(p.agenciaId || p.agencia?.id || '') === String(extra.agenciaId || ''),
-    );
-    this.reasignarOperadoresIds = pulidorFijo
-      ? [String(pulidorFijo.id), ...asignados.filter((id) => id !== String(pulidorFijo.id))]
-      : [...asignados];
+        : []).map(String).filter(Boolean);
+    this.aplicarCandidatosReasignacion(this.pulidoresDisponiblesRegion, extra, asignados);
     this.modalReasignarOpen = true;
+    // La lista general se carga con la región del usuario; aquí se pide la de la OT para que estén todos sus candidatos.
+    this.extrasService.getPulidoresPorRegion(this.regionDeOT(extra) || undefined).subscribe((list) => {
+      if (this.extraReasignar !== extra || !list?.length) return;
+      this.aplicarCandidatosReasignacion(list, extra, asignados);
+    });
+  }
+
+  /** Pulidores candidatos para reasignar (solo pulidores activos: el servidor rechaza a cualquier otro). */
+  pulidoresReasignables: any[] = [];
+  /** Asignados actuales de la OT que ya no son pulidores activos: no se marcan y se avisa para elegir otro. */
+  asignadosNoPulidores: string[] = [];
+
+  /** Región de la OT: la propia o, si no la trae, la de su agencia. El servidor solo deja reasignar a pulidores de esa región. */
+  private regionDeOT(extra: ServicioExtra): string {
+    if (extra.regionId) return String(extra.regionId);
+    const suc: any = this.sucursales.find((x) => String(x.id) === String(extra.agenciaId));
+    return suc?.regionId ? String(suc.regionId) : '';
+  }
+
+  private aplicarCandidatosReasignacion(lista: any[], extra: ServicioExtra, asignados: string[]): void {
+    const region = this.regionDeOT(extra);
+    this.pulidoresReasignables = (lista || []).filter(
+      (p) => !region || String(p.regionId || p.agencia?.regionId || '') === region,
+    );
+    const validos = asignados.filter((id) => this.pulidoresReasignables.some((p) => String(p.id) === id));
+    this.asignadosNoPulidores = asignados
+      .filter((id) => !validos.includes(id))
+      .map((id) => {
+        const i = (extra.operadoresIds || []).map(String).indexOf(id);
+        return (i >= 0 ? extra.operadoresNombres?.[i] : '') || (id === String(extra.operadorId) ? extra.operadorNombre : '') || id;
+      });
+    this.reasignarOperadoresIds = this.ordenarConFijo(validos, extra);
+  }
+
+  /** Si la agencia tiene pulidor fijo, va primero como responsable; el resto conserva su orden. */
+  private ordenarConFijo(asignados: string[], extra: ServicioExtra): string[] {
+    const fijo = this.pulidoresReasignables.find((p) => this.esPulidorFijoReasignacion(p));
+    return fijo ? [String(fijo.id), ...asignados.filter((id) => id !== String(fijo.id))] : [...asignados];
   }
 
   estaPulidorReasignado(id: string | number): boolean {
@@ -5019,7 +5213,7 @@ export class ServiciosComponent implements OnInit, OnDestroy {
 
   get nombresPulidoresReasignacion(): string {
     return this.reasignarOperadoresIds
-      .map((id) => this.pulidoresDisponiblesRegion.find((p) => String(p.id) === id))
+      .map((id) => this.pulidoresReasignables.find((p) => String(p.id) === id))
       .filter(Boolean)
       .map((p) => `${p.name} ${p.lastname}`.trim())
       .join(', ');
@@ -5031,7 +5225,7 @@ export class ServiciosComponent implements OnInit, OnDestroy {
     if (!checked && this.esPulidorFijoReasignacion(pulidor)) return;
     const seleccionados = this.reasignarOperadoresIds.filter((actual) => actual !== id);
     if (checked) seleccionados.push(id);
-    const fijo = this.pulidoresDisponiblesRegion.find((p) => this.esPulidorFijoReasignacion(p));
+    const fijo = this.pulidoresReasignables.find((p) => this.esPulidorFijoReasignacion(p));
     this.reasignarOperadoresIds = fijo
       ? [String(fijo.id), ...seleccionados.filter((actual) => actual !== String(fijo.id))]
       : seleccionados;
@@ -5306,6 +5500,8 @@ export class ServiciosComponent implements OnInit, OnDestroy {
       }
     }
 
+    // Modo inicial: «Para mí» si solo puede asignarse a sí mismo o si es pulidor; si no, «Para otro».
+    this.modoCrearEspecial = this.puedeAsignarmeEspecial && (!this.puedeAsignarAOtros || this.isPulidor) ? 'mi' : 'otro';
     this.servicioEspecialCatalogo = primerServicio || null;
     this.extraForm = {
       servicioNombre: primerServicio?.nombre || '',
@@ -5323,6 +5519,7 @@ export class ServiciosComponent implements OnInit, OnDestroy {
     };
 
     this.onSucursalExtraFormChange();
+    this.normalizarOperadoresExtra(true);
 
     this.showModalExtras = true;
     const finalOpId = this.extraForm.operadorId || opId;

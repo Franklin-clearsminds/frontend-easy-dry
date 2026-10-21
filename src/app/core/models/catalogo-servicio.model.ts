@@ -4,7 +4,7 @@ export interface CatalogoServicio {
   id: number;
   nombre: string;
   codigo: string;
-  categoria: 'GENERAL' | 'ESPECIAL' | 'EXTRA' | string;
+  categoria: 'GENERAL' | 'ESPECIAL' | string;
   descripcion: string;
   estado: 'Activo' | 'Inactivo';
   requiereFoto?: boolean;
@@ -12,6 +12,8 @@ export interface CatalogoServicio {
   insumosReceta?: RecetaInsumoServicio[];
   fechaCreacion?: string;
   precio?: number;
+  /** Precio fijado por la agencia de quien consulta; null si no tiene uno. Solo llega con `precios.ver` y con sede. */
+  precioAgencia?: number | null;
   /** Duración en minutos (BD). Calcula hora de salida en OT. */
   tiempoEstimadoMin: number;
 }

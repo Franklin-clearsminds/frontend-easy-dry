@@ -1550,7 +1550,7 @@ export class SucursalesComponent implements OnInit, OnDestroy {
 
   get serviciosEspeciales(): CatalogoServicio[] {
     return this.catalogoServicios.filter(s => 
-      (s.categoria?.trim().toUpperCase() === 'ESPECIAL' || s.categoria?.trim().toUpperCase() === 'EXTRA') && s.estado === 'Activo'
+      s.categoria?.trim().toUpperCase() === 'ESPECIAL' && s.estado === 'Activo'
     );
   }
 
