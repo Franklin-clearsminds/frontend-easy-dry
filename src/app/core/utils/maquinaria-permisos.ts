@@ -25,16 +25,38 @@ export const puedeCambiarArchivosMaquina = (auth: AuthService) => auth.puede('ma
 export const puedeVerIncidentes = (auth: AuthService) => auth.puede('incidentes.ver');
 export const puedeVerMantenimientos = (auth: AuthService) => auth.puede('mantenimientos.ver');
 export const puedeReportarIncidente = (auth: AuthService) => auth.puedeAlguno('maquinaria.incidente.reportar', 'taller.incidentes.reportar');
+
+/**
+ * Roles oficiales del módulo: el servidor les aplica una regla de negocio propia además del permiso
+ * (el técnico reporta solo lo asignado, el líder toda su agencia…). Copia exacta de `maquinaria/maquinaria.permisos.ts`.
+ */
+const ROLES_DEL_MODULO = [
+  'SUPER_ADMIN', 'ADMIN', 'SUPERVISOR', 'COORD_MANTENIMIENTO', 'COORD_SERVICIOS_ESPECIALES',
+  'COORD_BODEGA', 'COORD_COMERCIAL', 'TECNICO', 'PULIDOR', 'LIDER',
+];
+
+/**
+ * ¿Reporta sobre cualquier equipo de su alcance y no solo sobre el que tiene asignado? Es la misma condición que
+ * aplica el servidor: líder, supervisor, coordinador de servicios especiales y cualquier rol creado desde Roles.
+ */
+export const reportaSobreSuAlcance = (auth: AuthService) =>
+  auth.isLiderOperador()
+  || auth.hasRole('SUPERVISOR')
+  || auth.hasRole('COORD_SERVICIOS_ESPECIALES')
+  || !ROLES_DEL_MODULO.some((rol) => auth.hasRole(rol));
 /** Resolver / editar incidentes (el servidor exige además ser el técnico asignado si no gestiona). */
 export const puedeResolverIncidentes = (auth: AuthService) => auth.puede('taller.incidentes.resolver');
 export const puedeCancelarIncidentes = (auth: AuthService) => auth.puede('taller.incidentes.cancelar');
 /** Ejecutar / editar mantenimientos (el servidor exige además ser el técnico asignado si no gestiona). */
 export const puedeEjecutarMantenimientos = (auth: AuthService) => auth.puede('taller.mantenimientos.ejecutar');
 export const puedeEditarMantenimientos = (auth: AuthService) => auth.puede('taller.mantenimientos.editar');
-/** Evidencias de incidencias (reportar, resolver) y de mantenimientos (ejecutar): cada flujo tiene su casilla. */
-export const puedeEvidenciaIncidente = (auth: AuthService) => auth.puede('taller.incidentes.evidencias');
-export const puedeEvidenciaMantenimiento = (auth: AuthService) => auth.puede('taller.mantenimientos.evidencias');
-export const puedeAgregarEvidenciaMaquinaria = (auth: AuthService) => puedeEvidenciaIncidente(auth) || puedeEvidenciaMantenimiento(auth);
+/**
+ * Evidencias de una máquina. Subir la foto va incluida en la casilla de cada flujo (reportar o resolver una
+ * incidencia, ejecutar un mantenimiento): todas conceden `maquinaria.evidencias`, que es lo que exige el servidor.
+ */
+export const puedeEvidenciaIncidente = (auth: AuthService) => auth.puede('maquinaria.evidencias');
+export const puedeEvidenciaMantenimiento = (auth: AuthService) => auth.puede('maquinaria.evidencias');
+export const puedeAgregarEvidenciaMaquinaria = (auth: AuthService) => auth.puede('maquinaria.evidencias');
 export const puedeSubirEvidenciaLimpieza = (auth: AuthService) => auth.puede('taller.limpiezas.registrar');
 export const puedeVerLimpiezas = (auth: AuthService) => auth.puede('limpiezas.ver');
 /** Corregir observaciones o eliminar un registro de limpieza (el servidor acota además a su región). */

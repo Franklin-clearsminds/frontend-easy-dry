@@ -17,17 +17,28 @@ const PAGINAS: PaginaCatalogo[] = [
   },
 ] as unknown as PaginaCatalogo[];
 
+/** Catálogo mínimo con implicaciones: «Ver trazabilidad» incluye «Ver equipos». */
+const PAGINAS_IMPLICA: PaginaCatalogo[] = [
+  {
+    id: 'maquinaria', codigo: 'pagina.maquinaria', nombre: 'Maquinaria & Equipos', ruta: '/maquinaria', enMenu: true, modulo: 'maquinaria', subs: [],
+    acciones: [
+      { codigo: 'maquinaria.ver', nombre: 'Ver equipos y su estado', compartida: false, grupo: 'Consultar' },
+      { codigo: 'maquinaria.trazabilidad.ver', nombre: 'Ver trazabilidad de cada equipo', compartida: false, grupo: 'Consultar', implica: ['maquinaria.ver'] },
+    ],
+  },
+] as unknown as PaginaCatalogo[];
+
 describe('RolPaginasEditorComponent — activar y desactivar', () => {
   let fixture: ComponentFixture<RolPaginasEditorComponent>;
   let editor: RolPaginasEditorComponent;
   let emitido: string[] | undefined;
 
-  const montar = (seleccion: string[]) => {
+  const montar = (seleccion: string[], paginas: PaginaCatalogo[] = PAGINAS) => {
     fixture = TestBed.createComponent(RolPaginasEditorComponent);
     editor = fixture.componentInstance;
     emitido = undefined;
     editor.seleccionChange.subscribe((s) => (emitido = s));
-    fixture.componentRef.setInput('paginas', PAGINAS);
+    fixture.componentRef.setInput('paginas', paginas);
     fixture.componentRef.setInput('seleccion', seleccion);
     fixture.detectChanges();
   };
@@ -64,12 +75,36 @@ describe('RolPaginasEditorComponent — activar y desactivar', () => {
     expect(editor.paginasActivas).toBe(0);
   });
 
-  it('encender una página enciende sus pestañas pero deja los botones apagados', () => {
+  it('encender una página no abre nada: cada sección y cada acción se marcan aparte', () => {
     montar([]);
 
     editor.togglePagina(PAGINAS[2]);
 
-    expect(emitido).toEqual(['pagina.catalogo', 'pagina.catalogo.generales']);
+    expect(emitido).toEqual(['pagina.catalogo']);
+    expect(editor.paginaSinAcceso(PAGINAS[2])).toBeTrue();
+  });
+
+  it('marcar una acción arrastra las que van con ella (ver la pantalla)', () => {
+    montar(['pagina.maquinaria'], PAGINAS_IMPLICA);
+    const pagina = editor.paginas[0];
+    const trazabilidad = pagina.acciones[1];
+
+    editor.toggleAccion(trazabilidad);
+
+    expect(emitido).toContain('maquinaria.trazabilidad.ver');
+    expect(emitido).toContain('maquinaria.ver');
+    expect(editor.paginaSinAcceso(pagina)).toBeFalse();
+  });
+
+  it('una casilla que otra incluye no se apaga: el servidor la devolvería al guardar', () => {
+    montar(['pagina.maquinaria', 'maquinaria.ver', 'maquinaria.trazabilidad.ver'], PAGINAS_IMPLICA);
+    const ver = editor.paginas[0].acciones[0];
+
+    expect(editor.incluidaPor(ver)).toEqual(['Ver trazabilidad de cada equipo']);
+    editor.toggleAccion(ver);
+
+    expect(emitido).toBeUndefined();
+    expect(editor.activa('maquinaria.ver')).toBeTrue();
   });
 
   it('apagar una página apaga también sus pestañas y botones (no deja nada colgando)', () => {
