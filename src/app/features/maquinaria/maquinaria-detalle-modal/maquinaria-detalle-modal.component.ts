@@ -26,7 +26,7 @@ import { MaquinaAccionesComponent } from '../maquina-acciones/maquina-acciones.c
 import { fechaHoraLocal, fechaProgramadaLocal, validarFotos } from '../../../core/utils/evidencia-maquinaria';
 import { badgeClase, BADGE_NO_ATENDIDO } from '../../../core/utils/badges';
 import {
-  puedeEditarMaquina, puedeCambiarArchivosMaquina, puedeActivarMaquina, puedeGestionarMaquina, puedeReportarIncidente,
+  puedeEditarMaquina, puedeCambiarArchivosMaquina, puedeActivarMaquina, puedeGestionarMaquina, puedeCancelarIncidentes, puedeTrasladarMaquina, puedeAsignarResponsableMaquina, puedeReportarIncidente,
   puedeVerTrazabilidad, puedeVerMantenimientos, puedeVerIncidentes, puedeResolverIncidentes,
   puedeEjecutarMantenimientos, puedeEditarMantenimientos, puedeAgregarEvidenciaMaquinaria, puedeSubirEvidenciaLimpieza, puedeVerLimpiezas, puedeAsignarTecnico, puedeProgramarMantenimiento } from '../../../core/utils/maquinaria-permisos';
 
@@ -107,18 +107,20 @@ interface EventoVista {
                     </button>
                   }
                 }
-                @if (puedeGestionar) {
+                @if (puedeVentana) {
                   <button type="button" (click)="maquinaAcc.configurarVentana(ficha)" class="btn btn-secondary btn-sm">
                     <i-lucide name="timer" class="w-3.5 h-3.5" aria-hidden="true"></i-lucide> Ventana de adelanto
                   </button>
+                }
+                @if (puedeTransferir) {
                   <button type="button" (click)="maquinaAcc.transferir(ficha)" class="btn btn-secondary btn-sm">
                     <i-lucide name="refresh-cw" class="w-3.5 h-3.5" aria-hidden="true"></i-lucide> Transferir / Asignar
                   </button>
-                  @if (ficha.activa) {
-                    <button type="button" (click)="trabajoAcc.programarMantenimiento(fichaComoMaquinaria(), [])" class="btn btn-secondary btn-sm">
-                      <i-lucide name="calendar-clock" class="w-3.5 h-3.5" aria-hidden="true"></i-lucide> Programar mantenimiento
-                    </button>
-                  }
+                }
+                @if (puedeProgramar && ficha.activa) {
+                  <button type="button" (click)="trabajoAcc.programarMantenimiento(fichaComoMaquinaria(), [])" class="btn btn-secondary btn-sm">
+                    <i-lucide name="calendar-clock" class="w-3.5 h-3.5" aria-hidden="true"></i-lucide> Programar mantenimiento
+                  </button>
                 }
                 @if (puedeReportar) {
                   <button type="button" (click)="trabajoAcc.reportarIncidente(ficha)" class="btn btn-cta btn-sm">
@@ -176,7 +178,6 @@ interface EventoVista {
                   <div><span class="block text-[11px] text-slate-500 font-bold uppercase">Operador asignado</span><span class="font-bold text-slate-800">{{ ficha.operadorAsignado?.nombre || 'Sin asignar' }}</span></div>
                   <div><span class="block text-[11px] text-slate-500 font-bold uppercase">Creada por</span><span class="font-bold text-slate-800">{{ ficha.creadoPor?.nombre || '—' }}</span></div>
                   <div><span class="block text-[11px] text-slate-500 font-bold uppercase">Fecha de creación</span><span class="font-mono text-slate-700">{{ hora(ficha.creadaEn) }}</span></div>
-                  <div><span class="block text-[11px] text-slate-500 font-bold uppercase">Horas de uso</span><span class="font-mono text-slate-700">{{ ficha.horasUso || 0 }}</span></div>
                 </div>
               </div>
 
@@ -254,6 +255,9 @@ interface EventoVista {
                       @if (puedeResolverInc(inc)) {
                         <button type="button" (click)="trabajoAcc.resolverIncidente(inc)" class="btn btn-primary btn-sm">Resolver</button>
                       }
+                      @if (puedeCancelarInc(inc)) {
+                        <button type="button" (click)="trabajoAcc.cancelarIncidente(inc)" class="btn btn-danger btn-sm">Cancelar incidencia</button>
+                      }
                       @if (puedeEditarInc(inc)) {
                         <button type="button" (click)="trabajoAcc.editarIncidente(inc)" class="btn btn-secondary btn-sm">Editar</button>
                       }
@@ -266,7 +270,10 @@ interface EventoVista {
                     <div class="pt-2 border-t border-slate-200/70 space-y-3 text-xs">
                       <p class="text-slate-700 break-words"><strong>Descripción:</strong> {{ inc.descripcion }}</p>
                       @if (inc.destinoTallerNombre) { <p class="text-slate-700"><strong>Taller destino:</strong> {{ inc.destinoTallerNombre }}</p> }
-                      @if (inc.observacionSolucion) { <p class="text-slate-700"><strong>Solución:</strong> {{ inc.observacionSolucion }} @if (inc.solucionadoPor) { <span class="text-slate-500">({{ inc.solucionadoPor }}, {{ inc.fechaSolucion }})</span> }</p> }
+                      @if (inc.estadoRaw === 'CANCELADO') {
+                        <p class="text-rose-800"><strong>Cancelada:</strong> {{ inc.motivoCancelacion || inc.observacionSolucion || 'Sin motivo registrado' }}
+                          @if (inc.canceladoPor) { <span class="text-slate-500">({{ inc.canceladoPor }}@if (inc.fechaCancelacion) {, {{ inc.fechaCancelacion }}})</span> }</p>
+                      } @else if (inc.observacionSolucion) { <p class="text-slate-700"><strong>Solución:</strong> {{ inc.observacionSolucion }} @if (inc.solucionadoPor) { <span class="text-slate-500">({{ inc.solucionadoPor }}, {{ inc.fechaSolucion }})</span> }</p> }
                       <app-evidencia-galeria [evidencias]="inc.evidencias || []" [agruparPorEtapa]="true"></app-evidencia-galeria>
                     </div>
                   }
@@ -355,7 +362,7 @@ interface EventoVista {
                       </div>
                       <p class="font-bold text-sm mt-1" [ngClass]="m.noAtendido ? 'text-rose-800' : 'text-slate-900'">Programado: {{ fechaProg(m.fechaProgramada) }}</p>
                       <p class="text-xs text-slate-500">
-                        Técnico: {{ m.tecnicoAsignadoNombre || 'Sin asignar' }} · Creado por {{ m.creadoPorNombre || '—' }}
+                        Técnico: @if (m.tecnicoAsignadoNombre) { {{ m.tecnicoAsignadoNombre }} } @else { <span class="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-bold text-rose-700 ring-1 ring-rose-200">Sin técnico asignado</span> } · Creado por {{ m.creadoPorNombre || '—' }}
                         @if (m.fechaEjecucion) { · Ejecutado {{ hora(m.fechaEjecucion) }} por {{ m.ejecutadoPorNombre || '—' }} }
                       </p>
                     </div>
@@ -720,6 +727,10 @@ export class MaquinariaDetalleModalComponent implements OnChanges, OnDestroy {
   get puedeEditar(): boolean { return puedeEditarMaquina(this.authService) || puedeCambiarArchivosMaquina(this.authService); }
   get puedeActivar(): boolean { return puedeActivarMaquina(this.authService); }
   get puedeGestionar(): boolean { return puedeGestionarMaquina(this.authService); }
+  /** Cada botón de la cabecera sigue su propia casilla del rol (no basta con tener alguna de gestión). */
+  get puedeTransferir(): boolean { return puedeTrasladarMaquina(this.authService) || puedeAsignarResponsableMaquina(this.authService); }
+  get puedeVentana(): boolean { return this.puedeTransferir; }
+  get puedeProgramar(): boolean { return puedeProgramarMantenimiento(this.authService); }
   get puedeVerLinea(): boolean { return puedeVerTrazabilidad(this.authService); }
   get puedeVerMant(): boolean { return puedeVerMantenimientos(this.authService); }
   get puedeVerInc(): boolean { return puedeVerIncidentes(this.authService); }
@@ -727,16 +738,14 @@ export class MaquinariaDetalleModalComponent implements OnChanges, OnDestroy {
   get puedeAgregarEvidencia(): boolean { return puedeAgregarEvidenciaMaquinaria(this.authService); }
   get puedeSubirEvidenciaLimpieza(): boolean {
     return puedeSubirEvidenciaLimpieza(this.authService)
-      && (this.authService.isLiderOperador() || this.authService.hasRole('PULIDOR'));
+      && !this.authService.hasRole('ADMIN') && !this.authService.hasRole('SUPER_ADMIN');
   }
   /**
-   * Reportar: con el permiso, sobre máquinas activas. El líder puede reportar cualquier máquina de su agencia
-   * (el servidor ya lo valida así); el resto de roles con el permiso, solo la asignada a él.
+   * Reportar: con el permiso, sobre máquinas activas. La ficha solo se abre para las máquinas del ámbito del
+   * usuario (país, región o agencia; el pulidor, las asignadas a él), y el servidor valida lo mismo.
    */
   get puedeReportar(): boolean {
-    if (!puedeReportarIncidente(this.authService) || !this.ficha?.activa) return false;
-    if (this.authService.isLiderOperador()) return true;
-    return this.esMio(this.ficha?.operadorAsignado?.id);
+    return puedeReportarIncidente(this.authService) && !!this.ficha?.activa;
   }
   get esTaller(): boolean { return String(this.ficha?.agenciaTipo || '').startsWith('TALLER'); }
 
@@ -758,6 +767,10 @@ export class MaquinariaDetalleModalComponent implements OnChanges, OnDestroy {
     if (i.estadoRaw === 'RESUELTO' || i.estadoRaw === 'CANCELADO' || !puedeResolverIncidentes(this.authService)) return false;
     if (this.puedeGestionar) return !i.tecnicoAsignadoId || this.esMio(i.tecnicoAsignadoId);
     return this.esMio(i.tecnicoAsignadoId);
+  }
+  /** Cancelar: con su casilla del rol, sobre incidencias abiertas (el servidor valida el alcance). */
+  puedeCancelarInc(i: Incidente): boolean {
+    return puedeCancelarIncidentes(this.authService) && i.estadoRaw !== 'RESUELTO' && i.estadoRaw !== 'CANCELADO';
   }
   puedeEditarInc(i: Incidente): boolean {
     return puedeResolverIncidentes(this.authService) && (this.puedeGestionar || this.esMio(i.tecnicoAsignadoId));

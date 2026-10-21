@@ -138,7 +138,7 @@ import { badgeClase, BADGE_NO_ATENDIDO } from '../../core/utils/badges';
             </ng-template>
 
             <ng-template appCell="tecnico" let-m>
-              <span class="text-xs text-slate-700 font-medium">{{ m.tecnicoAsignadoNombre || 'Sin asignar' }}</span>
+              @if (m.tecnicoAsignadoNombre) { <span class="text-xs text-slate-700 font-medium">{{ m.tecnicoAsignadoNombre }}</span> } @else { <span class="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-bold text-rose-700 ring-1 ring-rose-200">Sin técnico asignado</span> }
             </ng-template>
 
             <ng-template appCell="estado" let-m>
@@ -202,7 +202,7 @@ import { badgeClase, BADGE_NO_ATENDIDO } from '../../core/utils/badges';
                   <span class="text-center" [class]="badgeClase('mantenimiento', m.estado)">{{ m.estado }}</span>
                 </div>
                 <div class="flex items-center justify-between mt-2 text-xs">
-                  <div class="font-semibold text-slate-700 truncate max-w-[150px]">{{ m.tecnicoAsignadoNombre || 'Sin asignar' }}</div>
+                  <div class="font-semibold text-slate-700 truncate max-w-[150px]">@if (m.tecnicoAsignadoNombre) { {{ m.tecnicoAsignadoNombre }} } @else { <span class="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-bold text-rose-700 ring-1 ring-rose-200">Sin técnico asignado</span> }</div>
                 </div>
                 <div class="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-slate-100" (click)="$event.stopPropagation()" (keydown.enter)="$event.stopPropagation()" (keydown.space)="$event.stopPropagation()">
                   @if (puedeAsignar(m)) {
@@ -270,7 +270,7 @@ import { badgeClase, BADGE_NO_ATENDIDO } from '../../core/utils/badges';
               <div><span class="block text-[11px] text-slate-500 font-bold uppercase mb-0.5">Fecha programada</span><span class="font-mono font-bold text-slate-800">{{ fechaProg(m.fechaProgramada) }}</span></div>
               <div><span class="block text-[11px] text-slate-500 font-bold uppercase mb-0.5">Ejecutado (fecha y hora)</span><span class="font-mono text-slate-800">{{ m.fechaEjecucion ? hora(m.fechaEjecucion) : '—' }}</span></div>
               <div><span class="block text-[11px] text-slate-500 font-bold uppercase mb-0.5">Frecuencia</span><span class="font-bold text-slate-800">{{ etiquetaFrecuencia(m.frecuenciaDias) }}</span></div>
-              <div><span class="block text-[11px] text-slate-500 font-bold uppercase mb-0.5">Técnico</span><span class="font-bold text-slate-800">{{ m.tecnicoAsignadoNombre || 'Sin asignar' }}</span></div>
+              <div><span class="block text-[11px] text-slate-500 font-bold uppercase mb-0.5">Técnico</span>@if (m.tecnicoAsignadoNombre) { <span class="font-bold text-slate-800">{{ m.tecnicoAsignadoNombre }}</span> } @else { <span class="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-bold text-rose-700 ring-1 ring-rose-200">Sin técnico asignado</span> }</div>
               <div><span class="block text-[11px] text-slate-500 font-bold uppercase mb-0.5">Creado por</span><span class="font-bold text-slate-800">{{ m.creadoPorNombre || '—' }}</span></div>
               <div><span class="block text-[11px] text-slate-500 font-bold uppercase mb-0.5">Ejecutado por</span><span class="font-bold text-slate-800">{{ m.ejecutadoPorNombre || '—' }}</span></div>
               @if (m.costoTotal != null) {

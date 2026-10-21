@@ -135,6 +135,9 @@ export class IncidenteService {
       fechaSolucion: item.fechaSolucion ? fechaLocal(item.fechaSolucion) : undefined,
       solucionadoPor: resNombre,
       observacionSolucion: item.solucion || item.observacionSolucion,
+      canceladoPor: item.canceladoPor ? nombrePersona(item.canceladoPor) : undefined,
+      fechaCancelacion: item.fechaCancelacion ? fechaLocal(item.fechaCancelacion) : undefined,
+      motivoCancelacion: item.motivoCancelacion || undefined,
       costoTotal: item.costoTotal != null ? Number(item.costoTotal) : undefined,
       // --- Trazabilidad ---
       noAtendida: item.noAtendida === true,
@@ -240,6 +243,14 @@ export class IncidenteService {
       ...payload,
       incidenteId: String(payload.incidenteId),
       estado: payload.estado || 'RESUELTO',
+    }).pipe(map(res => this.mapBackendIncidente(res?.data || res)));
+  }
+
+  /** Cancela la incidencia: el motivo es obligatorio y queda registrado quién la canceló y cuándo. */
+  cancelarIncidente(incidenteId: string | number, motivo: string): Observable<Incidente> {
+    return this.http.post<any>(apiUrl('/maquinaria/incidentes/cancelar'), {
+      incidenteId: String(incidenteId),
+      motivo,
     }).pipe(map(res => this.mapBackendIncidente(res?.data || res)));
   }
 

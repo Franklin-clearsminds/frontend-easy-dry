@@ -265,6 +265,17 @@ import { fechaProgramadaLocal, fechaProgramadaISO } from '../../core/utils/evide
 
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
+              <label for="maq-marca" class="field-label">Marca</label>
+              <input id="maq-marca" type="text" [(ngModel)]="nuevaMaquina.marca" name="marca" class="field">
+            </div>
+            <div>
+              <label for="maq-modelo" class="field-label">Modelo</label>
+              <input id="maq-modelo" type="text" [(ngModel)]="nuevaMaquina.modelo" name="modelo" class="field">
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
               <label for="maq-agencia" class="field-label">Sucursal Asignada</label>
                 <select id="maq-agencia" [(ngModel)]="nuevaMaquina.agencia" (ngModelChange)="onCambioSucursalNuevaMaquina($event)" name="agencia" class="field select-chevron font-semibold cursor-pointer">
                   <option value="" disabled>Seleccione una sucursal</option>

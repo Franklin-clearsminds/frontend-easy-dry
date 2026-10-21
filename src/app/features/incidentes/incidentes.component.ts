@@ -19,7 +19,7 @@ import { SucursalService } from '../../core/services/sucursal.service';
 import { Sucursal } from '../../core/models';
 import { fechaHoraLocal } from '../../core/utils/evidencia-maquinaria';
 import {
-  puedeGestionarMaquina, puedeReportarIncidente, puedeResolverIncidentes, puedeVerMaquinaria,
+  puedeGestionarMaquina, puedeCancelarIncidentes, puedeReportarIncidente, puedeResolverIncidentes, puedeVerMaquinaria,
 } from '../../core/utils/maquinaria-permisos';
 import { TrabajoAccionesComponent } from '../maquinaria/trabajo-acciones/trabajo-acciones.component';
 import { MaquinariaDetalleModalComponent } from '../maquinaria/maquinaria-detalle-modal/maquinaria-detalle-modal.component';
@@ -185,6 +185,12 @@ import { badgeClase, BADGE_NO_ATENDIDO } from '../../core/utils/badges';
                     <span>Resolver incidencia</span>
                   </button>
                 }
+                @if (puedeCancelar) {
+                  <button type="button" (click)="acciones.cancelarIncidente(inc)" class="btn btn-danger">
+                    <i-lucide name="x-circle" class="w-4 h-4 shrink-0" aria-hidden="true"></i-lucide>
+                    <span>Cancelar incidencia</span>
+                  </button>
+                }
               }
               <div class="flex gap-2">
                 @if (puedeEditar(inc)) {
@@ -259,7 +265,15 @@ import { badgeClase, BADGE_NO_ATENDIDO } from '../../core/utils/badges';
               @if (d.destinoTallerNombre) { <p class="text-slate-500">Taller destino: <strong>{{ d.destinoTallerNombre }}</strong></p> }
             </div>
 
-            @if (d.observacionSolucion) {
+            @if (d.estadoRaw === 'CANCELADO') {
+              <div class="p-4 rounded-2xl border border-rose-200 bg-rose-50/40 space-y-1 text-xs">
+                <h4 class="font-bold text-rose-900 uppercase flex items-center gap-1.5">
+                  <i-lucide name="x-circle" class="w-4 h-4 text-rose-600" aria-hidden="true"></i-lucide> Incidencia cancelada
+                </h4>
+                <p class="text-slate-800 font-medium break-words">{{ d.motivoCancelacion || d.observacionSolucion || 'Sin motivo registrado' }}</p>
+                @if (d.canceladoPor) { <p class="text-slate-500">Por {{ d.canceladoPor }}@if (d.fechaCancelacion) { ({{ d.fechaCancelacion }}) }</p> }
+              </div>
+            } @else if (d.observacionSolucion) {
               <div class="p-4 rounded-2xl border border-emerald-200 bg-emerald-50/30 space-y-1 text-xs">
                 <h4 class="font-bold text-emerald-900 uppercase flex items-center gap-1.5">
                   <i-lucide name="check-circle-2" class="w-4 h-4 text-emerald-600" aria-hidden="true"></i-lucide> Resolución
@@ -461,6 +475,8 @@ export class IncidentesComponent implements OnInit, OnDestroy {
 
   /** Reportar: con el permiso y con máquinas asignadas al usuario. */
   get puedeReportar(): boolean { return puedeReportarIncidente(this.authService) && this.misMaquinas.length > 0; }
+
+  get puedeCancelar(): boolean { return puedeCancelarIncidentes(this.authService); }
 
   puedeResolver(inc: Incidente): boolean {
     if (!puedeResolverIncidentes(this.authService)) return false;

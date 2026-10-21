@@ -24,7 +24,7 @@ export const puedeVerTrazabilidad = (auth: AuthService) => auth.puede('maquinari
 export const puedeCambiarArchivosMaquina = (auth: AuthService) => auth.puede('maquinaria.archivos');
 export const puedeVerIncidentes = (auth: AuthService) => auth.puede('incidentes.ver');
 export const puedeVerMantenimientos = (auth: AuthService) => auth.puede('mantenimientos.ver');
-export const puedeReportarIncidente = (auth: AuthService) => auth.puedeAlguno('maquinaria.incidente.reportar', 'taller.incidentes.reportar');
+export const puedeReportarIncidente = (auth: AuthService) => auth.puede('taller.incidentes.reportar');
 /** Resolver / editar incidentes (el servidor exige además ser el técnico asignado si no gestiona). */
 export const puedeResolverIncidentes = (auth: AuthService) => auth.puede('taller.incidentes.resolver');
 export const puedeCancelarIncidentes = (auth: AuthService) => auth.puede('taller.incidentes.cancelar');
@@ -32,8 +32,8 @@ export const puedeCancelarIncidentes = (auth: AuthService) => auth.puede('taller
 export const puedeEjecutarMantenimientos = (auth: AuthService) => auth.puede('taller.mantenimientos.ejecutar');
 export const puedeEditarMantenimientos = (auth: AuthService) => auth.puede('taller.mantenimientos.editar');
 /** Evidencias de incidencias (reportar, resolver) y de mantenimientos (ejecutar): cada flujo tiene su casilla. */
-export const puedeEvidenciaIncidente = (auth: AuthService) => auth.puede('taller.incidentes.evidencias');
-export const puedeEvidenciaMantenimiento = (auth: AuthService) => auth.puede('taller.mantenimientos.evidencias');
+export const puedeEvidenciaIncidente = (auth: AuthService) => auth.puede('maquinaria.evidencias');
+export const puedeEvidenciaMantenimiento = (auth: AuthService) => auth.puede('maquinaria.evidencias');
 export const puedeAgregarEvidenciaMaquinaria = (auth: AuthService) => puedeEvidenciaIncidente(auth) || puedeEvidenciaMantenimiento(auth);
 export const puedeSubirEvidenciaLimpieza = (auth: AuthService) => auth.puede('taller.limpiezas.registrar');
 export const puedeVerLimpiezas = (auth: AuthService) => auth.puede('limpiezas.ver');

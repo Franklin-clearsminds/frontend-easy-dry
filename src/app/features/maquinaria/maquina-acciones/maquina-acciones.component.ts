@@ -40,7 +40,7 @@ interface DestinoOpcion {
   imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, TecnicoSearchSelectComponent],
   template: `
     <!-- ================= EDITAR ================= -->
-    <app-modal [isOpen]="edi.open" [title]="'Editar máquina: ' + edi.codigo" icon="pencil" size="md" zClass="z-[10100]" (close)="edi.open = false">
+    <app-modal [isOpen]="edi.open" [title]="'Editar máquina: ' + edi.codigo" icon="pencil" size="lg" zClass="z-[10100]" (close)="edi.open = false">
       @if (edi.open) {
         <div class="space-y-4">
           <p class="text-xs text-slate-500">Aquí no se cambia la ubicación (agencia/bahía): para eso usa <strong>Transferir</strong>. Cada cambio queda en la línea de tiempo.</p>
@@ -56,20 +56,38 @@ interface DestinoOpcion {
               <input id="ma-edi-modelo" type="text" [(ngModel)]="edi.modelo" name="edi-modelo" class="field"></div>
             <div><label for="ma-edi-serie" class="field-label">Serie</label>
               <input id="ma-edi-serie" type="text" [(ngModel)]="edi.serie" name="edi-serie" class="field"></div>
-            <div><label for="ma-edi-horas" class="field-label">Horas de uso</label>
-              <input id="ma-edi-horas" type="number" min="0" [(ngModel)]="edi.horasUso" name="edi-horas" class="field"></div>
           </div>
           }
           @if (puedeArchivos) {
-          <div class="space-y-4">
-            <div>
-              <label for="ma-edi-foto" class="field-label">Reemplazar foto (opcional)</label>
-              <input id="ma-edi-foto" type="file" accept="image/*" (change)="edi.foto = $any($event.target).files?.[0] || null" class="w-full text-xs">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            @for (a of archivosEdicion; track a.campo) {
+            <div class="rounded-2xl border border-slate-200 bg-slate-50/60 p-3 space-y-2">
+              <span class="field-label">{{ a.titulo }}</span>
+              @if (srcArchivo(a.campo); as src) {
+                <button type="button" (click)="verArchivo(a.campo)" class="group relative block w-full aspect-[4/3] overflow-hidden rounded-xl border border-slate-200 bg-white"
+                  [attr.aria-label]="'Ver ' + a.titulo.toLowerCase() + ' en grande'">
+                  <img [src]="src" [alt]="a.titulo" class="w-full h-full object-contain">
+                  <span class="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1 bg-slate-900/60 py-1 text-[11px] font-bold text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+                    <i-lucide name="maximize-2" class="w-3 h-3" aria-hidden="true"></i-lucide> Ver en grande
+                  </span>
+                </button>
+                <p class="text-[11px] font-semibold" [class.text-amber-700]="edi[a.campo]" [class.text-slate-500]="!edi[a.campo]">
+                  {{ edi[a.campo] ? 'Nueva (se guardará al confirmar)' : 'Actual' }}
+                </p>
+              } @else {
+                <div class="flex aspect-[4/3] items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white text-xs text-slate-500">Sin archivo</div>
+              }
+              <div class="flex flex-wrap gap-2">
+                <label [for]="'ma-edi-' + a.campo" class="btn btn-secondary btn-sm cursor-pointer">
+                  <i-lucide name="upload" class="w-3.5 h-3.5" aria-hidden="true"></i-lucide> {{ srcArchivo(a.campo) ? 'Reemplazar' : 'Subir' }}
+                </label>
+                <input [id]="'ma-edi-' + a.campo" type="file" accept="image/*" class="sr-only" (change)="elegirArchivo(a.campo, $event)">
+                @if (edi[a.campo]) {
+                  <button type="button" (click)="quitarArchivoNuevo(a.campo)" class="btn btn-secondary btn-sm">Quitar</button>
+                }
+              </div>
             </div>
-            <div>
-              <label for="ma-edi-ficha" class="field-label">Reemplazar ficha técnica (imagen, opcional)</label>
-              <input id="ma-edi-ficha" type="file" accept="image/*" (change)="edi.ficha = $any($event.target).files?.[0] || null" class="w-full text-xs">
-            </div>
+            }
           </div>
           }
           @if (error) { <div class="estado-error" role="alert">{{ error }}</div> }
@@ -80,6 +98,18 @@ interface DestinoOpcion {
         <button type="button" (click)="confirmarEdicion()" [disabled]="enviando" class="btn btn-primary w-full sm:w-auto">
           {{ enviando ? 'Guardando...' : 'Guardar cambios' }}
         </button>
+      </div>
+    </app-modal>
+
+    <!-- Vista ampliada de la foto o la ficha técnica -->
+    <app-modal [isOpen]="vista.open" [title]="vista.titulo" icon="image" size="xl" zClass="z-[10200]" (close)="vista.open = false">
+      @if (vista.open) {
+        <div class="flex justify-center">
+          <img [src]="vista.src" [alt]="vista.titulo" class="max-h-[75vh] w-auto max-w-full rounded-xl object-contain">
+        </div>
+      }
+      <div modal-footer>
+        <button type="button" (click)="vista.open = false" class="btn btn-secondary w-full sm:w-auto">Cerrar</button>
       </div>
     </app-modal>
 
@@ -223,7 +253,43 @@ export class MaquinaAccionesComponent {
   error = '';
   destinos: DestinoOpcion[] = [];
 
-  edi = { open: false, id: '', codigo: '', nombre: '', tipo: '', marca: '', modelo: '', serie: '', horasUso: 0, foto: null as File | null, ficha: null as File | null };
+  edi = {
+    open: false, id: '', codigo: '', nombre: '', tipo: '', marca: '', modelo: '', serie: '',
+    foto: null as File | null, ficha: null as File | null,
+    fotoActual: '', fichaActual: '', fotoNueva: '', fichaNueva: '',
+  };
+  vista = { open: false, titulo: '', src: '' };
+  readonly archivosEdicion: { campo: 'foto' | 'ficha'; titulo: string }[] = [
+    { campo: 'foto', titulo: 'Foto de la máquina' },
+    { campo: 'ficha', titulo: 'Ficha técnica' },
+  ];
+
+  /** Lo que se muestra de cada archivo: el nuevo elegido o, si no hay, el que ya está guardado. */
+  srcArchivo(campo: 'foto' | 'ficha'): string {
+    return campo === 'foto' ? this.edi.fotoNueva || this.edi.fotoActual : this.edi.fichaNueva || this.edi.fichaActual;
+  }
+
+  verArchivo(campo: 'foto' | 'ficha'): void {
+    this.vista = { open: true, titulo: campo === 'foto' ? 'Foto de la máquina' : 'Ficha técnica', src: this.srcArchivo(campo) };
+  }
+
+  elegirArchivo(campo: 'foto' | 'ficha', ev: Event): void {
+    const input = ev.target as HTMLInputElement;
+    const file = input.files?.[0] || null;
+    input.value = '';
+    if (!file) return;
+    this.quitarArchivoNuevo(campo);
+    const url = URL.createObjectURL(file);
+    if (campo === 'foto') { this.edi.foto = file; this.edi.fotoNueva = url; }
+    else { this.edi.ficha = file; this.edi.fichaNueva = url; }
+  }
+
+  quitarArchivoNuevo(campo: 'foto' | 'ficha'): void {
+    const previa = campo === 'foto' ? this.edi.fotoNueva : this.edi.fichaNueva;
+    if (previa) URL.revokeObjectURL(previa);
+    if (campo === 'foto') { this.edi.foto = null; this.edi.fotoNueva = ''; }
+    else { this.edi.ficha = null; this.edi.fichaNueva = ''; }
+  }
   act = { open: false, id: '', codigo: '', nombre: '', activar: false, motivo: '' };
   ven = { open: false, id: '', codigo: '', nombre: '', semanas: 0, dias: 0 };
   tra = {
@@ -249,9 +315,12 @@ export class MaquinaAccionesComponent {
   // ---- Editar ----
   editar(f: MaquinaFicha): void {
     this.reset();
+    this.quitarArchivoNuevo('foto');
+    this.quitarArchivoNuevo('ficha');
     this.edi = {
       open: true, id: f.id, codigo: f.codigo, nombre: f.nombre, tipo: f.tipo || '', marca: f.marca || '',
-      modelo: f.modelo || '', serie: f.serie || '', horasUso: f.horasUso || 0, foto: null, ficha: null,
+      modelo: f.modelo || '', serie: f.serie || '', foto: null, ficha: null,
+      fotoActual: f.fotoUrl || '', fichaActual: f.fichaTecnicaUrl || '', fotoNueva: '', fichaNueva: '',
     };
   }
 
@@ -280,11 +349,12 @@ export class MaquinaAccionesComponent {
         marca: this.edi.marca.trim(),
         modelo: this.edi.modelo.trim(),
         serie: this.edi.serie.trim(),
-        horasUso: Number(this.edi.horasUso || 0),
         fotoUrl,
         fichaTecnicaUrl,
       }));
       this.edi.open = false;
+      this.quitarArchivoNuevo('foto');
+      this.quitarArchivoNuevo('ficha');
       this.ok('Máquina actualizada', `${this.edi.codigo} se guardó correctamente.`, 'MAQUINA_EDITADA');
     } catch (err) {
       this.error = mensajeError(err);

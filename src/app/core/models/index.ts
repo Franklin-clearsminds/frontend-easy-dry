@@ -203,13 +203,15 @@ export interface Agencia {
 export interface VehiculoServicio {
   id: number | string;
   ordenTrabajoOT: string;
+  /** Precio congelado de la OT; el servidor lo omite a quien no tiene `precios.ver`. */
+  precio?: number | null;
   placa: string;
   marca: string;
   modelo: string;
   anio: number;
   color: string;
   cliente?: string;
-  categoriaServicio: 'Servicios Generales' | 'Servicios Especiales' | 'Servicios Extras' | 'GENERAL' | 'ESPECIAL' | 'EXTRA' | string;
+  categoriaServicio: 'Servicios Generales' | 'Servicios Especiales' | 'GENERAL' | 'ESPECIAL' | string;
   servicioId?: number;
   servicio: 'Express' | 'Completo' | 'Deluxe' | 'Retoque' | 'Pulido' | 'Micro pulido' | 'Recubrimiento Cerámico' | 'Lavado motor' | 'Tratamientos especiales' | string;
   categoria: 'Sedán' | 'SUV' | 'Camioneta' | 'Hatchback' | string;
@@ -439,6 +441,10 @@ export interface Incidente {
   fechaSolucion?: string;
   solucionadoPor?: string;
   observacionSolucion?: string;
+  // Cancelación: quién, cuándo y por qué
+  canceladoPor?: string;
+  fechaCancelacion?: string;
+  motivoCancelacion?: string;
   repuestosUtilizados?: string;
   costoTotal?: number;
   fotosReparacion?: string[];
@@ -465,7 +471,7 @@ export interface Incidente {
 
 import { RecetaInsumoServicio } from './inventario.model';
 
-/** Asignación de Servicio Extra a un Operador específico */
+/** OT de servicio especial asignada a uno o varios pulidores */
 export interface ServicioExtra {
   id: number | string;
   codigoSE: string;                      // Ej: SE-2026-001
@@ -485,6 +491,9 @@ export interface ServicioExtra {
     [key: string]: any;
   } | any;
   ordenTrabajoOT?: string;
+  /** Precio de la OT especial; el servidor lo omite a quien no tiene `precios.ver`. */
+  precio?: number | null;
+  servicioCatalogoId?: number | null;
   cliente?: string;
   clienteNombre?: string;
   bahiaId?: string;

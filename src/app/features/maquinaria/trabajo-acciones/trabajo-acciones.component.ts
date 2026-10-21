@@ -142,6 +142,31 @@ const TIPOS_FALLA = [
       </div>
     </app-modal>
 
+    <!-- ================= CANCELAR INCIDENCIA ================= -->
+    <app-modal [isOpen]="can.open" title="Cancelar incidencia" icon="x-circle" size="md" zClass="z-[10100]" (close)="can.open = false">
+      @if (can.open) {
+        <div class="space-y-4">
+          <div class="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 text-xs space-y-1">
+            <p class="font-bold text-slate-800 break-words">{{ can.titulo }}</p>
+            <p class="text-slate-600 break-words">{{ can.descripcion }}</p>
+          </div>
+          <p class="text-xs text-slate-600">Cancelar es definitivo: la incidencia se cierra y queda registrado quién la canceló, cuándo y el motivo.</p>
+          <div>
+            <label for="ta-can-motivo" class="field-label">Motivo de la cancelación (obligatorio)</label>
+            <textarea id="ta-can-motivo" [(ngModel)]="can.motivo" name="can-motivo" rows="4" maxlength="1000" class="field font-medium"
+              placeholder="Ej: falsa alarma, el equipo funciona bien; incidencia duplicada..."></textarea>
+          </div>
+          @if (error) { <div class="estado-error" role="alert">{{ error }}</div> }
+        </div>
+      }
+      <div modal-footer>
+        <button type="button" (click)="can.open = false" [disabled]="enviando" class="btn btn-secondary w-full sm:w-auto">Volver</button>
+        <button type="button" (click)="confirmarCancelacion()" [disabled]="enviando" class="btn btn-danger w-full sm:w-auto">
+          {{ enviando ? 'Cancelando...' : 'Cancelar incidencia' }}
+        </button>
+      </div>
+    </app-modal>
+
     <!-- ================= RESOLVER INCIDENCIA ================= -->
     <app-modal [isOpen]="res.open" title="Resolver incidencia" icon="wrench" size="lg" zClass="z-[10100]" (close)="res.open = false">
       @if (res.open) {
@@ -152,11 +177,8 @@ const TIPOS_FALLA = [
           </div>
 
           <div>
-            <label for="ta-res-estado" class="field-label">Resultado</label>
-            <select id="ta-res-estado" [(ngModel)]="res.estado" name="res-estado" class="field select-chevron font-bold">
-              @if (puedeResolverResultado) { <option value="RESUELTO">Resuelto (requiere evidencia)</option> }
-              @if (puedeCancelarResultado) { <option value="CANCELADO">Cancelado (falsa alarma o duplicada)</option> }
-            </select>
+            <span class="field-label">Resultado</span>
+            <p class="field font-bold">Resuelto (requiere evidencia)</p>
           </div>
 
           <div>
@@ -453,6 +475,7 @@ export class TrabajoAccionesComponent {
 
   rep = { open: false, maquinaId: '', maquinaCodigo: '', maquinaNombre: '', titulo: TIPOS_FALLA[0], gravedad: 'MEDIA', descripcion: '', destinoTallerId: '', clientUuid: '' };
   asg = { open: false, tipo: 'INCIDENTE' as 'INCIDENTE' | 'MANTENIMIENTO', id: '', titulo: '', actualNombre: '', tecnicoId: '', destinoTallerId: '', opciones: [] as TecnicoOpcion[] };
+  can = { open: false, id: '', titulo: '', descripcion: '', motivo: '' };
   res = { open: false, id: '', maquinaId: '', maquinaCodigo: '', titulo: '', descripcion: '', estado: 'RESUELTO' as 'RESUELTO' | 'CANCELADO', solucion: '', repuestos: '', costoTotal: null as number | null };
   edi = { open: false, id: '', titulo: '', descripcion: '', gravedad: 'MEDIA', solucion: '', tieneSolucion: false, costoTotal: null as number | null };
   prog = { open: false, fija: false, maquinas: [] as Maquinaria[], maquinaId: '', fecha: '', frecuenciaDias: 30, tecnicoId: '', observaciones: '', opciones: [] as TecnicoOpcion[] };
@@ -619,6 +642,29 @@ export class TrabajoAccionesComponent {
       titulo: `${inc.codigoIncidente} · ${inc.maquina} · ${inc.tipo}`, descripcion: inc.descripcion,
       estado: 'RESUELTO', solucion: '', repuestos: '', costoTotal: null,
     };
+  }
+
+  cancelarIncidente(inc: Incidente): void {
+    this.reset();
+    this.can = {
+      open: true, id: String(inc.id), titulo: `${inc.codigoIncidente} · ${inc.maquina} · ${inc.tipo}`,
+      descripcion: inc.descripcion, motivo: '',
+    };
+  }
+
+  async confirmarCancelacion(): Promise<void> {
+    this.error = '';
+    if (this.can.motivo.trim().length < 5) { this.error = 'Explica por qué se cancela la incidencia (mínimo 5 caracteres).'; return; }
+    this.enviando = true;
+    try {
+      await firstValueFrom(this.incidenteService.cancelarIncidente(this.can.id, this.can.motivo.trim()));
+      this.can.open = false;
+      this.ok('Incidencia cancelada', this.can.titulo, 'INCIDENTE_CANCELADO');
+    } catch (err) {
+      this.error = mensajeError(err);
+    } finally {
+      this.enviando = false;
+    }
   }
 
   async confirmarResolucion(): Promise<void> {
