@@ -78,3 +78,11 @@ export const environment: AppEnvironment = {
 
 writeFileSync(resolve(root, targetRel), contents, 'utf8');
 console.log(`[env] wrote ${targetRel} (${environmentName})`);
+
+// `environment.ts` no está en git (es local de cada desarrollador) pero el build lo necesita como origen del
+// reemplazo de archivos: en CI se genera junto al de producción si no existe.
+const devRel = 'src/environments/environment.ts';
+if (isProd && !existsSync(resolve(root, devRel))) {
+  writeFileSync(resolve(root, devRel), contents.replace('production: true', 'production: false'), 'utf8');
+  console.log(`[env] wrote ${devRel} (solo para compilar)`);
+}
