@@ -1,4 +1,4 @@
-# Resumen de Cambios (Sesión Actual)
+ññññ# Resumen de Cambios (Sesión Actual)
 
 A continuación se documentan los prompts y las acciones correspondientes que se realizaron en la sesión de hoy, por si decides eliminar la rama actual o hacer rollback manual:
 

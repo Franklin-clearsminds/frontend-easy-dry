@@ -29,7 +29,7 @@ Las variables en la aplicación web utilizan el prefijo `NG_APP_`:
 | `NG_APP_NAME` | Nombre comercial del sistema | `EasyDry®` |
 | `NG_APP_ENV` | Entorno actual (`test` / `production`) | `test` |
 | `NG_APP_PRODUCTION` | Flag de compilación para producción | `false` |
-| `NG_APP_API_BASE_URL` | URL base del API Backend NestJS | `http://localhost:3000/api/v1` |
+| `NG_APP_API_BASE_URL` | URL base del API Backend NestJS (el WebSocket se deriva de ella quitando `/api/v1`) | `http://localhost:3000/api/v1` |
 
 > ℹ️ **Sincronización Automática de Entorno**: El proyecto incluye el script `scripts/sync-env.mjs`, que se ejecuta automáticamente al usar `pnpm start` o `pnpm build` para generar dinámicamente `src/environments/environment.ts` a partir del `.env` sin exponer credenciales sensibles en el repositorio.
 
@@ -70,9 +70,10 @@ El frontend está estructurado bajo **Clean Architecture** y principios de dise�
    - Paginación dinámica con selector de registros por página y contador totalizado (`Mostrar: X por página • Total: Y registros`).
 3. **Bahías & Operación (`/mi-bahia`)**:
    - Supervisión del flujo de lavado en tiempo real por bahía, placa, tipo de vehículo y tiempos de atención.
-4. **Taller Técnico & Maquinaria (`/maquinaria`, `/mantenimiento`, `/incidentes`)**:
-   - Registro de hidrolavadoras, compresores, bombas dosificadoras y aspiradoras industriales.
-   - Órdenes de trabajo preventivas y correctivas con consumo de repuestos y hojas de vida de equipos.
+4. **Taller Técnico & Maquinaria (`/maquinaria`, `/mantenimiento`, `/incidentes`, `/limpiezas`)**:
+   - Registro de hidrolavadoras, compresores, bombas dosificadoras y aspiradoras industriales, con hoja de vida de cada equipo.
+   - Mantenimientos **preventivos** programados (ya no hay tipos de mantenimiento ni lista de verificación), con consumo de repuestos.
+   - Limpieza de maquinaria con evidencia fotográfica y seguimiento de las atrasadas.
 5. **Bodega & Suministros (`/inventario`)**:
    - Gestión de existencias de químicos, ceras, pads, microfibras y despacho de lotes hacia bodegas satélite.
 6. **Catálogo & Tarifarios (`/configuracion/catalogo-servicios`)**:
@@ -80,38 +81,42 @@ El frontend está estructurado bajo **Clean Architecture** y principios de dise�
 7. **Sucursales & Bahías (`/sucursales`)**:
    - Directorio de sedes nacionales (Quito Norte, Quito Sur, Cumbayá, Guayaquil) con asignación de servicios y bahías.
 8. **Usuarios & Control de Acceso RBAC (`/usuarios`)**:
-   - Administración de credenciales corporativas, 13 roles oficiales y auditoría de permisos. Los permisos se refrescan al instante tras un cambio de rol (sin requerir cierre de sesión).
+   - Administración de cuentas corporativas, roles y auditoría de permisos. Las contraseñas solo las asignan quienes tienen el permiso para ello. Los permisos se refrescan al instante tras un cambio de rol (sin requerir cierre de sesión).
 9. **Productividad & Retos (`/productividad`)**:
    - Ranking de agencias y ranking de lavadores (cantidad de servicios + tiempo promedio) calculados en el servidor.
    - Directorio de retos comerciales/operativos: creación, carrusel de retos activos y cierre manual con registro de ganador y resultado.
 10. **Notificaciones en Tiempo Real**:
-    - Centro de notificaciones conectado por WebSocket (`socket.io-client`) al backend; cubre limpiezas de maquinaria pendientes/atrasadas, mantenimientos vencidos y otros eventos operativos, con persistencia real (no sintéticas en el cliente).
+    - Centro de notificaciones conectado por WebSocket (`socket.io-client`, namespace `/notifications`); persistencia real, no sintéticas en el cliente. Los indicadores del menú lateral (notificaciones, envíos y aprobaciones pendientes) se actualizan solos.
+11. **Evidencias multimedia**:
+    - Fotos, videos y documentos se abren a tamaño completo en un visor global (`VisorMediaService` + `<app-visor-media-host>` + directiva `appVerMedia`), con ampliación opcional. Los archivos privados se resuelven con URL firmada.
+    - Las fotos de perfil usan la directiva `appAvatar`: resuelve la dirección del archivo y, si no carga, muestra las iniciales en lugar de una imagen rota.
+12. **Envíos y confirmación**:
+    - Recepción con diferencias: los envíos con desconformidad se marcan en rojo y quien tiene permiso los resuelve; todo queda registrado.
+13. **Reportes operativos (`/reportes`)**: reportes por agencia y período, con archivos generados en el servidor.
+
+> **Carga bajo demanda:** cada pantalla con pestañas (Dashboard, Sucursales, Notificaciones, Mapa de red, etc.) pide al servidor solo los datos de la pestaña visible, y las tablas grandes paginan en el servidor.
 
 ---
 
-## 🔐 Matriz de Credenciales Demo para Pruebas
+## 🔐 Cuentas de acceso
 
-Para validar los diferentes niveles de acceso, consulta el archivo central [USUARIOS-DEMO.md](../USUARIOS-DEMO.md).  
-Todos los usuarios de prueba utilizan la contraseña estándar: `Admin123*`.
-
-| Rol | Correo Demo |
-|---|---|
-| Super Administrador | `superadmin@easydry.com` |
-| Administrador | `admin@easydry.com` |
-| Gerente de Sucursal | `gerente.norte@easydry.com` |
-| Supervisor Regional | `supervisor.costa@easydry.com` |
-| Coordinador Comercial | `comercial@easydry.com` |
-| Jefe Servicios Especiales | `especiales@easydry.com` |
+No hay usuarios de ejemplo. La primera cuenta es la de Super Admin sembrada por el backend (`SEED_SUPERADMIN_EMAIL` / `SEED_SUPERADMIN_PASSWORD` de su `.env`); el resto se crea desde **Usuarios** o con el importador del Excel. Ver [USUARIOS-DEMO.md](../USUARIOS-DEMO.md).
 
 ---
 
 ## 🧪 Pruebas Automatizadas
 
-Suite de pruebas unitarias con Karma + Jasmine (servicios core y componentes críticos: autenticación, notificaciones, limpieza de maquinaria):
+Suite de pruebas unitarias con Karma + Jasmine (`pnpm test`) y pruebas de integración contra el backend (`pnpm run test:integracion`):
 
 ```bash
 pnpm test
 ```
+
+---
+
+## 🚀 Despliegue (Vercel)
+
+El `vercel.json` define el build y la reescritura a `index.html`, e ignora los builds de cualquier rama que no sea `develop` (`ignoreCommand`): solo `develop` se despliega; `main` y las demás ramas no generan Preview.
 
 ---
 
@@ -142,9 +147,9 @@ Si modificas estilos o variables de entorno y no se reflejan:
 frontend-easy-dry/
 ├── src/
 │   ├── app/
-│   │   ├── core/           # Guards de autenticación, interceptores HTTP, modelos y mocks
+│   │   ├── core/           # Guards de autenticación, interceptores HTTP, servicios y modelos
 │   │   ├── features/       # Módulos y vistas de negocio (servicios, taller, inventario, etc.)
-│   │   └── shared/         # Componentes compartidos (navbar, sidebar, pagination, filter-bar)
+│   │   └── shared/         # Componentes y directivas compartidos (sidebar, tablas, visor de medios, avatar, filtros)
 │   ├── assets/             # Logotipos SVG, tipografías e imágenes estáticas
 │   ├── environments/       # Archivos de entorno generados dinámicamente
 │   ├── styles.css          # Configuración global y capas de TailwindCSS
