@@ -67,3 +67,6 @@ src/app/features/dashboard/**/*.spec.ts
 src/app/features/dashboard/*.spec.ts
 src/app/shared/**/*.spec.ts
 src/app/shared/*.spec.ts
+
+# Generado por scripts/sync-env.mjs desde .env (IP local de cada desarrollador)
+src/environments/environment.ts
