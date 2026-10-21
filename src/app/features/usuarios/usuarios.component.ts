@@ -1,3 +1,4 @@
+import { resolverRangoFechas } from '../../core/utils/fecha-rango';
 import { celdaCsv } from '../../core/utils/csv';
 import { AvatarSrcDirective } from '../../shared/directives/avatar-src.directive';
 import { PasswordRequisitosComponent } from '../../shared/components/password-requisitos/password-requisitos.component';
@@ -48,6 +49,7 @@ const COLUMNAS_USUARIOS: TableColumn[] = [
   { key: 'rol', label: 'Rol Asignado', sortable: true, type: 'custom' },
   { key: 'agencia', label: 'Agencia o Región', sortable: true, type: 'custom' },
   { key: 'email', label: 'Correo Electrónico', sortable: true, type: 'custom' },
+  { key: 'telefono', label: 'Teléfono', type: 'custom' },
   { key: 'creado', label: 'Fecha Ingreso', sortable: true, defaultSort: 'desc', type: 'custom' },
   { key: 'estado', label: 'Estado', sortable: true, type: 'custom' },
   { key: 'acciones', label: 'Acción', align: 'right', type: 'custom', sticky: true },
@@ -124,7 +126,8 @@ const COLUMNAS_ROLES: TableColumn[] = [
             [showBahia]="false"
             [showCliente]="true"
             [showEstado]="true"
-            [showFechas]="false"
+            [showFechas]="true"
+            [modoFechas]="'rango'"
             [showBusqueda]="true"
             placeholderBusqueda="Buscar por nombre, correo, rol, agencia o región..."
             [listaEstados]="['Todos', 'Activo', 'Inactivo']"
@@ -395,6 +398,10 @@ const COLUMNAS_ROLES: TableColumn[] = [
 
               <ng-template appCell="email" let-u>
                 <span class="text-xs text-slate-600 font-mono break-all">{{ u.email }}</span>
+              </ng-template>
+
+              <ng-template appCell="telefono" let-u>
+                <span class="text-xs text-slate-700 font-mono whitespace-nowrap">{{ u.telefono || '—' }}</span>
               </ng-template>
 
               <ng-template appCell="creado" let-u>
@@ -908,6 +915,28 @@ const COLUMNAS_ROLES: TableColumn[] = [
             }
           </div>
 
+          <!-- Teléfono (celular de 10 dígitos; obligatorio para los líderes) -->
+          <div>
+            <label for="usuarios-f7t" class="block text-xs font-bold text-slate-700 uppercase mb-1">
+              Teléfono @if (requiereTelefono) { <span class="text-rose-500">*</span> }
+            </label>
+            <input id="usuarios-f7t"
+              type="tel"
+              inputmode="numeric"
+              maxlength="16"
+              [(ngModel)]="usuarioForm.telefono"
+              name="telefono"
+              placeholder="ej. 0991234567"
+              class="w-full p-2.5 border rounded-xl text-sm font-mono transition-all outline-none"
+              [ngClass]="telefonoInvalido ? 'border-rose-500 bg-rose-50/20 ring-2 ring-rose-200' : 'border-slate-200 focus:border-easydry-blue focus:ring-2 focus:ring-easydry-blue/20'">
+            @if (telefonoInvalido) {
+              <p class="text-xs text-rose-600 font-semibold mt-1 flex items-center gap-1.5">
+                <i-lucide aria-hidden="true" name="alert-circle" class="w-3.5 h-3.5 shrink-0"></i-lucide>
+                {{ !usuarioForm.telefono.trim() ? 'El teléfono es obligatorio para los líderes.' : 'Ingrese un celular de 10 dígitos que empiece con 09 (ej. 0991234567).' }}
+              </p>
+            }
+          </div>
+
           <!-- Credenciales de acceso JWT -->
           @if (!editandoUsuario) {
             <div class="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
@@ -1382,6 +1411,7 @@ export class UsuariosComponent implements OnInit, OnDestroy {
     bodegaId?: string;
     estado: 'Activo' | 'Inactivo';
     email: string;
+    telefono: string;
     password?: string;
     confirmPassword?: string;
     cambiarPassword?: boolean;
@@ -1397,6 +1427,7 @@ export class UsuariosComponent implements OnInit, OnDestroy {
     bodegaId: '',
     estado: 'Activo',
     email: '',
+    telefono: '',
     password: '',
     confirmPassword: '',
     cambiarPassword: false,
@@ -1413,6 +1444,20 @@ export class UsuariosComponent implements OnInit, OnDestroy {
 
   get nombreInvalido(): boolean {
     return this.usuarioFormSubmitted && !this.usuarioForm.nombre?.trim();
+  }
+
+  /** El teléfono es obligatorio para los líderes (el servidor lo exige igual). */
+  get requiereTelefono(): boolean {
+    const rol = this.roles.find((r) => r.id === this.usuarioForm.roleId || r.nombre === this.usuarioForm.rol);
+    return ['LIDER', 'BACKUP'].includes(String(rol?.codigo || '').toUpperCase());
+  }
+
+  get telefonoInvalido(): boolean {
+    if (!this.usuarioFormSubmitted && !this.usuarioForm.telefono?.trim()) return false;
+    const valor = String(this.usuarioForm.telefono || '').trim();
+    if (!valor) return this.usuarioFormSubmitted && this.requiereTelefono;
+    const digitos = valor.replace(/[\s\-().]/g, '').replace(/^\+593/, '0').replace(/^593(?=9\d{8}$)/, '0');
+    return !/^09\d{8}$/.test(digitos);
   }
 
   get emailInvalido(): boolean {
@@ -1955,6 +2000,7 @@ export class UsuariosComponent implements OnInit, OnDestroy {
       Agencia: u.agencia,
       Region: u.region || '-',
       Email: u.email,
+      Teléfono: u.telefono || '',
       FechaIngreso: u.fechaAsignacion || '-',
       Estado: u.estado
     }));
@@ -2072,6 +2118,9 @@ export class UsuariosComponent implements OnInit, OnDestroy {
       clienteId: this.clienteIdFiltro() || undefined,
       estado: estado === 'Activo' ? 1 : estado === 'Inactivo' ? 0 : undefined,
       segmento: this.filtroPillRapida,
+      // Fecha de ingreso
+      fechaDesde: resolverRangoFechas(this.filtrosGlobales)?.inicio || undefined,
+      fechaHasta: resolverRangoFechas(this.filtrosGlobales)?.fin || undefined,
     };
   }
 
@@ -2183,6 +2232,7 @@ export class UsuariosComponent implements OnInit, OnDestroy {
       bodegaId: '',
       estado: 'Activo',
       email: '',
+      telefono: '',
       password: '',
       confirmPassword: '',
       cambiarPassword: true,
@@ -2230,6 +2280,7 @@ export class UsuariosComponent implements OnInit, OnDestroy {
       bodegaId: u.bodegaId ? String(u.bodegaId) : '',
       estado: u.estado === 'Inactivo' ? 'Inactivo' : 'Activo',
       email: u.email,
+      telefono: u.telefono || '',
       password: '',
       confirmPassword: '',
       cambiarPassword: false,
@@ -2413,7 +2464,7 @@ export class UsuariosComponent implements OnInit, OnDestroy {
   guardarUsuario() {
     if (this.guardandoUsuario) return;
     this.usuarioFormSubmitted = true;
-    if (this.nombreInvalido || this.emailInvalido || this.passwordInvalido || this.confirmPasswordInvalido) {
+    if (this.nombreInvalido || this.emailInvalido || this.telefonoInvalido || this.passwordInvalido || this.confirmPasswordInvalido) {
       this.toastService.warning('Campos Requeridos', 'Por favor complete los campos obligatorios señalados en rojo.');
       return;
     }
@@ -2582,6 +2633,7 @@ export class UsuariosComponent implements OnInit, OnDestroy {
         bodegaId: isAsistente ? (this.usuarioForm.bodegaId || undefined) : undefined,
         estado: nuevoEstado,
         email: this.usuarioForm.email.trim(),
+        telefono: this.usuarioForm.telefono.trim(),
         modalidadPulidor: isPulidor ? modalidad.modalidadPulidor : undefined,
         servicioIds: isPulidor ? this.serviciosEspecialesCatalogo.map(s => Number(s.id)) : [],
         ...(this.usuarioForm.cambiarPassword && this.usuarioForm.password?.trim()
@@ -2664,6 +2716,7 @@ export class UsuariosComponent implements OnInit, OnDestroy {
         bodegaId: isAsistente ? (this.usuarioForm.bodegaId || undefined) : undefined,
         estado: this.usuarioForm.estado,
         email: this.usuarioForm.email.trim(),
+        telefono: this.usuarioForm.telefono.trim(),
         fechaAsignacion: new Date().toISOString().split('T')[0],
         avatar: '',
         modalidadPulidor: isPulidor ? modalidad.modalidadPulidor : undefined,

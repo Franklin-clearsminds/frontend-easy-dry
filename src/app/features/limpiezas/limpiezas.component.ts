@@ -60,6 +60,19 @@ import { PAGE_SIZE_INFINITO } from '../../core/config/paginacion';
             <option [value]="m.id">{{ m.codigo }} — {{ m.nombre }}</option>
           }
         </select>
+        <select [(ngModel)]="rangoSeleccionado" (ngModelChange)="onRangoCambio()" name="filtro-rango"
+          class="field sm:max-w-[12rem]" aria-label="Filtrar por fecha">
+          @for (r of opcionesRango; track r) {
+            <option [value]="r">{{ r }}</option>
+          }
+        </select>
+        @if (rangoSeleccionado === 'Rango personalizado') {
+          <div class="flex items-center gap-2">
+            <input type="date" [(ngModel)]="fechaDesde" (ngModelChange)="onFechasManuales()" name="fecha-desde" class="field" aria-label="Desde">
+            <span class="text-xs font-bold text-slate-500">a</span>
+            <input type="date" [(ngModel)]="fechaHasta" (ngModelChange)="onFechasManuales()" name="fecha-hasta" class="field" aria-label="Hasta">
+          </div>
+        }
         @if (puedeExportar) {
         <button type="button" (click)="exportarCsv()" [disabled]="exportando"
           class="btn btn-secondary btn-sm w-full sm:w-auto">
@@ -170,12 +183,18 @@ export class LimpiezasComponent implements OnInit, OnDestroy {
   filtroMaquinariaId = '';
   exportando = false;
 
+  // Filtro de fechas: opciones rápidas y rango personalizado (días de la limpieza).
+  readonly opcionesRango = ['Todas las fechas', 'Hoy', 'Ayer', 'Últimos 7 días', 'Este mes', 'Mes anterior', 'Rango personalizado'];
+  rangoSeleccionado = 'Todas las fechas';
+  fechaDesde = '';
+  fechaHasta = '';
+
   readonly puedeEditar = puedeEditarLimpiezas(this.authService);
   /** Las exportaciones viven en Reportes Operativos: solo exporta quien tiene ese permiso. */
   readonly puedeExportar = puedeExportarLimpiezas(this.authService);
 
   readonly lista = new ListaInfinita<LimpiezaMaquinaria>(
-    (page, pageSize) => this.maquinariaService.getLimpiezasPagina({ page, pageSize, maquinariaId: this.filtroMaquinariaId || undefined }),
+    (page, pageSize) => this.maquinariaService.getLimpiezasPagina({ page, pageSize, maquinariaId: this.filtroMaquinariaId || undefined, fechaDesde: this.fechaDesde || undefined, fechaHasta: this.fechaHasta || undefined }),
     PAGE_SIZE_INFINITO,
     (r) => r.id,
   );
@@ -208,6 +227,38 @@ export class LimpiezasComponent implements OnInit, OnDestroy {
   }
 
   onFiltroMaquinaChange(): void {
+    this.lista.reiniciar();
+  }
+
+  private formatoDia(d: Date): string {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+
+  onRangoCambio(): void {
+    const hoy = new Date();
+    const dia = (n: number) => this.formatoDia(new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() + n));
+    switch (this.rangoSeleccionado) {
+      case 'Hoy': this.fechaDesde = dia(0); this.fechaHasta = dia(0); break;
+      case 'Ayer': this.fechaDesde = dia(-1); this.fechaHasta = dia(-1); break;
+      case 'Últimos 7 días': this.fechaDesde = dia(-6); this.fechaHasta = dia(0); break;
+      case 'Este mes':
+        this.fechaDesde = this.formatoDia(new Date(hoy.getFullYear(), hoy.getMonth(), 1));
+        this.fechaHasta = this.formatoDia(new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0));
+        break;
+      case 'Mes anterior':
+        this.fechaDesde = this.formatoDia(new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1));
+        this.fechaHasta = this.formatoDia(new Date(hoy.getFullYear(), hoy.getMonth(), 0));
+        break;
+      case 'Rango personalizado': return; // espera a que elijan «Desde» y «Hasta»
+      default: this.fechaDesde = ''; this.fechaHasta = '';
+    }
+    this.lista.reiniciar();
+  }
+
+  /** Rango personalizado: cada fecha fija su lado y, si falta el otro, se usa el mismo día. */
+  onFechasManuales(): void {
+    if (this.fechaDesde && (!this.fechaHasta || this.fechaHasta < this.fechaDesde)) this.fechaHasta = this.fechaDesde;
+    if (this.fechaHasta && !this.fechaDesde) this.fechaDesde = this.fechaHasta;
     this.lista.reiniciar();
   }
 
@@ -252,7 +303,7 @@ export class LimpiezasComponent implements OnInit, OnDestroy {
   async exportarCsv(): Promise<void> {
     this.exportando = true;
     try {
-      const filas = await firstValueFrom(this.maquinariaService.exportarLimpiezas(this.filtroMaquinariaId || undefined));
+      const filas = await firstValueFrom(this.maquinariaService.exportarLimpiezas(this.filtroMaquinariaId || undefined, this.fechaDesde || undefined, this.fechaHasta || undefined));
       const encabezado = ['Máquina', 'Código', 'Tipo', 'Fecha', 'Registró', 'Observaciones', 'Fotos'];
       const lineas = filas.map((r) => [
         r.maquinaria?.nombre || '',

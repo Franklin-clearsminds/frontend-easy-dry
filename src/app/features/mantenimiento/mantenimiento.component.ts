@@ -65,6 +65,7 @@ import { badgeClase, BADGE_NO_ATENDIDO } from '../../core/utils/badges';
         [showBahia]="false"
         [showEstado]="true"
         [showFechas]="true"
+        [modoFechas]="'rango'"
         [showCliente]="true"
         [showBusqueda]="true"
         [placeholderBusqueda]="'Buscar por máquina, técnico o sucursal...'"

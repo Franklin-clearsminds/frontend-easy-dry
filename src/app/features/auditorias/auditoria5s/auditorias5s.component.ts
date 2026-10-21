@@ -82,7 +82,7 @@ type Pestana = 'resumen' | 'auditorias' | 'acciones' | 'historial';
           <app-stat-card title="Auditorías realizadas" [value]="resumen.realizadas" icon="clipboard-check" variant="primary" subtitle="Finalizadas o cerradas"></app-stat-card>
           <app-stat-card title="Cumplimiento promedio" [value]="resumen.promedioGeneral === null ? '—' : resumen.promedioGeneral + '%'" icon="target" variant="primary" subtitle="De todas las auditorías"></app-stat-card>
           <app-stat-card title="Auditorías del mes" [value]="resumen.delMes" icon="calendar" variant="primary" subtitle="Del mes en curso"></app-stat-card>
-          <app-stat-card title="Acciones correctivas pendientes" [value]="resumen.accionesPendientes" icon="alert-triangle" [variant]="resumen.accionesVencidas ? 'danger' : 'warning'" [subtitle]="resumen.accionesVencidas + ' vencida(s)'"></app-stat-card>
+          <app-stat-card title="Acciones correctivas pendientes" [value]="resumen.accionesPendientes" icon="alert-triangle" variant="warning" subtitle="Abiertas en las agencias"></app-stat-card>
         </div>
         <div class="grid grid-cols-3 gap-4">
           <div class="rounded-2xl border-2 border-emerald-300 bg-emerald-50 p-4"><p class="text-[11px] font-bold uppercase text-emerald-800">Agencias en verde</p><p class="text-3xl font-extrabold text-emerald-800">{{ resumen.agenciasVerde }}</p></div>
@@ -141,13 +141,13 @@ type Pestana = 'resumen' | 'auditorias' | 'acciones' | 'historial';
         <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-easydry flex flex-wrap gap-3 items-end">
           <div><label class="field-label" for="ac-es">Estado</label>
             <select id="ac-es" class="field" [(ngModel)]="filtroAccion" (ngModelChange)="cargarAcciones()">
-              <option value="ABIERTAS">Abiertas</option><option value="VENCIDA">Vencidas</option><option value="EN_VERIFICACION">En verificación</option><option value="CERRADA">Cerradas</option><option value="">Todas</option>
+              <option value="ABIERTAS">Abiertas</option><option value="EN_VERIFICACION">En verificación</option><option value="CERRADA">Cerradas</option><option value="">Todas</option>
             </select></div>
         </div>
         @if (errorAcciones) { <div class="estado-error" role="alert">{{ errorAcciones }}</div> }
         <div class="space-y-3">
           @for (x of acciones; track x.id) {
-            <a [routerLink]="['/auditorias-5s', x.auditoriaId]" class="block bg-white rounded-2xl border p-4 shadow-easydry hover:shadow-easydry-hover transition-shadow" [ngClass]="x.estadoEfectivo === 'VENCIDA' ? 'border-rose-300' : 'border-slate-100'">
+            <a [routerLink]="['/auditorias-5s', x.auditoriaId]" class="block bg-white rounded-2xl border border-slate-100 p-4 shadow-easydry hover:shadow-easydry-hover transition-shadow">
               <div class="flex flex-wrap items-center gap-2">
                 <span class="font-mono text-xs font-extrabold text-easydry-blue">{{ x.codigo }}</span>
                 <span class="badge" [ngClass]="claseAccion(x.estadoEfectivo)">{{ nombreAccion(x.estadoEfectivo) }}</span>
@@ -155,7 +155,7 @@ type Pestana = 'resumen' | 'auditorias' | 'acciones' | 'historial';
               </div>
               <p class="text-sm font-semibold text-slate-900 mt-1">Criterio {{ x.criterio }}: {{ x.criterioDescripcion }}</p>
               <p class="text-sm text-slate-700">{{ x.hallazgo || x.accion }}</p>
-              <p class="text-xs text-slate-500 mt-1">{{ x.responsable || 'Sin responsable' }}@if (x.fechaCompromiso) { · compromiso {{ x.fechaCompromiso | date:'dd/MM/yyyy' }} }</p>
+              <p class="text-xs text-slate-500 mt-1">Responsable: {{ x.responsable || x.agenciaNombre }}@if (x.fechaCompromiso) { · creada {{ x.fechaCompromiso | date:'dd/MM/yyyy' }} }</p>
             </a>
           }
           @if (!acciones.length && !cargandoAcciones) { <p class="text-sm text-slate-500 bg-white rounded-2xl border border-slate-100 p-6 text-center">No hay acciones correctivas con este filtro.</p> }

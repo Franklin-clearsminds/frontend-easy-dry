@@ -55,7 +55,7 @@ export async function descargarPdfInforme(i: InformeDetalle, storage: StorageUpl
   flow.paginaNueva();
   flow.encabezado('PLANES DE ACCIÓN PENDIENTES DE OTRAS ÁREAS');
   const planes = i.planes
-    .map((p, k) => `${k + 1}. ${p.problema}\n    Acción: ${p.accionRequerida || '—'} | Área: ${p.areaResponsable || '—'} | Responsable: ${p.personaResponsable || '—'}\n    Compromiso: ${p.fechaCompromiso ? fechaLarga(p.fechaCompromiso) : '—'} | Prioridad: ${p.prioridad.toLowerCase()} | Estado: ${nombreDe(ESTADOS_PLAN, p.estadoEfectivo ?? p.estado)}${p.observaciones ? '\n    Obs.: ' + p.observaciones : ''}`)
+    .map((p, k) => `${k + 1}. ${p.problema}\n    Acción: ${p.accionRequerida || '—'} | Responsable: ${p.personaResponsable || i.agencia.nombre}\n    Fecha: ${p.fechaCompromiso ? fechaLarga(p.fechaCompromiso) : '—'} | Prioridad: ${p.prioridad.toLowerCase()} | Estado: ${nombreDe(ESTADOS_PLAN, p.estadoEfectivo ?? p.estado)}${p.observaciones ? '\n    Obs.: ' + p.observaciones : ''}`)
     .join('\n');
   flow.caja([i.planesGeneral, planes].filter(Boolean).join('\n\n'), { minAlto: 55 });
   flow.espacio(4);

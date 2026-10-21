@@ -29,8 +29,6 @@ interface Respuesta {
   hallazgo: string;
   observaciones: string;
   accionCorrectiva: string;
-  responsable: string;
-  fechaCompromiso: string | null;
   fotos: string[];
   /** Panel de hallazgo desplegado. */
   abierto: boolean;
@@ -202,10 +200,6 @@ interface Respuesta {
                     <div><label class="field-label">Fotografías</label>
                       <app-evidencias-fotos [fotos]="r.fotos" (fotosChange)="r.fotos = $event" [agenciaId]="agenciaId" tipo="5s" [referenciaId]="detalle?.id" [deshabilitado]="!editable"></app-evidencias-fotos></div>
                     <div><label class="field-label">Acción correctiva</label><textarea class="field" rows="2" [(ngModel)]="r.accionCorrectiva" [disabled]="!editable"></textarea></div>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div><label class="field-label">Responsable</label><input class="field" [(ngModel)]="r.responsable" maxlength="120" [disabled]="!editable"></div>
-                      <div><label class="field-label">Fecha compromiso</label><input type="date" class="field" [(ngModel)]="r.fechaCompromiso" [disabled]="!editable"></div>
-                    </div>
                     <div><label class="field-label">Observaciones</label><textarea class="field" rows="2" [(ngModel)]="r.observaciones" [disabled]="!editable"></textarea></div>
                   </div>
                 }
@@ -393,8 +387,6 @@ export class Auditoria5sFormComponent implements OnInit, OnDestroy {
       hallazgo: c.hallazgo,
       observaciones: c.observaciones,
       accionCorrectiva: c.accionCorrectiva,
-      responsable: c.responsable,
-      fechaCompromiso: c.fechaCompromiso,
       fotos: [...c.fotos],
       abierto: false,
     } as Respuesta]));
@@ -498,8 +490,6 @@ export class Auditoria5sFormComponent implements OnInit, OnDestroy {
         hallazgo: r.hallazgo,
         observaciones: r.observaciones,
         accionCorrectiva: r.accionCorrectiva,
-        responsable: r.responsable,
-        fechaCompromiso: r.fechaCompromiso || null,
         fotos: r.fotos,
       })),
     };

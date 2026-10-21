@@ -45,9 +45,9 @@ export interface FilterState {
               [(ngModel)]="filters.busqueda"
               (input)="emitFilters()"
               [placeholder]="placeholderBusqueda"
-              class="w-full bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-xl pl-9 pr-8 py-2 focus:ring-2 focus:ring-easydry-blue focus:bg-white focus:border-transparent transition-colors placeholder:text-slate-500 font-medium">
-            <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-500">
-              <i-lucide name="search" class="w-3.5 h-3.5" aria-hidden="true"></i-lucide>
+              class="w-full bg-white border-2 border-easydry-blue text-slate-900 text-sm font-semibold rounded-xl pl-9 pr-8 py-2 focus:outline-none focus:ring-2 focus:ring-easydry-blue/30 transition-colors placeholder:text-slate-600 placeholder:font-medium">
+            <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-easydry-blue">
+              <i-lucide name="search" class="w-4 h-4" aria-hidden="true"></i-lucide>
             </span>
             @if (filters.busqueda) {
               <button
@@ -275,15 +275,15 @@ export interface FilterState {
           <label [attr.for]="uid + '-c11'" class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
             <i-lucide name="calendar-days" class="w-3.5 h-3.5 text-easydry-blue" aria-hidden="true"></i-lucide> Rango
           </label>
-          <select [id]="uid + '-c11'" [(ngModel)]="filters.fecha" (change)="onUnidadCambio()" class="w-full bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-xl pl-3 py-2 focus:ring-2 focus:ring-easydry-blue transition-colors select-chevron font-semibold cursor-pointer">
-            @for (fec of listaFechas; track fec) {
+          <select [id]="uid + '-c11'" [(ngModel)]="filters.fecha" (change)="onFechaCambio()" class="w-full bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-xl pl-3 py-2 focus:ring-2 focus:ring-easydry-blue transition-colors select-chevron font-semibold cursor-pointer">
+            @for (fec of (modoFechas === 'rango' ? listaRangos : listaFechas); track fec) {
               <option [value]="fec">{{ fec }}</option>
             }
           </select>
         </div>
       }
 
-      @if (showFechas && (filters.fecha === 'Rango Personalizado' || filters.fecha === 'Personalizado')) {
+      @if (showFechas && (filters.fecha === 'Rango Personalizado' || filters.fecha === 'Personalizado' || filters.fecha === 'Rango personalizado')) {
         <div class="flex-1 min-w-[220px] max-w-full flex items-end gap-2">
           <div class="flex-1">
             <label [attr.for]="uid + '-c12'" class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Desde</label>
@@ -353,6 +353,12 @@ export class FilterBarComponent implements OnInit {
   @Input() set listaEstados(v: string[]) { this._listaEstados = v; this.customEstados = true; }
   get listaEstados(): string[] { return this._listaEstados; }
   @Input() listaFechas = ['Día', 'Semana', 'Mes', 'Año'];
+  /**
+   * `unidad` (por defecto): Día/Semana/Mes/Año, como antes. `rango`: opciones rápidas (Hoy, Ayer, Últimos 7 días…) y un rango
+   * personalizado con «Desde» y «Hasta»; el filtro viaja como `fechaInicio` y `fechaFin` (AAAA-MM-DD).
+   */
+  @Input() modoFechas: 'unidad' | 'rango' = 'unidad';
+  readonly listaRangos = ['Todas las fechas', 'Hoy', 'Ayer', 'Últimos 7 días', 'Este mes', 'Mes anterior', 'Rango personalizado'];
 
   @Output() filterChange = new EventEmitter<FilterState>();
 
@@ -438,6 +444,7 @@ export class FilterBarComponent implements OnInit {
   };
 
   ngOnInit(): void {
+    if (this.modoFechas === 'rango' && this.filters.fecha === 'Mes') this.filters.fecha = 'Todas las fechas';
     this.fijarSegunRol();
     if (!this.customEstados) this.cargarEstados();
     // Solo cuando el desplegable de bodegas está visible: si no, se pedía el listado (y el rol sin
@@ -540,6 +547,32 @@ export class FilterBarComponent implements OnInit {
    * Al cambiar la unidad (Semana/Mes/Año/Día): si ya hay un rango establecido,
    * lo recalcula tomando la fecha "Desde" como ancla.
    */
+  /** Cambia la opción del selector de fechas: rango rápido o unidad, según el modo. */
+  onFechaCambio(): void {
+    if (this.modoFechas === 'rango') this.aplicarRangoRapido();
+    else this.onUnidadCambio();
+  }
+
+  private aplicarRangoRapido(): void {
+    const hoy = new Date();
+    const dia = (n: number) => this.formatearFecha(new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() + n));
+    switch (this.filters.fecha) {
+      case 'Hoy': this.filters.fechaInicio = dia(0); this.filters.fechaFin = dia(0); break;
+      case 'Ayer': this.filters.fechaInicio = dia(-1); this.filters.fechaFin = dia(-1); break;
+      case 'Últimos 7 días': this.filters.fechaInicio = dia(-6); this.filters.fechaFin = dia(0); break;
+      case 'Este mes': this.filters.fechaInicio = this.inicioDeMes(hoy); this.filters.fechaFin = this.finDeMes(hoy); break;
+      case 'Mes anterior': {
+        const anterior = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1);
+        this.filters.fechaInicio = this.inicioDeMes(anterior);
+        this.filters.fechaFin = this.finDeMes(anterior);
+        break;
+      }
+      case 'Rango personalizado': return; // espera a que elijan «Desde» y «Hasta»
+      default: this.filters.fechaInicio = ''; this.filters.fechaFin = '';
+    }
+    this.emitFilters();
+  }
+
   onUnidadCambio(): void {
     if (this.filters.fechaInicio) {
       this.filters.fechaFin = this.calcularFinDesdeInicio(this.filters.fechaInicio);
@@ -578,6 +611,11 @@ export class FilterBarComponent implements OnInit {
       this.emitFilters();
       return;
     }
+    if (this.modoFechas === 'rango') {
+      if (!this.filters.fechaFin || this.filters.fechaFin < desde) this.filters.fechaFin = desde;
+      this.emitFilters();
+      return;
+    }
     // Auto-cálculo de la fecha final a partir de la inicial (excepto en "Día" donde el rango es libre).
     if (this.filters.fecha !== 'Día') {
       this.filters.fechaFin = this.calcularFinDesdeInicio(desde);
@@ -589,6 +627,11 @@ export class FilterBarComponent implements OnInit {
     const hasta = (ev.target as HTMLInputElement).value;
     this.filters.fechaFin = hasta;
     if (!hasta) {
+      this.emitFilters();
+      return;
+    }
+    if (this.modoFechas === 'rango') {
+      if (!this.filters.fechaInicio || this.filters.fechaInicio > hasta) this.filters.fechaInicio = hasta;
       this.emitFilters();
       return;
     }
@@ -616,7 +659,7 @@ export class FilterBarComponent implements OnInit {
       bahia: 'Todas',
       estado: 'Todos',
       rol: 'Todos',
-      fecha: 'Mes',
+      fecha: this.modoFechas === 'rango' ? 'Todas las fechas' : 'Mes',
       fechaInicio: '',
       fechaFin: '',
       busqueda: ''

@@ -78,6 +78,7 @@ import { EvidenciasEnvioComponent } from './evidencias-envio.component';
       <!-- Filtros -->
       <app-filter-bar
         [showFechas]="true"
+        [modoFechas]="'rango'"
         [showSucursal]="!ambitoAgencia"
         [showEstado]="true"
         [listaEstados]="listaEstados"

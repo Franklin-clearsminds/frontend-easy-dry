@@ -113,7 +113,6 @@ import { descargarExcel5s, descargarPdf5s } from './auditoria5s-export';
                     <p class="font-semibold text-slate-900">{{ q.descripcion }}</p>
                     @if (q.hallazgo) { <p class="text-slate-700"><strong>Hallazgo:</strong> {{ q.hallazgo }}</p> }
                     @if (q.accionCorrectiva) { <p class="text-slate-700"><strong>Acción:</strong> {{ q.accionCorrectiva }}</p> }
-                    @if (q.responsable || q.fechaCompromiso) { <p class="text-xs text-slate-500">{{ q.responsable || 'Sin responsable' }}@if (q.fechaCompromiso) { · compromiso {{ q.fechaCompromiso | date:'dd/MM/yyyy' }} }</p> }
                     @if (q.observaciones) { <p class="text-xs text-slate-500">{{ q.observaciones }}</p> }
                     @if (q.fotos.length) { <div class="flex flex-wrap gap-2 pt-1">@for (f of q.fotos; track f) { <img [appThumb]="f" [appVerMedia]="f" appVerMediaTitulo="Evidencia del criterio" class="w-14 h-14 object-cover rounded-lg border border-slate-200" alt="Evidencia fotográfica del criterio"> }</div> }
                     @if (q.estadoAccion) { <span class="badge" [ngClass]="claseAccion(q.estadoAccion)">{{ nombreAccion(q.estadoAccion) }}</span> }
@@ -136,12 +135,12 @@ import { descargarExcel5s, descargarPdf5s } from './auditoria5s-export';
           <h2 class="font-extrabold text-slate-900 font-outfit">Acciones correctivas ({{ a.acciones.length }})</h2>
           @if (!a.acciones.length) { <p class="text-sm text-slate-500">Esta auditoría no abrió acciones correctivas.</p> }
           @for (x of a.acciones; track x.id) {
-            <article class="rounded-xl border p-3 space-y-2 text-sm" [ngClass]="x.estadoEfectivo === 'VENCIDA' ? 'border-rose-300 bg-rose-50/40' : 'border-slate-200'">
+            <article class="rounded-xl border p-3 space-y-2 text-sm" class="border-slate-200">
               <div class="flex flex-wrap items-center gap-2">
                 <span class="font-mono text-xs font-extrabold text-easydry-blue">{{ x.codigo }}</span>
                 <span class="badge" [ngClass]="claseAccion(x.estadoEfectivo)">{{ nombreAccion(x.estadoEfectivo) }}</span>
                 <span class="badge" [ngClass]="clasePrioridad(x.prioridad)">{{ x.prioridad }}</span>
-                <span class="text-xs text-slate-500">Criterio {{ x.criterio }} · {{ x.responsable || 'Sin responsable' }}@if (x.fechaCompromiso) { · compromiso {{ x.fechaCompromiso | date:'dd/MM/yyyy' }} }</span>
+                <span class="text-xs text-slate-500">Criterio {{ x.criterio }} · Responsable: {{ x.responsable || a.agencia.nombre }}@if (x.fechaCompromiso) { · creada {{ x.fechaCompromiso | date:'dd/MM/yyyy' }} }</span>
               </div>
               <p><strong>Hallazgo:</strong> {{ x.hallazgo || '—' }}</p>
               <p><strong>Acción:</strong> {{ x.accion || '—' }}</p>

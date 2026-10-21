@@ -1,3 +1,4 @@
+import { resolverRangoFechas, soloFecha } from '../../core/utils/fecha-rango';
 import { Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -46,7 +47,8 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
         [showOperador]="true"
         [showBahia]="true"
         [showEstado]="true"
-        [showFechas]="false"
+        [showFechas]="true"
+        [modoFechas]="'rango'"
         [showCliente]="true"
         [showBusqueda]="true"
         [listaEstados]="['Todos', 'FINALIZADO', 'APROBADO', 'RECHAZADO']"
@@ -410,6 +412,19 @@ export class AprobacionesComponent implements OnInit, OnDestroy {
     }
   }
 
+  /** Rango del filtro como inicio y fin del día local, en ISO (el servidor compara en UTC). */
+  private rangoFechasIso(): { fechaDesde?: string; fechaHasta?: string } {
+    const rango = resolverRangoFechas(this.filtrosGlobales);
+    if (!rango) return {};
+    const [yi, mi, di] = soloFecha(rango.inicio).split('-').map(Number);
+    const [yf, mf, df] = soloFecha(rango.fin).split('-').map(Number);
+    if (!yi || !mi || !di || !yf || !mf || !df) return {};
+    return {
+      fechaDesde: new Date(yi, mi - 1, di, 0, 0, 0, 0).toISOString(),
+      fechaHasta: new Date(yf, mf - 1, df, 23, 59, 59, 999).toISOString(),
+    };
+  }
+
   private consulta(): ConsultaServicios {
     const f = this.filtrosGlobales;
     const alcance = this._getFiltrosUsuario() || {};
@@ -422,6 +437,7 @@ export class AprobacionesComponent implements OnInit, OnDestroy {
       bahiaNombre: this.neutro(f.bahia, 'Todas') || undefined,
       operadorNombre: this.neutro(f.operador, 'Todos') || undefined,
       clienteNombre: this.neutro(f.marca || f.cliente, 'Todas', 'Todos') || undefined,
+      ...this.rangoFechasIso(),
     };
   }
 

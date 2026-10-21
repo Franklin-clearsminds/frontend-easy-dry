@@ -22,6 +22,9 @@ export interface ConsultaUsuarios {
   /** 1 = activo, 0 = inactivo. */
   estado?: number;
   segmento?: 'todos' | 'lavadores' | 'supervisores' | 'bodega' | 'admins' | 'inactivos';
+  /** Fecha de ingreso (AAAA-MM-DD), ambos inclusive. */
+  fechaDesde?: string;
+  fechaHasta?: string;
   incluirResumen?: boolean;
 }
 
@@ -98,6 +101,7 @@ export class UsuarioService {
       roleId: u.role?.id || u.roleId,
       avatar: u.avatarUrl || u.avatar || '',
       estado: u.estado === 1 ? 'Activo' : 'Inactivo',
+      telefono: u.telefono || '',
       fechaAsignacion: fechaFormatted,
       agencia: agenciaDisplay,
       sucursal: agenciaDisplay,
@@ -145,7 +149,7 @@ export class UsuarioService {
     if (c.sortField) { body['sortField'] = c.sortField; body['sortOrder'] = c.sortOrder || 'desc'; }
     const texto = (c.search || '').trim();
     if (texto.length >= 2) body['search'] = texto;
-    for (const k of ['rolNombre', 'agenciaId', 'regionId', 'clienteId'] as const) {
+    for (const k of ['rolNombre', 'agenciaId', 'regionId', 'clienteId', 'fechaDesde', 'fechaHasta'] as const) {
       const v = c[k];
       if (v !== undefined && v !== null && v !== '') body[k] = v;
     }
@@ -200,7 +204,8 @@ export class UsuarioService {
       servicioIds: isPulidorMovil
         ? (Array.isArray(usr.servicioIds) ? usr.servicioIds.map(Number).filter(n => !isNaN(n) && n > 0) : [])
         : undefined,
-      estado: usr.estado === 'Inactivo' ? 0 : 1
+      estado: usr.estado === 'Inactivo' ? 0 : 1,
+      telefono: usr.telefono || undefined,
     };
 
     if (!isAsistente && !usr.bodegaId) {
@@ -247,6 +252,7 @@ export class UsuarioService {
       name: usr.nombre,
       lastname: usr.apellido,
       email: usr.email,
+      telefono: usr.telefono ?? '',
       estado: usr.estado === 'Activo' ? 1 : 0,
       rolNombre: usr.rol,
       roleId: usr.roleId || (usr as any).roleId || undefined,

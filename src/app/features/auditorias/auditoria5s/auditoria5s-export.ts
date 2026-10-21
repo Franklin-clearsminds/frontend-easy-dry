@@ -28,7 +28,7 @@ export function descargarExcel5s(a: Auditoria5sDetalle, cat: Formato5sCatalogo):
     ['Código de auditoría:', a.codigo],
     ['Formato:', a.formatoNombre],
     [],
-    ['N.º', 'S', siNo ? 'Pregunta' : 'Criterio de auditoría', ...(siNo ? ['Cumple con', 'Respuesta'] : []), 'Puntaje máx.', 'Puntaje obtenido', 'Evidencia / hallazgo', 'Responsable', 'Fecha compromiso', 'Estado', 'Acción correctiva', 'Observaciones'],
+    ['N.º', 'S', siNo ? 'Pregunta' : 'Criterio de auditoría', ...(siNo ? ['Cumple con', 'Respuesta'] : []), 'Puntaje máx.', 'Puntaje obtenido', 'Evidencia / hallazgo', 'Estado', 'Acción correctiva', 'Observaciones'],
     ...a.criterios.map((c) => [
       c.numero,
       nombreCategoria(cat, c.categoria),
@@ -37,8 +37,6 @@ export function descargarExcel5s(a: Auditoria5sDetalle, cat: Formato5sCatalogo):
       c.puntajeMaximo,
       c.puntajeEfectivo ?? '',
       c.hallazgo,
-      c.responsable,
-      c.fechaCompromiso ? fechaLarga(c.fechaCompromiso) : '',
       estadoDe(a, c.numero),
       c.accionCorrectiva,
       c.observaciones,

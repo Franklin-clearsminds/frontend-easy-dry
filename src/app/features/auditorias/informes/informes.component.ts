@@ -60,8 +60,7 @@ import { HistorialInformeComponent } from './historial-informe.component';
           <app-stat-card title="Este mes" [value]="resumen.esteMes" icon="calendar" variant="primary" subtitle="Inspecciones del mes"></app-stat-card>
           <app-stat-card title="Pendientes de aprobación" [value]="resumen.pendientesAprobacion" icon="clock" variant="warning" subtitle="En revisión"></app-stat-card>
           <app-stat-card title="Aprobados" [value]="resumen.aprobados" icon="check-circle" variant="success" subtitle="Aprobados o cerrados"></app-stat-card>
-          <app-stat-card title="Planes de acción pendientes" [value]="resumen.planesPendientes" icon="clipboard-list" [variant]="resumen.planesVencidos ? 'danger' : 'warning'"
-            [subtitle]="resumen.planesVencidos + ' vencido(s)'"></app-stat-card>
+          <app-stat-card title="Planes de acción pendientes" [value]="resumen.planesPendientes" icon="clipboard-list" variant="warning" subtitle="Pendientes y en proceso"></app-stat-card>
         </div>
       }
 

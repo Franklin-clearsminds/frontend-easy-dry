@@ -13,7 +13,6 @@ import {
   CALIFICACIONES,
   CATEGORIAS_NOVEDAD,
   Calificacion,
-  Destinatario,
   ESTADOS_NOVEDAD,
   ESTADOS_PLAN,
   GuardarInforme,
@@ -88,17 +87,7 @@ const aLocal = (iso: string) => {
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label class="field-label" for="f-para">PARA (destinatario del informe) *</label>
-                  @if (destinatarioLibre) {
-                    <input id="f-para" class="field" [(ngModel)]="form.destinatarioNombre" placeholder="Nombre y cargo del destinatario" maxlength="160" [disabled]="!editable">
-                  } @else {
-                    <select id="f-para" class="field" [ngModel]="form.destinatarioId" (ngModelChange)="elegirDestinatario($event)" [disabled]="!editable">
-                      <option value="">Selecciona un usuario…</option>
-                      @for (d of destinatarios; track d.id) { <option [value]="d.id">{{ d.nombre }} — {{ d.cargo }}</option> }
-                    </select>
-                  }
-                  <button type="button" class="mt-1 text-xs font-bold text-easydry-blue hover:underline" (click)="alternarDestinatario()" [disabled]="!editable">
-                    {{ destinatarioLibre ? 'Elegir de la lista de usuarios' : 'Escribir otro destinatario' }}
-                  </button>
+                  <input id="f-para" class="field" [(ngModel)]="form.destinatarioNombre" placeholder="Nombre y cargo del destinatario" maxlength="160" [disabled]="!editable">
                 </div>
                 <div>
                   <label class="field-label" for="f-de">DE (responsable del informe)</label>
@@ -136,7 +125,6 @@ const aLocal = (iso: string) => {
                     </select>
                   </div>
                 </div>
-                @if (avisoAgencia) { <p class="text-xs font-semibold text-easydry-blue">{{ avisoAgencia }}</p> }
                 <p class="text-xs text-slate-500">Estado del informe: <strong>{{ detalle ? nombreEstado(detalle.estado) : 'Borrador (aún sin guardar)' }}</strong></p>
               </div>
             }
@@ -228,21 +216,19 @@ const aLocal = (iso: string) => {
                 @if (editable) { <button type="button" class="btn btn-secondary btn-sm" (click)="agregarPlan()"><i-lucide name="plus" class="w-3.5 h-3.5" aria-hidden="true"></i-lucide> Agregar plan</button> }
               </div>
               @for (p of form.planes; track $index) {
-                <article class="rounded-xl border p-4 space-y-3" [ngClass]="vencido(p) ? 'border-rose-300 bg-rose-50/40' : 'border-slate-200 bg-slate-50/50'">
+                <article class="rounded-xl border border-slate-200 bg-slate-50/50 p-4 space-y-3">
                   <div class="flex items-start justify-between gap-2">
-                    <p class="text-xs font-bold text-slate-500">Plan {{ $index + 1 }}@if (vencido(p)) { <span class="ml-2 badge badge-danger">Vencido</span> }</p>
+                    <p class="text-xs font-bold text-slate-500">Plan {{ $index + 1 }}</p>
                     @if (editable) { <button type="button" class="btn-icon hover:!text-rose-600" (click)="quitar(form.planes, $index)" aria-label="Quitar plan"><i-lucide name="trash-2" class="w-4 h-4" aria-hidden="true"></i-lucide></button> }
                   </div>
                   <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div class="sm:col-span-2"><label class="field-label">Descripción del problema *</label><textarea class="field" rows="2" [(ngModel)]="p.problema" [disabled]="!editable"></textarea></div>
                     <div class="sm:col-span-2"><label class="field-label">Acción requerida</label><textarea class="field" rows="2" [(ngModel)]="p.accionRequerida" [disabled]="!editable"></textarea></div>
-                    <div><label class="field-label">Área responsable</label><input class="field" [(ngModel)]="p.areaResponsable" maxlength="120" [disabled]="!editable"></div>
-                    <div><label class="field-label">Persona responsable</label><input class="field" [(ngModel)]="p.personaResponsable" maxlength="120" [disabled]="!editable"></div>
-                    <div><label class="field-label">Fecha compromiso</label><input type="date" class="field" [(ngModel)]="p.fechaCompromiso" [disabled]="!editable"></div>
+                    <p class="sm:col-span-2 text-xs font-semibold text-slate-500">Responsable: la agencia del informe · Fecha: el día en que se crea el plan.</p>
                     <div><label class="field-label">Prioridad</label>
                       <select class="field" [(ngModel)]="p.prioridad" [disabled]="!editable">@for (x of prioridades; track x.id) { <option [value]="x.id">{{ x.nombre }}</option> }</select></div>
                     <div><label class="field-label">Estado</label>
-                      <select class="field" [(ngModel)]="p.estado" [disabled]="!editable">@for (e of estadosPlan; track e.id) { @if (e.id !== 'VENCIDO') { <option [value]="e.id">{{ e.nombre }}</option> } }</select></div>
+                      <select class="field" [(ngModel)]="p.estado" [disabled]="!editable">@for (e of estadosPlan; track e.id) { <option [value]="e.id">{{ e.nombre }}</option> }</select></div>
                     <div><label class="field-label">Observaciones</label><input class="field" [(ngModel)]="p.observaciones" [disabled]="!editable"></div>
                   </div>
                   <div><label class="field-label">Evidencia de cumplimiento</label>
@@ -376,11 +362,6 @@ export class InformeFormComponent implements OnInit {
   generando = false;
   detalle: InformeDetalle | null = null;
   agencias: OpcionAgencia[] = [];
-  destinatarios: Destinatario[] = [];
-  destinatarioLibre = false;
-  avisoAgencia = '';
-  /** Id del líder marcado automáticamente al elegir la agencia (para cambiarlo si luego se elige otra agencia). */
-  private liderAuto = '';
 
   form = this.formularioVacio();
 
@@ -388,8 +369,9 @@ export class InformeFormComponent implements OnInit {
   get progreso(): number { return Math.round((this.paso / this.pasos.length) * 100); }
   get editable(): boolean { return !this.detalle || this.detalle.permisos.puedeEditar; }
 
+  /** El destinatario es solo un campo de texto: se escribe quién recibe el informe. */
   get vistaPara(): string {
-    return this.destinatarioLibre ? this.form.destinatarioNombre : (this.destinatarios.find((d) => d.id === this.form.destinatarioId)?.nombre ?? this.form.destinatarioNombre);
+    return this.form.destinatarioNombre;
   }
 
   get faltantes(): string[] {
@@ -427,12 +409,8 @@ export class InformeFormComponent implements OnInit {
 
   async ngOnInit(): Promise<void> {
     try {
-      const [opciones, destinatarios] = await Promise.all([
-        firstValueFrom(this.api.getOpciones()),
-        firstValueFrom(this.api.getDestinatarios()),
-      ]);
+      const opciones = await firstValueFrom(this.api.getOpciones());
       this.agencias = opciones.agencias;
-      this.destinatarios = destinatarios;
       if (this.agencias.length === 1) this.form.agenciaId = this.agencias[0].id;
       const id = this.route.snapshot.paramMap.get('id');
       if (id) {
@@ -452,10 +430,9 @@ export class InformeFormComponent implements OnInit {
 
   private aplicar(d: InformeDetalle): void {
     this.detalle = d;
-    this.destinatarioLibre = !d.destinatarioId;
     this.form = {
       agenciaId: d.agencia.id,
-      destinatarioId: d.destinatarioId ?? '',
+      destinatarioId: '',
       destinatarioNombre: d.destinatarioNombre,
       fecha: d.fecha,
       fechaVisita: aLocal(d.fechaVisita),
@@ -478,56 +455,14 @@ export class InformeFormComponent implements OnInit {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  alternarDestinatario(): void {
-    this.destinatarioLibre = !this.destinatarioLibre;
-    this.form.destinatarioId = '';
-    this.form.destinatarioNombre = '';
-  }
-
-  /** Al elegir la agencia se marca solo su líder como destinatario (PARA), salvo que ya hayas elegido a otra persona. */
   elegirAgencia(id: string): void {
-    const antes = this.liderAuto;
     this.form.agenciaId = id;
-    const lider = this.agencias.find((a) => a.id === id)?.lider;
-    if (!this.editable || this.destinatarioLibre) return;
-    const libre = !this.form.destinatarioId || this.form.destinatarioId === antes;
-    if (lider && libre && this.destinatarios.some((d) => d.id === lider.id)) {
-      this.form.destinatarioId = lider.id;
-      this.form.destinatarioNombre = lider.nombre;
-      this.liderAuto = lider.id;
-      this.avisoAgencia = `Líder de la agencia marcado como destinatario: ${lider.nombre}.`;
-    } else if (!lider && this.form.destinatarioId === antes && antes) {
-      this.form.destinatarioId = '';
-      this.form.destinatarioNombre = '';
-      this.liderAuto = '';
-      this.avisoAgencia = '';
-    }
-  }
-
-  /** Si el destinatario es un líder o un pulidor fijo, se marca solo su agencia; el pulidor móvil no tiene y se elige a mano. */
-  elegirDestinatario(id: string): void {
-    this.form.destinatarioId = id;
-    this.liderAuto = '';
-    const d = this.destinatarios.find((x) => x.id === id);
-    this.form.destinatarioNombre = d?.nombre ?? '';
-    this.avisoAgencia = '';
-    if (!d || (d.rol !== 'LIDER' && d.rol !== 'BACKUP' && d.rol !== 'PULIDOR')) return;
-    if (d.agenciaId && this.agencias.some((a) => a.id === d.agenciaId)) {
-      this.form.agenciaId = d.agenciaId;
-      this.avisoAgencia = `Agencia marcada automáticamente: ${d.cargo} de ${this.agencias.find((a) => a.id === d.agenciaId)?.nombre}.`;
-    } else if (d.rol === 'PULIDOR' && !d.agenciaId) {
-      this.avisoAgencia = 'Pulidor móvil: no tiene agencia fija, elige la agencia que se inspecciona.';
-    }
   }
 
   agregarNovedad(): void { this.form.novedades.push({ titulo: '', descripcion: '', categoria: 'OTROS', prioridad: 'MEDIA', area: '', fotos: [], estadoSeguimiento: 'ABIERTA' }); }
   agregarActividad(): void { this.form.actividades.push({ nombre: '', descripcion: '', responsable: '', fecha: null, resultado: '', observaciones: '', fotos: [] }); }
   agregarPlan(): void { this.form.planes.push({ problema: '', accionRequerida: '', areaResponsable: '', personaResponsable: '', fechaCompromiso: null, prioridad: 'MEDIA', estado: 'PENDIENTE', observaciones: '', evidenciaCumplimiento: [] }); }
   quitar<T>(lista: T[], i: number): void { lista.splice(i, 1); }
-
-  vencido(p: PlanAccion): boolean {
-    return (p.estado === 'PENDIENTE' || p.estado === 'EN_PROCESO') && !!p.fechaCompromiso && p.fechaCompromiso < new Date().toISOString().slice(0, 10);
-  }
 
   nombreEstado = (id: string) => ({ BORRADOR: 'Borrador', EN_REVISION: 'En revisión', APROBADO: 'Aprobado', RECHAZADO: 'Rechazado', CERRADO: 'Cerrado' } as Record<string, string>)[id] ?? id;
   nombreCalificacion = (id: string) => CALIFICACIONES.find((c) => c.id === id)?.nombre ?? id;
@@ -538,7 +473,6 @@ export class InformeFormComponent implements OnInit {
     return {
       ...(this.detalle ? { id: this.detalle.id } : {}),
       agenciaId: f.agenciaId,
-      ...(f.destinatarioId && !this.destinatarioLibre ? { destinatarioId: f.destinatarioId } : {}),
       destinatarioNombre: this.vistaPara,
       fecha: f.fecha,
       fechaVisita: f.fechaVisita ? new Date(f.fechaVisita).toISOString() : undefined,

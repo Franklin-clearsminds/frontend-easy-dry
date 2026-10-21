@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, Output, inject } from '@angular/core';
+import { Component, ElementRef, EventEmitter, Input, OnDestroy, Output, ViewChild, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { LucideAngularModule } from 'lucide-angular';
 import { StorageUploadService } from '../../../core/services/storage-upload.service';
@@ -31,13 +31,15 @@ import { mensajeError } from '../../../core/models/auditorias.model';
         </div>
       }
       @if (!deshabilitado && fotos.length < max) {
-        <!-- Dos entradas: "Tomar" abre la cámara en el celular; "Elegir" abre la galería o el explorador de archivos. -->
-        <label class="w-20 h-20 rounded-xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center gap-1 text-slate-500 cursor-pointer hover:border-easydry-blue hover:text-easydry-blue transition-colors"
-          [class.opacity-60]="subiendo" [class.pointer-events-none]="subiendo">
+        <!-- Dos entradas: «Tomar foto» abre la cámara del equipo (o la del celular) y «Elegir» abre la galería o el explorador de archivos. -->
+        <button type="button" (click)="tomarFoto()" [disabled]="subiendo"
+          class="w-20 h-20 rounded-xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center gap-1 text-slate-500 cursor-pointer hover:border-easydry-blue hover:text-easydry-blue transition-colors disabled:opacity-60 disabled:pointer-events-none"
+          aria-label="Tomar una fotografía con la cámara">
           <i-lucide [name]="subiendo ? 'loader' : 'camera'" class="w-5 h-5" [class.animate-spin]="subiendo" aria-hidden="true"></i-lucide>
           <span class="text-[10px] font-bold">{{ subiendo ? 'Subiendo…' : 'Tomar foto' }}</span>
-          <input type="file" accept="image/*" capture="environment" class="sr-only" (change)="seleccionar($event)" aria-label="Tomar una fotografía con la cámara">
-        </label>
+        </button>
+        <!-- Respaldo: si el navegador no da acceso a la cámara, se abre la cámara nativa del celular o el selector de archivos. -->
+        <input #capturaNativa type="file" accept="image/*" capture="environment" class="sr-only" tabindex="-1" aria-hidden="true" (change)="seleccionar($event)">
         <label class="w-20 h-20 rounded-xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center gap-1 text-slate-500 cursor-pointer hover:border-easydry-blue hover:text-easydry-blue transition-colors"
           [class.opacity-60]="subiendo" [class.pointer-events-none]="subiendo">
           <i-lucide name="image" class="w-5 h-5" aria-hidden="true"></i-lucide>
@@ -49,9 +51,23 @@ import { mensajeError } from '../../../core/models/auditorias.model';
         <span class="text-xs text-slate-400 italic">Sin fotos.</span>
       }
     </div>
+
+    @if (camaraAbierta) {
+      <div class="fixed inset-0 z-[10700] bg-slate-900/85 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Tomar fotografía">
+        <div class="w-full max-w-xl bg-white rounded-2xl overflow-hidden shadow-2xl">
+          <video #video autoplay playsinline muted class="w-full max-h-[65vh] bg-black object-contain"></video>
+          <div class="flex items-center justify-between gap-3 p-4">
+            <button type="button" (click)="cerrarCamara()" class="btn btn-secondary">Cancelar</button>
+            <button type="button" (click)="capturar()" class="btn btn-primary flex items-center gap-2">
+              <i-lucide name="camera" class="w-4 h-4" aria-hidden="true"></i-lucide> Capturar foto
+            </button>
+          </div>
+        </div>
+      </div>
+    }
   `,
 })
-export class EvidenciasFotosComponent {
+export class EvidenciasFotosComponent implements OnDestroy {
   private readonly storage = inject(StorageUploadService);
   private readonly visor = inject(VisorMediaService);
   private readonly toast = inject(ToastService);
@@ -67,11 +83,62 @@ export class EvidenciasFotosComponent {
   @Output() fotosChange = new EventEmitter<string[]>();
 
   subiendo = false;
+  camaraAbierta = false;
+  private flujo: MediaStream | null = null;
+  @ViewChild('video') private video?: ElementRef<HTMLVideoElement>;
+  @ViewChild('capturaNativa') private capturaNativa?: ElementRef<HTMLInputElement>;
+
+  ngOnDestroy(): void { this.cerrarCamara(); }
+
+  /** Abre la cámara del equipo en una ventana; si no hay permiso o el navegador no la ofrece, usa la nativa del celular. */
+  async tomarFoto(): Promise<void> {
+    if (!this.agenciaId) {
+      this.toast.warning('Elige la agencia primero', 'Las fotos se guardan junto a la agencia inspeccionada.');
+      return;
+    }
+    if (!navigator.mediaDevices?.getUserMedia) { this.capturaNativa?.nativeElement.click(); return; }
+    try {
+      this.flujo = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+      this.camaraAbierta = true;
+      setTimeout(() => {
+        const v = this.video?.nativeElement;
+        if (!v || !this.flujo) return;
+        v.srcObject = this.flujo;
+        void v.play();
+      });
+    } catch {
+      this.cerrarCamara();
+      this.capturaNativa?.nativeElement.click();
+    }
+  }
+
+  async capturar(): Promise<void> {
+    const v = this.video?.nativeElement;
+    if (!v || !v.videoWidth) return;
+    const lienzo = document.createElement('canvas');
+    lienzo.width = v.videoWidth;
+    lienzo.height = v.videoHeight;
+    lienzo.getContext('2d')?.drawImage(v, 0, 0, lienzo.width, lienzo.height);
+    const blob = await new Promise<Blob | null>((ok) => lienzo.toBlob(ok, 'image/jpeg', 0.85));
+    this.cerrarCamara();
+    if (!blob) { this.toast.error('No se pudo tomar la foto', 'Intenta de nuevo.'); return; }
+    await this.subirArchivos([new File([blob], `foto_${Date.now()}.jpg`, { type: 'image/jpeg' })]);
+  }
+
+  cerrarCamara(): void {
+    this.flujo?.getTracks().forEach((t) => t.stop());
+    this.flujo = null;
+    this.camaraAbierta = false;
+  }
 
   async seleccionar(ev: Event): Promise<void> {
     const input = ev.target as HTMLInputElement;
     const archivos = Array.from(input.files ?? []).slice(0, this.max - this.fotos.length);
     input.value = '';
+    await this.subirArchivos(archivos);
+  }
+
+  private async subirArchivos(archivos: File[]): Promise<void> {
     if (!archivos.length) return;
     if (!this.agenciaId) {
       this.toast.warning('Elige la agencia primero', 'Las fotos se guardan junto a la agencia inspeccionada.');

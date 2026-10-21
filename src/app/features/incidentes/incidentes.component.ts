@@ -62,6 +62,7 @@ import { badgeClase, BADGE_NO_ATENDIDO } from '../../core/utils/badges';
         [placeholderBusqueda]="'Buscar por máquina, falla, reportante o técnico...'"
         [showCliente]="true"
         [showFechas]="true"
+        [modoFechas]="'rango'"
         [listaEstados]="['Todos', 'Pendiente', 'En Solución', 'Solucionado', 'Cancelado']"
         (filterChange)="aplicarNuevosFiltros($event)">
         <label filter-actions class="inline-flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">

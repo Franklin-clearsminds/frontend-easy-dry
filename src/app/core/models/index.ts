@@ -21,6 +21,8 @@ export interface Usuario {
   estado: 'Activo' | 'Inactivo';
   fechaAsignacion?: string;
   email: string;
+  /** Celular de 10 dígitos (09XXXXXXXX). */
+  telefono?: string;
   avatar?: string;
   sucursalAsignada?: string;
   bahiaAsignada?: string;

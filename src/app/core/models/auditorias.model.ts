@@ -21,7 +21,7 @@ export interface OpcionPersona { id: string; nombre: string }
 
 export type EstadoInforme = 'BORRADOR' | 'EN_REVISION' | 'APROBADO' | 'RECHAZADO' | 'CERRADO';
 export type Calificacion = 'EXCELENTE' | 'BUENO' | 'REGULAR' | 'MALO';
-export type EstadoPlan = 'PENDIENTE' | 'EN_PROCESO' | 'COMPLETADO' | 'VENCIDO' | 'CANCELADO';
+export type EstadoPlan = 'PENDIENTE' | 'EN_PROCESO' | 'COMPLETADO' | 'CANCELADO';
 
 export const ESTADOS_INFORME: { id: EstadoInforme; nombre: string; clase: string }[] = [
   { id: 'BORRADOR', nombre: 'Borrador', clase: 'bg-slate-100 text-slate-700 border-slate-200' },
@@ -64,7 +64,6 @@ export const ESTADOS_PLAN: { id: EstadoPlan; nombre: string; clase: string }[] =
   { id: 'PENDIENTE', nombre: 'Pendiente', clase: 'bg-amber-100 text-amber-800 border-amber-200' },
   { id: 'EN_PROCESO', nombre: 'En proceso', clase: 'bg-sky-100 text-sky-800 border-sky-200' },
   { id: 'COMPLETADO', nombre: 'Completado', clase: 'bg-emerald-100 text-emerald-800 border-emerald-200' },
-  { id: 'VENCIDO', nombre: 'Vencido', clase: 'bg-rose-100 text-rose-800 border-rose-200' },
   { id: 'CANCELADO', nombre: 'Cancelado', clase: 'bg-slate-100 text-slate-600 border-slate-200' },
 ];
 export interface InformeFila {
@@ -209,7 +208,6 @@ export interface ResumenInformes {
   pendientesAprobacion: number;
   aprobados: number;
   planesPendientes: number;
-  planesVencidos: number;
   porEstado: { estado: EstadoInforme; total: number }[];
   porCalificacion: { calificacion: Calificacion; total: number }[];
   porAgencia: { agenciaId: string; agenciaNombre: string; total: number; promedio: number | null }[];
@@ -235,7 +233,7 @@ export interface Destinatario { id: string; nombre: string; cargo: string; rol: 
 
 export type Semaforo = 'VERDE' | 'AMARILLO' | 'ROJO';
 export type EstadoAuditoria5s = 'BORRADOR' | 'EN_PROCESO' | 'FINALIZADA' | 'CERRADA';
-export type EstadoAccion = 'PENDIENTE' | 'EN_PROCESO' | 'EN_VERIFICACION' | 'CERRADA' | 'VENCIDA';
+export type EstadoAccion = 'PENDIENTE' | 'EN_PROCESO' | 'EN_VERIFICACION' | 'CERRADA';
 export type CategoriaId = 'SEIRI' | 'SEITON' | 'SEISO' | 'SEIKETSU' | 'SHITSUKE';
 
 const JAPONES_5S: Record<CategoriaId, string> = { SEIRI: 'Seiri', SEITON: 'Seiton', SEISO: 'Seiso', SEIKETSU: 'Seiketsu', SHITSUKE: 'Shitsuke' };
@@ -261,7 +259,6 @@ export const ESTADOS_ACCION: { id: EstadoAccion; nombre: string; clase: string }
   { id: 'EN_PROCESO', nombre: 'En proceso', clase: 'bg-sky-100 text-sky-800 border-sky-200' },
   { id: 'EN_VERIFICACION', nombre: 'En verificación', clase: 'bg-violet-100 text-violet-800 border-violet-200' },
   { id: 'CERRADA', nombre: 'Cerrada', clase: 'bg-emerald-100 text-emerald-800 border-emerald-200' },
-  { id: 'VENCIDA', nombre: 'Vencida', clase: 'bg-rose-100 text-rose-800 border-rose-200' },
 ];
 
 /** El verde, amarillo y rojo se reservan para comunicar resultados. */
@@ -447,7 +444,6 @@ export interface Resumen5s {
   agenciasAmarillo: number;
   agenciasRojo: number;
   accionesPendientes: number;
-  accionesVencidas: number;
   porAgencia: { agenciaId: string; agenciaNombre: string; porcentaje: number; semaforo: Semaforo }[];
   evolucion: { periodo: string; auditorias: number; promedio: number | null }[];
   porS: { categoria: CategoriaId; nombre: string; traduccion: string; porcentaje: number }[];

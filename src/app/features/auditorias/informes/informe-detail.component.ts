@@ -133,14 +133,14 @@ import { descargarPdfInforme } from './informe-pdf';
             <div class="px-5 pb-5 space-y-3 text-sm">
               <p class="whitespace-pre-line">{{ i.planesGeneral || 'Sin descripción general.' }}</p>
               @for (p of i.planes; track p.id) {
-                <article class="rounded-xl border p-3 space-y-2" [ngClass]="p.estadoEfectivo === 'VENCIDO' ? 'border-rose-300 bg-rose-50/40' : 'border-slate-200'">
+                <article class="rounded-xl border border-slate-200 p-3 space-y-2">
                   <div class="flex flex-wrap items-center gap-2">
                     <strong class="flex-1 min-w-48">{{ p.problema }}</strong>
                     <span class="badge" [ngClass]="clasePlan(p.estadoEfectivo || p.estado)">{{ nombrePlan(p.estadoEfectivo || p.estado) }}</span>
                     <span class="badge" [ngClass]="clasePrioridad(p.prioridad)">{{ p.prioridad }}</span>
                   </div>
                   <p>{{ p.accionRequerida || '—' }}</p>
-                  <p class="text-xs text-slate-500">{{ p.areaResponsable || 'Sin área' }} · {{ p.personaResponsable || 'Sin responsable' }} · Compromiso: {{ p.fechaCompromiso ? (p.fechaCompromiso | date:'dd/MM/yyyy') : '—' }}</p>
+                  <p class="text-xs text-slate-500">Responsable: {{ p.personaResponsable || i.agencia.nombre }} · Creado: {{ p.fechaCompromiso ? (p.fechaCompromiso | date:'dd/MM/yyyy') : '—' }}</p>
                   @if (p.observaciones) { <p class="text-slate-600">{{ p.observaciones }}</p> }
                   <div class="flex flex-wrap gap-2">@for (f of p.evidenciaCumplimiento; track f) { <img [appThumb]="f" [appVerMedia]="f" class="w-16 h-16 object-cover rounded-lg border border-slate-200" alt="Evidencia de cumplimiento"> }</div>
                   @if (i.permisos.puedeSeguimiento && puedeSeguir) {
@@ -183,7 +183,7 @@ import { descargarPdfInforme } from './informe-pdf';
             <p class="text-sm font-semibold text-slate-800">{{ plan.problema }}</p>
             <div><label class="field-label" for="seg-estado">Estado</label>
               <select id="seg-estado" class="field" [(ngModel)]="segEstado">
-                @for (e of estadosPlan; track e.id) { @if (e.id !== 'VENCIDO') { <option [value]="e.id">{{ e.nombre }}</option> } }
+                @for (e of estadosPlan; track e.id) { @if (true) { <option [value]="e.id">{{ e.nombre }}</option> } }
               </select></div>
             <div><label class="field-label" for="seg-obs">Observaciones</label><textarea id="seg-obs" class="field" rows="3" [(ngModel)]="segObs"></textarea></div>
             <div><label class="field-label">Evidencia de cumplimiento</label>

@@ -57,6 +57,9 @@ export interface ConsultaLimpiezas {
   page?: number;
   pageSize?: number;
   maquinariaId?: string;
+  /** Rango por día de la limpieza (AAAA-MM-DD), ambos inclusive. */
+  fechaDesde?: string;
+  fechaHasta?: string;
 }
 
 export interface LimpiezaMaquinaria {
@@ -371,7 +374,7 @@ export class MaquinariaService {
 
   /** Historial de limpiezas (de una máquina o de todas dentro del alcance de quien consulta). */
   getLimpiezasPagina(c: ConsultaLimpiezas = {}): Observable<PaginaServidor<LimpiezaMaquinaria>> {
-    const body = cuerpoConsulta(c, ['maquinariaId']);
+    const body = cuerpoConsulta(c, ['maquinariaId', 'fechaDesde', 'fechaHasta']);
     return this.http.post<any>(apiUrl('/maquinaria/limpiezas/list'), body).pipe(
       map((res) => normalizarPagina<LimpiezaMaquinaria>(res, body['page'] as number, body['pageSize'] as number)),
     );
@@ -386,8 +389,8 @@ export class MaquinariaService {
   }
 
   /** Historial completo (hasta 5000 filas) dentro del alcance de quien consulta, para exportar a CSV. */
-  exportarLimpiezas(maquinariaId?: string): Observable<LimpiezaMaquinaria[]> {
-    return this.http.post<any>(apiUrl('/maquinaria/limpiezas/exportar'), { maquinariaId: maquinariaId || undefined }).pipe(
+  exportarLimpiezas(maquinariaId?: string, fechaDesde?: string, fechaHasta?: string): Observable<LimpiezaMaquinaria[]> {
+    return this.http.post<any>(apiUrl('/maquinaria/limpiezas/exportar'), { maquinariaId: maquinariaId || undefined, fechaDesde: fechaDesde || undefined, fechaHasta: fechaHasta || undefined }).pipe(
       map((res) => (res?.data || []) as LimpiezaMaquinaria[]),
     );
   }
