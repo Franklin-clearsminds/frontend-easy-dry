@@ -40,7 +40,7 @@ const AMBITOS_INFO: AmbitoInfo[] = [
   { codigo: 'GLOBAL', corto: 'Todo el país', detalle: 'Ve y actúa sobre los datos de toda la red: todas las regiones y agencias.' },
   { codigo: 'REGION', corto: 'Su región', detalle: 'Solo los datos de la región asignada al usuario (todas las agencias de esa región).' },
   { codigo: 'AGENCIA', corto: 'Su agencia', detalle: 'Solo los datos de la agencia asignada al usuario.' },
-  { codigo: 'PROPIO', corto: 'Solo lo asignado a él', detalle: 'Solo lo que se le asignó personalmente (sus propias órdenes, tareas o registros).' },
+  { codigo: 'PROPIO', corto: 'Solo lo asignado a él', detalle: 'Solo lo que se le asignó personalmente: sus equipos, los envíos dirigidos a él, sus órdenes. En los listados por agencia (stock, bodegas) no verá datos.' },
 ];
 
 const COLUMNAS_USUARIOS: TableColumn[] = [

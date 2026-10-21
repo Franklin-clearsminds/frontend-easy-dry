@@ -28,7 +28,7 @@ import { badgeClase, BADGE_NO_ATENDIDO } from '../../../core/utils/badges';
 import {
   puedeEditarMaquina, puedeCambiarArchivosMaquina, puedeActivarMaquina, puedeGestionarMaquina, puedeReportarIncidente,
   puedeVerTrazabilidad, puedeVerMantenimientos, puedeVerIncidentes, puedeResolverIncidentes,
-  puedeEjecutarMantenimientos, puedeEditarMantenimientos, puedeAgregarEvidenciaMaquinaria, puedeSubirEvidenciaLimpieza, puedeVerLimpiezas, puedeAsignarTecnico, puedeProgramarMantenimiento } from '../../../core/utils/maquinaria-permisos';
+  puedeEjecutarMantenimientos, puedeEditarMantenimientos, puedeAgregarEvidenciaMaquinaria, puedeSubirEvidenciaLimpieza, puedeVerLimpiezas, puedeAsignarTecnico, puedeProgramarMantenimiento, reportaSobreSuAlcance } from '../../../core/utils/maquinaria-permisos';
 
 export type PestanaMaquina = 'resumen' | 'incidencias' | 'movimientos' | 'mantenimientos' | 'limpieza' | 'timeline';
 
@@ -730,13 +730,13 @@ export class MaquinariaDetalleModalComponent implements OnChanges, OnDestroy {
       && (this.authService.isLiderOperador() || this.authService.hasRole('PULIDOR'));
   }
   /**
-   * Reportar: con el permiso, sobre máquinas activas. El líder puede reportar cualquier máquina de su agencia
-   * (el servidor ya lo valida así); el resto de roles con el permiso, solo la asignada a él.
+   * Reportar: con el permiso, sobre máquinas activas. El líder, el supervisor, el coordinador de servicios
+   * especiales y los roles propios reportan cualquier equipo que su alcance les deje ver (la ficha solo abre para
+   * esos); el resto, solo el asignado a ellos. Es la misma regla que aplica el servidor.
    */
   get puedeReportar(): boolean {
     if (!puedeReportarIncidente(this.authService) || !this.ficha?.activa) return false;
-    if (this.authService.isLiderOperador()) return true;
-    return this.esMio(this.ficha?.operadorAsignado?.id);
+    return this.esMio(this.ficha?.operadorAsignado?.id) || reportaSobreSuAlcance(this.authService);
   }
   get esTaller(): boolean { return String(this.ficha?.agenciaTipo || '').startsWith('TALLER'); }
 
