@@ -34,6 +34,10 @@ export interface AccionCatalogo {
   codigo: string;
   nombre: string;
   compartida: boolean;
+  /** Bloque al que pertenece dentro de la página (Consultar, Operar, Incidencias…). */
+  grupo?: string;
+  /** Acciones que se marcan junto con esta (evidencias, ver la pantalla…). */
+  implica?: string[];
 }
 
 /** Sub-página: una pestaña real de la pantalla, con sus acciones. */

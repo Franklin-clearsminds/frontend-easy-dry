@@ -122,6 +122,13 @@ import { REPORTES_POR_PAGINA } from './reportes-por-pagina';
                     <p class="text-xs text-slate-500">Esta página es solo de consulta: al activarla el rol ya puede verla y no tiene acciones propias.</p>
                   }
 
+                  @if (paginaSinAcceso(p)) {
+                    <div class="flex items-start gap-2.5 p-3 rounded-xl border border-amber-300 bg-amber-50 text-xs text-amber-900" role="alert">
+                      <i-lucide aria-hidden="true" name="alert-triangle" class="w-4 h-4 mt-0.5 shrink-0 text-amber-600"></i-lucide>
+                      <p><b>Esta página todav\u00eda no da acceso.</b> Con el men\u00fa encendido pero sin ninguna secci\u00f3n ni acci\u00f3n marcada, el rol la ve en el men\u00fa pero no recibe datos. Marca al menos una casilla.</p>
+                    </div>
+                  }
+
                   @if (p.id === 'reportes') {
                     <div class="rounded-2xl border border-slate-200 bg-white">
                       <div class="px-4 py-3 border-b border-slate-100">
@@ -175,13 +182,16 @@ import { REPORTES_POR_PAGINA } from './reportes-por-pagina';
                             @for (a of accionesVisibles(p, s.acciones); track a.codigo) {
                               <li>
                                 <label class="flex items-start gap-3 px-2 py-2.5 min-h-11 rounded-lg"
-                                  [ngClass]="(soloLectura || !puedeOtorgar(a.codigo)) ? 'cursor-default' : 'cursor-pointer hover:bg-slate-50'">
+                                  [ngClass]="(soloLectura || !puedeOtorgar(a.codigo) || incluidaPor(a).length) ? 'cursor-default' : 'cursor-pointer hover:bg-slate-50'">
                                   <input type="checkbox" [checked]="activa(a.codigo)"
-                                    [disabled]="soloLectura || !puedeOtorgar(a.codigo)"
+                                    [disabled]="soloLectura || !puedeOtorgar(a.codigo) || incluidaPor(a).length > 0"
                                     (change)="toggleAccion(a)"
                                     class="mt-0.5 w-4 h-4 rounded text-blue-600 focus:ring-blue-500 shrink-0">
                                   <span class="min-w-0 flex-1">
                                     <span class="block text-xs font-bold text-slate-900">{{ a.nombre }}</span>
+                                    @if (incluidaPor(a).length) {
+                                      <span class="block text-[11px] font-semibold text-slate-500">La incluye: {{ incluidaPor(a).join(', ') }}</span>
+                                    }
                                     @if (a.compartida) {
                                       <span class="inline-block mt-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-violet-100 text-violet-800"
                                         title="La misma casilla aparece en varias páginas: se activa o apaga en todas a la vez">Compartida</span>
@@ -213,25 +223,36 @@ import { REPORTES_POR_PAGINA } from './reportes-por-pagina';
                         }
                       </div>
                       <ul class="grid grid-cols-1 xl:grid-cols-2 gap-x-3 border-t border-slate-100 px-2 py-1">
-                        @for (a of accionesVisibles(p, p.acciones); track a.codigo) {
-                          <li>
-                            <label class="flex items-start gap-3 px-2 py-2.5 min-h-11 rounded-lg"
-                              [ngClass]="(soloLectura || !puedeOtorgar(a.codigo)) ? 'cursor-default' : 'cursor-pointer hover:bg-slate-50'">
-                              <input type="checkbox" [checked]="activa(a.codigo)"
-                                [disabled]="soloLectura || !puedeOtorgar(a.codigo)"
-                                (change)="toggleAccion(a)"
-                                class="mt-0.5 w-4 h-4 rounded text-blue-600 focus:ring-blue-500 shrink-0">
-                              <span class="min-w-0 flex-1">
-                                <span class="block text-xs font-bold text-slate-900">{{ a.nombre }}</span>
-                                @if (a.compartida) {
-                                  <span class="inline-block mt-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-violet-100 text-violet-800">Compartida</span>
-                                }
-                                @if (!soloLectura && !puedeOtorgar(a.codigo)) {
-                                  <span class="block text-[11px] font-semibold text-amber-700">Tu rol no tiene este permiso: no puedes otorgarlo.</span>
-                                }
-                              </span>
-                            </label>
-                          </li>
+                        @for (g of gruposDe(accionesVisibles(p, p.acciones)); track g.grupo) {
+                          @if (g.grupo !== 'Acciones') {
+                            <li class="col-span-full px-2 pt-2 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">{{ g.grupo }}</li>
+                          }
+                          @for (a of g.acciones; track a.codigo) {
+                            <li>
+                              <label class="flex items-start gap-3 px-2 py-2.5 min-h-11 rounded-lg"
+                                [ngClass]="(soloLectura || !puedeOtorgar(a.codigo) || incluidaPor(a).length) ? 'cursor-default' : 'cursor-pointer hover:bg-slate-50'">
+                                <input type="checkbox" [checked]="activa(a.codigo)"
+                                  [disabled]="soloLectura || !puedeOtorgar(a.codigo) || incluidaPor(a).length > 0"
+                                  (change)="toggleAccion(a)"
+                                  class="mt-0.5 w-4 h-4 rounded text-blue-600 focus:ring-blue-500 shrink-0">
+                                <span class="min-w-0 flex-1">
+                                  <span class="block text-xs font-bold text-slate-900">{{ a.nombre }}</span>
+                                  @if (incluidaPor(a).length) {
+                                    <span class="block text-[11px] font-semibold text-slate-500">La incluye: {{ incluidaPor(a).join(', ') }}</span>
+                                  }
+                                  @if (a.compartida) {
+                                    <span class="inline-block mt-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-violet-100 text-violet-800">Compartida</span>
+                                  }
+                                  @if (a.implica?.length) {
+                                    <span class="block text-[11px] text-slate-500">Incluye: {{ incluyeTexto(a) }}</span>
+                                  }
+                                  @if (!soloLectura && !puedeOtorgar(a.codigo)) {
+                                    <span class="block text-[11px] font-semibold text-amber-700">Tu rol no tiene este permiso: no puedes otorgarlo.</span>
+                                  }
+                                </span>
+                              </label>
+                            </li>
+                          }
                         }
                       </ul>
                     </div>
@@ -272,18 +293,47 @@ export class RolPaginasEditorComponent implements OnChanges {
   /** Dónde cuelga cada acción: códigos de su página o de su sub-página. */
   private padres = new Map<string, string[]>();
   private paginaDeSub = new Map<string, string>();
+  /** Nombre visible de cada acción, para explicar qué incluye una casilla. */
+  private nombres = new Map<string, string>();
+  /** Qué casillas incluyen a cada código: la incluida no se puede apagar mientras la otra esté marcada. */
+  private dependientes = new Map<string, string[]>();
 
   ngOnChanges(): void {
     this.activos = new Set(this.seleccion);
     this.padres.clear();
     this.paginaDeSub.clear();
+    this.nombres.clear();
+    this.dependientes.clear();
     for (const p of this.paginas) {
-      for (const a of p.acciones) this.padres.set(a.codigo, [...(this.padres.get(a.codigo) ?? []), p.codigo]);
+      for (const a of p.acciones) {
+        this.padres.set(a.codigo, [...(this.padres.get(a.codigo) ?? []), p.codigo]);
+        this.nombres.set(a.codigo, a.nombre);
+      }
       for (const s of p.subs) {
         this.paginaDeSub.set(s.codigo, p.codigo);
-        for (const a of s.acciones) this.padres.set(a.codigo, [...(this.padres.get(a.codigo) ?? []), s.codigo]);
+        for (const a of s.acciones) {
+          this.padres.set(a.codigo, [...(this.padres.get(a.codigo) ?? []), s.codigo]);
+          this.nombres.set(a.codigo, a.nombre);
+        }
+      }
+      for (const a of [...p.acciones, ...p.subs.flatMap((s) => s.acciones)]) {
+        for (const dep of a.implica ?? []) {
+          this.dependientes.set(dep, [...(this.dependientes.get(dep) ?? []), a.codigo]);
+        }
       }
     }
+  }
+
+  /** Casillas marcadas que incluyen esta: mientras estén, esta no se puede apagar (volvería al guardar). */
+  incluidaPor(a: AccionCatalogo): string[] {
+    return (this.dependientes.get(a.codigo) ?? [])
+      .filter((c) => c !== a.codigo && this.activos.has(c))
+      .map((c) => this.nombres.get(c) ?? c);
+  }
+
+  /** Texto de «Incluye: …» para las casillas que arrastran otras. */
+  incluyeTexto(a: AccionCatalogo): string {
+    return (a.implica ?? []).map((c) => this.nombres.get(c) ?? c).join(', ');
   }
 
   // ── Lectura ──
@@ -338,6 +388,33 @@ export class RolPaginasEditorComponent implements OnChanges {
     return [...new Set([...p.acciones, ...p.subs.flatMap((s) => s.acciones)].map((a) => a.codigo))];
   }
 
+  /** Acciones agrupadas por bloque, conservando el orden en que vienen del catálogo. */
+  gruposDe(acciones: AccionCatalogo[]): { grupo: string; acciones: AccionCatalogo[] }[] {
+    const orden: string[] = [];
+    const mapa = new Map<string, AccionCatalogo[]>();
+    for (const a of acciones) {
+      const grupo = a.grupo || 'Acciones';
+      if (!mapa.has(grupo)) {
+        mapa.set(grupo, []);
+        orden.push(grupo);
+      }
+      mapa.get(grupo)!.push(a);
+    }
+    return orden.map((grupo) => ({ grupo, acciones: mapa.get(grupo)! }));
+  }
+
+  /** La página está encendida pero no abre nada porque no tiene ninguna sección ni acción marcada. */
+  paginaSinAcceso(p: PaginaCatalogo): boolean {
+    if (this.esDeCuenta(p) || !this.activos.has(p.codigo)) return false;
+    if (!p.acciones.length && !p.subs.length) return false;
+    return !p.acciones.some((a) => this.activos.has(a.codigo)) && !p.subs.some((s) => this.activos.has(s.codigo));
+  }
+
+  /** Sección encendida pero sin acciones: muestra el sitio, pero no habilita nada dentro. */
+  seccionSinAcciones(s: SubPaginaCatalogo): boolean {
+    return this.activos.has(s.codigo) && s.acciones.length > 0 && !s.acciones.some((a) => this.activos.has(a.codigo));
+  }
+
   /** [activas, total] de las acciones de una página. */
   contador(p: PaginaCatalogo): [number, number] {
     const todas = this.accionesUnicas(p);
@@ -370,9 +447,8 @@ export class RolPaginasEditorComponent implements OnChanges {
     if (this.activos.has(p.codigo)) {
       this.activos.delete(p.codigo);
     } else {
+      // La página sola no abre nada: cada sección y cada acción se marcan aparte.
       this.activos.add(p.codigo);
-      // Al activar una página, sus sub-páginas quedan activas (se pueden apagar una por una); las acciones se marcan aparte.
-      for (const s of p.subs) if (this.puedeOtorgar(s.codigo)) this.activos.add(s.codigo);
       this.paginaElegida = p.codigo;
     }
     this.emitir();
@@ -387,17 +463,33 @@ export class RolPaginasEditorComponent implements OnChanges {
 
   toggleAccion(a: AccionCatalogo): void {
     if (this.soloLectura || !this.puedeOtorgar(a.codigo)) return;
-    if (this.activos.has(a.codigo)) this.activos.delete(a.codigo);
-    else this.activos.add(a.codigo);
+    if (this.activos.has(a.codigo)) {
+      // Otra casilla marcada la incluye: apagarla no serviría, el servidor la vuelve a poner.
+      if (this.incluidaPor(a).length) return;
+      this.activos.delete(a.codigo);
+    } else {
+      this.marcarConDependencias(a);
+    }
     this.emitir();
+  }
+
+  /** Marca la acción y las que van con ella (ver la pantalla, subir la evidencia…) si el actor puede darlas. */
+  private marcarConDependencias(a: AccionCatalogo): void {
+    this.activos.add(a.codigo);
+    for (const dep of a.implica ?? []) {
+      if (this.activos.has(dep) || !this.puedeOtorgar(dep)) continue;
+      const padres = this.padres.get(dep);
+      if (padres && !padres.some((pd) => this.activos.has(pd))) continue;
+      this.activos.add(dep);
+    }
   }
 
   marcarTodas(acciones: AccionCatalogo[], marcar: boolean): void {
     if (this.soloLectura) return;
     for (const a of acciones) {
       if (!this.puedeOtorgar(a.codigo)) continue;
-      if (marcar) this.activos.add(a.codigo);
-      else this.activos.delete(a.codigo);
+      if (marcar) this.marcarConDependencias(a);
+      else if (!this.incluidaPor(a).length) this.activos.delete(a.codigo);
     }
     this.emitir();
   }

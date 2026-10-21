@@ -453,11 +453,16 @@ export class FilterBarComponent implements OnInit {
   private fijarSegunRol(): void {
     const user = this.authService?.getCurrentUser();
     const rol = (user?.role || '').toUpperCase();
-    const esSupervisor = rol === 'SUPERVISOR' || rol.includes('SUPERVISOR') || rol.includes('REGIONAL');
-    const esAprobador = rol === 'APROBADOR';
+    const ambito = String((user as any)?.ambito || '').toUpperCase();
+
+    // El alcance del rol manda: país = todas las sedes; región = su región; agencia = su sede. Los roles con datos
+    // propios (pulidor, lavador) no eligen sede: el servidor ya les devuelve solo lo suyo.
+    const esPais = ambito === 'GLOBAL';
+    const esRegion = ambito === 'REGION' || (!ambito && (rol === 'SUPERVISOR' || rol.includes('SUPERVISOR') || rol.includes('REGIONAL')));
+    const esAgencia = ambito === 'AGENCIA' || (!ambito && rol === 'APROBADOR');
 
     const regionUsuario = String(user?.regionNombre || user?.region || '').trim();
-    if (!this.customRegiones && esSupervisor && regionUsuario) {
+    if (!this.customRegiones && esRegion && regionUsuario) {
       this.fijos.add('region');
       this._listaRegiones = [regionUsuario];
       this.filters.region = regionUsuario;
@@ -465,11 +470,14 @@ export class FilterBarComponent implements OnInit {
     }
 
     const sedeUsuario = String(user?.sucursalNombre || user?.sucursal || '').trim();
-    if (!this.customSucursales && esAprobador && sedeUsuario) {
+    if (!this.customSucursales && esAgencia && sedeUsuario) {
       this.fijos.add('sucursal');
       this._listaSucursales = [sedeUsuario];
       this.filters.sucursal = sedeUsuario;
       this.emitFilters();
+    } else if (esPais && !this.customSucursales) {
+      // País: se ve todo. Se deja explícito por si la sesión traía una sede guardada de otro ámbito.
+      this.filters.sucursal = 'Todas';
     }
   }
 

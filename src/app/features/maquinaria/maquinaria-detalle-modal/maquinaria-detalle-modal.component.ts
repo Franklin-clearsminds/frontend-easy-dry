@@ -28,7 +28,7 @@ import { badgeClase, BADGE_NO_ATENDIDO } from '../../../core/utils/badges';
 import {
   puedeEditarMaquina, puedeCambiarArchivosMaquina, puedeActivarMaquina, puedeGestionarMaquina, puedeCancelarIncidentes, puedeTrasladarMaquina, puedeAsignarResponsableMaquina, puedeReportarIncidente,
   puedeVerTrazabilidad, puedeVerMantenimientos, puedeVerIncidentes, puedeResolverIncidentes,
-  puedeEjecutarMantenimientos, puedeEditarMantenimientos, puedeAgregarEvidenciaMaquinaria, puedeSubirEvidenciaLimpieza, puedeVerLimpiezas, puedeAsignarTecnico, puedeProgramarMantenimiento } from '../../../core/utils/maquinaria-permisos';
+  puedeEjecutarMantenimientos, puedeEditarMantenimientos, puedeAgregarEvidenciaMaquinaria, puedeSubirEvidenciaLimpieza, puedeVerLimpiezas, puedeAsignarTecnico, puedeProgramarMantenimiento, reportaSobreSuAlcance } from '../../../core/utils/maquinaria-permisos';
 
 export type PestanaMaquina = 'resumen' | 'incidencias' | 'movimientos' | 'mantenimientos' | 'limpieza' | 'timeline';
 
@@ -741,11 +741,13 @@ export class MaquinariaDetalleModalComponent implements OnChanges, OnDestroy {
       && !this.authService.hasRole('ADMIN') && !this.authService.hasRole('SUPER_ADMIN');
   }
   /**
-   * Reportar: con el permiso, sobre máquinas activas. La ficha solo se abre para las máquinas del ámbito del
-   * usuario (país, región o agencia; el pulidor, las asignadas a él), y el servidor valida lo mismo.
+   * Reportar: con el permiso, sobre máquinas activas. El líder, el supervisor, el coordinador de servicios
+   * especiales y los roles propios reportan cualquier equipo que su alcance les deje ver (la ficha solo abre para
+   * esos); el resto, solo el asignado a ellos. Es la misma regla que aplica el servidor.
    */
   get puedeReportar(): boolean {
-    return puedeReportarIncidente(this.authService) && !!this.ficha?.activa;
+    if (!puedeReportarIncidente(this.authService) || !this.ficha?.activa) return false;
+    return this.esMio(this.ficha?.operadorAsignado?.id) || reportaSobreSuAlcance(this.authService);
   }
   get esTaller(): boolean { return String(this.ficha?.agenciaTipo || '').startsWith('TALLER'); }
 
