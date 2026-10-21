@@ -96,7 +96,7 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
         <div class="flex items-center gap-2 sm:gap-4 mt-5 pt-3 border-t border-slate-100 overflow-x-auto">
           <!-- 1. Productos — catálogo de insumos (para el líder: los insumos de su propia agencia) -->
           <button
-            *ngIf="puedeVerInventario && (puedeOperarBodega || operaDesdeAgencia) && puedeSubProductos"
+            *ngIf="puedeVerInventario && puedeSubProductos"
             (click)="activeTab = 'productos'; abrirProductos()"
             class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
             [ngClass]="activeTab === 'productos' ? 'bg-blue-50 text-easydry-blue font-extrabold shadow-2xs' : 'text-slate-600 hover:bg-slate-50'">
@@ -107,7 +107,7 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
 
           <!-- 2. Bodegas — CENTRAL / REGIONAL -->
           <button
-            *ngIf="puedeVerInventario && puedeOperarBodega && puedeSubBodegas"
+            *ngIf="puedeVerInventario && puedeSubBodegas"
             (click)="activeTab = 'bodegas'; cargarDatosDeTab('bodegas')"
             class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
             [ngClass]="activeTab === 'bodegas' ? 'bg-blue-50 text-easydry-blue font-extrabold shadow-2xs' : 'text-slate-600 hover:bg-slate-50'">
@@ -132,7 +132,7 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
           <!-- 4. Pulidores — kits de pulidores móviles y fijos (no para el líder: ver el stock de los
                pulidores de otras sedes/región no es suyo; el botón "Despachar" ya permite enviarles insumos) -->
           <button
-            *ngIf="puedeVerInventario && !operaDesdeAgencia && puedeVerKits"
+            *ngIf="puedeVerInventario && puedeVerKits && puedeSubPulidores"
             (click)="activeTab = 'pulidores'; cargarStockPulidoresResumen()"
             class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
             [ngClass]="activeTab === 'pulidores' ? 'bg-cyan-50 text-cyan-800 font-extrabold border border-cyan-200 shadow-2xs' : 'text-slate-600 hover:bg-slate-50'">
@@ -172,7 +172,7 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
 
           <!-- 7. Movimientos (Kardex) -->
           <button
-            *ngIf="puedeVerInventario && puedeOperarBodega && puedeSubMovimientos"
+            *ngIf="puedeVerInventario && puedeSubMovimientos"
             (click)="activeTab = 'movimientos'; cargarDatosDeTab('movimientos')"
             class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
             [ngClass]="activeTab === 'movimientos' ? 'bg-blue-50 text-easydry-blue font-extrabold shadow-2xs' : 'text-slate-600 hover:bg-slate-50'">
@@ -192,7 +192,7 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
 
           <!-- 8. Configuración -->
           <button
-            *ngIf="puedeGestionarCatalogos && puedeSubConfiguracion"
+            *ngIf="puedeVerInventario && puedeSubConfiguracion"
             (click)="activeTab = 'configuracion'; abrirConfiguracion()"
             class="px-3 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
             [ngClass]="activeTab === 'configuracion' ? 'bg-purple-50 text-purple-700 font-extrabold shadow-2xs' : 'text-slate-600 hover:bg-slate-50'">
@@ -950,6 +950,7 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
                     [ngClass]="(bod.tipo === 'CENTRAL' || bod.esCentral) ? 'bg-blue-100 text-blue-800 border border-blue-200' : 'bg-slate-100 text-slate-700 border border-slate-200'">
                     {{ (bod.tipo === 'CENTRAL' || bod.esCentral) ? 'CENTRAL' : 'REGIONAL' }}
                   </span>
+                  <span *ngIf="bod.activa === false" class="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">INACTIVA</span>
                   <button
                     *ngIf="puedeGestionarBodegas"
                     type="button"
@@ -959,7 +960,17 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
                     <i-lucide aria-hidden="true" name="edit-2" class="w-3.5 h-3.5"></i-lucide>
                   </button>
                   <button
-                    *ngIf="!bod.esCentral && puedeGestionarBodegas"
+                    *ngIf="!bod.esCentral && bod.tipo !== 'CENTRAL' && puedeEstadoBodegas"
+                    type="button"
+                    (click)="$event.stopPropagation(); cambiarEstadoBodega(bod)"
+                    class="inline-flex items-center justify-center min-w-9 min-h-9 rounded-lg transition"
+                    [ngClass]="bod.activa === false ? 'hover:bg-emerald-100 text-slate-400 hover:text-emerald-600' : 'hover:bg-amber-100 text-slate-400 hover:text-amber-600'"
+                    [title]="bod.activa === false ? 'Activar bodega' : 'Desactivar bodega'"
+                    [attr.aria-label]="bod.activa === false ? 'Activar bodega' : 'Desactivar bodega'">
+                    <i-lucide aria-hidden="true" name="power" class="w-3.5 h-3.5"></i-lucide>
+                  </button>
+                  <button
+                    *ngIf="!bod.esCentral && puedeEliminarBodegas"
                     type="button"
                     (click)="$event.stopPropagation(); eliminarBodega(bod)"
                     class="inline-flex items-center justify-center min-w-9 min-h-9 rounded-lg hover:bg-rose-100 text-slate-400 hover:text-rose-600 transition"
@@ -3538,6 +3549,33 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
       <!-- ============================================================== -->
       <!-- MODAL: REGISTRAR / EDITAR BODEGA                               -->
       <!-- ============================================================== -->
+      <app-modal size="sm"
+        [isOpen]="!!confirmacionBodega"
+        [title]="confirmacionBodega?.accion === 'eliminar' ? 'Eliminar bodega' : (confirmacionBodega?.bod?.activa === false ? 'Activar bodega' : 'Desactivar bodega')"
+        [icon]="confirmacionBodega?.accion === 'eliminar' ? 'trash-2' : 'power'"
+        (close)="cerrarConfirmacionBodega()">
+        <div class="flex items-start gap-3">
+          <div class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+            [ngClass]="confirmacionBodega?.accion === 'eliminar' ? 'bg-rose-50 text-rose-600' : (confirmacionBodega?.bod?.activa === false ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600')">
+            <i-lucide aria-hidden="true" [name]="confirmacionBodega?.accion === 'eliminar' ? 'trash-2' : 'power'" class="w-5 h-5"></i-lucide>
+          </div>
+          <div class="space-y-1 text-sm text-slate-700">
+            <p class="font-bold text-slate-900">{{ confirmacionBodega?.bod?.nombre }}</p>
+            <p *ngIf="confirmacionBodega?.accion === 'eliminar'">Esta acción removerá el almacén del sistema y no se puede deshacer.</p>
+            <p *ngIf="confirmacionBodega?.accion === 'estado' && confirmacionBodega?.bod?.activa !== false">La bodega dejará de estar disponible para operar. Conserva su historial y se puede volver a activar.</p>
+            <p *ngIf="confirmacionBodega?.accion === 'estado' && confirmacionBodega?.bod?.activa === false">La bodega volverá a estar disponible para operar.</p>
+          </div>
+        </div>
+        <div modal-footer class="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 w-full">
+          <button type="button" (click)="cerrarConfirmacionBodega()" [disabled]="confirmandoBodega" class="btn-secondary w-full sm:w-auto disabled:opacity-50">Cancelar</button>
+          <button type="button" (click)="confirmarAccionBodega()" [disabled]="confirmandoBodega"
+            class="px-5 py-2 rounded-xl text-white text-xs font-bold transition shadow-sm cursor-pointer disabled:opacity-50 inline-flex items-center gap-1.5 w-full sm:w-auto justify-center"
+            [ngClass]="confirmacionBodega?.accion === 'eliminar' ? 'bg-rose-600 hover:bg-rose-700' : (confirmacionBodega?.bod?.activa === false ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-amber-600 hover:bg-amber-700')">
+            {{ confirmandoBodega ? 'Procesando...' : (confirmacionBodega?.accion === 'eliminar' ? 'Eliminar' : (confirmacionBodega?.bod?.activa === false ? 'Activar' : 'Desactivar')) }}
+          </button>
+        </div>
+      </app-modal>
+
       <app-modal size="md"
         [isOpen]="modalBodegaOpen"
         [title]="editandoBodega ? 'Editar Bodega Regional' : 'Registrar Nueva Bodega Regional'"
@@ -3771,7 +3809,7 @@ export class InventarioComponent implements OnInit, OnDestroy {
 
   /** Trazabilidad de consumo por servicio (mismo permiso que el endpoint de consumos). */
   get puedeVerConsumoServicios(): boolean {
-    return this.auth.puede('consumos.ver');
+    return this.auth.puede('pagina.inventario.consumo');
   }
   subTabConfig: 'tipos' | 'unidades' = 'tipos';
 
@@ -3835,10 +3873,12 @@ export class InventarioComponent implements OnInit, OnDestroy {
   get puedeGestionarBodegas(): boolean { return this.auth.puede('inventario.bodegas.gestionar'); }
   get puedeEstadoBodegas(): boolean { return this.auth.puede('inventario.bodegas.estado'); }
   get puedeEliminarBodegas(): boolean { return this.auth.puede('inventario.bodegas.eliminar'); }
-  get puedeAjustarStock(): boolean { return this.auth.puedeAlguno('inventario.bodegas.reajustar', 'inventario.agencias.reajustar', 'inventario.pulidores.reajustar'); }
+  get puedeAjustarStock(): boolean { return this.auth.puede('inventario.reajustar'); }
   get puedeVerDespachos(): boolean { return this.auth.puede('despachos.ver'); }
   get puedeRecibirDespacho(): boolean { return this.auth.puede('despachos.recibir'); }
-  get puedeVerAlertas(): boolean { return this.auth.puede('alertas.ver'); }
+  // Las alertas, el consumo y los kits se abren con el interruptor de su sub-página (otros permisos también dan «alertas.ver»,
+  // como el del Dashboard, y no deben abrir esta pestaña).
+  get puedeVerAlertas(): boolean { return this.auth.puede('pagina.inventario.alertas'); }
   get puedeCrearAlerta(): boolean { return this.auth.puede('inventario.alertas.crear'); }
   get puedeAtenderAlertas(): boolean { return this.auth.puede('inventario.alertas.atender'); }
 
@@ -3887,23 +3927,24 @@ export class InventarioComponent implements OnInit, OnDestroy {
 
   /** Generar despachos: permiso 'despachos.crear' (el servidor limita origen y destino según el alcance). */
   get puedeGenerarDespacho(): boolean {
-    return this.auth.puedeAlguno('inventario.productos.despachar', 'inventario.bodegas.despachar', 'inventario.agencias.despachar', 'inventario.pulidores.despachar', 'inventario.stockbajo.despachar');
+    return this.auth.puede('inventario.despachar');
   }
 
   // Cada pestaña se muestra solo si el rol tiene su sub-página.
   get puedeSubProductos(): boolean { return this.auth.puede('pagina.inventario.productos'); }
   get puedeSubBodegas(): boolean { return this.auth.puede('pagina.inventario.bodegas'); }
+  get puedeSubPulidores(): boolean { return this.auth.puede('pagina.inventario.pulidores'); }
   get puedeSubAgencias(): boolean { return this.auth.puede('pagina.inventario.agencias'); }
   get puedeSubMovimientos(): boolean { return this.auth.puede('pagina.inventario.movimientos'); }
   get puedeSubConfiguracion(): boolean { return this.auth.puede('pagina.inventario.configuracion'); }
-  get puedeReajustarBodega(): boolean { return this.auth.puede('inventario.bodegas.reajustar'); }
-  get puedeReajustarAgencia(): boolean { return this.auth.puede('inventario.agencias.reajustar'); }
-  get puedeReajustarPulidor(): boolean { return this.auth.puede('inventario.pulidores.reajustar'); }
-  // Cada pestaña despacha con su propia casilla.
-  get puedeDespacharStockBajo(): boolean { return this.auth.puede('inventario.stockbajo.despachar'); }
-  get puedeDespacharBodega(): boolean { return this.auth.puede('inventario.bodegas.despachar'); }
-  get puedeDespacharAgencia(): boolean { return this.auth.puede('inventario.agencias.despachar'); }
-  get puedeDespacharPulidor(): boolean { return this.auth.puede('inventario.pulidores.despachar'); }
+  get puedeReajustarBodega(): boolean { return this.auth.puede('inventario.reajustar'); }
+  get puedeReajustarAgencia(): boolean { return this.auth.puede('inventario.reajustar'); }
+  get puedeReajustarPulidor(): boolean { return this.auth.puede('inventario.reajustar'); }
+  // Despachar y reajustar son una sola casilla compartida entre las pestañas.
+  get puedeDespacharStockBajo(): boolean { return this.auth.puede('inventario.despachar'); }
+  get puedeDespacharBodega(): boolean { return this.auth.puede('inventario.despachar'); }
+  get puedeDespacharAgencia(): boolean { return this.auth.puede('inventario.despachar'); }
+  get puedeDespacharPulidor(): boolean { return this.auth.puede('inventario.despachar'); }
 
   /** Despacho hacia bodegas: quien despacha y no opera desde una agencia (el líder nunca despacha a bodegas). */
   get puedeDespacharABodega(): boolean {
@@ -4240,7 +4281,10 @@ export class InventarioComponent implements OnInit, OnDestroy {
 
     // Contexto del usuario, derivado de sus permisos y su ámbito (no del nombre de su rol).
     this.isOperador = !this.puedeOperarBodega;
-    this.isPulidor = this.isOperador && this.auth.puede('especiales.operar');
+    // Solo quien de verdad opera un kit propio (rol Pulidor o ámbito «solo lo propio») ve la vista de «mi kit».
+    // Quien actúa por país, región o agencia ve el inventario de su alcance (el servidor ya lo limita).
+    const kitPropio = this.currentUser?.role === 'PULIDOR' || this.currentUser?.ambito === 'PROPIO';
+    this.isPulidor = this.isOperador && this.auth.puede('especiales.operar') && kitPropio && this.puedeVerKits;
     this.isPulidorMovil = this.isPulidor && !this.currentUser?.agenciaId;
     this.isPulidorFijo = this.isPulidor && !this.isPulidorMovil;
     this.operaDesdeAgencia = this.isOperador && !this.isPulidor && this.currentUser?.ambito === 'AGENCIA';
@@ -4259,8 +4303,12 @@ export class InventarioComponent implements OnInit, OnDestroy {
     if (this.isPulidor) {
       this.activeTab = 'pulidores';
     } else {
-      // El líder ve primero el catálogo de su agencia; los perfiles de solo lectura empiezan en Agencias.
-      this.activeTab = !this.puedeOperarBodega && !this.operaDesdeAgencia ? 'agencias' : 'productos';
+      // La primera pestaña es la primera sub-página que el rol tiene activa (el interruptor del rol manda).
+      this.activeTab = this.puedeSubProductos ? 'productos'
+        : this.puedeSubBodegas ? 'bodegas'
+        : this.puedeSubAgencias && !this.operaDesdeAgencia ? 'agencias'
+        : this.puedeVerKits ? 'pulidores'
+        : 'productos';
     }
 
     // Sin permiso de lectura de inventario no se consulta nada (evita errores 403 de fondo).
@@ -5117,7 +5165,8 @@ export class InventarioComponent implements OnInit, OnDestroy {
   /** Contexto del stock que se muestra: la sede (si es de sede) o la bodega elegida. */
   private dtoContextoProductos(): { agenciaId?: string; bodegaId?: string } {
     const dto: { agenciaId?: string; bodegaId?: string } = {};
-    if (this.isOperador && this.miAgenciaId) {
+    // Solo el rol que actúa por agencia ve el stock de su sede; el resto ve el listado general (bodega elegida).
+    if (this.operaDesdeAgencia && this.miAgenciaId) {
       dto.agenciaId = this.miAgenciaId;
     } else {
       const bodegaId = this.obtenerBodegaIdContexto();
@@ -5419,6 +5468,7 @@ export class InventarioComponent implements OnInit, OnDestroy {
     if (this.tabsInventarioCargadas.has(tab)) return;
     this.tabsInventarioCargadas.add(tab);
     switch (tab) {
+      case 'productos': this.abrirProductos(); break;
       case 'bodegas': this.cargarStockBodega(); break;
       case 'agencias': this.cargarStockAgencias(); break;
       case 'pulidores': this.cargarStockPulidoresResumen(); break;
@@ -5680,24 +5730,61 @@ export class InventarioComponent implements OnInit, OnDestroy {
     }
   }
 
+  /** Bodega pendiente de confirmar (activar/desactivar o eliminar) en el modal propio de la pantalla. */
+  confirmacionBodega: { accion: 'estado' | 'eliminar'; bod: BodegaInventario } | null = null;
+  confirmandoBodega = false;
+
+  public cambiarEstadoBodega(bod: BodegaInventario): void {
+    this.confirmacionBodega = { accion: 'estado', bod };
+  }
+
   public eliminarBodega(bod: BodegaInventario): void {
     if (bod.esCentral || bod.tipo === 'CENTRAL') {
       this.toast.warning('Acción no permitida', 'La Bodega Central Nacional no puede eliminarse.');
       return;
     }
+    this.confirmacionBodega = { accion: 'eliminar', bod };
+  }
 
-    if (!confirm(`¿Está seguro de eliminar la bodega "${bod.nombre}"? Esta acción removerá el almacén del sistema.`)) {
+  public cerrarConfirmacionBodega(): void {
+    if (this.confirmandoBodega) return;
+    this.confirmacionBodega = null;
+  }
+
+  public confirmarAccionBodega(): void {
+    const c = this.confirmacionBodega;
+    if (!c || this.confirmandoBodega) return;
+    this.confirmandoBodega = true;
+    const terminar = () => {
+      this.confirmandoBodega = false;
+      this.confirmacionBodega = null;
+    };
+    if (c.accion === 'eliminar') {
+      this.inventarioService.eliminarBodega(c.bod.id).subscribe({
+        next: (res) => {
+          terminar();
+          this.toast.success('Bodega Eliminada', res.message || 'Bodega eliminada correctamente.');
+          this.cargarBodegasDisponibles();
+        },
+        error: (err) => {
+          terminar();
+          console.error('Error al eliminar bodega:', err);
+          this.toast.error('Error', err.error?.message || 'No se pudo eliminar la bodega.');
+        },
+      });
       return;
     }
-
-    this.inventarioService.eliminarBodega(bod.id).subscribe({
+    const activando = c.bod.activa === false;
+    this.inventarioService.toggleActivaBodega(c.bod.id).subscribe({
       next: (res) => {
-        this.toast.success('Bodega Eliminada', res.message || 'Bodega eliminada correctamente.');
+        terminar();
+        this.toast.success(activando ? 'Bodega activada' : 'Bodega desactivada', res.message || '');
         this.cargarBodegasDisponibles();
       },
       error: (err) => {
-        console.error('Error al eliminar bodega:', err);
-        this.toast.error('Error', err.error?.message || 'No se pudo eliminar la bodega.');
+        terminar();
+        console.error('Error al cambiar el estado de la bodega:', err);
+        this.toast.error('Error', err.error?.message || 'No se pudo cambiar el estado de la bodega.');
       },
     });
   }

@@ -1048,7 +1048,9 @@ const TODAS_LAS_REFERENCIAS: GrupoReferencia[] = ['regiones', 'marcas', 'sucursa
                 @if (puedeGestionarPrecios) {
                   <div class="mt-3 space-y-1.5">
                     <p class="text-xs font-bold text-amber-900">Precio de cada servicio especial en esta agencia</p>
-                    @for (s of serviciosEspeciales; track s.id) {
+                    <input type="search" [(ngModel)]="busquedaServEspeciales" placeholder="Buscar servicio…" aria-label="Buscar servicio"
+                      class="w-full text-xs rounded-lg border-2 border-easydry-blue bg-white px-3 py-1.5 text-slate-900 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-easydry-blue/30">
+                    @for (s of serviciosEspecialesFiltrados; track s.id) {
                       <div class="flex items-center justify-between gap-2 px-2 py-1 rounded-lg bg-white/70 border border-amber-200">
                         <span class="text-xs font-semibold text-slate-800 min-w-0 break-words">{{ s.nombre }}</span>
                         <div class="flex items-center gap-1 shrink-0">
@@ -1060,6 +1062,8 @@ const TODAS_LAS_REFERENCIAS: GrupoReferencia[] = ['regiones', 'marcas', 'sucursa
                             placeholder="0.00">
                         </div>
                       </div>
+                    } @empty {
+                      <p class="text-xs text-amber-800 px-2 py-1">Ningún servicio coincide con la búsqueda.</p>
                     }
                   </div>
                 }
@@ -1082,8 +1086,12 @@ const TODAS_LAS_REFERENCIAS: GrupoReferencia[] = ['regiones', 'marcas', 'sucursa
               </div>
             </div>
             <p class="text-xs text-slate-500 mb-2">Del catálogo corporativo. Márquelos ahora; podrá editarlos después.</p>
+            <div class="mb-2">
+              <input type="search" [(ngModel)]="busquedaServGenerales" placeholder="Buscar servicio…" aria-label="Buscar servicio"
+                      class="w-full text-xs rounded-lg border-2 border-easydry-blue bg-white px-3 py-1.5 text-slate-900 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-easydry-blue/30">
+            </div>
             <div class="border border-slate-200 rounded-xl p-3 bg-slate-50/80 max-h-48 overflow-y-auto">
-              @for (s of serviciosGenerales; track s.id) {
+              @for (s of serviciosGeneralesFiltrados; track s.id) {
                 <div class="flex items-center gap-2 py-1.5 hover:bg-slate-100/80 px-2 rounded-lg transition-colors">
                   <label class="flex items-start gap-2 cursor-pointer flex-1 min-w-0">
                     <input type="checkbox" class="mt-0.5 rounded border-slate-300 text-easydry-blue focus:ring-easydry-blue" [checked]="servicioSeleccionado(s.id)" [disabled]="editandoSucursal && !puedeHabilitarServicios" (change)="toggleServicio(s.id, s.nombre)">
@@ -1100,6 +1108,8 @@ const TODAS_LAS_REFERENCIAS: GrupoReferencia[] = ['regiones', 'marcas', 'sucursa
                     </div>
                   }
                 </div>
+              } @empty {
+                <p class="text-xs text-slate-500 px-2 py-1">Ningún servicio coincide con la búsqueda.</p>
               }
             </div>
             @if (editandoSucursal && puedeGestionarPrecios) {
@@ -1546,6 +1556,23 @@ export class SucursalesComponent implements OnInit, OnDestroy {
 
   get serviciosGenerales(): CatalogoServicio[] {
     return this.catalogoServicios.filter(s => s.categoria?.trim().toUpperCase() === 'GENERAL' && s.estado === 'Activo');
+  }
+
+  busquedaServGenerales = '';
+  busquedaServEspeciales = '';
+
+  private coincideServicio(s: CatalogoServicio, texto: string): boolean {
+    const norm = (v: string) => v.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const q = norm(texto.trim());
+    return !q || norm(s.nombre || '').includes(q);
+  }
+
+  get serviciosGeneralesFiltrados(): CatalogoServicio[] {
+    return this.serviciosGenerales.filter(s => this.coincideServicio(s, this.busquedaServGenerales));
+  }
+
+  get serviciosEspecialesFiltrados(): CatalogoServicio[] {
+    return this.serviciosEspeciales.filter(s => this.coincideServicio(s, this.busquedaServEspeciales));
   }
 
   get serviciosEspeciales(): CatalogoServicio[] {
