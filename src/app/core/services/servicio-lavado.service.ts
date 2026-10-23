@@ -164,7 +164,9 @@ export class ServicioLavadoService {
         productoSKU: c.insumoSKU || c.insumo?.codigoSKU || '',
         productoNombre: c.insumoNombre || c.insumo?.nombre || 'Insumo',
         unidadMedida: c.unidadSimbolo || 'und',
-        cantidad: Number(c.cantidadUsada || 0)
+        cantidad: Number(c.cantidadUsada || 0),
+        costoUnitario: c.costoUnitarioUSD != null ? Number(c.costoUnitarioUSD) : null,
+        costoTotal: c.costoTotalUSD != null ? Number(c.costoTotalUSD) : null
       }))
     };
   }

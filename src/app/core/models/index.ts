@@ -46,6 +46,8 @@ export interface Sucursal {
   estado: 'Activo' | 'Mantenimiento' | 'Inactivo' | string;
   cantidadBahias: number;
   maxLavadoresPorBahia?: number;
+  /** true: se pueden registrar varias OT en proceso en la misma bahía; false: una bahía ocupada no recibe otra OT. */
+  permiteVariasOtPorBahia?: boolean;
   responsable: string;
   liderOperador?: string;
   liderOperadorId?: string | number;
@@ -132,6 +134,8 @@ export interface Bahia {
   ocupada?: { placa: string; ordenTrabajoOT: string | null } | null;
   /** Máximo de lavadores simultáneos que la agencia permite por bahía (Agencia.maxLavadoresPorBahia). */
   maxLavadoresPorBahia?: number;
+  /** Agencia.permiteVariasOtPorBahia: con false, una bahía ocupada no admite otra OT. */
+  permiteVariasOtPorBahia?: boolean;
   /** Todos los lavadores con asignación ACTIVA a esta bahía (puede haber más de uno si el máximo > 1). */
   operadoresActivos?: Array<{ id: string; nombre: string }>;
 }

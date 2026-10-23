@@ -338,7 +338,7 @@ const TODAS_LAS_REFERENCIAS: GrupoReferencia[] = ['regiones', 'marcas', 'sucursa
                 <!-- Capacidad -->
                 <div class="grid grid-cols-4 gap-2 text-center">
                   <div class="p-2 bg-slate-50 rounded-xl"><span class="block font-extrabold text-easydry-blue text-sm">{{ suc.cantidadBahias }}</span><span class="text-[10px] uppercase font-bold text-slate-500">Bahías</span></div>
-                  <div class="p-2 bg-slate-50 rounded-xl"><span class="block font-extrabold text-slate-800 text-sm">{{ suc.maxLavadoresPorBahia || 1 }}</span><span class="text-[10px] uppercase font-bold text-slate-500">Lav./bahía</span></div>
+                  <div class="p-2 bg-slate-50 rounded-xl"><span class="block font-extrabold text-slate-800 text-sm">{{ suc.maxLavadoresPorBahia || 1 }}</span><span class="text-[10px] uppercase font-bold text-slate-500">Lav./bahía</span><span class="block text-[9px] font-bold mt-0.5" [ngClass]="suc.permiteVariasOtPorBahia === false ? 'text-rose-600' : 'text-slate-400'">{{ suc.permiteVariasOtPorBahia === false ? '1 OT/bahía' : 'Varias OT/bahía' }}</span></div>
                   <div class="p-2 bg-slate-50 rounded-xl"><span class="block font-extrabold text-easydry-green-text text-sm">{{ suc.operadoresActivos ?? 0 }}</span><span class="text-[10px] uppercase font-bold text-slate-500">Operad.</span></div>
                   <div class="p-2 bg-slate-50 rounded-xl"><span class="block font-extrabold text-slate-800 text-sm">{{ suc.maquinasAsignadasCount ?? 0 }}</span><span class="text-[10px] uppercase font-bold text-slate-500">Máquinas</span></div>
                 </div>
@@ -930,6 +930,30 @@ const TODAS_LAS_REFERENCIAS: GrupoReferencia[] = ['regiones', 'marcas', 'sucursa
               <label for="sucursales-f7" class="block text-xs font-bold text-slate-700 uppercase mb-1">Dirección Exacta</label>
               <input id="sucursales-f7" type="text" [(ngModel)]="nuevaSucursal.direccion" name="direccion" placeholder="Av. Principal N45-120" class="w-full p-2.5 border rounded-xl text-sm" required>
             </div>
+          </div>
+
+          <!-- Varias OT por bahía: texto a la izquierda, interruptor a la derecha -->
+          <div class="flex items-center justify-between gap-4 p-3.5 bg-slate-50 border border-slate-200 rounded-xl">
+            <div class="min-w-0">
+              <p id="sucursales-varias-ot-titulo" class="text-sm font-bold text-slate-900">Permitir más de una OT por bahía</p>
+              <p id="sucursales-varias-ot-ayuda" class="text-xs text-slate-500 mt-0.5">
+                {{ nuevaSucursal.permiteVariasOtPorBahia !== false
+                  ? 'Activado: una bahía puede tener varios vehículos en proceso a la vez.'
+                  : 'Desactivado: una bahía con un vehículo en proceso no recibe otra OT hasta que se finalice.' }}
+              </p>
+            </div>
+            <button type="button" role="switch"
+              [attr.aria-checked]="nuevaSucursal.permiteVariasOtPorBahia !== false"
+              aria-labelledby="sucursales-varias-ot-titulo" aria-describedby="sucursales-varias-ot-ayuda"
+              [disabled]="!puedeCrearBahias"
+              (click)="nuevaSucursal.permiteVariasOtPorBahia = nuevaSucursal.permiteVariasOtPorBahia === false"
+              class="shrink-0 min-h-11 min-w-11 flex items-center justify-center cursor-pointer disabled:cursor-not-allowed disabled:opacity-60">
+              <span class="relative inline-block w-11 h-6 rounded-full transition-colors"
+                [ngClass]="nuevaSucursal.permiteVariasOtPorBahia !== false ? 'bg-emerald-500' : 'bg-slate-300'">
+                <span class="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform"
+                  [ngClass]="nuevaSucursal.permiteVariasOtPorBahia !== false ? 'translate-x-5' : ''"></span>
+              </span>
+            </button>
           </div>
 
           @if (puedeAsignarPersonas) {
@@ -2076,6 +2100,7 @@ export class SucursalesComponent implements OnInit, OnDestroy {
       direccion: suc.direccion || '',
       cantidadBahias: suc.cantidadBahias || 1,
       maxLavadoresPorBahia: suc.maxLavadoresPorBahia || 1,
+      permiteVariasOtPorBahia: suc.permiteVariasOtPorBahia !== false,
       servicioIds: sIds,
       serviciosNombres: this.catalogoServicios.filter(s => sIds.includes(Number(s.id))).map(s => s.nombre),
       requiereAprobacion: suc.requiereAprobacion !== undefined ? suc.requiereAprobacion : tieneGer,
@@ -2713,6 +2738,7 @@ export class SucursalesComponent implements OnInit, OnDestroy {
       direccion: '',
       cantidadBahias: 1,
       maxLavadoresPorBahia: 1,
+      permiteVariasOtPorBahia: true,
       estado: 'Activo',
       responsable: 'Sin Asignar',
       regionId: defaultReg,

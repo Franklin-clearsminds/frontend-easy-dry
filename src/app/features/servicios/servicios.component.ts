@@ -1018,9 +1018,14 @@ import { EvidenciaServicioItem, EvidenciasServicioModalComponent, FaseEvidencia,
                         <p class="font-bold text-slate-900 text-xs">{{ ins.productoNombre }}</p>
                         <span class="font-mono text-xs text-slate-500">{{ ins.productoSKU }}</span>
                       </div>
-                      <span class="font-mono font-extrabold text-xs text-easydry-blue bg-blue-50 px-2 py-1 rounded-lg">
-                        {{ ins.cantidad }} {{ ins.unidadMedida }}
-                      </span>
+                      <div class="text-right">
+                        <span class="font-mono font-extrabold text-xs text-easydry-blue bg-blue-50 px-2 py-1 rounded-lg">
+                          {{ ins.cantidad }} {{ ins.unidadMedida }}
+                        </span>
+                        @if (ins.costoTotal != null) {
+                          <p class="font-mono text-[11px] text-slate-500 mt-1">Costo: \${{ ins.costoTotal | number:'1.2-4' }}</p>
+                        }
+                      </div>
                     </div>
                   }
                 </div>
@@ -1318,7 +1323,7 @@ import { EvidenciaServicioItem, EvidenciasServicioModalComponent, FaseEvidencia,
                   [(ngModel)]="nuevoRegistro.bahiaId"
                   name="bahiaSelect"
                   (change)="onBahiaFormChange()"
-                  [ngClass]="bahiaOcupadaActual ? 'border-amber-400 bg-amber-50/70 text-amber-900 font-bold' : 'border-slate-200 bg-white'"
+                  [ngClass]="bahiaBloqueada ? 'border-rose-400 bg-rose-50/70 text-rose-900 font-bold' : bahiaOcupadaActual ? 'border-amber-400 bg-amber-50/70 text-amber-900 font-bold' : 'border-slate-200 bg-white'"
                   class="w-full p-2 border rounded-xl text-xs font-semibold text-slate-800">
                   <option value="">Sin Bahía Específica</option>
                   @for (b of bahiasSucursalForm; track b.id) {
@@ -1327,7 +1332,12 @@ import { EvidenciaServicioItem, EvidenciasServicioModalComponent, FaseEvidencia,
                     </option>
                   }
                 </select>
-                @if (bahiaOcupadaActual) {
+                @if (bahiaBloqueada) {
+                  <p class="text-xs text-rose-700 font-bold mt-1 flex items-center gap-1.5">
+                    <i-lucide aria-hidden="true" name="alert-triangle" class="w-3.5 h-3.5 shrink-0"></i-lucide>
+                    <span>La {{ nuevoRegistro.bahia || 'bahía seleccionada' }} tiene un vehículo en proceso ({{ bahiaOcupadaActual?.placa }} - {{ bahiaOcupadaActual?.ordenTrabajoOT || 'sin OT' }}) y esta agencia no permite más de una OT por bahía. Elige otra bahía o finaliza esa OT.</span>
+                  </p>
+                } @else if (bahiaOcupadaActual) {
                   <p class="text-xs text-amber-700 font-bold mt-1 flex items-center gap-1.5">
                     <i-lucide aria-hidden="true" name="info" class="w-3.5 h-3.5 shrink-0"></i-lucide>
                     <span>La {{ nuevoRegistro.bahia || 'bahía seleccionada' }} tiene un vehículo en proceso ({{ bahiaOcupadaActual.placa }} - {{ bahiaOcupadaActual.ordenTrabajoOT || 'sin OT' }}). Puedes continuar; esto es solo informativo.</span>
@@ -1616,9 +1626,9 @@ import { EvidenciaServicioItem, EvidenciasServicioModalComponent, FaseEvidencia,
           <button (click)="agregarServicioOTFuente = null; modalNuevoRegistroOpen = false" [disabled]="guardandoServicio" class="btn-secondary w-full sm:w-auto disabled:opacity-50">Cancelar</button>
           <button
             (click)="guardarHojaServicio()"
-            [disabled]="tieneInsumosSinStock || guardandoServicio || (esSeleccionMultipleServicios && serviciosSeleccionadosIds.length === 0)"
-            [class.opacity-50]="tieneInsumosSinStock || guardandoServicio || (esSeleccionMultipleServicios && serviciosSeleccionadosIds.length === 0)"
-            [class.cursor-not-allowed]="tieneInsumosSinStock || guardandoServicio || (esSeleccionMultipleServicios && serviciosSeleccionadosIds.length === 0)"
+            [disabled]="tieneInsumosSinStock || bahiaBloqueada || guardandoServicio || (esSeleccionMultipleServicios && serviciosSeleccionadosIds.length === 0)"
+            [class.opacity-50]="tieneInsumosSinStock || bahiaBloqueada || guardandoServicio || (esSeleccionMultipleServicios && serviciosSeleccionadosIds.length === 0)"
+            [class.cursor-not-allowed]="tieneInsumosSinStock || bahiaBloqueada || guardandoServicio || (esSeleccionMultipleServicios && serviciosSeleccionadosIds.length === 0)"
             class="w-full sm:w-auto px-4 py-2 bg-easydry-green hover:bg-easydry-green-dark text-slate-950 font-extrabold rounded-xl text-xs flex justify-center items-center gap-1.5 transition-all cursor-pointer">
             <i-lucide aria-hidden="true" *ngIf="guardandoServicio" name="loader" class="w-4 h-4 animate-spin"></i-lucide>
             <span>{{ guardandoServicio ? 'Guardando...' : agregarServicioOTFuente ? '+ Agregar Servicio a OT' : 'Guardar e Iniciar Servicio' }}</span>
@@ -3531,6 +3541,14 @@ export class ServiciosComponent implements OnInit, OnDestroy {
     return b.ocupada != null;
   }
 
+  /** La bahía elegida tiene un vehículo en proceso y la agencia no permite más de una OT por bahía (Agencia.permiteVariasOtPorBahia). */
+  get bahiaBloqueada(): boolean {
+    if (!this.bahiaOcupadaActual) return false;
+    const b = this.bahiasSucursalForm.find(x => String(x.id) === String(this.nuevoRegistro.bahiaId))
+      || this.bahiasSucursalForm.find(x => x.nombre === this.nuevoRegistro.bahia);
+    return b?.permiteVariasOtPorBahia === false;
+  }
+
   get bahiaOcupadaActual(): { placa: string; ordenTrabajoOT: string | null } | undefined {
     // Al agregar un servicio, el vehículo ocupa su propia bahía: no es un conflicto.
     if (this.agregarServicioOTFuente) return undefined;
@@ -4730,9 +4748,15 @@ export class ServiciosComponent implements OnInit, OnDestroy {
       return;
     }
 
-    // Nota: la ocupación de bahía y la placa duplicada son solo informativas (el backend agrega
-    // una advertencia a las observaciones si corresponde, pero nunca rechaza el registro), así
-    // que no bloquean aquí el guardado.
+    // La placa duplicada es solo informativa. La bahía ocupada bloquea únicamente si la agencia no permite
+    // más de una OT por bahía (el servidor lo vuelve a validar).
+    if (this.bahiaBloqueada) {
+      this.toastService.warning(
+        'Bahía ocupada',
+        `La ${this.nuevoRegistro.bahia || 'bahía seleccionada'} ya tiene un vehículo en proceso y esta agencia no permite más de una OT por bahía. Elige otra bahía.`
+      );
+      return;
+    }
 
     // Subir vídeo de ingreso a S3 al guardar si fue grabado o seleccionado
     if (this.videoIngresoRecorder?.hasPendingUpload) {

@@ -282,6 +282,10 @@ export interface InsumoConsumidoServicio {
   productoNombre: string;
   unidadMedida: string;
   cantidad: number;
+  /** Costo de una unidad base del insumo en el momento del consumo (solo con `precios.ver`). */
+  costoUnitario?: number | null;
+  /** Lo que costó lo consumido, congelado al consumirlo (solo con `precios.ver`). */
+  costoTotal?: number | null;
 }
 
 /** Insumo configurado como receta predeterminada en el catálogo */

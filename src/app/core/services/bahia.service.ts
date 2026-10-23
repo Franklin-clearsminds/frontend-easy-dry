@@ -46,6 +46,7 @@ export class BahiaService {
         ? { placa: b.ocupada.placa, ordenTrabajoOT: b.ocupada.ordenTrabajoOT ?? null }
         : null,
       maxLavadoresPorBahia: Number(b.agencia?.maxLavadoresPorBahia) || 1,
+      permiteVariasOtPorBahia: b.agencia?.permiteVariasOtPorBahia !== false,
       operadoresActivos,
     };
   }

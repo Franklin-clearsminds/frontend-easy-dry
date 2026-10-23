@@ -103,6 +103,7 @@ export class SucursalService {
       estado: a.estado === 1 ? 'Activo' : (a.estado === 0 ? 'Inactivo' : 'Mantenimiento'),
       cantidadBahias: a.numeroBahias || (a.bahias?.length ?? a._count?.bahias ?? 0),
       maxLavadoresPorBahia: a.maxLavadoresPorBahia || 1,
+      permiteVariasOtPorBahia: a.permiteVariasOtPorBahia !== false,
       responsable,
       liderOperador,
       liderOperadorId: lider?.id || a.liderOperadorId || undefined,
@@ -209,6 +210,7 @@ export class SucursalService {
       telefono: suc.telefono || '',
       numeroBahias: Number(suc.cantidadBahias) || 2,
       maxLavadoresPorBahia: Number(suc.maxLavadoresPorBahia) || 1,
+      permiteVariasOtPorBahia: suc.permiteVariasOtPorBahia !== false,
       clienteId: clienteIdStr,
       marcaId: marcaIdStr,
       estado: suc.estado === 'Inactivo' ? 0 : 1,
@@ -268,6 +270,7 @@ export class SucursalService {
     if (incluir.bahias) {
       payload.numeroBahias = Number(suc.cantidadBahias);
       payload.maxLavadoresPorBahia = Number(suc.maxLavadoresPorBahia) || 1;
+      payload.permiteVariasOtPorBahia = suc.permiteVariasOtPorBahia !== false;
     }
     if (incluir.personas) {
       payload.gerenteId = gerenteIdStr;
