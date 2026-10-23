@@ -12,8 +12,8 @@ const nombreDe = (lista: { id: string; nombre: string }[], id: string) => lista.
 
 /**
  * PDF del informe de inspección con el orden y el estilo del documento original de EasyDry: página 1 hasta las actividades,
- * página 2 desde los planes de acción hasta las firmas, y las fotos de evidencia como anexos. Muestra lo que está guardado,
- * sin alterar ningún registro.
+ * página 2 desde los planes de acción hasta las firmas (capturadas en pantalla), y las fotos de evidencia como anexos. Muestra lo
+ * que está guardado, sin alterar ningún registro.
  */
 export async function descargarPdfInforme(i: InformeDetalle, storage: StorageUploadService): Promise<void> {
   const flow = new PdfFlow((doc) => {
@@ -41,13 +41,13 @@ export async function descargarPdfInforme(i: InformeDetalle, storage: StorageUpl
 
   flow.encabezado('DESARROLLO Y NOVEDADES ENCONTRADAS');
   const novedades = i.novedades
-    .map((n, k) => `${k + 1}. ${n.titulo} [${nombreDe(CATEGORIAS_NOVEDAD, n.categoria)} · Prioridad ${n.prioridad.toLowerCase()}${n.area ? ' · ' + n.area : ''}]${n.descripcion ? '\n    ' + n.descripcion : ''}`)
+    .map((n, k) => `${k + 1}. ${n.titulo} [${nombreDe(CATEGORIAS_NOVEDAD, n.categoria)}${n.area ? ' · ' + n.area : ''}]${n.descripcion ? '\n    ' + n.descripcion : ''}`)
     .join('\n');
   flow.caja([i.desarrollo, novedades && 'Novedades registradas:\n' + novedades].filter(Boolean).join('\n\n'), { minAlto: 60 });
 
   flow.encabezado('ACTIVIDADES REALIZADAS EN LA AGENCIA DURANTE LA VISITA');
   const actividades = i.actividades
-    .map((a, k) => `${k + 1}. ${a.nombre}${a.responsable ? ' — Resp.: ' + a.responsable : ''}${a.fecha ? ' (' + fechaLarga(a.fecha) + ')' : ''}${a.resultado ? '\n    Resultado: ' + a.resultado : ''}${a.descripcion ? '\n    ' + a.descripcion : ''}${a.observaciones ? '\n    Obs.: ' + a.observaciones : ''}`)
+    .map((a, k) => `${k + 1}. ${a.nombre}${a.descripcion ? '\n    ' + a.descripcion : ''}`)
     .join('\n');
   flow.caja([i.actividadesGeneral, actividades && 'Actividades:\n' + actividades].filter(Boolean).join('\n\n'), { minAlto: 60 });
 
@@ -55,7 +55,7 @@ export async function descargarPdfInforme(i: InformeDetalle, storage: StorageUpl
   flow.paginaNueva();
   flow.encabezado('PLANES DE ACCIÓN PENDIENTES DE OTRAS ÁREAS');
   const planes = i.planes
-    .map((p, k) => `${k + 1}. ${p.problema}\n    Acción: ${p.accionRequerida || '—'} | Responsable: ${p.personaResponsable || i.agencia.nombre}\n    Fecha: ${p.fechaCompromiso ? fechaLarga(p.fechaCompromiso) : '—'} | Prioridad: ${p.prioridad.toLowerCase()} | Estado: ${nombreDe(ESTADOS_PLAN, p.estadoEfectivo ?? p.estado)}${p.observaciones ? '\n    Obs.: ' + p.observaciones : ''}`)
+    .map((p, k) => `${k + 1}. ${p.problema}\n    Acción: ${p.accionRequerida || '—'} | Responsable: ${p.personaResponsable || i.agencia.nombre}\n    Fecha: ${p.fechaCompromiso ? fechaLarga(p.fechaCompromiso) : '—'} | Estado: ${nombreDe(ESTADOS_PLAN, p.estadoEfectivo ?? p.estado)}${p.observaciones ? '\n    Obs.: ' + p.observaciones : ''}`)
     .join('\n');
   flow.caja([i.planesGeneral, planes].filter(Boolean).join('\n\n'), { minAlto: 55 });
   flow.espacio(4);
@@ -80,19 +80,36 @@ export async function descargarPdfInforme(i: InformeDetalle, storage: StorageUpl
   flow.y = yCaja + 50;
   flow.espacio(8);
 
-  // Firmas: cuatro espacios en blanco para firmar a mano al imprimir (el sistema no guarda firmas)
-  flow.asegurar(45);
-  flow.espacio(14);
+  // Firmas capturadas en pantalla. La del jefe de taller lleva por debajo, tenue, el logo de su sello como marca de agua.
+  flow.asegurar(40);
+  flow.espacio(4);
   const mitad = flow.ancho / 2;
-  const espacios: string[] = ['Firma: Responsable informe', 'Firma: Jefe de taller', 'Firma: Líder de bahía EasyDry', 'Recepción de informe'];
+  const logoJefe = i.sello?.logo ? await cargarImagen(i.sello.logo) : null;
   for (let fila = 0; fila < 2; fila++) {
-    const y0 = flow.y;
+    flow.asegurar(38);
+    const yTrazo = flow.y;
+    const yLinea = yTrazo + 22;
     for (let col = 0; col < 2; col++) {
+      const f = i.firmas[fila * 2 + col];
+      if (!f) continue;
       const x0 = flow.margen + col * mitad + 10;
-      doc.setDrawColor(...TEXTO).setLineWidth(0.3).line(x0, y0, x0 + mitad - 20, y0);
-      doc.setFont('helvetica', 'bold').setFontSize(8.5).setTextColor(...TEXTO).text(espacios[fila * 2 + col], x0 + (mitad - 20) / 2, y0 + 4.5, { align: 'center' });
+      const ancho = mitad - 20;
+      if (f.tipo === 'JEFE_TALLER' && logoJefe && f.requerida !== false) {
+        doc.saveGraphicsState();
+        const GState = (doc as unknown as { GState: new (o: { opacity: number }) => never }).GState;
+        doc.setGState(new GState({ opacity: 0.16 }));
+        flow.imagen(logoJefe, x0, yTrazo, ancho, 22);
+        doc.restoreGraphicsState();
+      }
+      const firma = f.imagen ? await cargarImagen(f.imagen) : null;
+      if (firma) flow.imagen(firma, x0, yTrazo, ancho, 22);
+      doc.setDrawColor(...TEXTO).setLineWidth(0.3).line(x0, yLinea, x0 + ancho, yLinea);
+      doc.setFont('helvetica', 'bold').setFontSize(8.5).setTextColor(...TEXTO).text(f.etiqueta, x0 + ancho / 2, yLinea + 4.5, { align: 'center' });
+      if (f.firmada) doc.setFont('helvetica', 'normal').setFontSize(7.5).setTextColor(...GRIS).text(f.nombre, x0 + ancho / 2, yLinea + 8.5, { align: 'center', maxWidth: ancho });
+      else if (f.tipo === 'RECEPCION') doc.setFont('helvetica', 'italic').setFontSize(7.5).setTextColor(...GRIS).text('Pendiente de aprobación', x0 + ancho / 2, yLinea + 8.5, { align: 'center', maxWidth: ancho });
+      else if (f.requerida === false) doc.setFont('helvetica', 'italic').setFontSize(7.5).setTextColor(...GRIS).text('No estuvo presente en la visita', x0 + ancho / 2, yLinea + 8.5, { align: 'center', maxWidth: ancho });
     }
-    flow.y = y0 + 22;
+    flow.y = yLinea + 12;
   }
 
   // Anexos: fotografías de evidencia (novedades, actividades y cumplimiento de planes)

@@ -173,7 +173,7 @@ export class UsuarioService {
     );
   }
 
-  crearUsuario(usr: Omit<Usuario, 'id'> & { password?: string; roleId?: string; regionId?: string; bodegaId?: string }): Observable<Usuario> {
+  crearUsuario(usr: Omit<Usuario, 'id'> & { password?: string; roleId?: string; regionId?: string; bodegaId?: string; bahiaId?: string }): Observable<Usuario> {
     const normRol = (usr.rol || '').toUpperCase();
     const isGlobal =
       (normRol.includes('SUPER') && normRol.includes('ADMIN')) ||
@@ -204,6 +204,7 @@ export class UsuarioService {
       servicioIds: isPulidorMovil
         ? (Array.isArray(usr.servicioIds) ? usr.servicioIds.map(Number).filter(n => !isNaN(n) && n > 0) : [])
         : undefined,
+      bahiaId: usr.bahiaId || undefined,
       estado: usr.estado === 'Inactivo' ? 0 : 1,
       telefono: usr.telefono || undefined,
     };
@@ -231,7 +232,7 @@ export class UsuarioService {
     );
   }
 
-  actualizarUsuario(usr: Usuario & { password?: string; roleId?: string; regionId?: string; bodegaId?: string }): Observable<Usuario> {
+  actualizarUsuario(usr: Usuario & { password?: string; roleId?: string; regionId?: string; bodegaId?: string; bahiaId?: string }): Observable<Usuario> {
     const normRol = (usr.rol || '').toUpperCase();
     const isGlobal =
       (normRol.includes('SUPER') && normRol.includes('ADMIN')) ||
@@ -264,6 +265,7 @@ export class UsuarioService {
         ? ''
         : (isBackup ? (usr.agenciaId ? usr.agencia : '') : (usr.agencia !== 'Sin asignar' ? usr.agencia : undefined)),
       bodegaId: isAsistente ? (usr.bodegaId ? String(usr.bodegaId) : null) : (usr.bodegaId ? String(usr.bodegaId) : null),
+      bahiaId: usr.bahiaId ? String(usr.bahiaId) : undefined,
       servicioIds: isPulidor
         ? (isPulidorMovil
           ? (Array.isArray(usr.servicioIds) ? usr.servicioIds.map(Number).filter(n => !isNaN(n) && n > 0) : [])

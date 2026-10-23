@@ -18,6 +18,18 @@
         @default { Dashboard EasyDry® }
         }
       </h1>
+      @if (estrellasAgencia) {
+      <div class="flex items-center gap-4 flex-wrap" aria-label="Puntuación de la agencia">
+        <span class="inline-flex items-center gap-1.5" [attr.title]="textoEstrellas5s(estrellasAgencia.cincoS)">
+          <span class="text-[11px] font-bold uppercase tracking-wide text-slate-400">5S</span>
+          <app-estrellas [valor]="estrellasAgencia.cincoS?.estrellas" [tamano]="20" [titulo]="textoEstrellas5s(estrellasAgencia.cincoS)"></app-estrellas>
+        </span>
+        <span class="inline-flex items-center gap-1.5" [attr.title]="textoEstrellasInspeccion(estrellasAgencia.inspeccion)">
+          <span class="text-[11px] font-bold uppercase tracking-wide text-slate-400">Inspección</span>
+          <app-estrellas [valor]="estrellasAgencia.inspeccion?.estrellas" [tamano]="20" [titulo]="textoEstrellasInspeccion(estrellasAgencia.inspeccion)"></app-estrellas>
+        </span>
+      </div>
+      }
       <p class="text-slate-500 text-sm flex items-center gap-2 flex-wrap">
         <i-lucide aria-hidden="true" name="user" class="w-4 h-4 text-easydry-blue"></i-lucide> {{ userName }}
         <span class="opacity-50">|</span>
@@ -148,6 +160,14 @@
         </div>
         }
 
+        <!-- Filtro por servicios concretos (varios): acota los gráficos que dependen del servicio; los demás no cambian -->
+        @if ((vista === 'ejecutivo' || vista === 'especiales') && serviciosOpciones.length) {
+        <div class="w-52">
+          <app-select-multiple placeholder="Servicios" todasLabel="Todos los servicios" ariaLabel="Filtrar por servicios"
+            [opciones]="serviciosOpciones" [values]="serviciosFiltro" (valuesChange)="onServiciosChange($event)"></app-select-multiple>
+        </div>
+        }
+
         <!-- Dropdown de Periodo Global -->
         <div class="relative w-40">
           <select [ngModel]="rangoFiltro" (ngModelChange)="onRangoChange($event)" aria-label="Periodo del dashboard"
@@ -230,6 +250,15 @@
         [ngClass]="activeExecutiveTab === 'auditoria' ? 'bg-easydry-blue text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'">
         <i-lucide aria-hidden="true" name="shield-check" class="w-4 h-4 shrink-0"></i-lucide>
         {{ tabAuditoriaTitle }}
+      </button>
+      }
+      @if (puedeVerAuditorias && !isAprobadorView && !isComercialView) {
+      <button type="button" role="tab" id="tab-inspecciones" aria-controls="panel-inspecciones"
+        [attr.aria-selected]="activeExecutiveTab === 'inspecciones'" (click)="seleccionarTab('inspecciones')"
+        class="shrink-0 px-3 sm:px-3.5 2xl:px-4 py-2 text-xs sm:text-[13px] 2xl:text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap"
+        [ngClass]="activeExecutiveTab === 'inspecciones' ? 'bg-easydry-blue text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'">
+        <i-lucide aria-hidden="true" name="star" class="w-4 h-4 shrink-0"></i-lucide>
+        Inspecciones y 5S
       </button>
       }
       @if (!isAprobadorView) {
@@ -451,7 +480,7 @@
       </div>
       }
 
-      <!-- Top Agencias (unificado): Productivas · Ganancia Neta · Reparaciones · Incidentes · Tiempos -->
+      <!-- Top Agencias (unificado): Productivas · Gasto en insumos · en mantenimientos · en incidencias -->
       @if (tieneAgenciasChart || esAnaliticaGlobal) {
       <div [ngClass]="spanTopAgencias">
         <app-chart-card [title]="chartTituloAgencias" [subtitle]="agenciasSubtitulo" type="bar" [data]="chartAgenciasActivo"
@@ -465,14 +494,19 @@
             </button>
             @if (!esAlcanceAgencia) {
             <button type="button" class="px-3 py-1 text-xs font-bold rounded-lg transition-colors"
-              [ngClass]="agenciasTab === 'ganancia' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
-              [attr.aria-pressed]="agenciasTab === 'ganancia'" (click)="agenciasTab = 'ganancia'">
-              Ganancia Neta
+              [ngClass]="agenciasTab === 'gastoInsumos' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+              [attr.aria-pressed]="agenciasTab === 'gastoInsumos'" (click)="agenciasTab = 'gastoInsumos'">
+              Gasto en insumos
+            </button>
+            <button type="button" class="px-3 py-1 text-xs font-bold rounded-lg transition-colors"
+              [ngClass]="agenciasTab === 'gastoMantenimientos' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+              [attr.aria-pressed]="agenciasTab === 'gastoMantenimientos'" (click)="agenciasTab = 'gastoMantenimientos'">
+              Gasto en mantenimientos
             </button>
             <button type="button" class="px-3 py-1 text-xs font-bold rounded-lg transition-colors"
               [ngClass]="agenciasTab === 'reparaciones' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
               [attr.aria-pressed]="agenciasTab === 'reparaciones'" (click)="agenciasTab = 'reparaciones'">
-              Gastos
+              Gasto en incidencias
             </button>
             }
           </div>
@@ -709,9 +743,13 @@
   <div class="mb-4 animate-fade-in" role="tabpanel" id="panel-operacion" aria-labelledby="tab-operacion"
     [class.hidden]="activeExecutiveTab !== 'operacion'">
 
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-      <app-stat-card [badge]="etiquetaRango" title="Ganancia Neta Global" [value]="'$' + (produccion?.kpisResumen?.gananciaNetaGlobal ?? 0)" icon="dollar-sign"
-        variant="success" subtitle="Ingresos - Gastos Operativos"></app-stat-card>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+      <app-stat-card [badge]="etiquetaRango" title="Gasto en Insumos" [value]="'$' + (produccion?.kpisResumen?.gastoInsumosGlobal ?? 0)" icon="package"
+        variant="warning" subtitle="Consumo valorado por costo unitario"></app-stat-card>
+      <app-stat-card [badge]="etiquetaRango" title="Gasto en Mantenimientos" [value]="'$' + (produccion?.kpisResumen?.gastoMantenimientosGlobal ?? 0)" icon="wrench"
+        variant="warning" subtitle="Mantenimientos finalizados de maquinaria"></app-stat-card>
+      <app-stat-card [badge]="etiquetaRango" title="Gasto en Incidencias" [value]="'$' + (produccion?.kpisResumen?.gastoIncidentesGlobal ?? 0)" icon="alert-triangle"
+        variant="warning" subtitle="Reparaciones por fallas de maquinaria"></app-stat-card>
       <app-stat-card [badge]="etiquetaRango" title="Ingreso Bruto Mensual" [value]="'$' + (produccion?.kpisResumen?.ingresoMes ?? 0)" icon="calendar"
         variant="warning" subtitle="Acumulado del mes"></app-stat-card>
       <app-stat-card [badge]="etiquetaRango" title="Ticket Promedio" [value]="'$' + (produccion?.kpisResumen?.ticketPromedioHoy ?? 0)" icon="file-text"
@@ -722,13 +760,13 @@
 
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
       @if (produccion?.topAgenciasRentabilidad || esAnaliticaGlobal) {
-      <app-chart-card class="lg:col-span-2" title="Rentabilidad Operativa" subtitle="Ingresos vs Reparaciones y Mantenimiento por agencia (los insumos se miden en unidades aparte)" type="bar"
+      <app-chart-card class="lg:col-span-2" title="Rentabilidad Operativa" subtitle="Ingresos frente a los gastos en insumos, incidencias y mantenimiento por agencia" type="bar"
         [data]="produccion?.topAgenciasRentabilidad"
         mensajeVacio="Sin ingresos ni costos registrados en el período seleccionado."></app-chart-card>
       }
 
 
-      @if (activeMixItems.length) {
+      @if (generalesItems.length || especialesItems.length) {
       <div class="flex flex-col lg:col-span-2">
         <div class="flex items-center justify-between mb-4">
           <div>
@@ -749,9 +787,15 @@
           </div>
         </div>
         <div class="grid grid-cols-1 gap-6">
+          @if (activeMixItems.length) {
           <app-distribution-card class="h-full" [titulo]="mixTab === 'generales' ? 'Servicios Generales' : 'Servicios Especiales'"
             [subtitulo]="mixTab === 'generales' ? 'Top 5 más vendidos' : 'Top 5 premium'" etiquetaTotal="Servicios"
             [items]="activeMixItems"></app-distribution-card>
+          } @else {
+          <div class="h-full min-h-48 rounded-2xl border border-dashed border-slate-300 bg-slate-50 flex items-center justify-center text-sm text-slate-500 p-6 text-center">
+            {{ mixTab === 'generales' ? 'Sin servicios generales en el período y los filtros seleccionados.' : 'Sin servicios especiales en el período y los filtros seleccionados.' }}
+          </div>
+          }
         </div>
       </div>
       }
@@ -762,18 +806,64 @@
       <i-lucide aria-hidden="true" name="users" class="w-5 h-5 text-easydry-blue"></i-lucide>
       <h3 class="text-lg font-bold font-outfit text-slate-800">Top Rendimiento de Personal</h3>
     </div>
-    <div class="grid grid-cols-1" [ngClass]="puedeVerProductividad ? 'lg:grid-cols-2 gap-6' : 'gap-8'">
-      <div [class.lg:col-span-2]="!puedeVerProductividad">
-        <app-ranking-operadores-widget title="Top Lavadores" [ranking]="rankingLavadores?.ranking || []" [rankingBottom]="rankingLavadores?.rankingBottom || []"></app-ranking-operadores-widget>
-      </div>
-      @if (puedeVerProductividad) {
-      <app-ranking-operadores-widget title="Top Pulidores" [ranking]="rankingPulidores?.fijos || []"
-        [rankingBottom]="rankingPulidores?.bottomFijos || []"
-        [rankingMoviles]="rankingPulidores?.moviles || []" [rankingBottomMoviles]="rankingPulidores?.bottomMoviles || []" [showTabs]="true"></app-ranking-operadores-widget>
-      }
+    <div class="grid grid-cols-1">
+      <app-rendimiento-personal-widget
+        [lavadores]="lavadoresVista?.ranking || []" [lavadoresBottom]="lavadoresVista?.rankingBottom || []"
+        [pulidoresFijos]="pulidoresVista?.fijos || []" [pulidoresFijosBottom]="pulidoresVista?.bottomFijos || []"
+        [pulidoresMoviles]="pulidoresVista?.moviles || []" [pulidoresMovilesBottom]="pulidoresVista?.bottomMoviles || []"
+        [puedeVerPulidores]="puedeVerProductividad" [mes]="personalMes" [periodoLabel]="etiquetaRango"
+        (mesChange)="onPersonalMesChange($event)"></app-rendimiento-personal-widget>
     </div>
     }
 
+  </div>
+  }
+
+  <!-- Sección: Inspecciones y 5S, puntuadas en estrellas -->
+  @if (puedeVerAuditorias && !isAprobadorView && !isComercialView) {
+  <div class="mb-4 animate-fade-in" role="tabpanel" id="panel-inspecciones" aria-labelledby="tab-inspecciones"
+    [class.hidden]="activeExecutiveTab !== 'inspecciones'">
+    @if (auditoriasData) {
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
+      <app-stat-card [badge]="etiquetaRango" title="Informes de Inspección" [value]="auditoriasData.kpis.informes ?? 0" icon="file-search"
+        variant="primary" subtitle="Guardados y calificados"></app-stat-card>
+      <app-stat-card [badge]="etiquetaRango" title="Auditorías 5S" [value]="auditoriasData.kpis.auditorias5s ?? 0" icon="check-circle"
+        variant="primary" subtitle="Guardadas en el período"></app-stat-card>
+      <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry p-6 flex flex-col gap-2">
+        <span class="text-sm font-semibold text-slate-500">Estrellas · Inspección</span>
+        <app-estrellas [valor]="auditoriasData.kpis.estrellasInspeccion" [tamano]="26" [titulo]="'Promedio: ' + (auditoriasData.kpis.estrellasInspeccion ?? 'sin datos')"></app-estrellas>
+        <span class="text-xs text-slate-400">Promedio del período</span>
+      </div>
+      <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry p-6 flex flex-col gap-2">
+        <span class="text-sm font-semibold text-slate-500">Estrellas · 5S</span>
+        <app-estrellas [valor]="auditoriasData.kpis.estrellas5s" [tamano]="26" [titulo]="'Promedio: ' + (auditoriasData.kpis.estrellas5s ?? 'sin datos')"></app-estrellas>
+        <span class="text-xs text-slate-400">Promedio del período</span>
+      </div>
+      <app-stat-card [badge]="etiquetaRango" title="Planes de Acción Pendientes" [value]="auditoriasData.kpis.planesPendientes ?? 0" icon="clipboard-list"
+        [variant]="(auditoriasData.kpis.planesPendientes ?? 0) > 0 ? 'warning' : 'success'" subtitle="Pendientes y en proceso"></app-stat-card>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+      <app-chart-card title="Calificación de los Informes" subtitle="Excelente · Bueno · Regular · Malo" type="doughnut"
+        [data]="auditoriasData.chartCalificaciones" mensajeVacio="Sin informes de inspección calificados en el período."></app-chart-card>
+      <app-chart-card title="Resultado de las Auditorías 5S" subtitle="Semáforo según el porcentaje obtenido" type="doughnut"
+        [data]="auditoriasData.chart5s" mensajeVacio="Sin auditorías 5S guardadas en el período."></app-chart-card>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+      <app-chart-card title="Evolución de las Estrellas" subtitle="Promedio mensual de inspección y 5S" type="line"
+        [data]="auditoriasData.chartEvolucion" [options]="{ scales: { y: { min: 0, max: 5, ticks: { stepSize: 1 } } } }"
+        mensajeVacio="Sin puntuaciones en el período."></app-chart-card>
+      <app-chart-card title="Ranking de Agencias por Estrellas" subtitle="Promedio de inspección y 5S" type="bar" [horizontal]="true"
+        [data]="rankingAuditoriasChart" mensajeVacio="Sin agencias puntuadas en el período.">
+        <div chart-actions class="flex flex-wrap items-center justify-end gap-2">
+          <app-top-orden [orden]="auditoriasTop" (ordenChange)="auditoriasTop = $event"></app-top-orden>
+        </div>
+      </app-chart-card>
+    </div>
+    } @else {
+    <div class="py-10 text-center text-sm text-slate-500">Cargando las auditorías…</div>
+    }
   </div>
   }
 

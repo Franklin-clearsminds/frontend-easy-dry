@@ -147,6 +147,13 @@ export const MENU_CONFIG: MenuItem[] = [
     moduloCodigo: 'auditorias-5s',
     group: 'Auditorías'
   },
+  {
+    label: 'Configuración de Sellos',
+    route: '/configuracion-sellos',
+    icon: 'pen-tool',
+    moduloCodigo: 'configuracion/sellos',
+    group: 'Auditorías'
+  },
 
   // ─── 6. ADMINISTRACIÓN ─────────────────────────────────────────
   {

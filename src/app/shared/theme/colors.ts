@@ -44,6 +44,22 @@ export const CHART_CATEGORICAL: readonly string[] = [
   '#115E59', // verde azulado oscuro
 ];
 
+/** Semáforo de gravedad: lo más grave en rojo y lo más leve en verde. */
+export const COLOR_GRAVEDAD: Record<string, string> = {
+  CRITICA: '#DC2626',
+  ALTA: '#EA580C',
+  MEDIA: '#F59E0B',
+  BAJA: '#16A34A',
+};
+
+/** Colores por gravedad (Crítica/Alta/Media/Baja, con o sin tilde); lo desconocido cae en la paleta categórica. */
+export function coloresGravedad(nombres: readonly string[]): string[] {
+  return nombres.map((n, i) => {
+    const clave = String(n ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toUpperCase();
+    return COLOR_GRAVEDAD[clave] ?? CHART_CATEGORICAL[i % CHART_CATEGORICAL.length];
+  });
+}
+
 /** Devuelve `n` colores categóricos distintos; solo repite cuando hay más series que colores disponibles. */
 export function coloresCategoricos(n: number): string[] {
   const total = Math.max(0, Math.floor(Number.isFinite(n) ? n : 0));

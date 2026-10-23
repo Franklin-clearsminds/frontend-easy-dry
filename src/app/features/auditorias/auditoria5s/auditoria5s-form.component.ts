@@ -7,6 +7,7 @@ import { Subscription, firstValueFrom } from 'rxjs';
 import { AuthService } from '../../../core/services/auth.service';
 import { Auditoria5sService } from '../../../core/services/auditoria5s.service';
 import { ToastService } from '../../../shared/services/toast.service';
+import { ConfirmarService } from '../../../shared/services/confirmar.service';
 import {
   Auditoria5sDetalle,
   Catalogo5s,
@@ -37,7 +38,7 @@ interface Respuesta {
 /**
  * Evaluación de una auditoría 5S. Al crear se elige uno, dos o los tres formatos: cada uno se guarda como una auditoría aparte con
  * los mismos datos de la visita, y aquí se pasa de uno a otro. El resultado se calcula en pantalla mientras se evalúa, pero el
- * definitivo (puntaje y semáforo) lo fija el servidor al finalizar. Pensado para el celular: tarjetas grandes y botones táctiles.
+ * definitivo (puntaje y semáforo) lo fija el servidor al guardar. Pensado para el celular: tarjetas grandes y botones táctiles.
  */
 @Component({
   selector: 'app-auditoria5s-form',
@@ -65,7 +66,7 @@ interface Respuesta {
                   class="px-3 min-h-10 rounded-xl border text-xs font-bold flex items-center gap-2"
                   [ngClass]="h.id === detalle.id ? 'bg-easydry-blue text-white border-easydry-blue' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'">
                   {{ etiqueta(h.formato).corto }}
-                  <span class="text-[10px] font-extrabold uppercase opacity-80">{{ h.estado === 'FINALIZADA' || h.estado === 'CERRADA' ? '✓ finalizada' : h.estado === 'EN_PROCESO' ? 'en proceso' : 'borrador' }}</span>
+                  <span class="text-[10px] font-extrabold uppercase opacity-80">{{ h.estado === 'GUARDADA' ? '✓ guardada' : 'borrador' }}</span>
                 </button>
               }
             </div>
@@ -115,7 +116,7 @@ interface Respuesta {
             @if (!detalle) {
               <fieldset class="space-y-2">
                 <legend class="field-label">¿Qué formato(s) vas a realizar? *</legend>
-                <p class="text-xs text-slate-500">Puedes elegir uno, dos o los tres. Se usan los mismos datos de la visita y cada formato se guarda y finaliza por separado.</p>
+                <p class="text-xs text-slate-500">Puedes elegir uno, dos o los tres. Se usan los mismos datos de la visita y cada formato se guarda por separado.</p>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
                   @for (f of cat.formatos; track f.id) {
                     <label class="rounded-xl border-2 p-4 cursor-pointer transition-colors flex gap-3 items-start" [ngClass]="elegido(f.id) ? 'border-easydry-blue bg-easydry-blue/5' : 'border-slate-200 hover:border-slate-300'">
@@ -239,11 +240,11 @@ interface Respuesta {
 
             @if (sinEvaluar.length) {
               <div class="p-3 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-800" role="alert">
-                <strong>No se puede finalizar:</strong> faltan por evaluar los criterios {{ sinEvaluar.join(', ') }}.
+                <strong>No se puede guardar:</strong> faltan por evaluar los criterios {{ sinEvaluar.join(', ') }}.
                 <div class="mt-2 flex flex-wrap gap-1.5">@for (n of sinEvaluar; track n) { <button type="button" class="btn btn-secondary btn-sm" (click)="irAlCriterio(n)">Criterio {{ n }}</button> }</div>
               </div>
             } @else {
-              <p class="text-sm text-slate-600">{{ hallazgosRegistrados }} hallazgo(s) con acción correctiva. Al finalizar se bloquean las puntuaciones y se abre el seguimiento de cada hallazgo.</p>
+              <p class="text-sm text-slate-600">{{ hallazgosRegistrados }} hallazgo(s) con acción correctiva. Al guardar se bloquean las puntuaciones y se abre el seguimiento de cada hallazgo. Una auditoría guardada ya no se puede modificar.</p>
               @if (sinHallazgo.length) { <p class="text-xs font-semibold text-amber-700">Criterios que no cumplen y no tienen hallazgo registrado (no tendrán acción correctiva): {{ sinHallazgo.join(', ') }}.</p> }
             }
           </section>
@@ -266,7 +267,7 @@ interface Respuesta {
               @if (seccion < 6) {
                 <button type="button" class="btn btn-primary min-h-11" (click)="irA(seccion + 1)">Siguiente <i-lucide name="arrow-right" class="w-4 h-4" aria-hidden="true"></i-lucide></button>
               } @else if (editable) {
-                <button type="button" class="btn btn-cta min-h-11" (click)="finalizar()" [disabled]="guardando || sinEvaluar.length > 0"><i-lucide name="check-circle" class="w-4 h-4" aria-hidden="true"></i-lucide> Finalizar este formato</button>
+                <button type="button" class="btn btn-cta min-h-11" (click)="guardarDefinitivo()" [disabled]="guardando || sinEvaluar.length > 0"><i-lucide name="check-circle" class="w-4 h-4" aria-hidden="true"></i-lucide> Guardar este formato</button>
               }
             </div>
           }
@@ -279,6 +280,7 @@ export class Auditoria5sFormComponent implements OnInit, OnDestroy {
   private readonly api = inject(Auditoria5sService);
   private readonly auth = inject(AuthService);
   private readonly toast = inject(ToastService);
+  private readonly confirmar = inject(ConfirmarService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private sub?: Subscription;
@@ -519,17 +521,23 @@ export class Auditoria5sFormComponent implements OnInit, OnDestroy {
     }
   }
 
-  async finalizar(): Promise<void> {
+  async guardarDefinitivo(): Promise<void> {
     if (this.sinEvaluar.length || !this.detalle) return;
-    if (!window.confirm('Al finalizar se bloquean las puntuaciones de este formato y se fija el resultado. ¿Finalizar?')) return;
+    const ok = await this.confirmar.pedir({
+      titulo: 'Guardar este formato',
+      mensaje: 'Al guardar se bloquean las puntuaciones de este formato y se fija el resultado. Ya no se podrá modificar. ¿Quieres guardarlo?',
+      textoConfirmar: 'Guardar',
+      icono: 'lock',
+    });
+    if (!ok) return;
     if (!(await this.guardar(true))) return;
     this.guardando = true;
     try {
-      const d = await firstValueFrom(this.api.finalizar(this.detalle.id));
-      this.toast.success('Auditoría finalizada', `${d.codigo}: ${d.resultado.puntaje}/${d.resultado.puntajeMaximo} — ${SEMAFORO[d.resultado.semaforo].nombre}.`);
+      const d = await firstValueFrom(this.api.guardar(this.detalle.id));
+      this.toast.success('Auditoría guardada', `${d.codigo}: ${d.resultado.puntaje}/${d.resultado.puntajeMaximo} — ${SEMAFORO[d.resultado.semaforo].nombre}.`);
       void this.router.navigate(['/auditorias-5s', d.id]);
     } catch (e) {
-      this.errorGuardado = mensajeError(e, 'No se pudo finalizar.');
+      this.errorGuardado = mensajeError(e, 'No se pudo guardar.');
     } finally {
       this.guardando = false;
     }

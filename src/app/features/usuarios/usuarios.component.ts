@@ -9,6 +9,8 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LucideAngularModule } from 'lucide-angular';
 import { ConsultaUsuarios, ResumenUsuarios, UsuarioService } from '../../core/services/usuario.service';
+import { OpcionesService } from '../../core/services/opciones.service';
+import { OpcionSelect } from '../../core/models/paginacion.model';
 import { AMBITOS_ROL, CapacidadCatalogo, RolService, codigoRolDesdeNombre, codigoRolValido } from '../../core/services/rol.service';
 import { AuthService } from '../../core/services/auth.service';
 import { Usuario, ModuloSistema, RolPersonalizado, Sucursal, ModalidadPulidor, BodegaInventario, RegionOperativa, CatalogoServicio } from '../../core/models';
@@ -881,7 +883,7 @@ const COLUMNAS_ROLES: TableColumn[] = [
                   {{ agenciaObligatoria ? 'Obligatoria · ámbito de agencia' : 'No obligatorio' }}
                 </span>
               </div>
-              <select [(ngModel)]="usuarioForm.agencia" name="agencia" class="w-full p-2.5 border rounded-xl text-sm font-semibold" [required]="agenciaObligatoria">
+              <select [ngModel]="usuarioForm.agencia" (ngModelChange)="alCambiarAgenciaForm($event)" name="agencia" class="w-full p-2.5 border rounded-xl text-sm font-semibold" [required]="agenciaObligatoria">
                 <option value="">{{ agenciaObligatoria ? 'Selecciona una agencia...' : 'Sin agencia asignada (Opcional)' }}</option>
                 @for (s of sucursales; track s.id) {
                   <option [value]="s.nombre">{{ s.nombre }}</option>
@@ -892,6 +894,22 @@ const COLUMNAS_ROLES: TableColumn[] = [
                   ? 'Este rol trabaja sobre los datos de su agencia: sin agencia asignada no verá ningún dato.'
                   : 'Este rol trabaja sobre lo que se le asigna personalmente; la agencia es opcional.' }}
               </p>
+            </div>
+          }
+
+          @if (esAuxiliarForm) {
+            <div>
+              <div class="flex items-center justify-between mb-1">
+                <label for="usuarios-bahia-auxiliar" class="block text-xs font-bold text-slate-700 uppercase">Bahía <span class="text-rose-500">*</span></label>
+                <span class="text-xs text-slate-500 font-medium">Obligatoria para el auxiliar</span>
+              </div>
+              <select id="usuarios-bahia-auxiliar" [(ngModel)]="usuarioForm.bahiaId" name="bahiaId" class="w-full p-2.5 border rounded-xl text-sm font-semibold bg-white" [disabled]="!usuarioForm.agencia">
+                <option value="">{{ !usuarioForm.agencia ? 'Elige primero la agencia...' : editandoUsuario ? 'Conservar la bahía actual' : 'Selecciona una bahía...' }}</option>
+                @for (b of bahiasAuxiliar; track b.value) {
+                  <option [value]="b.value">{{ b.label }}</option>
+                }
+              </select>
+              <p class="text-xs text-slate-500 mt-1">El auxiliar es un lavador de esa bahía y tiene las mismas funciones del líder. Cada agencia solo puede tener un auxiliar.</p>
             </div>
           }
 
@@ -915,10 +933,10 @@ const COLUMNAS_ROLES: TableColumn[] = [
             }
           </div>
 
-          <!-- Teléfono (celular de 10 dígitos; obligatorio para los líderes) -->
+          <!-- Teléfono (opcional; si se escribe, celular de 10 dígitos) -->
           <div>
             <label for="usuarios-f7t" class="block text-xs font-bold text-slate-700 uppercase mb-1">
-              Teléfono @if (requiereTelefono) { <span class="text-rose-500">*</span> }
+              Teléfono (Opcional)
             </label>
             <input id="usuarios-f7t"
               type="tel"
@@ -932,7 +950,7 @@ const COLUMNAS_ROLES: TableColumn[] = [
             @if (telefonoInvalido) {
               <p class="text-xs text-rose-600 font-semibold mt-1 flex items-center gap-1.5">
                 <i-lucide aria-hidden="true" name="alert-circle" class="w-3.5 h-3.5 shrink-0"></i-lucide>
-                {{ !usuarioForm.telefono.trim() ? 'El teléfono es obligatorio para los líderes.' : 'Ingrese un celular de 10 dígitos que empiece con 09 (ej. 0991234567).' }}
+                Ingrese un celular de 10 dígitos que empiece con 09 (ej. 0991234567), o deje el campo vacío.
               </p>
             }
           </div>
@@ -1409,6 +1427,8 @@ export class UsuariosComponent implements OnInit, OnDestroy {
     agencia: string;
     region?: string;
     bodegaId?: string;
+    /** Bahía del Auxiliar (lavador que cubre al líder). */
+    bahiaId?: string;
     estado: 'Activo' | 'Inactivo';
     email: string;
     telefono: string;
@@ -1446,16 +1466,10 @@ export class UsuariosComponent implements OnInit, OnDestroy {
     return this.usuarioFormSubmitted && !this.usuarioForm.nombre?.trim();
   }
 
-  /** El teléfono es obligatorio para los líderes (el servidor lo exige igual). */
-  get requiereTelefono(): boolean {
-    const rol = this.roles.find((r) => r.id === this.usuarioForm.roleId || r.nombre === this.usuarioForm.rol);
-    return ['LIDER', 'BACKUP'].includes(String(rol?.codigo || '').toUpperCase());
-  }
-
   get telefonoInvalido(): boolean {
     if (!this.usuarioFormSubmitted && !this.usuarioForm.telefono?.trim()) return false;
     const valor = String(this.usuarioForm.telefono || '').trim();
-    if (!valor) return this.usuarioFormSubmitted && this.requiereTelefono;
+    if (!valor) return false; // el teléfono es opcional
     const digitos = valor.replace(/[\s\-().]/g, '').replace(/^\+593/, '0').replace(/^593(?=9\d{8}$)/, '0');
     return !/^09\d{8}$/.test(digitos);
   }
@@ -1581,6 +1595,7 @@ export class UsuariosComponent implements OnInit, OnDestroy {
 
   private authService = inject(AuthService);
   private usuarioService = inject(UsuarioService);
+  private opcionesApi = inject(OpcionesService);
   private rolService = inject(RolService);
   private sucursalService = inject(SucursalService);
   private inventarioService = inject(InventarioService);
@@ -1676,7 +1691,33 @@ export class UsuariosComponent implements OnInit, OnDestroy {
       this.usuarioForm.rol = rolEncontrado.nombre;
       this.usuarioForm.roleId = rolEncontrado.id;
       this.onRolUsuarioChange();
+      this.usuarioForm.bahiaId = '';
+      this.cargarBahiasAuxiliar();
     }
+  }
+
+  /** Bahías activas de la agencia elegida, para el Auxiliar. */
+  bahiasAuxiliar: OpcionSelect[] = [];
+
+  /** El rol elegido en el formulario es Auxiliar: lavador de una bahía con las funciones del líder. */
+  get esAuxiliarForm(): boolean {
+    const rol = this.rolDeUsuario({ roleId: this.usuarioForm.roleId, rol: this.usuarioForm.rol });
+    return String(rol?.codigo || '').toUpperCase() === 'AUXILIAR';
+  }
+
+  alCambiarAgenciaForm(nombre: string): void {
+    this.usuarioForm.agencia = nombre;
+    this.usuarioForm.bahiaId = '';
+    this.cargarBahiasAuxiliar();
+  }
+
+  cargarBahiasAuxiliar(): void {
+    const agencia = this.sucursales.find((s) => s.nombre === this.usuarioForm.agencia);
+    if (!this.esAuxiliarForm || !agencia) { this.bahiasAuxiliar = []; return; }
+    this.opcionesApi.todas('/agencias/bahias/opciones', { agenciaId: String(agencia.id), activa: true }).subscribe({
+      next: (b) => { this.bahiasAuxiliar = b; },
+      error: () => { this.bahiasAuxiliar = []; },
+    });
   }
 
   /** Ámbito del rol de un usuario del directorio (para mostrar su alcance). */
@@ -2240,6 +2281,8 @@ export class UsuariosComponent implements OnInit, OnDestroy {
       servicioIds: []
     };
     this.showPassword = false;
+    this.bahiasAuxiliar = [];
+    this.cargarBahiasAuxiliar();
     this.showConfirmPassword = false;
     this.modalUsuarioOpen = true;
   }
@@ -2288,6 +2331,8 @@ export class UsuariosComponent implements OnInit, OnDestroy {
       servicioIds: finalServiciosPulidor
     };
     this.showPassword = false;
+    this.bahiasAuxiliar = [];
+    this.cargarBahiasAuxiliar();
     this.showConfirmPassword = false;
     this.modalUsuarioOpen = true;
   }
@@ -2526,6 +2571,11 @@ export class UsuariosComponent implements OnInit, OnDestroy {
       return;
     }
 
+    if (this.esAuxiliarForm && !this.editandoUsuario && !this.usuarioForm.bahiaId) {
+      this.toastService.warning('Bahía requerida', 'El auxiliar es un lavador de una bahía: elige la bahía de su agencia.');
+      return;
+    }
+
     if (this.esAsistenteBodegaRol(this.usuarioForm.rol) && !this.usuarioForm.bodegaId) {
       this.toastService.warning('Bodega requerida', 'El asistente de bodega debe estar asignado a una bodega regional.');
       return;
@@ -2620,7 +2670,7 @@ export class UsuariosComponent implements OnInit, OnDestroy {
         finalRegion = this.editandoUsuario.region;
       }
 
-      const actualizado: Usuario & { password?: string; roleId?: string; regionId?: string; region?: string; bodegaId?: string } = {
+      const actualizado: Usuario & { password?: string; roleId?: string; regionId?: string; region?: string; bodegaId?: string; bahiaId?: string } = {
         ...this.editandoUsuario,
         nombre: this.usuarioForm.nombre.trim(),
         apellido: this.usuarioForm.apellido.trim(),
@@ -2631,6 +2681,7 @@ export class UsuariosComponent implements OnInit, OnDestroy {
         regionId: finalRegionId,
         region: finalRegion,
         bodegaId: isAsistente ? (this.usuarioForm.bodegaId || undefined) : undefined,
+        bahiaId: this.esAuxiliarForm ? (this.usuarioForm.bahiaId || undefined) : undefined,
         estado: nuevoEstado,
         email: this.usuarioForm.email.trim(),
         telefono: this.usuarioForm.telefono.trim(),
@@ -2704,7 +2755,7 @@ export class UsuariosComponent implements OnInit, OnDestroy {
         }
       }
 
-      const nuevo: Omit<Usuario, 'id'> & { password?: string; roleId?: string; regionId?: string; region?: string; bodegaId?: string } = {
+      const nuevo: Omit<Usuario, 'id'> & { password?: string; roleId?: string; regionId?: string; region?: string; bodegaId?: string; bahiaId?: string } = {
         nombre: this.usuarioForm.nombre.trim(),
         apellido: this.usuarioForm.apellido.trim(),
         rol: rolEncontrado?.nombre || this.usuarioForm.rol,
@@ -2714,6 +2765,7 @@ export class UsuariosComponent implements OnInit, OnDestroy {
         regionId: finalRegionId,
         region: finalRegion,
         bodegaId: isAsistente ? (this.usuarioForm.bodegaId || undefined) : undefined,
+        bahiaId: this.esAuxiliarForm ? (this.usuarioForm.bahiaId || undefined) : undefined,
         estado: this.usuarioForm.estado,
         email: this.usuarioForm.email.trim(),
         telefono: this.usuarioForm.telefono.trim(),

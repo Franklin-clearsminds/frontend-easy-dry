@@ -9,6 +9,7 @@ import { AuthService } from '../../../core/services/auth.service';
 import { Auditoria5sService } from '../../../core/services/auditoria5s.service';
 import { StorageUploadService } from '../../../core/services/storage-upload.service';
 import { ToastService } from '../../../shared/services/toast.service';
+import { ConfirmarService } from '../../../shared/services/confirmar.service';
 import { ModalComponent } from '../../../shared/components/modal/modal.component';
 import { ChartCardComponent } from '../../../shared/components/chart-card/chart-card.component';
 import { ThumbSrcDirective } from '../../../shared/directives/thumb-src.directive';
@@ -59,7 +60,7 @@ import { descargarExcel5s, descargarPdf5s } from './auditoria5s-export';
               <span class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Otros formatos de esta visita:</span>
               @for (h of a.hermanas; track h.id) {
                 @if (h.id === a.id) { <span class="px-3 py-1.5 rounded-xl bg-easydry-blue text-white text-xs font-bold">{{ etiqueta(h.formato) }}</span> }
-                @else { <a [routerLink]="['/auditorias-5s', h.id]" class="px-3 py-1.5 rounded-xl border border-slate-300 text-xs font-bold text-slate-700 hover:bg-slate-50">{{ etiqueta(h.formato) }} · {{ h.estado === 'FINALIZADA' || h.estado === 'CERRADA' ? 'finalizada' : 'en proceso' }}</a> }
+                @else { <a [routerLink]="['/auditorias-5s', h.id]" class="px-3 py-1.5 rounded-xl border border-slate-300 text-xs font-bold text-slate-700 hover:bg-slate-50">{{ etiqueta(h.formato) }} · {{ h.estado === 'GUARDADA' ? 'guardada' : 'borrador' }}</a> }
               }
             </nav>
           }
@@ -90,7 +91,6 @@ import { descargarExcel5s, descargarPdf5s } from './auditoria5s-export';
 
           <div class="flex flex-wrap gap-2">
             @if (a.permisos.puedeEditar) { <a [routerLink]="['/auditorias-5s', a.id, 'editar']" class="btn btn-secondary"><i-lucide name="pencil" class="w-4 h-4" aria-hidden="true"></i-lucide> Continuar evaluación</a> }
-            @if (a.permisos.puedeCerrar) { <button type="button" class="btn btn-primary" (click)="cerrar()" [disabled]="trabajando"><i-lucide name="lock" class="w-4 h-4" aria-hidden="true"></i-lucide> Cerrar auditoría</button> }
             @if (a.permisos.puedeEliminar && puedeEliminarBorrador) { <button type="button" class="btn btn-danger" (click)="eliminar()" [disabled]="trabajando"><i-lucide name="trash-2" class="w-4 h-4" aria-hidden="true"></i-lucide> Eliminar borrador</button> }
             <button type="button" class="btn btn-secondary" (click)="pdf()" [disabled]="generando"><i-lucide name="download" class="w-4 h-4" aria-hidden="true"></i-lucide> {{ generando ? 'Generando…' : 'Reporte PDF' }}</button>
             <button type="button" class="btn btn-secondary" (click)="excel()"><i-lucide name="file-spreadsheet" class="w-4 h-4" aria-hidden="true"></i-lucide> Exportar Excel</button>
@@ -202,6 +202,7 @@ export class Auditoria5sDetailComponent implements OnInit {
   private readonly api = inject(Auditoria5sService);
   private readonly route = inject(ActivatedRoute);
   private readonly toast = inject(ToastService);
+  private readonly confirmar = inject(ConfirmarService);
   private readonly storage = inject(StorageUploadService);
   private readonly auth = inject(AuthService);
 
@@ -284,10 +285,10 @@ export class Auditoria5sDetailComponent implements OnInit {
     }
   }
 
-  cerrar(): Promise<boolean> { return this.correr(() => this.api.cerrar(this.a!.id), 'Auditoría cerrada.'); }
 
   async eliminar(): Promise<void> {
-    if (!window.confirm(`¿Eliminar el borrador ${this.a!.codigo}?`)) return;
+    const ok = await this.confirmar.pedir({ titulo: 'Eliminar borrador', mensaje: `¿Eliminar el borrador ${this.a!.codigo}? Queda registrado en el historial.`, textoConfirmar: 'Eliminar', tipo: 'peligro', icono: 'trash-2' });
+    if (!ok) return;
     try {
       await firstValueFrom(this.api.eliminar(this.a!.id));
       window.history.back();

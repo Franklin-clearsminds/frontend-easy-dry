@@ -227,6 +227,15 @@ export const routes: Routes = [
         ]
       },
       {
+        path: 'configuracion-sellos',
+        loadComponent: () =>
+          import('./features/auditorias/sellos/sellos.component').then(m => m.SellosComponent),
+        canActivate: [
+          authGuard,
+          moduloGuard('configuracion/sellos')
+        ]
+      },
+      {
         path: 'auditorias-5s',
         loadComponent: () =>
           import('./features/auditorias/auditoria5s/auditorias5s.component').then(m => m.Auditorias5sComponent),

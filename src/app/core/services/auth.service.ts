@@ -255,6 +255,7 @@ export class AuthService {
       'APROBADOR': Role.APROBADOR,
       'LIDER': Role.LIDER,
       'BACKUP': Role.BACKUP,
+      'AUXILIAR': Role.AUXILIAR,
       'COORD_SERVICIOS_ESPECIALES': Role.COORD_SERVICIOS_ESPECIALES,
       'PULIDOR': Role.PULIDOR,
       'COORD_MANTENIMIENTO': Role.COORD_MANTENIMIENTO,
@@ -537,7 +538,7 @@ export class AuthService {
 
   isLiderOperador(): boolean {
     const role = this.currentUserSubject.value?.role;
-    return role === Role.LIDER || role === Role.BACKUP;
+    return role === Role.LIDER || role === Role.BACKUP || role === Role.AUXILIAR;
   }
 
   hasRole(role: Role | string): boolean {

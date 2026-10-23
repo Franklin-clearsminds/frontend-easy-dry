@@ -40,11 +40,12 @@ import { ConsultaFichas, MetaBodega, ResumenAlertas } from '../../core/services/
 import { ListaInfinita } from '../../core/utils/lista-infinita';
 import { InfiniteScrollComponent } from '../../shared/components/infinite-scroll/infinite-scroll.component';
 import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-ubicacion-insumos.component';
+import { DespachoMasivoModalComponent } from './despacho-masivo/despacho-masivo-modal.component';
 
 @Component({
   selector: 'app-inventario',
   standalone: true,
-  imports: [AvatarSrcDirective, CommonModule, FormsModule, LucideAngularModule, VerMediaDirective, ModalComponent, ModalPortalDirective, ImageUploaderComponent, ConsumoServiciosComponent, ThumbSrcDirective, DataTableComponent, DataTableCellDirective, InfiniteScrollComponent, StockUbicacionInsumosComponent, PaginationComponent],
+  imports: [AvatarSrcDirective, CommonModule, FormsModule, LucideAngularModule, VerMediaDirective, ModalComponent, ModalPortalDirective, ImageUploaderComponent, ConsumoServiciosComponent, ThumbSrcDirective, DataTableComponent, DataTableCellDirective, InfiniteScrollComponent, StockUbicacionInsumosComponent, DespachoMasivoModalComponent, PaginationComponent],
   template: `
     <div class="space-y-6 animate-fade-in pb-16">
 
@@ -795,6 +796,15 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
             <span class="font-mono font-bold text-slate-700 whitespace-nowrap">{{ (p.contenidoNeto || 1) | number:'1.0-2' }} {{ p.unidadMedida }}</span>
           </ng-template>
 
+          <ng-template appCell="precio" let-p>
+            @if ((p.costoUnitarioUSD || 0) > 0) {
+              <span class="font-mono font-bold text-emerald-700 whitespace-nowrap block">{{ '$' + (p.costoUnitarioUSD | number:'1.2-2') }}</span>
+              <span class="text-[11px] text-slate-500 whitespace-nowrap">{{ '$' + ((p.costoUnitarioUSD / (p.contenidoNeto || 1)) | number:'1.2-4') }} / {{ p.unidadMedida }}</span>
+            } @else {
+              <span class="text-xs font-semibold text-amber-700">Sin precio</span>
+            }
+          </ng-template>
+
           <ng-template appCell="stockUnidades" let-p>
             <span class="px-2.5 py-1 rounded-md font-mono font-bold text-xs bg-indigo-50 text-indigo-700 border border-indigo-200 inline-block whitespace-nowrap">
               {{ getStockEnUnidades(p.stockActual, p.contenidoNeto) | number:'1.0-2' }} und
@@ -1458,6 +1468,15 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
                 </span>
                 <button
                   type="button"
+                  *ngIf="puedeDespacharAgencia"
+                  (click)="abrirDespachoMasivo('agencia', itemAg.agencia)"
+                  class="btn btn-primary btn-sm inline-flex items-center gap-1.5 cursor-pointer"
+                  title="Despachar varios insumos de una sola vez a esta agencia">
+                  <i-lucide aria-hidden="true" name="package-plus" class="w-3.5 h-3.5"></i-lucide>
+                  <span>Despachar en masa</span>
+                </button>
+                <button
+                  type="button"
                   (click)="alternarFicha(agenciasExpandidas, itemAg.agencia.id)"
                   [attr.aria-expanded]="agenciasExpandidas.has(itemAg.agencia.id)"
                   class="btn btn-secondary btn-sm inline-flex items-center gap-1.5 cursor-pointer">
@@ -1652,6 +1671,15 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
                   <i-lucide aria-hidden="true" [name]="p.tieneAlerta ? 'alert-circle' : 'check-circle'" class="w-3.5 h-3.5"></i-lucide>
                   <span>{{ p.tieneAlerta ? (p.insumosCriticos + ' insumos en alerta') : 'Kit Óptimo' }}</span>
                 </span>
+                <button
+                  type="button"
+                  *ngIf="puedeDespacharPulidor"
+                  (click)="abrirDespachoMasivo('pulidor', p)"
+                  class="btn btn-primary btn-sm inline-flex items-center gap-1.5 cursor-pointer"
+                  title="Despachar varios insumos de una sola vez a este kit">
+                  <i-lucide aria-hidden="true" name="package-plus" class="w-3.5 h-3.5"></i-lucide>
+                  <span>Despachar en masa</span>
+                </button>
                 <button
                   type="button"
                   (click)="alternarFicha(pulidoresExpandidos, p.id)"
@@ -2836,6 +2864,27 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
               </p>
             </div>
 
+            @if (puedeVerPrecios) {
+              <!-- Precio del envase: con él los dashboards valoran el consumo y lo que falta para el óptimo -->
+              <div>
+                <label for="inv-precio" class="block font-bold text-slate-700 mb-1">Precio del envase (USD)</label>
+                <input id="inv-precio"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  [(ngModel)]="formProducto.costoUnitarioUSD"
+                  name="costoUnitarioUSD"
+                  placeholder="ej. 12.50"
+                  class="w-full p-2.5 rounded-xl border border-slate-200" />
+                <p class="text-xs text-slate-500 mt-1">
+                  Lo que cuesta un envase completo.
+                  @if ((formProducto.costoUnitarioUSD || 0) > 0 && (formProducto.contenidoNeto || 0) > 0) {
+                    Equivale a <b>{{ '$' + ((formProducto.costoUnitarioUSD / formProducto.contenidoNeto) | number:'1.2-4') }}</b> por {{ getSimboloUnidadSeleccionada() || 'unidad' }}.
+                  }
+                </p>
+              </div>
+            }
+
             <!-- Stocks obligatorios (ingreso en unidades físicas; se guarda en cantidad base) -->
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               <div>
@@ -3171,6 +3220,22 @@ import { StockUbicacionInsumosComponent } from './stock-ubicacion-insumos/stock-
           </div>
         </div>
       </div>
+
+      <!-- Despacho en masa a una agencia o a un kit de pulidor -->
+      <app-despacho-masivo-modal
+        *ngIf="despachoMasivo as dm"
+        [tipo]="dm.tipo"
+        [destinoId]="dm.id"
+        [destinoNombre]="dm.nombre"
+        [destinoSubtitulo]="dm.subtitulo"
+        [origenBodegaId]="origenMasivoPorDefecto()"
+        [origenLibre]="origenLibre"
+        [bodegas]="bodegasDisponibles"
+        [operaDesdeAgencia]="operaDesdeAgencia"
+        [miAgenciaId]="miAgenciaId"
+        (cerrar)="despachoMasivo = null"
+        (despachado)="alDespachoMasivo()">
+      </app-despacho-masivo-modal>
 
       <!-- ============================================================== -->
       <!-- MODAL: DESPACHAR SUMINISTRO (AGENCIA / BODEGA / PULIDOR)       -->
@@ -5188,7 +5253,7 @@ export class InventarioComponent implements OnInit, OnDestroy {
   }
 
   // ── Tabla de productos: páginas numeradas, orden, búsqueda y filtros en el servidor ──
-  readonly columnasProductos: TableColumn[] = [
+  private readonly columnasProductosBase: TableColumn[] = [
     { key: 'sku', label: 'Código SKU', sortable: true, defaultSort: 'asc' },
     { key: 'nombre', label: 'Producto', sortable: true, defaultSort: 'asc' },
     { key: 'tipo', label: 'Tipo', sortable: true, defaultSort: 'asc' },
@@ -5203,6 +5268,14 @@ export class InventarioComponent implements OnInit, OnDestroy {
     { key: 'estado', label: 'Estado', sortable: true, defaultSort: 'asc' },
     { key: 'acciones', label: 'Acciones', align: 'right', sticky: true },
   ];
+
+  /** Con `precios.ver` el catálogo suma el precio del envase justo después del contenido. */
+  get columnasProductos(): TableColumn[] {
+    if (!this.auth.puede('precios.ver')) return this.columnasProductosBase;
+    const i = this.columnasProductosBase.findIndex((c) => c.key === 'contenido') + 1;
+    return [...this.columnasProductosBase.slice(0, i), { key: 'precio', label: 'Precio (envase)', sortable: true, align: 'right' }, ...this.columnasProductosBase.slice(i)];
+  }
+
   readonly productosTabla = new TablaServidor<ProductoInsumo>((c) =>
     this.inventarioService.getProductosPagina({ ...c, ...this.dtoContextoProductos(), ...this.filtrosProductosServidor() }),
   );
@@ -6084,6 +6157,39 @@ export class InventarioComponent implements OnInit, OnDestroy {
     this.abrirDespachoAPulidor(pulidor, insumo);
   }
 
+  // ── Despacho en masa (todos los insumos de una agencia o de un kit en un solo envío) ──
+  despachoMasivo: { tipo: 'agencia' | 'pulidor'; id: string; nombre: string; subtitulo: string } | null = null;
+
+  public abrirDespachoMasivo(tipo: 'agencia' | 'pulidor', destino: any): void {
+    if (tipo === 'agencia') {
+      const a = destino?.agencia ?? destino;
+      this.despachoMasivo = { tipo, id: String(a.id), nombre: a.nombre, subtitulo: [a.codigo, a.region].filter(Boolean).join(' · ') };
+    } else {
+      this.despachoMasivo = {
+        tipo,
+        id: String(destino.id),
+        nombre: destino.nombre,
+        subtitulo: destino.tipoPulidor === 'PULIDOR_FIJO' ? `Pulidor fijo${destino.agenciaNombre ? ' · ' + destino.agenciaNombre : ''}` : 'Pulidor móvil',
+      };
+    }
+  }
+
+  /** Bodega de salida por defecto del despacho en masa: la misma que usa el despacho de un solo insumo. */
+  public origenMasivoPorDefecto(): string {
+    return String(this.despachoAgenciaForm.origenBodegaId || this.obtenerBodegaIdContexto() || this.obtenerIdBodegaCentral() || '');
+  }
+
+  public alDespachoMasivo(): void {
+    this.despachoMasivo = null;
+    this.stockRefreshToken++;
+    this.cargarProductos();
+    this.cargarDespachosPendientes();
+    this.cargarDespachosRechazadosSuperAdmin();
+    this.cargarStockAgencias();
+    this.cargarStockBodega(this.bodegaSeleccionadaId || this.origenMasivoPorDefecto());
+    if (this.operaDesdeAgencia) this.cargarInsumosPorServicios();
+  }
+
   // ==============================================================
   // REGISTRAR ENTRADA
   // ==============================================================
@@ -6700,6 +6806,7 @@ export class InventarioComponent implements OnInit, OnDestroy {
       stockMinimoAgencia: null,
       stockOptimoBodega: null,
       stockOptimoAgencia: null,
+      costoUnitarioUSD: null,
       estado: 1,
       descripcion: '',
       imagenUrl: '',
@@ -6728,6 +6835,7 @@ export class InventarioComponent implements OnInit, OnDestroy {
       stockMinimoAgencia: p.stockMinimoAgencia != null ? this.getStockEnUnidades(p.stockMinimoAgencia, cNeto) : null,
       stockOptimoBodega: p.stockOptimoBodega != null ? this.getStockEnUnidades(p.stockOptimoBodega, cNeto) : null,
       stockOptimoAgencia: p.stockOptimoAgencia != null ? this.getStockEnUnidades(p.stockOptimoAgencia, cNeto) : null,
+      costoUnitarioUSD: p.costoUnitarioUSD != null && Number(p.costoUnitarioUSD) > 0 ? Number(p.costoUnitarioUSD) : null,
       estado: (p.activo || p.estado === 1) ? 1 : 0,
       descripcion: p.descripcion || '',
       imagenUrl: p.imagenUrl || p.imagen || '',
@@ -6744,6 +6852,18 @@ export class InventarioComponent implements OnInit, OnDestroy {
 
   public puedeCambiarEstadoProducto(): boolean {
     return this.puedeGestionarCatalogos;
+  }
+
+  get puedeVerPrecios(): boolean {
+    return this.auth.puede('precios.ver');
+  }
+
+  /** El precio solo viaja si quien edita puede verlo (sin el permiso el servidor ni se lo envía) y se escribió uno. */
+  private precioParaGuardar(): { costoUnitarioUSD?: number } {
+    const precio = Number(this.formProducto.costoUnitarioUSD);
+    return this.auth.puede('precios.ver') && this.formProducto.costoUnitarioUSD != null && this.formProducto.costoUnitarioUSD !== '' && precio >= 0
+      ? { costoUnitarioUSD: precio }
+      : {};
   }
 
   public async guardarProducto(): Promise<void> {
@@ -6835,6 +6955,7 @@ export class InventarioComponent implements OnInit, OnDestroy {
         stockOptimoBodega: optBod,
         stockOptimoAgencia: optAge,
         estado: Number(this.formProducto.estado) === 1 ? 1 : 0,
+        ...this.precioParaGuardar(),
         descripcion: this.formProducto.descripcion,
         imagenUrl: this.formProducto.imagenUrl || this.formProducto.imagen || undefined,
         imagen: this.formProducto.imagen || this.formProducto.imagenUrl || undefined,
@@ -6864,6 +6985,7 @@ export class InventarioComponent implements OnInit, OnDestroy {
         stockMinimoAgencia: minAge,
         stockOptimoBodega: optBod,
         stockOptimoAgencia: optAge,
+        ...this.precioParaGuardar(),
         descripcion: this.formProducto.descripcion,
         imagenUrl: this.formProducto.imagenUrl || this.formProducto.imagen || undefined,
         imagen: this.formProducto.imagen || this.formProducto.imagenUrl || undefined,

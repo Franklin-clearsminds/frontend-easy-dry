@@ -8,6 +8,7 @@ import { AuthService } from '../../../core/services/auth.service';
 import { InformesInspeccionService } from '../../../core/services/informes-inspeccion.service';
 import { StorageUploadService } from '../../../core/services/storage-upload.service';
 import { ToastService } from '../../../shared/services/toast.service';
+import { ConfirmarService } from '../../../shared/services/confirmar.service';
 import { TablaServidor } from '../../../core/utils/tabla-servidor';
 import { DataTableCellDirective, DataTableComponent, TableColumn } from '../../../shared/components/data-table/data-table.component';
 import { ModalComponent } from '../../../shared/components/modal/modal.component';
@@ -27,7 +28,7 @@ import { HistorialInformeComponent } from './historial-informe.component';
 
 /**
  * Informes de inspección: listado con indicadores, filtros y acciones. Quien no puede auditar (líder, lavador, pulidor) lo ve
- * en solo lectura y solo con los informes ya aprobados de su agencia; el servidor aplica el alcance y los permisos.
+ * en solo lectura y solo con los informes ya guardados de su agencia; el servidor aplica el alcance y los permisos.
  */
 @Component({
   selector: 'app-informes',
@@ -43,8 +44,8 @@ import { HistorialInformeComponent } from './historial-informe.component';
           </div>
           <h1 class="text-2xl font-extrabold text-slate-900 font-outfit">Informes de Inspección</h1>
           <p class="text-slate-500 text-xs mt-1">
-            @if (soloLectura) { El resultado de las inspecciones de tu agencia (informes aprobados). }
-            @else { Visitas de inspección a las agencias: novedades, actividades, planes de acción, calificación y aprobación. }
+            @if (soloLectura) { El resultado de las inspecciones de tu agencia (informes guardados). }
+            @else { Visitas de inspección a las agencias: novedades, actividades, planes de acción, calificación y firmas. }
           </p>
         </div>
         @if (puedeCrear) {
@@ -58,8 +59,8 @@ import { HistorialInformeComponent } from './historial-informe.component';
         <div class="grid grid-cols-2 lg:grid-cols-5 gap-4">
           <app-stat-card title="Total de inspecciones" [value]="resumen.total" icon="file-search" variant="primary" subtitle="En tu alcance"></app-stat-card>
           <app-stat-card title="Este mes" [value]="resumen.esteMes" icon="calendar" variant="primary" subtitle="Inspecciones del mes"></app-stat-card>
-          <app-stat-card title="Pendientes de aprobación" [value]="resumen.pendientesAprobacion" icon="clock" variant="warning" subtitle="En revisión"></app-stat-card>
-          <app-stat-card title="Aprobados" [value]="resumen.aprobados" icon="check-circle" variant="success" subtitle="Aprobados o cerrados"></app-stat-card>
+          <app-stat-card title="Borradores" [value]="resumen.borradores" icon="clock" variant="warning" subtitle="Aún sin firmar ni guardar"></app-stat-card>
+          <app-stat-card title="Guardados" [value]="resumen.guardados" icon="check-circle" variant="success" [subtitle]="(resumen.porAprobar ?? 0) + ' por aprobar'"></app-stat-card>
           <app-stat-card title="Planes de acción pendientes" [value]="resumen.planesPendientes" icon="clipboard-list" variant="warning" subtitle="Pendientes y en proceso"></app-stat-card>
         </div>
       }
@@ -137,6 +138,7 @@ import { HistorialInformeComponent } from './historial-informe.component';
         </ng-template>
         <ng-template appCell="estado" let-i>
           <span class="badge" [ngClass]="claseEstado(i.estado)">{{ nombreEstado(i.estado) }}</span>
+          @if (i.estado === 'GUARDADO') { <span class="badge ml-1" [ngClass]="i.aprobado ? 'badge-ok' : 'badge-warn'">{{ i.aprobado ? 'Aprobado' : 'Por aprobar' }}</span> }
         </ng-template>
         <ng-template appCell="calificacion" let-i>
           @if (i.calificacion) { <span class="badge" [ngClass]="claseCalificacion(i.calificacion)">{{ nombreCalificacion(i.calificacion) }}</span> }
@@ -145,6 +147,9 @@ import { HistorialInformeComponent } from './historial-informe.component';
         <ng-template appCell="acciones" let-i>
           <div class="flex items-center justify-end gap-0.5">
             <a [routerLink]="['/informes-inspeccion', i.id]" class="btn-icon" aria-label="Ver detalle" title="Ver detalle"><i-lucide name="eye" class="w-4 h-4" aria-hidden="true"></i-lucide></a>
+            @if (puedeAprobarFila(i)) {
+              <a [routerLink]="['/informes-inspeccion', i.id]" class="btn btn-primary btn-sm ml-1" title="Revisar el informe y aprobarlo firmando la recepción"><i-lucide name="check-circle" class="w-3.5 h-3.5" aria-hidden="true"></i-lucide> Revisar y aprobar</a>
+            }
             @if (puedeEditarFila(i)) {
               <a [routerLink]="['/informes-inspeccion', i.id, 'editar']" class="btn-icon" [attr.aria-label]="'Continuar borrador'" title="Editar / continuar borrador"><i-lucide name="pencil" class="w-4 h-4" aria-hidden="true"></i-lucide></a>
             }
@@ -169,14 +174,15 @@ export class InformesComponent implements OnInit, OnDestroy {
   private readonly api = inject(InformesInspeccionService);
   private readonly auth = inject(AuthService);
   private readonly toast = inject(ToastService);
+  private readonly confirmar = inject(ConfirmarService);
   private readonly storage = inject(StorageUploadService);
   private readonly router = inject(Router);
 
   readonly estados = ESTADOS_INFORME;
   readonly calificaciones = CALIFICACIONES;
   readonly puedeCrear = this.auth.puede('informes.crear');
-  /** Sin la casilla de crear ni la de revisar, el usuario solo ve resultados. */
-  readonly soloLectura = !this.auth.puede('informes.crear') && !this.auth.puede('informes.revisar');
+  /** Sin la casilla de crear ni la de administrar, el usuario solo ve resultados. */
+  readonly soloLectura = !this.auth.puede('informes.crear') && !this.auth.puede('informes.administrar');
 
   resumen: ResumenInformes | null = null;
   opciones: OpcionesInformes | null = null;
@@ -232,11 +238,15 @@ export class InformesComponent implements OnInit, OnDestroy {
 
   /** Mismas reglas que aplica el servidor (que es quien decide de verdad). */
   puedeEditarFila(i: InformeFila): boolean {
-    return i.estado === 'BORRADOR' && ((this.esMio(i) && this.puedeCrear) || this.auth.puede('informes.revisar'));
+    return i.estado === 'BORRADOR' && ((this.esMio(i) && this.puedeCrear) || this.auth.puede('informes.administrar'));
+  }
+
+  puedeAprobarFila(i: InformeFila): boolean {
+    return i.estado === 'GUARDADO' && !i.aprobado && this.auth.puede('informes.aprobar');
   }
 
   puedeEliminarFila(i: InformeFila): boolean {
-    return i.estado === 'BORRADOR' && this.auth.puede('informes.eliminar') && (this.esMio(i) || this.auth.puede('informes.revisar'));
+    return i.estado === 'BORRADOR' && this.auth.puede('informes.eliminar') && (this.esMio(i) || this.auth.puede('informes.administrar'));
   }
 
   async descargarPdf(i: InformeFila): Promise<void> {
@@ -260,7 +270,8 @@ export class InformesComponent implements OnInit, OnDestroy {
   }
 
   async eliminar(i: InformeFila): Promise<void> {
-    if (!window.confirm(`¿Eliminar el borrador ${i.numero}? Queda registrado en el historial y no se podrá recuperar desde la pantalla.`)) return;
+    const ok = await this.confirmar.pedir({ titulo: 'Eliminar borrador', mensaje: `¿Eliminar el borrador ${i.numero}? Queda registrado en el historial y no se podrá recuperar desde la pantalla.`, textoConfirmar: 'Eliminar', tipo: 'peligro', icono: 'trash-2' });
+    if (!ok) return;
     try {
       await firstValueFrom(this.api.eliminar(i.id));
       this.toast.success('Borrador eliminado', `${i.numero} se eliminó.`);

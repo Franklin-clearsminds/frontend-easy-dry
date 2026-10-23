@@ -7,6 +7,7 @@ import {
   GuardarInforme,
   InformeDetalle,
   InformeFila,
+  OpcionSello,
   OpcionesInformes,
   PlanAccion,
   ResumenInformes,
@@ -63,20 +64,28 @@ export class InformesInspeccionService {
     return this.http.post<InformeDetalle>(apiUrl(`${this.base}/update`), datos);
   }
 
-  enviar(id: string): Observable<InformeDetalle> {
-    return this.http.post<InformeDetalle>(apiUrl(`${this.base}/enviar`), { id });
+  /** Guarda el informe de forma definitiva: exige la calificación, el jefe de taller validado y las cuatro firmas. */
+  guardar(id: string): Observable<InformeDetalle> {
+    return this.http.post<InformeDetalle>(apiUrl(`${this.base}/guardar`), { id });
   }
 
-  reabrir(id: string): Observable<InformeDetalle> {
-    return this.http.post<InformeDetalle>(apiUrl(`${this.base}/reabrir`), { id });
+  /** Jefes de taller que se pueden elegir al calificar. */
+  getSellos(): Observable<OpcionSello[]> {
+    return this.http.post<OpcionSello[]>(apiUrl(`${this.base}/sellos/opciones`), {});
   }
 
-  revisar(id: string, decision: 'APROBAR' | 'RECHAZAR', motivo?: string): Observable<InformeDetalle> {
-    return this.http.post<InformeDetalle>(apiUrl(`${this.base}/revisar`), { id, decision, motivo });
+  /** Valida al jefe de taller con su contraseña: habilita la sección de firmas. */
+  validarSello(informeId: string, selloId: string, password: string): Observable<InformeDetalle> {
+    return this.http.post<InformeDetalle>(apiUrl(`${this.base}/sello/validar`), { informeId, selloId, password });
   }
 
-  cerrar(id: string): Observable<InformeDetalle> {
-    return this.http.post<InformeDetalle>(apiUrl(`${this.base}/cerrar`), { id });
+  firmar(informeId: string, tipo: string, imagen: string, nombre?: string): Observable<InformeDetalle> {
+    return this.http.post<InformeDetalle>(apiUrl(`${this.base}/firmar`), { informeId, tipo, imagen, nombre });
+  }
+
+  /** Aprueba un informe guardado firmando la recepción (solo Admin y Super Admin). */
+  aprobar(informeId: string, imagen: string): Observable<InformeDetalle> {
+    return this.http.post<InformeDetalle>(apiUrl(`${this.base}/aprobar`), { informeId, imagen });
   }
 
   eliminar(id: string): Observable<{ success: boolean }> {

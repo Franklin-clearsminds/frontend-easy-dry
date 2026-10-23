@@ -7,6 +7,8 @@ import { CHART_CATEGORICAL } from '../../theme/colors';
 export interface DistributionItem {
   nombre: string;
   valor: number;
+  /** Monto en USD asociado al ítem (por ejemplo, lo vendido de ese servicio); si viene, se muestra junto al valor. */
+  monto?: number;
   color?: string;
 }
 
@@ -46,6 +48,7 @@ export interface DistributionItem {
                     <span class="w-2.5 h-2.5 rounded-full shrink-0" [style.background]="colorDe(it, i)"></span>
                     <span class="text-xs font-semibold text-slate-700 truncate flex-1" [title]="it.nombre">{{ it.nombre }}</span>
                     <span class="text-xs font-bold text-slate-900 shrink-0">{{ it.valor | number:'1.0-2' }}</span>
+                    @if (it.monto != null) { <span class="text-[11px] font-bold text-emerald-700 shrink-0">{{ '$' + (it.monto | number:'1.2-2') }}</span> }
                     <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 shrink-0">{{ porcentaje(it.valor) }}%</span>
                   </div>
                   <div class="mt-1.5 h-1 rounded-full bg-slate-100 overflow-hidden">
@@ -72,6 +75,7 @@ export interface DistributionItem {
                     <span class="w-2.5 h-2.5 rounded-full shrink-0" [style.background]="colorDe(it, i)"></span>
                     <span class="text-sm font-semibold text-slate-700 truncate flex-1" [title]="it.nombre">{{ it.nombre }}</span>
                     <span class="text-sm font-bold text-slate-900 shrink-0">{{ it.valor | number:'1.0-2' }}</span>
+                    @if (it.monto != null) { <span class="text-xs font-bold text-emerald-700 shrink-0">{{ '$' + (it.monto | number:'1.2-2') }}</span> }
                     <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 shrink-0">{{ porcentaje(it.valor) }}%</span>
                   </div>
                   <div class="mt-1.5 h-1 rounded-full bg-slate-100 overflow-hidden">
@@ -81,6 +85,11 @@ export interface DistributionItem {
               }
             </div>
           </div>
+        }
+        @if (hayMonto) {
+          <p class="mt-3 pt-3 border-t border-slate-100 text-xs font-bold text-slate-600 flex items-center justify-between">
+            <span>Total en dólares</span><span class="text-emerald-700">{{ '$' + (totalMonto | number:'1.2-2') }}</span>
+          </p>
         }
       } @else {
         <div class="py-10 text-center">
@@ -102,6 +111,14 @@ export class DistributionCardComponent {
 
   get total(): number {
     return this.items.reduce((sum, it) => sum + (Number(it.valor) || 0), 0);
+  }
+
+  get hayMonto(): boolean {
+    return this.items.some((it) => it.monto != null);
+  }
+
+  get totalMonto(): number {
+    return this.items.reduce((sum, it) => sum + (Number(it.monto) || 0), 0);
   }
 
   /** Gradiente cónico con un segmento por ítem, en orden. */

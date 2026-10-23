@@ -30,7 +30,7 @@ type Pestana = 'resumen' | 'auditorias' | 'acciones' | 'historial';
 
 /**
  * Auditorías 5S: dashboard, listado, seguimiento de acciones correctivas y comparación histórica. Quien no puede auditar (líder,
- * lavador, pulidor) ve el resultado de las auditorías finalizadas de su agencia, sin poder crear ni modificar nada.
+ * lavador, pulidor) ve el resultado de las auditorías guardadas de su agencia, sin poder crear ni modificar nada.
  */
 @Component({
   selector: 'app-auditorias5s',
@@ -79,7 +79,7 @@ type Pestana = 'resumen' | 'auditorias' | 'acciones' | 'historial';
       <!-- Resumen -->
       @if (pestana === 'resumen' && resumen) {
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <app-stat-card title="Auditorías realizadas" [value]="resumen.realizadas" icon="clipboard-check" variant="primary" subtitle="Finalizadas o cerradas"></app-stat-card>
+          <app-stat-card title="Auditorías realizadas" [value]="resumen.realizadas" icon="clipboard-check" variant="primary" subtitle="Guardadas"></app-stat-card>
           <app-stat-card title="Cumplimiento promedio" [value]="resumen.promedioGeneral === null ? '—' : resumen.promedioGeneral + '%'" icon="target" variant="primary" subtitle="De todas las auditorías"></app-stat-card>
           <app-stat-card title="Auditorías del mes" [value]="resumen.delMes" icon="calendar" variant="primary" subtitle="Del mes en curso"></app-stat-card>
           <app-stat-card title="Acciones correctivas pendientes" [value]="resumen.accionesPendientes" icon="alert-triangle" variant="warning" subtitle="Abiertas en las agencias"></app-stat-card>
@@ -90,10 +90,10 @@ type Pestana = 'resumen' | 'auditorias' | 'acciones' | 'historial';
           <div class="rounded-2xl border-2 border-rose-300 bg-rose-50 p-4"><p class="text-[11px] font-bold uppercase text-rose-800">Agencias en rojo</p><p class="text-3xl font-extrabold text-rose-800">{{ resumen.agenciasRojo }}</p></div>
         </div>
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <app-chart-card title="Cumplimiento por agencia" subtitle="Última auditoría de cada área" type="bar" [horizontal]="true" [data]="graficaAgencias" [options]="opcionesBarraH" mensajeVacio="Aún no hay auditorías finalizadas."></app-chart-card>
-          <app-chart-card title="Evolución mensual" subtitle="Cumplimiento promedio de las auditorías de cada mes" type="line" [data]="graficaEvolucion" [options]="opcionesLinea" mensajeVacio="Aún no hay auditorías finalizadas."></app-chart-card>
-          <app-chart-card title="Promedio por cada S" subtitle="% de cumplimiento promedio de cada S" type="bar" [data]="graficaS" [options]="opcionesPct" mensajeVacio="Aún no hay auditorías finalizadas."></app-chart-card>
-          <app-chart-card title="Agencias por semáforo" subtitle="Según su última auditoría" type="doughnut" [data]="graficaSemaforo" mensajeVacio="Aún no hay auditorías finalizadas."></app-chart-card>
+          <app-chart-card title="Cumplimiento por agencia" subtitle="Última auditoría de cada área" type="bar" [horizontal]="true" [data]="graficaAgencias" [options]="opcionesBarraH" mensajeVacio="Aún no hay auditorías guardadas."></app-chart-card>
+          <app-chart-card title="Evolución mensual" subtitle="Cumplimiento promedio de las auditorías de cada mes" type="line" [data]="graficaEvolucion" [options]="opcionesLinea" mensajeVacio="Aún no hay auditorías guardadas."></app-chart-card>
+          <app-chart-card title="Promedio por cada S" subtitle="% de cumplimiento promedio de cada S" type="bar" [data]="graficaS" [options]="opcionesPct" mensajeVacio="Aún no hay auditorías guardadas."></app-chart-card>
+          <app-chart-card title="Agencias por semáforo" subtitle="Según su última auditoría" type="doughnut" [data]="graficaSemaforo" mensajeVacio="Aún no hay auditorías guardadas."></app-chart-card>
         </div>
       }
 
@@ -170,7 +170,7 @@ type Pestana = 'resumen' | 'auditorias' | 'acciones' | 'historial';
             <select id="h-ag" class="field" [(ngModel)]="hAgencia" (ngModelChange)="comparar()"><option value="">Selecciona…</option>@for (x of opciones?.agencias ?? []; track x.id) { <option [value]="x.id">{{ x.nombre }}</option> }</select></div>
           <div><label class="field-label" for="h-fo">Formato</label>
             <select id="h-fo" class="field" [(ngModel)]="hFormato" (ngModelChange)="comparar()">@for (x of catalogo?.formatos ?? []; track x.id) { <option [value]="x.id">{{ etiqueta(x.id) }}</option> }</select></div>
-          <p class="text-xs text-slate-500 sm:col-span-2">Solo cuentan las auditorías finalizadas de la misma agencia y formato.</p>
+          <p class="text-xs text-slate-500 sm:col-span-2">Solo cuentan las auditorías guardadas de la misma agencia y formato.</p>
         </div>
         @if (errorHistorial) { <div class="estado-error" role="alert">{{ errorHistorial }}</div> }
         @if (hAgencia) {
@@ -199,7 +199,7 @@ type Pestana = 'resumen' | 'auditorias' | 'acciones' | 'historial';
               </table>
             </div>
           } @else if (!cargandoHistorial) {
-            <p class="text-sm text-slate-500 bg-white rounded-2xl border border-slate-100 p-6 text-center">Aún no hay auditorías finalizadas de esta agencia y formato para comparar.</p>
+            <p class="text-sm text-slate-500 bg-white rounded-2xl border border-slate-100 p-6 text-center">Aún no hay auditorías guardadas de esta agencia y formato para comparar.</p>
           }
         } @else {
           <p class="text-sm text-slate-500 bg-white rounded-2xl border border-slate-100 p-6 text-center">Elige una agencia para comparar sus auditorías.</p>
@@ -308,7 +308,7 @@ export class Auditorias5sComponent implements OnInit, OnDestroy {
 
   puedeEditarFila(a: Auditoria5sFila): boolean {
     const mia = String(this.auth.getCurrentUser()?.id) === a.auditorId;
-    return (a.estado === 'BORRADOR' || a.estado === 'EN_PROCESO') && ((mia && this.puedeCrear) || this.auth.puede('inspecciones.verificar'));
+    return a.estado === 'BORRADOR' && ((mia && this.puedeCrear) || this.auth.puede('inspecciones.verificar'));
   }
 
   // ── Gráficas (los datos vienen del servidor) ──

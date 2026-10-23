@@ -294,7 +294,7 @@ import { EvidenciasEnvioComponent } from './evidencias-envio.component';
       <app-resolver-envio [envio]="envioResolviendo" (closed)="envioResolviendo = null" (resuelto)="alResolver()" />
 
       <!-- MODAL CONFIRMAR / RECHAZAR RECEPCIÓN: la cantidad que se recibió y la observación -->
-      <app-modal size="md"
+      <app-modal size="lg"
         [isOpen]="modalConfirmacionOpen"
         [title]="modoRechazo ? 'Rechazar Envío' : 'Confirmar Recepción'"
         [icon]="modoRechazo ? 'alert-triangle' : 'check-circle'"
@@ -309,26 +309,53 @@ import { EvidenciasEnvioComponent } from './evidencias-envio.component';
                 Puedes recibir menos de lo enviado; si es parcial, la observación es obligatoria.
               }
             </p>
-            <div class="space-y-2">
-              @for (p of envioSeleccionadoConfirmacion.productos || []; track $index) {
-                <div class="p-2.5 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-between gap-3">
-                  <div class="min-w-0">
-                    <p class="font-bold text-slate-800 truncate">{{ p.nombreProducto }}</p>
-                    <p class="text-xs text-slate-500">Enviado: {{ p.cantidad }} und</p>
-                  </div>
-                  <div class="shrink-0">
-                    <label for="env-f2" class="block text-xs font-bold text-slate-500 mb-0.5">Recibido (und)</label>
-                    <input id="env-f2"
-                      type="number"
-                      min="0"
-                      step="1"
-                      [max]="p.cantidad"
-                      [(ngModel)]="cantidadesRecepcion[$index]"
-                      [name]="'cantRec' + $index"
-                      class="w-20 p-1.5 rounded-lg border border-slate-200 font-mono font-bold text-slate-800" />
-                  </div>
-                </div>
-              }
+            <!-- Todos los insumos del envío en una sola lista: lo enviado, lo que llegó y la diferencia -->
+            <div class="flex items-center justify-between gap-2 flex-wrap">
+              <p class="font-bold text-slate-700">
+                {{ envioSeleccionadoConfirmacion.productos.length }} insumos ·
+                <span class="font-mono">{{ totalRecibidoRecepcion }}</span> de <span class="font-mono">{{ totalEnviadoRecepcion }}</span> und recibidas
+              </p>
+              <div class="flex items-center gap-2">
+                <button type="button" (click)="recibirTodoRecepcion()" class="px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 font-bold cursor-pointer">Recibir todo</button>
+                <button type="button" (click)="nadaRecibidoRecepcion()" class="px-2.5 py-1.5 rounded-lg bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 font-bold cursor-pointer">Nada recibido</button>
+              </div>
+            </div>
+            <div class="rounded-xl border border-slate-200 overflow-hidden max-h-[45dvh] overflow-y-auto">
+              <table class="w-full text-xs">
+                <caption class="sr-only">Insumos del envío con la cantidad enviada y la recibida</caption>
+                <thead class="bg-slate-50 sticky top-0 z-10 text-[11px] uppercase tracking-wide text-slate-500">
+                  <tr>
+                    <th scope="col" class="text-left font-bold px-3 py-2">Insumo</th>
+                    <th scope="col" class="text-right font-bold px-3 py-2">Enviado</th>
+                    <th scope="col" class="text-right font-bold px-3 py-2 w-28">Recibido</th>
+                    <th scope="col" class="text-right font-bold px-3 py-2">Diferencia</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                  @for (p of envioSeleccionadoConfirmacion.productos || []; track $index) {
+                    <tr>
+                      <td class="px-3 py-2 font-bold text-slate-800">{{ p.nombreProducto }}</td>
+                      <td class="px-3 py-2 text-right font-mono text-slate-600">{{ p.cantidad }} und</td>
+                      <td class="px-3 py-2 text-right">
+                        <input
+                          type="number"
+                          min="0"
+                          step="1"
+                          [max]="p.cantidad"
+                          [attr.aria-label]="'Cantidad recibida de ' + p.nombreProducto"
+                          [(ngModel)]="cantidadesRecepcion[$index]"
+                          (blur)="ajustarRecepcion($index)"
+                          [name]="'cantRec' + $index"
+                          class="w-20 p-1.5 rounded-lg border border-slate-200 text-right font-mono font-bold text-slate-800" />
+                      </td>
+                      <td class="px-3 py-2 text-right font-mono font-bold"
+                        [ngClass]="diferenciaRecepcion($index) < 0 ? 'text-rose-600' : 'text-slate-400'">
+                        {{ diferenciaRecepcion($index) < 0 ? diferenciaRecepcion($index) : '—' }}
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
             </div>
             <div>
               <label for="env-f3" class="block font-bold text-slate-700 mb-1">
@@ -663,6 +690,36 @@ export class EnviosComponent implements OnInit, OnDestroy {
     const env = this.envioSeleccionadoConfirmacion;
     if (!env?.productos?.length) return false;
     return env.productos.some((p, i) => Number(this.cantidadesRecepcion[i] ?? p.cantidad) < Number(p.cantidad));
+  }
+
+  get totalEnviadoRecepcion(): number {
+    return (this.envioSeleccionadoConfirmacion?.productos || []).reduce((s, p) => s + (Number(p.cantidad) || 0), 0);
+  }
+
+  get totalRecibidoRecepcion(): number {
+    return (this.envioSeleccionadoConfirmacion?.productos || []).reduce((s, p, i) => s + (Number(this.cantidadesRecepcion[i] ?? p.cantidad) || 0), 0);
+  }
+
+  /** Cuánto falta (negativo) de un insumo respecto de lo enviado. */
+  diferenciaRecepcion(i: number): number {
+    const p = this.envioSeleccionadoConfirmacion?.productos?.[i];
+    return p ? (Number(this.cantidadesRecepcion[i] ?? p.cantidad) || 0) - (Number(p.cantidad) || 0) : 0;
+  }
+
+  recibirTodoRecepcion(): void {
+    this.cantidadesRecepcion = (this.envioSeleccionadoConfirmacion?.productos || []).map((p) => Number(p.cantidad) || 0);
+  }
+
+  nadaRecibidoRecepcion(): void {
+    this.cantidadesRecepcion = (this.envioSeleccionadoConfirmacion?.productos || []).map(() => 0);
+  }
+
+  /** Deja lo recibido entre 0 y lo enviado, en unidades completas. */
+  ajustarRecepcion(i: number): void {
+    const p = this.envioSeleccionadoConfirmacion?.productos?.[i];
+    if (!p) return;
+    const n = Math.round(Number(this.cantidadesRecepcion[i]));
+    this.cantidadesRecepcion[i] = Number.isFinite(n) ? Math.min(Math.max(n, 0), Number(p.cantidad) || 0) : 0;
   }
 
   nuevoEnvioForm = {
@@ -1155,7 +1212,13 @@ export class EnviosComponent implements OnInit, OnDestroy {
       cantidadRecibida: Number(this.cantidadesRecepcion[i] ?? p.cantidad) || 0,
     })).filter((c) => c.detalleId);
 
+    const enviadoPorDetalle = new Map((env.productos || []).map((p: any) => [String(p.detalleId || p.id || ''), Number(p.cantidad) || 0]));
     for (const c of cantidadesRecibidas) {
+      const enviado = enviadoPorDetalle.get(c.detalleId) ?? 0;
+      if (c.cantidadRecibida < 0 || c.cantidadRecibida > enviado) {
+        this.toastService.warning('Cantidad inválida', `Lo recibido de cada insumo debe estar entre 0 y lo enviado (${enviado} und).`);
+        return;
+      }
       if (Math.abs(c.cantidadRecibida - Math.round(c.cantidadRecibida)) > 1e-9) {
         this.toastService.warning('Cantidad inválida', 'La recepción debe ser en unidades completas (enteros).');
         return;

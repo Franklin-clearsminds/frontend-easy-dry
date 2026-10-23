@@ -16,6 +16,8 @@ export enum Role {
   LIDER = 'LIDER',
   /** Reemplazo temporal de un líder operador dentro de su región. */
   BACKUP = 'BACKUP',
+  /** Lavador de una bahía que cubre al líder: mismas capacidades del líder en su agencia (uno por agencia). */
+  AUXILIAR = 'AUXILIAR',
   /** Lavador de bahía — registro en BD para constancia y trazabilidad de productividad */
   LAVADOR = 'LAVADOR',
   COORD_SERVICIOS_ESPECIALES = 'COORD_SERVICIOS_ESPECIALES',
@@ -98,6 +100,7 @@ export const DEFAULT_ROUTE_POR_ROL: Record<string, string> = {
   [Role.COORD_COMERCIAL]: '/dashboard',
   [Role.LIDER]: '/servicios',
   [Role.BACKUP]: '/servicios',
+  [Role.AUXILIAR]: '/servicios',
   [Role.LAVADOR]: '/informes-inspeccion',
   [Role.COORD_SERVICIOS_ESPECIALES]: '/dashboard',
   [Role.PULIDOR]: '/servicios',
@@ -266,6 +269,7 @@ export const ROLE_LABELS: Record<string, string> = {
   [Role.COORD_COMERCIAL]: 'Coordinador Comercial',
   [Role.LIDER]: 'Líder Operador',
   [Role.BACKUP]: 'Backup',
+  [Role.AUXILIAR]: 'Auxiliar del líder',
   [Role.LAVADOR]: 'Lavador',
   [Role.COORD_SERVICIOS_ESPECIALES]: 'Coordinador de Servicios Especiales',
   [Role.PULIDOR]: 'Pulidor',
@@ -286,6 +290,7 @@ export const ROLE_COLORS: Record<string, string> = {
   [Role.TECNICO]: 'bg-orange-100 text-orange-800 border-orange-200',
   [Role.LIDER]: 'bg-teal-100 text-teal-800 border-teal-200',
   [Role.BACKUP]: 'bg-amber-100 text-amber-800 border-amber-200',
+  [Role.AUXILIAR]: 'bg-lime-100 text-lime-800 border-lime-200',
   [Role.LAVADOR]: 'bg-emerald-100 text-emerald-800 border-emerald-200',
   [Role.COORD_SERVICIOS_ESPECIALES]: 'bg-cyan-100 text-cyan-800 border-cyan-200',
   [Role.PULIDOR]: 'bg-cyan-100 text-cyan-800 border-cyan-200',
@@ -302,6 +307,7 @@ export const ROLES_OFICIALES_NO_ELIMINABLES: string[] = [
   Role.TECNICO,
   Role.LIDER,
   Role.BACKUP,
+  Role.AUXILIAR,
   Role.LAVADOR,
   Role.COORD_COMERCIAL,
   Role.COORD_SERVICIOS_ESPECIALES,

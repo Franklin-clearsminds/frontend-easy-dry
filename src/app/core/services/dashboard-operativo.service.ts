@@ -8,7 +8,7 @@ import {
   DashboardDistribuidorData,
   ResumenEjecutivoData
 } from '../models/dashboard.model';
-import { CHART_COLORS, CHART_SERIES, coloresCategoricos, interpolarHex } from '../../shared/theme/colors';
+import { CHART_COLORS, CHART_SERIES, coloresCategoricos, coloresGravedad, interpolarHex } from '../../shared/theme/colors';
 import { ToastService } from '../../shared/services/toast.service';
 import { AlertaStockVM } from '../models/alerta-stock.model';
 
@@ -23,6 +23,12 @@ import { AlertaStockVM } from '../models/alerta-stock.model';
 export class DashboardOperativoService {
   private http = inject(HttpClient);
   private toastService = inject(ToastService);
+
+  /** Pinta un gráfico de gravedad con el semáforo (Crítica rojo → Baja verde) en vez de la paleta por orden. */
+  private conSemaforoGravedad(chart: any): any {
+    if (!chart?.datasets?.length) return chart;
+    return { ...chart, datasets: chart.datasets.map((d: any) => ({ ...d, backgroundColor: coloresGravedad(chart.labels ?? []) })) };
+  }
 
   private avisarErrorCarga(mensaje: string, err: any): void {
     console.error(mensaje, err);
@@ -138,18 +144,6 @@ export class DashboardOperativoService {
         // el control Top N pueda mostrar cualquiera de los dos lados; `desglose` es el respaldo del backend previo.
         const filasJerarquia: any[] = data?.jerarquia?.desgloseGrafico ?? data?.jerarquia?.desglose ?? [];
 
-        // Rankings completos por agencia para el control Top N del Top Agencias. El de ganancia colorea cada
-        // barra según su signo, así el orden ascendente deja ver de un golpe las agencias en pérdida.
-        const filasGanancia: any[] = data?.rankingsAgencias?.ganancia ?? [];
-        const agenciasRankGanancia = filasGanancia.length ? {
-          labels: filasGanancia.map((f: any) => f.nombre),
-          datasets: [{
-            label: 'Ganancia neta USD',
-            data: filasGanancia.map((f: any) => Number(f.valor) || 0),
-            backgroundColor: filasGanancia.map((f: any) => (Number(f.valor) || 0) >= 0 ? CHART_COLORS.green : CHART_COLORS.rose),
-          }],
-        } : null;
-
 
 
         return {
@@ -167,8 +161,9 @@ export class DashboardOperativoService {
           topAgenciasProductivas: toBarChart(data?.topAgenciasProductivas, 'nombre', 'cantidad', 'Servicios'),
           // Rankings completos (sin recortar) para el control Top 5 / Top 10 en orden ascendente o descendente.
           agenciasRankServicios: toBarChart(data?.rankingsAgencias?.servicios, 'nombre', 'valor', 'Servicios'),
-          agenciasRankGanancia,
-          agenciasRankCosto: toBarChart(data?.rankingsAgencias?.costoIncidentes, 'nombre', 'valor', 'Costo USD'),
+          agenciasRankGastoInsumos: toBarChart(data?.rankingsAgencias?.gastoInsumos, 'nombre', 'valor', 'Gasto en insumos USD'),
+          agenciasRankGastoMantenimientos: toBarChart(data?.rankingsAgencias?.gastoMantenimientos, 'nombre', 'valor', 'Gasto en mantenimientos USD'),
+          agenciasRankCosto: toBarChart(data?.rankingsAgencias?.costoIncidentes, 'nombre', 'valor', 'Gasto en incidencias USD'),
           agenciasRankIncidentes: toBarChart(data?.topAgenciasIncidentes, 'nombre', 'total', 'Incidentes'),
           // Mix separado: generales vs especiales (top 5 cada uno).
           mixGenerales: toDonutChart(data?.mixGenerales, 'nombre', 'cantidad'),
@@ -177,20 +172,16 @@ export class DashboardOperativoService {
           topColores: toBarChart(data?.topColores, 'nombre', 'cantidad', 'Frecuencia'),
           topMarcasModelos: toBarChart(data?.topMarcasModelos, 'nombre', 'cantidad', 'Frecuencia'),
 
-          // Agencias: Rentabilidad y reparaciones. Los insumos NO se apilan aquí: su costo del catálogo es por
-          // envase y el consumo está en unidad base, así que el monto inflaba la ganancia neta (medido: 340%
-          // de los ingresos). El consumo de insumos se sigue viendo en unidades en sus propias tarjetas.
+          // Agencias: ingresos frente a los gastos en insumos, incidencias y mantenimientos. El servidor valora los
+          // insumos con el costo por unidad base (precio del envase / contenido neto).
           topAgenciasRentabilidad: data?.topAgenciasRentabilidad ? {
             labels: data.topAgenciasRentabilidad.map((x: any) => truncateLabel(x.nombre)),
             datasets: [
               { label: 'Ingresos', stack: 'ingresos', data: data.topAgenciasRentabilidad.map((x: any) => x.ingresos), backgroundColor: CHART_COLORS.green },
-              { label: 'Reparaciones (fallas)', stack: 'gastos', data: data.topAgenciasRentabilidad.map((x: any) => x.costoIncidentes ?? 0), backgroundColor: CHART_COLORS.rose },
+              { label: 'Insumos', stack: 'gastos', data: data.topAgenciasRentabilidad.map((x: any) => x.costoInsumos ?? 0), backgroundColor: CHART_COLORS.amber },
+              { label: 'Incidencias (fallas)', stack: 'gastos', data: data.topAgenciasRentabilidad.map((x: any) => x.costoIncidentes ?? 0), backgroundColor: CHART_COLORS.rose },
               { label: 'Mantenimiento', stack: 'gastos', data: data.topAgenciasRentabilidad.map((x: any) => x.costoMantenimientos ?? 0), backgroundColor: CHART_COLORS.blue }
             ]
-          } : null,
-          gananciaNetaAgencias: data?.topAgenciasRentabilidad?.length ? {
-            labels: data.topAgenciasRentabilidad.map((x: any) => x.nombre),
-            datasets: [{ label: 'Ganancia neta USD', data: data.topAgenciasRentabilidad.map((x: any) => x.gananciaNeta), backgroundColor: data.topAgenciasRentabilidad.map((x: any) => x.gananciaNeta >= 0 ? CHART_COLORS.green : CHART_COLORS.rose) }]
           } : null,
           topAgenciasReparaciones: toBarChart(data?.topAgenciasReparaciones, 'nombre', 'costo', 'Costo USD'),
           agenciasRentabilidad: data?.topAgenciasRentabilidad ?? [],
@@ -231,7 +222,7 @@ export class DashboardOperativoService {
           bottomBahias: toBarChart(data?.bottomBahiasIncidentes, 'nombre', 'total', 'Incidentes'),
           // Fallas por gravedad. Reemplaza al antiguo "Ubicación de Daños", que repetía el MISMO desglose por
           // agencia que el gráfico de incidentes (el modelo IncidenteTecnico no tiene una ubicación del daño).
-          incidentesPorGravedad: toDonutChart(data?.incidentesPorGravedad, 'nombre', 'cantidad'),
+          incidentesPorGravedad: this.conSemaforoGravedad(toDonutChart(data?.incidentesPorGravedad, 'nombre', 'cantidad')),
           agenciasIncidentesRaw: data?.topAgenciasIncidentes,
           chartAprobaciones: data?.chartAprobaciones || data?.metricasAprobaciones?.chartAprobaciones || null,
           metricasAprobaciones: data?.metricasAprobaciones ? {
@@ -454,7 +445,7 @@ export class DashboardOperativoService {
           mantenimientosEjecutados30d: d?.kpis?.mantenimientosEjecutados30d ?? 0,
           // Gráficos
           chartEstadoParque: toDonut(d?.estadoParque, 'nombre', 'total'),
-          chartGravedadIncidentes: toDonut(d?.gravedadIncidentes, 'nombre', 'cantidad'),
+          chartGravedadIncidentes: this.conSemaforoGravedad(toDonut(d?.gravedadIncidentes, 'nombre', 'cantidad')),
           chartEstadoIncidentes: toDonut(d?.estadoIncidentes, 'nombre', 'cantidad'),
           chartTopMaquinas: toBar(d?.topMaquinasProblematicas, 'nombre', 'total', 'Incidentes'),
           chartIncidentesPorBahia: toBar(d?.incidentesPorBahia, 'nombre', 'total', 'Incidentes'),
@@ -564,12 +555,12 @@ export class DashboardOperativoService {
           chartNivelAlertas: toDonut(d?.nivelAlertas, 'nombre', 'cantidad'),
           chartTopInsumosCriticos: toBar(d?.topInsumosCriticos, 'nombre', 'alertas', 'Alertas'),
           chartTopAgenciasConAlertas: toBar(d?.topAgenciasConAlertas, 'nombre', 'alertas', 'Alertas'),
-          chartTopInsumosConsumo: toBar(d?.topInsumosConsumo, 'nombre', 'cantidad', 'Unidades'),
-          chartTopInsumosConsumoRank: toBar(d?.topInsumosConsumoRank ?? d?.topInsumosConsumo, 'nombre', 'cantidad', 'Unidades'),
+          chartTopInsumosConsumo: toBar(this.conCostoEnEtiqueta(d?.topInsumosConsumo, 'costoUSD'), 'nombre', 'cantidad', 'Unidades'),
+          chartTopInsumosConsumoRank: toBar(this.conCostoEnEtiqueta(d?.topInsumosConsumoRank ?? d?.topInsumosConsumo, 'costoUSD'), 'nombre', 'cantidad', 'Unidades'),
           chartDespachosEstado: toDonut(d?.despachosEstado, 'nombre', 'cantidad'),
           chartConsumoPorCategoria: toBar(d?.consumoPorCategoria, 'nombre', 'cantidad', 'Unidades'),
-          chartTopAgenciasConsumo: toBar(d?.topAgenciasConsumo, 'nombre', 'cantidad', 'Unidades'),
-          chartTopAgenciasConsumoRank: toBar(d?.topAgenciasConsumoRank ?? d?.topAgenciasConsumo, 'nombre', 'cantidad', 'Unidades'),
+          chartTopAgenciasConsumo: toBar(this.conCostoEnEtiqueta(d?.topAgenciasConsumo, 'costoUSD'), 'nombre', 'cantidad', 'Unidades'),
+          chartTopAgenciasConsumoRank: toBar(this.conCostoEnEtiqueta(d?.topAgenciasConsumoRank ?? d?.topAgenciasConsumo, 'costoUSD'), 'nombre', 'cantidad', 'Unidades'),
           chartUnidadesStockPorCategoria: toBar(d?.unidadesStockPorCategoria, 'nombre', 'cantidad', 'Unidades'),
           ...this.mapSaludInventario(d),
         };
@@ -581,21 +572,31 @@ export class DashboardOperativoService {
     );
   }
 
+  /** Agrega el precio (USD) a la etiqueta de cada fila para que se vea en el gráfico: «Insumo · $12.50». */
+  private conCostoEnEtiqueta(filas: any[] | undefined | null, campo: string, sufijo = ''): any[] {
+    return (filas ?? []).map((f) => (Number(f?.[campo]) > 0 ? { ...f, nombre: `${f.nombre}${sufijo} · $${Number(f[campo]).toFixed(2)}` } : f));
+  }
+
   /** Colores semánticos por estado de stock: de lo más grave (agotado) a óptimo. */
   private readonly COLOR_SALUD: Record<string, string> = {
     'AGOTADO': CHART_COLORS.rose, 'CRÍTICO': CHART_COLORS.amber, 'BAJO MÍNIMO': '#FCD34D',
     'BAJO IDEAL': CHART_COLORS.blueLight, 'ÓPTIMO': CHART_COLORS.green,
   };
 
+  private conFaltante(filas: any[] | undefined | null): any[] {
+    return (filas ?? []).map((u) => (Number(u?.faltanteUSD) > 0 ? { ...u, nombre: `${u.nombre} · falta $${Number(u.faltanteUSD).toFixed(2)}` } : u));
+  }
+
   /** Gráficos de salud de inventario: stock real vs mínimo/ideal, agrupado por estado, ubicación y categoría. */
   private mapSaludInventario(d: any): any {
     const estados = ['AGOTADO', 'CRÍTICO', 'BAJO MÍNIMO', 'BAJO IDEAL', 'ÓPTIMO'];
     const salud: any[] = d?.saludStock ?? [];
-    const ubic: any[] = d?.saludPorUbicacion ?? [];
+    // Cada ubicación lleva en la etiqueta lo que falta para llegar al óptimo, valorado en USD.
+    const ubic: any[] = this.conFaltante(d?.saludPorUbicacion);
     // Extremos (10 mayores ∪ 10 menores) y listas completas cortas, para el control Top N del dashboard de
     // bodega. No se reutilizan las series recortadas: sobre un top 8 el orden ascendente mostraría como
     // "mejores" entidades que solo quedaron fuera del recorte.
-    const ubicTop: any[] = d?.saludPorUbicacionExtremos ?? [];
+    const ubicTop: any[] = this.conFaltante(d?.saludPorUbicacionExtremos);
     const cobTop: any[] = d?.coberturaDiasRank ?? d?.coberturaDias ?? [];
     const defTop: any[] = d?.topDeficitRank ?? d?.topDeficit ?? [];
     const cat: any[] = d?.stockVsIdealCategoria ?? [];
@@ -635,11 +636,11 @@ export class DashboardOperativoService {
       chartTopDeficit: def.length ? {
         // Cada barra es un insumo, así que el símbolo de su unidad de medida va en la etiqueta: el faltante
         // se mide en la unidad base del insumo (und, ml) y no se convierte a USD.
-        labels: def.map((x) => `${x.nombre} · ${x.unidad}`),
+        labels: def.map((x) => `${x.nombre} · ${x.unidad}${Number(x.costoUSD) > 0 ? ` · $${Number(x.costoUSD).toFixed(2)}` : ''}`),
         datasets: [{ label: 'Unidades a reponer', data: def.map((x) => x.unidades), backgroundColor: coloresCategoricos(def.length) }],
       } : null,
       chartTopDeficitRank: defTop.length ? {
-        labels: defTop.map((x) => `${x.nombre} · ${x.unidad}`),
+        labels: defTop.map((x) => `${x.nombre} · ${x.unidad}${Number(x.costoUSD) > 0 ? ` · $${Number(x.costoUSD).toFixed(2)}` : ''}`),
         datasets: [{ label: 'Unidades a reponer', data: defTop.map((x) => x.unidades), backgroundColor: coloresCategoricos(defTop.length) }],
       } : null,
       chartAlertasCategoriaNivel: alc.length ? {
@@ -651,6 +652,48 @@ export class DashboardOperativoService {
         ],
       } : null,
     };
+  }
+
+  /** Dashboard de auditorías: informes de inspección y auditorías 5S puntuados en estrellas (POST /analytics/dashboard-auditorias). */
+  getDashboardAuditorias(filtro: any = {}): Observable<any> {
+    return this.http.post<any>(apiUrl('/analytics/dashboard-auditorias'), filtro).pipe(
+      map((d) => {
+        const dona = (etiquetas: string[], colores: string[], filas: any[] | undefined) =>
+          (filas ?? []).some((f) => Number(f.cantidad) > 0)
+            ? { labels: etiquetas, datasets: [{ data: (filas ?? []).map((f) => Number(f.cantidad) || 0), backgroundColor: colores }] }
+            : null;
+        const ranking: any[] = d?.rankingAgencias ?? [];
+        const color = (e: number) => (e >= 4 ? CHART_COLORS.green : e >= 3 ? CHART_COLORS.amber : CHART_COLORS.rose);
+        const evolucion: any[] = d?.evolucionMensual ?? [];
+        return {
+          kpis: d?.kpis ?? {},
+          chartCalificaciones: dona(['Excelente', 'Bueno', 'Regular', 'Malo'], ['#16A34A', '#84CC16', '#F59E0B', '#DC2626'], d?.distribucionCalificaciones),
+          chart5s: dona(['Verde (90 % o más)', 'Amarillo (75 a 89 %)', 'Rojo (menos de 75 %)'], ['#16A34A', '#F59E0B', '#DC2626'], d?.distribucion5s),
+          chartEvolucion: evolucion.length ? {
+            labels: evolucion.map((e) => e.periodo),
+            datasets: [
+              { label: 'Inspección (estrellas)', data: evolucion.map((e) => e.estrellasInspeccion), borderColor: CHART_COLORS.blue, backgroundColor: CHART_COLORS.blue, tension: 0.3, spanGaps: true },
+              { label: '5S (estrellas)', data: evolucion.map((e) => e.estrellas5s), borderColor: CHART_COLORS.green, backgroundColor: CHART_COLORS.green, tension: 0.3, spanGaps: true },
+            ],
+          } : null,
+          chartRankingAgencias: ranking.length ? {
+            labels: ranking.map((r) => r.nombre),
+            datasets: [{ label: 'Estrellas', data: ranking.map((r) => r.estrellas), backgroundColor: ranking.map((r) => color(Number(r.estrellas) || 0)) }],
+          } : null,
+        };
+      }),
+      catchError((err) => {
+        this.avisarErrorCarga('No se pudo cargar el dashboard de auditorías', err);
+        return of({ kpis: {}, chartCalificaciones: null, chart5s: null, chartEvolucion: null, chartRankingAgencias: null });
+      })
+    );
+  }
+
+  /** Estrellas de una agencia: última 5S y último informe de inspección (POST /analytics/estrellas-agencia). */
+  getEstrellasAgencia(agenciaId?: string): Observable<any> {
+    return this.http.post<any>(apiUrl('/analytics/estrellas-agencia'), agenciaId ? { agenciaId } : {}).pipe(
+      catchError(() => of(null))
+    );
   }
 
   /**
@@ -726,7 +769,7 @@ export class DashboardOperativoService {
         return {
           skusCriticos: criticos,
           chartConsumoInsumos: insumosOrdenados.length > 0 ? {
-            labels: insumosOrdenados.map((c) => c.nombre),
+            labels: insumosOrdenados.map((c) => (Number(c.costoTotalUSD) > 0 ? `${c.nombre} · $${Number(c.costoTotalUSD).toFixed(2)}` : c.nombre)),
             datasets: [{
               label: 'Unidades consumidas',
               data: insumosOrdenados.map((c) => Number(c.cantidadTotal || 0)),

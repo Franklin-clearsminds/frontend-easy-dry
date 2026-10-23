@@ -14,21 +14,19 @@ export const PRIORIDADES: { id: Prioridad; nombre: string }[] = [
 ];
 
 /** `lider`: el líder de bahía de la agencia, para marcarlo solo al elegirla. */
-export interface OpcionAgencia { id: string; codigo: string; nombre: string; lider?: { id: string; nombre: string } | null }
+export interface OpcionAgencia { id: string; codigo: string; nombre: string; lider?: { id: string; nombre: string } | null; auxiliar?: { id: string; nombre: string } | null }
 export interface OpcionPersona { id: string; nombre: string }
 
 // ───────────────────────── Informes de inspección ─────────────────────────
 
-export type EstadoInforme = 'BORRADOR' | 'EN_REVISION' | 'APROBADO' | 'RECHAZADO' | 'CERRADO';
+/** Un informe es borrador mientras se elabora y queda guardado, sin poder modificarse, cuando se firma y se guarda. */
+export type EstadoInforme = 'BORRADOR' | 'GUARDADO';
 export type Calificacion = 'EXCELENTE' | 'BUENO' | 'REGULAR' | 'MALO';
 export type EstadoPlan = 'PENDIENTE' | 'EN_PROCESO' | 'COMPLETADO' | 'CANCELADO';
 
 export const ESTADOS_INFORME: { id: EstadoInforme; nombre: string; clase: string }[] = [
   { id: 'BORRADOR', nombre: 'Borrador', clase: 'bg-slate-100 text-slate-700 border-slate-200' },
-  { id: 'EN_REVISION', nombre: 'En revisión', clase: 'bg-sky-100 text-sky-800 border-sky-200' },
-  { id: 'APROBADO', nombre: 'Aprobado', clase: 'bg-emerald-100 text-emerald-800 border-emerald-200' },
-  { id: 'RECHAZADO', nombre: 'Rechazado', clase: 'bg-rose-100 text-rose-800 border-rose-200' },
-  { id: 'CERRADO', nombre: 'Cerrado', clase: 'bg-slate-800 text-white border-slate-800' },
+  { id: 'GUARDADO', nombre: 'Guardado', clase: 'bg-emerald-100 text-emerald-800 border-emerald-200' },
 ];
 export const CALIFICACIONES: { id: Calificacion; nombre: string; clase: string }[] = [
   { id: 'EXCELENTE', nombre: 'Excelente', clase: 'bg-emerald-100 text-emerald-800 border-emerald-200' },
@@ -80,6 +78,8 @@ export interface InformeFila {
   tipoInspeccion: string;
   asunto: string;
   estado: EstadoInforme;
+  /** Guardado y ya aprobado (con la recepción firmada por un Admin). */
+  aprobado?: boolean;
   calificacion: Calificacion | null;
   totalNovedades: number;
   totalPlanes: number;
@@ -90,10 +90,8 @@ export interface Novedad {
   titulo: string;
   descripcion: string;
   categoria: string;
-  prioridad: Prioridad;
   area: string;
   fotos: string[];
-  estadoSeguimiento: string;
   registradaEn?: string;
 }
 
@@ -101,10 +99,6 @@ export interface Actividad {
   id?: string;
   nombre: string;
   descripcion: string;
-  responsable: string;
-  fecha: string | null;
-  resultado: string;
-  observaciones: string;
   fotos: string[];
 }
 
@@ -136,13 +130,49 @@ export interface HistorialInforme {
 
 export interface PermisosInforme {
   puedeEditar: boolean;
-  puedeEnviar: boolean;
+  puedeGuardar: boolean;
   puedeCalificar: boolean;
-  puedeRevisar: boolean;
-  puedeReabrir: boolean;
-  puedeCerrar: boolean;
+  puedeFirmar: boolean;
+  /** Guardado y aún sin aprobar: un Admin o Super Admin lo aprueba firmando la recepción. */
+  puedeAprobar?: boolean;
   puedeEliminar: boolean;
   puedeSeguimiento: boolean;
+}
+
+export type TipoFirma = 'RESPONSABLE' | 'JEFE_TALLER' | 'LIDER_BAHIA' | 'RECEPCION';
+
+/** Una de las cuatro firmas del informe. La del jefe de taller se muestra con el logo de su sello como marca de agua. */
+export interface FirmaInforme {
+  tipo: TipoFirma;
+  etiqueta: string;
+  /** Falso para la del jefe de taller cuando no estuvo presente en la visita: no se pide. */
+  requerida: boolean;
+  /** Firmada y vigente para el contenido actual. */
+  firmada: boolean;
+  /** Firmada antes de que cambiara el contenido: la debe repetir la misma persona. */
+  desactualizada: boolean;
+  nombre: string;
+  cargo: string;
+  imagen: string | null;
+  firmadoEn: string | null;
+}
+
+/** El jefe de taller validado con su contraseña: su nombre y el logo que sale como marca de agua. */
+export interface SelloInforme { id: string | null; nombre: string; logo: string | null; /** Nulo si hay que validarlo de nuevo con su contraseña. */ validadoEn: string | null }
+
+/** Jefe de taller que se puede elegir al calificar (sin logo ni nada de la contraseña). */
+export interface OpcionSello { id: string; nombre: string; apellido: string; nombreCompleto: string }
+
+/** Un sello tal como lo ve quien lo configura. */
+export interface SelloConfig {
+  id: string;
+  nombre: string;
+  apellido: string;
+  logo: string | null;
+  estado: number;
+  bloqueado: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface InformeDetalle {
@@ -168,10 +198,13 @@ export interface InformeDetalle {
   calificacion: Calificacion | null;
   calificadoPorNombre: string | null;
   calificadoEn: string | null;
-  motivoRechazo: string | null;
-  enviadoEn: string | null;
-  aprobadoEn: string | null;
-  cerradoEn: string | null;
+  guardadoEn: string | null;
+  aprobadoEn?: string | null;
+  aprobadoPorNombre?: string | null;
+  /** El jefe de taller estuvo en la visita. Si no, el informe se firma y se guarda sin su contraseña ni su firma. */
+  jefeTallerPresente: boolean;
+  sello: SelloInforme | null;
+  firmas: FirmaInforme[];
   createdAt: string;
   updatedAt: string;
   novedades: Novedad[];
@@ -190,6 +223,7 @@ export interface GuardarInforme {
   fecha?: string;
   fechaVisita?: string;
   tipoInspeccion?: string;
+  jefeTallerPresente?: boolean;
   asunto?: string;
   antecedentes?: string;
   desarrollo?: string;
@@ -205,8 +239,9 @@ export interface GuardarInforme {
 export interface ResumenInformes {
   total: number;
   esteMes: number;
-  pendientesAprobacion: number;
-  aprobados: number;
+  borradores: number;
+  guardados: number;
+  porAprobar?: number;
   planesPendientes: number;
   porEstado: { estado: EstadoInforme; total: number }[];
   porCalificacion: { calificacion: Calificacion; total: number }[];
@@ -232,7 +267,8 @@ export interface Destinatario { id: string; nombre: string; cargo: string; rol: 
 // ───────────────────────── Auditoría 5S ─────────────────────────
 
 export type Semaforo = 'VERDE' | 'AMARILLO' | 'ROJO';
-export type EstadoAuditoria5s = 'BORRADOR' | 'EN_PROCESO' | 'FINALIZADA' | 'CERRADA';
+/** Una auditoría es borrador mientras se hace y queda guardada, sin poder modificarse, cuando se guarda. */
+export type EstadoAuditoria5s = 'BORRADOR' | 'GUARDADA';
 export type EstadoAccion = 'PENDIENTE' | 'EN_PROCESO' | 'EN_VERIFICACION' | 'CERRADA';
 export type CategoriaId = 'SEIRI' | 'SEITON' | 'SEISO' | 'SEIKETSU' | 'SHITSUKE';
 
@@ -250,9 +286,7 @@ export function nombre5s(c: { id: CategoriaId; nombre: string; traduccion: strin
 
 export const ESTADOS_AUDITORIA_5S: { id: EstadoAuditoria5s; nombre: string; clase: string }[] = [
   { id: 'BORRADOR', nombre: 'Borrador', clase: 'bg-slate-100 text-slate-700 border-slate-200' },
-  { id: 'EN_PROCESO', nombre: 'En proceso', clase: 'bg-sky-100 text-sky-800 border-sky-200' },
-  { id: 'FINALIZADA', nombre: 'Finalizada', clase: 'bg-emerald-100 text-emerald-800 border-emerald-200' },
-  { id: 'CERRADA', nombre: 'Cerrada', clase: 'bg-slate-800 text-white border-slate-800' },
+  { id: 'GUARDADA', nombre: 'Guardada', clase: 'bg-emerald-100 text-emerald-800 border-emerald-200' },
 ];
 export const ESTADOS_ACCION: { id: EstadoAccion; nombre: string; clase: string }[] = [
   { id: 'PENDIENTE', nombre: 'Pendiente', clase: 'bg-amber-100 text-amber-800 border-amber-200' },
@@ -376,9 +410,8 @@ export interface AccionCorrectiva {
 
 export interface PermisosAuditoria5s {
   puedeEditar: boolean;
-  puedeFinalizar: boolean;
+  puedeGuardar: boolean;
   puedeEliminar: boolean;
-  puedeCerrar: boolean;
   puedeSeguimiento: boolean;
   puedeVerificar: boolean;
 }
@@ -403,7 +436,6 @@ export interface Auditoria5sDetalle {
   comentarios: string;
   comentariosCategoria: Record<string, string>;
   finalizadaEn: string | null;
-  cerradaEn: string | null;
   anterior: { id: string; codigo: string; fecha: string | null; puntaje: number | null; porcentaje: number | null; semaforo: Semaforo | null; diferencia: number | null } | null;
   resultado: ResultadoAuditoria5s;
   criterios: CriterioEvaluado[];

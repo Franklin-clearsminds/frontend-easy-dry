@@ -62,12 +62,9 @@ export class Auditoria5sService {
     return this.http.post<Auditoria5sDetalle>(apiUrl(`${this.base}/update`), datos);
   }
 
-  finalizar(id: string): Observable<Auditoria5sDetalle> {
-    return this.http.post<Auditoria5sDetalle>(apiUrl(`${this.base}/finalizar`), { id });
-  }
-
-  cerrar(id: string): Observable<Auditoria5sDetalle> {
-    return this.http.post<Auditoria5sDetalle>(apiUrl(`${this.base}/cerrar`), { id });
+  /** Guarda la auditoría de forma definitiva (ya no se puede modificar). */
+  guardar(id: string): Observable<Auditoria5sDetalle> {
+    return this.http.post<Auditoria5sDetalle>(apiUrl(`${this.base}/guardar`), { id });
   }
 
   eliminar(id: string): Observable<{ success: boolean }> {

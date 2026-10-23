@@ -23,6 +23,8 @@ import {
   mensajeError,
 } from '../../../core/models/auditorias.model';
 import { EvidenciasFotosComponent } from '../shared/evidencias-fotos.component';
+import { FirmaImagenComponent } from '../shared/firma-imagen.component';
+import { FirmaModalComponent, type FirmaCapturada } from '../shared/firma-modal.component';
 import { HistorialInformeComponent } from './historial-informe.component';
 import { descargarPdfInforme } from './informe-pdf';
 
@@ -33,7 +35,7 @@ import { descargarPdfInforme } from './informe-pdf';
 @Component({
   selector: 'app-informe-detail',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, LucideAngularModule, ModalComponent, ThumbSrcDirective, VerMediaDirective, EvidenciasFotosComponent, HistorialInformeComponent],
+  imports: [CommonModule, FormsModule, RouterLink, LucideAngularModule, ModalComponent, ThumbSrcDirective, VerMediaDirective, EvidenciasFotosComponent, FirmaImagenComponent, FirmaModalComponent, HistorialInformeComponent],
   template: `
     <div class="space-y-5 animate-fade-in max-w-5xl mx-auto">
       <a routerLink="/informes-inspeccion" class="btn btn-ghost btn-sm w-fit"><i-lucide name="arrow-left" class="w-4 h-4" aria-hidden="true"></i-lucide> Informes</a>
@@ -62,26 +64,21 @@ import { descargarPdfInforme } from './informe-pdf';
             <div><dt class="field-label">N.º de visita</dt><dd class="font-semibold">{{ i.numeroMensual }} ({{ i.periodo }})</dd></div>
           </dl>
 
-          @if (i.estado === 'RECHAZADO' && i.motivoRechazo) {
-            <div class="p-3 rounded-xl bg-rose-50 border border-rose-200 text-sm text-rose-800" role="alert"><strong>Rechazado:</strong> {{ i.motivoRechazo }}</div>
+          @if (i.estado === 'GUARDADO') {
+            <p class="text-xs font-semibold text-emerald-700 inline-flex items-center gap-1.5"><i-lucide name="lock" class="w-3.5 h-3.5" aria-hidden="true"></i-lucide> Informe guardado el {{ i.guardadoEn | date:'dd/MM/yyyy HH:mm' }}. Ya no se puede modificar.</p>
+            @if (i.aprobadoEn) {
+              <p class="text-xs font-semibold text-emerald-700 inline-flex items-center gap-1.5"><i-lucide name="check-circle" class="w-3.5 h-3.5" aria-hidden="true"></i-lucide> Aprobado por {{ i.aprobadoPorNombre }} el {{ i.aprobadoEn | date:'dd/MM/yyyy HH:mm' }}.</p>
+            } @else {
+              <p class="text-xs font-semibold text-amber-800 inline-flex items-center gap-1.5"><i-lucide name="alert-triangle" class="w-3.5 h-3.5" aria-hidden="true"></i-lucide> Pendiente de aprobación: un Admin o Super Admin debe aprobarlo y firmar la recepción.</p>
+            }
           }
 
           <div class="flex flex-wrap gap-2">
+            @if (i.permisos.puedeAprobar && puedeAprobar) {
+              <button type="button" class="btn btn-primary" (click)="aprobando = true" [disabled]="trabajando"><i-lucide name="pen-tool" class="w-4 h-4" aria-hidden="true"></i-lucide> Aprobar y firmar recepción</button>
+            }
             @if (i.permisos.puedeEditar) {
               <a [routerLink]="['/informes-inspeccion', i.id, 'editar']" class="btn btn-secondary"><i-lucide name="pencil" class="w-4 h-4" aria-hidden="true"></i-lucide> Continuar borrador</a>
-            }
-            @if (i.permisos.puedeEnviar) {
-              <button type="button" class="btn btn-primary" (click)="enviar()" [disabled]="trabajando"><i-lucide name="send" class="w-4 h-4" aria-hidden="true"></i-lucide> Enviar a revisión</button>
-            }
-            @if (i.permisos.puedeRevisar) {
-              <button type="button" class="btn btn-cta" (click)="aprobarRevision()" [disabled]="trabajando"><i-lucide name="check-circle" class="w-4 h-4" aria-hidden="true"></i-lucide> Aprobar informe</button>
-              <button type="button" class="btn btn-danger" (click)="abrirRechazo()" [disabled]="trabajando"><i-lucide name="x-circle" class="w-4 h-4" aria-hidden="true"></i-lucide> Rechazar</button>
-            }
-            @if (i.permisos.puedeReabrir) {
-              <button type="button" class="btn btn-secondary" (click)="reabrir()" [disabled]="trabajando"><i-lucide name="rotate-ccw" class="w-4 h-4" aria-hidden="true"></i-lucide> Reabrir para corregir</button>
-            }
-            @if (i.permisos.puedeCerrar) {
-              <button type="button" class="btn btn-primary" (click)="cerrar()" [disabled]="trabajando"><i-lucide name="lock" class="w-4 h-4" aria-hidden="true"></i-lucide> Cerrar informe</button>
             }
             <button type="button" class="btn btn-secondary" (click)="pdf()" [disabled]="generando"><i-lucide name="download" class="w-4 h-4" aria-hidden="true"></i-lucide> {{ generando ? 'Generando…' : 'Descargar PDF' }}</button>
           </div>
@@ -102,7 +99,6 @@ import { descargarPdfInforme } from './informe-pdf';
                 <article class="rounded-xl border border-slate-200 p-3 space-y-2">
                   <div class="flex flex-wrap items-center gap-2"><strong>{{ n.titulo }}</strong>
                     <span class="badge badge-neutral">{{ categoria(n.categoria) }}</span>
-                    <span class="badge" [ngClass]="clasePrioridad(n.prioridad)">{{ n.prioridad }}</span>
                     @if (n.area) { <span class="text-xs text-slate-500">{{ n.area }}</span> }</div>
                   @if (n.descripcion) { <p class="whitespace-pre-line text-slate-700">{{ n.descripcion }}</p> }
                   <div class="flex flex-wrap gap-2">@for (f of n.fotos; track f) { <img [appThumb]="f" [appVerMedia]="f" class="w-20 h-20 object-cover rounded-lg border border-slate-200" alt="Evidencia de la novedad"> }</div>
@@ -118,10 +114,7 @@ import { descargarPdfInforme } from './informe-pdf';
               @for (a of i.actividades; track a.id) {
                 <article class="rounded-xl border border-slate-200 p-3 space-y-1">
                   <strong>{{ a.nombre }}</strong>
-                  <p class="text-xs text-slate-500">{{ a.responsable || 'Sin responsable' }}@if (a.fecha) { · {{ a.fecha | date:'dd/MM/yyyy' }} }</p>
                   @if (a.descripcion) { <p>{{ a.descripcion }}</p> }
-                  @if (a.resultado) { <p><strong>Resultado:</strong> {{ a.resultado }}</p> }
-                  @if (a.observaciones) { <p class="text-slate-600">{{ a.observaciones }}</p> }
                   <div class="flex flex-wrap gap-2">@for (f of a.fotos; track f) { <img [appThumb]="f" [appVerMedia]="f" class="w-16 h-16 object-cover rounded-lg border border-slate-200" alt="Evidencia de la actividad"> }</div>
                 </article>
               }
@@ -137,7 +130,6 @@ import { descargarPdfInforme } from './informe-pdf';
                   <div class="flex flex-wrap items-center gap-2">
                     <strong class="flex-1 min-w-48">{{ p.problema }}</strong>
                     <span class="badge" [ngClass]="clasePlan(p.estadoEfectivo || p.estado)">{{ nombrePlan(p.estadoEfectivo || p.estado) }}</span>
-                    <span class="badge" [ngClass]="clasePrioridad(p.prioridad)">{{ p.prioridad }}</span>
                   </div>
                   <p>{{ p.accionRequerida || '—' }}</p>
                   <p class="text-xs text-slate-500">Responsable: {{ p.personaResponsable || i.agencia.nombre }} · Creado: {{ p.fechaCompromiso ? (p.fechaCompromiso | date:'dd/MM/yyyy') : '—' }}</p>
@@ -160,21 +152,25 @@ import { descargarPdfInforme } from './informe-pdf';
             </div>
           </details>
 
+          <details class="group" open>
+            <summary class="cursor-pointer select-none px-5 py-4 font-extrabold text-slate-900 flex items-center justify-between">Firmas<i-lucide name="chevron-down" class="w-4 h-4 group-open:rotate-180 transition-transform" aria-hidden="true"></i-lucide></summary>
+            <div class="px-5 pb-5 grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+              @for (f of i.firmas; track f.tipo) {
+                <article class="space-y-2">
+                  @if (f.requerida) { <app-firma-imagen [imagen]="f.imagen" [marcaAgua]="f.tipo === 'JEFE_TALLER' ? (i.sello?.logo ?? null) : null" [etiqueta]="f.etiqueta"></app-firma-imagen> }
+                  <p class="font-bold text-slate-800">{{ f.etiqueta }}</p>
+                  <p class="text-xs text-slate-500">@if (f.firmada) { {{ f.nombre }} · {{ f.firmadoEn | date:'dd/MM/yyyy HH:mm' }} } @else if (!f.requerida) { No estuvo presente en la visita } @else if (f.tipo === 'RECEPCION') { Pendiente de aprobación } @else { Sin firmar }</p>
+                </article>
+              }
+            </div>
+          </details>
+
           <details class="group">
             <summary class="cursor-pointer select-none px-5 py-4 font-extrabold text-slate-900 flex items-center justify-between">Historial de cambios ({{ i.historial.length }})<i-lucide name="chevron-down" class="w-4 h-4 group-open:rotate-180 transition-transform" aria-hidden="true"></i-lucide></summary>
             <div class="px-5 pb-5"><app-historial-informe [items]="i.historial"></app-historial-informe></div>
           </details>
         </section>
       }
-
-      <!-- Rechazo -->
-      <app-modal [isOpen]="modalRechazo" title="Rechazar informe" icon="x-circle" size="sm" (close)="modalRechazo = false">
-        <label class="field-label" for="mot-rech">Motivo del rechazo *</label>
-        <textarea id="mot-rech" class="field" rows="4" [(ngModel)]="motivo" placeholder="Qué debe corregir quien lo elaboró"></textarea>
-        @if (errorModal) { <p class="field-help">{{ errorModal }}</p> }
-        <div class="flex gap-2 mt-4"><button type="button" class="btn btn-secondary" (click)="modalRechazo = false">Cancelar</button>
-          <button type="button" class="btn btn-danger" (click)="rechazar()" [disabled]="trabajando">Rechazar informe</button></div>
-      </app-modal>
 
       <!-- Seguimiento de un plan -->
       <app-modal [isOpen]="!!plan" title="Seguimiento del plan de acción" icon="clipboard-check" size="md" (close)="plan = null">
@@ -194,6 +190,10 @@ import { descargarPdfInforme } from './informe-pdf';
           </div>
         }
       </app-modal>
+
+      @if (aprobando && i) {
+        <app-firma-modal titulo="Aprobar · Firma de recepción" [pedirNombre]="false" [nombreInicial]="nombreAprobador" (cancelar)="aprobando = false" (firmada)="aprobar($event)"></app-firma-modal>
+      }
     </div>
   `,
 })
@@ -206,6 +206,9 @@ export class InformeDetailComponent implements OnInit {
 
   /** El servidor decide según el estado; la casilla del rol oculta el botón a quien no tiene el permiso. */
   readonly puedeSeguir = this.auth.puede('informes.seguimiento');
+  readonly puedeAprobar = this.auth.puede('informes.aprobar');
+  readonly nombreAprobador = (() => { const u = this.auth.getCurrentUser(); return u ? `${u.nombre} ${u.apellido}`.trim() : ''; })();
+  aprobando = false;
   readonly estadosPlan = ESTADOS_PLAN;
   i: InformeDetalle | null = null;
   cargando = true;
@@ -214,12 +217,24 @@ export class InformeDetailComponent implements OnInit {
   generando = false;
   errorModal = '';
 
-  modalRechazo = false;
-  motivo = '';
   plan: PlanAccion | null = null;
   segEstado: EstadoPlan = 'PENDIENTE';
   segObs = '';
   segFotos: string[] = [];
+
+  async aprobar(c: FirmaCapturada): Promise<void> {
+    if (!this.i) return;
+    this.trabajando = true;
+    try {
+      this.i = await firstValueFrom(this.api.aprobar(this.i.id, c.imagen));
+      this.aprobando = false;
+      this.toast.success('Informe aprobado', 'La recepción quedó firmada.');
+    } catch (e) {
+      this.toast.error('No se pudo aprobar el informe', mensajeError(e));
+    } finally {
+      this.trabajando = false;
+    }
+  }
 
   async ngOnInit(): Promise<void> {
     try {
@@ -252,19 +267,6 @@ export class InformeDetailComponent implements OnInit {
     } finally {
       this.trabajando = false;
     }
-  }
-
-  enviar(): Promise<void> { return this.ejecutar(() => this.api.enviar(this.i!.id), 'Enviado a revisión'); }
-  aprobarRevision(): Promise<void> { return this.ejecutar(() => this.api.revisar(this.i!.id, 'APROBAR'), 'Informe aprobado'); }
-  reabrir(): Promise<void> { return this.ejecutar(() => this.api.reabrir(this.i!.id), 'Reabierto para corregirlo'); }
-  cerrar(): Promise<void> { return this.ejecutar(() => this.api.cerrar(this.i!.id), 'Informe cerrado'); }
-
-  abrirRechazo(): void { this.motivo = ''; this.errorModal = ''; this.modalRechazo = true; }
-
-  async rechazar(): Promise<void> {
-    if (!this.motivo.trim()) { this.errorModal = 'Indica el motivo del rechazo.'; return; }
-    this.modalRechazo = false;
-    await this.ejecutar(() => this.api.revisar(this.i!.id, 'RECHAZAR', this.motivo.trim()), 'Informe rechazado');
   }
 
   abrirSeguimiento(p: PlanAccion): void {
