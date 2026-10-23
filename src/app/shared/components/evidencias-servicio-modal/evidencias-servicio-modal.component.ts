@@ -38,7 +38,11 @@ const ETIQUETA_TIPO: Record<string, string> = {
  * y las demás fotos registradas. El servidor entrega `videoUrl` como «el final, o el inicial si no hay final», así que solo se usa
  * si no llegaron los dos de verdad.
  */
-export function evidenciasDeServicio(s: MultimediaServicio | null | undefined, tipoDe: (url: string) => TipoMedia): EvidenciaServicioItem[] {
+export type FaseEvidencia = 'inicio' | 'fin' | 'pausas';
+
+const TIPOS_DE_FIN = new Set(['FOTO_SALIDA', 'SALIDA', 'FOTO_PROCESO', 'PROCESO']);
+
+export function evidenciasDeServicio(s: MultimediaServicio | null | undefined, tipoDe: (url: string) => TipoMedia, fase?: FaseEvidencia): EvidenciaServicioItem[] {
   const lista: EvidenciaServicioItem[] = [];
   if (!s) return lista;
   const agregar = (etiqueta: string, url?: string | null) => {
@@ -48,13 +52,18 @@ export function evidenciasDeServicio(s: MultimediaServicio | null | undefined, t
     // El listado rellena «video de ingreso/salida» con la foto cuando no hay video: se nombra por lo que realmente es.
     lista.push({ tipo, etiqueta: tipo === 'imagen' ? etiqueta.replace(/^Video de/, 'Foto de') : etiqueta, url: limpia });
   };
-  agregar('Video de ingreso', s.videoInicialUrl);
-  agregar('Video de salida', s.videoFinalUrl);
-  if (!s.videoInicialUrl && !s.videoFinalUrl) agregar('Video del servicio', s.videoUrl || s.video);
-  agregar('Foto de ingreso', s.fotoIngresoUrl);
-  agregar('Foto de salida', s.fotoSalidaUrl);
+  const conInicio = fase !== 'fin';
+  const conFin = fase !== 'inicio';
+  if (conInicio) agregar('Video de ingreso', s.videoInicialUrl);
+  if (conFin) agregar('Video de salida', s.videoFinalUrl);
+  // `videoUrl` del servidor mezcla inicio y final: solo se usa cuando se muestran las dos fases y no llegó ninguno de los dos.
+  if (!fase && !s.videoInicialUrl && !s.videoFinalUrl) agregar('Video del servicio', s.videoUrl || s.video);
+  if (conInicio) agregar('Foto de ingreso', s.fotoIngresoUrl);
+  if (conFin) agregar('Foto de salida', s.fotoSalidaUrl);
   for (const e of s.evidencias ?? []) {
     const clave = String(e?.tipo ?? '').toUpperCase();
+    const esDeFin = TIPOS_DE_FIN.has(clave);
+    if (esDeFin ? !conFin : !conInicio) continue;
     agregar(ETIQUETA_TIPO[clave] || e?.descripcion || 'Evidencia', e?.url);
   }
   return lista;
@@ -67,7 +76,7 @@ export function evidenciasDeServicio(s: MultimediaServicio | null | undefined, t
   imports: [NgClass, LucideAngularModule, ModalComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <app-modal size="md" [isOpen]="isOpen" [title]="'Evidencia del servicio' + (referencia ? ': ' + referencia : '')" icon="film" (close)="close.emit()">
+    <app-modal size="md" [isOpen]="isOpen" [title]="titulo + (referencia ? ': ' + referencia : '')" icon="film" (close)="close.emit()">
       <div class="space-y-3">
         @for (e of items; track e.url) {
           <button type="button" (click)="abrir(e)"
@@ -82,7 +91,13 @@ export function evidenciasDeServicio(s: MultimediaServicio | null | undefined, t
             </span>
           </button>
         } @empty {
-          <p class="estado-vacio">Este servicio no tiene evidencia multimedia registrada.</p>
+          <p class="estado-vacio">{{ fase === 'fin' ? 'Este servicio no tiene evidencia de finalización registrada.' : fase === 'inicio' ? 'Este servicio no tiene evidencia de inicio registrada.' : fase === 'pausas' ? 'Este servicio no tiene pausas con evidencia.' : 'Este servicio no tiene evidencia multimedia registrada.' }}</p>
+        }
+        @if (observacion) {
+          <div class="p-3 rounded-xl border border-slate-200 bg-white">
+            <p class="text-[11px] font-extrabold text-slate-500 uppercase mb-1">Observaciones</p>
+            <p class="text-sm text-slate-800 whitespace-pre-line">{{ observacion }}</p>
+          </div>
         }
       </div>
       <div modal-footer>
@@ -98,6 +113,13 @@ export class EvidenciasServicioModalComponent {
   /** Placa u OT que se muestra en el título. */
   @Input() referencia = '';
   @Input() items: EvidenciaServicioItem[] = [];
+  /** Qué parte del servicio se muestra: solo el inicio, solo la finalización, o todo si no se indica. */
+  @Input() fase?: FaseEvidencia;
+  /** Observaciones que acompañan a la evidencia (por ejemplo, las de la entrega). */
+  @Input() observacion = '';
+  get titulo(): string {
+    return this.fase === 'inicio' ? 'Evidencia de inicio' : this.fase === 'fin' ? 'Evidencia de finalización' : this.fase === 'pausas' ? 'Evidencia de pausas' : 'Evidencia del servicio';
+  }
   @Output() close = new EventEmitter<void>();
 
   abrir(e: EvidenciaServicioItem): void {

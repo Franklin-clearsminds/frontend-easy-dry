@@ -44,7 +44,7 @@ import { RouterModule } from '@angular/router';
 import { VideoRecorderComponent } from '../../shared/components/video-recorder/video-recorder.component';
 import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-selector/evidencia-selector.component';
 import { FotoOpcionalComponent } from '../../shared/components/foto-opcional/foto-opcional.component';
-import { EvidenciaServicioItem, EvidenciasServicioModalComponent, evidenciasDeServicio } from '../../shared/components/evidencias-servicio-modal/evidencias-servicio-modal.component';
+import { EvidenciaServicioItem, EvidenciasServicioModalComponent, FaseEvidencia, evidenciasDeServicio } from '../../shared/components/evidencias-servicio-modal/evidencias-servicio-modal.component';
 
 @Component({
   selector: 'app-servicios',
@@ -298,7 +298,7 @@ import { EvidenciaServicioItem, EvidenciasServicioModalComponent, evidenciasDeSe
             <div (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
                                 @if (getVideoInicial(item); as vidIni) {
                                   <button
-                                    (click)="verEvidencias(item)"
+                                    (click)="verEvidencias(item, 'inicio')"
                                     title="Ver evidencias del servicio"
                                     class="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded-lg text-xs font-bold inline-flex items-center gap-1 shadow-2xs transition-all cursor-pointer">
                                     <i-lucide aria-hidden="true" name="video" class="w-3.5 h-3.5 text-amber-600"></i-lucide>
@@ -314,7 +314,7 @@ import { EvidenciaServicioItem, EvidenciasServicioModalComponent, evidenciasDeSe
             <div (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
                                 @if (getVideoFinal(item); as vidFin) {
                                   <button
-                                    (click)="verEvidencias(item)"
+                                    (click)="verEvidencias(item, 'fin')"
                                     title="Ver evidencias del servicio"
                                     class="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg text-xs font-bold inline-flex items-center gap-1 shadow-2xs transition-all cursor-pointer">
                                     <i-lucide aria-hidden="true" name="film" class="w-3.5 h-3.5 text-emerald-600"></i-lucide>
@@ -456,7 +456,7 @@ import { EvidenciaServicioItem, EvidenciasServicioModalComponent, evidenciasDeSe
                     @if (getVideoInicial(item); as vidIni) {
                       <button
                         type="button"
-                        (click)="$event.stopPropagation(); verEvidencias(item)"
+                        (click)="$event.stopPropagation(); verEvidencias(item, 'inicio')"
                         class="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded-lg text-xs font-bold inline-flex items-center gap-1 shadow-2xs">
                         <i-lucide aria-hidden="true" name="video" class="w-3 h-3 text-amber-600"></i-lucide>
                         <span>Evidencia Inicio</span>
@@ -465,7 +465,7 @@ import { EvidenciaServicioItem, EvidenciasServicioModalComponent, evidenciasDeSe
                     @if (getVideoFinal(item); as vidFin) {
                       <button
                         type="button"
-                        (click)="$event.stopPropagation(); verEvidencias(item)"
+                        (click)="$event.stopPropagation(); verEvidencias(item, 'fin')"
                         class="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg text-xs font-bold inline-flex items-center gap-1 shadow-2xs">
                         <i-lucide aria-hidden="true" name="film" class="w-3 h-3 text-emerald-600"></i-lucide>
                         <span>Evidencia Fin</span>
@@ -624,7 +624,7 @@ import { EvidenciaServicioItem, EvidenciasServicioModalComponent, evidenciasDeSe
             <div (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
                                 @if (extra.videoInicialUrl || extra.videoInicial) {
                                   <button
-                                    (click)="verEvidenciasEspecial(extra)"
+                                    (click)="verEvidenciasEspecial(extra, 'inicio')"
                                     class="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded-lg text-xs font-bold inline-flex items-center gap-1 shadow-2xs transition-all cursor-pointer">
                                     <i-lucide aria-hidden="true" name="video" class="w-3.5 h-3.5 text-amber-600"></i-lucide>
                                     <span>Inicio</span>
@@ -657,7 +657,7 @@ import { EvidenciaServicioItem, EvidenciasServicioModalComponent, evidenciasDeSe
             <div (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
                                 @if (extra.videoFinalUrl || extra.videoFinal) {
                                   <button
-                                    (click)="verEvidenciasEspecial(extra)"
+                                    (click)="verEvidenciasEspecial(extra, 'fin')"
                                     class="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg text-xs font-bold inline-flex items-center gap-1 shadow-2xs transition-all cursor-pointer">
                                     <i-lucide aria-hidden="true" name="film" class="w-3.5 h-3.5 text-emerald-600"></i-lucide>
                                     <span>Fin</span>
@@ -809,7 +809,7 @@ import { EvidenciaServicioItem, EvidenciasServicioModalComponent, evidenciasDeSe
                   @if (extra.videoInicialUrl || extra.videoInicial) {
                     <button
                       type="button"
-                      (click)="verEvidenciasEspecial(extra)"
+                      (click)="verEvidenciasEspecial(extra, 'inicio')"
                       class="px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded-lg text-xs font-bold inline-flex items-center gap-1 shadow-2xs">
                       <i-lucide aria-hidden="true" name="video" class="w-3 h-3 text-amber-600"></i-lucide>
                       <span>Vídeo Inicio</span>
@@ -827,7 +827,7 @@ import { EvidenciaServicioItem, EvidenciasServicioModalComponent, evidenciasDeSe
                   @if (extra.videoFinalUrl || extra.videoFinal) {
                     <button
                       type="button"
-                      (click)="verEvidenciasEspecial(extra)"
+                      (click)="verEvidenciasEspecial(extra, 'fin')"
                       class="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg text-xs font-bold inline-flex items-center gap-1 shadow-2xs">
                       <i-lucide aria-hidden="true" name="film" class="w-3 h-3 text-emerald-600"></i-lucide>
                       <span>Vídeo Fin</span>
@@ -1686,6 +1686,8 @@ import { EvidenciaServicioItem, EvidenciasServicioModalComponent, evidenciasDeSe
         [isOpen]="modalVideoOpen"
         [referencia]="evidenciasReferencia"
         [items]="evidenciasModal"
+        [fase]="evidenciasFase"
+        [observacion]="evidenciasObservacion"
         (close)="modalVideoOpen = false"></app-evidencias-servicio-modal>
 
       <app-modal size="md"
@@ -2108,7 +2110,7 @@ import { EvidenciaServicioItem, EvidenciasServicioModalComponent, evidenciasDeSe
                 <span class="text-[11px] text-slate-500 font-bold uppercase mb-1">Vídeo Inicial</span>
                 @if (servicioEspecialSeleccionado.videoInicialUrl || servicioEspecialSeleccionado.videoInicial) {
                   <button
-                    (click)="verEvidenciasEspecial(servicioEspecialSeleccionado)"
+                    (click)="verEvidenciasEspecial(servicioEspecialSeleccionado, 'inicio')"
                     class="px-2 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1 shadow-2xs">
                     <i-lucide aria-hidden="true" name="play" class="w-3 h-3"></i-lucide>
                     <span>Inicial</span>
@@ -2122,7 +2124,7 @@ import { EvidenciaServicioItem, EvidenciasServicioModalComponent, evidenciasDeSe
                 <span class="text-[11px] text-slate-500 font-bold uppercase mb-1">Vídeo Pausa</span>
                 @if (servicioEspecialSeleccionado.videoPausa || servicioEspecialSeleccionado.videoUltimaPausaUrl) {
                   <button
-                    (click)="verEvidenciasEspecial(servicioEspecialSeleccionado)"
+                    (click)="verEvidenciasEspecial(servicioEspecialSeleccionado, 'pausas')"
                     class="px-2 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1 shadow-2xs">
                     <i-lucide aria-hidden="true" name="pause" class="w-3 h-3"></i-lucide>
                     <span>Pausa</span>
@@ -2136,7 +2138,7 @@ import { EvidenciaServicioItem, EvidenciasServicioModalComponent, evidenciasDeSe
                 <span class="text-[11px] text-slate-500 font-bold uppercase mb-1">Vídeo Reanudar</span>
                 @if (servicioEspecialSeleccionado.videoReanudacion || servicioEspecialSeleccionado.videoUltimaReanudacionUrl) {
                   <button
-                    (click)="verEvidenciasEspecial(servicioEspecialSeleccionado)"
+                    (click)="verEvidenciasEspecial(servicioEspecialSeleccionado, 'pausas')"
                     class="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1 shadow-2xs">
                     <i-lucide aria-hidden="true" name="play" class="w-3 h-3"></i-lucide>
                     <span>Reanudar</span>
@@ -2150,7 +2152,7 @@ import { EvidenciaServicioItem, EvidenciasServicioModalComponent, evidenciasDeSe
                 <span class="text-[11px] text-slate-500 font-bold uppercase mb-1">Vídeo Final</span>
                 @if (servicioEspecialSeleccionado.videoFinalUrl || servicioEspecialSeleccionado.videoFinal) {
                   <button
-                    (click)="verEvidenciasEspecial(servicioEspecialSeleccionado)"
+                    (click)="verEvidenciasEspecial(servicioEspecialSeleccionado, 'fin')"
                     class="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1 shadow-2xs">
                     <i-lucide aria-hidden="true" name="play" class="w-3 h-3"></i-lucide>
                     <span>Final</span>
@@ -3333,6 +3335,8 @@ export class ServiciosComponent implements OnInit, OnDestroy {
   evidenciasModal: EvidenciaServicioItem[] = [];
   /** Placa u OT que se muestra en el título de la ventana de evidencias. */
   evidenciasReferencia = '';
+  evidenciasFase?: FaseEvidencia;
+  evidenciasObservacion = '';
   modalReportarFallaOpen = false;
   maquinasReporte: Maquinaria[] = [];
   maquinaSeleccionadaId: number | string = 0;
@@ -5229,20 +5233,26 @@ export class ServiciosComponent implements OnInit, OnDestroy {
     });
   }
 
-  evidenciasDe(item: VehiculoServicio): EvidenciaServicioItem[] {
-    return evidenciasDeServicio(item, (url) => this.visorMedia.tipoDe(url));
+  evidenciasDe(item: VehiculoServicio, fase?: FaseEvidencia): EvidenciaServicioItem[] {
+    return evidenciasDeServicio(item, (url) => this.visorMedia.tipoDe(url), fase);
   }
 
   /** Abre la ventana con todas las evidencias del servicio (videos y fotos de ingreso y salida). */
-  verEvidencias(item: VehiculoServicio): void {
+  verEvidencias(item: VehiculoServicio, fase?: FaseEvidencia): void {
     this.servicioSeleccionado = item;
-    this.evidenciasReferencia = item.placa || '';
-    this.evidenciasModal = this.evidenciasDe(item);
+    this.evidenciasReferencia = item.ordenTrabajoOT || item.placa || '';
+    this.evidenciasFase = fase;
+    // Las observaciones del servicio son las de la entrega: solo acompañan a la evidencia de finalización.
+    this.evidenciasObservacion = fase === 'fin' ? (item.notas || '').trim() : '';
+    this.evidenciasModal = this.evidenciasDe(item, fase);
     this.modalVideoOpen = true;
   }
 
-  /** Evidencias de un servicio especial en una sola ventana: video inicial, cada pausa y reanudación, y video final. */
-  verEvidenciasEspecial(extra: ServicioExtra): void {
+  /**
+   * Evidencias de un servicio especial por fase: `inicio` (video inicial), `pausas` (cada pausa y reanudación) o `fin`
+   * (video final con las observaciones del cierre).
+   */
+  verEvidenciasEspecial(extra: ServicioExtra, fase: FaseEvidencia): void {
     const lista: EvidenciaServicioItem[] = [];
     const agregar = (etiqueta: string, url?: string | null) => {
       const limpia = String(url ?? '').trim();
@@ -5250,16 +5260,21 @@ export class ServiciosComponent implements OnInit, OnDestroy {
       if (!/^https?:\/\//i.test(limpia) || lista.some((e) => e.url === limpia)) return;
       lista.push({ tipo: this.visorMedia.tipoDe(limpia), etiqueta, url: limpia });
     };
-    agregar('Video inicial', extra.videoInicialUrl || extra.videoInicial);
-    const historial: any[] = Array.isArray(extra.historialPausas) ? extra.historialPausas : [];
-    historial.forEach((p, i) => {
-      agregar(`Video de pausa #${i + 1}`, p?.videoPausaUrl);
-      agregar(`Video de reanudación #${i + 1}`, p?.videoReanudacionUrl);
-    });
-    agregar('Video de pausa', extra.videoUltimaPausaUrl || extra.videoPausa);
-    agregar('Video de reanudación', extra.videoUltimaReanudacionUrl || extra.videoReanudacion);
-    agregar('Video final', extra.videoFinalUrl || extra.videoFinal);
+    if (fase === 'inicio') agregar('Video inicial', extra.videoInicialUrl || extra.videoInicial);
+    if (fase === 'pausas') {
+      const historial: any[] = Array.isArray(extra.historialPausas) ? extra.historialPausas : [];
+      historial.forEach((p, i) => {
+        agregar(`Video de pausa #${i + 1}`, p?.videoPausaUrl);
+        agregar(`Video de reanudación #${i + 1}`, p?.videoReanudacionUrl);
+      });
+      agregar('Video de pausa', extra.videoUltimaPausaUrl || extra.videoPausa);
+      agregar('Video de reanudación', extra.videoUltimaReanudacionUrl || extra.videoReanudacion);
+    }
+    if (fase === 'fin') agregar('Video final', extra.videoFinalUrl || extra.videoFinal);
+    const datos = extra as any;
     this.evidenciasReferencia = extra.codigoSE || '';
+    this.evidenciasFase = fase;
+    this.evidenciasObservacion = fase === 'fin' ? String(datos.observaciones || datos.notasOperador || extra.notas || '').trim() : '';
     this.evidenciasModal = lista;
     this.modalVideoOpen = true;
   }
