@@ -4001,7 +4001,8 @@ export class ServiciosComponent implements OnInit, OnDestroy {
     const estado = (item.estado || '').toUpperCase();
     const enProceso = estado === 'EN PROCESO' || estado === 'EN_PROCESO' || estado === 'EN COLA' || estado === 'EN_ESPERA';
     if (enProceso) return null;
-    const url = item.fotoSalidaUrl || item.videoFinalUrl || item.videoFinal;
+    // El video de salida va primero: una foto de salida no debe taparlo.
+    const url = item.videoFinalUrl || item.videoFinal || item.fotoSalidaUrl;
     if (url && url !== item.fotoIngresoUrl && url !== item.videoInicialUrl) {
       return url;
     }

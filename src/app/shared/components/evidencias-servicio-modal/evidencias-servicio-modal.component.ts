@@ -44,7 +44,9 @@ export function evidenciasDeServicio(s: MultimediaServicio | null | undefined, t
   const agregar = (etiqueta: string, url?: string | null) => {
     const limpia = String(url ?? '').trim();
     if (!limpia || lista.some((e) => e.url === limpia)) return;
-    lista.push({ tipo: tipoDe(limpia), etiqueta, url: limpia });
+    const tipo = tipoDe(limpia);
+    // El listado rellena «video de ingreso/salida» con la foto cuando no hay video: se nombra por lo que realmente es.
+    lista.push({ tipo, etiqueta: tipo === 'imagen' ? etiqueta.replace(/^Video de/, 'Foto de') : etiqueta, url: limpia });
   };
   agregar('Video de ingreso', s.videoInicialUrl);
   agregar('Video de salida', s.videoFinalUrl);
