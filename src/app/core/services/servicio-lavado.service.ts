@@ -244,7 +244,10 @@ export class ServicioLavadoService {
   crearRegistroHojaServicio(
     nuevo: Partial<VehiculoServicio> & { bahiaId?: string; servicioCatalogoId?: number; servicioCatalogoIds?: number[]; operadorIds?: string[] },
   ): Observable<VehiculoServicio[]> {
-    const videoOIngreso = nuevo.video || nuevo.videoUrl || (nuevo as any).fotoIngresoUrl || nuevo.foto || null;
+    const video = nuevo.video || nuevo.videoUrl || (nuevo as any).fotoIngresoUrl || null;
+    const foto = nuevo.foto || null;
+    // Con foto adicional el video y la foto viajan por separado; sin ella, el video sigue yendo como evidencia de ingreso.
+    const fotoYVideo = !!(video && foto && foto !== video);
     const ordenTrabajoOT = nuevo.ordenTrabajoOT ? nuevo.ordenTrabajoOT.trim() : undefined;
     const servicioCatalogoIds = (nuevo.servicioCatalogoIds || []).map(Number).filter((id) => id > 0);
     const payload = {
@@ -258,7 +261,8 @@ export class ServicioLavadoService {
       servicioCatalogoId: servicioCatalogoIds[0] || nuevo.servicioCatalogoId || Number(nuevo.servicioId),
       ...(servicioCatalogoIds.length > 1 ? { servicioCatalogoIds } : {}),
       ...(nuevo.operadorIds?.length ? { operadorIds: nuevo.operadorIds } : {}),
-      fotoIngresoUrl: videoOIngreso,
+      fotoIngresoUrl: fotoYVideo ? foto : (video || foto),
+      ...(fotoYVideo ? { videoInicialUrl: video } : {}),
       observaciones: nuevo.notas || '',
       estado: (nuevo.estado as any) || 'EN_PROCESO'
     };

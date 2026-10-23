@@ -43,11 +43,13 @@ import { resolverRangoFechas, soloFecha } from '../../core/utils/fecha-rango';
 import { RouterModule } from '@angular/router';
 import { VideoRecorderComponent } from '../../shared/components/video-recorder/video-recorder.component';
 import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-selector/evidencia-selector.component';
+import { FotoOpcionalComponent } from '../../shared/components/foto-opcional/foto-opcional.component';
+import { EvidenciaServicioItem, EvidenciasServicioModalComponent, evidenciasDeServicio } from '../../shared/components/evidencias-servicio-modal/evidencias-servicio-modal.component';
 
 @Component({
   selector: 'app-servicios',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, LucideAngularModule, ModalComponent, DataTableComponent, DataTableCellDirective, InfiniteScrollComponent, FilterBarComponent, VideoRecorderComponent, EvidenciaSelectorComponent],
+  imports: [CommonModule, RouterModule, FormsModule, LucideAngularModule, ModalComponent, DataTableComponent, DataTableCellDirective, InfiniteScrollComponent, FilterBarComponent, VideoRecorderComponent, EvidenciaSelectorComponent, EvidenciasServicioModalComponent, FotoOpcionalComponent],
   template: `
     <div class="space-y-6 animate-fade-in">
 
@@ -296,8 +298,8 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
             <div (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
                                 @if (getVideoInicial(item); as vidIni) {
                                   <button
-                                    (click)="verVideoGenerico(vidIni, 'Evidencia de Inicio — OT: ' + (item.ordenTrabajoOT || item.placa))"
-                                    title="Ver evidencia de inicio"
+                                    (click)="verEvidencias(item)"
+                                    title="Ver evidencias del servicio"
                                     class="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded-lg text-xs font-bold inline-flex items-center gap-1 shadow-2xs transition-all cursor-pointer">
                                     <i-lucide aria-hidden="true" name="video" class="w-3.5 h-3.5 text-amber-600"></i-lucide>
                                     <span>Inicio</span>
@@ -312,8 +314,8 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
             <div (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
                                 @if (getVideoFinal(item); as vidFin) {
                                   <button
-                                    (click)="verVideoGenerico(vidFin, 'Evidencia Final / Entrega — OT: ' + (item.ordenTrabajoOT || item.placa))"
-                                    title="Ver evidencia final / entrega"
+                                    (click)="verEvidencias(item)"
+                                    title="Ver evidencias del servicio"
                                     class="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg text-xs font-bold inline-flex items-center gap-1 shadow-2xs transition-all cursor-pointer">
                                     <i-lucide aria-hidden="true" name="film" class="w-3.5 h-3.5 text-emerald-600"></i-lucide>
                                     <span>Fin</span>
@@ -454,7 +456,7 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
                     @if (getVideoInicial(item); as vidIni) {
                       <button
                         type="button"
-                        (click)="$event.stopPropagation(); verVideoGenerico(vidIni, 'Evidencia de Inicio — OT: ' + (item.ordenTrabajoOT || item.placa))"
+                        (click)="$event.stopPropagation(); verEvidencias(item)"
                         class="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded-lg text-xs font-bold inline-flex items-center gap-1 shadow-2xs">
                         <i-lucide aria-hidden="true" name="video" class="w-3 h-3 text-amber-600"></i-lucide>
                         <span>Evidencia Inicio</span>
@@ -463,7 +465,7 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
                     @if (getVideoFinal(item); as vidFin) {
                       <button
                         type="button"
-                        (click)="$event.stopPropagation(); verVideoGenerico(vidFin, 'Evidencia Final — OT: ' + (item.ordenTrabajoOT || item.placa))"
+                        (click)="$event.stopPropagation(); verEvidencias(item)"
                         class="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg text-xs font-bold inline-flex items-center gap-1 shadow-2xs">
                         <i-lucide aria-hidden="true" name="film" class="w-3 h-3 text-emerald-600"></i-lucide>
                         <span>Evidencia Fin</span>
@@ -622,7 +624,7 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
             <div (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
                                 @if (extra.videoInicialUrl || extra.videoInicial) {
                                   <button
-                                    (click)="verVideoGenerico(extra.videoInicialUrl || extra.videoInicial, 'Vídeo Inicial OT: ' + extra.codigoSE)"
+                                    (click)="verEvidenciasEspecial(extra)"
                                     class="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded-lg text-xs font-bold inline-flex items-center gap-1 shadow-2xs transition-all cursor-pointer">
                                     <i-lucide aria-hidden="true" name="video" class="w-3.5 h-3.5 text-amber-600"></i-lucide>
                                     <span>Inicio</span>
@@ -655,7 +657,7 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
             <div (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
                                 @if (extra.videoFinalUrl || extra.videoFinal) {
                                   <button
-                                    (click)="verVideoGenerico(extra.videoFinalUrl || extra.videoFinal, 'Vídeo Final OT: ' + extra.codigoSE)"
+                                    (click)="verEvidenciasEspecial(extra)"
                                     class="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg text-xs font-bold inline-flex items-center gap-1 shadow-2xs transition-all cursor-pointer">
                                     <i-lucide aria-hidden="true" name="film" class="w-3.5 h-3.5 text-emerald-600"></i-lucide>
                                     <span>Fin</span>
@@ -807,7 +809,7 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
                   @if (extra.videoInicialUrl || extra.videoInicial) {
                     <button
                       type="button"
-                      (click)="verVideoGenerico(extra.videoInicialUrl || extra.videoInicial, 'Vídeo Inicial OT: ' + extra.codigoSE)"
+                      (click)="verEvidenciasEspecial(extra)"
                       class="px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded-lg text-xs font-bold inline-flex items-center gap-1 shadow-2xs">
                       <i-lucide aria-hidden="true" name="video" class="w-3 h-3 text-amber-600"></i-lucide>
                       <span>Vídeo Inicio</span>
@@ -825,7 +827,7 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
                   @if (extra.videoFinalUrl || extra.videoFinal) {
                     <button
                       type="button"
-                      (click)="verVideoGenerico(extra.videoFinalUrl || extra.videoFinal, 'Vídeo Final OT: ' + extra.codigoSE)"
+                      (click)="verEvidenciasEspecial(extra)"
                       class="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg text-xs font-bold inline-flex items-center gap-1 shadow-2xs">
                       <i-lucide aria-hidden="true" name="film" class="w-3 h-3 text-emerald-600"></i-lucide>
                       <span>Vídeo Fin</span>
@@ -1024,44 +1026,18 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
                 </div>
               </div>
             }
-            <!-- Evidencias en Vídeo (Ingreso y Salida) -->
-            @if (servicioDetalleSeleccionado.fotoIngresoUrl || servicioDetalleSeleccionado.fotoSalidaUrl || servicioDetalleSeleccionado.video || servicioDetalleSeleccionado.videoUrl) {
-              <div class="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 text-xs space-y-2">
-                <span class="text-[11px] text-slate-800 font-extrabold uppercase flex items-center gap-1.5">
-                  <i-lucide aria-hidden="true" name="film" class="w-3.5 h-3.5 text-easydry-blue"></i-lucide>
-                  Evidencias en Vídeo Registradas
+            <!-- Evidencias (videos y fotos de ingreso y salida) -->
+            @if (evidenciasDe(servicioDetalleSeleccionado).length) {
+              <button type="button" (click)="verEvidencias(servicioDetalleSeleccionado)"
+                class="w-full p-3.5 bg-slate-50 hover:bg-white rounded-2xl border border-slate-200 hover:border-easydry-blue flex items-center gap-3 text-left transition-colors cursor-pointer">
+                <span class="w-9 h-9 rounded-xl bg-easydry-blue/10 text-easydry-blue flex items-center justify-center shrink-0">
+                  <i-lucide aria-hidden="true" name="film" class="w-4 h-4"></i-lucide>
                 </span>
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  @if (servicioDetalleSeleccionado.fotoIngresoUrl || servicioDetalleSeleccionado.video || servicioDetalleSeleccionado.videoUrl) {
-                    <button
-                      type="button"
-                      (click)="verVideoGenerico(servicioDetalleSeleccionado.fotoIngresoUrl || servicioDetalleSeleccionado.video || servicioDetalleSeleccionado.videoUrl, 'Vídeo de Ingreso: ' + servicioDetalleSeleccionado.placa)"
-                      class="p-2.5 bg-white hover:bg-slate-100 rounded-xl border border-slate-200 flex items-center gap-2 font-bold text-slate-800 text-xs transition-colors cursor-pointer shadow-2xs">
-                      <div class="w-7 h-7 rounded-lg bg-easydry-blue/10 text-easydry-blue flex items-center justify-center">
-                        <i-lucide aria-hidden="true" name="play" class="w-3.5 h-3.5"></i-lucide>
-                      </div>
-                      <div class="text-left">
-                        <p class="text-xs font-bold text-slate-900">Vídeo de Ingreso</p>
-                        <p class="text-xs text-slate-500 font-normal">Recepción del auto</p>
-                      </div>
-                    </button>
-                  }
-                  @if (servicioDetalleSeleccionado.fotoSalidaUrl) {
-                    <button
-                      type="button"
-                      (click)="verVideoGenerico(servicioDetalleSeleccionado.fotoSalidaUrl, 'Vídeo de Salida: ' + servicioDetalleSeleccionado.placa)"
-                      class="p-2.5 bg-white hover:bg-slate-100 rounded-xl border border-slate-200 flex items-center gap-2 font-bold text-slate-800 text-xs transition-colors cursor-pointer shadow-2xs">
-                      <div class="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                        <i-lucide aria-hidden="true" name="check-circle-2" class="w-3.5 h-3.5"></i-lucide>
-                      </div>
-                      <div class="text-left">
-                        <p class="text-xs font-bold text-slate-900">Vídeo de Salida</p>
-                        <p class="text-xs text-slate-500 font-normal">Entrega y acabado</p>
-                      </div>
-                    </button>
-                  }
-                </div>
-              </div>
+                <span class="flex-1">
+                  <span class="block text-xs font-extrabold text-slate-900 uppercase">Evidencias del servicio</span>
+                  <span class="block text-xs text-slate-500">{{ evidenciasDe(servicioDetalleSeleccionado).length }} archivo(s) entre videos y fotos. Clic para verlos.</span>
+                </span>
+              </button>
             }
           </div>
         }
@@ -1620,14 +1596,17 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
             [agenciaId]="agenciaFormId || userSucursal"
             [servicioId]="nuevoRegistro.ordenTrabajoOT || nuevoRegistro.placa"
             [(videoUrl)]="nuevoRegistro.videoUrl"
-            [required]="!excepcionSinVideo">
+            [required]="true">
           </app-video-recorder>
 
-          <div class="mt-2.5 flex items-center gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
-            <input type="checkbox" id="srv-sin-video" [(ngModel)]="excepcionSinVideo" [ngModelOptions]="{standalone: true}" class="rounded text-easydry-blue focus:ring-0 cursor-pointer">
-            <label for="srv-sin-video" class="text-xs text-slate-700 font-medium cursor-pointer">
-              Excepción administrativa / contingencia (registrar OT sin vídeo de ingreso)
-            </label>
+          <div class="mt-3">
+            <app-foto-opcional
+              #fotoIngresoOpcional
+              label="Foto adicional de ingreso (opcional)"
+              evidenceType="FOTO_INGRESO"
+              category="SERVICIOS_GENERALES"
+              (fotoUrlChange)="nuevoRegistro.foto = $event">
+            </app-foto-opcional>
           </div>
           }
 
@@ -1702,40 +1681,12 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
         </div>
       </app-modal>
 
-      <!-- Modal Reproductor de Vídeo Evidencia -->
-      <app-modal size="lg"
+      <!-- Modal de evidencias del servicio (videos y fotos) -->
+      <app-evidencias-servicio-modal
         [isOpen]="modalVideoOpen"
-        [title]="'Evidencia en Vídeo: ' + (servicioSeleccionado?.placa || '')"
-        icon="film"
-        (close)="modalVideoOpen = false">
-
-        @if (servicioSeleccionado) {
-          <div class="space-y-4">
-            <div class="aspect-video bg-black rounded-2xl overflow-hidden shadow-inner flex items-center justify-center">
-              @if (servicioSeleccionado.videoUrl || servicioSeleccionado.video || servicioSeleccionado.fotoIngresoUrl || servicioSeleccionado.fotoSalidaUrl) {
-                <video
-                  aria-label="Vídeo de evidencia del servicio"
-                  [src]="videoEvidenciaUrl"
-                  controls
-                  autoplay
-                  class="w-full h-full object-contain">
-                </video>
-              } @else {
-                <p class="text-white/80 text-sm font-medium px-6 text-center">No hay vídeo de evidencia registrado para este servicio.</p>
-              }
-            </div>
-
-            <div class="p-3 bg-slate-50 rounded-xl text-xs space-y-1">
-              <p class="font-bold text-slate-900">{{ servicioSeleccionado.marca }} {{ servicioSeleccionado.modelo }} ({{ servicioSeleccionado.placa }})</p>
-              <p class="text-slate-500">Orden: <strong>{{ servicioSeleccionado.ordenTrabajoOT }}</strong> • Atendido por: <strong>{{ servicioSeleccionado.empleado }}</strong></p>
-            </div>
-          </div>
-        }
-
-        <div modal-footer class="w-full sm:w-auto">
-          <button (click)="modalVideoOpen = false" class="btn-secondary w-full sm:w-auto">Cerrar Vídeo</button>
-        </div>
-      </app-modal>
+        [referencia]="evidenciasReferencia"
+        [items]="evidenciasModal"
+        (close)="modalVideoOpen = false"></app-evidencias-servicio-modal>
 
       <app-modal size="md"
         [isOpen]="modalReportarFallaOpen"
@@ -2157,7 +2108,7 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
                 <span class="text-[11px] text-slate-500 font-bold uppercase mb-1">Vídeo Inicial</span>
                 @if (servicioEspecialSeleccionado.videoInicialUrl || servicioEspecialSeleccionado.videoInicial) {
                   <button
-                    (click)="verVideoGenerico(servicioEspecialSeleccionado.videoInicialUrl || servicioEspecialSeleccionado.videoInicial, 'Vídeo Inicial: ' + servicioEspecialSeleccionado.codigoSE)"
+                    (click)="verEvidenciasEspecial(servicioEspecialSeleccionado)"
                     class="px-2 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1 shadow-2xs">
                     <i-lucide aria-hidden="true" name="play" class="w-3 h-3"></i-lucide>
                     <span>Inicial</span>
@@ -2171,7 +2122,7 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
                 <span class="text-[11px] text-slate-500 font-bold uppercase mb-1">Vídeo Pausa</span>
                 @if (servicioEspecialSeleccionado.videoPausa || servicioEspecialSeleccionado.videoUltimaPausaUrl) {
                   <button
-                    (click)="verVideoGenerico(servicioEspecialSeleccionado.videoPausa || servicioEspecialSeleccionado.videoUltimaPausaUrl, 'Vídeo de Pausa: ' + servicioEspecialSeleccionado.codigoSE)"
+                    (click)="verEvidenciasEspecial(servicioEspecialSeleccionado)"
                     class="px-2 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1 shadow-2xs">
                     <i-lucide aria-hidden="true" name="pause" class="w-3 h-3"></i-lucide>
                     <span>Pausa</span>
@@ -2185,7 +2136,7 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
                 <span class="text-[11px] text-slate-500 font-bold uppercase mb-1">Vídeo Reanudar</span>
                 @if (servicioEspecialSeleccionado.videoReanudacion || servicioEspecialSeleccionado.videoUltimaReanudacionUrl) {
                   <button
-                    (click)="verVideoGenerico(servicioEspecialSeleccionado.videoReanudacion || servicioEspecialSeleccionado.videoUltimaReanudacionUrl, 'Vídeo Reanudación: ' + servicioEspecialSeleccionado.codigoSE)"
+                    (click)="verEvidenciasEspecial(servicioEspecialSeleccionado)"
                     class="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1 shadow-2xs">
                     <i-lucide aria-hidden="true" name="play" class="w-3 h-3"></i-lucide>
                     <span>Reanudar</span>
@@ -2199,7 +2150,7 @@ import { EvidenciaSelectorComponent } from '../../shared/components/evidencia-se
                 <span class="text-[11px] text-slate-500 font-bold uppercase mb-1">Vídeo Final</span>
                 @if (servicioEspecialSeleccionado.videoFinalUrl || servicioEspecialSeleccionado.videoFinal) {
                   <button
-                    (click)="verVideoGenerico(servicioEspecialSeleccionado.videoFinalUrl || servicioEspecialSeleccionado.videoFinal, 'Vídeo Final: ' + servicioEspecialSeleccionado.codigoSE)"
+                    (click)="verEvidenciasEspecial(servicioEspecialSeleccionado)"
                     class="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1 shadow-2xs">
                     <i-lucide aria-hidden="true" name="play" class="w-3 h-3"></i-lucide>
                     <span>Final</span>
@@ -2794,8 +2745,8 @@ export class ServiciosComponent implements OnInit, OnDestroy {
     this.nuevoRegistro.modelo = '';
     this.nuevoRegistro.color = '';
     this.nuevoRegistro.foto = '';
+    this.fotoIngresoOpcional?.reiniciar();
     this.nuevoRegistro.videoUrl = '';
-    this.excepcionSinVideo = false;
     this.nuevoRegistro.bahiaId = '';
     this.nuevoRegistro.fecha = new Date().toISOString().substring(0, 10);
     this.asignarHorasAutomaticasOT();
@@ -3379,7 +3330,9 @@ export class ServiciosComponent implements OnInit, OnDestroy {
   modalNuevoRegistroOpen = false;
   modalVideoOpen = false;
   /** URL ya resuelta (prefirmada si el archivo es privado) para el <video> del modal `modalVideoOpen`. */
-  videoEvidenciaUrl = '';
+  evidenciasModal: EvidenciaServicioItem[] = [];
+  /** Placa u OT que se muestra en el título de la ventana de evidencias. */
+  evidenciasReferencia = '';
   modalReportarFallaOpen = false;
   maquinasReporte: Maquinaria[] = [];
   maquinaSeleccionadaId: number | string = 0;
@@ -3436,7 +3389,6 @@ export class ServiciosComponent implements OnInit, OnDestroy {
     videoUrl: ''
   };
 
-  excepcionSinVideo = false;
 
   placaTocada = false;
 
@@ -3720,6 +3672,7 @@ export class ServiciosComponent implements OnInit, OnDestroy {
 
   // ── ViewChild Recorders para Evidencias en Vídeo con Carga Diferida a S3 ──
   @ViewChild('videoIngresoRecorder') videoIngresoRecorder?: VideoRecorderComponent;
+  @ViewChild('fotoIngresoOpcional') fotoIngresoOpcional?: FotoOpcionalComponent;
   @ViewChild('videoSalidaRecorder') videoSalidaRecorder?: VideoRecorderComponent;
   @ViewChild('videoInicialRecorder') videoInicialRecorder?: VideoRecorderComponent;
   @ViewChild('videoFinalRecorder') videoFinalRecorder?: VideoRecorderComponent;
@@ -4794,11 +4747,26 @@ export class ServiciosComponent implements OnInit, OnDestroy {
       }
     }
 
+    // Foto adicional de ingreso (opcional): se sube ahora que ya se conoce la OT.
+    if (!modoAgregar && this.fotoIngresoOpcional?.tienePendiente) {
+      try {
+        this.guardandoServicio = true;
+        this.fotoIngresoOpcional.servicioId = this.nuevoRegistro.ordenTrabajoOT || this.nuevoRegistro.placa;
+        this.fotoIngresoOpcional.agenciaId = this.nuevoRegistro.agencia || this.userSucursal;
+        this.nuevoRegistro.foto = await this.fotoIngresoOpcional.subirAhora();
+      } catch (err: any) {
+        console.error('Error al subir la foto de ingreso:', err);
+        this.toastService.error('No se pudo subir la foto', err?.message || 'No se pudo subir la foto de ingreso. Quítala o inténtalo de nuevo.');
+        this.guardandoServicio = false;
+        return;
+      }
+    }
+
     // Al agregar servicios, la evidencia de ingreso ya se registró con la OT original.
-    if (!modoAgregar && !this.nuevoRegistro.videoUrl?.trim() && !this.excepcionSinVideo) {
+    if (!modoAgregar && !this.nuevoRegistro.videoUrl?.trim()) {
       this.toastService.warning(
         'Vídeo de Ingreso Requerido',
-        'El vídeo de evidencia de ingreso (recepción) es un campo obligatorio para registrar la orden de trabajo, o active la casilla de excepción administrativa.'
+        'El vídeo de evidencia de ingreso (recepción) es obligatorio para registrar la orden de trabajo.'
       );
       this.guardandoServicio = false;
       return;
@@ -4848,6 +4816,7 @@ export class ServiciosComponent implements OnInit, OnDestroy {
         }
         this.modalNuevoRegistroOpen = false;
         this.videoIngresoRecorder?.eliminarVideo();
+        this.fotoIngresoOpcional?.reiniciar();
 
         this.filtroTexto = '';
         this.filtroCategoria = 'Todas';
@@ -5259,24 +5228,39 @@ export class ServiciosComponent implements OnInit, OnDestroy {
     });
   }
 
-  async verVideoEvidencia(item: VehiculoServicio) {
-    const url = item.videoUrl || item.video || item.fotoIngresoUrl || item.fotoSalidaUrl;
-    // Una foto o un PDF se ven en el visor común; solo el video usa este reproductor.
-    if (url && this.visorMedia.tipoDe(url) !== 'video') {
-      void this.visorMedia.abrir(url, { titulo: `Evidencia: ${item.placa}` });
-      return;
-    }
+  evidenciasDe(item: VehiculoServicio): EvidenciaServicioItem[] {
+    return evidenciasDeServicio(item, (url) => this.visorMedia.tipoDe(url));
+  }
+
+  /** Abre la ventana con todas las evidencias del servicio (videos y fotos de ingreso y salida). */
+  verEvidencias(item: VehiculoServicio): void {
     this.servicioSeleccionado = item;
-    this.videoEvidenciaUrl = '';
+    this.evidenciasReferencia = item.placa || '';
+    this.evidenciasModal = this.evidenciasDe(item);
     this.modalVideoOpen = true;
-    if (!url) return;
-    // Resuelve primero la URL prefirmada (si el archivo es privado) en vez de intentar /storage/file
-    // directamente, que respondería 403 para evidencias privadas.
-    try {
-      this.videoEvidenciaUrl = await this.storageUploadService.getDirectStreamingUrl(url);
-    } catch {
-      this.videoEvidenciaUrl = this.storageUploadService.resolveBackendUrl(url);
-    }
+  }
+
+  /** Evidencias de un servicio especial en una sola ventana: video inicial, cada pausa y reanudación, y video final. */
+  verEvidenciasEspecial(extra: ServicioExtra): void {
+    const lista: EvidenciaServicioItem[] = [];
+    const agregar = (etiqueta: string, url?: string | null) => {
+      const limpia = String(url ?? '').trim();
+      // Una ruta local (file://) guardada por la app no se puede abrir en el navegador: el enlace real llega al subirse el video.
+      if (!/^https?:\/\//i.test(limpia) || lista.some((e) => e.url === limpia)) return;
+      lista.push({ tipo: this.visorMedia.tipoDe(limpia), etiqueta, url: limpia });
+    };
+    agregar('Video inicial', extra.videoInicialUrl || extra.videoInicial);
+    const historial: any[] = Array.isArray(extra.historialPausas) ? extra.historialPausas : [];
+    historial.forEach((p, i) => {
+      agregar(`Video de pausa #${i + 1}`, p?.videoPausaUrl);
+      agregar(`Video de reanudación #${i + 1}`, p?.videoReanudacionUrl);
+    });
+    agregar('Video de pausa', extra.videoUltimaPausaUrl || extra.videoPausa);
+    agregar('Video de reanudación', extra.videoUltimaReanudacionUrl || extra.videoReanudacion);
+    agregar('Video final', extra.videoFinalUrl || extra.videoFinal);
+    this.evidenciasReferencia = extra.codigoSE || '';
+    this.evidenciasModal = lista;
+    this.modalVideoOpen = true;
   }
 
   abrirDetalle(item: VehiculoServicio) {
