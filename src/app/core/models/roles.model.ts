@@ -16,7 +16,7 @@ export enum Role {
   LIDER = 'LIDER',
   /** Reemplazo temporal de un líder operador dentro de su región. */
   BACKUP = 'BACKUP',
-  /** Lavador de una bahía que cubre al líder: mismas capacidades del líder en su agencia (uno por agencia). */
+  /** Lavador de una bahía que cubre al líder: mismas capacidades del líder en su agencia (varios por agencia, cada uno en su bahía). */
   AUXILIAR = 'AUXILIAR',
   /** Lavador de bahía — registro en BD para constancia y trazabilidad de productividad */
   LAVADOR = 'LAVADOR',

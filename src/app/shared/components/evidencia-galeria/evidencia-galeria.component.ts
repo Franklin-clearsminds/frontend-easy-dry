@@ -6,6 +6,7 @@ import { StorageUploadService } from '../../../core/services/storage-upload.serv
 import { MediaError, MediaEstado, esReintentable, mensajeEstado } from '../../../core/services/media-privada';
 import { fechaHoraLocal } from '../../../core/utils/evidencia-maquinaria';
 import { VisorArchivoComponent } from '../visor-archivo/visor-archivo.component';
+import { VisorMediaService } from '../../services/visor-media.service';
 
 /**
  * Galería de evidencias de maquinaria (fotos, videos y PDF). Las claves `maquinaria/` son privadas: cada archivo
@@ -44,18 +45,14 @@ import { VisorArchivoComponent } from '../visor-archivo/visor-archivo.component'
                     }
                   </button>
                 } @else if (e.kind === 'VIDEO') {
-                  @if (estados[e.id]) {
-                    <div class="w-full h-24 rounded-lg bg-slate-100 flex flex-col items-center justify-center gap-1 px-2 text-center text-xs" [class.text-amber-700]="estados[e.id] === 'permiso'" [class.text-slate-600]="estados[e.id] !== 'permiso'" role="alert">
-                      <span>{{ mensaje(estados[e.id]!) }}</span>
-                      @if (reintentable(estados[e.id]!)) {
-                        <button type="button" (click)="reintentar(e)" class="font-bold underline cursor-pointer">Reintentar</button>
-                      }
-                    </div>
-                  } @else if (urls[e.id]) {
-                    <video [src]="urls[e.id]" controls [attr.aria-label]="'Video de evidencia: ' + (e.descripcion || 'sin descripción')" preload="metadata" class="w-full h-24 object-cover rounded-lg bg-black"></video>
-                  } @else {
-                    <div class="w-full h-24 rounded-lg bg-slate-900 flex items-center justify-center text-xs text-white/80" role="status">Cargando...</div>
-                  }
+                  <!-- El video se reproduce en el visor común (ventana grande con controles), no en un cuadro de 96 px -->
+                  <button type="button" (click)="abrirVideo(e)" title="Reproducir video" [attr.aria-label]="'Reproducir video: ' + (e.descripcion || 'sin descripción')"
+                    class="w-full h-24 rounded-lg bg-slate-900 flex flex-col items-center justify-center gap-1 text-white cursor-pointer hover:bg-slate-800 transition-colors">
+                    <span class="w-10 h-10 rounded-full bg-white/15 flex items-center justify-center">
+                      <i-lucide name="play" class="w-5 h-5" aria-hidden="true"></i-lucide>
+                    </span>
+                    <span class="text-xs font-bold">Ver video@if (e.duracionSeg) { · {{ e.duracionSeg | number:'1.0-0' }} s }</span>
+                  </button>
                 } @else {
                   <button type="button" (click)="abrir(e)"
                     class="w-full h-24 rounded-lg bg-indigo-50 border border-indigo-100 flex flex-col items-center justify-center gap-1 text-indigo-700 cursor-pointer hover:bg-indigo-100">
@@ -90,6 +87,7 @@ import { VisorArchivoComponent } from '../visor-archivo/visor-archivo.component'
 })
 export class EvidenciaGaleriaComponent implements OnChanges {
   private readonly storage = inject(StorageUploadService);
+  private readonly visorMedia = inject(VisorMediaService);
 
   @Input() evidencias: EvidenciaMaquinaria[] = [];
   /** Separa por etapa (Reporte / Reparación) cuando hay evidencias de ambas. */
@@ -109,9 +107,9 @@ export class EvidenciaGaleriaComponent implements OnChanges {
         ].filter(g => g.items.length > 0)
       : [{ titulo: '', items: this.evidencias }];
 
-    // Las fotos usan su miniatura (liviana); los videos, su archivo; los PDF solo se resuelven al abrirse.
+    // Las fotos usan su miniatura (liviana); los videos y los PDF solo se resuelven al abrirse.
     for (const e of this.evidencias) {
-      if (e.kind === 'DOCUMENTO' || this.urls[e.id]) continue;
+      if (e.kind === 'DOCUMENTO' || e.kind === 'VIDEO' || this.urls[e.id]) continue;
       this.cargar(e);
     }
   }
@@ -146,6 +144,11 @@ export class EvidenciaGaleriaComponent implements OnChanges {
       u => { if (u && this.urls[e.id] !== u) this.urls = { ...this.urls, [e.id]: u }; else if (u) this.estados = { ...this.estados, [e.id]: 'otro' }; },
       err => { this.estados = { ...this.estados, [e.id]: MediaError.desde(err).estado }; },
     );
+  }
+
+  /** Reproduce el video en el visor común: resuelve la URL temporal con la sesión y muestra el motivo si no se puede cargar. */
+  abrirVideo(e: EvidenciaMaquinaria): void {
+    void this.visorMedia.abrir(e.url, { titulo: e.descripcion || 'Video de evidencia', tipo: 'video' });
   }
 
   /** Abre la foto o el PDF en un modal (la URL temporal se resuelve con la sesión). */

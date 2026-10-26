@@ -1,4 +1,5 @@
 import { AuthService } from '../services/auth.service';
+import { FUNCION } from './funciones-rol';
 
 /**
  * Permisos de UI del módulo de maquinaria: consultan los mismos códigos que el backend exige por endpoint.
@@ -27,12 +28,12 @@ export const puedeVerMantenimientos = (auth: AuthService) => auth.puede('manteni
 export const puedeReportarIncidente = (auth: AuthService) => auth.puede('taller.incidentes.reportar');
 
 /**
- * Roles oficiales del módulo: el servidor les aplica una regla de negocio propia además del permiso
+ * Funciones del módulo: el servidor les aplica una regla de negocio propia además del permiso
  * (el técnico reporta solo lo asignado, el líder toda su agencia…). Copia exacta de `maquinaria/maquinaria.permisos.ts`.
  */
-const ROLES_DEL_MODULO = [
-  'SUPER_ADMIN', 'ADMIN', 'SUPERVISOR', 'COORD_MANTENIMIENTO', 'COORD_SERVICIOS_ESPECIALES',
-  'COORD_BODEGA', 'COORD_COMERCIAL', 'TECNICO', 'PULIDOR', 'LIDER',
+const FUNCIONES_DEL_MODULO = [
+  FUNCION.ADMINISTRADOR, FUNCION.SUPERVISOR, FUNCION.COORD_MANTENIMIENTO, FUNCION.COORD_ESPECIALES, FUNCION.COORD_BODEGA,
+  FUNCION.COMERCIAL, FUNCION.TECNICO, FUNCION.PULIDOR, FUNCION.LIDER_AGENCIA,
 ];
 
 /**
@@ -41,12 +42,15 @@ const ROLES_DEL_MODULO = [
  */
 export const reportaSobreSuAlcance = (auth: AuthService) =>
   auth.isLiderOperador()
-  || auth.hasRole('SUPERVISOR')
-  || auth.hasRole('COORD_SERVICIOS_ESPECIALES')
-  || !ROLES_DEL_MODULO.some((rol) => auth.hasRole(rol));
+  || auth.tieneFuncion(FUNCION.SUPERVISOR)
+  || auth.tieneFuncion(FUNCION.COORD_ESPECIALES)
+  || !FUNCIONES_DEL_MODULO.some((f) => auth.tieneFuncion(f));
 /** Resolver / editar incidentes (el servidor exige además ser el técnico asignado si no gestiona). */
 export const puedeResolverIncidentes = (auth: AuthService) => auth.puede('taller.incidentes.resolver');
 export const puedeCancelarIncidentes = (auth: AuthService) => auth.puede('taller.incidentes.cancelar');
+/** Editar una incidencia: la casilla completa sobre cualquiera de su alcance, o la de «asignada a mí» solo sobre las suyas. */
+export const puedeEditarIncidentes = (auth: AuthService, asignadaAMi: boolean) =>
+  auth.puede('taller.incidentes.editar') || (auth.puede('taller.incidentes.editar.asignadas') && asignadaAMi);
 /** Ejecutar / editar mantenimientos (el servidor exige además ser el técnico asignado si no gestiona). */
 export const puedeEjecutarMantenimientos = (auth: AuthService) => auth.puede('taller.mantenimientos.ejecutar');
 export const puedeEditarMantenimientos = (auth: AuthService) => auth.puede('taller.mantenimientos.editar');
@@ -67,4 +71,4 @@ export const puedeEditarLimpiezas = (auth: AuthService) => auth.puede('taller.li
  * puede tocarlo después — el servidor aplica exactamente esta misma regla por rol, no por permiso).
  */
 export const puedeCorregirCostoMaquinaria = (auth: AuthService) =>
-  auth.hasRole('ADMIN') || auth.hasRole('SUPER_ADMIN') || auth.hasRole('COORD_MANTENIMIENTO');
+  auth.tieneFuncion(FUNCION.ADMINISTRADOR) || auth.tieneFuncion(FUNCION.COORD_MANTENIMIENTO);

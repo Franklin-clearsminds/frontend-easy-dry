@@ -1,3 +1,4 @@
+import { FUNCION } from '../../core/utils/funciones-rol';
 import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
 import { AvatarSrcDirective } from '../../shared/directives/avatar-src.directive';
 import { Component, HostListener, OnDestroy, OnInit, ViewChild, inject } from '@angular/core';
@@ -4348,7 +4349,7 @@ export class InventarioComponent implements OnInit, OnDestroy {
     this.isOperador = !this.puedeOperarBodega;
     // Solo quien de verdad opera un kit propio (rol Pulidor o ámbito «solo lo propio») ve la vista de «mi kit».
     // Quien actúa por país, región o agencia ve el inventario de su alcance (el servidor ya lo limita).
-    const kitPropio = this.currentUser?.role === 'PULIDOR' || this.currentUser?.ambito === 'PROPIO';
+    const kitPropio = this.auth.tieneFuncion(FUNCION.PULIDOR) || this.currentUser?.ambito === 'PROPIO';
     this.isPulidor = this.isOperador && this.auth.puede('especiales.operar') && kitPropio && this.puedeVerKits;
     this.isPulidorMovil = this.isPulidor && !this.currentUser?.agenciaId;
     this.isPulidorFijo = this.isPulidor && !this.isPulidorMovil;

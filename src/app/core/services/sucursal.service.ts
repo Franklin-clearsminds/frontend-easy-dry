@@ -1,3 +1,4 @@
+import { FUNCION, conFuncion } from '../utils/funciones-rol';
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { BehaviorSubject, Observable, of } from 'rxjs';
@@ -55,8 +56,7 @@ export class SucursalService {
   private mapBackendAgencia(a: any): Sucursal {
 
     const ger = a.usuarios?.find((u: any) => {
-      const r = (u.role?.namerol || u.role || '').toUpperCase();
-      return r === 'APROBADOR' || r.includes('APROBADOR') || r === 'LIDER';
+      return conFuncion(u, FUNCION.APROBADOR) || conFuncion(u, FUNCION.LIDER);
     });
 
     const responsable = ger
@@ -70,8 +70,7 @@ export class SucursalService {
 
     const lider = (a.usuarios || []).find((u: any) => String(u.id) === String(a.liderOperadorId))
       || a.usuarios?.find((u: any) => {
-        const r = (u.role?.namerol || u.role || '').toUpperCase();
-        return r === 'LIDER' || r.includes('LIDER') || r.includes('LÍDER');
+        return conFuncion(u, FUNCION.LIDER);
       });
 
     const liderOperador = lider
@@ -88,8 +87,7 @@ export class SucursalService {
 
     // Filtrar operadores estrictos (excluyendo roles directivos / gerenciales)
     const operadores = (a.usuarios || []).filter((u: any) => {
-      const r = (u.role?.namerol || u.role || '').toUpperCase();
-      const esGestion = r === 'APROBADOR' || r.includes('APROBADOR') || r.includes('ADMIN') || r.includes('SUPERVISOR') || r.includes('JEFE') || r.includes('COORD');
+      const esGestion = [FUNCION.APROBADOR, FUNCION.ADMINISTRADOR, FUNCION.SUPERVISOR, FUNCION.COMERCIAL, FUNCION.COORD_MANTENIMIENTO, FUNCION.COORD_ESPECIALES, FUNCION.COORD_BODEGA].some((f) => conFuncion(u, f));
       return (u.estado === 1 || u.estado === 'Activo') && !esGestion;
     });
 

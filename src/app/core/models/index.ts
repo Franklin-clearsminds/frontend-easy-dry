@@ -10,6 +10,8 @@ import type { EvidenciaMaquinaria } from './maquinaria-trazabilidad.model';
 export type ModalidadPulidor = 'FIJO' | 'MOVIL';
 
 export interface Usuario {
+  /** Funciones del rol (`funcion.*`): lo que el rol es para el sistema. */
+  funciones?: string[];
   id: string | number;
   nombre: string;
   apellido: string;

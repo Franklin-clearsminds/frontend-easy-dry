@@ -1,3 +1,4 @@
+import { FUNCION } from '../../../core/utils/funciones-rol';
 import { Component, EventEmitter, Output, ViewChild, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -203,7 +204,7 @@ const TIPOS_FALLA = [
             <app-evidencia-selector #selResolver
               contexto="INCIDENTE" fase="reparacion"
               [maquinariaCodigo]="res.maquinaCodigo" [maquinariaId]="res.maquinaId" [entidadId]="res.id"
-              [requiereMultimedia]="res.estado === 'RESUELTO'" [requiereDocumento]="res.estado === 'RESUELTO'" [deshabilitado]="enviando">
+              [requiereMultimedia]="res.estado === 'RESUELTO'" [requiereDocumento]="false" [deshabilitado]="enviando">
             </app-evidencia-selector>
           } @else {
             <p class="text-xs text-slate-500">Tu rol no puede adjuntar evidencias; puedes guardar la resolución sin fotos ni documento.</p>
@@ -489,7 +490,7 @@ export class TrabajoAccionesComponent {
 
   /** Solo el COORD_MANTENIMIENTO puede auto-asignarse (omitiendo tecnicoId). */
   get esCoordinador(): boolean {
-    return this.authService.hasRole('COORD_MANTENIMIENTO');
+    return this.authService.tieneFuncion(FUNCION.COORD_MANTENIMIENTO);
   }
 
   get puedeCorregirCosto(): boolean {
@@ -521,7 +522,7 @@ export class TrabajoAccionesComponent {
   private async opcionesTecnicos(regionId?: string): Promise<TecnicoOpcion[]> {
     if (!regionId) return [];
     try {
-      const cargador = this.opciones.usuarios({ rolNombre: 'TECNICO', regionId, estado: 1 });
+      const cargador = this.opciones.usuarios({ funcion: FUNCION.TECNICO, regionId, estado: 1 });
       const pagina = await firstValueFrom(cargador('', 1, 200));
       return pagina.items.map(o => ({ id: o.value, nombre: o.label, rolLabel: ROLE_LABELS['TECNICO'] || 'Técnico' }));
     } catch {

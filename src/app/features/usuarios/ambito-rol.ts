@@ -18,6 +18,8 @@ export interface NotaAmbito {
 
 export interface EntradaNotaAmbito {
   codigoRol?: string;
+  /** El rol tiene la función «Backup» (aunque no se llame BACKUP). */
+  esBackup?: boolean;
   nombreRol: string;
   /** GLOBAL, REGION, AGENCIA o PROPIO. */
   ambito: string;
@@ -41,7 +43,7 @@ const COMO_SE_ASIGNA: Record<string, string> = {
 export function construirNotaAmbito(e: EntradaNotaAmbito): NotaAmbito {
   const codigo = (e.codigoRol || '').toUpperCase().trim();
 
-  if (codigo === 'BACKUP') {
+  if (codigo === 'BACKUP' || e.esBackup) {
     return {
       tono: 'backup',
       texto:

@@ -1,3 +1,4 @@
+import { FUNCION, conFuncion } from '../utils/funciones-rol';
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { BehaviorSubject, Observable, of } from 'rxjs';
@@ -18,7 +19,7 @@ export class RegionService {
   public regiones$ = this.regionesSubject.asObservable();
 
   private mapBackendRegion(r: any): RegionOperativa {
-    const sup = r.usuarios?.find((u: any) => u.role?.namerol === 'SUPERVISOR') || r.usuarios?.[0];
+    const sup = r.usuarios?.find((u: any) => conFuncion(u, FUNCION.SUPERVISOR)) || r.usuarios?.[0];
     const respNombre = r.responsable || (sup ? `${sup.name || ''} ${sup.lastname || ''}`.trim() : '');
     const supId = r.supervisorId || sup?.id || undefined;
     return {

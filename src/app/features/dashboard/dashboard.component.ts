@@ -1,3 +1,4 @@
+import { FUNCION } from '../../core/utils/funciones-rol';
 import { Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { RouterModule } from '@angular/router';
@@ -934,7 +935,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   /** El filtro de región solo aplica a quien ve más de una región (alcance global). */
   get puedeFiltrarRegion(): boolean {
     const u = this.auth.getCurrentUser();
-    return u?.ambito === 'GLOBAL' || u?.role === 'SUPER_ADMIN';
+    return u?.ambito === 'GLOBAL' || this.auth.isSuperAdmin();
   }
 
   /** El filtro de cliente/marca aplica a quien puede ver múltiples agencias (global o regional). */
@@ -945,7 +946,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   /** El filtro de agencia aplica a alcance global o regional (el de agencia ya está acotado a la suya). */
   get puedeFiltrarAgencia(): boolean {
     const u = this.auth.getCurrentUser();
-    return u?.ambito === 'GLOBAL' || u?.role === 'SUPER_ADMIN' || u?.ambito === 'REGION';
+    return u?.ambito === 'GLOBAL' || this.auth.isSuperAdmin() || u?.ambito === 'REGION';
   }
 
   get hayFiltrosActivos(): boolean {
@@ -1354,13 +1355,12 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
     // Pre-establecer la pestaña correcta para el rol APROBADOR antes de cargar datos,
     // para que los charts se rendericen con dimensiones reales (no 0×0 en canvas oculto).
-    const rolNombre = user?.role || user?.rolNombre;
-    if (rolNombre === 'APROBADOR' || rolNombre === 'GERENTE') {
+    if (this.auth.tieneFuncion(FUNCION.APROBADOR)) {
       this.activeExecutiveTab = 'aprobaciones';
       this.isAprobadorView = true;
     }
 
-    if (this.vista === 'especiales' || rolNombre === 'COORD_SERVICIOS_ESPECIALES' || rolNombre === 'PULIDOR') {
+    if (this.vista === 'especiales' || this.auth.tieneFuncion(FUNCION.COORD_ESPECIALES) || this.auth.tieneFuncion(FUNCION.PULIDOR)) {
       this.categoriaServicio = 'ESPECIAL';
     }
 

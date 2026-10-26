@@ -1,3 +1,4 @@
+import { FUNCION } from '../../core/utils/funciones-rol';
 import { Component, OnDestroy, OnInit, ViewChild, inject } from '@angular/core';
 import { firstValueFrom, of, Observable, Subject, Subscription, debounceTime, distinctUntilChanged, map } from 'rxjs';
 import { CommonModule } from '@angular/common';
@@ -3729,8 +3730,7 @@ export class ServiciosComponent implements OnInit, OnDestroy {
   get puedeCrearParaOtro(): boolean { return this.authService.puede('servicios.especiales.asignar'); }
   /** El usuario es un pulidor: solo un pulidor puede asignarse una OT especial a sí mismo. */
   get soyPulidorRol(): boolean {
-    const u: any = this.authService.getCurrentUser();
-    return String(u?.role?.namerol || u?.role || u?.rolNombre || '').toUpperCase() === 'PULIDOR';
+    return this.authService.tieneFuncion(FUNCION.PULIDOR);
   }
   /** Puede crear «para mí»: basta la casilla, sea cual sea su rol (el servidor decide igual). */
   get puedeAsignarmeEspecial(): boolean { return this.puedeCrearEspecial; }

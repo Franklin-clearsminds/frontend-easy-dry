@@ -14,7 +14,7 @@ import { VisorMediaService } from '../../services/visor-media.service';
   template: `
     @if (visor.estado().tipo === 'video') {
       @if (visor.estado().abierto) {
-        <app-modal [isOpen]="true" [title]="visor.estado().titulo" icon="film" sizeClass="max-w-4xl" zClass="z-[10300]" [blur]="false"
+        <app-modal [isOpen]="true" [title]="visor.estado().titulo" icon="film" sizeClass="max-w-6xl" zClass="z-[10300]" [blur]="false"
           [closeOnBackdrop]="true" (close)="visor.cerrar()">
           @if (visor.estado().cargando) {
             <p class="estado-vacio py-10" role="status" aria-live="polite">Cargando...</p>
@@ -23,8 +23,9 @@ import { VisorMediaService } from '../../services/visor-media.service';
             <div class="estado-error" role="alert">{{ visor.estado().error }}</div>
           }
           @if (visor.estado().url && !visor.estado().error) {
-            <div class="aspect-video bg-black rounded-2xl overflow-hidden flex items-center justify-center">
-              <video [src]="visor.estado().url" [attr.aria-label]="visor.estado().titulo" controls autoplay playsinline class="w-full h-full object-contain"></video>
+            <!-- Ventana amplia: el video ocupa todo el ancho y, como máximo, el 78 % del alto de la pantalla -->
+            <div class="bg-black rounded-2xl overflow-hidden flex items-center justify-center">
+              <video [src]="visor.estado().url" [attr.aria-label]="visor.estado().titulo" controls autoplay playsinline class="w-full max-h-[78vh] object-contain"></video>
             </div>
           }
           <div modal-footer>

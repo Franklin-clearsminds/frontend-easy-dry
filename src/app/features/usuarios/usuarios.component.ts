@@ -20,6 +20,7 @@ import { InventarioService } from '../../core/services/inventario.service';
 import { RegionService } from '../../core/services/region.service';
 import { CatalogoServiciosService } from '../../core/services/catalogo-servicios.service';
 import { esRolOperadorEspeciales } from '../../core/utils/modalidad-especiales.util';
+import { FUNCION, funcionesDeRol, type CodigoFuncion } from '../../core/utils/funciones-rol';
 import { ModalComponent } from '../../shared/components/modal/modal.component';
 import { RolPaginasEditorComponent } from './rol-paginas-editor/rol-paginas-editor.component';
 import { DataTableComponent, DataTableCellDirective, TableColumn } from '../../shared/components/data-table/data-table.component';
@@ -909,7 +910,7 @@ const COLUMNAS_ROLES: TableColumn[] = [
                   <option [value]="b.value">{{ b.label }}</option>
                 }
               </select>
-              <p class="text-xs text-slate-500 mt-1">El auxiliar es un lavador de esa bahía y tiene las mismas funciones del líder. Cada agencia solo puede tener un auxiliar.</p>
+              <p class="text-xs text-slate-500 mt-1">El auxiliar es un lavador de esa bahía y tiene las mismas funciones del líder.</p>
             </div>
           }
 
@@ -1534,7 +1535,7 @@ export class UsuariosComponent implements OnInit, OnDestroy {
   // Catálogo de permisos de acción y ámbitos (editor de roles)
   readonly ambitosLista = AMBITOS_INFO;
   get esRolBackupEditado(): boolean {
-    return (this.rolForm.codigo || '').toUpperCase() === 'BACKUP';
+    return funcionesDeRol((this.rolForm.paginas || []), this.rolForm.codigo).has(FUNCION.BACKUP);
   }
 
   get ambitosParaRol(): AmbitoInfo[] {
@@ -1566,6 +1567,7 @@ export class UsuariosComponent implements OnInit, OnDestroy {
   get notaAmbitoRol(): NotaAmbito {
     return construirNotaAmbito({
       codigoRol: this.rolForm.codigo,
+      esBackup: this.esRolBackupEditado,
       nombreRol: this.rolForm.nombre,
       ambito: this.rolForm.ambito,
       ambitoCorto: this.ambitoInfo(this.rolForm.ambito).corto,
@@ -1613,10 +1615,17 @@ export class UsuariosComponent implements OnInit, OnDestroy {
     );
   }
 
-  esOperadorEspecialesRol = esRolOperadorEspeciales;
+  /** Funciones del rol de la lista cargada al que corresponde ese nombre o código (un rol personalizado trae las suyas). */
+  private funcionesDeNombre(rol?: string): ReadonlySet<string> {
+    const n = (rol || '').toLowerCase().trim();
+    const r = n ? this.roles.find((x) => x.codigo.toLowerCase() === n || x.nombre.toLowerCase() === n) : undefined;
+    return funcionesDeRol(r?.capacidades, r?.codigo ?? rol);
+  }
+
+  esOperadorEspecialesRol = (rol?: string): boolean => this.funcionesDeNombre(rol).has(FUNCION.PULIDOR) || esRolOperadorEspeciales(rol);
 
   esBackupRol(rol?: string): boolean {
-    return (rol || '').toUpperCase().trim() === 'BACKUP';
+    return this.funcionesDeNombre(rol).has(FUNCION.BACKUP);
   }
 
   get agenciasBackupDisponibles(): Sucursal[] {
@@ -1645,13 +1654,7 @@ export class UsuariosComponent implements OnInit, OnDestroy {
   /** Regla de rol que el backend define por rol: el asistente de bodega se asigna a una bodega regional. */
   esAsistenteBodegaRol(rol?: string): boolean {
     if (!rol) return false;
-    const n = rol.toUpperCase().trim();
-    return (
-      n === 'ASISTENTE_BODEGA' ||
-      n.includes('ASISTENTE DE BODEGA') ||
-      n.includes('ASISTENTE BODEGA') ||
-      (n.includes('ASISTENTE') && n.includes('BODEGA'))
-    );
+    return this.funcionesDeNombre(rol).has(FUNCION.ASISTENTE_BODEGA);
   }
 
   /** Rol (de la lista cargada) al que corresponde el usuario: por id, por código o por nombre. */
@@ -1682,7 +1685,7 @@ export class UsuariosComponent implements OnInit, OnDestroy {
     const disponibles = this.rolesVisibles.filter(r => r.estado === 'Activo' || r.estado === 1 || r.id === actual);
     return this.puedeGestionarUsuarios
       ? disponibles
-      : disponibles.filter(r => r.codigo.toUpperCase() === 'BACKUP');
+      : disponibles.filter(r => funcionesDeRol(r.capacidades, r.codigo).has(FUNCION.BACKUP));
   }
 
   onRoleIdChange(roleId: string) {
@@ -1702,7 +1705,7 @@ export class UsuariosComponent implements OnInit, OnDestroy {
   /** El rol elegido en el formulario es Auxiliar: lavador de una bahía con las funciones del líder. */
   get esAuxiliarForm(): boolean {
     const rol = this.rolDeUsuario({ roleId: this.usuarioForm.roleId, rol: this.usuarioForm.rol });
-    return String(rol?.codigo || '').toUpperCase() === 'AUXILIAR';
+    return funcionesDeRol(rol?.capacidades, rol?.codigo).has(FUNCION.AUXILIAR);
   }
 
   alCambiarAgenciaForm(nombre: string): void {
@@ -1766,7 +1769,7 @@ export class UsuariosComponent implements OnInit, OnDestroy {
     if (actual && String(actual.id) === String(u.id)) {
       return 'No puedes cambiar tu propia contraseña: debe asignártela otro administrador.';
     }
-    if (String(u.rolNombre || '').toUpperCase() === 'ADMIN' && !this.authService.isSuperAdmin()) {
+    if (this.funcionesDeNombre(u.rolNombre || u.rol).has(FUNCION.ADMINISTRADOR) && !this.authService.isSuperAdmin()) {
       return 'Solo el Super Administrador puede reiniciar la contraseña de un Administrador.';
     }
     return '';
@@ -2257,8 +2260,8 @@ export class UsuariosComponent implements OnInit, OnDestroy {
     this.editandoUsuario = null;
     this.usuarioFormSubmitted = false;
     const defaultRol = this.puedeGestionarUsuarios
-      ? (this.rolesVisibles.find(r => r.codigo === 'APROBADOR') || this.rolesVisibles[0])
-      : this.rolesVisibles.find(r => r.codigo.toUpperCase() === 'BACKUP');
+      ? (this.rolesVisibles.find(r => funcionesDeRol(r.capacidades, r.codigo).has(FUNCION.APROBADOR)) || this.rolesVisibles[0])
+      : this.rolesVisibles.find(r => funcionesDeRol(r.capacidades, r.codigo).has(FUNCION.BACKUP));
     const primerRol = defaultRol?.nombre || 'Aprobador';
     const regionActual = this.authService.currentUserValue?.regionId
       ? this.regionesDisponibles.find(r => String(r.id) === String(this.authService.currentUserValue?.regionId))?.nombre || ''
@@ -2407,7 +2410,7 @@ export class UsuariosComponent implements OnInit, OnDestroy {
     if (actual && String(actual.id) === String(u.id)) return false;
     const rol = String(u.rolNombre || u.rol || '').toUpperCase();
     if (rol === 'SUPER_ADMIN') return false;
-    return !(rol === 'ADMIN' && !this.authService.isSuperAdmin());
+    return !(this.funcionesDeNombre(u.rolNombre || u.rol).has(FUNCION.ADMINISTRADOR) && !this.authService.isSuperAdmin());
   }
 
   abrirModalPassword(u: Usuario): void {
@@ -2495,7 +2498,7 @@ export class UsuariosComponent implements OnInit, OnDestroy {
       const bod = this.bodegasRegionales.find(b => String(b.id) === String(this.usuarioForm.bodegaId));
       return { agencia: bod?.nombre || `Bodega Regional ${this.usuarioForm.region || 'Regional'}`, modalidadPulidor: undefined };
     }
-    if (!esRolOperadorEspeciales(this.usuarioForm.rol)) {
+    if (!this.esOperadorEspecialesRol(this.usuarioForm.rol)) {
       this.usuarioForm.modalidadPulidor = undefined as any;
       this.usuarioForm.servicioIds = [];
       return { agencia: this.usuarioForm.agencia?.trim() || 'Sin asignar', modalidadPulidor: undefined };
@@ -2566,7 +2569,7 @@ export class UsuariosComponent implements OnInit, OnDestroy {
       return;
     }
 
-    if (this.agenciaObligatoria && !esRolOperadorEspeciales(this.usuarioForm.rol) && !this.esAsistenteBodegaRol(this.usuarioForm.rol) && !this.usuarioForm.agencia?.trim()) {
+    if (this.agenciaObligatoria && !this.esOperadorEspecialesRol(this.usuarioForm.rol) && !this.esAsistenteBodegaRol(this.usuarioForm.rol) && !this.usuarioForm.agencia?.trim()) {
       this.toastService.warning('Agencia requerida', 'Este rol trabaja sobre los datos de su agencia: asigna una agencia al usuario.');
       return;
     }

@@ -27,7 +27,7 @@ import { fechaHoraLocal, fechaProgramadaLocal, validarFotos } from '../../../cor
 import { badgeClase, BADGE_NO_ATENDIDO } from '../../../core/utils/badges';
 import {
   puedeEditarMaquina, puedeCambiarArchivosMaquina, puedeActivarMaquina, puedeGestionarMaquina, puedeCancelarIncidentes, puedeTrasladarMaquina, puedeAsignarResponsableMaquina, puedeReportarIncidente,
-  puedeVerTrazabilidad, puedeVerMantenimientos, puedeVerIncidentes, puedeResolverIncidentes,
+  puedeVerTrazabilidad, puedeVerMantenimientos, puedeVerIncidentes, puedeResolverIncidentes, puedeEditarIncidentes,
   puedeEjecutarMantenimientos, puedeEditarMantenimientos, puedeAgregarEvidenciaMaquinaria, puedeSubirEvidenciaLimpieza, puedeVerLimpiezas, puedeAsignarTecnico, puedeProgramarMantenimiento, reportaSobreSuAlcance } from '../../../core/utils/maquinaria-permisos';
 
 export type PestanaMaquina = 'resumen' | 'incidencias' | 'movimientos' | 'mantenimientos' | 'limpieza' | 'timeline';
@@ -738,7 +738,7 @@ export class MaquinariaDetalleModalComponent implements OnChanges, OnDestroy {
   get puedeAgregarEvidencia(): boolean { return puedeAgregarEvidenciaMaquinaria(this.authService); }
   get puedeSubirEvidenciaLimpieza(): boolean {
     return puedeSubirEvidenciaLimpieza(this.authService)
-      && !this.authService.hasRole('ADMIN') && !this.authService.hasRole('SUPER_ADMIN');
+      && !this.authService.isAdmin();
   }
   /**
    * Reportar: con el permiso, sobre máquinas activas. El líder, el supervisor, el coordinador de servicios
@@ -775,7 +775,7 @@ export class MaquinariaDetalleModalComponent implements OnChanges, OnDestroy {
     return puedeCancelarIncidentes(this.authService) && i.estadoRaw !== 'RESUELTO' && i.estadoRaw !== 'CANCELADO';
   }
   puedeEditarInc(i: Incidente): boolean {
-    return puedeResolverIncidentes(this.authService) && (this.puedeGestionar || this.esMio(i.tecnicoAsignadoId));
+    return puedeEditarIncidentes(this.authService, this.esMio(i.tecnicoAsignadoId));
   }
   puedeAsignarMant(m: Mantenimiento): boolean {
     return puedeProgramarMantenimiento(this.authService) && m.estadoRaw !== 'FINALIZADO';

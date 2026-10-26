@@ -1,4 +1,4 @@
-import { Component, ElementRef, inject, viewChild, effect } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterOutlet } from '@angular/router';
 import { SidebarComponent } from '../components/sidebar/sidebar.component';
@@ -16,16 +16,10 @@ import { UiStateService } from '../../core/services/ui-state.service';
            en modo mini y el cajón móvil flotan encima sin mover el margen. -->
       <app-sidebar></app-sidebar>
 
-      <!-- El margen final siempre es el correcto al instante (sin transición CSS sobre margin-left: es
-           una propiedad de layout y este contenedor envuelve TODA la página — animarla fuerza recalcular
-           el layout de tablas y gráficos en cada fotograma, compitiendo con animaciones livianas del
-           sidebar como la del logo y haciéndolas ver desincronizadas). El desplazamiento visual lo hace,
-           en su lugar, un transform (translateX) aplicado desde el componente (técnica FLIP, GPU, no
-           fuerza reflow). -->
+      <!-- El margen acompaña al ancho del sidebar con la misma duración y curva, así no queda hueco ni solapamiento. -->
       <div
-        #contentWrap
-        class="flex flex-col min-w-0 h-dvh overflow-hidden"
-        [style.margin-left.px]="uiState.sidebarReservedWidth()">
+        class="flex flex-col min-w-0 h-dvh overflow-hidden transition-[margin-left] duration-200 ease-out"
+        [style.margin-left.rem]="uiState.sidebarReservedWidth() / 16">
         <app-header></app-header>
 
         <main class="flex-1 overflow-y-auto">
@@ -43,32 +37,4 @@ import { UiStateService } from '../../core/services/ui-state.service';
 })
 export class AdminLayoutComponent {
   readonly uiState = inject(UiStateService);
-  private readonly contentWrapRef = viewChild<ElementRef<HTMLDivElement>>('contentWrap');
-  private prevWidth: number | null = null;
-
-  constructor() {
-    effect(() => {
-      const next = this.uiState.sidebarReservedWidth();
-      const el = this.contentWrapRef()?.nativeElement;
-      if (!el) return;
-
-      if (this.prevWidth === null) {
-        // Primer render: el binding de plantilla ya dejó el margen correcto, no hay nada que animar.
-        this.prevWidth = next;
-        return;
-      }
-      const prev = this.prevWidth;
-      this.prevWidth = next;
-      if (prev === next) return;
-
-      // FLIP: el margen (layout) ya quedó en su valor final por el binding de arriba; el transform
-      // arranca desde donde visualmente estaba antes y anima solo hasta 0 — el navegador no vuelve a
-      // recalcular el layout de la página en cada fotograma, solo compone la capa (como la opacidad).
-      el.style.transition = 'none';
-      el.style.transform = `translateX(${prev - next}px)`;
-      void el.offsetWidth; // fuerza el reflow para que el navegador registre el punto de partida
-      el.style.transition = 'transform 200ms ease-out';
-      el.style.transform = 'translateX(0)';
-    });
-  }
 }

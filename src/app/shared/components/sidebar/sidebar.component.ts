@@ -7,7 +7,7 @@ import { AuthService } from '../../../core/services/auth.service';
 import { PermissionService } from '../../../core/services/permission.service';
 import { UiStateService } from '../../../core/services/ui-state.service';
 import { MenuIndicadoresService } from '../../../core/services/menu-indicadores.service';
-import { SIDEBAR_HOVER_CLOSE_DELAY_MS } from '../../../core/config/sidebar.constants';
+import { SIDEBAR_HOVER_CLOSE_DELAY_MS, SIDEBAR_WIDTH_EXPANDED, SIDEBAR_WIDTH_HOVER_PREVIEW, SIDEBAR_WIDTH_MINI } from '../../../core/config/sidebar.constants';
 import { MenuItem } from '../../../core/config/menu.config';
 
 interface MenuGroup {
@@ -50,11 +50,11 @@ interface MenuGroup {
       <div class="fixed inset-0 z-[38]" (click)="uiState.setHoverPreview(false)" aria-hidden="true"></div>
     }
 
-    <!-- Envoltura exterior: única responsable de animar el ancho (68/260px) y de recortar el contenido. -->
+    <!-- Envoltura exterior: única responsable de animar el ancho (4.25/16.25rem, escalan con --ui-scale) y de recortar el contenido. -->
     <div
       class="fixed top-0 left-0 h-dvh overflow-hidden transition-[width] duration-200 ease-out
              [contain:layout_style_size] [will-change:width]"
-      [style.width.px]="wrapperWidthPx()"
+      [style.width.rem]="wrapperWidthPx() / 16"
       [ngClass]="wrapperExtraClasses()"
       (mouseenter)="onMouseEnter()"
       (mouseleave)="onMouseLeave()"
@@ -63,7 +63,7 @@ interface MenuGroup {
       (keydown.escape)="uiState.setHoverPreview(false); uiState.closeMobile()">
 
       <!-- Aside interior: ancho fijo de 260px siempre, nunca anima ni reflowea sus hijos. -->
-      <aside class="h-full w-[260px] flex flex-col select-none border-r border-white/10
+      <aside class="h-full w-[16.25rem] flex flex-col select-none border-r border-white/10
                      bg-gradient-to-b from-easydry-blue via-easydry-blue-dark to-easydry-blue-deep text-white">
 
         <!-- Cabecera / logo -->
@@ -71,7 +71,7 @@ interface MenuGroup {
           <!-- Isotipo centrado: solo visible en modo mini sin vista previa -->
           <a
             [routerLink]="['/dashboard']"
-            class="absolute left-0 top-0 bottom-0 w-[68px] flex items-center justify-center transition-opacity duration-200 ease-out"
+            class="absolute left-0 top-0 bottom-0 w-[4.25rem] flex items-center justify-center transition-opacity duration-200 ease-out"
             [style.opacity]="showLabels() ? '0' : '0.92'"
             [class.pointer-events-none]="showLabels()"
             [attr.tabindex]="showLabels() ? -1 : 0"
@@ -93,14 +93,14 @@ interface MenuGroup {
         </div>
 
         <!-- Menú de navegación -->
-        <nav aria-label="Navegación principal" class="flex-1 min-h-0 overflow-y-auto overflow-x-hidden py-3 sidebar-nav-scroll space-y-1">
+        <nav aria-label="Navegación principal" class="flex-1 min-h-0 overflow-y-auto overflow-x-hidden py-2 sidebar-nav-scroll space-y-0.5">
           @for (group of menuGroups; track group.title) {
             @if (group.items.length > 0) {
               <div>
                 <!-- Cabecera de grupo: título + chevron de acordeón (solo si hay etiquetas visibles) -->
-                <div class="h-6 flex items-center overflow-hidden">
+                <div class="h-5 flex items-center overflow-hidden mt-1">
                   @if (!showLabels()) {
-                    <div class="w-[68px] flex items-center justify-center">
+                    <div class="w-[4.25rem] flex items-center justify-center">
                       <div class="w-8 h-px bg-white/15 rounded-full" aria-hidden="true"></div>
                     </div>
                   } @else {
@@ -122,7 +122,7 @@ interface MenuGroup {
                 </div>
 
                 @if (!showLabels() || !uiState.isGrupoPlegado(group.title)) {
-                  <div class="space-y-1">
+                  <div class="space-y-0.5">
                     @for (item of group.items; track item.label + item.route) {
                       <a
                         [routerLink]="[item.route]"
@@ -132,11 +132,11 @@ interface MenuGroup {
                         [attr.title]="!showLabels() ? item.label : null"
                         #rla="routerLinkActive"
                         [routerLinkActiveOptions]="{ exact: item.route === '/dashboard' }"
-                        class="flex items-center h-10 rounded-xl ml-2.5 transition-[background-color,color,width,margin,padding] duration-200 ease-out group text-xs relative cursor-pointer"
+                        class="flex items-center h-9 rounded-xl ml-2.5 transition-[background-color,color,width,margin,padding] duration-200 ease-out group text-xs relative cursor-pointer"
                         [class.w-12]="!showLabels()"
                         [class.justify-center]="!showLabels()"
                         [class.w-[calc(100%-1.25rem)]]="showLabels()"
-                        [class.px-3]="showLabels()"
+                        [class.px-3.5]="showLabels()"
                         [ngClass]="rla.isActive
                           ? 'bg-white/15 text-white shadow-md font-bold ring-1 ring-white/15'
                           : 'text-slate-300 hover:text-white hover:bg-white/10'"
@@ -146,7 +146,7 @@ interface MenuGroup {
                           <span class="absolute left-0 top-2 bottom-2 w-1 rounded-r-full bg-easydry-green shadow-xs" aria-hidden="true"></span>
                         }
 
-                        <div class="flex items-center justify-center relative flex-shrink-0 transition-[width,height] duration-200 ease-out" [class.w-5]="showLabels()" [class.h-5]="showLabels()">
+                        <div class="flex items-center justify-center relative flex-shrink-0 w-5 h-5">
                           <i-lucide [name]="item.icon" class="w-5 h-5 transition-transform duration-200 group-hover:scale-110" aria-hidden="true"
                             [ngClass]="rla.isActive ? 'text-easydry-green stroke-[2.2]' : 'text-slate-300 group-hover:text-white'">
                           </i-lucide>
@@ -194,7 +194,7 @@ interface MenuGroup {
              68px para volver a fijar (mini puro): con el sidebar en mini, "Mini" ya está activo y
              sobra; los dos botones lado a lado no caben en la ventana visible de 68px. -->
         @if (showLabels()) {
-          <div class="px-3 py-2.5 border-t border-white/10 bg-black/10 flex-shrink-0">
+          <div class="px-3 pt-2 pb-1 flex-shrink-0 border-t border-white/10 bg-black/20">
             <div class="flex items-center gap-1 bg-black/20 rounded-xl p-1">
               <button
                 type="button"
@@ -219,7 +219,7 @@ interface MenuGroup {
             </div>
           </div>
         } @else {
-          <div class="py-2.5 border-t border-white/10 bg-black/10 flex-shrink-0 w-[68px] flex items-center justify-center">
+          <div class="pt-2 pb-1 border-t border-white/10 bg-black/20 flex-shrink-0 w-[4.25rem] flex items-center justify-center">
             <button
               type="button"
               (click)="uiState.setCollapsed(false)"
@@ -233,17 +233,17 @@ interface MenuGroup {
         <!-- Perfil y cierre de sesión: sin padding horizontal en modo mini (el nav de arriba tampoco lo
              tiene); si no, el p-2.5 se suma al ml-2.5 de cada fila y corre todo el bloque hacia la
              derecha, desalineándolo de la columna de íconos del menú. -->
-        <div class="border-t border-white/10 bg-black/20 flex-shrink-0 py-2.5 space-y-1.5" [class.px-2.5]="showLabels()">
+        <div class="bg-black/20 flex-shrink-0 pt-1 pb-2.5 space-y-1" [class.px-2.5]="showLabels()">
           <!-- Perfil -->
           <a routerLink="/perfil" routerLinkActive="active-menu-item" ariaCurrentWhenActive="page"
             aria-label="Configuración de Perfil" #rlaPerfil="routerLinkActive"
             [title]="!showLabels() ? 'Configuración de Perfil' : ''"
             class="flex items-center h-9 rounded-xl ml-2.5 transition-[background-color,color,width,margin,padding] duration-200 ease-out text-xs font-medium relative cursor-pointer"
             [class.w-12]="!showLabels()" [class.justify-center]="!showLabels()"
-            [class.w-[calc(100%-1.25rem)]]="showLabels()" [class.px-3]="showLabels()"
+            [class.w-[calc(100%-1.25rem)]]="showLabels()" [class.px-3.5]="showLabels()"
             [ngClass]="rlaPerfil.isActive ? 'bg-white/15 text-white shadow-md font-bold ring-1 ring-white/15' : 'text-slate-300 hover:text-white hover:bg-white/10'"
             (click)="onItemClick()">
-            <div class="flex items-center justify-center flex-shrink-0">
+            <div class="flex items-center justify-center flex-shrink-0 w-5 h-5">
               <i-lucide name="user" class="w-[18px] h-[18px] text-easydry-lime" aria-hidden="true"></i-lucide>
             </div>
             <span class="whitespace-nowrap transition-opacity duration-200 ease-out"
@@ -258,8 +258,8 @@ interface MenuGroup {
             [title]="!showLabels() ? 'Cerrar Sesión' : ''"
             class="flex items-center h-9 rounded-xl ml-2.5 text-rose-300 hover:text-rose-200 hover:bg-rose-400/10 transition-[background-color,color,width,margin,padding] duration-200 ease-out text-xs font-medium cursor-pointer"
             [class.w-12]="!showLabels()" [class.justify-center]="!showLabels()"
-            [class.w-[calc(100%-1.25rem)]]="showLabels()" [class.px-3]="showLabels()">
-            <div class="flex items-center justify-center flex-shrink-0">
+            [class.w-[calc(100%-1.25rem)]]="showLabels()" [class.px-3.5]="showLabels()">
+            <div class="flex items-center justify-center flex-shrink-0 w-5 h-5">
               <i-lucide name="log-out" class="w-[18px] h-[18px]" aria-hidden="true"></i-lucide>
             </div>
             <span class="whitespace-nowrap transition-opacity duration-200 ease-out text-left"
@@ -320,9 +320,9 @@ export class SidebarComponent implements OnInit, OnDestroy {
 
   /** Único valor que realmente anima: el ancho de la envoltura exterior (sin hijos, barato de redimensionar). */
   readonly wrapperWidthPx = computed(() => {
-    if (!this.uiState.isLargeScreen()) return 260; // cajón móvil: siempre a todo su ancho, se oculta con translate-x
-    if (this.uiState.collapsed()) return this.uiState.hoverPreview() ? 260 : 60;
-    return 260;
+    if (!this.uiState.isLargeScreen()) return SIDEBAR_WIDTH_EXPANDED; // cajón móvil: siempre a todo su ancho, se oculta con translate-x
+    if (this.uiState.collapsed()) return this.uiState.hoverPreview() ? SIDEBAR_WIDTH_HOVER_PREVIEW : SIDEBAR_WIDTH_MINI;
+    return SIDEBAR_WIDTH_EXPANDED;
   });
 
   ngOnInit(): void {

@@ -28,6 +28,7 @@ import { Observable, Subject, Subscription, forkJoin, of } from 'rxjs';
 import { catchError, debounceTime, distinctUntilChanged, tap } from 'rxjs/operators';
 import { BUSQUEDA_DEBOUNCE_MS, BUSQUEDA_MIN_CARACTERES, PAGE_SIZE_INFINITO } from '../../core/config/paginacion';
 import { ConsultaAgencias } from '../../core/services/sucursal.service';
+import { FUNCION, funcionesDeRol } from '../../core/utils/funciones-rol';
 
 /** Listas de referencia de la pantalla de agencias; cada pestaña pide solo las suyas. */
 type GrupoReferencia = 'regiones' | 'marcas' | 'sucursales' | 'catalogo' | 'usuarios';
@@ -1356,6 +1357,11 @@ const TODAS_LAS_REFERENCIAS: GrupoReferencia[] = ['regiones', 'marcas', 'sucursa
   `
 })
 export class SucursalesComponent implements OnInit, OnDestroy {
+  /** Funciones del rol de un usuario de la lista (si la lista no las trae, las del rol oficial por su nombre). */
+  private funcionesDeUsuario(u: Usuario): ReadonlySet<string> {
+    return u.funciones?.length ? new Set(u.funciones) : funcionesDeRol([], u.rolNombre || u.rol);
+  }
+
   ngOnDestroy(): void {
     this.busquedaSub?.unsubscribe();
     this.agenciasLista.destruir();
@@ -1572,9 +1578,8 @@ export class SucursalesComponent implements OnInit, OnDestroy {
 
   get lideresOperadoresUsuarios(): Usuario[] {
     return this.todosLosUsuarios.filter(u => {
-      const r = (u.rol || u.rolNombre || '').toUpperCase();
       const activo = u.estado === 'Activo' || (u as any).estado === 1;
-      return activo && (r.includes('LIDER') || r.includes('LÍDER')) && !r.includes('APROBADOR');
+      return activo && this.funcionesDeUsuario(u).has(FUNCION.LIDER);
     });
   }
 
@@ -1885,13 +1890,12 @@ export class SucursalesComponent implements OnInit, OnDestroy {
           if (!list || !list.length) return;
           this.todosLosUsuarios = list;
           this.gerentesUsuarios = list.filter(u => {
-            const r = (u.rol || u.rolNombre || '').toUpperCase();
             const activo = u.estado === 'Activo' || (u as any).estado === 1;
-            return activo && r === 'APROBADOR';
+            return activo && this.funcionesDeUsuario(u).has(FUNCION.APROBADOR);
           });
           this.supervisoresUsuarios = list.filter(u =>
             (u.estado === 'Activo' || (u as any).estado === 1) &&
-            (u.rol === 'SUPERVISOR' || u.rol === 'Supervisor Regional' || u.rol.toLowerCase().includes('supervisor'))
+            this.funcionesDeUsuario(u).has(FUNCION.SUPERVISOR)
           );
         };
         this.usuarioService.usuarios$.subscribe(aplicar);

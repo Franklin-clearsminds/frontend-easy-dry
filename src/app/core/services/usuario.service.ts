@@ -1,3 +1,4 @@
+import { FUNCION, funcionesDeRol } from '../utils/funciones-rol';
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { BehaviorSubject, Observable, of, throwError } from 'rxjs';
@@ -54,13 +55,11 @@ export class UsuarioService {
     const rawRole = u.role?.namerol || 'ADMIN';
     let rolDisplay = ROLE_LABELS[rawRole] || rawRole;
 
-    const isGlobal =
-      rawRole === 'SUPER_ADMIN' ||
-      rawRole === 'ADMIN' ||
-      rawRole === 'COORD_BODEGA';
-    const isSupervisor = rawRole === 'SUPERVISOR';
-    const isAsistente = rawRole === 'ASISTENTE_BODEGA';
-    const isPulidor = rawRole === 'PULIDOR';
+    const funciones = funcionesDeRol(u.role?.capacidades, rawRole);
+    const isGlobal = funciones.has(FUNCION.ADMINISTRADOR) || funciones.has(FUNCION.COORD_BODEGA);
+    const isSupervisor = funciones.has(FUNCION.SUPERVISOR);
+    const isAsistente = funciones.has(FUNCION.ASISTENTE_BODEGA);
+    const isPulidor = funciones.has(FUNCION.PULIDOR);
     const hasAgencia = !!(u.agenciaId || u.agencia?.id || (u.agencia?.nombre && u.agencia.nombre !== 'Sin asignar'));
     const modalidadPulidor: 'FIJO' | 'MOVIL' | undefined = isPulidor
       ? (hasAgencia ? 'FIJO' : 'MOVIL')
@@ -98,6 +97,7 @@ export class UsuarioService {
       email: u.email || '',
       rol: rolDisplay,
       rolNombre: rawRole,
+      funciones: [...funciones],
       roleId: u.role?.id || u.roleId,
       avatar: u.avatarUrl || u.avatar || '',
       estado: u.estado === 1 ? 'Activo' : 'Inactivo',

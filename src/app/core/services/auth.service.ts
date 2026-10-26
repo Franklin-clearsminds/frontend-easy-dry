@@ -12,6 +12,7 @@ import {
   ACCIONES_VACIAS
 } from '../models/roles.model';
 import { RolService } from './rol.service';
+import { FUNCION, funcionesDeRol, type CodigoFuncion } from '../utils/funciones-rol';
 import { MaquinariaService } from './maquinaria.service';
 import { NotificationSocketService } from './notification-socket.service';
 import { LAST_ACTIVITY_KEY, SessionIdleService } from './session-idle.service';
@@ -349,10 +350,11 @@ export class AuthService {
     const modulosPermitidos = [...(userData.permisos || userData.modulos || [])];
     const permisos = this.normalizeAcciones(userData.acciones);
 
-    const isGlobalAdmin = role === Role.SUPER_ADMIN || role === Role.ADMIN || role === Role.COORD_BODEGA;
-    const isSupervisor = role === Role.SUPERVISOR;
-    const isAsistente = role === Role.ASISTENTE_BODEGA;
-    const isPulidor = role === Role.PULIDOR;
+    const funciones = funcionesDeRol(userData.capacidades, userData.role);
+    const isGlobalAdmin = funciones.has(FUNCION.ADMINISTRADOR) || funciones.has(FUNCION.COORD_BODEGA);
+    const isSupervisor = funciones.has(FUNCION.SUPERVISOR);
+    const isAsistente = funciones.has(FUNCION.ASISTENTE_BODEGA);
+    const isPulidor = funciones.has(FUNCION.PULIDOR);
     const modalidadPulidor = isPulidor
       ? (userData.agenciaId || userData.agencia?.id ? 'FIJO' : 'MOVIL')
       : undefined;
@@ -531,14 +533,19 @@ export class AuthService {
     return this.currentUserSubject.value?.role === Role.SUPER_ADMIN;
   }
 
+  /** ¿El rol del usuario tiene esta función (administrador, líder de agencia, pulidor…)? Ver `core/utils/funciones-rol.ts`. */
+  tieneFuncion(funcion: CodigoFuncion): boolean {
+    const u = this.currentUserSubject.value;
+    if (!u) return false;
+    return funcionesDeRol(u.capacidades, u.role).has(funcion);
+  }
+
   isAdmin(): boolean {
-    const role = this.currentUserSubject.value?.role;
-    return role === Role.SUPER_ADMIN || role === Role.ADMIN;
+    return this.tieneFuncion(FUNCION.ADMINISTRADOR);
   }
 
   isLiderOperador(): boolean {
-    const role = this.currentUserSubject.value?.role;
-    return role === Role.LIDER || role === Role.BACKUP || role === Role.AUXILIAR;
+    return this.tieneFuncion(FUNCION.LIDER_AGENCIA);
   }
 
   hasRole(role: Role | string): boolean {
@@ -698,14 +705,13 @@ export class AuthService {
 
   isCoordServiciosEspeciales(): boolean {
     if (this.isAdmin()) return false;
-    return this.currentUserSubject.value?.role === Role.COORD_SERVICIOS_ESPECIALES;
+    return this.tieneFuncion(FUNCION.COORD_ESPECIALES);
   }
 
   isPulidor(): boolean {
     if (this.isAdmin()) return false;
     if (this.isCoordServiciosEspeciales()) return false;
-    const r = this.currentUserSubject.value?.role;
-    return r === Role.PULIDOR || (typeof r === 'string' && r.toUpperCase().includes('PULIDOR'));
+    return this.tieneFuncion(FUNCION.PULIDOR);
   }
 
   isPulidorFijo(): boolean {
@@ -725,7 +731,7 @@ export class AuthService {
   }
 
   getSucursalScope(): string | null {
-    if (this.isSuperAdmin() || this.hasRole(Role.ADMIN)) {
+    if (this.isSuperAdmin() || this.isAdmin()) {
       return null;
     }
     const user = this.getCurrentUser();

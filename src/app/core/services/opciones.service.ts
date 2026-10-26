@@ -71,7 +71,7 @@ export class OpcionesService {
   operadores(filtros: { agenciaId?: string; rol?: string; categoriaRol?: string; estado?: number } = {}): CargadorOpciones {
     return this.cargador('/agencias/operadores/opciones', filtros);
   }
-  usuarios(filtros: { agenciaId?: string; rolNombre?: string; regionId?: string; estado?: number } = {}): CargadorOpciones {
+  usuarios(filtros: { agenciaId?: string; rolNombre?: string; funcion?: string; regionId?: string; estado?: number } = {}): CargadorOpciones {
     return this.cargador('/agencias/usuarios/opciones', filtros);
   }
   /** Servicios del catálogo (acotados a la agencia según el rol). */

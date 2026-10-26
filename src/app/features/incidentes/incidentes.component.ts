@@ -19,7 +19,7 @@ import { SucursalService } from '../../core/services/sucursal.service';
 import { Sucursal } from '../../core/models';
 import { fechaHoraLocal } from '../../core/utils/evidencia-maquinaria';
 import {
-  puedeGestionarMaquina, puedeCancelarIncidentes, puedeReportarIncidente, puedeResolverIncidentes, puedeVerMaquinaria,
+  puedeGestionarMaquina, puedeCancelarIncidentes, puedeEditarIncidentes, puedeReportarIncidente, puedeResolverIncidentes, puedeVerMaquinaria,
 } from '../../core/utils/maquinaria-permisos';
 import { TrabajoAccionesComponent } from '../maquinaria/trabajo-acciones/trabajo-acciones.component';
 import { MaquinariaDetalleModalComponent } from '../maquinaria/maquinaria-detalle-modal/maquinaria-detalle-modal.component';
@@ -361,7 +361,8 @@ export class IncidentesComponent implements OnInit, OnDestroy {
         this.reiniciar();
       });
     // El filter-bar entrega nombres de sucursal/marca y el servidor pide ids: se necesitan las sucursales cargadas.
-    this.sucursalService.getSucursales().subscribe((list) => { this.sucursales = list; });
+    // Solo quien puede ver agencias las pide: el técnico no tiene ese permiso y la llamada le mostraba «tu rol no tiene permiso» aunque la lista cargara bien.
+    if (this.authService.puede('agencias.ver')) this.sucursalService.getSucursales().subscribe((list) => { this.sucursales = list; });
     this.reiniciar();
     if (puedeReportarIncidente(this.authService) && puedeVerMaquinaria(this.authService)) {
       this.maquinariaService.getMaquinaria().subscribe(list => {
@@ -487,7 +488,7 @@ export class IncidentesComponent implements OnInit, OnDestroy {
   }
 
   puedeEditar(inc: Incidente): boolean {
-    return puedeResolverIncidentes(this.authService) && (puedeGestionarMaquina(this.authService) || String(inc.tecnicoAsignadoId || '') === this.miId);
+    return puedeEditarIncidentes(this.authService, String(inc.tecnicoAsignadoId || '') === this.miId);
   }
 
   /** Incidencias sin técnico asignado con los filtros vigentes (dato del servidor). */

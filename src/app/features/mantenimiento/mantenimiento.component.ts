@@ -410,7 +410,8 @@ export class MantenimientoComponent implements OnInit, OnDestroy {
       this.mediaEscritorio.addEventListener('change', this.alCambiarPantalla);
     }
     // El filter-bar entrega nombres de sucursal/marca y el servidor pide ids: se necesitan las sucursales cargadas.
-    this.sucursalService.getSucursales().subscribe((list) => { this.sucursales = list; });
+    // Solo quien puede ver agencias las pide: el técnico no tiene ese permiso y la llamada le mostraba «tu rol no tiene permiso» aunque la lista cargara bien.
+    if (this.authService.puede('agencias.ver')) this.sucursalService.getSucursales().subscribe((list) => { this.sucursales = list; });
     this.reiniciar();
   }
 
