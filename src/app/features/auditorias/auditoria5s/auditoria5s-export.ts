@@ -144,13 +144,13 @@ export async function descargarPdf5s(a: Auditoria5sDetalle, cat: Formato5sCatalo
   const y0 = flow.y + 4;
   doc.setFont('helvetica', 'normal').setFontSize(9).setTextColor(...TEXTO);
   doc.text(`Puntaje máximo: ${r.puntajeMaximo}`, flow.margen + 2, y0 + 3);
-  if (a.anterior) doc.setFontSize(8).text(`Anterior: ${a.anterior.puntaje ?? '—'}  ·  Diferencia: ${(a.anterior.diferencia ?? 0) > 0 ? '+' : ''}${a.anterior.diferencia ?? 0}`, flow.margen + 2, y0 + 38).setFontSize(9);
+  if (a.anterior) doc.setFontSize(8).text(`Anterior: ${a.anterior.puntaje ?? '—'}  ·  Diferencia: ${(a.anterior.diferencia ?? 0) > 0 ? '+' : ''}${a.anterior.diferencia ?? 0}`, flow.margen + 2, y0 + 42).setFontSize(9);
   doc.text(`Puntaje obtenido: ${r.puntaje}`, flow.margen + 2, y0 + 9);
   doc.text(`% Cumplimiento: ${r.porcentaje}%`, flow.margen + 2, y0 + 15);
   const [rr, gg, bb] = hexARgb(sem.hex);
   doc.setFillColor(rr, gg, bb).circle(flow.margen + 7, y0 + 25, 5, 'F');
   doc.setFont('helvetica', 'bold').setFontSize(12).setTextColor(...TEXTO).text(`SEMÁFORO: ${sem.nombre.toUpperCase()}`, flow.margen + 15, y0 + 27);
-  doc.setFont('helvetica', 'normal').setFontSize(7.5).setTextColor(...GRIS).text('Criterio: ≥90% Verde | 75–89% Amarillo | <75% Rojo', flow.margen + 2, y0 + 35);
+  doc.setFont('helvetica', 'normal').setFontSize(7.5).setTextColor(...GRIS).text(['Criterio: 90% o más Verde | 75–89% Amarillo', 'menos de 75% Rojo'], flow.margen + 2, y0 + 34);
   // Barras por S
   const bx = flow.margen + 92;
   r.porCategoria.forEach((c, k) => {
@@ -162,7 +162,7 @@ export async function descargarPdf5s(a: Auditoria5sDetalle, cat: Formato5sCatalo
     doc.setFillColor(cr, cg, cb).rect(bx + 22, by, 50 * (c.puntaje / c.maximo), 5, 'F');
     doc.setFontSize(8).setTextColor(...TEXTO).text(`${c.puntaje}/${c.maximo}`, bx + 75, by + 4);
   });
-  flow.y = y0 + 42;
+  flow.y = y0 + 46;
   if (a.comentarios) { flow.encabezado('COMENTARIOS'); flow.caja(a.comentarios); }
 
   // Anexos fotográficos

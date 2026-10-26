@@ -14,7 +14,7 @@ export const PRIORIDADES: { id: Prioridad; nombre: string }[] = [
 ];
 
 /** `lider`: el líder de bahía de la agencia, para marcarlo solo al elegirla. */
-export interface OpcionAgencia { id: string; codigo: string; nombre: string; lider?: { id: string; nombre: string } | null; auxiliar?: { id: string; nombre: string } | null }
+export interface OpcionAgencia { id: string; codigo: string; nombre: string; lider?: { id: string; nombre: string } | null; auxiliar?: { id: string; nombre: string } | null; firmantes?: { id: string; nombre: string; etiqueta: string }[] }
 export interface OpcionPersona { id: string; nombre: string }
 
 // ───────────────────────── Informes de inspección ─────────────────────────

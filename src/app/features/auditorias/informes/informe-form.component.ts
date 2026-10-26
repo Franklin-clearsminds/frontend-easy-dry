@@ -1,5 +1,5 @@
 import { Component, OnInit, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { CommonModule, Location } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { LucideAngularModule } from 'lucide-angular';
@@ -247,7 +247,7 @@ const aLocal = (iso: string) => {
                 <legend class="field-label">CALIFIQUE NUESTRO SERVICIO *</legend>
                 <div class="grid grid-cols-2 sm:grid-cols-4 gap-3" role="radiogroup">
                   @for (c of calificaciones; track c.id) {
-                    <button type="button" role="radio" [attr.aria-checked]="form.calificacion === c.id" (click)="form.calificacion = c.id"
+                    <button type="button" role="radio" [attr.aria-checked]="form.calificacion === c.id" (click)="form.calificacion = c.id; errorSello = ''"
                       class="min-h-14 rounded-xl border-2 font-extrabold text-sm transition-colors"
                       [ngClass]="form.calificacion === c.id ? c.clase + ' ring-2 ring-offset-1 ring-easydry-blue' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'">
                       {{ c.nombre }}
@@ -305,10 +305,11 @@ const aLocal = (iso: string) => {
                   </button>
                   <span class="text-xs text-slate-500">{{ !selloElegido ? 'Elige primero al jefe de taller.' : !passwordJefe ? 'Escribe la contraseña del jefe de taller para validarla.' : 'Para pasar a las firmas hay que validar al jefe de taller.' }}</span>
                 </div>
-                @if (errorSello) { <p class="text-xs font-semibold text-rose-700" role="alert">{{ errorSello }}</p> }
                 } @else {
                   <p class="text-sm text-slate-700 bg-white border border-slate-200 rounded-lg p-3">El jefe de taller no estuvo en la visita, así que no hay contraseña que validar. En Firmas, el taller firma escribiendo el nombre y apellido de quien lo representa.</p>
                 }
+                <!-- El aviso se ve con o sin jefe de taller (p. ej. «Selecciona la calificación del servicio») -->
+                @if (errorSello) { <p class="text-sm font-semibold text-rose-700 bg-rose-50 border border-rose-200 rounded-lg p-2.5" role="alert">{{ errorSello }}</p> }
               </div>
             }
 
@@ -331,15 +332,14 @@ const aLocal = (iso: string) => {
                     <app-firma-imagen [imagen]="f.imagen" [marcaAgua]="f.tipo === 'JEFE_TALLER' ? (detalle?.sello?.logo ?? null) : null" [etiqueta]="f.etiqueta" [atenuada]="f.desactualizada"></app-firma-imagen>
                     <div>
                       <label class="block text-[11px] font-bold text-slate-500 mb-1" [attr.for]="'firma-nombre-' + f.tipo">Nombre de quien firma</label>
-                      @if (f.tipo === 'LIDER_BAHIA' && !f.nombre && editable && opcionesLider.length) {
-                        <div class="flex flex-wrap gap-1.5 mb-1.5" role="group" aria-label="Quién firma como líder de bahía">
-                          @for (o of opcionesLider; track o.etiqueta) {
-                            <button type="button" class="btn btn-sm" [ngClass]="nombreDe(f) === o.nombre ? 'btn-primary' : 'btn-secondary'" (click)="cambiarNombre(f, o.nombre)">{{ o.etiqueta }}: {{ o.nombre }}</button>
-                          }
-                        </div>
+                      @if (f.tipo === 'LIDER_BAHIA' && !f.nombre && editable && opcionesFirmanteLider.length > 1) {
+                        <!-- Primero se elige de la lista de la agencia (líder, backup, auxiliares); si firma otra persona, se elige «Otro» y se escribe su nombre -->
+                        <app-select-search class="block mb-1.5" [opciones]="opcionesFirmanteLider" [value]="firmanteLiderValor" [todasLabel]="null" [clearable]="false" placeholder="Elige quién firma…" buscadorPlaceholder="Buscar por nombre…" ariaLabel="Quién firma como líder de bahía" (valueChange)="elegirFirmanteLider(f, $event)"></app-select-search>
                       }
                       @if ((f.tipo === 'JEFE_TALLER' && form.jefeTallerPresente) || f.nombre) {
                         <input [id]="'firma-nombre-' + f.tipo" class="input w-full" [value]="nombreDe(f)" disabled>
+                      } @else if (f.tipo === 'LIDER_BAHIA' && firmanteLiderValor !== OTRO_FIRMANTE && opcionesFirmanteLider.length > 1) {
+                        <input [id]="'firma-nombre-' + f.tipo" class="input w-full" [value]="nombreDe(f)" disabled placeholder="Elige quién firma en la lista">
                       } @else {
                         <input [id]="'firma-nombre-' + f.tipo" class="input w-full" [value]="nombreDe(f)" (input)="cambiarNombre(f, $any($event.target).value)" [ngClass]="!nombreDe(f).trim() ? 'border-amber-400 bg-amber-50 ring-1 ring-amber-300' : ''" [placeholder]="f.tipo === 'JEFE_TALLER' ? 'Escribe el nombre y apellido de quien firma por el taller' : 'Escribe el nombre de quien firma'" [disabled]="!editable">
                         @if (!nombreDe(f).trim()) {
@@ -459,6 +459,7 @@ export class InformeFormComponent implements OnInit {
   private readonly storage = inject(StorageUploadService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly location = inject(Location);
 
   readonly pasos: Paso[] = [
     { id: 1, titulo: 'Información general', corto: 'General', icono: 'file-text' },
@@ -599,6 +600,9 @@ export class InformeFormComponent implements OnInit {
     }
   }
 
+  /** Lo último que se guardó o cargó, tal como viaja al servidor: permite saber si el formulario cambió desde entonces. */
+  private huellaGuardada = '';
+
   private aplicar(d: InformeDetalle): void {
     this.detalle = d;
     if (d.sello?.id) this.selloElegido = d.sello.id;
@@ -621,6 +625,16 @@ export class InformeFormComponent implements OnInit {
       actividades: d.actividades.map((a) => ({ ...a, fotos: [...a.fotos] })),
       planes: d.planes.map((p) => ({ ...p, evidenciaCumplimiento: [...p.evidenciaCumplimiento] })),
     };
+    this.huellaGuardada = JSON.stringify(this.payload());
+  }
+
+  /**
+   * Guarda el borrador solo si el formulario cambió desde la última vez que se guardó o cargó. Abrir una firma, validar la
+   * contraseña o pasar de paso no deben reenviar todo el informe cuando no se tocó nada: antes cada firma esperaba un guardado completo.
+   */
+  private async guardarSiCambio(): Promise<boolean> {
+    if (this.detalle && this.huellaGuardada && JSON.stringify(this.payload()) === this.huellaGuardada) return true;
+    return this.guardar(true);
   }
 
   irA(n: number): void {
@@ -642,7 +656,7 @@ export class InformeFormComponent implements OnInit {
       if (this.puedeCalificar && !this.form.calificacion) { this.errorSello = 'Selecciona la calificación del servicio.'; return; }
       if (!this.form.jefeTallerPresente) {
         // Sin jefe de taller no hay contraseña que validar: se guarda que no estuvo y se sigue a las firmas.
-        if (!(await this.guardar(true))) return;
+        if (!(await this.guardarSiCambio())) return;
         this.irA(this.paso + 1);
         return;
       }
@@ -660,7 +674,7 @@ export class InformeFormComponent implements OnInit {
   async validarSello(): Promise<boolean> {
     if (!this.selloElegido || !this.passwordJefe || this.validando) return false;
     this.errorSello = '';
-    if (!(await this.guardar(true)) || !this.detalle) {
+    if (!(await this.guardarSiCambio()) || !this.detalle) {
       this.errorSello = this.errorGuardado || 'No se pudo guardar el borrador antes de validar la contraseña.';
       return false;
     }
@@ -680,7 +694,7 @@ export class InformeFormComponent implements OnInit {
 
   async abrirFirma(f: FirmaInforme): Promise<void> {
     // Lo que se haya cambiado en el formulario (por ejemplo, que el jefe no estuvo) se guarda antes de firmar.
-    if (!(await this.guardar(true)) || !this.detalle) return;
+    if (!(await this.guardarSiCambio()) || !this.detalle) return;
     if (f.tipo === 'JEFE_TALLER' && this.form.jefeTallerPresente && !this.selloValidado) { this.errorGuardado = 'Primero valida al jefe de taller en el paso de calificación.'; return; }
     if (!this.nombreDe(f).trim()) { this.errorGuardado = 'Escribe el nombre de quien firma.'; return; }
     this.errorGuardado = '';
@@ -694,6 +708,24 @@ export class InformeFormComponent implements OnInit {
     if (a?.lider?.nombre) lista.push({ etiqueta: 'Líder', nombre: a.lider.nombre });
     if (a?.auxiliar?.nombre) lista.push({ etiqueta: 'Auxiliar', nombre: a.auxiliar.nombre });
     return lista;
+  }
+
+  readonly OTRO_FIRMANTE = '__otro__';
+  /** Lo elegido en la lista del líder de bahía: el id de una persona de la agencia, «Otro» o nada. */
+  firmanteLiderValor: string | null = null;
+
+  /** Lista de quienes pueden firmar como líder de bahía en la agencia: líder, backup asignado y auxiliares, más «Otro». */
+  get opcionesFirmanteLider(): { value: string; label: string }[] {
+    const a = this.agencias.find((x) => x.id === this.form.agenciaId);
+    const personas = (a?.firmantes ?? []).map((p) => ({ value: p.id, label: `${p.etiqueta}: ${p.nombre}` }));
+    return [...personas, { value: this.OTRO_FIRMANTE, label: 'Otro (escribir el nombre)' }];
+  }
+
+  elegirFirmanteLider(f: FirmaInforme, id: string | null): void {
+    this.firmanteLiderValor = id;
+    if (id === this.OTRO_FIRMANTE) { this.nombresFirmantes[f.tipo] = ''; return; }
+    const a = this.agencias.find((x) => x.id === this.form.agenciaId);
+    this.nombresFirmantes[f.tipo] = a?.firmantes?.find((p) => p.id === id)?.nombre ?? '';
   }
 
   /** Nombres escritos a mano en cada tarjeta de firma (solo mientras nadie ha firmado). */
@@ -714,7 +746,8 @@ export class InformeFormComponent implements OnInit {
   nombreSugerido(f: FirmaInforme): string {
     if (f.nombre && f.tipo !== 'JEFE_TALLER') return f.nombre; // quien firmó la primera vez es quien vuelve a firmar
     if (f.tipo === 'RESPONSABLE') return this.detalle?.inspectorNombre || this.usuarioNombre;
-    if (f.tipo === 'LIDER_BAHIA') return this.opcionesLider[0]?.nombre ?? '';
+    // Con lista de la agencia no se propone a nadie: se elige primero quién firma. Sin lista, se escribe el nombre.
+    if (f.tipo === 'LIDER_BAHIA') return this.opcionesFirmanteLider.length > 1 ? '' : this.opcionesLider[0]?.nombre ?? '';
     return '';
   }
 
@@ -779,7 +812,8 @@ export class InformeFormComponent implements OnInit {
       const d = await firstValueFrom(this.detalle ? this.api.actualizar(datos) : this.api.crear(datos));
       const eraNuevo = !this.detalle;
       this.aplicar(d);
-      if (eraNuevo) void this.router.navigate(['/informes-inspeccion', d.id, 'editar'], { replaceUrl: true });
+      // Solo se cambia la dirección: navegar a la otra ruta recrearía el formulario y lo devolvería al paso 1.
+      if (eraNuevo) this.location.replaceState(`/informes-inspeccion/${d.id}/editar`);
       if (!silencioso) this.toast.success('Borrador guardado', `${d.numero} se guardó correctamente.`);
       return true;
     } catch (e) {
@@ -815,7 +849,7 @@ export class InformeFormComponent implements OnInit {
   }
 
   async vistaPdf(): Promise<void> {
-    if (!(await this.guardar(true)) || !this.detalle) return;
+    if (!(await this.guardarSiCambio()) || !this.detalle) return;
     this.generando = true;
     try {
       await descargarPdfInforme(this.detalle, this.storage);
