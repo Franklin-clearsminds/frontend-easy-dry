@@ -1138,6 +1138,10 @@
         variant="primary" subtitle="Máquinas intervenidas"></app-stat-card>
       <app-stat-card [badge]="etiquetaRango" title="Fuera de Servicio" [value]="tecnicoData.maquinariaFueraServicio" icon="ban" variant="danger"
         subtitle="Baja o fuera de servicio"></app-stat-card>
+      <app-stat-card [badge]="etiquetaRango" title="Costos por Incidencias" [value]="'$' + (tecnicoData.costoTotalReparaciones ?? 0)" icon="alert-triangle"
+        variant="danger" subtitle="Reparaciones de fallas"></app-stat-card>
+      <app-stat-card [badge]="etiquetaRango" title="Costos por Mantenimientos" [value]="'$' + (tecnicoData.costoMantenimientos30d ?? 0)" icon="wrench"
+        variant="warning" subtitle="Mantenimientos del período"></app-stat-card>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
