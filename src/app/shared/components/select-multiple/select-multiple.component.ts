@@ -34,7 +34,7 @@ import { OpcionSelect } from '../../../core/models/paginacion.model';
       </button>
 
       @if (abierto) {
-        <div class="absolute z-50 mt-1 left-0 min-w-full w-72 rounded-xl border border-slate-200 bg-white shadow-xl p-2" role="listbox" aria-multiselectable="true">
+        <div class="absolute z-50 mt-1 left-0 min-w-full w-72 max-w-[calc(100vw-2rem)] rounded-xl border border-slate-200 bg-white shadow-xl p-2" role="listbox" aria-multiselectable="true">
           <input type="text" [(ngModel)]="texto" name="buscar-multiple" placeholder="Buscar…" aria-label="Buscar en la lista"
             class="w-full h-9 px-3 mb-2 rounded-lg border border-slate-200 text-sm outline-none focus:border-easydry-blue" />
           <div class="max-h-60 overflow-y-auto">

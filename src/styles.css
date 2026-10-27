@@ -15,11 +15,24 @@
     font-size: calc(16px * var(--ui-scale));
   }
 
+  /* Imágenes y videos nunca más anchos que su contenedor; el texto no se reescala solo al girar el teléfono. */
+  img, video, canvas, svg {
+    max-width: 100%;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
   body {
     font-family: 'Inter', system-ui, sans-serif;
     background-color: #F8FAFC;
     color: #1E293B;
     overflow-x: hidden;
+    /* Móviles con muesca o barra de gestos: el contenido no queda bajo ellas (viewport-fit=cover). */
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
   }
 
   h1, h2, h3, h4, h5, h6 {

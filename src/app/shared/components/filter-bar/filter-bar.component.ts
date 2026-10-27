@@ -35,7 +35,7 @@ export interface FilterState {
 
       <!-- Búsqueda por texto (Doble de espacio / Ancho prominente) -->
       @if (showBusqueda) {
-        <div class="flex-[2_2_320px] min-w-[280px] sm:min-w-[340px] max-w-full">
+        <div class="flex-[2_2_320px] min-w-full sm:min-w-[340px] max-w-full">
           <label [attr.for]="uid + '-c1'" class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
             <i-lucide name="search" class="w-3.5 h-3.5 text-easydry-blue" aria-hidden="true"></i-lucide> Búsqueda
           </label>
