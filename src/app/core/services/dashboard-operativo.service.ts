@@ -778,12 +778,12 @@ export class DashboardOperativoService {
           } : null,
           // Por agencia se compara el costo en USD; quien no ve costos (el servidor no los envía) ve el número de consumos.
           chartConsumoPorAgencia: consumo?.consumoPorAgencia && consumo.consumoPorAgencia.length > 0 ? (() => {
-            const conCosto = consumo.consumoPorAgencia.some((a: any) => a.costo !== undefined);
+            const conCosto = consumo.consumoPorAgencia.some((a: any) => a.costoInsumos !== undefined);
             return {
               labels: consumo.consumoPorAgencia.map((a: any) => a.nombre),
               datasets: [{
                 label: conCosto ? 'Costo consumido (USD)' : 'Consumos registrados',
-                data: consumo.consumoPorAgencia.map((a: any) => (conCosto ? a.costo : a.usos) ?? 0),
+                data: consumo.consumoPorAgencia.map((a: any) => (conCosto ? a.costoInsumos : a.usos) ?? 0),
                 backgroundColor: coloresCategoricos(consumo.consumoPorAgencia.length)
               }]
             };
