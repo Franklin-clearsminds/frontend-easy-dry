@@ -744,12 +744,14 @@
     [class.hidden]="activeExecutiveTab !== 'operacion'">
 
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+      @if (verCostos) {
       <app-stat-card [badge]="etiquetaRango" title="Gasto en Insumos" [value]="'$' + (produccion?.kpisResumen?.gastoInsumosGlobal ?? 0)" icon="package"
         variant="warning" subtitle="Consumo valorado por costo unitario"></app-stat-card>
       <app-stat-card [badge]="etiquetaRango" title="Gasto en Mantenimientos" [value]="'$' + (produccion?.kpisResumen?.gastoMantenimientosGlobal ?? 0)" icon="wrench"
         variant="warning" subtitle="Mantenimientos finalizados de maquinaria"></app-stat-card>
       <app-stat-card [badge]="etiquetaRango" title="Gasto en Incidencias" [value]="'$' + (produccion?.kpisResumen?.gastoIncidentesGlobal ?? 0)" icon="alert-triangle"
         variant="warning" subtitle="Reparaciones por fallas de maquinaria"></app-stat-card>
+      }
       <app-stat-card [badge]="etiquetaRango" title="Ingreso Bruto Mensual" [value]="'$' + (produccion?.kpisResumen?.ingresoMes ?? 0)" icon="calendar"
         variant="warning" subtitle="Acumulado del mes"></app-stat-card>
       <app-stat-card [badge]="etiquetaRango" title="Ticket Promedio" [value]="'$' + (produccion?.kpisResumen?.ticketPromedioHoy ?? 0)" icon="file-text"

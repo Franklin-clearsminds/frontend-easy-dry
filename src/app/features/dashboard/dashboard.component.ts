@@ -1280,6 +1280,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
     return 'ninguna';
   }
 
+  /** ¿Ve costos y gastos? Sin `precios.ver` (el líder, por ejemplo) el servidor no los envía y las tarjetas de gasto no se muestran. */
+  get verCostos(): boolean { return this.auth.puede('precios.ver'); }
+
   /** ¿Puede elegir entre servicios generales y especiales? (la vista de especiales parte fijada en «Especial»). */
   get puedeVerGenerales(): boolean { return this.auth.puede('servicios.ver'); }
 

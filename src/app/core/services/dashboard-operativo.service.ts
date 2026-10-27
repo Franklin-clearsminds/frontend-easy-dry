@@ -776,14 +776,18 @@ export class DashboardOperativoService {
               backgroundColor: coloresCategoricos(insumosOrdenados.length)
             }]
           } : null,
-          chartConsumoPorAgencia: consumo?.consumoPorAgencia && consumo.consumoPorAgencia.length > 0 ? {
-            labels: consumo.consumoPorAgencia.map((a: any) => a.nombre),
-            datasets: [{
-              label: 'Unidades consumidas',
-              data: consumo.consumoPorAgencia.map((a: any) => a.costo),
-              backgroundColor: coloresCategoricos(consumo.consumoPorAgencia.length)
-            }]
-          } : null,
+          // Por agencia se compara el costo en USD; quien no ve costos (el servidor no los envía) ve el número de consumos.
+          chartConsumoPorAgencia: consumo?.consumoPorAgencia && consumo.consumoPorAgencia.length > 0 ? (() => {
+            const conCosto = consumo.consumoPorAgencia.some((a: any) => a.costo !== undefined);
+            return {
+              labels: consumo.consumoPorAgencia.map((a: any) => a.nombre),
+              datasets: [{
+                label: conCosto ? 'Costo consumido (USD)' : 'Consumos registrados',
+                data: consumo.consumoPorAgencia.map((a: any) => (conCosto ? a.costo : a.usos) ?? 0),
+                backgroundColor: coloresCategoricos(consumo.consumoPorAgencia.length)
+              }]
+            };
+          })() : null,
           chartConsumoPorCategoria: consumo?.consumoPorCategoria && consumo.consumoPorCategoria.length > 0 ? {
             labels: consumo.consumoPorCategoria.map((c: any) => c.nombre),
             datasets: [{
@@ -828,7 +832,8 @@ export class DashboardOperativoService {
             { label: 'Servicios del Mes', value: String(k.serviciosCompletadosMes ?? 0), icon: 'bar-chart-2', variant: 'primary' },
             { label: 'Tiempo Promedio', value: k.tiempoPromedioServicioMin > 0 ? `${k.tiempoPromedioServicioMin} min` : 'Sin datos', icon: 'clock', variant: 'warning' },
             // Salud del negocio
-            { label: 'Costo Reparaciones', value: `$${k.costoReparaciones30d ?? 0}`, icon: 'wrench', variant: 'warning' },
+            // Sin permiso de costos el servidor no envía el dato: la tarjeta no se muestra (en vez de mostrar $0).
+            ...(k.costoReparaciones30d !== undefined ? [{ label: 'Costo Reparaciones', value: `$${k.costoReparaciones30d}`, icon: 'wrench', variant: 'warning' as const }] : []),
             { label: 'Inventario', value: `${k.unidadesInventario ?? 0} u.`, icon: 'package', variant: 'primary', tooltip: 'Unidades en stock del alcance' },
             { label: 'Inventario en Tránsito', value: `${k.unidadesEnTransito ?? 0} u.`, icon: 'truck', variant: 'warning', tooltip: 'Unidades despachadas sin recibir' },
           ]};
