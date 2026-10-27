@@ -29,7 +29,7 @@ Las variables en la aplicación web utilizan el prefijo `NG_APP_`:
 | `NG_APP_NAME` | Nombre comercial del sistema | `EasyDry®` |
 | `NG_APP_ENV` | Entorno actual (`test` / `production`) | `test` |
 | `NG_APP_PRODUCTION` | Flag de compilación para producción | `false` |
-| `NG_APP_API_BASE_URL` | URL base del API Backend NestJS (el WebSocket se deriva de ella quitando `/api/v1`) | `http://localhost:3000/api/v1` |
+| `NG_APP_API_BASE_URL` | URL base del API Backend NestJS (el WebSocket se deriva de ella quitando `/api/v1`) | `http://localhost:3001/api/v1` |
 
 > ℹ️ **Sincronización Automática de Entorno**: El proyecto incluye el script `scripts/sync-env.mjs`, que se ejecuta automáticamente al usar `pnpm start` o `pnpm build` para generar dinámicamente `src/environments/environment.ts` a partir del `.env` sin exponer credenciales sensibles en el repositorio.
 
