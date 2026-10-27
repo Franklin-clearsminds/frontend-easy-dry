@@ -25,13 +25,14 @@ import { TrabajoAccionesComponent } from '../maquinaria/trabajo-acciones/trabajo
 import { MaquinariaDetalleModalComponent } from '../maquinaria/maquinaria-detalle-modal/maquinaria-detalle-modal.component';
 import { SkeletonLoaderComponent } from '../../shared/components/skeleton-loader/skeleton-loader.component';
 import { badgeClase, BADGE_NO_ATENDIDO } from '../../core/utils/badges';
+import { StatCardComponent } from '../../shared/components/stat-card/stat-card.component';
 
 @Component({
   selector: 'app-incidentes',
   standalone: true,
   imports: [
     CommonModule, FormsModule, LucideAngularModule, ModalComponent, InfiniteScrollComponent, FilterBarComponent,
-    EvidenciaGaleriaComponent, TrabajoAccionesComponent, MaquinariaDetalleModalComponent, SkeletonLoaderComponent,
+    EvidenciaGaleriaComponent, TrabajoAccionesComponent, MaquinariaDetalleModalComponent, SkeletonLoaderComponent, StatCardComponent,
   ],
   template: `
     <div class="space-y-6 animate-fade-in">
@@ -81,6 +82,16 @@ import { badgeClase, BADGE_NO_ATENDIDO } from '../../core/utils/badges';
       </app-filter-bar>
       @if (busquedaCorta) {
         <p class="-mt-3 px-2 text-[11px] font-semibold text-slate-500" role="status">Escribe al menos {{ minBusqueda }} letras para buscar.</p>
+      }
+
+      <!-- Gasto del período con los mismos filtros: solo lo ve quien tiene permiso de precios (el servidor no envía el dato al resto) -->
+      @if (resumen?.gastoIncidentes !== undefined) {
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <app-stat-card title="Gasto por incidentes" [value]="'$' + (resumen?.gastoIncidentes ?? 0 | number:'1.2-2')" icon="alert-triangle"
+            variant="danger" subtitle="Reparaciones de incidencias resueltas"></app-stat-card>
+          <app-stat-card title="Gasto por mantenimientos" [value]="'$' + (resumen?.gastoMantenimientos ?? 0 | number:'1.2-2')" icon="wrench"
+            variant="warning" subtitle="Mantenimientos finalizados"></app-stat-card>
+        </div>
       }
 
       @if (totalNoAtendidas > 0) {

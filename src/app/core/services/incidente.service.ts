@@ -56,6 +56,9 @@ export interface ResumenIncidentes {
   enProceso: number;
   cerradas: number;
   total: number;
+  /** USD de reparaciones de incidencias resueltas y de mantenimientos finalizados; solo llegan a quien ve precios. */
+  gastoIncidentes?: number;
+  gastoMantenimientos?: number;
 }
 
 export interface RespuestaIncidentesPagina {
