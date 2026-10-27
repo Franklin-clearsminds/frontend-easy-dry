@@ -143,8 +143,8 @@
         </div>
         }
 
-        <!-- Filtro de tipo de servicio: continuo, se combina con dimensión y fechas. Solo en vista ejecutiva donde conviven general y especial -->
-        @if (vista === 'ejecutivo') {
+        <!-- Filtro de tipo de servicio (todos / generales / especiales): continuo, se combina con dimensión y fechas. En la vista de especiales solo lo ve quien también puede ver los generales -->
+        @if (vista === 'ejecutivo' || (vista === 'especiales' && puedeVerGenerales)) {
         <div class="relative w-48">
           <select [ngModel]="categoriaServicio" (ngModelChange)="onCategoriaServicioChange($event)"
             aria-label="Tipo de servicio" [attr.title]="etiquetaCategoriaServicio"

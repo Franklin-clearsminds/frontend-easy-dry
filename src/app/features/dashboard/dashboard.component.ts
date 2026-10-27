@@ -1280,6 +1280,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
     return 'ninguna';
   }
 
+  /** ¿Puede elegir entre servicios generales y especiales? (la vista de especiales parte fijada en «Especial»). */
+  get puedeVerGenerales(): boolean { return this.auth.puede('servicios.ver'); }
+
   get puedeVerAlertas(): boolean { return this.auth.puede('dashboard.alertas.ver'); }
   get puedeVerMaquinaria(): boolean { return this.auth.puede('maquinaria.ver'); }
   get puedeVerAuditorias(): boolean { return this.auth.puedeAlguno('informes.ver', 'inspecciones.ver'); }
