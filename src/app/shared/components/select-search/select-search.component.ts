@@ -348,8 +348,11 @@ export class SelectSearchComponent implements OnInit, OnChanges, OnDestroy {
   /** El panel es `fixed`: se coloca junto al botón y no lo recorta el scroll de un modal. */
   private calcularPosicion(): void {
     const r = this.disparador.nativeElement.getBoundingClientRect();
-    const abajo = window.innerHeight - r.bottom - 12;
-    const arriba = r.top - 12;
+    // Con teclado virtual (tablets, móviles) la parte visible es menor que la ventana.
+    const vv = window.visualViewport;
+    const topVisible = vv?.offsetTop ?? 0;
+    const abajo = topVisible + (vv?.height ?? window.innerHeight) - r.bottom - 12;
+    const arriba = r.top - topVisible - 12;
     const abrirArriba = abajo < 220 && arriba > abajo;
     this.pos = {
       left: Math.max(8, Math.min(r.left, window.innerWidth - Math.max(r.width, 240) - 8)),
@@ -363,6 +366,7 @@ export class SelectSearchComponent implements OnInit, OnChanges, OnDestroy {
     this.zone.runOutsideAngular(() => {
       document.addEventListener('mousedown', this.cerrarFuera, true);
       window.addEventListener('resize', this.reposicionar);
+      window.visualViewport?.addEventListener('resize', this.reposicionar);
       window.addEventListener('scroll', this.reposicionar, true);
     });
   }
@@ -370,6 +374,7 @@ export class SelectSearchComponent implements OnInit, OnChanges, OnDestroy {
   private quitarEscuchas(): void {
     document.removeEventListener('mousedown', this.cerrarFuera, true);
     window.removeEventListener('resize', this.reposicionar);
+    window.visualViewport?.removeEventListener('resize', this.reposicionar);
     window.removeEventListener('scroll', this.reposicionar, true);
   }
 }

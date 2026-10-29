@@ -36,20 +36,38 @@ function abrirPanel(select: HTMLSelectElement): void {
   abierto?.cerrar();
 
   const todas = opcionesDe(select);
-  const rect = select.getBoundingClientRect();
-  const alto = Math.min(340, Math.max(220, window.innerHeight - rect.bottom - 16));
-  const abajo = window.innerHeight - rect.bottom >= 220 || rect.top < 240;
 
   const panel = document.createElement('div');
   panel.setAttribute('role', 'dialog');
   panel.setAttribute('aria-label', 'Elegir una opción');
   panel.className = 'fixed bg-white border-2 border-easydry-blue rounded-xl shadow-2xl flex flex-col overflow-hidden';
   panel.style.zIndex = '10600';
-  panel.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - Math.max(rect.width, 260) - 8))}px`;
-  panel.style.width = `${Math.max(rect.width, 260)}px`;
-  panel.style.maxHeight = `${alto}px`;
-  if (abajo) panel.style.top = `${rect.bottom + 4}px`;
-  else panel.style.bottom = `${window.innerHeight - rect.top + 4}px`;
+
+  /**
+   * Coloca el panel junto al <select> dentro de la parte visible de la pantalla. En tablets y móviles el teclado
+   * virtual reduce esa parte (visualViewport), así que se mide con ella y no con la ventana completa.
+   */
+  const colocar = () => {
+    const vv = window.visualViewport;
+    const topVisible = vv?.offsetTop ?? 0;
+    const altoVisible = vv?.height ?? window.innerHeight;
+    const rect = select.getBoundingClientRect();
+    const espacioAbajo = topVisible + altoVisible - rect.bottom - 12;
+    const espacioArriba = rect.top - topVisible - 12;
+    const abajo = espacioAbajo >= 220 || espacioArriba < espacioAbajo;
+    const ancho = Math.max(rect.width, 260);
+    panel.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - ancho - 8))}px`;
+    panel.style.width = `${ancho}px`;
+    panel.style.maxHeight = `${Math.max(160, Math.min(340, abajo ? espacioAbajo : espacioArriba))}px`;
+    if (abajo) {
+      panel.style.top = `${rect.bottom + 4}px`;
+      panel.style.bottom = '';
+    } else {
+      panel.style.bottom = `${window.innerHeight - rect.top + 4}px`;
+      panel.style.top = '';
+    }
+  };
+  colocar();
 
   const cabecera = document.createElement('div');
   cabecera.className = 'p-2 border-b border-slate-200 shrink-0 bg-white';
@@ -130,11 +148,13 @@ function abrirPanel(select: HTMLSelectElement): void {
     else if (e.key === 'Tab') cerrar();
   };
 
-  const alCambiarTamano = () => cerrar();
+  // Cambiar el tamaño (por ejemplo al salir el teclado virtual) no debe cerrar el panel: solo se recoloca.
+  const alCambiarTamano = () => colocar();
 
   function cerrar() {
     document.removeEventListener('mousedown', fueraDelPanel, true);
     window.removeEventListener('resize', alCambiarTamano);
+    window.visualViewport?.removeEventListener('resize', alCambiarTamano);
     buscador.removeEventListener('keydown', teclas);
     panel.remove();
     if (abierto?.cerrar === cerrar) abierto = null;
@@ -144,6 +164,7 @@ function abrirPanel(select: HTMLSelectElement): void {
   buscador.addEventListener('keydown', teclas);
   document.addEventListener('mousedown', fueraDelPanel, true);
   window.addEventListener('resize', alCambiarTamano);
+  window.visualViewport?.addEventListener('resize', alCambiarTamano);
   abierto = { cerrar };
 
   pintar();
