@@ -494,6 +494,8 @@ export class VideoRecorderComponent implements OnInit, OnChanges, OnDestroy {
   private mediaStream?: MediaStream;
   private mediaRecorder?: MediaRecorder;
   private recordedChunks: Blob[] = [];
+  /** Momento en que arrancó la grabación: el botón «Pausar» aparece justo donde estaba «Iniciar» y un toque repetido no debe pausarla. */
+  private inicioGrabacionMs = 0;
 
   recordedBlob?: Blob;
   previewUrl?: string;
@@ -675,6 +677,23 @@ export class VideoRecorderComponent implements OnInit, OnChanges, OnDestroy {
       this.onRecordingStopped();
     };
 
+    // El estado en pantalla sigue al del grabador: si el navegador lo pausa por su cuenta no se muestra como si grabara.
+    this.mediaRecorder.onpause = () => {
+      this.clearTimer();
+      if (this.state === 'recording') this.state = 'paused';
+      this.cdr.detectChanges();
+    };
+    this.mediaRecorder.onresume = () => {
+      if (this.state === 'paused') this.iniciarCronometro();
+    };
+    this.mediaRecorder.onerror = () => {
+      this.clearTimer();
+      this.errorMessage = 'La grabación se interrumpió. Vuelve a intentarlo o sube un archivo grabado.';
+      this.state = 'error';
+      this.stopCameraStream();
+      this.cdr.detectChanges();
+    };
+
     // Solicitar fragmentos cada 1000ms para asegurar flujo constante
     try {
       this.mediaRecorder.start(1000);
@@ -686,7 +705,13 @@ export class VideoRecorderComponent implements OnInit, OnChanges, OnDestroy {
       return;
     }
     this.state = 'recording';
+    this.inicioGrabacionMs = Date.now();
+    this.iniciarCronometro();
+  }
 
+  private iniciarCronometro(): void {
+    this.clearTimer();
+    this.state = 'recording';
     this.timerInterval = setInterval(() => {
       this.recordingSeconds++;
       if (this.recordingSeconds >= this.maxDurationSeconds) {
@@ -695,9 +720,12 @@ export class VideoRecorderComponent implements OnInit, OnChanges, OnDestroy {
       }
       this.cdr.detectChanges();
     }, 1000);
+    this.cdr.detectChanges();
   }
 
   pauseRecording(): void {
+    // Ignora el toque que llega justo después de iniciar (doble toque o toque repetido en tablets).
+    if (Date.now() - this.inicioGrabacionMs < 1200) return;
     if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
       try {
         this.mediaRecorder.requestData();
@@ -713,15 +741,7 @@ export class VideoRecorderComponent implements OnInit, OnChanges, OnDestroy {
   resumeRecording(): void {
     if (this.mediaRecorder && this.mediaRecorder.state === 'paused') {
       this.mediaRecorder.resume();
-      this.state = 'recording';
-      this.timerInterval = setInterval(() => {
-        this.recordingSeconds++;
-        if (this.recordingSeconds >= this.maxDurationSeconds) {
-          this.recordingSeconds = this.maxDurationSeconds;
-          this.stopRecording();
-        }
-        this.cdr.detectChanges();
-      }, 1000);
+      this.iniciarCronometro();
     }
   }
 
