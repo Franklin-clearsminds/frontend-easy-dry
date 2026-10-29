@@ -614,7 +614,8 @@ export class VideoRecorderComponent implements OnInit, OnChanges, OnDestroy {
     }
   }
 
-  startRecording(): void {
+  /** `intento` recorre los formatos que el navegador dice soportar: si uno se corta al arrancar se prueba el siguiente. */
+  startRecording(intento = 0): void {
     if (!this.mediaStream) return;
     if (typeof MediaRecorder === 'undefined') {
       this.errorMessage = 'Este navegador no permite grabar vídeo. Sube un archivo grabado.';
@@ -625,21 +626,9 @@ export class VideoRecorderComponent implements OnInit, OnChanges, OnDestroy {
     this.recordingSeconds = 0;
     this.errorMessage = '';
 
-    let mimeType = '';
-    const preferredTypes = [
-      'video/mp4;codecs=avc1,mp4a.40.2',
-      'video/mp4',
-      'video/webm;codecs=vp9,opus',
-      'video/webm;codecs=vp8,opus',
-      'video/webm'
-    ];
-
-    for (const type of preferredTypes) {
-      if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(type)) {
-        mimeType = type;
-        break;
-      }
-    }
+    const candidatos = this.formatosSoportados();
+    // Pasado el último formato se deja que el navegador elija el suyo.
+    const mimeType = candidatos[intento] ?? '';
 
     const recorderOptions: MediaRecorderOptions = {
       videoBitsPerSecond: 850_000, // 850 kbps: compresión de alta velocidad (~9.5 MB para 90s), transferencia y carga ultrarrápidas
@@ -673,7 +662,25 @@ export class VideoRecorderComponent implements OnInit, OnChanges, OnDestroy {
       }
     };
 
+    const inicio = Date.now();
     this.mediaRecorder.onstop = () => {
+      if (this.state === 'error') return; // ya se avisó el fallo: no se da por grabado
+      // La parada manual solo se habilita pasado el mínimo: un corte a los pocos segundos lo provoca el navegador con ese formato.
+      const corteAlArrancar = this.state === 'recording' && Date.now() - inicio < 3000;
+      if (corteAlArrancar && intento < candidatos.length && this.mediaStream?.active) {
+        console.warn(`La grabación se cortó al iniciar con "${mimeType || 'formato por defecto'}"; se prueba otro formato.`);
+        this.clearTimer();
+        this.startRecording(intento + 1);
+        return;
+      }
+      if (corteAlArrancar) {
+        this.clearTimer();
+        this.errorMessage = 'La grabación se cortó al iniciar en este dispositivo. Sube un archivo grabado.';
+        this.state = 'error';
+        this.stopCameraStream();
+        this.cdr.detectChanges();
+        return;
+      }
       this.onRecordingStopped();
     };
 
@@ -707,6 +714,19 @@ export class VideoRecorderComponent implements OnInit, OnChanges, OnDestroy {
     this.state = 'recording';
     this.inicioGrabacionMs = Date.now();
     this.iniciarCronometro();
+  }
+
+  /**
+   * Formatos de vídeo que el navegador puede grabar, del más fiable al menos. Safari (iPhone/iPad) graba mp4; el resto (Chrome en
+   * Android y escritorio) graba WebM, y su mp4 es más reciente y se corta al iniciar en algunos equipos.
+   */
+  private formatosSoportados(): string[] {
+    if (typeof MediaRecorder === 'undefined' || !MediaRecorder.isTypeSupported) return [];
+    const ua = navigator.userAgent || '';
+    const esSafari = /iPad|iPhone|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1) || (/Safari/.test(ua) && !/Chrome|Chromium|Android/.test(ua));
+    const mp4 = ['video/mp4;codecs=avc1,mp4a.40.2', 'video/mp4'];
+    const webm = ['video/webm;codecs=vp8,opus', 'video/webm;codecs=vp9,opus', 'video/webm'];
+    return (esSafari ? [...mp4, ...webm] : [...webm, ...mp4]).filter((t) => MediaRecorder.isTypeSupported(t));
   }
 
   private iniciarCronometro(): void {
