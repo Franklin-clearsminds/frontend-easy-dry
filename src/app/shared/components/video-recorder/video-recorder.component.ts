@@ -544,51 +544,56 @@ export class VideoRecorderComponent implements OnInit, OnChanges, OnDestroy {
     this.recordedBlob = undefined;
     this.hasPendingUpload = false;
 
-    try {
-      const constraints: MediaStreamConstraints = {
-        video: {
-          facingMode: this.facingMode,
-          width: { ideal: 1280, max: 1280 },
-          height: { ideal: 720, max: 720 },
-          frameRate: { ideal: 24, max: 30 }
-        },
-        audio: true
-      };
-
-      this.mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
-      this.hasActiveStream = true;
-      this.state = 'ready';
+    if (!navigator.mediaDevices?.getUserMedia) {
+      this.errorMessage = window.isSecureContext === false
+        ? 'La cámara solo funciona con una conexión segura (https). Abre el sistema con la dirección https o sube un archivo grabado.'
+        : 'Este navegador no permite usar la cámara. Sube un archivo grabado.';
+      this.state = 'error';
       this.cdr.detectChanges();
+      return;
+    }
 
-      if (this.liveVideoElement?.nativeElement) {
-        this.liveVideoElement.nativeElement.srcObject = this.mediaStream;
-        await this.liveVideoElement.nativeElement.play();
-      }
-    } catch (err: any) {
-      console.warn('Error accediendo a cámara con audio, intentando solo vídeo:', err);
+    // De la más exigente a la más simple: algunas cámaras de tablet no cumplen resolución o no dan audio.
+    const intentos: MediaStreamConstraints[] = [
+      { video: { facingMode: this.facingMode, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 24 } }, audio: true },
+      { video: { facingMode: this.facingMode }, audio: true },
+      { video: { facingMode: this.facingMode } },
+      { video: true },
+    ];
+
+    let ultimoError: any;
+    for (const constraints of intentos) {
       try {
-        this.mediaStream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: this.facingMode,
-            width: { ideal: 1280, max: 1280 },
-            height: { ideal: 720, max: 720 },
-            frameRate: { ideal: 24, max: 30 }
-          }
-        });
-        this.hasActiveStream = true;
-        this.state = 'ready';
-        this.cdr.detectChanges();
-
-        if (this.liveVideoElement?.nativeElement) {
-          this.liveVideoElement.nativeElement.srcObject = this.mediaStream;
-          await this.liveVideoElement.nativeElement.play();
-        }
-      } catch (videoErr: any) {
-        console.error('No se pudo acceder a la cámara del dispositivo:', videoErr);
-        this.errorMessage = 'No se pudo acceder a la cámara. Revisa los permisos o sube un archivo grabado.';
-        this.state = 'error';
-        this.cdr.detectChanges();
+        this.mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+        break;
+      } catch (err: any) {
+        ultimoError = err;
+        // Sin permiso no tiene sentido seguir probando otras configuraciones.
+        if (err?.name === 'NotAllowedError' || err?.name === 'SecurityError') break;
       }
+    }
+
+    if (!this.mediaStream) {
+      console.error('No se pudo acceder a la cámara del dispositivo:', ultimoError);
+      this.errorMessage = ultimoError?.name === 'NotAllowedError'
+        ? 'El permiso de la cámara está bloqueado. Habilítalo en los ajustes del navegador o sube un archivo grabado.'
+        : 'No se pudo acceder a la cámara. Revisa que no la esté usando otra aplicación o sube un archivo grabado.';
+      this.state = 'error';
+      this.cdr.detectChanges();
+      return;
+    }
+
+    this.hasActiveStream = true;
+    this.state = 'ready';
+    this.cdr.detectChanges();
+
+    const video = this.liveVideoElement?.nativeElement;
+    if (video) {
+      // El atributo `muted` de la plantilla no siempre llega como propiedad; sin ella iOS y algunos Android bloquean play().
+      video.muted = true;
+      video.srcObject = this.mediaStream;
+      // Si el navegador rechaza play() la cámara sigue activa y se puede grabar: no es un error de acceso.
+      try { await video.play(); } catch (err) { console.warn('No se pudo reproducir la vista previa:', err); }
     }
   }
 
@@ -609,6 +614,11 @@ export class VideoRecorderComponent implements OnInit, OnChanges, OnDestroy {
 
   startRecording(): void {
     if (!this.mediaStream) return;
+    if (typeof MediaRecorder === 'undefined') {
+      this.errorMessage = 'Este navegador no permite grabar vídeo. Sube un archivo grabado.';
+      this.state = 'error';
+      return;
+    }
     this.recordedChunks = [];
     this.recordingSeconds = 0;
     this.errorMessage = '';
@@ -643,7 +653,15 @@ export class VideoRecorderComponent implements OnInit, OnChanges, OnDestroy {
       try {
         this.mediaRecorder = mimeType ? new MediaRecorder(this.mediaStream, { mimeType }) : new MediaRecorder(this.mediaStream);
       } catch {
-        this.mediaRecorder = new MediaRecorder(this.mediaStream);
+        try {
+          this.mediaRecorder = new MediaRecorder(this.mediaStream);
+        } catch (err) {
+          console.error('No se pudo iniciar la grabación:', err);
+          this.errorMessage = 'No se pudo iniciar la grabación en este dispositivo. Sube un archivo grabado.';
+          this.state = 'error';
+          this.stopCameraStream();
+          return;
+        }
       }
     }
 
@@ -658,7 +676,15 @@ export class VideoRecorderComponent implements OnInit, OnChanges, OnDestroy {
     };
 
     // Solicitar fragmentos cada 1000ms para asegurar flujo constante
-    this.mediaRecorder.start(1000);
+    try {
+      this.mediaRecorder.start(1000);
+    } catch (err) {
+      console.error('No se pudo iniciar la grabación:', err);
+      this.errorMessage = 'No se pudo iniciar la grabación en este dispositivo. Sube un archivo grabado.';
+      this.state = 'error';
+      this.stopCameraStream();
+      return;
+    }
     this.state = 'recording';
 
     this.timerInterval = setInterval(() => {
