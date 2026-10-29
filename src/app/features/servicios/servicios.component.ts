@@ -2461,13 +2461,22 @@ import { EvidenciaServicioItem, EvidenciasServicioModalComponent, FaseEvidencia,
               <label for="srv-f18" class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Placa Vehículo *</label>
               <input id="srv-f18"
                 type="text"
-                [(ngModel)]="extraFormPlaca"
+                [ngModel]="extraFormPlaca"
+                (ngModelChange)="onExtraPlacaChange($event)"
                 name="extraPlaca"
                 placeholder="PBX-1234"
                 maxlength="8"
                 autocomplete="off"
                 class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold uppercase tracking-wide focus:border-amber-500 focus:ring-amber-500"
+                [class.border-rose-400]="extraPlacaTocada && !extraPlacaValida"
+                [class.border-easydry-green]="extraPlacaValida"
                 required>
+              <p class="text-xs mt-1 font-semibold"
+                [class.text-easydry-green-text]="extraPlacaValida"
+                [class.text-rose-600]="extraPlacaTocada && !extraPlacaValida"
+                [class.text-slate-400]="!extraPlacaTocada && !extraPlacaValida">
+                {{ extraPlacaMensaje }}
+              </p>
             </div>
           </div>
 
@@ -3523,6 +3532,19 @@ export class ServiciosComponent implements OnInit, OnDestroy {
       return 'Formato ANT Ecuador: AAA-1234 (auto) o AAA-123 (moto).';
     }
     return this.resultadoPlaca.mensaje;
+  }
+
+  /** Placa de la OT especial: mismo formato y validación ANT Ecuador que la de servicios generales. */
+  extraPlacaTocada = false;
+  get extraPlacaValida(): boolean {
+    return validarPlaca(this.extraFormPlaca).valida;
+  }
+  get extraPlacaMensaje(): string {
+    return this.extraFormPlaca ? validarPlaca(this.extraFormPlaca).mensaje : 'Formato ANT Ecuador: AAA-1234 (auto) o AAA-123 (moto).';
+  }
+  onExtraPlacaChange(valor: string): void {
+    this.extraPlacaTocada = true;
+    this.extraFormPlaca = formatearPlaca(valor);
   }
 
   onPlacaChange(valor: string): void {
@@ -5350,7 +5372,7 @@ export class ServiciosComponent implements OnInit, OnDestroy {
 
   get puedeCrearOTEspecialConInsumos(): boolean {
     if (!this.isCoordServiciosEspeciales || this.validandoStockPulidorOT) return false;
-    if (!this.extraForm.servicioNombre?.trim() || !this.extraForm.operadoresIds.length || !this.extraFormPlaca?.trim()) return false;
+    if (!this.extraForm.servicioNombre?.trim() || !this.extraForm.operadoresIds.length || !this.extraFormPlaca?.trim() || !this.extraPlacaValida) return false;
     if (!this.extraForm.insumosReceta?.length) return false;
     return this.faltantesInsumosOT.length === 0;
   }
@@ -5522,6 +5544,7 @@ export class ServiciosComponent implements OnInit, OnDestroy {
 
     this.extraFormOT = '';
     this.extraFormPlaca = '';
+    this.extraPlacaTocada = false;
     this.extraFormMarca = '';
     this.extraFormModelo = '';
     this.extraFormColor = '';
@@ -5619,9 +5642,17 @@ export class ServiciosComponent implements OnInit, OnDestroy {
       return;
     }
     if (!this.extraFormPlaca.trim()) {
+      this.extraPlacaTocada = true;
       this.toastService.warning('Placa requerida', 'Ingrese la placa del vehículo.');
       return;
     }
+    const placaExtra = validarPlaca(this.extraFormPlaca);
+    if (!placaExtra.valida) {
+      this.extraPlacaTocada = true;
+      this.toastService.warning('Placa inválida', placaExtra.mensaje);
+      return;
+    }
+    this.extraFormPlaca = placaExtra.placa;
 
     const user = this.authService.getCurrentUser();
     const agenciaIdFinal = this.isPulidorFijo ? (user?.agenciaId || '') : this.extraFormAgenciaId;
