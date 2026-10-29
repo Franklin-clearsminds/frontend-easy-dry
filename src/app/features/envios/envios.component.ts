@@ -122,10 +122,19 @@ import { EvidenciasEnvioComponent } from './evidencias-envio.component';
         <ng-template appCell="insumos" let-env>
           <div class="space-y-1">
             @for (p of env.productos; track p.id) {
-              <div class="inline-flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200/70 px-2 py-1 rounded-lg text-slate-800 font-semibold text-xs border border-slate-200/80 mr-1 mb-0.5">
-                <span class="font-mono text-emerald-800 font-extrabold bg-emerald-100 px-1.5 py-0.5 rounded text-xs">{{ p.cantidad }} und</span>
-                <span class="text-slate-900 font-bold">{{ p.nombreProducto }}</span>
-              </div>
+              @if (faltaDeProducto(env, p); as falta) {
+                <div class="inline-flex items-center gap-1.5 bg-rose-50 px-2 py-1 rounded-lg text-rose-900 font-semibold text-xs border border-rose-200 mr-1 mb-0.5"
+                  [attr.title]="falta.recibida === 0 ? 'No llegó' : 'Llegó incompleto: ' + falta.recibida + ' de ' + p.cantidad + ' und'">
+                  <span class="font-mono text-rose-800 font-extrabold bg-rose-100 px-1.5 py-0.5 rounded text-xs">{{ falta.recibida }}/{{ p.cantidad }} und</span>
+                  <span class="text-slate-900 font-bold">{{ p.nombreProducto }}</span>
+                  <span class="text-[11px] font-extrabold uppercase text-rose-700">{{ falta.recibida === 0 ? 'No llegó' : 'Incompleto' }}</span>
+                </div>
+              } @else {
+                <div class="inline-flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200/70 px-2 py-1 rounded-lg text-slate-800 font-semibold text-xs border border-slate-200/80 mr-1 mb-0.5">
+                  <span class="font-mono text-emerald-800 font-extrabold bg-emerald-100 px-1.5 py-0.5 rounded text-xs">{{ p.cantidad }} und</span>
+                  <span class="text-slate-900 font-bold">{{ p.nombreProducto }}</span>
+                </div>
+              }
             } @empty {
               <span class="text-slate-500 italic">Sin detalle</span>
             }
@@ -652,6 +661,20 @@ export class EnviosComponent implements OnInit, OnDestroy {
     if (e.faltantes?.length) return true;
     return (e.detalles || []).some((d: any) => d.cantidadRecibida != null && Number(d.cantidadRecibida) < Number(d.cantidadEnviada));
   };
+
+  /**
+   * Lo que no llegó de un insumo, o null si llegó completo (o el envío aún no se recibe). Un envío rechazado no recibió nada.
+   * Así la columna de insumos no muestra en verde algo que en la recepción se marcó como faltante.
+   */
+  faltaDeProducto(env: any, p: any): { recibida: number } | null {
+    const enviada = Number(p.cantidad) || 0;
+    if (env.estado === 'RECHAZADO') return enviada > 0 ? { recibida: 0 } : null;
+    if (env.estado !== 'RECIBIDO') return null;
+    const det = (env.detalles || []).find((d: any) => String(d.id) === String(p.detalleId ?? p.id));
+    if (!det || det.cantidadRecibida === null || det.cantidadRecibida === undefined) return null;
+    const recibida = Number(det.cantidadRecibida) || 0;
+    return recibida < enviada ? { recibida } : null;
+  }
 
   faltantesPendientes(env: any): number {
     return (env.faltantes || []).filter((f: any) => f.estado === 'PENDIENTE').length;
