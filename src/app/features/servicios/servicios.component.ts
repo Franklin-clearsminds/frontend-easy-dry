@@ -1200,7 +1200,7 @@ import { EvidenciaServicioItem, EvidenciasServicioModalComponent, FaseEvidencia,
         (close)="modalReasignarOpen = false">
         @if (extraReasignar) {
           <div class="space-y-3 text-xs">
-            <p class="text-slate-600">Servicio <b>{{ extraReasignar.codigoSE }}</b>. Solo se listan pulidores de la región de la OT. Selecciona uno o varios. El primero seleccionado será responsable de la OT y de los insumos, y debe tener el kit requerido.</p>
+            <p class="text-slate-600">Servicio <b>{{ extraReasignar.codigoSE }}</b>. Solo se listan pulidores de la región de la OT. Si la agencia tiene pulidor fijo, él es el responsable y los demás son de apoyo; si no, el primero que elijas es el responsable (usa «Hacer responsable» para cambiarlo). Los insumos se descuentan del kit del responsable, que debe tenerlos.</p>
             @if (asignadosNoPulidores.length > 0) {
               <p class="rounded-lg border border-amber-300 bg-amber-50 p-2.5 text-[11px] font-semibold text-amber-800">
                 {{ asignadosNoPulidores.join(', ') }} está asignado a esta OT pero no es un pulidor activo. Elige al pulidor que la va a operar.
@@ -1215,11 +1215,20 @@ import { EvidenciaServicioItem, EvidenciasServicioModalComponent, FaseEvidencia,
                     [disabled]="esPulidorFijoReasignacion(p) && estaPulidorReasignado(p.id)"
                     (change)="cambiarPulidorReasignacion(p, $event)"
                     class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
-                  <span class="font-semibold text-slate-700">{{ p.name }} {{ p.lastname }}</span>
-                  @if (esResponsableReasignacion(p.id)) {
-                    <span class="ml-auto text-xs font-bold text-amber-800">{{ esPulidorFijoReasignacion(p) ? 'Pulidor fijo · responsable · se descuenta de su kit' : 'Responsable · se descuenta de su kit' }}</span>
-                  } @else if (esPulidorFijoReasignacion(p)) {
-                    <span class="ml-auto text-xs font-bold text-amber-700">Pulidor fijo</span>
+                  <div class="min-w-0 flex-1">
+                    <p class="font-semibold text-slate-700 break-words">{{ p.name }} {{ p.lastname }}</p>
+                    @if (esResponsableReasignacion(p.id)) {
+                      <p class="text-[11px] font-bold text-amber-800 mt-0.5">{{ esPulidorFijoReasignacion(p) ? 'Fijo · Responsable principal' : 'Responsable · se descuenta de su kit' }}</p>
+                      @if (esPulidorFijoReasignacion(p)) { <p class="text-[11px] text-slate-500">No se puede cambiar; se descuenta de su kit</p> }
+                    } @else if (esPulidorFijoReasignacion(p)) {
+                      <p class="text-[11px] font-bold text-amber-700 mt-0.5">Pulidor fijo</p>
+                    } @else if (estaPulidorReasignado(p.id)) {
+                      <p class="text-[11px] text-slate-500 mt-0.5">Apoyo</p>
+                    }
+                  </div>
+                  @if (estaPulidorReasignado(p.id) && !esResponsableReasignacion(p.id) && !esPulidorFijoReasignacion(p) && !responsableBloqueadoReasignacion) {
+                    <button type="button" (click)="hacerResponsableReasignacion(p); $event.preventDefault()"
+                      class="shrink-0 px-2 py-1 rounded-lg text-[11px] font-bold bg-amber-100 text-amber-800 hover:bg-amber-200 cursor-pointer">Hacer responsable</button>
                   }
                 </label>
               }
@@ -2342,9 +2351,9 @@ import { EvidenciaServicioItem, EvidenciasServicioModalComponent, FaseEvidencia,
                   </div>
                 } @else {
                   <select
-                    [(ngModel)]="extraFormAgenciaId"
+                    [ngModel]="extraFormAgenciaId"
+                    (ngModelChange)="extraFormAgenciaId = $event; onSucursalExtraFormChange()"
                     name="agenciaIdExtra"
-                    (change)="onSucursalExtraFormChange()"
                     class="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-amber-500"
                     required>
                     <option value="">Seleccione la agencia...</option>
@@ -2393,7 +2402,7 @@ import { EvidenciaServicioItem, EvidenciasServicioModalComponent, FaseEvidencia,
                     @if (pulidorFijoAgenciaSeleccionada) {
                       <span class="text-emerald-700 font-bold text-xs">(Fijo primero)</span>
                     } @else {
-                      <span class="text-blue-700 font-bold text-xs">(Seleccione uno o varios; el primero es el responsable)</span>
+                      <span class="text-blue-700 font-bold text-xs">(El primero que elijas es el responsable; los demás son apoyo)</span>
                     }
                   </label>
                   <div class="max-h-48 overflow-y-auto rounded-xl border border-blue-200 bg-white divide-y divide-slate-100">
@@ -2403,13 +2412,24 @@ import { EvidenciaServicioItem, EvidenciasServicioModalComponent, FaseEvidencia,
                         <input type="checkbox" [name]="'operadorExtra-' + p.id" [checked]="estaPulidorSeleccionado(p.id)"
                           [disabled]="esPulidorFijoAsignado(p)" (change)="onOperadorExtraToggle(p, $event)"
                           class="rounded border-slate-300 text-blue-700 focus:ring-blue-600">
-                        <span class="min-w-0 flex-1 text-xs font-semibold text-slate-800">{{ p.name }} {{ p.lastname }}</span>
-                        @if (esPulidorResponsable(p.id)) {
-                          <span class="text-xs font-bold text-amber-800">Responsable · se descuenta de su kit</span>
-                        } @else if (esPulidorFijoAsignado(p)) {
-                          <span class="text-xs font-bold text-emerald-700">Fijo · Responsable principal</span>
-                        } @else {
-                          <span class="text-xs text-slate-500">{{ p.agenciaId || p.agencia?.id ? 'Fijo' : 'Móvil' }}</span>
+                        <div class="min-w-0 flex-1">
+                          <p class="text-xs font-semibold text-slate-800 break-words">{{ p.name }} {{ p.lastname }}</p>
+                          @if (esPulidorFijoAsignado(p)) {
+                            <p class="text-[11px] font-bold text-emerald-700 mt-0.5">Fijo · Responsable principal</p>
+                            <p class="text-[11px] text-slate-500">No se puede cambiar; se descuenta de su kit</p>
+                          } @else if (esPulidorResponsable(p.id)) {
+                            <p class="text-[11px] font-bold text-amber-800 mt-0.5">Responsable · se descuenta de su kit</p>
+                          } @else if (estaPulidorSeleccionado(p.id)) {
+                            <p class="text-[11px] text-slate-500 mt-0.5">Apoyo</p>
+                          }
+                        </div>
+                        @if (!esPulidorFijoAsignado(p) && !esPulidorResponsable(p.id)) {
+                          @if (estaPulidorSeleccionado(p.id) && !responsableBloqueadoExtra) {
+                            <button type="button" (click)="hacerResponsableExtra(p); $event.preventDefault()"
+                              class="shrink-0 px-2 py-1 rounded-lg text-[11px] font-bold bg-amber-100 text-amber-800 hover:bg-amber-200 cursor-pointer">Hacer responsable</button>
+                          } @else if (!estaPulidorSeleccionado(p.id)) {
+                            <span class="shrink-0 text-xs text-slate-500">{{ p.agenciaId || p.agencia?.id ? 'Fijo' : 'Móvil' }}</span>
+                          }
                         }
                       </label>
                     }
@@ -3772,11 +3792,8 @@ export class ServiciosComponent implements OnInit, OnDestroy {
     if (this.modoCrearEspecialEfectivo === 'mi') {
       ids = [yo, ...ids.filter((id) => id !== yo && permitidos.has(id) && this.puedeSumarPulidores)];
     } else {
+      // Sin pulidor fijo no se preselecciona a nadie: el primero que el coordinador elige es el responsable.
       ids = ids.filter((id) => id !== yo && permitidos.has(id));
-      if (!ids.length && !fijoId) {
-        const primero = this.pulidoresSeleccionables.find((p) => !p.agenciaId && !p.agencia?.id) || this.pulidoresSeleccionables[0];
-        if (primero) ids = [String(primero.id)];
-      }
     }
     if (fijoId) ids = [fijoId, ...ids.filter((id) => id !== fijoId)];
     this.extraForm.operadoresIds = ids;
@@ -3869,7 +3886,11 @@ export class ServiciosComponent implements OnInit, OnDestroy {
     const agId = String(this.extraFormAgenciaId || '');
     if (!agId) return '';
     const suc: any = this.sucursales.find((x) => String(x.id) === agId);
-    return suc?.regionId ? String(suc.regionId) : '';
+    const deLaAgencia = suc?.regionId ?? suc?.region?.id;
+    if (deLaAgencia) return String(deLaAgencia);
+    // Si la lista de agencias no trae la región, se toma la de su pulidor fijo (siempre es de la región de la agencia).
+    const fijo = this.pulidorFijoAgenciaSeleccionada;
+    return String(fijo?.regionId || fijo?.agencia?.regionId || '');
   }
 
   /** Pulidores de la región de la agencia elegida: los fijos de esa agencia y los móviles de su misma región. */
@@ -4196,11 +4217,8 @@ export class ServiciosComponent implements OnInit, OnDestroy {
   }
 
   cargarPulidoresRegion() {
-    // El coordinador (y el admin) tiene alcance nacional y puede crear/reasignar la OT en cualquier
-    // agencia del país, no solo en la región del que la crea: se trae el listado completo de
-    // pulidores de toda la red. Filtrar por la región del usuario dejaba fuera al pulidor fijo de
-    // cualquier agencia fuera de su región, y el formulario caía sin motivo al modo "elegir pulidor
-    // móvil" aunque la agencia sí tuviera uno fijo asignado.
+    // El admin ve los pulidores de toda la red; el coordinador (regional) y los demás roles reciben solo los de su alcance: el servidor
+    // acota la lista, así que no se manda región.
     const user = this.authService.getCurrentUser();
     const regId = (this.isSuperAdmin || this.isAdmin || this.isCoordServiciosEspeciales)
       ? undefined
@@ -4593,19 +4611,20 @@ export class ServiciosComponent implements OnInit, OnDestroy {
       return;
     }
 
-    const fijo = this.pulidoresDisponiblesRegion.find(p => String(p.agenciaId || p.agencia?.id) === String(agId));
-    if (fijo) {
-      const disponibles = new Set(this.pulidoresDisponiblesParaAgencia.map((p) => String(p.id)));
-      const otros = this.extraForm.operadoresIds.filter((id) => disponibles.has(id) && id !== String(fijo.id));
-      this.extraForm.operadoresIds = [String(fijo.id), ...otros];
-    } else {
-      const disponibles = new Set(this.pulidoresDisponiblesParaAgencia.map((p) => String(p.id)));
-      this.extraForm.operadoresIds = this.extraForm.operadoresIds.filter((id) => disponibles.has(id));
-      if (!this.extraForm.operadoresIds.length) {
-        const primerMovil = this.pulidoresMovilesDisponibles[0];
-        if (primerMovil) this.extraForm.operadoresIds = [String(primerMovil.id)];
-      }
-    }
+    this.normalizarOperadoresExtra(false);
+  }
+
+  /** Hay un pulidor fijo en la agencia: es el responsable y no se puede cambiar. */
+  get responsableBloqueadoExtra(): boolean {
+    return Boolean(this.pulidorFijoAgenciaSeleccionada);
+  }
+
+  /** Pasa a un pulidor ya elegido a responsable: a él se le validan y descuentan los insumos de su kit. */
+  hacerResponsableExtra(pulidor: any): void {
+    if (this.responsableBloqueadoExtra) return;
+    const id = String(pulidor.id);
+    if (!this.extraForm.operadoresIds.includes(id)) return;
+    this.extraForm.operadoresIds = [id, ...this.extraForm.operadoresIds.filter((x) => x !== id)];
     this.normalizarOperadoresExtra(false);
   }
 
@@ -5174,9 +5193,13 @@ export class ServiciosComponent implements OnInit, OnDestroy {
 
   private aplicarCandidatosReasignacion(lista: any[], extra: ServicioExtra, asignados: string[]): void {
     const region = this.regionDeOT(extra);
-    this.pulidoresReasignables = (lista || []).filter(
-      (p) => !region || String(p.regionId || p.agencia?.regionId || '') === region,
-    );
+    const agenciaOT = String(extra.agenciaId || '');
+    // El fijo de la agencia de la OT y los móviles de su región; los fijos de otras agencias no pueden operarla.
+    this.pulidoresReasignables = (lista || []).filter((p) => {
+      const agenciaPulidor = String(p.agenciaId || p.agencia?.id || '');
+      if (agenciaPulidor && agenciaPulidor !== agenciaOT) return false;
+      return !region || String(p.regionId || p.agencia?.regionId || '') === region;
+    });
     const validos = asignados.filter((id) => this.pulidoresReasignables.some((p) => String(p.id) === id));
     this.asignadosNoPulidores = asignados
       .filter((id) => !validos.includes(id))
@@ -5214,6 +5237,19 @@ export class ServiciosComponent implements OnInit, OnDestroy {
       .filter(Boolean)
       .map((p) => `${p.name} ${p.lastname}`.trim())
       .join(', ');
+  }
+
+  /** Con pulidor fijo en la agencia de la OT, él es el responsable y no se cambia. */
+  get responsableBloqueadoReasignacion(): boolean {
+    return this.pulidoresReasignables.some((p) => this.esPulidorFijoReasignacion(p));
+  }
+
+  /** Pasa a un pulidor ya elegido a responsable: a él se le validan y descuentan los insumos de su kit. */
+  hacerResponsableReasignacion(pulidor: any): void {
+    if (this.responsableBloqueadoReasignacion) return;
+    const id = String(pulidor.id);
+    if (!this.reasignarOperadoresIds.includes(id)) return;
+    this.reasignarOperadoresIds = [id, ...this.reasignarOperadoresIds.filter((x) => x !== id)];
   }
 
   cambiarPulidorReasignacion(pulidor: any, event: Event): void {
@@ -5438,19 +5474,22 @@ export class ServiciosComponent implements OnInit, OnDestroy {
     }
   }
 
-  abrirModalNuevoExtra() {
+  /**
+   * Abre el formulario de una OT especial. La lista de pulidores se pide de nuevo cada vez (`refrescado`): si se asignó un pulidor fijo a una
+   * agencia después de abrir la página, la lista guardada no lo traería y la agencia aparecería sin fijo.
+   */
+  abrirModalNuevoExtra(refrescado = false) {
     this.isEditingExtras = false;
     this.editandoExtraId = null;
 
-    // Asegurar que la lista de pulidores esté cargada antes de inicializar el formulario:
-    if (this.pulidoresDisponiblesRegion.length === 0) {
+    if (!refrescado) {
       const user = this.authService.getCurrentUser();
       const regId = (this.isSuperAdmin || this.isAdmin || this.isCoordServiciosEspeciales)
         ? undefined
         : (user?.regionId ? String(user.regionId) : undefined);
       this.extrasService.getPulidoresPorRegion(regId).subscribe(list => {
-        this.pulidoresDisponiblesRegion = list || [];
-        this.abrirModalNuevoExtraConDatos();
+        if (list?.length) this.pulidoresDisponiblesRegion = list;
+        this.abrirModalNuevoExtra(true);
       });
       return;
     }
