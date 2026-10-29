@@ -210,3 +210,15 @@
 /* Navegación entre dashboards: scroll horizontal sin barra visible */
 .dashboard-tabs { scrollbar-width: none; -ms-overflow-style: none; }
 .dashboard-tabs::-webkit-scrollbar { display: none; }
+
+/* Tablas con área de filas fija (directiva appTablaFija): el encabezado se queda arriba al scrollear las filas y,
+   si la tabla es más ancha que su área, la primera columna se queda a la izquierda. */
+[data-tabla-fija] thead { position: sticky; top: 0; z-index: 10; }
+.tabla-fija-desborda table tr > :first-child {
+  position: sticky;
+  left: 0;
+  z-index: 5;
+  background-color: #fff;
+  box-shadow: 4px 0 6px -4px rgb(0 0 0 / 0.08);
+}
+.tabla-fija-desborda table thead tr > :first-child { z-index: 20; background-color: #f8fafc; }

@@ -1,3 +1,4 @@
+import { TablaFijaDirective } from '../../shared/directives/tabla-fija.directive';
 import { FUNCION } from '../../core/utils/funciones-rol';
 import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
 import { AvatarSrcDirective } from '../../shared/directives/avatar-src.directive';
@@ -46,7 +47,7 @@ import { DespachoMasivoModalComponent } from './despacho-masivo/despacho-masivo-
 @Component({
   selector: 'app-inventario',
   standalone: true,
-  imports: [AvatarSrcDirective, CommonModule, FormsModule, LucideAngularModule, VerMediaDirective, ModalComponent, ModalPortalDirective, ImageUploaderComponent, ConsumoServiciosComponent, ThumbSrcDirective, DataTableComponent, DataTableCellDirective, InfiniteScrollComponent, StockUbicacionInsumosComponent, DespachoMasivoModalComponent, PaginationComponent],
+  imports: [TablaFijaDirective, AvatarSrcDirective, CommonModule, FormsModule, LucideAngularModule, VerMediaDirective, ModalComponent, ModalPortalDirective, ImageUploaderComponent, ConsumoServiciosComponent, ThumbSrcDirective, DataTableComponent, DataTableCellDirective, InfiniteScrollComponent, StockUbicacionInsumosComponent, DespachoMasivoModalComponent, PaginationComponent],
   template: `
     <div class="space-y-6 animate-fade-in pb-16">
 
@@ -527,7 +528,7 @@ import { DespachoMasivoModalComponent } from './despacho-masivo/despacho-masivo-
 
         <!-- Tabla estilo Productos (alcance: solo insumos de la sede / servicios) -->
         <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry overflow-hidden">
-          <div class="overflow-x-auto">
+          <div appTablaFija class="overflow-x-auto">
             <table class="w-full text-left text-xs text-slate-600">
               <thead class="bg-slate-50 text-slate-500 text-xs font-bold uppercase tracking-wider">
                 <tr>
@@ -752,7 +753,6 @@ import { DespachoMasivoModalComponent } from './despacho-masivo/despacho-masivo-
           [sortOrder]="productosTabla.sortOrder"
           [loading]="productosTabla.cargando"
           [error]="productosTabla.error"
-          maxHeight="none"
           caption="Productos e insumos"
           searchPlaceholder="Buscar por código SKU, nombre o descripción..."
           emptyTitle="No se encontraron productos que coincidan con los filtros aplicados."
@@ -1225,7 +1225,6 @@ import { DespachoMasivoModalComponent } from './despacho-masivo/despacho-masivo-
           [sortOrder]="bodegaTabla.sortOrder"
           [loading]="bodegaTabla.cargando"
           [error]="bodegaTabla.error"
-          maxHeight="none"
           caption="Insumos en bodega"
           searchPlaceholder="Buscar por SKU, nombre o tipo..."
           emptyTitle="No se encontraron insumos almacenados en la bodega que coincidan con el filtro."
@@ -1801,7 +1800,6 @@ import { DespachoMasivoModalComponent } from './despacho-masivo/despacho-masivo-
           [sortOrder]="sortOrderMovimientos"
           [loading]="cargandoMovimientos"
           [error]="errorMovimientos"
-          maxHeight="none"
           caption="Movimientos del Kardex de inventario"
           [emptyTitle]="hayFiltrosMovimientos ? 'No hay movimientos con estos filtros' : 'No hay movimientos registrados en el Kardex.'"
           emptyHint="Prueba ajustando los filtros o el texto de búsqueda."
@@ -1953,7 +1951,6 @@ import { DespachoMasivoModalComponent } from './despacho-masivo/despacho-masivo-
             [sortOrder]="alertasTabla.sortOrder"
             [loading]="alertasTabla.cargando"
             [error]="alertasTabla.error"
-            maxHeight="none"
             caption="Alertas de stock bajo"
             searchPlaceholder="Buscar por sucursal, insumo o detalle..."
             [emptyTitle]="mensajeSinAlertas"
@@ -2098,7 +2095,6 @@ import { DespachoMasivoModalComponent } from './despacho-masivo/despacho-masivo-
             [loading]="stockBajoTabla.cargando"
             [error]="stockBajoTabla.error"
             [rowClass]="claseFilaStockBajo"
-            maxHeight="none"
             caption="Insumos con stock bajo en bodega"
             searchPlaceholder="Buscar por SKU o nombre..."
             emptyTitle="¡Excelente! Todos los productos cuentan con existencias óptimas en bodega."
@@ -2155,7 +2151,7 @@ import { DespachoMasivoModalComponent } from './despacho-masivo/despacho-masivo-
             </div>
           </div>
           <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry overflow-hidden">
-            <div class="overflow-x-auto">
+            <div appTablaFija class="overflow-x-auto">
               <table class="w-full text-left text-xs text-slate-600">
                 <thead class="bg-slate-50 text-slate-500 text-xs font-bold uppercase tracking-wider">
                   <tr>
@@ -2248,7 +2244,6 @@ import { DespachoMasivoModalComponent } from './despacho-masivo/despacho-masivo-
             [sortOrder]="tiposTabla.sortOrder"
             [loading]="tiposTabla.cargando"
             [error]="tiposTabla.error"
-            maxHeight="none"
             caption="Tipos de producto"
             searchPlaceholder="Buscar por código, nombre o descripción..."
             emptyTitle="No hay tipos de producto que coincidan."
@@ -2301,7 +2296,6 @@ import { DespachoMasivoModalComponent } from './despacho-masivo/despacho-masivo-
             [sortOrder]="unidadesTabla.sortOrder"
             [loading]="unidadesTabla.cargando"
             [error]="unidadesTabla.error"
-            maxHeight="none"
             caption="Unidades de medida"
             searchPlaceholder="Buscar por código, nombre o símbolo..."
             emptyTitle="No hay unidades de medida que coincidan."

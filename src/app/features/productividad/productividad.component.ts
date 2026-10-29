@@ -491,7 +491,6 @@ import {
           [sortOrder]="retosTabla.sortOrder"
           [loading]="retosTabla.cargando"
           [error]="retosTabla.error"
-          maxHeight="none"
           caption="Directorio de retos"
           searchPlaceholder="Buscar reto por título..."
           emptyTitle="No hay retos que coincidan."

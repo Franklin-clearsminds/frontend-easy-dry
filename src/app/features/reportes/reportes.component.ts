@@ -1,3 +1,4 @@
+import { TablaFijaDirective } from '../../shared/directives/tabla-fija.directive';
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -55,7 +56,7 @@ const hoyLocal = (): string => {
 @Component({
   selector: 'app-reportes',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, SelectSearchComponent],
+  imports: [TablaFijaDirective, CommonModule, FormsModule, LucideAngularModule, ModalComponent, SelectSearchComponent],
   template: `
     <div class="space-y-6 animate-fade-in">
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-100 shadow-easydry">
@@ -281,7 +282,7 @@ const hoyLocal = (): string => {
                         @for (b of g.bloques; track b.clave) {
                           <div>
                             @if (b.etiqueta) { <p class="text-xs font-extrabold uppercase tracking-wide text-white bg-easydry-blue rounded-lg px-3 py-1.5 mb-2">{{ b.etiqueta }}</p> }
-                            <div class="overflow-x-auto rounded-xl border border-slate-200">
+                            <div appTablaFija class="overflow-x-auto rounded-xl border border-slate-200">
                               <table class="min-w-full text-xs">
                                 <thead>
                                   <tr class="bg-[#A9C8EC] text-slate-900">

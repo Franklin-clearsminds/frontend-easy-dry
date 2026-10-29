@@ -1,11 +1,12 @@
 import {
-  Component, ContentChildren, Directive, EventEmitter, Input, OnChanges, OnDestroy, OnInit, Output, QueryList,
+  Component, ContentChildren, ViewChild, Directive, EventEmitter, Input, OnChanges, OnDestroy, OnInit, Output, QueryList,
   SimpleChanges, TemplateRef, inject,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LucideAngularModule } from 'lucide-angular';
 import { Subject, Subscription, debounceTime, distinctUntilChanged } from 'rxjs';
+import { TablaFijaDirective } from '../../directives/tabla-fija.directive';
 import { PaginationComponent } from '../pagination/pagination.component';
 import {
   BUSQUEDA_DEBOUNCE_MS, BUSQUEDA_MIN_CARACTERES, PAGE_SIZES_TABLA, PAGE_SIZE_TABLA,
@@ -61,7 +62,7 @@ export class DataTableCellDirective {
 @Component({
   selector: 'app-data-table',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule, PaginationComponent],
+  imports: [CommonModule, FormsModule, LucideAngularModule, PaginationComponent, TablaFijaDirective],
   template: `
     <div class="bg-white flex flex-col" [ngClass]="embebida ? '' : 'rounded-2xl border border-slate-100 shadow-easydry overflow-hidden'">
 
@@ -97,11 +98,9 @@ export class DataTableCellDirective {
         </div>
       }
 
-      <!-- Tabla con encabezado fijo. Sin "overscroll-contain": por defecto (maxHeight=none) este div no
-           tiene scroll vertical propio, así que contener el rebote aquí bloqueaba que el gesto de scroll
-           se propagara a la página apenas tocaba el área de la tabla (había que salir de su borde para
-           poder scrollear). Solo se contiene cuando el consumidor sí pide un alto acotado de verdad. -->
-      <div class="overflow-auto" [class.overscroll-contain]="maxHeight !== 'none'" [style.max-height]="maxHeight" [attr.aria-busy]="loading">
+      <!-- Área de filas: es la única zona que scrollea. La directiva le da el alto que queda en la vista, así la barra
+           superior, el encabezado y el paginador siempre están a la vista. -->
+      <div appTablaFija class="overscroll-contain" [attr.aria-busy]="loading">
         <table class="w-full text-left text-xs border-collapse">
           @if (caption) { <caption class="sr-only">{{ caption }}</caption> }
           <thead class="bg-slate-50 text-slate-500 font-extrabold uppercase tracking-wider text-[11px] border-b border-slate-200 select-none"
@@ -284,13 +283,6 @@ export class DataTableComponent implements OnInit, OnChanges, OnDestroy {
   @Input() rowClass: ((row: any) => string) | null = null;
   @Input() embebida = false;
   @Input() stickyHeader = true;
-  /**
-   * Por defecto sin tope: la tabla crece con su contenido y la página es la única que scrollea
-   * (vertical). Pásale un valor como '70vh' solo cuando la tabla vive dentro de un contenedor con
-   * altura fija de verdad (p. ej. un panel lateral), para no generar scroll vertical duplicado
-   * (uno en la tabla y otro en la página).
-   */
-  @Input() maxHeight = 'none';
 
   // ---- Búsqueda ----
   @Input() debounceMs = BUSQUEDA_DEBOUNCE_MS;
@@ -302,6 +294,7 @@ export class DataTableComponent implements OnInit, OnChanges, OnDestroy {
   @Output() reintentar = new EventEmitter<void>();
 
   @ContentChildren(DataTableCellDirective) private celdas?: QueryList<DataTableCellDirective>;
+  @ViewChild(TablaFijaDirective) private areaFilas?: TablaFijaDirective;
 
   searchQuery = '';
   busquedaCorta = false;
@@ -417,6 +410,7 @@ export class DataTableComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   private cambioDeConsulta(pagina: number): void {
+    this.areaFilas?.alInicio();
     if (this.serverSide) {
       this.queryChange.emit({
         page: pagina,

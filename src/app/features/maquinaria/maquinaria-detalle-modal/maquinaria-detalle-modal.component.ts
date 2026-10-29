@@ -1,3 +1,4 @@
+import { TablaFijaDirective } from '../../../shared/directives/tabla-fija.directive';
 import { Component, ElementRef, EventEmitter, Input, OnChanges, OnDestroy, Output, SimpleChanges, ViewChild, inject } from '@angular/core';
 import { VerMediaDirective } from '../../../shared/directives/ver-media.directive';
 import { CommonModule } from '@angular/common';
@@ -49,7 +50,7 @@ interface EventoVista {
 @Component({
   selector: 'app-maquinaria-detalle-modal',
   standalone: true,
-  imports: [
+  imports: [TablaFijaDirective, 
     CommonModule, FormsModule, LucideAngularModule, ModalComponent, EvidenciaGaleriaComponent, VisorArchivoComponent,
     ThumbSrcDirective, VerMediaDirective, TrabajoAccionesComponent, MaquinaAccionesComponent, InfiniteScrollComponent,
   ],
@@ -305,7 +306,7 @@ interface EventoVista {
               <p class="estado-vacio">Esta máquina no tiene movimientos registrados.</p>
             }
             @if (listaMov.items.length > 0) {
-              <div class="overflow-x-auto rounded-2xl border border-slate-200">
+              <div appTablaFija class="overflow-x-auto rounded-2xl border border-slate-200">
                 <table class="w-full text-left text-xs">
                   <thead class="bg-slate-50 text-slate-500 text-xs font-bold uppercase tracking-wider border-b border-slate-200">
                     <tr><th scope="col" class="py-3 px-4">Fecha y hora</th><th scope="col" class="py-3 px-4">Responsable</th><th scope="col" class="py-3 px-4">Origen</th><th scope="col" class="py-3 px-4">Destino</th><th scope="col" class="py-3 px-4">Motivo</th></tr>

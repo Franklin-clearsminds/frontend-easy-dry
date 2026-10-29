@@ -1,3 +1,4 @@
+import { TablaFijaDirective } from '../../shared/directives/tabla-fija.directive';
 import { Component, EventEmitter, Input, Output, ViewChild, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -27,7 +28,7 @@ const TEXTO_RESOLUCION: Record<ResolucionFaltante, string> = {
 @Component({
   selector: 'app-resolver-envio',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, EvidenciasEnvioComponent, VisorEvidenciasComponent],
+  imports: [TablaFijaDirective, CommonModule, FormsModule, LucideAngularModule, ModalComponent, EvidenciasEnvioComponent, VisorEvidenciasComponent],
   template: `
     <app-modal [isOpen]="!!envio" [title]="'Resolver envío ' + (envio?.codigoEnvio || '')" icon="package-x" size="lg" zClass="z-[10100]" (close)="cerrar()">
       @if (envio) {
@@ -40,7 +41,7 @@ const TEXTO_RESOLUCION: Record<ResolucionFaltante, string> = {
             }
           </div>
 
-          <div class="overflow-x-auto">
+          <div appTablaFija class="overflow-x-auto">
             <table class="w-full text-xs">
               <thead>
                 <tr class="text-left text-slate-500 uppercase tracking-wide">

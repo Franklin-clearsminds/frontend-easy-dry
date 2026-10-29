@@ -99,7 +99,6 @@ import { EvidenciasEnvioComponent } from './evidencias-envio.component';
         [error]="errorTabla"
         [rowClass]="claseFila"
         searchPlaceholder="Buscar por guía, destino, responsable o insumo..."
-        maxHeight="none"
         caption="Envíos de suministros"
         [emptyTitle]="tituloVacio"
         emptyHint="Prueba ajustando los filtros o el texto de búsqueda."

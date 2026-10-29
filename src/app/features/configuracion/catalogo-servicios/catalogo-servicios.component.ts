@@ -1,3 +1,4 @@
+import { TablaFijaDirective } from '../../../shared/directives/tabla-fija.directive';
 import { HostListener, Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -18,7 +19,7 @@ import { RouterModule } from '@angular/router';
 @Component({
   selector: 'app-catalogo-servicios',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, LucideAngularModule, PaginationComponent, ModalPortalDirective],
+  imports: [TablaFijaDirective, CommonModule, RouterModule, FormsModule, LucideAngularModule, PaginationComponent, ModalPortalDirective],
   templateUrl: './catalogo-servicios.component.html'
 })
 export class CatalogoServiciosComponent implements OnInit, OnDestroy {

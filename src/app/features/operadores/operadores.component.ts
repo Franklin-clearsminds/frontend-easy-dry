@@ -1,3 +1,4 @@
+import { TablaFijaDirective } from '../../shared/directives/tabla-fija.directive';
 import { PasswordRequisitosComponent } from '../../shared/components/password-requisitos/password-requisitos.component';
 import { AvatarSrcDirective } from '../../shared/directives/avatar-src.directive';
 import { motivoPasswordDebil } from '../../core/utils/password-politica';
@@ -22,7 +23,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
 @Component({
   selector: 'app-operadores',
   standalone: true,
-  imports: [AvatarSrcDirective, CommonModule, FormsModule, LucideAngularModule, ModalComponent, PaginationComponent, FilterBarComponent, PasswordRequisitosComponent],
+  imports: [TablaFijaDirective, AvatarSrcDirective, CommonModule, FormsModule, LucideAngularModule, ModalComponent, PaginationComponent, FilterBarComponent, PasswordRequisitosComponent],
   template: `
     <div class="space-y-6 animate-fade-in">
       
@@ -83,7 +84,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
 
       <!-- Operadores Table -->
       <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry overflow-hidden">
-        <div class="overflow-x-auto">
+        <div appTablaFija class="overflow-x-auto">
           <table class="w-full min-w-[720px] text-left text-xs">
             <thead class="bg-slate-50 text-slate-500 text-[11px] font-extrabold uppercase tracking-wider border-b border-slate-200">
               <tr>

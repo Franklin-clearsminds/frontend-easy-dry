@@ -1,3 +1,4 @@
+import { TablaFijaDirective } from '../../../shared/directives/tabla-fija.directive';
 import { PAGE_SIZE_TABLA } from '../../../core/config/paginacion';
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -40,7 +41,7 @@ interface ConsumoOT {
 @Component({
   selector: 'app-consumo-servicios',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule, PaginationComponent, ModalComponent],
+  imports: [TablaFijaDirective, CommonModule, FormsModule, LucideAngularModule, PaginationComponent, ModalComponent],
   template: `
     <div class="space-y-4">
       <div class="bg-white p-4 rounded-xl border border-slate-100 shadow-xs space-y-3">
@@ -91,7 +92,7 @@ interface ConsumoOT {
       </div>
 
       <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry overflow-hidden">
-        <div class="overflow-x-auto">
+        <div appTablaFija class="overflow-x-auto">
           <table class="w-full text-left text-xs text-slate-600">
             <thead class="bg-slate-50 text-slate-500 text-xs font-bold uppercase tracking-wider">
               <tr>

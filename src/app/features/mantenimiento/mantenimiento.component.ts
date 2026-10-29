@@ -116,7 +116,6 @@ import { badgeClase, BADGE_NO_ATENDIDO } from '../../core/utils/badges';
             [error]="errorTabla"
             [rowClickable]="true"
             [rowClass]="claseFila"
-            maxHeight="none"
             caption="Mantenimientos de maquinaria"
             [emptyTitle]="tituloVacio"
             emptyHint="Prueba ajustando los filtros o el texto de búsqueda."

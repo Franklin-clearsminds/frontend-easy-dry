@@ -1,3 +1,4 @@
+import { TablaFijaDirective } from '../../../shared/directives/tabla-fija.directive';
 import { Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -35,7 +36,7 @@ type Pestana = 'resumen' | 'auditorias' | 'acciones' | 'historial';
 @Component({
   selector: 'app-auditorias5s',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, LucideAngularModule, DataTableComponent, DataTableCellDirective, StatCardComponent, ChartCardComponent, Semaforo5sComponent],
+  imports: [TablaFijaDirective, CommonModule, FormsModule, RouterLink, LucideAngularModule, DataTableComponent, DataTableCellDirective, StatCardComponent, ChartCardComponent, Semaforo5sComponent],
   template: `
     <div class="space-y-6 animate-fade-in">
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-100 shadow-easydry">
@@ -179,7 +180,7 @@ type Pestana = 'resumen' | 'auditorias' | 'acciones' | 'historial';
               <app-chart-card title="Evolución del puntaje" [subtitle]="'Total por auditoría (máx. ' + historia[0].puntajeMaximo + ')'" type="line" [data]="graficaHistoria" [options]="opcionesLineaHistoria"></app-chart-card>
               <app-chart-card title="Cumplimiento por cada S" subtitle="Puntos de cada categoría en cada auditoría" type="bar" [data]="graficaHistoriaS" [options]="opcionesHistoriaS"></app-chart-card>
             </div>
-            <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry overflow-x-auto">
+            <div appTablaFija class="bg-white rounded-2xl border border-slate-100 shadow-easydry overflow-x-auto">
               <table class="w-full text-sm">
                 <thead class="bg-slate-50 text-[11px] uppercase tracking-wider text-slate-500"><tr>
                   <th class="text-left p-3">Fecha</th><th class="text-left p-3">Auditoría</th><th class="text-right p-3">Puntaje</th><th class="text-right p-3">%</th><th class="p-3">Semáforo</th><th class="text-right p-3">Variación</th><th class="text-right p-3">Acciones abiertas / cerradas</th></tr></thead>

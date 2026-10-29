@@ -27,7 +27,6 @@ import { DataTableCellDirective, DataTableComponent, TableColumn } from '../../.
       [sortOrder]="tabla.sortOrder"
       [loading]="tabla.cargando"
       [error]="tabla.error"
-      maxHeight="none"
       [caption]="tipo === 'agencia' ? 'Insumos de la agencia' : 'Insumos del kit del pulidor'"
       searchPlaceholder="Buscar insumo o SKU..."
       [emptyTitle]="tipo === 'agencia' ? 'No hay insumos que coincidan en esta agencia.' : 'No hay insumos que coincidan en el kit de este pulidor.'"
