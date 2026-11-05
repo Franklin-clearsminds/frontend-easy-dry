@@ -42,6 +42,8 @@ export interface MaquinariaFiltro {
 
 /** Campos editables en POST /maquinaria/update (ya NO cambia agencia/bahía: eso es /transferir). */
 export interface MaquinariaEdicion {
+  /** Solo cambia si la máquina aún no tiene fotos, ficha ni evidencias guardadas. */
+  codigo?: string;
   nombre?: string;
   tipo?: string;
   marca?: string;

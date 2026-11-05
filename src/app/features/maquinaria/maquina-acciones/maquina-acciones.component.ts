@@ -46,6 +46,11 @@ interface DestinoOpcion {
           <p class="text-xs text-slate-500">Aquí no se cambia la ubicación (agencia/bahía): para eso usa <strong>Transferir</strong>. Cada cambio queda en la línea de tiempo.</p>
           @if (puedeEditarDatos) {
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="sm:col-span-2"><label for="ma-edi-codigo" class="field-label">Código</label>
+              <input id="ma-edi-codigo" type="text" [(ngModel)]="edi.codigoNuevo" name="edi-codigo" class="field font-mono uppercase" maxlength="40" aria-describedby="ma-edi-codigo-ayuda">
+              <p id="ma-edi-codigo-ayuda" class="text-[11px] mt-1" [class.text-amber-700]="esCodigoProvisional" [class.text-slate-500]="!esCodigoProvisional">
+                {{ esCodigoProvisional ? 'Este código es provisional (la máquina vino sin código en el Excel): ponle el que tiene en su etiqueta.' : 'Solo se puede cambiar mientras la máquina no tenga fotos, ficha técnica ni evidencias guardadas.' }}
+              </p></div>
             <div><label for="ma-edi-nombre" class="field-label">Nombre</label>
               <input id="ma-edi-nombre" type="text" [(ngModel)]="edi.nombre" name="edi-nombre" class="field"></div>
             <div><label for="ma-edi-tipo" class="field-label">Tipo</label>
@@ -254,7 +259,7 @@ export class MaquinaAccionesComponent {
   destinos: DestinoOpcion[] = [];
 
   edi = {
-    open: false, id: '', codigo: '', nombre: '', tipo: '', marca: '', modelo: '', serie: '',
+    open: false, id: '', codigo: '', codigoNuevo: '', nombre: '', tipo: '', marca: '', modelo: '', serie: '',
     foto: null as File | null, ficha: null as File | null,
     fotoActual: '', fichaActual: '', fotoNueva: '', fichaNueva: '',
   };
@@ -318,15 +323,23 @@ export class MaquinaAccionesComponent {
     this.quitarArchivoNuevo('foto');
     this.quitarArchivoNuevo('ficha');
     this.edi = {
-      open: true, id: f.id, codigo: f.codigo, nombre: f.nombre, tipo: f.tipo || '', marca: f.marca || '',
+      open: true, id: f.id, codigo: f.codigo, codigoNuevo: f.codigo, nombre: f.nombre, tipo: f.tipo || '', marca: f.marca || '',
       modelo: f.modelo || '', serie: f.serie || '', foto: null, ficha: null,
       fotoActual: f.fotoUrl || '', fichaActual: f.fichaTecnicaUrl || '', fotoNueva: '', fichaNueva: '',
     };
   }
 
+  /** Las máquinas que llegaron sin código del Excel tienen uno provisional «SIN-COD-001»: hay que corregirlo. */
+  get esCodigoProvisional(): boolean { return /^SIN-COD-\d+$/.test(this.edi.codigo); }
+
   async confirmarEdicion(): Promise<void> {
     this.error = '';
     if (!this.edi.nombre.trim()) { this.error = 'El nombre es obligatorio.'; return; }
+    const codigoNuevo = this.edi.codigoNuevo.trim().toUpperCase();
+    if (codigoNuevo.length < 2) { this.error = 'El código debe tener al menos 2 caracteres.'; return; }
+    const cambiaCodigo = codigoNuevo !== this.edi.codigo;
+    // Las fotos se guardan en la carpeta del código: primero se cambia el código y después se agregan.
+    if (cambiaCodigo && (this.edi.foto || this.edi.ficha)) { this.error = 'Cambia primero el código y guarda; después agrega la foto o la ficha técnica.'; return; }
     this.enviando = true;
     try {
       let fotoUrl: string | undefined;
@@ -344,6 +357,7 @@ export class MaquinaAccionesComponent {
         });
       }
       await firstValueFrom(this.maquinariaService.actualizarMaquina(this.edi.id, {
+        ...(cambiaCodigo ? { codigo: codigoNuevo } : {}),
         nombre: this.edi.nombre.trim(),
         tipo: this.edi.tipo.trim() || undefined,
         marca: this.edi.marca.trim(),
