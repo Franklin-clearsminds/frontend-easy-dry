@@ -61,6 +61,8 @@ const apiDefault = production ? 'https://www.api.easydry.com' : 'https://www.tes
 const apiBaseUrl = str(env.NG_APP_API_BASE_URL, apiDefault);
 const appName = str(env.NG_APP_NAME, 'EasyDry®');
 const environmentName = str(env.NG_APP_ENV, production ? 'production' : 'test');
+// Clave pública del navegador para Google Maps (prototipo de RRHH). Restríngela por dominio en Google Cloud.
+const googleMapsKey = str(env.NG_APP_GOOGLE_MAPS_KEY, '');
 const targetRel = isProd
   ? 'src/environments/environment.prod.ts'
   : 'src/environments/environment.ts';
@@ -72,7 +74,8 @@ export const environment: AppEnvironment = {
   production: ${production},
   apiBaseUrl: ${JSON.stringify(apiBaseUrl)},
   appName: ${JSON.stringify(appName)},
-  environmentName: ${JSON.stringify(environmentName)}
+  environmentName: ${JSON.stringify(environmentName)},
+  googleMapsKey: ${JSON.stringify(googleMapsKey)}
 };
 `;
 

@@ -95,6 +95,8 @@ export interface Novedad {
   area: string;
   fotos: string[];
   registradaEn?: string;
+  /** Solo del formulario (prototipo de RRHH): operador al que se le asigna la tarea de esta novedad. Nunca viaja al servidor. */
+  responsableId?: string;
 }
 
 export interface Actividad {

@@ -26,6 +26,8 @@ import {
 } from '../../../core/models/auditorias.model';
 import { EvidenciasFotosComponent } from '../shared/evidencias-fotos.component';
 import { InformeAdjuntosComponent } from './informe-adjuntos.component';
+import { RrhhMockService } from '../../rrhh/rrhh-mock.service';
+import { guardarResponsable, guardarResponsables, leerResponsables } from '../../rrhh/rrhh-responsables';
 import { FirmaModalComponent, type FirmaCapturada } from '../shared/firma-modal.component';
 import { FirmaImagenComponent } from '../shared/firma-imagen.component';
 import { SelectSearchComponent } from '../../../shared/components/select-search/select-search.component';
@@ -181,6 +183,14 @@ const aLocal = (iso: string) => {
                     <div><label class="field-label">Categoría</label>
                       <select class="field" [(ngModel)]="n.categoria" [disabled]="!contenidoEditable">@for (c of categorias; track c.id) { <option [value]="c.id">{{ c.nombre }}</option> }</select></div>
                     <div><label class="field-label">Área relacionada</label><input class="field" [(ngModel)]="n.area" maxlength="120" placeholder="Ej. bahía 2, bodega" [disabled]="!contenidoEditable"></div>
+                    <div class="sm:col-span-2 rounded-lg border border-violet-200 bg-violet-50/70 p-3">
+                      <label class="field-label" [attr.for]="'nov-resp-' + $index">Responsable de la tarea (opcional)</label>
+                      <select [id]="'nov-resp-' + $index" class="field" [ngModel]="n.responsableId ?? ''" (ngModelChange)="elegirResponsable(n, $event)" [disabled]="!editable">
+                        <option value="">Sin responsable (no genera tarea)</option>
+                        @for (o of operadoresRrhh; track o.id) { <option [value]="o.id">{{ o.nombre }} · {{ o.cargo }}</option> }
+                      </select>
+                      <p class="text-[11px] text-violet-900 mt-1">RRHH · prototipo. Al guardar el informe, esta novedad se le asigna como tarea y le llega el aviso del informe.</p>
+                    </div>
                   </div>
                   <div><label class="field-label">Evidencias fotográficas</label>
                     <app-evidencias-fotos [fotos]="n.fotos" (fotosChange)="n.fotos = $event" [agenciaId]="form.agenciaId" tipo="informes" [referenciaId]="detalle?.id" [deshabilitado]="!contenidoEditable"></app-evidencias-fotos></div>
@@ -380,7 +390,7 @@ const aLocal = (iso: string) => {
                 <div class="p-3 border-b border-slate-300 whitespace-pre-line"><strong>ANTECEDENTES:</strong> {{ form.antecedentes || '—' }}</div>
                 <div class="bg-[#a9c8ec] px-3 py-1.5 text-center text-xs font-extrabold">DESARROLLO Y NOVEDADES ENCONTRADAS</div>
                 <div class="p-3 whitespace-pre-line">{{ form.desarrollo || '—' }}
-                  @for (n of form.novedades; track $index) { <p class="mt-2">• <strong>{{ n.titulo }}</strong> {{ n.descripcion }} <span class="text-slate-500">[{{ n.fotos.length }} foto(s)]</span></p> }
+                  @for (n of form.novedades; track $index) { <p class="mt-2">• <strong>{{ n.titulo }}</strong> {{ n.descripcion }} <span class="text-slate-500">[{{ n.fotos.length }} foto(s)]</span>@if (n.responsableId) { <span class="text-violet-700 font-semibold"> → tarea para {{ rrhh.nombreOperador(n.responsableId) }}</span> }</p> }
                 </div>
                 <div class="bg-[#a9c8ec] px-3 py-1.5 text-center text-xs font-extrabold">ACTIVIDADES REALIZADAS EN LA AGENCIA DURANTE LA VISITA</div>
                 <div class="p-3 whitespace-pre-line">{{ form.actividadesGeneral || '—' }}
@@ -467,6 +477,9 @@ export class InformeFormComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly location = inject(Location);
+  /** RRHH (prototipo): los operadores de ejemplo y las tareas que nacen de las novedades. */
+  readonly rrhh = inject(RrhhMockService);
+  readonly operadoresRrhh = this.rrhh.operadores;
 
   readonly pasos: Paso[] = [
     { id: 1, titulo: 'Información general', corto: 'General', icono: 'file-text' },
@@ -617,6 +630,7 @@ export class InformeFormComponent implements OnInit {
 
   private aplicar(d: InformeDetalle): void {
     this.detalle = d;
+    const responsables = leerResponsables(d.id);
     this.form = {
       agenciaId: d.agencia.id,
       destinatarioId: '',
@@ -632,7 +646,7 @@ export class InformeFormComponent implements OnInit {
       planesGeneral: d.planesGeneral,
       observacionesJefeTaller: d.observacionesJefeTaller,
       calificacion: d.calificacion,
-      novedades: d.novedades.map((n) => ({ ...n, fotos: [...n.fotos] })),
+      novedades: d.novedades.map((n) => ({ ...n, fotos: [...n.fotos], responsableId: responsables[n.id ?? ''] || undefined })),
       actividades: d.actividades.map((a) => ({ ...a, fotos: [...a.fotos] })),
       planes: d.planes.map((p) => ({ ...p, evidenciaCumplimiento: [...p.evidenciaCumplimiento] })),
     };
@@ -807,7 +821,8 @@ export class InformeFormComponent implements OnInit {
       actividadesGeneral: f.actividadesGeneral,
       planesGeneral: f.planesGeneral,
       ...(this.puedeCalificar ? { observacionesJefeTaller: f.observacionesJefeTaller, ...(f.calificacion ? { calificacion: f.calificacion } : {}) } : {}),
-      novedades: f.novedades.filter((n) => n.titulo.trim()),
+      // El responsable de la tarea es del prototipo de RRHH: no se envía al servidor.
+      novedades: f.novedades.filter((n) => n.titulo.trim()).map(({ responsableId: _quitado, ...n }) => n),
       actividades: f.actividades.filter((a) => a.nombre.trim()),
       planes: f.planes.filter((p) => p.problema.trim()).map((p) => ({ ...p, fechaCompromiso: p.fechaCompromiso || null })),
     };
@@ -823,9 +838,12 @@ export class InformeFormComponent implements OnInit {
     this.guardando = true;
     try {
       const datos = this.payload();
+      // Los responsables elegidos, en el mismo orden en que se envían las novedades (el servidor las devuelve en ese orden).
+      const elegidos = this.form.novedades.filter((n) => n.titulo.trim()).map((n) => n.responsableId ?? '');
       const d = await firstValueFrom(this.detalle ? this.api.actualizar(datos) : this.api.crear(datos));
       const eraNuevo = !this.detalle;
       this.aplicar(d);
+      this.recordarResponsables(d, elegidos);
       if (this.adjuntosPrevios.length) {
         try {
           this.detalle = await firstValueFrom(this.api.adjuntar(d.id, this.adjuntosPrevios.map((u) => u.id)));
@@ -846,6 +864,29 @@ export class InformeFormComponent implements OnInit {
     }
   }
 
+  /** Elegir o quitar el responsable: si la novedad ya existe en el servidor se recuerda al instante; si es nueva, al guardar el borrador. */
+  elegirResponsable(n: Novedad, operadorId: string): void {
+    n.responsableId = operadorId || undefined;
+    if (this.detalle && n.id) guardarResponsable(this.detalle.id, n.id, operadorId);
+  }
+
+  /** Ya con los ids de las novedades, deja guardados los responsables elegidos en el navegador. */
+  private recordarResponsables(d: InformeDetalle, elegidos: string[]): void {
+    const mapa: Record<string, string> = {};
+    d.novedades.forEach((n, i) => { if (n.id && elegidos[i]) mapa[n.id] = elegidos[i]; });
+    guardarResponsables(d.id, mapa);
+    this.form.novedades.forEach((n, i) => { n.responsableId = elegidos[i] || undefined; });
+  }
+
+  /** Al dejar el informe pendiente de revisión, cada novedad con responsable se vuelve una tarea en RRHH. */
+  private crearTareasDeNovedades(d: InformeDetalle): number {
+    const mapa = leerResponsables(d.id);
+    const items = d.novedades
+      .filter((n) => n.id && mapa[n.id])
+      .map((n) => ({ novedadId: n.id as string, titulo: n.titulo, descripcion: n.descripcion, operadorId: mapa[n.id as string] }));
+    return this.rrhh.crearTareasDeInforme({ id: d.id, numero: d.numero }, items).length;
+  }
+
   /** Guarda el informe de forma definitiva: desde ahí ya no se puede modificar. */
   async guardarDefinitivo(): Promise<void> {
     if (this.faltantes.length) return;
@@ -862,6 +903,8 @@ export class InformeFormComponent implements OnInit {
     try {
       const d = await firstValueFrom(this.api.guardar(this.detalle.id));
       this.toast.success('Informe guardado', `${d.numero} quedó guardado y pendiente de aprobación.`);
+      const tareas = this.crearTareasDeNovedades(d);
+      if (tareas) this.toast.info('Tareas asignadas (RRHH · prototipo)', `${tareas} tarea${tareas === 1 ? '' : 's'} creada${tareas === 1 ? '' : 's'} desde las novedades.`);
       void this.router.navigate(['/informes-inspeccion', d.id]);
     } catch (e) {
       this.errorGuardado = mensajeError(e, 'No se pudo guardar el informe.');

@@ -29,6 +29,8 @@ import { catchError, debounceTime, distinctUntilChanged, tap } from 'rxjs/operat
 import { BUSQUEDA_DEBOUNCE_MS, BUSQUEDA_MIN_CARACTERES, PAGE_SIZE_INFINITO } from '../../core/config/paginacion';
 import { ConsultaAgencias } from '../../core/services/sucursal.service';
 import { FUNCION, funcionesDeRol } from '../../core/utils/funciones-rol';
+import { RrhhMapaUbicacionComponent } from '../rrhh/rrhh-mapa-ubicacion.component';
+import { RrhhMockService } from '../rrhh/rrhh-mock.service';
 
 /** Listas de referencia de la pantalla de agencias; cada pestaña pide solo las suyas. */
 type GrupoReferencia = 'regiones' | 'marcas' | 'sucursales' | 'catalogo' | 'usuarios';
@@ -37,7 +39,7 @@ const TODAS_LAS_REFERENCIAS: GrupoReferencia[] = ['regiones', 'marcas', 'sucursa
 @Component({
   selector: 'app-sucursales',
   standalone: true,
-  imports: [AvatarSrcDirective, CommonModule, FormsModule, RouterModule, LucideAngularModule, ModalComponent, FilterBarComponent, DataTableComponent, DataTableCellDirective, InfiniteScrollComponent, SelectSearchComponent],
+  imports: [AvatarSrcDirective, CommonModule, FormsModule, RouterModule, LucideAngularModule, ModalComponent, FilterBarComponent, DataTableComponent, DataTableCellDirective, InfiniteScrollComponent, SelectSearchComponent, RrhhMapaUbicacionComponent],
   template: `
     <div class="space-y-6 animate-fade-in">
 
@@ -931,6 +933,31 @@ const TODAS_LAS_REFERENCIAS: GrupoReferencia[] = ['regiones', 'marcas', 'sucursa
             </div>
           </div>
 
+          <!-- RRHH · prototipo: elegir la ubicación en el mapa de Google y «guardarla» de forma simulada (solo en memoria; no va al servidor). Solo Super Admin. -->
+          @if (auth.isSuperAdmin()) {
+          <div class="rounded-xl border-2 border-dashed border-violet-400 bg-violet-50 p-4 space-y-3" role="group" aria-labelledby="sucursales-ubic-t">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <p id="sucursales-ubic-t" class="text-xs font-extrabold uppercase tracking-wider text-violet-900 inline-flex items-center gap-1.5">
+                <i-lucide aria-hidden="true" name="map-pin" class="w-4 h-4"></i-lucide> Ubicación de la agencia (RRHH)
+              </p>
+              <span class="badge bg-violet-200 text-violet-900">Prototipo · guardado simulado</span>
+            </div>
+            <p class="text-xs text-violet-900">Las timbradas del personal se validarán a 100 m o menos de este punto. Por ahora «Guardar ubicación» solo la deja en memoria para ver cómo funcionaría: no se envía al servidor y se pierde al recargar.</p>
+            <app-rrhh-mapa-ubicacion [lat]="ubicLat" [lng]="ubicLng" (ubicacionChange)="ubicLat = $event.lat; ubicLng = $event.lng"></app-rrhh-mapa-ubicacion>
+            <div class="flex flex-wrap items-center gap-2">
+              <button type="button" class="btn btn-primary btn-sm" (click)="guardarUbicacionSimulada()" [disabled]="ubicLat === null || ubicLng === null">
+                <i-lucide aria-hidden="true" name="save" class="w-3.5 h-3.5"></i-lucide> Guardar ubicación
+              </button>
+              @if (ubicacionSimulada; as u) {
+                <span class="text-xs font-semibold text-emerald-800 inline-flex items-center gap-1"><i-lucide aria-hidden="true" name="check-circle" class="w-4 h-4"></i-lucide> Guardada (simulado) {{ u.guardadaEn | date:'dd/MM HH:mm' }}: {{ u.lat }}, {{ u.lng }}</span>
+                <button type="button" class="text-xs font-bold text-rose-700 hover:underline" (click)="quitarUbicacionSimulada()">Quitar</button>
+              } @else {
+                <span class="text-xs text-violet-900">Aún sin ubicación guardada.</span>
+              }
+            </div>
+          </div>
+          }
+
           <!-- Varias OT por bahía: texto a la izquierda, interruptor a la derecha -->
           <div class="flex items-center justify-between gap-4 p-3.5 bg-slate-50 border border-slate-200 rounded-xl">
             <div class="min-w-0">
@@ -1497,6 +1524,33 @@ export class SucursalesComponent implements OnInit, OnDestroy {
   private maquinariaService = inject(MaquinariaService);
   private usuarioService = inject(UsuarioService);
   private toastService = inject(ToastService);
+  private rrhhMock = inject(RrhhMockService);
+
+  // ── RRHH (prototipo): ubicación de la agencia elegida en el mapa y guardada de forma simulada ──
+  ubicLat: number | null = null;
+  ubicLng: number | null = null;
+
+  private get claveUbicacion(): string { return String(this.nuevaSucursal?.id || 'nueva'); }
+  get ubicacionSimulada() { return this.rrhhMock.ubicacionesAgencia[this.claveUbicacion] ?? null; }
+
+  /** Al abrir el formulario, el mapa arranca con la ubicación que se «guardó» antes para esa agencia (si hay). */
+  private cargarUbicacionSimulada(): void {
+    const u = this.ubicacionSimulada;
+    this.ubicLat = u?.lat ?? null;
+    this.ubicLng = u?.lng ?? null;
+  }
+
+  guardarUbicacionSimulada(): void {
+    if (this.ubicLat === null || this.ubicLng === null) return;
+    this.rrhhMock.guardarUbicacionAgencia(this.claveUbicacion, this.ubicLat, this.ubicLng);
+    this.toastService.success('Ubicación guardada (simulado)', 'Quedó solo en memoria: no se envió al servidor.');
+  }
+
+  quitarUbicacionSimulada(): void {
+    this.rrhhMock.quitarUbicacionAgencia(this.claveUbicacion);
+    this.ubicLat = null;
+    this.ubicLng = null;
+  }
   public auth = inject(AuthService);
   private route = inject(ActivatedRoute);
 
@@ -2034,6 +2088,7 @@ export class SucursalesComponent implements OnInit, OnDestroy {
         this.nuevaSucursal.serviciosNombres = this.serviciosGenerales.map(s => s.nombre);
       }
     });
+    this.cargarUbicacionSimulada();
     this.modalCrearOpen = true;
   }
 
@@ -2111,6 +2166,7 @@ export class SucursalesComponent implements OnInit, OnDestroy {
       responsable: suc.responsable || 'Sin Asignar',
       tieneServiciosEspeciales: tieneEsp
     };
+    this.cargarUbicacionSimulada();
     this.modalCrearOpen = true;
   }
 

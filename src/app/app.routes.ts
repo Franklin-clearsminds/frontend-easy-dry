@@ -190,6 +190,25 @@ export const routes: Routes = [
         ]
       },
 
+      // RRHH · prototipo con datos de ejemplo. Los códigos de módulo no existen en la base: solo el Super Admin pasa la guardia.
+      {
+        path: 'rrhh/tareas',
+        loadComponent: () =>
+          import('./features/rrhh/rrhh-tareas.component').then(m => m.RrhhTareasComponent),
+        canActivate: [
+          authGuard,
+          moduloGuard('rrhh/tareas')
+        ]
+      },
+      {
+        path: 'rrhh/timbradas',
+        loadComponent: () =>
+          import('./features/rrhh/rrhh-timbradas.component').then(m => m.RrhhTimbradasComponent),
+        canActivate: [
+          authGuard,
+          moduloGuard('rrhh/timbradas')
+        ]
+      },
       {
         path: 'informes-inspeccion',
         loadComponent: () =>

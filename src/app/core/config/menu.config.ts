@@ -155,6 +155,22 @@ export const MENU_CONFIG: MenuItem[] = [
     group: 'Auditorías'
   },
 
+  // ─── RRHH (prototipo con datos de ejemplo: solo lo ve el Super Admin) ──────
+  {
+    label: 'Tareas del personal',
+    route: '/rrhh/tareas',
+    icon: 'clipboard-list',
+    moduloCodigo: 'rrhh/tareas',
+    group: 'RRHH'
+  },
+  {
+    label: 'Timbradas',
+    route: '/rrhh/timbradas',
+    icon: 'clock',
+    moduloCodigo: 'rrhh/timbradas',
+    group: 'RRHH'
+  },
+
   // ─── 6. ADMINISTRACIÓN ─────────────────────────────────────────
   {
     label: 'Usuarios y Roles',
