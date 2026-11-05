@@ -20,6 +20,7 @@ import {
   Novedad,
   OpcionAgencia,
   PlanAccion,
+  UsuarioAdjuntable,
   TIPOS_INSPECCION,
   mensajeError,
 } from '../../../core/models/auditorias.model';
@@ -138,6 +139,12 @@ const aLocal = (iso: string) => {
                 </div>
                 <p class="text-xs text-slate-500">Estado del informe: <strong>{{ detalle ? nombreEstado(detalle.estado) : 'Borrador (aún sin guardar)' }}</strong></p>
               </div>
+
+              <section class="rounded-xl border border-slate-200 bg-slate-50/60 p-4 space-y-2" aria-labelledby="lbl-adjuntos">
+                <h3 id="lbl-adjuntos" class="text-sm font-extrabold text-slate-800">¿A quién le llega la notificación del informe?</h3>
+                <p class="text-xs text-slate-500">Elige a los usuarios, de cualquier rol (coordinador de bodega, asistentes, etc.). Cuando el informe se apruebe, a cada uno le saltará una notificación para verlo.</p>
+                <app-informe-adjuntos [informe]="detalle" [previos]="adjuntosPrevios" (previosChange)="adjuntosPrevios = $event" (cambio)="detalle = $event"></app-informe-adjuntos>
+              </section>
             }
 
             @case (2) {
@@ -400,11 +407,7 @@ const aLocal = (iso: string) => {
               <section class="space-y-2">
                 <h3 class="text-sm font-extrabold text-slate-800">Usuarios que recibirán el informe</h3>
                 <p class="text-xs text-slate-500">Cuando el informe se apruebe, a cada uno le llega una notificación. Puedes agregar a quien quieras, de cualquier rol.</p>
-                @if (detalle) {
-                  <app-informe-adjuntos [informe]="detalle" (cambio)="detalle = $event"></app-informe-adjuntos>
-                } @else {
-                  <p class="text-xs text-slate-500">Guarda el borrador para poder adjuntar usuarios.</p>
-                }
+                <app-informe-adjuntos [informe]="detalle" [previos]="adjuntosPrevios" (previosChange)="adjuntosPrevios = $event" (cambio)="detalle = $event"></app-informe-adjuntos>
               </section>
 
               @if (faltantes.length) {
@@ -489,6 +492,8 @@ export class InformeFormComponent implements OnInit {
   generando = false;
   detalle: InformeDetalle | null = null;
   agencias: OpcionAgencia[] = [];
+  /** Usuarios elegidos para recibir el aviso antes de que exista el borrador: se adjuntan al guardarlo por primera vez. */
+  adjuntosPrevios: UsuarioAdjuntable[] = [];
   passwordJefe = '';
   verPassword = false;
   /** Se eligió modificar un informe que ya tenía firmas (las anulará al cambiar el contenido). */
@@ -821,6 +826,14 @@ export class InformeFormComponent implements OnInit {
       const d = await firstValueFrom(this.detalle ? this.api.actualizar(datos) : this.api.crear(datos));
       const eraNuevo = !this.detalle;
       this.aplicar(d);
+      if (this.adjuntosPrevios.length) {
+        try {
+          this.detalle = await firstValueFrom(this.api.adjuntar(d.id, this.adjuntosPrevios.map((u) => u.id)));
+          this.adjuntosPrevios = [];
+        } catch (e) {
+          this.toast.error('No se pudo adjuntar a los usuarios', mensajeError(e));
+        }
+      }
       // Solo se cambia la dirección: navegar a la otra ruta recrearía el formulario y lo devolvería al paso 1.
       if (eraNuevo) this.location.replaceState(`/informes-inspeccion/${d.id}/editar`);
       if (!silencioso) this.toast.success('Borrador guardado', `${d.numero} se guardó correctamente.`);

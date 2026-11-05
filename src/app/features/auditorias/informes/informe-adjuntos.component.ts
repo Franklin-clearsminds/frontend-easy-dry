@@ -18,17 +18,17 @@ import { InformeDetalle, OpcionesAdjuntos, UsuarioAdjuntable, mensajeError } fro
   imports: [CommonModule, FormsModule, LucideAngularModule],
   template: `
     <div class="space-y-3">
-      @if (informe.adjuntos.length) {
+      @if (lista.length) {
         <ul class="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white">
-          @for (a of informe.adjuntos; track a.userId) {
+          @for (a of lista; track a.userId) {
             <li class="flex items-center justify-between gap-3 px-3 py-2">
               <div class="min-w-0">
                 <p class="text-sm font-bold text-slate-800 truncate">{{ a.nombre }} <span class="text-xs font-semibold text-slate-500">· {{ a.rol }}</span></p>
-                <p class="text-[11px] text-slate-500">Agregado por {{ a.agregadoPorNombre || '—' }} · {{ a.agregadoEn | date:'dd/MM/yyyy HH:mm' }}</p>
+                @if (a.agregadoEn) { <p class="text-[11px] text-slate-500">Agregado por {{ a.agregadoPorNombre || '—' }} · {{ a.agregadoEn | date:'dd/MM/yyyy HH:mm' }}</p> }
               </div>
               <div class="flex items-center gap-2 shrink-0">
                 <span class="badge" [ngClass]="a.notificadoEn ? 'badge-ok' : 'badge-neutral'" [title]="a.notificadoEn ? 'Notificado el ' + (a.notificadoEn | date:'dd/MM/yyyy HH:mm') : 'Se le avisará cuando el informe se apruebe'">{{ a.notificadoEn ? 'Notificado' : 'Se avisará al aprobar' }}</span>
-                @if (informe.permisos.puedeQuitarAdjuntos) {
+                @if (puedeQuitar) {
                   <button type="button" class="btn btn-ghost btn-sm" (click)="quitar(a.userId)" [disabled]="trabajando" [attr.aria-label]="'Quitar a ' + a.nombre"><i-lucide name="x" class="w-4 h-4" aria-hidden="true"></i-lucide></button>
                 }
               </div>
@@ -39,7 +39,7 @@ import { InformeDetalle, OpcionesAdjuntos, UsuarioAdjuntable, mensajeError } fro
         <p class="text-sm text-slate-500">Nadie más recibirá una notificación de este informe.</p>
       }
 
-      @if (informe.permisos.puedeAdjuntar) {
+      @if (puedeAdjuntar) {
         <button type="button" class="btn btn-secondary btn-sm" (click)="alternarBuscador()">
           <i-lucide name="user-plus" class="w-4 h-4" aria-hidden="true"></i-lucide> {{ abierto ? 'Cerrar buscador' : 'Adjuntar usuarios' }}
         </button>
@@ -100,9 +100,20 @@ export class InformeAdjuntosComponent {
   private readonly api = inject(InformesInspeccionService);
   private readonly toast = inject(ToastService);
 
-  @Input({ required: true }) informe!: InformeDetalle;
+  /** Informe ya guardado como borrador; sin él (informe nuevo) la selección queda en `previos` hasta el primer guardado. */
+  @Input() informe: InformeDetalle | null = null;
+  /** Elegidos antes de que exista el informe: el formulario los adjunta al guardar el borrador. */
+  @Input() previos: UsuarioAdjuntable[] = [];
+  @Output() previosChange = new EventEmitter<UsuarioAdjuntable[]>();
   /** El informe cambió (se agregó o quitó a alguien): el padre guarda el detalle nuevo. */
   @Output() cambio = new EventEmitter<InformeDetalle>();
+
+  /** Quienes recibirán el aviso: los del informe o, sin informe todavía, los elegidos hasta ahora. */
+  get lista(): { userId: string; nombre: string; rol: string; agregadoPorNombre?: string; agregadoEn?: string; notificadoEn: string | null }[] {
+    return this.informe ? this.informe.adjuntos : this.previos.map((u) => ({ userId: u.id, nombre: u.nombre, rol: u.rol, notificadoEn: null }));
+  }
+  get puedeAdjuntar(): boolean { return this.informe ? !!this.informe.permisos.puedeAdjuntar : true; }
+  get puedeQuitar(): boolean { return this.informe ? !!this.informe.permisos.puedeQuitarAdjuntos : true; }
 
   abierto = false;
   trabajando = false;
@@ -121,7 +132,7 @@ export class InformeAdjuntosComponent {
     );
   }
 
-  yaAdjunto(id: string): boolean { return this.informe.adjuntos.some((a) => a.userId === id); }
+  yaAdjunto(id: string): boolean { return this.lista.some((a) => a.userId === id); }
 
   async alternarBuscador(): Promise<void> {
     this.abierto = !this.abierto;
@@ -166,6 +177,13 @@ export class InformeAdjuntosComponent {
 
   async adjuntar(): Promise<void> {
     if (!this.elegidos.size) return;
+    if (!this.informe) {
+      // Informe nuevo: se guardan aquí y se adjuntan al guardar el borrador.
+      const nuevos = this.resultados.filter((u) => this.elegidos.has(u.id) && !this.yaAdjunto(u.id));
+      this.previosChange.emit([...this.previos, ...nuevos]);
+      this.elegidos.clear();
+      return;
+    }
     this.trabajando = true;
     this.error = '';
     try {
@@ -181,10 +199,14 @@ export class InformeAdjuntosComponent {
   }
 
   async quitar(userId: string): Promise<void> {
+    if (!this.informe) {
+      this.previosChange.emit(this.previos.filter((u) => u.id !== userId));
+      return;
+    }
     this.trabajando = true;
     this.error = '';
     try {
-      this.cambio.emit(await firstValueFrom(this.api.quitarAdjunto(this.informe.id, userId)));
+      this.cambio.emit(await firstValueFrom(this.api.quitarAdjunto(this.informe!.id, userId)));
     } catch (e) {
       this.error = mensajeError(e, 'No se pudo quitar al usuario.');
     } finally {
