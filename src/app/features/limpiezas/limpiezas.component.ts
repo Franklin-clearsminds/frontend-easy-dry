@@ -114,7 +114,9 @@ import { PAGE_SIZE_INFINITO } from '../../core/config/paginacion';
             @if (r.observaciones) {
               <p class="text-xs text-slate-700 font-medium mt-2 line-clamp-2">{{ r.observaciones }}</p>
             }
-            @if (r.fotos.length) {
+            @if (!puedeVerFotos) {
+              <p class="text-xs text-slate-400 mt-3 italic">Las fotos solo las ve la supervisión.</p>
+            } @else if (r.fotos.length) {
               <div class="mt-3 flex items-center gap-1.5 flex-wrap">
                 @for (foto of r.fotos; track foto) {
                   <button type="button" (click)="abrirFoto(foto)" class="w-14 h-14 rounded-lg overflow-hidden border border-slate-200 cursor-pointer">
@@ -190,6 +192,7 @@ export class LimpiezasComponent implements OnInit, OnDestroy {
   fechaHasta = '';
 
   readonly puedeEditar = puedeEditarLimpiezas(this.authService);
+  readonly puedeVerFotos = this.authService.puede('taller.limpiezas.fotos');
   /** Las exportaciones viven en Reportes Operativos: solo exporta quien tiene ese permiso. */
   readonly puedeExportar = puedeExportarLimpiezas(this.authService);
 

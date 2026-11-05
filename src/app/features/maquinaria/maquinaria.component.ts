@@ -276,7 +276,7 @@ import { fechaProgramadaLocal, fechaProgramadaISO } from '../../core/utils/evide
 
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label for="maq-agencia" class="field-label">Sucursal Asignada</label>
+              <label for="maq-agencia" class="field-label">Sucursal Asignada *</label>
                 <select id="maq-agencia" [(ngModel)]="nuevaMaquina.agencia" (ngModelChange)="onCambioSucursalNuevaMaquina($event)" name="agencia" class="field select-chevron font-semibold cursor-pointer">
                   <option value="" disabled>Seleccione una sucursal</option>
                 @if (sucursales.length > 0) {
@@ -747,7 +747,10 @@ export class MaquinariaComponent implements OnInit, OnDestroy {
       this.erroresMaquina.nombre = 'El nombre del equipo es obligatorio.';
       valido = false;
     }
-    if (!this.nuevaMaquina.bahia?.trim()) {
+    if (!this.nuevaMaquina.agencia?.trim() || !this.sucursalIdDeNombre(this.nuevaMaquina.agencia)) {
+      this.erroresMaquina.bahia = 'Seleccione la sucursal (agencia) a la que pertenece la máquina.';
+      valido = false;
+    } else if (!this.nuevaMaquina.bahia?.trim()) {
       this.erroresMaquina.bahia = 'Indique la bahía de destino.';
       valido = false;
     }

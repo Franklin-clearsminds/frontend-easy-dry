@@ -1,6 +1,7 @@
 import { Component, HostListener, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { LucideAngularModule } from 'lucide-angular';
+import { ProductividadTopComponent } from './components/productividad-top.component';
 import { ChartCardComponent } from '../../shared/components/chart-card/chart-card.component';
 import { FilterBarComponent, FilterState } from '../../shared/components/filter-bar/filter-bar.component';
 import { CrearRetoModalComponent } from './components/crear-reto-modal.component';
@@ -29,7 +30,7 @@ import {
 @Component({
   selector: 'app-productividad',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule, ChartCardComponent, FilterBarComponent, CrearRetoModalComponent, ModalPortalDirective, DataTableComponent, DataTableCellDirective],
+  imports: [CommonModule, FormsModule, LucideAngularModule, ProductividadTopComponent, ChartCardComponent, FilterBarComponent, CrearRetoModalComponent, ModalPortalDirective, DataTableComponent, DataTableCellDirective],
   template: `
     <div class="space-y-6 animate-fade-in">
       
@@ -575,6 +576,8 @@ import {
       }
 
       @if (puedeVerProductividad) {
+      <app-productividad-top [agenciaId]="filtroAgenciaId" [fechaDesde]="filtroDesde" [fechaHasta]="filtroHasta"></app-productividad-top>
+
       <!-- Performance Comparison Chart -->
       <app-chart-card 
         title="Productividad por Sucursal"
@@ -631,6 +634,10 @@ export class ProductividadComponent implements OnInit, OnDestroy {
   rankingRefreshInterval: any;
   rankingLavadores: any[] = [];
   limiteRankingLavadores = 5;
+  /** Mismo filtro de la barra superior, para el Top y su tabla completa. */
+  filtroAgenciaId?: string;
+  filtroDesde?: string;
+  filtroHasta?: string;
 
   get rankingLavadoresVisible(): any[] {
     return this.rankingLavadores.slice(0, this.limiteRankingLavadores);
@@ -987,6 +994,9 @@ export class ProductividadComponent implements OnInit, OnDestroy {
     const fDesde = (filtros.fechaInicio && filtros.fechaInicio.trim() && filtros.fechaInicio.length >= 10) ? filtros.fechaInicio.trim() : undefined;
     const fHasta = (filtros.fechaFin && filtros.fechaFin.trim() && filtros.fechaFin.length >= 10) ? filtros.fechaFin.trim() : undefined;
 
+    this.filtroAgenciaId = agenciaFiltrada ? String(agenciaFiltrada.id) : undefined;
+    this.filtroDesde = fDesde;
+    this.filtroHasta = fHasta;
     this.cargarRankingLavadores({
       agenciaId: agenciaFiltrada ? String(agenciaFiltrada.id) : undefined,
       fechaDesde: fDesde,

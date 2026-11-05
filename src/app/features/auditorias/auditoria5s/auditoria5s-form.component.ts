@@ -107,7 +107,7 @@ interface Respuesta {
                   @for (a of agencias; track a.id) { <option [value]="a.id">{{ a.nombre }}</option> }
                 </select>
               </div>
-              <div><label class="field-label" for="a-fecha">Fecha</label><input id="a-fecha" type="date" class="field" [(ngModel)]="fecha" [disabled]="!editable"></div>
+              <div><label class="field-label" for="a-fecha">Fecha</label><input id="a-fecha" type="date" class="field" [ngModel]="fecha" disabled title="Es el día en que se crea la auditoría"></div>
               <div><label class="field-label" for="a-auditor">Auditoría realizada por</label><input id="a-auditor" class="field" [value]="detalle?.auditorNombre || usuarioNombre" disabled></div>
               <div><label class="field-label" for="a-resp">Responsable de la agencia</label><input id="a-resp" class="field" [(ngModel)]="responsableAgencia" maxlength="160" [disabled]="!editable">@if (liderAuto && responsableAgencia === liderAuto) { <p class="text-[11px] font-semibold text-easydry-blue mt-1">Líder de la agencia, marcado automáticamente.</p> }</div>
               <div class="sm:col-span-2"><label class="field-label" for="a-com">Comentarios generales</label><textarea id="a-com" class="field" rows="3" [(ngModel)]="comentarios" [disabled]="!editable"></textarea></div>

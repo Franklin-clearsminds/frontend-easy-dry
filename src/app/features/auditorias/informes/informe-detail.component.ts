@@ -26,6 +26,7 @@ import { EvidenciasFotosComponent } from '../shared/evidencias-fotos.component';
 import { FirmaImagenComponent } from '../shared/firma-imagen.component';
 import { FirmaModalComponent, type FirmaCapturada } from '../shared/firma-modal.component';
 import { HistorialInformeComponent } from './historial-informe.component';
+import { InformeAdjuntosComponent } from './informe-adjuntos.component';
 import { descargarPdfInforme } from './informe-pdf';
 
 /**
@@ -35,7 +36,7 @@ import { descargarPdfInforme } from './informe-pdf';
 @Component({
   selector: 'app-informe-detail',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, LucideAngularModule, ModalComponent, ThumbSrcDirective, VerMediaDirective, EvidenciasFotosComponent, FirmaImagenComponent, FirmaModalComponent, HistorialInformeComponent],
+  imports: [CommonModule, FormsModule, RouterLink, LucideAngularModule, ModalComponent, ThumbSrcDirective, VerMediaDirective, EvidenciasFotosComponent, FirmaImagenComponent, FirmaModalComponent, HistorialInformeComponent, InformeAdjuntosComponent],
   template: `
     <div class="space-y-5 animate-fade-in max-w-5xl mx-auto">
       <a routerLink="/informes-inspeccion" class="btn btn-ghost btn-sm w-fit"><i-lucide name="arrow-left" class="w-4 h-4" aria-hidden="true"></i-lucide> Informes</a>
@@ -163,6 +164,11 @@ import { descargarPdfInforme } from './informe-pdf';
                 </article>
               }
             </div>
+          </details>
+
+          <details class="group">
+            <summary class="cursor-pointer select-none px-5 py-4 font-extrabold text-slate-900 flex items-center justify-between">Usuarios que reciben el informe ({{ i.adjuntos.length }})<i-lucide name="chevron-down" class="w-4 h-4 group-open:rotate-180 transition-transform" aria-hidden="true"></i-lucide></summary>
+            <div class="px-5 pb-5"><app-informe-adjuntos [informe]="i" (cambio)="i = $event"></app-informe-adjuntos></div>
           </details>
 
           <details class="group">

@@ -37,6 +37,8 @@ export interface Usuario {
   roleId?: string;
   /** Servicios especiales asignados (pulidor móvil) */
   servicioIds?: number[];
+  /** Motivo del cambio de agencia (obligatorio al cambiar de agencia a un lavador, líder, pulidor, auxiliar o backup). */
+  motivoCambioAgencia?: string;
 }
 
 export interface Sucursal {
@@ -177,6 +179,21 @@ export interface HistorialAsignacionOperador {
   bahia: string;
   realizadoPor: string;
   motivo: string;
+  /** Motivo con el que se sacó a la persona de la bahía. */
+  motivoFin?: string;
+}
+
+/** Un cambio de agencia con fecha y hora (ISO), de dónde a dónde, quién lo hizo y por qué. */
+export interface HistorialCambioAgencia {
+  id: string;
+  usuarioId: string;
+  usuarioNombre: string;
+  fecha: string;
+  origen: string;
+  destino: string;
+  motivo: string;
+  realizadoPor: string;
+  tipo: 'ALTA' | 'CAMBIO' | 'BAHIA';
 }
 
 export interface MovimientoMaquinaria {
@@ -387,7 +404,7 @@ export interface ArchivoAdjunto {
   file?: File;
 }
 
-export type EstadoEnvio = 'PENDIENTE' | 'ENVIADO' | 'RECIBIDO' | 'RECHAZADO';
+export type EstadoEnvio = 'PENDIENTE' | 'POR_APROBAR' | 'ENVIADO' | 'RECIBIDO' | 'RECHAZADO' | 'CANCELADO';
 
 export interface EnvioSuministroItem {
   productoId: number | string;
@@ -418,6 +435,18 @@ export interface EnvioSuministro {
   motivoRechazo?: string;
   /** Solo true si el usuario actual es el receptor del destino */
   puedeConfirmar?: boolean;
+  /** Envío entre agencias que creó un líder: pasa por aprobación y exige foto al enviar y al recibir. */
+  requiereAprobacion?: boolean;
+  /** Solo true si el usuario actual puede aprobar o rechazar este envío pendiente. */
+  puedeAprobar?: boolean;
+  /** Solo true si el usuario actual puede cancelar este envío pendiente de aprobación. */
+  puedeCancelar?: boolean;
+  /** Motivo con el que se rechazó o canceló el envío antes de aprobarse. */
+  motivoAprobacion?: string;
+  /** Usuario que creó el envío. */
+  usuarioDespachaId?: string;
+  /** Fotos del envío por etapa (ENVIO, RECEPCION, RECHAZO, RESOLUCION). */
+  evidencias?: { etapa: string; url: string }[];
 }
 
 export interface Incidente {
@@ -554,5 +583,9 @@ export interface ServicioExtra {
   fechaInicio?: string;
   fechaFin?: string;
   creadoPorNombre?: string;
+  /** La registró el propio pulidor que la atiende: su registro es la hora de inicio. */
+  creadoPorOperador?: boolean;
+  /** Hora de registro: la de creación, o la de inicio si la creó el propio pulidor. */
+  registradoEn?: string;
   historialPausas?: any[];
 }

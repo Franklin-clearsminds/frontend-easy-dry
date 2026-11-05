@@ -22,11 +22,12 @@ import { apiUrl } from '../../core/config/env';
 import { ResolverEnvioComponent } from './resolver-envio.component';
 import { MenuIndicadoresService } from '../../core/services/menu-indicadores.service';
 import { EvidenciasEnvioComponent } from './evidencias-envio.component';
+import { VisorEvidenciasComponent } from './visor-evidencias.component';
 
 @Component({
   selector: 'app-envios',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, ResolverEnvioComponent, EvidenciasEnvioComponent, FilterBarComponent, DataTableComponent, DataTableCellDirective],
+  imports: [CommonModule, FormsModule, LucideAngularModule, ModalComponent, ResolverEnvioComponent, EvidenciasEnvioComponent, VisorEvidenciasComponent, FilterBarComponent, DataTableComponent, DataTableCellDirective],
   template: `
     <div class="space-y-6 animate-fade-in pb-12">
 
@@ -165,12 +166,13 @@ import { EvidenciasEnvioComponent } from './evidencias-envio.component';
           <span
             class="px-2.5 py-1 rounded-full text-xs font-extrabold"
             [ngClass]="{
-              'bg-amber-100 text-amber-800 border border-amber-200': env.estado === 'PENDIENTE',
+              'bg-amber-100 text-amber-800 border border-amber-200': env.estado === 'PENDIENTE' || env.estado === 'POR_APROBAR',
+              'bg-slate-100 text-slate-700 border border-slate-200': env.estado === 'CANCELADO',
               'bg-blue-100 text-blue-800 border border-blue-200': env.estado === 'ENVIADO',
               'bg-emerald-100 text-emerald-800 border border-emerald-200': env.estado === 'RECIBIDO' && !esDesconforme(env),
               'bg-rose-100 text-rose-800 border border-rose-200': env.estado === 'RECHAZADO' || esDesconforme(env)
             }">
-            {{ env.estado === 'ENVIADO' ? 'EN TRÁNSITO' : (esDesconforme(env) ? 'DESCONFORMIDAD' : env.estado) }}
+            {{ env.estado === 'ENVIADO' ? 'EN TRÁNSITO' : (env.estado === 'POR_APROBAR' ? 'POR APROBAR' : (esDesconforme(env) ? 'DESCONFORMIDAD' : env.estado)) }}
           </span>
         </ng-template>
 
@@ -220,7 +222,42 @@ import { EvidenciasEnvioComponent } from './evidencias-envio.component';
         </ng-template>
 
         <ng-template appCell="acciones" let-env>
-          @if (env.estado === 'ENVIADO' && puedeAccionesEnvio(env)) {
+          @if (env.estado === 'POR_APROBAR') {
+            <div class="flex flex-col items-end gap-1.5">
+              @if (env.puedeAprobar || env.puedeCancelar) {
+                <div class="flex items-center justify-end gap-1.5">
+                  @if (env.puedeAprobar) {
+                    <button type="button" (click)="abrirDecision(env, 'APROBAR')"
+                      class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 shadow-2xs">
+                      <i-lucide aria-hidden="true" name="check" class="w-3.5 h-3.5"></i-lucide>
+                      <span>Aprobar</span>
+                    </button>
+                    <button type="button" (click)="abrirDecision(env, 'RECHAZAR')"
+                      class="px-3 py-1.5 bg-rose-50 hover:bg-rose-600 hover:text-white text-rose-700 border border-rose-200 hover:border-rose-600 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 shadow-2xs">
+                      <i-lucide aria-hidden="true" name="x" class="w-3.5 h-3.5"></i-lucide>
+                      <span>Rechazar</span>
+                    </button>
+                  }
+                  @if (env.puedeCancelar && !env.puedeAprobar) {
+                    <button type="button" (click)="abrirDecision(env, 'CANCELAR')"
+                      class="px-3 py-1.5 bg-slate-50 hover:bg-slate-600 hover:text-white text-slate-700 border border-slate-200 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 shadow-2xs">
+                      <i-lucide aria-hidden="true" name="ban" class="w-3.5 h-3.5"></i-lucide>
+                      <span>Cancelar envío</span>
+                    </button>
+                  }
+                </div>
+              }
+              <span class="inline-flex items-center gap-1 text-xs font-bold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200">
+                <i-lucide aria-hidden="true" name="clock" class="w-3.5 h-3.5"></i-lucide>
+                <span>Esperando aprobación · sin mover stock</span>
+              </span>
+            </div>
+          } @else if (env.estado === 'CANCELADO') {
+            <span class="inline-flex items-center gap-1 text-xs font-bold text-slate-600 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200" [title]="env.motivoAprobacion || ''">
+              <i-lucide aria-hidden="true" name="ban" class="w-3.5 h-3.5"></i-lucide>
+              <span>Cancelado{{ env.motivoAprobacion ? ': ' + env.motivoAprobacion : '' }} · no se movió stock</span>
+            </span>
+          } @else if (env.estado === 'ENVIADO' && puedeAccionesEnvio(env)) {
             <div class="flex items-center justify-end gap-1.5">
               @if (puedeConfirmarEnvio) {
               <button
@@ -506,6 +543,14 @@ import { EvidenciasEnvioComponent } from './evidencias-envio.component';
                 class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-easydry-blue">
             </div>
           </div>
+
+          <app-evidencias-envio #evidenciasSalida />
+          @if (requiereAprobacionSalida) {
+            <p class="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2.5 flex items-start gap-1.5">
+              <i-lucide aria-hidden="true" name="info" class="w-3.5 h-3.5 shrink-0 mt-0.5"></i-lucide>
+              <span>Un envío entre agencias lo debe aprobar un administrador o el coordinador de bodega. Hasta entonces <strong>no se mueve stock</strong>; si no lo aprueban o lo cancelan, no sale nada.</span>
+            </p>
+          }
         </form>
         <div modal-footer class="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 w-full">
           <button
@@ -517,9 +562,58 @@ import { EvidenciasEnvioComponent } from './evidencias-envio.component';
           <button
             type="button"
             (click)="guardarNuevoEnvio()"
-            [disabled]="!nuevoEnvioForm.sucursalId || !nuevoEnvioForm.insumoId || !nuevoEnvioForm.cantidad || nuevoEnvioForm.cantidad <= 0"
+            [disabled]="subiendoEvidencias || !nuevoEnvioForm.sucursalId || !nuevoEnvioForm.insumoId || !nuevoEnvioForm.cantidad || nuevoEnvioForm.cantidad <= 0"
             class="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer disabled:opacity-50 w-full sm:w-auto justify-center">
-            Despachar Envío
+            {{ requiereAprobacionSalida ? 'Enviar a aprobación' : 'Despachar Envío' }}
+          </button>
+        </div>
+      </app-modal>
+
+      <!-- MODAL APROBAR / RECHAZAR / CANCELAR ENVÍO PENDIENTE -->
+      <app-modal size="md"
+        [isOpen]="modalDecisionOpen"
+        [title]="decisionAccion === 'APROBAR' ? 'Aprobar envío' : (decisionAccion === 'RECHAZAR' ? 'Rechazar envío' : 'Cancelar envío')"
+        icon="clipboard-check"
+        (close)="modalDecisionOpen = false">
+        @if (decisionEnvio) {
+          <div class="space-y-3 text-xs">
+            <div class="p-3 rounded-xl bg-slate-50 border border-slate-200">
+              <p class="font-extrabold text-slate-800">{{ decisionEnvio.codigoEnvio }} → {{ decisionEnvio.sucursalNombre }}</p>
+              <p class="text-slate-600 mt-0.5">Pidió: {{ decisionEnvio.responsableEnvio }}</p>
+              <ul class="mt-1.5 list-disc pl-4 text-slate-700">
+                @for (p of decisionEnvio.productos; track $index) {
+                  <li>{{ p.nombreProducto }} · {{ p.cantidad }} {{ p.unidad }}</li>
+                }
+              </ul>
+            </div>
+            @if (fotosSalidaDecision.length) {
+              <div>
+                <span class="block font-bold text-slate-700 mb-1">Fotos de lo que se envía</span>
+                <app-visor-evidencias [urls]="fotosSalidaDecision" />
+              </div>
+            }
+            @if (decisionAccion === 'APROBAR') {
+              <p class="text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg p-2.5">Al aprobar se descuenta el stock de la agencia de origen y el envío sale hacia el destino.</p>
+            } @else {
+              <div>
+                <label for="dec-motivo" class="block font-bold text-slate-700 mb-1">
+                  Motivo @if (decisionAccion === 'RECHAZAR' || !esCreadorDecision) { <span class="text-rose-600">(obligatorio)</span> } @else { <span class="font-normal text-slate-500">(opcional)</span> }
+                </label>
+                <textarea id="dec-motivo" [(ngModel)]="decisionMotivo" name="decisionMotivo" rows="2"
+                  class="w-full p-2.5 rounded-xl border border-slate-200"
+                  placeholder="Explica por qué no se envía..."></textarea>
+                <p class="text-slate-500 mt-1">No se moverá stock.</p>
+              </div>
+            }
+          </div>
+        }
+        <div modal-footer class="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 w-full">
+          <button type="button" (click)="modalDecisionOpen = false" class="btn-secondary w-full sm:w-auto">Volver</button>
+          <button type="button" (click)="ejecutarDecision()"
+            [disabled]="procesandoDecision || (decisionAccion !== 'APROBAR' && !decisionMotivo.trim() && (decisionAccion === 'RECHAZAR' || !esCreadorDecision))"
+            [ngClass]="decisionAccion === 'APROBAR' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-rose-600 hover:bg-rose-700'"
+            class="px-4 py-2 rounded-xl text-xs font-bold text-white disabled:opacity-50 cursor-pointer w-full sm:w-auto justify-center">
+            {{ decisionAccion === 'APROBAR' ? 'Aprobar y enviar' : (decisionAccion === 'RECHAZAR' ? 'Rechazar envío' : 'Cancelar envío') }}
           </button>
         </div>
       </app-modal>
@@ -574,6 +668,11 @@ export class EnviosComponent implements OnInit, OnDestroy {
     return this.auth.puede('envios.rechazar');
   }
 
+  /** Aprobar o rechazar los envíos entre agencias que crean los líderes (casilla propia). */
+  get puedeAprobarEnvios(): boolean {
+    return this.auth.puede('envios.aprobar');
+  }
+
   get puedeRecibir(): boolean {
     return this.puedeConfirmarEnvio || this.puedeRechazarEnvio;
   }
@@ -616,7 +715,7 @@ export class EnviosComponent implements OnInit, OnDestroy {
   //  El alcance por rol (pulidor, líder, asistente de bodega) también lo aplica el servidor.
   // ══════════════════════════════════════════════════════════════════════════
 
-  readonly listaEstados = ['Todos', 'En tránsito', 'Recibido', 'Rechazado'];
+  readonly listaEstados = ['Todos', 'Por aprobar', 'En tránsito', 'Recibido', 'Rechazado', 'Cancelado'];
   filtrosGlobales: FilterState = { sucursal: 'Todas', operador: 'Todos', bahia: 'Todas', estado: 'Todos', fecha: 'Mes' };
   private busqueda = '';
   private todasSucursales: Sucursal[] = [];
@@ -701,6 +800,7 @@ export class EnviosComponent implements OnInit, OnDestroy {
   /** El mismo modal de recepción sirve para rechazar: cantidad recibida (0 por defecto) y observación obligatoria. */
   modoRechazo = false;
   @ViewChild('evidenciasRecepcion') evidenciasRecepcion?: EvidenciasEnvioComponent;
+  @ViewChild('evidenciasSalida') evidenciasSalida?: EvidenciasEnvioComponent;
   subiendoEvidencias = false;
   modalCrearEnvioOpen = false;
   modalConfirmacionOpen = false;
@@ -956,6 +1056,8 @@ export class EnviosComponent implements OnInit, OnDestroy {
   /** Estado elegido en el filter-bar → valor del servidor. */
   private estadoServidor(): string | undefined {
     switch (this.neutro(this.filtrosGlobales.estado, 'Todos')) {
+      case 'Por aprobar': return 'PENDIENTE_APROBACION';
+      case 'Cancelado': return 'CANCELADO';
       case 'En tránsito': return 'EN_TRANSITO';
       case 'Recibido': return 'RECIBIDO';
       case 'Rechazado': return 'RECHAZADO';
@@ -998,6 +1100,8 @@ export class EnviosComponent implements OnInit, OnDestroy {
 
     let estado: EstadoEnvio = 'PENDIENTE';
     if (m.estadoDespacho === 'EN_TRANSITO') estado = 'ENVIADO';
+    else if (m.estadoDespacho === 'PENDIENTE_APROBACION') estado = 'POR_APROBAR';
+    else if (m.estadoDespacho === 'CANCELADO') estado = 'CANCELADO';
     else if (m.estadoDespacho === 'RECIBIDO') estado = 'RECIBIDO';
     else if (m.estadoDespacho === 'RECHAZADO') estado = 'RECHAZADO';
 
@@ -1061,6 +1165,11 @@ export class EnviosComponent implements OnInit, OnDestroy {
       observaciones: m.observaciones,
       motivoRechazo: motivoRechazo || undefined,
       puedeConfirmar: !!m.puedeConfirmar,
+      requiereAprobacion: !!m.requiereAprobacion,
+      puedeAprobar: !!m.puedeAprobar,
+      puedeCancelar: !!m.puedeCancelar,
+      motivoAprobacion: m.motivoAprobacion || undefined,
+      usuarioDespachaId: m.usuarioDespachaId,
       tipoDespacho: m.tipo,
       destinoPulidorId: m.destinoPulidorId,
       usuarioRecibeId: m.usuarioRecibeId,
@@ -1187,6 +1296,24 @@ export class EnviosComponent implements OnInit, OnDestroy {
       payload.agenciaDestinoId = destinoId;
     }
 
+    void this.enviarNuevoEnvio(payload, unidades);
+  }
+
+  /** Sube las fotos de salida (si hay) y registra el envío. Un envío a otra agencia de un líder queda por aprobar y no mueve stock. */
+  private async enviarNuevoEnvio(payload: any, unidades: number): Promise<void> {
+    if (this.evidenciasSalida?.cantidad) {
+      this.subiendoEvidencias = true;
+      try {
+        // Aún no hay guía: las fotos se guardan bajo una referencia provisional dentro de inventario/envios/.
+        payload.evidencias = await this.evidenciasSalida.subir('PEND-' + Date.now(), 'envio');
+      } catch (err: any) {
+        this.toastService.error('No se pudieron subir las fotos', err?.error?.message || err?.message || 'Intenta de nuevo o quítalas.');
+        return;
+      } finally {
+        this.subiendoEvidencias = false;
+      }
+    }
+
     this.http.post<any>(apiUrl('/inventario/despachos/crear'), payload).pipe(
       catchError(err => {
         this.toastService.error(
@@ -1198,11 +1325,76 @@ export class EnviosComponent implements OnInit, OnDestroy {
     ).subscribe((res) => {
       if (!res) return;
       this.modalCrearEnvioOpen = false;
-      this.toastService.success(
-        'Envío Despachado',
-        `Envío en tránsito hacia ${this.nuevoEnvioForm.sucursalNombre || 'destino'}. Stock reservado (${unidades} und) hasta confirmación.`
-      );
+      this.evidenciasSalida?.limpiar();
+      const destino = this.nuevoEnvioForm.sucursalNombre || 'destino';
+      if (res.pendienteAprobacion) {
+        this.toastService.success('Envío enviado a aprobación', 'Quedó pendiente de aprobación hacia ' + destino + '. No se movió stock (' + unidades + ' und).');
+      } else {
+        this.toastService.success('Envío Despachado', 'Envío en tránsito hacia ' + destino + '. Stock reservado (' + unidades + ' und) hasta confirmación.');
+      }
       this.refrescar();
+    });
+  }
+
+  /** Aprobar, rechazar o cancelar un envío que espera aprobación. */
+  modalDecisionOpen = false;
+  decisionAccion: 'APROBAR' | 'RECHAZAR' | 'CANCELAR' = 'APROBAR';
+  decisionEnvio: EnvioSuministro | null = null;
+  decisionMotivo = '';
+  procesandoDecision = false;
+
+  get esCreadorDecision(): boolean {
+    const u = this.auth.getCurrentUser();
+    return !!u?.id && String(this.decisionEnvio?.usuarioDespachaId ?? '') === String(u.id);
+  }
+
+  get fotosSalidaDecision(): string[] {
+    return (this.decisionEnvio?.evidencias || []).filter((e) => String(e.etapa).toUpperCase() === 'ENVIO').map((e) => e.url);
+  }
+
+  /** Un líder que envía a otra agencia necesita aprobación antes de que salga el stock. */
+  get requiereAprobacionSalida(): boolean {
+    return this.ambitoAgencia && String(this.nuevoEnvioForm.sucursalId || '').startsWith('AG:');
+  }
+
+  abrirDecision(env: EnvioSuministro, accion: 'APROBAR' | 'RECHAZAR' | 'CANCELAR'): void {
+    if (accion !== 'CANCELAR' && !this.puedeAprobarEnvios) return;
+    this.decisionEnvio = env;
+    this.decisionAccion = accion;
+    this.decisionMotivo = '';
+    this.modalDecisionOpen = true;
+  }
+
+  ejecutarDecision(): void {
+    const env = this.decisionEnvio;
+    if (!env || this.procesandoDecision) return;
+    const motivo = this.decisionMotivo.trim();
+    const cancelar = this.decisionAccion === 'CANCELAR';
+    if (this.decisionAccion !== 'APROBAR' && !motivo && (this.decisionAccion === 'RECHAZAR' || !this.esCreadorDecision)) {
+      this.toastService.warning('Motivo requerido', 'Escribe el motivo.');
+      return;
+    }
+    this.procesandoDecision = true;
+    const peticion = cancelar
+      ? this.http.post<any>(apiUrl('/inventario/despachos/cancelar-pendiente'), { movimientoId: String(env.id), motivo: motivo || undefined })
+      : this.http.post<any>(apiUrl('/inventario/despachos/decidir-pendiente'), { movimientoId: String(env.id), accion: this.decisionAccion, motivo: motivo || undefined });
+    peticion.subscribe({
+      next: () => {
+        this.procesandoDecision = false;
+        this.modalDecisionOpen = false;
+        if (this.decisionAccion === 'APROBAR') {
+          this.toastService.success('Envío aprobado', env.codigoEnvio + ' salió hacia ' + env.sucursalNombre + '. Se descontó el stock del origen.');
+        } else {
+          this.toastService.warning(this.decisionAccion === 'RECHAZAR' ? 'Envío rechazado' : 'Envío cancelado', env.codigoEnvio + ': no se movió stock.');
+        }
+        this.refrescar();
+        this.notificacionService.recargar();
+      },
+      error: (err: any) => {
+        this.procesandoDecision = false;
+        this.toastService.error('No se pudo completar', err?.error?.message || 'Intenta de nuevo.');
+        this.refrescar();
+      },
     });
   }
 

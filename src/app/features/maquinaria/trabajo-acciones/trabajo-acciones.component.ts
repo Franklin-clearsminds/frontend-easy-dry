@@ -342,7 +342,7 @@ const TIPOS_FALLA = [
             <app-evidencia-selector #selEjecutar
               contexto="MANTENIMIENTO"
               [maquinariaCodigo]="eje.maquinaCodigo" [maquinariaId]="eje.maquinaId" [entidadId]="eje.id"
-              [requiereMultimedia]="true" [requiereDocumento]="true" [deshabilitado]="enviando">
+              [requiereMultimedia]="true" [requiereDocumento]="false" [deshabilitado]="enviando">
             </app-evidencia-selector>
           } @else {
             <p class="text-xs text-slate-500">Tu rol no puede adjuntar evidencias; puedes ejecutar el mantenimiento sin fotos ni documento.</p>

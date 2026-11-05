@@ -4,6 +4,8 @@ import { RouterModule } from '@angular/router';
 import { LucideAngularModule } from 'lucide-angular';
 import { AuthService } from '../../../core/services/auth.service';
 import { NotificacionService } from '../../../core/services/notificacion.service';
+import { NotificationSocketService } from '../../../core/services/notification-socket.service';
+import { ToastService } from '../../services/toast.service';
 import { StorageUploadService } from '../../../core/services/storage-upload.service';
 import { UiStateService } from '../../../core/services/ui-state.service';
 import { environment, isRealProfilePhoto } from '../../../core/config/env';
@@ -60,6 +62,7 @@ import { ESCALA_POR_PRESET, ETIQUETA_PRESET, UiScaleService } from '../../../cor
         }
 
         <!-- Notifications -->
+        @if (verNotificaciones) {
         <a
           routerLink="/notificaciones"
           class="p-2.5 rounded-xl text-slate-600 hover:text-easydry-blue hover:bg-slate-100 transition-colors relative inline-flex"
@@ -70,6 +73,7 @@ import { ESCALA_POR_PRESET, ETIQUETA_PRESET, UiScaleService } from '../../../cor
             <span class="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-rose-500 rounded-full ring-2 ring-white" aria-hidden="true"></span>
           }
         </a>
+        }
 
         <div class="h-8 w-px bg-slate-200" aria-hidden="true"></div>
 
@@ -105,6 +109,8 @@ export class HeaderComponent implements OnInit {
   public authService = inject(AuthService);
   public uiState = inject(UiStateService);
   private notificacionService = inject(NotificacionService);
+  private socketNotificaciones = inject(NotificationSocketService);
+  private toast = inject(ToastService);
   private storageUpload = inject(StorageUploadService);
   private uiScaleService = inject(UiScaleService);
 
@@ -137,11 +143,22 @@ export class HeaderComponent implements OnInit {
 
   get user() { return this.authService.getCurrentUser(); }
 
+  /** La campanita solo existe si el rol tiene activa la pantalla «Notificaciones». */
+  get verNotificaciones(): boolean { return this.authService.hasModuleAccess('notificaciones'); }
+
   ngOnInit(): void {
     this.notificacionService.notificaciones$.subscribe((list) => {
       this.unreadCount = (list || []).filter(n => !n.leida).length;
     });
-    this.notificacionService.getNotificaciones().subscribe();
+    if (this.verNotificaciones) this.notificacionService.getNotificaciones().subscribe();
+    // Cada aviso que llega en vivo salta como alerta en pantalla (solo si el rol tiene Notificaciones activas).
+    this.socketNotificaciones.onNuevaNotificacion.subscribe((n) => {
+      if (!this.verNotificaciones) return;
+      const tipo = ['STOCK_CRITICO', 'INCIDENTE_NUEVO', 'MANTENIMIENTO_VENCIDO', 'LIMPIEZA_ATRASADA', 'DESPACHO_FALTANTE', 'MAQUINA_DADA_DE_BAJA', 'ARCHIVADO_FALLIDO'].includes(n.tipo)
+        ? 'warning'
+        : n.tipo === 'INCIDENCIA_RESUELTA' ? 'success' : 'info';
+      this.toast.show(tipo, n.titulo, n.mensaje, 6000);
+    });
   }
 }
 

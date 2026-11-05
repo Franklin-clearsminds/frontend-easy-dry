@@ -337,13 +337,13 @@ export class RolPaginasEditorComponent implements OnChanges {
   }
 
   // ── Lectura ──
-  /** Notificaciones y Perfil son pantallas de cuenta: el sistema se las da a todos los roles y no se pueden apagar. */
+  /** Perfil es una pantalla de cuenta: el sistema se la da a todos los roles y no se puede apagar. Notificaciones sí se puede apagar por rol. */
   esDeCuenta(p: PaginaCatalogo): boolean {
-    return p.codigo === 'pagina.notificaciones' || p.codigo === 'pagina.perfil';
+    return p.codigo === 'pagina.perfil';
   }
 
   activa(codigo: string): boolean {
-    return codigo === 'pagina.notificaciones' || codigo === 'pagina.perfil' || this.activos.has(codigo);
+    return codigo === 'pagina.perfil' || this.activos.has(codigo);
   }
 
   private normalizar(t: string): string {
@@ -422,11 +422,11 @@ export class RolPaginasEditorComponent implements OnChanges {
   }
 
   get paginasConMenu(): number {
-    return this.paginas.filter((p) => p.enMenu && p.codigo !== 'pagina.notificaciones' && p.codigo !== 'pagina.perfil').length;
+    return this.paginas.filter((p) => p.enMenu && p.codigo !== 'pagina.perfil').length;
   }
 
   get paginasActivas(): number {
-    return this.paginas.filter((p) => p.enMenu && p.codigo !== 'pagina.notificaciones' && p.codigo !== 'pagina.perfil' && this.activos.has(p.codigo)).length;
+    return this.paginas.filter((p) => p.enMenu && p.codigo !== 'pagina.perfil' && this.activos.has(p.codigo)).length;
   }
 
   get accionesTotal(): number {

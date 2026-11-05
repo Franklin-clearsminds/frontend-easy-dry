@@ -1857,14 +1857,16 @@ import { DespachoMasivoModalComponent } from './despacho-masivo/despacho-masivo-
             <span class="text-slate-600 text-xs block max-w-xs truncate" [attr.title]="m.observaciones || m.referencia || null">{{ m.observaciones || m.referencia || '-' }}</span>
           </ng-template>
           <ng-template appCell="evidencia" let-m>
-            <button
-              *ngIf="getEvidenciaReajusteUrl(m) as evidenciaUrl"
-              type="button"
-              (click)="abrirZoomImagen(evidenciaUrl, tituloEvidenciaKardex(m))"
-              class="text-xs font-bold text-easydry-blue hover:underline cursor-pointer bg-transparent border-0 p-0">
-              Ver foto
-            </button>
-            <span *ngIf="!getEvidenciaReajusteUrl(m)">—</span>
+            <div class="flex flex-wrap gap-x-2" *ngIf="m.evidenciasUrls?.length; else sinFotos">
+              <button
+                *ngFor="let evidenciaUrl of m.evidenciasUrls; let i = index"
+                type="button"
+                (click)="abrirZoomImagen(evidenciaUrl, tituloEvidenciaKardex(m))"
+                class="text-xs font-bold text-easydry-blue hover:underline cursor-pointer bg-transparent border-0 p-0">
+                {{ m.evidenciasUrls.length > 1 ? 'Foto ' + (i + 1) : 'Ver foto' }}
+              </button>
+            </div>
+            <ng-template #sinFotos><span>—</span></ng-template>
           </ng-template>
         </app-data-table>
       </div>
@@ -2487,9 +2489,13 @@ import { DespachoMasivoModalComponent } from './despacho-masivo/despacho-masivo-
                     <i-lucide aria-hidden="true" name="camera" class="w-6 h-6"></i-lucide>
                   </div>
                   <p class="text-xs font-bold text-slate-700 text-center">Toca para capturar o subir evidencia del ingreso</p>
-                  <p class="text-xs text-slate-500 text-center mt-1">Foto de factura, guía de remisión o producto recibido</p>
+                  <p class="text-xs text-slate-500 text-center mt-1">Foto de factura, guía de remisión o producto recibido (opcional)</p>
                 </div>
               </div>
+              <input #imageEntradaCamara type="file" accept="image/*" capture="environment" class="hidden" (change)="onImagenEntradaSeleccionada($event)">
+              <button type="button" (click)="imageEntradaCamara.click()" class="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-easydry-blue cursor-pointer">
+                <i-lucide aria-hidden="true" name="camera" class="w-4 h-4"></i-lucide> Tomar foto
+              </button>
             </div>
 
             <!-- Vista Previa de Cálculo Dinámico (Unidades + Contenido Total) -->
@@ -4918,6 +4924,10 @@ export class InventarioComponent implements OnInit, OnDestroy {
     }
     if (!esBodega && !esPulidor && !this.despachoAgenciaForm.agenciaId) {
       this.toast.warning('Agencia Requerida', 'Selecciona la agencia o sucursal de destino');
+      return;
+    }
+    if (this.operaDesdeAgencia && !esBodega && !esPulidor) {
+      this.toast.warning('Usa la pantalla de Envíos', 'Los envíos entre agencias se crean desde Envíos: llevan foto de lo que sale y los aprueba un administrador o el coordinador de bodega.');
       return;
     }
     const targetInsumoId = this.productoDespachoFijo ? this.productoDespachoFijo.id : this.despachoAgenciaForm.insumoId;

@@ -309,6 +309,17 @@ export class DashboardOperativoService {
     );
   }
 
+  /** Toda la productividad del periodo, por agencia y por persona (POST /analytics/productividad-detalle). */
+  getProductividadDetalle(filtro: { agenciaId?: string; regionId?: string; fechaDesde?: string; fechaHasta?: string } = {}): Observable<ProductividadDetalle> {
+    return this.http.post<any>(apiUrl('/analytics/productividad-detalle'), filtro).pipe(
+      map((res) => ({ verMonto: !!res?.verMonto, agencias: res?.agencias ?? [], personas: res?.personas ?? [] }) as ProductividadDetalle),
+      catchError((err) => {
+        this.avisarErrorCarga('No se pudo cargar la productividad', err);
+        return of({ verMonto: false, agencias: [], personas: [] } as ProductividadDetalle);
+      })
+    );
+  }
+
   getRankingPulidores(filtro: any = {}): Observable<{fijos: any[], bottomFijos: any[], moviles: any[], bottomMoviles: any[]}> {
     return this.http.post<any>(apiUrl('/analytics/ranking-pulidores'), filtro).pipe(
       map(res => {
@@ -892,3 +903,8 @@ export class DashboardOperativoService {
     );
   }
 }
+
+export interface ProductividadAgencia { agenciaId: string; agencia: string; regionId: string | null; region: string; servicios: number; monto: number | null }
+export interface ProductividadPersona extends ProductividadAgencia { personaId: string; nombre: string; rol: 'LAVADOR' | 'AUXILIAR' | 'LIDER' | 'PULIDOR'; tiempoPromedioMin: number }
+export interface ProductividadDetalle { verMonto: boolean; agencias: ProductividadAgencia[]; personas: ProductividadPersona[] }
+

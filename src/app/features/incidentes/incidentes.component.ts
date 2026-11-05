@@ -47,7 +47,7 @@ import { StatCardComponent } from '../../shared/components/stat-card/stat-card.c
             </div>
             <h1 class="text-2xl font-extrabold text-slate-900 font-outfit">Control de Fallas y Reparaciones Técnicas</h1>
             <p class="text-slate-500 text-xs mt-1">
-              Cada incidencia exige 1 o más fotos/videos y exactamente 1 PDF al reportarse y al repararse. Las no atendidas aparecen primero.
+              Cada incidencia exige 1 o más fotos/videos al reportarse y al repararse; el PDF es opcional. Las no atendidas aparecen primero.
             </p>
           </div>
         </div>

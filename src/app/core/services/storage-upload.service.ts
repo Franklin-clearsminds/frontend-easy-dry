@@ -75,7 +75,7 @@ export interface UploadMediaOptions {
   insumoNombre?: string;
   /** Evidencias de envíos: guía y etapa. */
   envioGuia?: string;
-  envioEtapa?: 'recepcion' | 'rechazo' | 'resolucion';
+  envioEtapa?: 'envio' | 'recepcion' | 'rechazo' | 'resolucion';
   /** Evidencias de auditorías: el módulo y el informe o auditoría al que pertenecen (sin id aún = «borrador»). */
   auditoriaTipo?: 'informes' | '5s';
   auditoriaId?: string;

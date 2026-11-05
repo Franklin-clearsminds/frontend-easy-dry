@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { BehaviorSubject, Observable, of } from 'rxjs';
 import { tap, catchError, map } from 'rxjs/operators';
-import { Operador, HistorialAsignacionOperador } from '../models';
+import { Operador, HistorialAsignacionOperador, HistorialCambioAgencia } from '../models';
 import { apiUrl } from '../config/env';
 import { ConsultaTabla } from '../models/paginacion.model';
 import { PaginaConResumen, cuerpoConsulta, postPagina } from '../utils/tabla-servidor';
@@ -70,15 +70,38 @@ export class OperadorService {
           id: h.id || index + 1,
           operadorId: h.operadorId,
           operadorNombre: h.operador ? `${h.operador.name || ''} ${h.operador.lastname || ''}`.trim() : 'Lavador',
-          fechaInicio: h.fechaInicio ? h.fechaInicio.split('T')[0] : '',
-          fechaFin: h.fechaFin ? h.fechaFin.split('T')[0] : undefined,
+          // Fecha y hora completas (ISO): la pantalla las muestra con día y hora.
+          fechaInicio: h.fechaInicio || '',
+          fechaFin: h.fechaFin || undefined,
           sucursal: h.bahia?.agencia?.nombre || 'Agencia',
           bahia: h.bahia?.nombre || 'Bahía',
           realizadoPor: h.asignadoPor ? `${h.asignadoPor.name || ''} ${h.asignadoPor.lastname || ''}`.trim() : 'Supervisor',
-          motivo: h.motivo || 'Asignación técnica'
+          motivo: h.motivo || 'Asignación técnica',
+          motivoFin: h.motivoFin || undefined
         }));
       }),
       tap(hist => this.historialSubject.next(hist)),
+      catchError(() => of([]))
+    );
+  }
+
+  /** Cambios de agencia de una persona (o de todo el personal del alcance), con fecha y hora. */
+  getHistorialAgencia(usuarioId?: number | string): Observable<HistorialCambioAgencia[]> {
+    return this.http.post<any>(apiUrl('/agencias/usuarios/historial-agencia'), { ...(usuarioId ? { usuarioId: String(usuarioId) } : {}), page: 1, pageSize: 100 }).pipe(
+      map(res => {
+        const rawItems = Array.isArray(res) ? res : (res?.items || res?.data || []);
+        return rawItems.map((h: any): HistorialCambioAgencia => ({
+          id: String(h.id),
+          usuarioId: String(h.usuarioId),
+          usuarioNombre: h.usuario ? `${h.usuario.name || ''} ${(h.usuario.lastname || '').replace(/\(?CI:[^)]*\)?/g, '')}`.trim() : '',
+          fecha: h.createdAt || '',
+          origen: h.agenciaOrigenNombre || 'Sin agencia',
+          destino: h.agenciaDestinoNombre || 'Sin agencia',
+          motivo: h.motivo || '',
+          realizadoPor: h.realizadoPorNombre || 'Sistema',
+          tipo: h.origen
+        }));
+      }),
       catchError(() => of([]))
     );
   }
@@ -92,8 +115,8 @@ export class OperadorService {
           id: h.id || index + 1,
           operadorId: h.operadorId,
           operadorNombre: h.operador ? `${h.operador.name || ''} ${h.operador.lastname || ''}`.trim() : 'Lavador',
-          fechaInicio: h.fechaInicio ? h.fechaInicio.split('T')[0] : (h.createdAt ? h.createdAt.split('T')[0] : ''),
-          fechaFin: h.fechaFin ? h.fechaFin.split('T')[0] : undefined,
+          fechaInicio: h.fechaInicio || h.createdAt || '',
+          fechaFin: h.fechaFin || undefined,
           sucursal: h.bahia?.agencia?.nombre || 'Agencia',
           bahia: h.bahia?.nombre || 'Bahía',
           realizadoPor: h.asignadoPor ? `${h.asignadoPor.name || ''} ${h.asignadoPor.lastname || ''}`.trim() : 'Supervisor',
@@ -136,7 +159,7 @@ export class OperadorService {
     const payload = {
       bahiaId: bahiaIdTarget || nuevaBahia,
       operadorId: nuevaBahia && nuevaBahia.includes('Sin') ? null : String(operadorId),
-      notas: motivo || 'Reasignación operativa de bahía'
+      notas: motivo
     };
 
     return this.http.post<any>(apiUrl('/agencias/bahias/asignar-operador'), payload).pipe(
@@ -159,7 +182,7 @@ export class OperadorService {
     return this.http.post<any>(apiUrl('/agencias/bahias/desasignar-operador'), {
       bahiaId: String(bahiaId),
       operadorId: String(operadorId),
-      motivo: motivo || undefined
+      motivo
     }).pipe(
       tap(() => {
         this.getOperadores().subscribe();
@@ -168,8 +191,9 @@ export class OperadorService {
     );
   }
 
-  actualizarOperador(op: Operador): Observable<Operador> {
+  actualizarOperador(op: Operador, motivo?: string): Observable<Operador> {
     const payload = {
+      ...(motivo ? { motivo } : {}),
       id: String(op.id),
       nombre: op.nombre,
       cedula: op.cedula,

@@ -19,12 +19,12 @@ import {
   InformeDetalle,
   Novedad,
   OpcionAgencia,
-  OpcionSello,
   PlanAccion,
   TIPOS_INSPECCION,
   mensajeError,
 } from '../../../core/models/auditorias.model';
 import { EvidenciasFotosComponent } from '../shared/evidencias-fotos.component';
+import { InformeAdjuntosComponent } from './informe-adjuntos.component';
 import { FirmaModalComponent, type FirmaCapturada } from '../shared/firma-modal.component';
 import { FirmaImagenComponent } from '../shared/firma-imagen.component';
 import { SelectSearchComponent } from '../../../shared/components/select-search/select-search.component';
@@ -45,7 +45,7 @@ const aLocal = (iso: string) => {
 @Component({
   selector: 'app-informe-form',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, LucideAngularModule, EvidenciasFotosComponent, FirmaModalComponent, FirmaImagenComponent, SelectSearchComponent],
+  imports: [CommonModule, FormsModule, RouterLink, LucideAngularModule, EvidenciasFotosComponent, FirmaModalComponent, FirmaImagenComponent, SelectSearchComponent, InformeAdjuntosComponent],
   template: `
     <div class="space-y-5 animate-fade-in max-w-5xl mx-auto">
       <div class="flex flex-wrap items-center justify-between gap-3">
@@ -106,7 +106,8 @@ const aLocal = (iso: string) => {
                 </div>
                 <div>
                   <label class="field-label" for="f-fecha">FECHA *</label>
-                  <input id="f-fecha" type="date" class="field" [(ngModel)]="form.fecha" [disabled]="!contenidoEditable">
+                  <input id="f-fecha" type="date" class="field" [ngModel]="form.fecha" disabled aria-describedby="f-fecha-ayuda">
+                  <p id="f-fecha-ayuda" class="text-[11px] text-slate-500 mt-1">Es el día en que se crea el informe.</p>
                 </div>
                 <div>
                   <label class="field-label" for="f-num">N.º DE VISITA</label>
@@ -259,9 +260,9 @@ const aLocal = (iso: string) => {
                 <p class="text-xs text-slate-500">Registrada por {{ detalle?.calificadoPorNombre }} el {{ detalle?.calificadoEn | date:'dd/MM/yyyy HH:mm' }}.</p>
               }
 
-              <!-- El jefe de taller se elige y se valida con su contraseña: sin eso no se pasa a las firmas -->
+              <!-- El sello de la agencia se valida con su contraseña (esté o no el jefe de taller): sin eso no se pasa a las firmas -->
               <div class="rounded-xl border border-slate-200 bg-slate-50/60 p-4 space-y-3">
-                <h3 class="text-sm font-extrabold text-slate-800">Jefe de taller que firma *</h3>
+                <h3 class="text-sm font-extrabold text-slate-800">Taller que firma *</h3>
                 <div>
                   <p class="field-label" id="lbl-jefe-presente">¿Está el jefe de taller?</p>
                   <div class="grid grid-cols-2 gap-2 max-w-md" role="radiogroup" aria-labelledby="lbl-jefe-presente">
@@ -273,42 +274,35 @@ const aLocal = (iso: string) => {
                       [ngClass]="!form.jefeTallerPresente ? 'bg-slate-200 border-slate-500 text-slate-800' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'">No está</button>
                   </div>
                 </div>
-                @if (form.jefeTallerPresente) {
-                @if (!sellos.length) {
-                  <p class="text-xs font-semibold text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2.5">No hay jefes de taller configurados. Un Admin o Super Admin debe crearlos en «Configuración de sellos».</p>
-                }
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label class="field-label" for="f-jefe">Jefe de taller</label>
-                    <app-select-search [opciones]="opcionesSellos" [value]="selloElegido || null" [todasLabel]="null" [clearable]="false" placeholder="Selecciona al jefe de taller…" buscadorPlaceholder="Buscar por nombre…" ariaLabel="Jefe de taller" [disabled]="!editable || !puedeCalificar || (jefeFirmo && !!detalle?.sello?.id)" (valueChange)="elegirJefe($event)"></app-select-search>
-                  </div>
-                  <div>
-                    <label class="field-label" for="f-jefe-pass">Contraseña del jefe de taller</label>
-                    <div class="relative">
-                      <input id="f-jefe-pass" [type]="verPassword ? 'text' : 'password'" class="field pr-11" autocomplete="new-password" [(ngModel)]="passwordJefe" (ngModelChange)="errorSello = ''" (keydown.enter)="validarSello()" [disabled]="!editable || !puedeCalificar" placeholder="Se pide para firmar">
-                      <button type="button" class="absolute inset-y-0 right-0 px-3 text-slate-500 hover:text-slate-800 rounded-r-xl" (click)="verPassword = !verPassword" [attr.aria-label]="verPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'" [attr.aria-pressed]="verPassword" [title]="verPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'">
-                        <i-lucide [name]="verPassword ? 'eye-off' : 'eye'" class="w-4 h-4" aria-hidden="true"></i-lucide>
-                      </button>
-                    </div>
+                @if (selloAgencia) {
+                <p class="text-sm text-slate-700 bg-white border border-slate-200 rounded-lg p-3">
+                  Sello de la agencia: <strong>{{ selloAgencia.nombre }}</strong>.
+                  {{ form.jefeTallerPresente ? 'Firma con el nombre de su sello.' : 'El jefe de taller no estuvo: igual se pide la contraseña del sello, y en Firmas se escribe el nombre real de quien firma por el taller.' }}
+                </p>
+                <div class="max-w-md">
+                  <label class="field-label" for="f-jefe-pass">Contraseña del sello</label>
+                  <div class="relative">
+                    <input id="f-jefe-pass" [type]="verPassword ? 'text' : 'password'" class="field pr-11" autocomplete="new-password" [(ngModel)]="passwordJefe" (ngModelChange)="errorSello = ''" (keydown.enter)="validarSello()" [disabled]="!editable || !puedeCalificar" placeholder="Se pide para firmar">
+                    <button type="button" class="absolute inset-y-0 right-0 px-3 text-slate-500 hover:text-slate-800 rounded-r-xl" (click)="verPassword = !verPassword" [attr.aria-label]="verPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'" [attr.aria-pressed]="verPassword" [title]="verPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'">
+                      <i-lucide [name]="verPassword ? 'eye-off' : 'eye'" class="w-4 h-4" aria-hidden="true"></i-lucide>
+                    </button>
                   </div>
                 </div>
-                @if (selloValidado && selloElegido === detalle?.sello?.id) {
+                @if (selloValidado) {
                   <p class="text-xs font-semibold text-emerald-700 inline-flex items-center gap-1.5"><i-lucide name="check-circle" class="w-4 h-4" aria-hidden="true"></i-lucide> Validado: {{ detalle?.sello?.nombre }} el {{ detalle?.sello?.validadoEn | date:'dd/MM/yyyy HH:mm' }}.</p>
-                } @else if (jefeFirmo && detalle?.sello?.id) {
-                  <p class="text-xs font-semibold text-amber-800">Este informe ya lo firmó {{ detalle?.sello?.nombre }}: solo el mismo jefe de taller puede volver a firmarlo. Debe ingresar su contraseña otra vez.</p>
                 } @else if (jefeFirmo) {
-                  <p class="text-xs font-semibold text-amber-800">Este informe ya lo firmó {{ detalle?.sello?.nombre }} y su sello ya no existe. Elige al jefe de taller con ese mismo nombre e ingresa su contraseña.</p>
+                  <p class="text-xs font-semibold text-amber-800">El contenido o el sello cambió: hay que ingresar la contraseña otra vez y volver a firmar por el taller.</p>
                 }
                 <div class="flex flex-wrap items-center gap-2">
-                  <button type="button" class="btn btn-secondary btn-sm" (click)="validarSello()" [disabled]="validando || !selloElegido || !passwordJefe || !editable || !puedeCalificar">
+                  <button type="button" class="btn btn-secondary btn-sm" (click)="validarSello()" [disabled]="validando || !passwordJefe || !editable || !puedeCalificar">
                     <i-lucide name="lock" class="w-3.5 h-3.5" aria-hidden="true"></i-lucide> {{ validando ? 'Validando…' : 'Validar contraseña' }}
                   </button>
-                  <span class="text-xs text-slate-500">{{ !selloElegido ? 'Elige primero al jefe de taller.' : !passwordJefe ? 'Escribe la contraseña del jefe de taller para validarla.' : 'Para pasar a las firmas hay que validar al jefe de taller.' }}</span>
+                  <span class="text-xs text-slate-500">{{ !passwordJefe ? 'Escribe la contraseña del sello para validarla.' : 'Para pasar a las firmas hay que validar el sello.' }}</span>
                 </div>
                 } @else {
-                  <p class="text-sm text-slate-700 bg-white border border-slate-200 rounded-lg p-3">El jefe de taller no estuvo en la visita, así que no hay contraseña que validar. En Firmas, el taller firma escribiendo el nombre y apellido de quien lo representa.</p>
+                  <p class="text-sm text-slate-700 bg-white border border-slate-200 rounded-lg p-3">Esta agencia no tiene sello, así que no hay contraseña que validar. En Firmas, el taller firma escribiendo el nombre y apellido de quien lo representa y dibujando su firma. Un Admin puede asignarle un sello en «Configuración de sellos».</p>
                 }
-                <!-- El aviso se ve con o sin jefe de taller (p. ej. «Selecciona la calificación del servicio») -->
+                <!-- El aviso se ve con o sin sello (p. ej. «Selecciona la calificación del servicio») -->
                 @if (errorSello) { <p class="text-sm font-semibold text-rose-700 bg-rose-50 border border-rose-200 rounded-lg p-2.5" role="alert">{{ errorSello }}</p> }
               </div>
             }
@@ -336,7 +330,7 @@ const aLocal = (iso: string) => {
                         <!-- Primero se elige de la lista de la agencia (líder, backup, auxiliares); si firma otra persona, se elige «Otro» y se escribe su nombre -->
                         <app-select-search class="block mb-1.5" [opciones]="opcionesFirmanteLider" [value]="firmanteLiderValor" [todasLabel]="null" [clearable]="false" placeholder="Elige quién firma…" buscadorPlaceholder="Buscar por nombre…" ariaLabel="Quién firma como líder de bahía" (valueChange)="elegirFirmanteLider(f, $event)"></app-select-search>
                       }
-                      @if ((f.tipo === 'JEFE_TALLER' && form.jefeTallerPresente) || f.nombre) {
+                      @if (nombreFijo(f)) {
                         <input [id]="'firma-nombre-' + f.tipo" class="input w-full" [value]="nombreDe(f)" disabled>
                       } @else if (f.tipo === 'LIDER_BAHIA' && firmanteLiderValor !== OTRO_FIRMANTE && opcionesFirmanteLider.length > 1) {
                         <input [id]="'firma-nombre-' + f.tipo" class="input w-full" [value]="nombreDe(f)" disabled placeholder="Elige quién firma en la lista">
@@ -362,7 +356,7 @@ const aLocal = (iso: string) => {
               @if (hayDesactualizadas) {
                 <p class="text-xs font-semibold text-amber-900 bg-amber-50 border border-amber-200 rounded-lg p-2.5" role="status">El contenido cambió después de firmar. Las firmas marcadas «Debe firmar de nuevo» las debe repetir la misma persona que firmó la primera vez.</p>
               }
-              @if (form.jefeTallerPresente && !selloValidado) { <p class="text-xs font-semibold text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2.5">Primero valida al jefe de taller en el paso de calificación.</p> }
+              @if (requiereSello && !selloValidado) { <p class="text-xs font-semibold text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2.5">Primero valida el sello del taller en el paso de calificación.</p> }
             }
 
             @case (8) {
@@ -403,6 +397,16 @@ const aLocal = (iso: string) => {
                 </div>
               </div>
 
+              <section class="space-y-2">
+                <h3 class="text-sm font-extrabold text-slate-800">Usuarios que recibirán el informe</h3>
+                <p class="text-xs text-slate-500">Cuando el informe se apruebe, a cada uno le llega una notificación. Puedes agregar a quien quieras, de cualquier rol.</p>
+                @if (detalle) {
+                  <app-informe-adjuntos [informe]="detalle" (cambio)="detalle = $event"></app-informe-adjuntos>
+                } @else {
+                  <p class="text-xs text-slate-500">Guarda el borrador para poder adjuntar usuarios.</p>
+                }
+              </section>
+
               @if (faltantes.length) {
                 <div class="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs font-semibold text-amber-800" role="alert">
                   Para guardar el informe falta: {{ faltantes.join(', ') }}.
@@ -442,7 +446,7 @@ const aLocal = (iso: string) => {
       @if (firmando) {
         <app-firma-modal
           [titulo]="'Firma · ' + firmando.etiqueta"
-          [marcaAgua]="firmando.tipo === 'JEFE_TALLER' && form.jefeTallerPresente ? (detalle?.sello?.logo ?? null) : null"
+          [marcaAgua]="firmando.tipo === 'JEFE_TALLER' ? (detalle?.sello?.logo ?? null) : null"
           [pedirNombre]="false"
           [nombreInicial]="nombreDe(firmando)"
           (cancelar)="firmando = null"
@@ -485,9 +489,6 @@ export class InformeFormComponent implements OnInit {
   generando = false;
   detalle: InformeDetalle | null = null;
   agencias: OpcionAgencia[] = [];
-  /** Jefes de taller configurados (solo nombre) para elegir al calificar. */
-  sellos: OpcionSello[] = [];
-  selloElegido = '';
   passwordJefe = '';
   verPassword = false;
   /** Se eligió modificar un informe que ya tenía firmas (las anulará al cambiar el contenido). */
@@ -509,7 +510,18 @@ export class InformeFormComponent implements OnInit {
   get hayDesactualizadas(): boolean { return this.firmas.some((f) => f.desactualizada); }
   /** El jefe de taller ya firmó (aunque su firma esté anulada): solo ese mismo puede volver a firmar. */
   get jefeFirmo(): boolean { return this.firmas.some((f) => f.tipo === 'JEFE_TALLER' && (f.firmada || f.desactualizada)); }
-  get opcionesSellos() { return this.sellos.map((s) => ({ value: s.id, label: s.nombreCompleto })); }
+
+  /** Sello que firma los informes de la agencia elegida; nulo si no tiene (entonces no hay contraseña y el taller firma con nombre escrito). */
+  get selloAgencia(): { id: string; nombre: string } | null {
+    if (this.detalle && this.detalle.agencia.id === this.form.agenciaId) return this.detalle.selloAgencia;
+    return this.agencias.find((a) => a.id === this.form.agenciaId)?.sello ?? null;
+  }
+  get requiereSello(): boolean { return !!this.selloAgencia; }
+
+  /** El nombre de la tarjeta de firma no se escribe: el del taller con jefe presente y sello sale del sello; las demás, de quien ya firmó. */
+  nombreFijo(f: FirmaInforme): boolean {
+    return f.tipo === 'JEFE_TALLER' ? this.form.jefeTallerPresente && this.requiereSello : !!f.nombre;
+  }
 
   async desbloquear(): Promise<void> {
     const ok = await this.confirmar.pedir({
@@ -527,10 +539,6 @@ export class InformeFormComponent implements OnInit {
     this.errorSello = '';
   }
 
-  elegirJefe(id: string | null): void {
-    this.selloElegido = id ?? '';
-    this.errorSello = '';
-  }
   get firmas(): FirmaInforme[] { return this.detalle?.firmas ?? []; }
 
   /** El destinatario es solo un campo de texto: se escribe quién recibe el informe. */
@@ -545,7 +553,7 @@ export class InformeFormComponent implements OnInit {
     if (!this.form.asunto.trim()) f.push('el asunto');
     if (!this.form.desarrollo.trim() && !this.form.novedades.length) f.push('el desarrollo o al menos una novedad');
     if (!this.form.calificacion) f.push('la calificación del servicio');
-    if (this.form.jefeTallerPresente && !this.selloValidado) f.push('el jefe de taller con su contraseña');
+    if (this.requiereSello && !this.selloValidado) f.push('el sello del taller con su contraseña');
     for (const x of this.firmas) {
       if (x.tipo === 'RECEPCION') continue; // la firma el Admin al aprobar
       if (!x.firmada) f.push(`la firma de ${x.etiqueta.toLowerCase()}`);
@@ -583,7 +591,6 @@ export class InformeFormComponent implements OnInit {
       const opciones = await firstValueFrom(this.api.getOpciones());
       this.agencias = opciones.agencias;
       if (this.agencias.length === 1) this.form.agenciaId = this.agencias[0].id;
-      if (this.puedeCalificar) this.sellos = await firstValueFrom(this.api.getSellos()).catch(() => []);
       const id = this.route.snapshot.paramMap.get('id');
       if (id) {
         const d = await firstValueFrom(this.api.getDetalle(id));
@@ -605,7 +612,6 @@ export class InformeFormComponent implements OnInit {
 
   private aplicar(d: InformeDetalle): void {
     this.detalle = d;
-    if (d.sello?.id) this.selloElegido = d.sello.id;
     this.form = {
       agenciaId: d.agencia.id,
       destinatarioId: '',
@@ -640,9 +646,9 @@ export class InformeFormComponent implements OnInit {
   irA(n: number): void {
     const destino = Math.min(this.pasos.length, Math.max(1, n));
     // Las firmas y el guardado exigen al jefe de taller validado con su contraseña.
-    if (destino > 6 && this.editable && this.form.jefeTallerPresente && !this.selloValidado) {
+    if (destino > 6 && this.editable && this.requiereSello && !this.selloValidado) {
       this.paso = 6;
-      this.errorSello = 'Selecciona al jefe de taller e ingresa su contraseña para pasar a las firmas.';
+      this.errorSello = 'Ingresa la contraseña del sello del taller para pasar a las firmas.';
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
@@ -650,20 +656,19 @@ export class InformeFormComponent implements OnInit {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  /** «Siguiente»: desde la calificación valida al jefe de taller (si ya escribió su contraseña) antes de pasar a las firmas. */
+  /** «Siguiente»: desde la calificación valida el sello de la agencia (con la contraseña escrita) antes de pasar a las firmas. */
   async siguiente(): Promise<void> {
     if (this.paso === 6 && this.editable) {
       if (this.puedeCalificar && !this.form.calificacion) { this.errorSello = 'Selecciona la calificación del servicio.'; return; }
-      if (!this.form.jefeTallerPresente) {
-        // Sin jefe de taller no hay contraseña que validar: se guarda que no estuvo y se sigue a las firmas.
+      if (!this.requiereSello) {
+        // Agencia sin sello: no hay contraseña que validar. Se guarda lo escrito y se sigue a las firmas.
         if (!(await this.guardarSiCambio())) return;
         this.irA(this.paso + 1);
         return;
       }
-      const yaValidado = this.selloValidado && this.selloElegido === this.detalle?.sello?.id && !this.passwordJefe;
+      const yaValidado = this.selloValidado && !this.passwordJefe;
       if (!yaValidado) {
-        if (!this.selloElegido) { this.errorSello = 'Selecciona al jefe de taller.'; return; }
-        if (!this.passwordJefe) { this.errorSello = 'Ingresa la contraseña del jefe de taller para continuar.'; return; }
+        if (!this.passwordJefe) { this.errorSello = 'Ingresa la contraseña del sello del taller para continuar.'; return; }
         if (!(await this.validarSello())) return;
       }
     }
@@ -672,7 +677,7 @@ export class InformeFormComponent implements OnInit {
 
   /** Guarda el borrador (con la calificación) y valida al jefe de taller con su contraseña. */
   async validarSello(): Promise<boolean> {
-    if (!this.selloElegido || !this.passwordJefe || this.validando) return false;
+    if (!this.requiereSello || !this.passwordJefe || this.validando) return false;
     this.errorSello = '';
     if (!(await this.guardarSiCambio()) || !this.detalle) {
       this.errorSello = this.errorGuardado || 'No se pudo guardar el borrador antes de validar la contraseña.';
@@ -680,12 +685,12 @@ export class InformeFormComponent implements OnInit {
     }
     this.validando = true;
     try {
-      this.detalle = await firstValueFrom(this.api.validarSello(this.detalle.id, this.selloElegido, this.passwordJefe));
+      this.detalle = await firstValueFrom(this.api.validarSello(this.detalle.id, this.passwordJefe));
       this.passwordJefe = '';
-      this.toast.success('Jefe de taller validado', `${this.detalle.sello?.nombre ?? ''} puede firmar el informe.`);
+      this.toast.success('Sello validado', `${this.detalle.sello?.nombre ?? ''}: ya se puede firmar por el taller.`);
       return true;
     } catch (e) {
-      this.errorSello = mensajeError(e, 'No se pudo validar al jefe de taller.');
+      this.errorSello = mensajeError(e, 'No se pudo validar el sello.');
       return false;
     } finally {
       this.validando = false;
@@ -695,7 +700,7 @@ export class InformeFormComponent implements OnInit {
   async abrirFirma(f: FirmaInforme): Promise<void> {
     // Lo que se haya cambiado en el formulario (por ejemplo, que el jefe no estuvo) se guarda antes de firmar.
     if (!(await this.guardarSiCambio()) || !this.detalle) return;
-    if (f.tipo === 'JEFE_TALLER' && this.form.jefeTallerPresente && !this.selloValidado) { this.errorGuardado = 'Primero valida al jefe de taller en el paso de calificación.'; return; }
+    if (f.tipo === 'JEFE_TALLER' && this.requiereSello && !this.selloValidado) { this.errorGuardado = 'Primero valida el sello del taller en el paso de calificación.'; return; }
     if (!this.nombreDe(f).trim()) { this.errorGuardado = 'Escribe el nombre de quien firma.'; return; }
     this.errorGuardado = '';
     this.firmando = f;
@@ -733,7 +738,11 @@ export class InformeFormComponent implements OnInit {
 
   /** Nombre que va en la firma: el de quien ya firmó, el del sello del taller, lo que se escribió o el sugerido. */
   nombreDe(f: FirmaInforme): string {
-    if (f.tipo === 'JEFE_TALLER' && this.form.jefeTallerPresente) return this.detalle?.sello?.nombre ?? '';
+    if (f.tipo === 'JEFE_TALLER') {
+      if (this.nombreFijo(f)) return this.detalle?.sello?.nombre ?? '';
+      // Quien firma por el taller puede cambiar el nombre aunque ya haya firmado antes.
+      return this.nombresFirmantes[f.tipo] ?? f.nombre;
+    }
     if (f.nombre) return f.nombre;
     return this.nombresFirmantes[f.tipo] ?? this.nombreSugerido(f);
   }
@@ -756,7 +765,7 @@ export class InformeFormComponent implements OnInit {
     if (!f || !this.detalle) return;
     try {
       // Solo cambia el estado de las firmas: lo que se haya escrito en el formulario sin guardar no se toca.
-      this.detalle = await firstValueFrom(this.api.firmar(this.detalle.id, f.tipo, c.imagen, f.tipo === 'JEFE_TALLER' && this.form.jefeTallerPresente ? undefined : this.nombreDe(f).trim()));
+      this.detalle = await firstValueFrom(this.api.firmar(this.detalle.id, f.tipo, c.imagen, this.nombreFijo(f) ? undefined : this.nombreDe(f).trim()));
       this.toast.success('Firma registrada', `Firma de ${f.etiqueta.toLowerCase()} guardada.`);
       this.firmando = null;
     } catch (e) {

@@ -237,8 +237,8 @@ export class EvidenciaSelectorComponent implements OnDestroy {
   @Input() fase: 'reporte' | 'reparacion' = 'reporte';
   /** true (por defecto): exige al menos 1 foto/video. */
   @Input() requiereMultimedia = true;
-  /** true (por defecto): exige exactamente 1 PDF. Al reportar una falla no se exige. */
-  @Input() requiereDocumento = true;
+  /** true: exige exactamente 1 PDF. Por defecto el PDF es opcional (máximo 1). */
+  @Input() requiereDocumento = false;
   @Input() deshabilitado = false;
 
   @Output() cambio = new EventEmitter<void>();

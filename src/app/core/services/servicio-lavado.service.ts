@@ -65,6 +65,7 @@ export class ServicioLavadoService {
     };
 
     const horaIngreso = s.horaIngreso ? new Date(s.horaIngreso).toTimeString().substring(0, 5) : '08:00';
+    const horaInicio = s.horaInicio ? new Date(s.horaInicio).toTimeString().substring(0, 5) : '--:--';
     const horaSalida = s.horaSalida ? new Date(s.horaSalida).toTimeString().substring(0, 5) : '--:--';
     const fecha = s.horaIngreso ? new Date(s.horaIngreso).toISOString().split('T')[0] : (s.fecha || new Date().toISOString().split('T')[0]);
 
@@ -131,6 +132,7 @@ export class ServicioLavadoService {
       operadoresAsignados,
       fecha,
       horaIngreso,
+      horaInicio,
       horaSalida,
       duracionMinutos,
       duracionFormateada,

@@ -313,6 +313,10 @@ export class DespachoMasivoModalComponent implements OnInit {
 
   despachar(): void {
     if (this.enviando || this.hayErrores || this.seleccionadas.length === 0) return;
+    if (this.operaDesdeAgencia && this.tipo === 'agencia') {
+      this.toast.warning('Usa la pantalla de Envíos', 'Los envíos entre agencias se crean desde Envíos: llevan foto de lo que sale y los aprueba un administrador o el coordinador de bodega.');
+      return;
+    }
     const detalles = this.seleccionadas.map((l) => ({ insumoId: l.insumoId, cantidadEnviada: Math.round(Number(l.cantidad)) }));
     const nota = this.observacion.trim() || `Despacho en masa a ${this.destinoNombre}`;
     const origenBodegaId = this.operaDesdeAgencia ? undefined : this.origenSeleccionado || undefined;

@@ -1,5 +1,5 @@
 import { GrupoReporte, ReporteGenerado, TotalReporte } from '../../core/models/reportes.model';
-import { construirExcel, construirPdf, encabezadoDe, fechaCorta, formatearCelda, nombreArchivo, nombreHoja } from './reportes-export';
+import { construirExcel, construirPdf, construirPdfsServicios, encabezadoDe, encabezadoReducido, fechaCorta, formatearCelda, nombreArchivo, nombreHoja } from './reportes-export';
 
 const totales = (n: number): TotalReporte[] => [{ clave: 'total', etiqueta: 'Total de registros', valor: n, tipo: 'numero' }];
 
@@ -43,6 +43,39 @@ function reporte(plantilla: ReporteGenerado['reporte']['plantilla'], grupos: Gru
   };
 }
 
+/** Servicios de lavado de dos clientes (Toyota con dos agencias y Hino con una), con precio. */
+function reporteServicios(): ReporteGenerado {
+  const fila = (ot: string, fecha: string, modelo: string, servicio: string, precio: number) => ({ ot, fecha, horaIngreso: '08:00', modelo, servicio, precio });
+  const g = (titulo: string, cliente: string, filas: ReturnType<typeof fila>[]): GrupoReporte => ({
+    clave: titulo, titulo, tipo: 'AGENCIA', region: 'Sierra', cliente, agencia: titulo, responsable: '',
+    bloques: [{ clave: 'todo', etiqueta: '', filas, totales: totales(filas.length) }],
+    totales: totales(filas.length),
+  });
+  const grupos = [
+    g('TJ Manta', 'Toyota', [fila('OT-1', '2026-09-16', 'H300', 'LAVADO COMPLETO', 10), fila('OT-2', '2026-09-17', 'BUS', 'LAVADO DELUXE', 20)]),
+    g('TJ Cuenca', 'Toyota', [fila('OT-3', '2026-09-16', 'H300', 'LAVADO DELUXE', 15)]),
+    g('HN Quito', 'Hino', [fila('OT-4', '2026-09-16', 'H500', 'LAVADO COMPLETO', 8)]),
+  ];
+  return {
+    reporte: { id: 'servicios-lavado', nombre: 'Servicios de lavado', modulo: 'Servicios de lavado', plantilla: 'SERVICIOS', periodo: true, agrupar: 'AGENCIA' },
+    generadoEn: '2026-10-14T16:00:00.000Z',
+    generadoPor: 'Ana Pérez',
+    filtros: { region: 'Todas', cliente: 'Todos', agencias: 'Todas (3)', periodo: 'Septiembre 2026', division: 'UNICO', extras: [{ etiqueta: 'Servicios', valor: 'Generales y especiales' }] },
+    columnas: [
+      { clave: 'ot', titulo: 'OT', tipo: 'texto', ancho: 11 },
+      { clave: 'fecha', titulo: 'Fecha', tipo: 'fecha', ancho: 11 },
+      { clave: 'horaIngreso', titulo: 'Ingreso', tipo: 'hora', ancho: 9.5 },
+      { clave: 'modelo', titulo: 'Modelo', tipo: 'texto', ancho: 10 },
+      { clave: 'servicio', titulo: 'Tipo de servicio', tipo: 'texto', ancho: 13 },
+      { clave: 'precio', titulo: 'Precio', tipo: 'dinero', ancho: 9 },
+    ],
+    grupos,
+    totales: totales(4),
+    totalFilas: 4,
+    umbrales: { PDF: 2000, EXCEL: 20000 },
+  };
+}
+
 describe('reportes-export', () => {
   describe('formato de valores', () => {
     it('muestra las fechas como día/mes/año', () => {
@@ -63,23 +96,21 @@ describe('reportes-export', () => {
   });
 
   describe('encabezado', () => {
-    it('las plantillas de control llevan taller, responsable y la leyenda de realizado y no realizado', () => {
-      const r = reporte('CONTROL_ESPECIAL', [grupo('Agencia Norte', 2)]);
-      const enc = encabezadoDe(r, r.grupos[0]);
-      expect(enc.titulo).toBe('CONTROL DE SERVICIOS ESPECIALES');
-      const por = Object.fromEntries(enc.pares.map((p) => [p.etiqueta, p]));
-      expect(por['TALLER'].valor).toBe('Agencia Norte');
-      expect(por['RESPONSABLE'].valor).toBe('Luis Mora');
-      expect(por['REALIZADO'].marca).toBe('SI');
-      expect(por['NO REALIZADO'].marca).toBe('NO');
-      expect(por['REGIÓN'].valor).toBe('Sierra');
-      expect(por['CLIENTE'].valor).toBe('Toyota');
-      expect(por['DIGITALIZADO POR'].valor).toContain('Ana Pérez');
+    it('el reporte de servicios lleva título, cliente, periodo y quién lo generó, sin agencia, responsable ni aprobador', () => {
+      const r = reporte('SERVICIOS', [grupo('Agencia Norte', 2)]);
+      const enc = encabezadoReducido(r, 'Toyota');
+      expect(enc.titulo).toBe('CONTROL DE SERVICIOS GENERALES Y ESPECIALES');
+      const etiquetas = enc.pares.map((p) => p.etiqueta);
+      expect(etiquetas).toEqual(['CLIENTE', 'PERIODO', 'GENERADO POR']);
+      expect(enc.pares.find((p) => p.etiqueta === 'GENERADO POR')!.valor).toContain('Ana Pérez');
     });
 
-    it('el control general usa su propio título', () => {
-      const r = reporte('CONTROL_GENERAL', [grupo('Agencia Norte', 1)]);
-      expect(encabezadoDe(r, r.grupos[0]).titulo).toBe('CONTROL DE SERVICIOS GENERALES');
+    it('el título sigue a lo que se sacó: generales o especiales', () => {
+      const r = reporte('SERVICIOS', [grupo('Agencia Norte', 1)]);
+      r.filtros.extras = [{ etiqueta: 'Servicios', valor: 'Especiales' }];
+      expect(encabezadoReducido(r, 'Toyota').titulo).toBe('CONTROL DE SERVICIOS ESPECIALES');
+      r.filtros.extras = [{ etiqueta: 'Servicios', valor: 'Generales' }];
+      expect(encabezadoReducido(r, 'Toyota').titulo).toBe('CONTROL DE SERVICIOS GENERALES');
     });
 
     it('los demás reportes llevan agencia, región, cliente y periodo', () => {
@@ -108,25 +139,89 @@ describe('reportes-export', () => {
   });
 
   describe('archivos', () => {
-    it('el Excel lleva una hoja por agencia y una de resumen', async () => {
-      const wb = await construirExcel(reporte('CONTROL_ESPECIAL', [grupo('Agencia Norte', 3), grupo('Agencia Sur', 2)]), null);
-      expect(wb.worksheets.map((w: any) => w.name)).toEqual(['Agencia Norte', 'Agencia Sur', 'Resumen']);
+    it('los reportes de tabla salen en una sola hoja continua con filtros, la agencia a la izquierda y el encabezado congelado', async () => {
+      const wb = await construirExcel(reporte('TABLA', [grupo('Agencia Norte', 3), grupo('Agencia Sur', 2)]), null);
+      expect(wb.worksheets.map((w: any) => w.name)).toEqual(['Servicios especiales', 'Resumen']);
+      const ws = wb.worksheets[0];
+      const filaEnc = 2 + 3 + 1; // título + cliente, periodo y generado por + una fila en blanco
+      expect(ws.getCell(filaEnc, 1).value).toBe('AGENCIA');
+      expect(ws.getCell(filaEnc + 1, 1).value).toBe('Agencia Norte');
+      expect(ws.getCell(filaEnc + 4, 1).value).toBe('Agencia Sur');
+      expect(ws.autoFilter).toBeTruthy();
+      expect(ws.views[0].state).toBe('frozen');
+      expect((ws.views[0] as any).ySplit).toBe(filaEnc);
     });
 
     it('con una sola agencia no agrega resumen', async () => {
       const wb = await construirExcel(reporte('TABLA', [grupo('Agencia Norte', 3)]), null);
-      expect(wb.worksheets.map((w: any) => w.name)).toEqual(['Agencia Norte']);
+      expect(wb.worksheets.map((w: any) => w.name)).toEqual(['Servicios especiales']);
+    });
+
+    it('servicios de lavado: una hoja por cliente, con la tabla larga y las cuatro tablas resumen a la derecha', async () => {
+      const wb = await construirExcel(reporteServicios(), null);
+      expect(wb.worksheets.map((w: any) => w.name)).toEqual(['Hino', 'Toyota']);
+      const ws = wb.worksheets[1];
+      const filaEnc = 2 + 3 + 1;
+      // La agencia es la primera columna y las demás columnas siguen igual.
+      expect(ws.getCell(filaEnc, 1).value).toBe('TALLER');
+      expect(ws.getCell(filaEnc, 2).value).toBe('OT');
+      expect(ws.autoFilter).toBeTruthy();
+      // Tablas a la derecha: con precios salen las cuatro.
+      const textos: string[] = [];
+      ws.eachRow((fila: any) => fila.eachCell((c: any) => { if (typeof c.value === 'string') textos.push(c.value); }));
+      for (const t of ['SERVICIOS POR FECHA', 'SERVICIOS POR MODELO', 'MONTO POR FECHA', 'MONTO POR TIPO DE SERVICIO']) expect(textos).toContain(t);
+      // Las celdas de las tablas son fórmulas que respetan el filtro.
+      let formulas = 0;
+      ws.eachRow((fila: any) => fila.eachCell((c: any) => { if (c.value && typeof c.value === 'object' && c.value.formula?.includes('SUBTOTAL(103')) formulas++; }));
+      expect(formulas).toBeGreaterThan(0);
+    });
+
+    it('servicios de lavado sin permiso de precios: sin columna Precio ni tablas de dinero', async () => {
+      const r = reporteServicios();
+      r.columnas = r.columnas.filter((c) => c.clave !== 'precio');
+      const ws = (await construirExcel(r, null)).worksheets[1];
+      const textos: string[] = [];
+      ws.eachRow((fila: any) => fila.eachCell((c: any) => { if (typeof c.value === 'string') textos.push(c.value); }));
+      expect(textos).toContain('SERVICIOS POR FECHA');
+      expect(textos).not.toContain('MONTO POR FECHA');
+      expect(textos).not.toContain('MONTO POR TIPO DE SERVICIO');
+      expect(textos).not.toContain('PRECIO');
+    });
+
+    it('el libro de servicios de lavado se puede guardar como archivo .xlsx válido', async () => {
+      const wb = await construirExcel(reporteServicios(), null);
+      const buffer = await wb.xlsx.writeBuffer();
+      expect(buffer.byteLength).toBeGreaterThan(2000);
+      // Un .xlsx es un ZIP: empieza con «PK».
+      expect(String.fromCharCode(...new Uint8Array(buffer).slice(0, 2))).toBe('PK');
+    });
+
+    it('si el reporte se dividió por periodo, hay una hoja por cliente y periodo', async () => {
+      const r = reporteServicios();
+      const g = r.grupos[0];
+      g.bloques.push({ ...g.bloques[0], clave: '2026-02', etiqueta: 'Febrero 2026' });
+      const nombres = (await construirExcel(r, null)).worksheets.map((w: any) => w.name);
+      expect(nombres.filter((n: string) => n.startsWith('Toyota'))).toHaveSize(2);
     });
 
     it('el PDF abre cada agencia en su propia página y agrega el resumen', async () => {
-      const doc = await construirPdf(reporte('CONTROL_ESPECIAL', [grupo('Agencia Norte', 3), grupo('Agencia Sur', 2)]), null);
+      const doc = await construirPdf(reporte('TABLA', [grupo('Agencia Norte', 3), grupo('Agencia Sur', 2)]), null);
       expect(doc.getNumberOfPages()).toBeGreaterThanOrEqual(3);
+    });
+
+    it('servicios de lavado: un PDF por cliente con las OT y las tablas resumen al final', async () => {
+      const pdfs = await construirPdfsServicios(reporteServicios(), null);
+      expect(pdfs.map((p) => p.cliente)).toEqual(['Hino', 'Toyota']);
+      expect(pdfs[1].doc.getNumberOfPages()).toBeGreaterThanOrEqual(2);
     });
 
     it('un reporte sin registros igual genera sus archivos', async () => {
       const vacio = reporte('TABLA', []);
       expect((await construirExcel(vacio, null)).worksheets).toHaveSize(1);
       expect((await construirPdf(vacio, null)).getNumberOfPages()).toBe(1);
+      const sin = reporte('SERVICIOS', []);
+      expect((await construirExcel(sin, null)).worksheets).toHaveSize(1);
+      expect((await construirPdfsServicios(sin, null))[0].doc.getNumberOfPages()).toBe(1);
     });
   });
 });

@@ -888,6 +888,13 @@ const COLUMNAS_ROLES: TableColumn[] = [
                   <option [value]="s.nombre">{{ s.nombre }}</option>
                 }
               </select>
+              @if (cambiaAgenciaForm) {
+                <label for="usuario-motivo-agencia" class="block text-xs font-bold text-slate-700 uppercase mt-2 mb-1">Motivo del cambio de agencia <span class="text-rose-500">*</span></label>
+                <input id="usuario-motivo-agencia" type="text" maxlength="300" [(ngModel)]="usuarioForm.motivoCambioAgencia" name="motivoCambioAgencia"
+                  placeholder="Ej. Traslado por cierre de agencia, cobertura..."
+                  class="w-full p-2.5 border rounded-xl text-sm">
+                <p class="text-xs text-slate-500 mt-1">Queda registrado con fecha y hora.</p>
+              }
               <p class="text-xs text-slate-500 mt-1">
                 {{ agenciaObligatoria
                   ? 'Este rol trabaja sobre los datos de su agencia: sin agencia asignada no verá ningún dato.'
@@ -1436,6 +1443,8 @@ export class UsuariosComponent implements OnInit, OnDestroy {
     cambiarPassword?: boolean;
     modalidadPulidor: ModalidadPulidor;
     servicioIds: number[];
+    /** Motivo del cambio de agencia (se pide solo al editar y cambiar la agencia). */
+    motivoCambioAgencia?: string;
   } = {
     nombre: '',
     apellido: '',
@@ -1704,6 +1713,12 @@ export class UsuariosComponent implements OnInit, OnDestroy {
   get esAuxiliarForm(): boolean {
     const rol = this.rolDeUsuario({ roleId: this.usuarioForm.roleId, rol: this.usuarioForm.rol });
     return funcionesDeRol(rol?.capacidades, rol?.codigo).has(FUNCION.AUXILIAR);
+  }
+
+  /** Agencia con la que se abrió la edición, para saber si cambia (y pedir el motivo). */
+  agenciaOriginalForm = '';
+  get cambiaAgenciaForm(): boolean {
+    return !!this.editandoUsuario && (this.usuarioForm.agencia || '') !== (this.agenciaOriginalForm || '');
   }
 
   alCambiarAgenciaForm(nombre: string): void {
@@ -2329,8 +2344,10 @@ export class UsuariosComponent implements OnInit, OnDestroy {
       confirmPassword: '',
       cambiarPassword: false,
       modalidadPulidor: u.modalidadPulidor || (agenciaActual ? 'FIJO' : 'MOVIL'),
-      servicioIds: finalServiciosPulidor
+      servicioIds: finalServiciosPulidor,
+      motivoCambioAgencia: ''
     };
+    this.agenciaOriginalForm = agenciaActual;
     this.showPassword = false;
     this.bahiasAuxiliar = [];
     this.cargarBahiasAuxiliar();
@@ -2693,6 +2710,12 @@ export class UsuariosComponent implements OnInit, OnDestroy {
           : {}),
         roleId: roleIdToSend || (this.editandoUsuario as any).roleId || undefined
       };
+
+      if (this.cambiaAgenciaForm && !this.usuarioForm.motivoCambioAgencia?.trim()) {
+        this.toastService.warning('Motivo requerido', 'Escribe el motivo del cambio de agencia.');
+        return;
+      }
+      actualizado.motivoCambioAgencia = this.cambiaAgenciaForm ? this.usuarioForm.motivoCambioAgencia?.trim() : undefined;
 
       this.guardandoUsuario = true;
       this.usuarioService.actualizarUsuario(actualizado).pipe(finalize(() => { this.guardandoUsuario = false; })).subscribe({

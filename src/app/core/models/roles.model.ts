@@ -274,7 +274,7 @@ export const ROLE_LABELS: Record<string, string> = {
   [Role.COORD_SERVICIOS_ESPECIALES]: 'Coordinador de Servicios Especiales',
   [Role.PULIDOR]: 'Pulidor',
   [Role.COORD_MANTENIMIENTO]: 'Coordinador de Mantenimiento',
-  [Role.TECNICO]: 'Técnico de Maquinaria',
+  [Role.TECNICO]: 'Asistente de Mantenimiento',
   [Role.COORD_BODEGA]: 'Coordinador de Bodega',
   [Role.ASISTENTE_BODEGA]: 'Asistente de Bodega',
 };

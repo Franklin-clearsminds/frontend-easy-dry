@@ -260,8 +260,9 @@ import { EvidenciaServicioItem, EvidenciasServicioModalComponent, FaseEvidencia,
 
           <ng-template appCell="fecha" let-item>
             <div class="text-xs font-mono">
-                                <p class="text-slate-700 font-semibold">Ing: {{ item.horaIngreso || '08:30' }}</p>
-                                <p class="text-slate-500">Sal: {{ item.horaSalida || '--:--' }}</p>
+                                <p class="text-slate-700 font-semibold">Ing: {{ item.horaIngreso || '--:--' }}</p>
+                                <p class="text-slate-500">Ini: {{ item.horaInicio || '--:--' }}</p>
+                                <p class="text-slate-500" [title]="item.estado === 'FINALIZADO' || item.estado === 'APROBADO' ? 'Hora real de salida' : 'Hora estimada de salida'">{{ item.estado === 'FINALIZADO' || item.estado === 'APROBADO' ? 'Sal' : 'Est' }}: {{ item.horaSalida || '--:--' }}</p>
                                 <span class="mt-0.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-extrabold font-mono border"
                                   [ngClass]="{
                                     'bg-emerald-50 text-emerald-800 border-emerald-200': item.estado === 'FINALIZADO' || item.estado === 'APROBADO',
@@ -527,8 +528,8 @@ import { EvidenciaServicioItem, EvidenciasServicioModalComponent, FaseEvidencia,
                                 <span class="font-mono font-extrabold text-xs text-amber-900 bg-amber-100 px-2.5 py-1 rounded-lg block w-fit border border-amber-300">
                                   {{ extra.ordenTrabajoOT || extra.codigoSE }}
                                 </span>
-                                <span class="text-xs text-slate-500 font-mono mt-0.5 block" title="Fecha y hora de creación">
-                                  Creada {{ (extra.createdAt || extra.fechaProgramada) | date:'dd/MM/yyyy HH:mm' }}
+                                <span class="text-xs text-slate-500 font-mono mt-0.5 block" title="Fecha y hora de registro: la de creación, o la de inicio si la registró el propio pulidor">
+                                  {{ extra.creadoPorOperador ? 'Registrada' : 'Creada' }} {{ (extra.registradoEn || extra.createdAt || extra.fechaProgramada) | date:'dd/MM/yyyy HH:mm' }}
                                 </span>
           </ng-template>
 
@@ -583,6 +584,14 @@ import { EvidenciaServicioItem, EvidenciasServicioModalComponent, FaseEvidencia,
                   <span><span class="font-semibold">Asignado:</span> {{ nombre }}</span>
                 </div>
               }
+            </div>
+          </ng-template>
+
+          <ng-template appCell="horarios" let-extra>
+            <div class="text-xs font-mono" title="Hora en que se registró la OT y en que se registraron las evidencias de inicio y de fin">
+              <p class="text-slate-700 font-semibold">Reg: {{ horaDeIso(extra.registradoEn || extra.createdAt) }}</p>
+              <p class="text-slate-500">Ini: {{ horaDeIso(extra.fechaInicio) }}</p>
+              <p class="text-slate-500">Fin: {{ horaDeIso(extra.fechaFin) }}</p>
             </div>
           </ng-template>
 
@@ -784,6 +793,12 @@ import { EvidenciaServicioItem, EvidenciasServicioModalComponent, FaseEvidencia,
                 <div class="text-xs text-slate-600 flex items-center gap-1 mb-2">
                   <i-lucide aria-hidden="true" name="building-2" class="w-3.5 h-3.5 text-slate-400 shrink-0"></i-lucide>
                   <span>{{ extra.agenciaNombre || extra.agencia?.nombre || 'Sede Zonal' }}</span>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-x-3 mb-2 text-xs font-mono text-slate-600" title="Hora de registro de la OT y de sus evidencias de inicio y fin">
+                  <span>Reg: {{ horaDeIso(extra.registradoEn || extra.createdAt) }}</span>
+                  <span>Ini: {{ horaDeIso(extra.fechaInicio) }}</span>
+                  <span>Fin: {{ horaDeIso(extra.fechaFin) }}</span>
                 </div>
 
                 @if ((extra.tiempoPausaTotalSeg && extra.tiempoPausaTotalSeg > 0) || extra.tiempoEfectivoFormateado) {
@@ -2075,8 +2090,8 @@ import { EvidenciaServicioItem, EvidenciasServicioModalComponent, FaseEvidencia,
             <!-- Fechas y horas: creación, inicio y fin -->
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                <span class="block text-[11px] text-slate-500 font-bold uppercase mb-0.5">Creada</span>
-                <span class="font-mono font-bold text-slate-800 text-xs">{{ servicioEspecialSeleccionado.createdAt ? (servicioEspecialSeleccionado.createdAt | date:'dd/MM/yyyy HH:mm') : '-' }}</span>
+                <span class="block text-[11px] text-slate-500 font-bold uppercase mb-0.5">{{ servicioEspecialSeleccionado.creadoPorOperador ? 'Registrada (al iniciar)' : 'Creada' }}</span>
+                <span class="font-mono font-bold text-slate-800 text-xs">{{ (servicioEspecialSeleccionado.registradoEn || servicioEspecialSeleccionado.createdAt) ? ((servicioEspecialSeleccionado.registradoEn || servicioEspecialSeleccionado.createdAt) | date:'dd/MM/yyyy HH:mm') : '-' }}</span>
                 @if (servicioEspecialSeleccionado.creadoPorNombre) {
                   <p class="text-xs text-slate-500 mt-0.5">Por: {{ servicioEspecialSeleccionado.creadoPorNombre }}</p>
                 }
@@ -2985,6 +3000,7 @@ export class ServiciosComponent implements OnInit, OnDestroy {
     { key: 'agencia', label: 'Agencia / Sucursal', sortable: true },
     { key: 'region', label: 'Región', sortable: true },
     { key: 'operador', label: 'Pulidor Responsable', sortable: true },
+    { key: 'horarios', label: 'Horarios', align: 'center' },
     { key: 'tiempoPausa', label: 'T. Pausa', sortable: true, align: 'center' },
     { key: 'tiempoEfectivo', label: 'T. Efectivo', sortable: true, align: 'center' },
     { key: 'tiempoTotal', label: 'T. Total', align: 'center' },
@@ -4700,6 +4716,14 @@ export class ServiciosComponent implements OnInit, OnDestroy {
       return !agencia || opSuc.includes(agencia) || agencia.includes(opSuc);
     });
     return ops.length > 0 ? ops : this.operadores;
+  }
+
+  /** Hora local (HH:mm) de una marca de tiempo ISO; `--:--` si aún no existe. */
+  horaDeIso(iso?: string | null): string {
+    if (!iso) return '--:--';
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '--:--';
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
   }
 
   calcularDuracion(inicio: string, fin: string): string {

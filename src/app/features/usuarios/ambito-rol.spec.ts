@@ -95,7 +95,7 @@ describe('construirNotaAmbito', () => {
       ['COORD_SERVICIOS_ESPECIALES', 'Coordinador de Servicios Especiales', 'GLOBAL'],
       ['PULIDOR', 'Pulidor', 'AGENCIA'],
       ['COORD_MANTENIMIENTO', 'Coordinador de Mantenimiento', 'REGION'],
-      ['TECNICO', 'Técnico de Maquinaria', 'REGION'],
+      ['TECNICO', 'Asistente de Mantenimiento', 'REGION'],
       ['COORD_BODEGA', 'Coordinador de Bodega', 'GLOBAL'],
       ['ASISTENTE_BODEGA', 'Asistente de Bodega', 'REGION'],
     ];

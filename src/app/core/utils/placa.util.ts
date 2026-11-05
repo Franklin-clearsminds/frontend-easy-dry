@@ -1,4 +1,7 @@
-export type TipoPlaca = 'PARTICULAR' | 'MOTO' | 'INVALIDA';
+export type TipoPlaca = 'PARTICULAR' | 'MOTO' | 'SIN_PLACA' | 'INVALIDA';
+
+/** Vehículo nuevo que aún no tiene placa. */
+export const SIN_PLACA = 'S/P';
 
 export interface ResultadoPlaca {
   placa: string;
@@ -41,6 +44,8 @@ const RE_MOTO = /^[A-Z]{3}-\d{3}$/;
 
 /** Normaliza a AAA-1234 / AAA-123. */
 export function formatearPlaca(valor: string): string {
+  // "S/" y "S/P" se conservan tal cual; sin la barra, "SP" sigue siendo el inicio de una placa normal.
+  if (/^\s*S\s*\/\s*P?\s*$/i.test(valor || '')) return /P/i.test(valor) ? SIN_PLACA : 'S/';
   const raw = (valor || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
   let letras = '';
   let numeros = '';
@@ -57,6 +62,9 @@ export function formatearPlaca(valor: string): string {
 
 export function validarPlaca(valor: string): ResultadoPlaca {
   const placa = formatearPlaca(valor);
+  if (placa === SIN_PLACA) {
+    return { placa, valida: true, tipo: 'SIN_PLACA', mensaje: 'Vehículo nuevo sin placa' };
+  }
   if (!placa) {
     return { placa: '', valida: false, tipo: 'INVALIDA', mensaje: 'Ingrese la placa del vehículo.' };
   }
@@ -69,7 +77,7 @@ export function validarPlaca(valor: string): ResultadoPlaca {
       placa,
       valida: false,
       tipo: 'INVALIDA',
-      mensaje: 'Formato inválido. Use AAA-1234 (auto) o AAA-123 (moto), según ANT Ecuador.'
+      mensaje: 'Formato inválido. Use AAA-1234 (auto) o AAA-123 (moto), según ANT Ecuador, o S/P si es un vehículo nuevo sin placa.'
     };
   }
 

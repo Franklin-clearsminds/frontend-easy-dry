@@ -21,6 +21,7 @@ import {
   FilaReporte,
   FiltrosReporte,
   GrupoReporte,
+  CategoriaServicios,
   ModoPeriodo,
   OpcionesReportes,
   PeriodoReporte,
@@ -148,26 +149,42 @@ const hoyLocal = (): string => {
                   </div>
                 }
               }
+              <div class="max-w-xs">
+                <label class="field-label" for="r-division">Separar el reporte (y el Excel) por</label>
+                <select id="r-division" class="field" name="division" [(ngModel)]="division">
+                  <option value="">Automático</option>
+                  <option value="UNICO">Sin separar</option>
+                  <option value="DIA">Días</option>
+                  <option value="SEMANA">Semanas</option>
+                  <option value="MES">Meses</option>
+                </select>
+              </div>
               <p class="text-xs text-slate-500">
-                {{ modo === 'ANIO' || modo === 'ANIO_DE' ? 'El reporte se divide por meses.' : modo === 'MES' || modo === 'MES_DE' ? 'El reporte se divide por semanas.' : modo === 'SEMANA' || modo === 'SEMANA_DE' ? 'El reporte se divide por días.' : modo === 'RANGO' ? 'Un rango largo se divide por meses, uno corto por semanas y una semana o menos por días.' : 'Un solo día no se divide.' }}
+                {{ division ? 'Se separa por ' + ({ UNICO: 'nada: todo junto', DIA: 'días', SEMANA: 'semanas', MES: 'meses' }[division]) + '.' : modo === 'ANIO' || modo === 'ANIO_DE' ? 'El reporte se divide por meses.' : modo === 'MES' || modo === 'MES_DE' ? 'El reporte no se divide.' : modo === 'SEMANA' || modo === 'SEMANA_DE' ? 'El reporte se divide por días.' : modo === 'RANGO' ? 'Un rango largo se divide por meses, una semana o menos por días y el resto no se divide.' : 'Un solo día no se divide.' }}
               </p>
             </div>
           }
 
           @if (reporte && reporte.extras.length) {
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-              @if (reporte.extras.includes('estado')) {
+              @if (reporte.extras.includes('categoria') && reporte.categorias?.length) {
+                <div><label class="field-label" for="r-categoria">Servicios</label>
+                  <select id="r-categoria" class="field select-chevron" name="categoria" [(ngModel)]="categoria" (ngModelChange)="estado = ''">
+                    @for (c of reporte.categorias; track c.valor) { <option [value]="c.valor">{{ c.etiqueta }}</option> }
+                  </select></div>
+              }
+              @if (reporte.extras.includes('estado') && categoriaActual !== 'AMBOS') {
                 <div><label class="field-label" for="r-estado">Estado</label>
                   <select id="r-estado" class="field select-chevron" name="estado" [(ngModel)]="estado">
                     <option value="">{{ reporte.id === 'alertas-stock' ? 'Abiertas (pendientes y en proceso)' : reporte.id === 'retos' ? 'Activos' : 'Todos' }}</option>
-                    @for (e of reporte.estados; track e.valor) { <option [value]="e.valor">{{ e.etiqueta }}</option> }
+                    @for (e of estadosDelReporte; track e.valor) { <option [value]="e.valor">{{ e.etiqueta }}</option> }
                   </select></div>
               }
-              @if (reporte.extras.includes('lavador')) {
+              @if (reporte.extras.includes('lavador') && categoriaActual !== 'ESPECIAL') {
                 <div><label class="field-label" id="r-lavador-l">Lavador</label>
                   <app-select-search [opciones]="opcionesLavador" [value]="lavadorId || null" todasLabel="Todos" placeholder="Todos" buscadorPlaceholder="Buscar lavador…" ariaLabel="Lavador" (valueChange)="lavadorId = $event ?? ''"></app-select-search></div>
               }
-              @if (reporte.extras.includes('pulidor')) {
+              @if (reporte.extras.includes('pulidor') && categoriaActual !== 'GENERAL') {
                 <div><label class="field-label" id="r-pulidor-l">Pulidor</label>
                   <app-select-search [opciones]="opcionesPulidor" [value]="pulidorId || null" todasLabel="Todos" placeholder="Todos" buscadorPlaceholder="Buscar pulidor…" ariaLabel="Pulidor" (valueChange)="pulidorId = $event ?? ''"></app-select-search></div>
               }
@@ -184,6 +201,10 @@ const hoyLocal = (): string => {
                     <option value="">Todos</option>
                     @for (s of reporte.semaforos; track s.valor) { <option [value]="s.valor">{{ s.etiqueta }}</option> }
                   </select></div>
+              }
+              @if (reporte.extras.includes('productoFiltro')) {
+                <div class="md:col-span-2"><label class="field-label" id="r-prodf-l">Producto</label>
+                  <app-select-search [opciones]="opcionesProducto" [value]="productoId || null" todasLabel="Todos los productos" placeholder="Todos los productos" buscadorPlaceholder="Buscar producto…" ariaLabel="Producto" (valueChange)="productoId = $event ?? ''"></app-select-search></div>
               }
               @if (reporte.extras.includes('producto')) {
                 <div class="md:col-span-2"><label class="field-label" id="r-prod-l">Producto <span class="text-rose-600">*</span></label>
@@ -429,9 +450,12 @@ export class ReportesComponent implements OnInit {
   desde = hoyLocal();
   hasta = hoyLocal();
   estado = '';
+  /** Servicios de lavado: vacío = la más amplia que el rol permite. */
+  categoria: CategoriaServicios | '' = '';
   lavadorId = '';
   pulidorId = '';
   productoId = '';
+  division: '' | 'UNICO' | 'DIA' | 'SEMANA' | 'MES' = '';
   ubicacion = '';
   semaforo = '';
 
@@ -556,7 +580,7 @@ export class ReportesComponent implements OnInit {
     const listas: ('productos' | 'lavadores' | 'pulidores')[] = [];
     if (extras.includes('lavador')) listas.push('lavadores');
     if (extras.includes('pulidor')) listas.push('pulidores');
-    if (extras.includes('producto')) listas.push('productos');
+    if (extras.includes('producto') || extras.includes('productoFiltro')) listas.push('productos');
     return listas;
   }
 
@@ -574,8 +598,24 @@ export class ReportesComponent implements OnInit {
     });
   }
 
+  /** Categoría que se aplicará: la elegida o la más amplia que el rol puede sacar. */
+  get categoriaActual(): CategoriaServicios | '' {
+    const opciones = this.reporte?.categorias ?? [];
+    if (!opciones.length) return '';
+    return opciones.some((o) => o.valor === this.categoria) ? (this.categoria as CategoriaServicios) : (opciones[opciones.length - 1].valor);
+  }
+
+  /** Estados del filtro: los de la categoría elegida (generales y especiales tienen los suyos). */
+  get estadosDelReporte(): { valor: string; etiqueta: string }[] {
+    const todos = this.reporte?.estados ?? [];
+    if (this.reporte?.id !== 'servicios-lavado') return todos;
+    const especiales = ['Pendiente', 'En Proceso', 'Completado', 'Cancelado'];
+    return this.categoriaActual === 'ESPECIAL' ? todos.filter((e) => especiales.includes(e.valor)) : todos.filter((e) => !especiales.includes(e.valor));
+  }
+
   elegirReporte(id: string): void {
     this.reporteId = id;
+    this.categoria = '';
     this.estado = '';
     this.lavadorId = '';
     this.pulidorId = '';
@@ -618,11 +658,15 @@ export class ReportesComponent implements OnInit {
     if (this.regionId) f.regionId = this.regionId;
     if (this.clienteId) f.clienteId = this.clienteId;
     if (this.agenciaId) f.agenciaIds = [this.agenciaId];
-    if (rep.periodo) f.periodo = this.periodoActual();
-    if (rep.extras.includes('estado') && this.estado) f.estado = this.estado;
-    if (rep.extras.includes('lavador') && this.lavadorId) f.lavadorId = this.lavadorId;
-    if (rep.extras.includes('pulidor') && this.pulidorId) f.pulidorId = this.pulidorId;
-    if (rep.extras.includes('producto') && this.productoId) f.productoId = this.productoId;
+    if (rep.periodo) {
+      f.periodo = this.periodoActual();
+      if (this.division) f.division = this.division;
+    }
+    if (rep.extras.includes('categoria') && this.categoriaActual) f.categoria = this.categoriaActual;
+    if (rep.extras.includes('estado') && this.estado && this.categoriaActual !== 'AMBOS') f.estado = this.estado;
+    if (rep.extras.includes('lavador') && this.lavadorId && this.categoriaActual !== 'ESPECIAL') f.lavadorId = this.lavadorId;
+    if (rep.extras.includes('pulidor') && this.pulidorId && this.categoriaActual !== 'GENERAL') f.pulidorId = this.pulidorId;
+    if ((rep.extras.includes('producto') || rep.extras.includes('productoFiltro')) && this.productoId) f.productoId = this.productoId;
     if (rep.extras.includes('ubicacion') && this.ubicacion) f.ubicacion = this.ubicacion as FiltrosReporte['ubicacion'];
     if (rep.extras.includes('semaforo') && this.semaforo) f.semaforo = this.semaforo as FiltrosReporte['semaforo'];
     return f;

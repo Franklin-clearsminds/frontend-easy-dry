@@ -2,7 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { apiUrl } from '../config/env';
-import { SelloConfig } from '../models/auditorias.model';
+import { AgenciaConSello, SelloConfig } from '../models/auditorias.model';
 
 export interface DatosSello {
   nombre: string;
@@ -11,6 +11,8 @@ export interface DatosSello {
   logo?: string;
   password?: string;
   estado?: number;
+  /** Lista completa de agencias del sello; las que no estén quedan sin sello. */
+  agenciaIds?: string[];
 }
 
 /** Sellos de los jefes de taller (solo Admin y Super Admin): nombre, apellido, logo y contraseña con la que se firma. */
@@ -21,6 +23,11 @@ export class SellosService {
 
   listar(): Observable<SelloConfig[]> {
     return this.http.post<SelloConfig[]>(apiUrl(`${this.base}/list`), {});
+  }
+
+  /** Agencias activas con el sello que tienen hoy. */
+  agencias(): Observable<AgenciaConSello[]> {
+    return this.http.post<AgenciaConSello[]>(apiUrl(`${this.base}/agencias`), {});
   }
 
   crear(datos: DatosSello & { password: string }): Observable<SelloConfig> {

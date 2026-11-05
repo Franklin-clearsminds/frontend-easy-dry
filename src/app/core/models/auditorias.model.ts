@@ -14,7 +14,7 @@ export const PRIORIDADES: { id: Prioridad; nombre: string }[] = [
 ];
 
 /** `lider`: el líder de bahía de la agencia, para marcarlo solo al elegirla. */
-export interface OpcionAgencia { id: string; codigo: string; nombre: string; lider?: { id: string; nombre: string } | null; auxiliar?: { id: string; nombre: string } | null; firmantes?: { id: string; nombre: string; etiqueta: string }[] }
+export interface OpcionAgencia { id: string; codigo: string; nombre: string; /** Sello del jefe de taller de la agencia; nulo si no tiene (el taller firma con nombre escrito). */ sello?: { id: string; nombre: string } | null; lider?: { id: string; nombre: string } | null; auxiliar?: { id: string; nombre: string } | null; firmantes?: { id: string; nombre: string; etiqueta: string }[] }
 export interface OpcionPersona { id: string; nombre: string }
 
 // ───────────────────────── Informes de inspección ─────────────────────────
@@ -42,6 +42,8 @@ export const TIPOS_INSPECCION: { id: string; nombre: string }[] = [
   { id: 'APERTURA_AGENCIA', nombre: 'Apertura de agencia' },
   { id: 'CIERRE_AGENCIA', nombre: 'Cierre de agencia' },
   { id: 'NOVEDADES', nombre: 'Novedades' },
+  { id: 'MANTENIMIENTO_COMERCIAL', nombre: 'Mantenimiento comercial' },
+  { id: 'COLISION', nombre: 'Colisión' },
 ];
 export const CATEGORIAS_NOVEDAD: { id: string; nombre: string }[] = [
   { id: 'INFRAESTRUCTURA', nombre: 'Infraestructura' },
@@ -137,6 +139,9 @@ export interface PermisosInforme {
   puedeAprobar?: boolean;
   puedeEliminar: boolean;
   puedeSeguimiento: boolean;
+  /** Quien elabora el informe y quien lo revisa pueden adjuntar usuarios hasta la aprobación; ya aprobado, solo un Admin. */
+  puedeAdjuntar?: boolean;
+  puedeQuitarAdjuntos?: boolean;
 }
 
 export type TipoFirma = 'RESPONSABLE' | 'JEFE_TALLER' | 'LIDER_BAHIA' | 'RECEPCION';
@@ -160,8 +165,20 @@ export interface FirmaInforme {
 /** El jefe de taller validado con su contraseña: su nombre y el logo que sale como marca de agua. */
 export interface SelloInforme { id: string | null; nombre: string; logo: string | null; /** Nulo si hay que validarlo de nuevo con su contraseña. */ validadoEn: string | null }
 
-/** Jefe de taller que se puede elegir al calificar (sin logo ni nada de la contraseña). */
-export interface OpcionSello { id: string; nombre: string; apellido: string; nombreCompleto: string }
+/** Usuario adjunto a un informe: recibe una notificación cuando se aprueba. */
+export interface AdjuntoInforme { userId: string; nombre: string; rol: string; agregadoPorNombre: string; agregadoEn: string; notificadoEn: string | null }
+
+/** Usuario que se puede adjuntar a un informe. */
+export interface UsuarioAdjuntable { id: string; nombre: string; rol: string; agencia: string }
+
+export interface OpcionesAdjuntos {
+  regiones: { id: string; nombre: string }[];
+  clientes: { id: string; nombre: string }[];
+  agencias: { id: string; nombre: string; regionId: string | null; clienteId: string | null }[];
+  roles: { id: string; nombre: string }[];
+}
+
+export interface FiltrosAdjuntables { search?: string; regionId?: string; clienteId?: string; agenciaId?: string; roleId?: string }
 
 /** Un sello tal como lo ve quien lo configura. */
 export interface SelloConfig {
@@ -171,9 +188,14 @@ export interface SelloConfig {
   logo: string | null;
   estado: number;
   bloqueado: boolean;
+  /** Agencias cuyos informes firma este sello. */
+  agencias: { id: string; codigo: string; nombre: string }[];
   createdAt: string;
   updatedAt: string;
 }
+
+/** Agencia con el sello que tiene hoy (para asignarla desde la pantalla de sellos). */
+export interface AgenciaConSello { id: string; codigo: string; nombre: string; selloId: string | null }
 
 export interface InformeDetalle {
   id: string;
@@ -204,6 +226,9 @@ export interface InformeDetalle {
   /** El jefe de taller estuvo en la visita. Si no, el informe se firma y se guarda sin su contraseña ni su firma. */
   jefeTallerPresente: boolean;
   sello: SelloInforme | null;
+  /** Sello de la agencia: si existe, su contraseña se pide siempre; si no, el taller firma con nombre escrito y sin contraseña. */
+  selloAgencia: { id: string; nombre: string } | null;
+  adjuntos: AdjuntoInforme[];
   firmas: FirmaInforme[];
   createdAt: string;
   updatedAt: string;

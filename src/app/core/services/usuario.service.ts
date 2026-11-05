@@ -266,6 +266,7 @@ export class UsuarioService {
         : (isBackup ? (usr.agenciaId ? usr.agencia : '') : (usr.agencia !== 'Sin asignar' ? usr.agencia : undefined)),
       bodegaId: isAsistente ? (usr.bodegaId ? String(usr.bodegaId) : null) : (usr.bodegaId ? String(usr.bodegaId) : null),
       bahiaId: usr.bahiaId ? String(usr.bahiaId) : undefined,
+      motivo: usr.motivoCambioAgencia || undefined,
       servicioIds: isPulidor
         ? (isPulidorMovil
           ? (Array.isArray(usr.servicioIds) ? usr.servicioIds.map(Number).filter(n => !isNaN(n) && n > 0) : [])

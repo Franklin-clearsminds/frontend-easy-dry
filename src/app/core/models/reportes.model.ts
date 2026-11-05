@@ -1,8 +1,9 @@
 /** Tipos de los Reportes Operativos: reflejan lo que devuelve `POST /reportes/*`. */
 
 export type TipoColumna = 'texto' | 'numero' | 'dinero' | 'fecha' | 'hora' | 'marca';
-export type PlantillaReporte = 'CONTROL_ESPECIAL' | 'CONTROL_GENERAL' | 'TABLA';
-export type FiltroExtra = 'estado' | 'lavador' | 'pulidor' | 'producto' | 'ubicacion' | 'semaforo';
+export type PlantillaReporte = 'SERVICIOS' | 'TABLA';
+export type CategoriaServicios = 'GENERAL' | 'ESPECIAL' | 'AMBOS';
+export type FiltroExtra = 'estado' | 'lavador' | 'pulidor' | 'producto' | 'productoFiltro' | 'ubicacion' | 'semaforo' | 'categoria';
 export type ModoPeriodo = 'HOY' | 'SEMANA' | 'MES' | 'ANIO' | 'DIA' | 'SEMANA_DE' | 'MES_DE' | 'ANIO_DE' | 'RANGO';
 export type ValorCelda = string | number | null;
 export type FilaReporte = Record<string, ValorCelda>;
@@ -31,6 +32,8 @@ export interface ReporteCatalogo {
   estados: OpcionFiltroReporte[];
   ubicaciones: OpcionFiltroReporte[];
   semaforos: OpcionFiltroReporte[];
+  /** Servicios de lavado: lo que el usuario puede sacar (generales, especiales o ambos). */
+  categorias?: { valor: CategoriaServicios; etiqueta: string }[];
   columnas: ColumnaReporte[];
 }
 
@@ -65,6 +68,9 @@ export interface FiltrosReporte {
   productoId?: string;
   ubicacion?: 'AGENCIA' | 'PULIDOR' | 'BODEGA';
   semaforo?: 'VERDE' | 'AMARILLO' | 'ROJO';
+  categoria?: CategoriaServicios;
+  /** Cómo repartir el reporte (y el Excel) por periodo; vacío = automático. */
+  division?: 'UNICO' | 'DIA' | 'SEMANA' | 'MES';
 }
 
 export interface TotalReporte {

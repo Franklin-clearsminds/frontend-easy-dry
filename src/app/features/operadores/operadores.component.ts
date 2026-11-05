@@ -14,7 +14,7 @@ import { TablaServidor } from '../../core/utils/tabla-servidor';
 import { SucursalService } from '../../core/services/sucursal.service';
 import { BahiaService } from '../../core/services/bahia.service';
 import { AuthService } from '../../core/services/auth.service';
-import { Operador, HistorialAsignacionOperador, Sucursal } from '../../core/models';
+import { Operador, HistorialAsignacionOperador, HistorialCambioAgencia, Sucursal } from '../../core/models';
 import { ModalComponent } from '../../shared/components/modal/modal.component';
 import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
 import { ToastService } from '../../shared/services/toast.service';
@@ -398,6 +398,16 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
             </select>
           </div>
 
+          @if (cambiaAgenciaOBahia) {
+            <div>
+              <label for="operadores-f-motivo" class="block text-xs font-bold text-slate-700 uppercase mb-1">Motivo del cambio de agencia o bahía <span class="text-rose-500">*</span></label>
+              <input id="operadores-f-motivo" type="text" maxlength="300" [(ngModel)]="formOperador.motivo"
+                placeholder="Ej. Traslado por apertura de agencia, cobertura de vacaciones..."
+                class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800">
+              <p class="text-xs text-slate-500 mt-1">Queda registrado con fecha y hora.</p>
+            </div>
+          }
+
           <!-- Bahía de Asignación: solo para lavadores -->
           @if (esLavador(formOperador.rol) && bahiaVisibleEnFormulario) {
           <div>
@@ -506,7 +516,7 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
             </div>
 
             <div>
-              <label for="operadores-f10" class="block text-xs font-bold text-slate-700 uppercase mb-1">Motivo del Movimiento / Reasignación</label>
+              <label for="operadores-f10" class="block text-xs font-bold text-slate-700 uppercase mb-1">Motivo del Movimiento / Reasignación *</label>
               <input id="operadores-f10"
                 type="text"
                 [(ngModel)]="formAsignarBahia.motivo"
@@ -531,6 +541,25 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
             <i-lucide aria-hidden="true" name="check" class="w-4 h-4"></i-lucide>
             <span>Confirmar en Base de Datos</span>
           </button>
+        </div>
+      </app-modal>
+
+      <!-- Modal: quitar de la bahía (pide el motivo) -->
+      <app-modal [isOpen]="!!quitarBahiaOp" size="md" title="Quitar de la bahía" icon="user-x" (close)="quitarBahiaOp = null">
+        @if (quitarBahiaOp) {
+          <div class="space-y-3">
+            <p class="text-sm text-slate-700">Vas a quitar a <strong>{{ quitarBahiaOp.nombre }}</strong> de <strong>{{ quitarBahiaOp.bahia }}</strong>. Queda registrado con fecha y hora.</p>
+            <div>
+              <label for="operadores-quitar-motivo" class="block text-xs font-bold text-slate-700 uppercase mb-1">Motivo *</label>
+              <input id="operadores-quitar-motivo" type="text" [(ngModel)]="quitarBahiaMotivo" maxlength="300"
+                placeholder="Ej. Fin de turno, permiso, traslado..."
+                class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800">
+            </div>
+          </div>
+        }
+        <div modal-footer class="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2 w-full">
+          <button type="button" (click)="quitarBahiaOp = null" class="btn btn-secondary w-full sm:w-auto"><span>Cancelar</span></button>
+          <button type="button" (click)="confirmarQuitarBahia()" class="btn btn-primary w-full sm:w-auto"><span>Quitar de la bahía</span></button>
         </div>
       </app-modal>
 
@@ -615,15 +644,37 @@ import { FilterBarComponent, FilterState } from '../../shared/components/filter-
                         }
                       </div>
                       <p class="text-xs text-slate-500 mt-0.5">Motivo: <strong>{{ h.motivo }}</strong> • Registrado por: <strong>{{ h.realizadoPor }}</strong></p>
+                      @if (h.fechaFin && h.motivoFin) {
+                        <p class="text-xs text-slate-500 mt-0.5">Motivo de salida: <strong>{{ h.motivoFin }}</strong></p>
+                      }
                     </div>
                     <div class="text-right font-mono text-xs font-semibold text-slate-600">
-                      <span class="text-slate-800">{{ h.fechaInicio }}</span>
+                      <span class="text-slate-800" title="Entrada a la bahía">{{ h.fechaInicio | date:'dd/MM/yyyy HH:mm' }}</span>
                       @if (h.fechaFin) {
-                        <span> &rarr; <span class="text-slate-500">{{ h.fechaFin }}</span></span>
+                        <span> &rarr; <span class="text-slate-500" title="Salida de la bahía">{{ h.fechaFin | date:'dd/MM/yyyy HH:mm' }}</span></span>
                       } @else {
                         <span class="text-easydry-green-text font-bold block text-xs">&bull; En funciones</span>
                       }
                     </div>
+                  </div>
+                }
+              </div>
+            </div>
+
+            <!-- Historial de cambios de agencia -->
+            <div class="border border-slate-200 rounded-2xl p-4 space-y-3">
+              <h4 class="font-bold text-slate-900 text-xs uppercase tracking-wider">Historial de cambios de agencia</h4>
+              <div class="space-y-2">
+                @if (historialAgencia.length === 0) {
+                  <p class="text-xs text-slate-500 italic py-3 text-center">No hay cambios de agencia registrados para esta persona.</p>
+                }
+                @for (h of historialAgencia; track h.id) {
+                  <div class="p-3 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between gap-3 text-xs">
+                    <div>
+                      <span class="font-bold text-slate-900">{{ h.tipo === 'ALTA' ? 'Alta en ' + h.destino : h.origen + ' → ' + h.destino }}</span>
+                      <p class="text-xs text-slate-500 mt-0.5">Motivo: <strong>{{ h.motivo }}</strong> • Registrado por: <strong>{{ h.realizadoPor }}</strong></p>
+                    </div>
+                    <span class="font-mono text-xs font-semibold text-slate-800 shrink-0">{{ h.fecha | date:'dd/MM/yyyy HH:mm' }}</span>
                   </div>
                 }
               </div>
@@ -704,6 +755,10 @@ export class OperadoresComponent implements OnInit, OnDestroy {
   sucursales: Sucursal[] = [];
   operadorSeleccionado?: Operador;
   historialOperador: HistorialAsignacionOperador[] = [];
+  historialAgencia: HistorialCambioAgencia[] = [];
+  /** Quitar de la bahía pide el motivo. */
+  quitarBahiaOp: Operador | null = null;
+  quitarBahiaMotivo = '';
 
   filtroTexto = '';
   filtrosGlobales: FilterState = { sucursal: 'Todas', region: 'Todas', marca: 'Todas', operador: 'Todos', bahia: 'Todas', estado: 'Todos', fecha: 'Hoy' };
@@ -859,8 +914,13 @@ export class OperadoresComponent implements OnInit, OnDestroy {
     bahiaNombre: '',
     bahiaId: '',
     estado: 'Activo',
-    password: ''
+    password: '',
+    /** Motivo del cambio de agencia o de bahía (solo al editar). */
+    motivo: ''
   };
+  /** Agencia y bahía con las que se abrió la edición, para saber si cambian. */
+  private sucursalOriginalId = '';
+  private bahiaOriginalId = '';
   verPassword = false;
   listaBahiasOperador: { id: string; nombre: string; operadorAsignado?: string | null; operadorId?: string | number | null; maxLavadoresPorBahia?: number; operadoresActivos?: { id: string; nombre: string }[] }[] = [];
 
@@ -935,6 +995,10 @@ export class OperadoresComponent implements OnInit, OnDestroy {
   get puedeVerFicha(): boolean { return this.authService.puede('pagina.operadores'); }
   /** Al editar, cada campo se bloquea si el rol no tiene el permiso de ese tipo de cambio. */
   get datosBloqueados(): boolean { return this.esEdicion && !this.canEditarDatos; }
+  /** Al editar, cambiar la agencia o la bahía exige escribir el motivo (queda en el historial con fecha y hora). */
+  get cambiaAgenciaOBahia(): boolean {
+    return this.esEdicion && (this.formOperador.sucursalId !== this.sucursalOriginalId || (this.bahiaVisibleEnFormulario && this.formOperador.bahiaId !== this.bahiaOriginalId));
+  }
   /** Bahías ofrecidas: sin «Asignar a bahía» solo se muestra la actual (para poder dejarla en reserva). */
   get bahiasOfrecidas(): any[] {
     return this.canAsignarBahia ? this.listaBahiasOperador : this.listaBahiasOperador.filter((b: any) => b.id === this.formOperador.bahiaId);
@@ -1005,7 +1069,8 @@ export class OperadoresComponent implements OnInit, OnDestroy {
         bahiaNombre: 'Sin Bahía Asignada',
         bahiaId: '',
         estado: 'Activo',
-        password: ''
+        password: '',
+        motivo: ''
       };
       this.verPassword = false;
 
@@ -1039,8 +1104,11 @@ export class OperadoresComponent implements OnInit, OnDestroy {
         bahiaNombre: op.bahia || 'Sin Bahía Asignada',
         bahiaId: op.bahiaId || '',
         estado: op.estado || 'Activo',
-        password: ''
+        password: '',
+        motivo: ''
       };
+      this.sucursalOriginalId = this.formOperador.sucursalId;
+      this.bahiaOriginalId = this.formOperador.bahiaId;
 
       if (this.formOperador.sucursalId) {
         this.cargarBahiasParaCrear(this.formOperador.sucursalId);
@@ -1159,6 +1227,10 @@ export class OperadoresComponent implements OnInit, OnDestroy {
     const bahiaSelected = this.listaBahiasOperador.find(b => b.id === this.formOperador.bahiaId);
 
     if (this.esEdicion && this.operadorEnEdicionId) {
+      if (this.cambiaAgenciaOBahia && !this.formOperador.motivo.trim()) {
+        this.toastService.warning('Motivo requerido', 'Escribe el motivo del cambio de agencia o de bahía.');
+        return;
+      }
       // Solo se manda lo que este rol puede cambiar: el servidor exige un permiso distinto para datos, rol y bahía.
       // `bahiaId: null` significa «dejar en reserva»; sin permiso de bahía el campo ni viaja (queda como estaba).
       const datos = this.canEditarDatos;
@@ -1179,7 +1251,7 @@ export class OperadoresComponent implements OnInit, OnDestroy {
         promedioDiario: 0,
         ranking: 1,
         email: ''
-      }).subscribe({
+      }, this.cambiaAgenciaOBahia ? this.formOperador.motivo.trim() : undefined).subscribe({
         next: (act) => {
           this.toastService.success('Operador Actualizado', `Datos de ${act.nombre} actualizados en base de datos.`);
           this.cerrarModalCrear();
@@ -1326,7 +1398,11 @@ export class OperadoresComponent implements OnInit, OnDestroy {
     }
 
     const op = this.operadorSeleccionado;
-    const motivo = this.formAsignarBahia.motivo?.trim() || 'Reasignación operativa de bahía';
+    const motivo = this.formAsignarBahia.motivo?.trim();
+    if (!motivo) {
+      this.toastService.warning('Motivo requerido', 'Escribe el motivo del cambio de bahía.');
+      return;
+    }
     const usuarioAccion = this.authService.getCurrentUser()?.nombre || '';
     const bahiaSelected = this.listaBahiasDisponibles.find(b => b.id === this.formAsignarBahia.bahiaId);
     const bahiaNombre = bahiaSelected ? bahiaSelected.nombre : 'Sin Bahía Asignada';
@@ -1355,12 +1431,25 @@ export class OperadoresComponent implements OnInit, OnDestroy {
       this.toastService.warning('Sin permiso', 'Tu rol no puede desasignar bahías.');
       return;
     }
-    const anteriorBahia = op.bahia;
     if (!op.bahiaId) {
       this.toastService.warning('Sin bahía', op.nombre + ' no tiene una bahía asignada.');
       return;
     }
-    this.operadorService.desasignarOperadorDeBahia(op.bahiaId, op.id, 'Desvinculación de ' + anteriorBahia).subscribe({
+    this.quitarBahiaOp = op;
+    this.quitarBahiaMotivo = '';
+  }
+
+  confirmarQuitarBahia(): void {
+    const op = this.quitarBahiaOp;
+    if (!op?.bahiaId) return;
+    const motivo = this.quitarBahiaMotivo.trim();
+    if (!motivo) {
+      this.toastService.warning('Motivo requerido', 'Escribe el motivo para quitar a la persona de la bahía.');
+      return;
+    }
+    const anteriorBahia = op.bahia;
+    this.quitarBahiaOp = null;
+    this.operadorService.desasignarOperadorDeBahia(op.bahiaId, op.id, motivo).subscribe({
       next: () => {
         this.toastService.success('Asignación quitada', 'Se desvinculó a ' + op.nombre + ' de ' + anteriorBahia + '.');
         this.operadorService.getOperadores().subscribe();
@@ -1372,9 +1461,11 @@ export class OperadoresComponent implements OnInit, OnDestroy {
 
   verFichaOperador(op: Operador): void {
     this.operadorSeleccionado = op;
+    this.historialAgencia = [];
     this.operadorService.getHistorialPorOperador(op.id).subscribe(h => {
       this.historialOperador = h;
       this.modalFichaOpen = true;
     });
+    this.operadorService.getHistorialAgencia(op.id).subscribe(h => { this.historialAgencia = h; });
   }
 }

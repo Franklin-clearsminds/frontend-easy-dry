@@ -13,6 +13,7 @@
         "build": {
           "builder": "@angular-devkit/build-angular:application",
           "options": {
+            "allowedCommonJsDependencies": ["jspdf-autotable", "exceljs", "jszip", "core-js", "canvg", "html2canvas", "rgbcolor", "raf", "stackblur-canvas", "dompurify"],
             "outputPath": "dist/frontend-easy-dry",
             "index": "src/index.html",
             "browser": "src/main.ts",
@@ -52,7 +53,7 @@
                 },
                 {
                   "type": "anyComponentStyle",
-                  "maximumWarning": "10kb",
+                  "maximumWarning": "12kb",
                   "maximumError": "20kb"
                 }
               ],

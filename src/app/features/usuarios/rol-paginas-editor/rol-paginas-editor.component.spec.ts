@@ -49,29 +49,40 @@ describe('RolPaginasEditorComponent — activar y desactivar', () => {
     TestBed.configureTestingModule({ imports: [RolPaginasEditorComponent, LucideAngularModule.pick(EASYDRY_ICONS)] });
   });
 
-  it('Notificaciones y Perfil van siempre incluidas: sin interruptor, con candado y marcadas como «Siempre»', () => {
+  it('Perfil va siempre incluida (sin interruptor, con candado y «Siempre»); Notificaciones sí se puede encender y apagar', () => {
     montar([]);
 
-    // Solo la página de catálogo tiene interruptor en la lista.
-    expect(interruptores().length).toBe(1);
+    // Catálogo y Notificaciones tienen interruptor; Perfil no.
+    expect(interruptores().length).toBe(2);
     expect(texto()).toContain('Siempre');
-    expect(editor.activa('pagina.notificaciones')).toBeTrue();
+    expect(editor.activa('pagina.perfil')).toBeTrue();
+    expect(editor.activa('pagina.notificaciones')).toBeFalse();
+  });
+
+  it('Perfil no se puede apagar: intentarlo no cambia ni emite nada', () => {
+    montar(['pagina.catalogo']);
+
+    editor.togglePagina(PAGINAS[1]);
+
+    expect(emitido).toBeUndefined();
     expect(editor.activa('pagina.perfil')).toBeTrue();
   });
 
-  it('no se pueden apagar: intentarlo no cambia ni emite nada', () => {
+  it('Notificaciones se enciende y se apaga como cualquier página del rol', () => {
     montar(['pagina.catalogo']);
 
     editor.togglePagina(PAGINAS[0]);
+    expect(emitido).toContain('pagina.notificaciones');
 
-    expect(emitido).toBeUndefined();
-    expect(editor.activa('pagina.notificaciones')).toBeTrue();
+    montar(['pagina.notificaciones']);
+    editor.togglePagina(PAGINAS[0]);
+    expect(emitido).not.toContain('pagina.notificaciones');
   });
 
-  it('las pantallas de cuenta no cuentan como «páginas del rol» en el resumen', () => {
+  it('la pantalla de cuenta (Perfil) no cuenta como «página del rol» en el resumen', () => {
     montar([]);
 
-    expect(editor.paginasConMenu).toBe(1);
+    expect(editor.paginasConMenu).toBe(2);
     expect(editor.paginasActivas).toBe(0);
   });
 

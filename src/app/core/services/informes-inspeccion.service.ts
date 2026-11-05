@@ -7,7 +7,9 @@ import {
   GuardarInforme,
   InformeDetalle,
   InformeFila,
-  OpcionSello,
+  FiltrosAdjuntables,
+  OpcionesAdjuntos,
+  UsuarioAdjuntable,
   OpcionesInformes,
   PlanAccion,
   ResumenInformes,
@@ -69,14 +71,27 @@ export class InformesInspeccionService {
     return this.http.post<InformeDetalle>(apiUrl(`${this.base}/guardar`), { id });
   }
 
-  /** Jefes de taller que se pueden elegir al calificar. */
-  getSellos(): Observable<OpcionSello[]> {
-    return this.http.post<OpcionSello[]>(apiUrl(`${this.base}/sellos/opciones`), {});
+  /** Valida con su contraseña el sello de la agencia del informe: habilita la sección de firmas. */
+  validarSello(informeId: string, password: string): Observable<InformeDetalle> {
+    return this.http.post<InformeDetalle>(apiUrl(`${this.base}/sello/validar`), { informeId, password });
   }
 
-  /** Valida al jefe de taller con su contraseña: habilita la sección de firmas. */
-  validarSello(informeId: string, selloId: string, password: string): Observable<InformeDetalle> {
-    return this.http.post<InformeDetalle>(apiUrl(`${this.base}/sello/validar`), { informeId, selloId, password });
+  /** Regiones, clientes, agencias y roles para filtrar a quién adjuntar. */
+  opcionesAdjuntos(): Observable<OpcionesAdjuntos> {
+    return this.http.post<OpcionesAdjuntos>(apiUrl(`${this.base}/adjuntos/opciones`), {});
+  }
+
+  buscarAdjuntables(filtros: FiltrosAdjuntables): Observable<UsuarioAdjuntable[]> {
+    return this.http.post<UsuarioAdjuntable[]>(apiUrl(`${this.base}/adjuntos/buscar`), filtros);
+  }
+
+  /** Adjunta usuarios: reciben una notificación cuando el informe se aprueba. */
+  adjuntar(informeId: string, userIds: string[]): Observable<InformeDetalle> {
+    return this.http.post<InformeDetalle>(apiUrl(`${this.base}/adjuntos/agregar`), { informeId, userIds });
+  }
+
+  quitarAdjunto(informeId: string, userId: string): Observable<InformeDetalle> {
+    return this.http.post<InformeDetalle>(apiUrl(`${this.base}/adjuntos/quitar`), { informeId, userId });
   }
 
   firmar(informeId: string, tipo: string, imagen: string, nombre?: string): Observable<InformeDetalle> {

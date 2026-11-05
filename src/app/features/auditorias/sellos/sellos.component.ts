@@ -8,7 +8,7 @@ import { SellosService } from '../../../core/services/sellos.service';
 import { ToastService } from '../../../shared/services/toast.service';
 import { ModalComponent } from '../../../shared/components/modal/modal.component';
 import { PasswordRequisitosComponent } from '../../../shared/components/password-requisitos/password-requisitos.component';
-import { SelloConfig, mensajeError } from '../../../core/models/auditorias.model';
+import { AgenciaConSello, SelloConfig, mensajeError } from '../../../core/models/auditorias.model';
 import { motivoPasswordDebil } from '../../../core/utils/password-politica';
 
 /**
@@ -37,7 +37,8 @@ const MAX_CARACTERES_LOGO = 380_000;
           <h1 class="text-2xl font-extrabold text-slate-900 font-outfit">Configuración de sellos</h1>
           <p class="text-slate-500 text-xs mt-1 max-w-2xl">
             Un sello por jefe de taller: su nombre, el logo que sale como marca de agua bajo su firma y la contraseña que se le pide al
-            calificar un informe de inspección. Quien elabora el informe solo ve el nombre.
+            firmar un informe de inspección. Cada sello se asigna a las agencias que atiende: sus informes lo usan sin tener que elegirlo.
+            Una agencia sin sello firma con nombre y firma escritos, sin contraseña.
           </p>
         </div>
         @if (puedeGestionar) {
@@ -74,6 +75,16 @@ const MAX_CARACTERES_LOGO = 380_000;
                     @if (s.bloqueado) { <span class="badge badge-critical" title="Demasiados intentos con contraseña incorrecta. Asigna una contraseña nueva para desbloquearlo.">Bloqueado</span> }
                   </div>
                 </div>
+              </div>
+              <div>
+                <p class="text-[11px] font-bold text-slate-500 mb-1">Agencias que firma ({{ s.agencias.length }})</p>
+                @if (s.agencias.length) {
+                  <div class="flex flex-wrap gap-1">
+                    @for (a of s.agencias; track a.id) { <span class="badge badge-neutral">{{ a.nombre }}</span> }
+                  </div>
+                } @else {
+                  <p class="text-xs text-slate-500">Sin agencias asignadas.</p>
+                }
               </div>
               @if (puedeGestionar) {
                 <div class="flex flex-wrap gap-2">
@@ -148,6 +159,25 @@ const MAX_CARACTERES_LOGO = 380_000;
             </div>
           </div>
 
+          <div>
+            <label class="field-label" for="sello-agencias-buscar">Agencias que firma este sello ({{ form.agenciaIds.length }})</label>
+            <input id="sello-agencias-buscar" name="buscarAgencia" class="field" [(ngModel)]="busquedaAgencia" placeholder="Buscar agencia…" autocomplete="off">
+            <div class="mt-2 max-h-48 overflow-y-auto rounded-xl border border-slate-200 divide-y divide-slate-100">
+              @for (a of agenciasFiltradas; track a.id) {
+                <label class="flex items-start gap-2.5 px-3 py-2 text-sm cursor-pointer hover:bg-slate-50">
+                  <input type="checkbox" class="mt-0.5" [checked]="form.agenciaIds.includes(a.id)" (change)="alternarAgencia(a.id)" [attr.aria-label]="a.nombre">
+                  <span class="min-w-0">
+                    <span class="font-semibold text-slate-800">{{ a.nombre }}</span>
+                    @if (otroSello(a); as otro) { <span class="block text-[11px] text-amber-700">Hoy firma {{ otro }}: al marcarla pasa a este sello.</span> }
+                  </span>
+                </label>
+              } @empty {
+                <p class="px-3 py-3 text-xs text-slate-500">No hay agencias que coincidan.</p>
+              }
+            </div>
+            <p class="text-[11px] text-slate-500 mt-1">Una agencia tiene un solo sello. Las que desmarques quedan sin sello.</p>
+          </div>
+
           @if (!editandoId) {
             <div>
               <label class="field-label" for="sello-pass">Contraseña *</label>
@@ -181,6 +211,8 @@ export class SellosComponent implements OnInit {
   readonly puedeGestionar = this.auth.puede('sellos.gestionar');
 
   sellos: SelloConfig[] = [];
+  agenciasDisponibles: AgenciaConSello[] = [];
+  busquedaAgencia = '';
   cargando = true;
   error = '';
   trabajando = false;
@@ -198,7 +230,7 @@ export class SellosComponent implements OnInit {
   verConfirmacion = false;
 
   private formVacio() {
-    return { nombre: '', apellido: '', logo: '', password: '' };
+    return { nombre: '', apellido: '', logo: '', password: '', agenciaIds: [] as string[] };
   }
 
   async ngOnInit(): Promise<void> {
@@ -209,7 +241,7 @@ export class SellosComponent implements OnInit {
     this.cargando = true;
     this.error = '';
     try {
-      this.sellos = await firstValueFrom(this.api.listar());
+      [this.sellos, this.agenciasDisponibles] = await Promise.all([firstValueFrom(this.api.listar()), firstValueFrom(this.api.agencias())]);
     } catch (e) {
       this.error = mensajeError(e, 'No se pudieron cargar los sellos.');
     } finally {
@@ -221,13 +253,34 @@ export class SellosComponent implements OnInit {
     this.editandoId = null;
     this.verPassword = false;
     this.form = this.formVacio();
+    this.busquedaAgencia = '';
     this.errorForm = '';
     this.modalAbierto = true;
   }
 
+  /** Agencias que coinciden con la búsqueda; las marcadas van primero. */
+  get agenciasFiltradas(): AgenciaConSello[] {
+    const q = this.busquedaAgencia.trim().toLowerCase();
+    return this.agenciasDisponibles
+      .filter((a) => !q || a.nombre.toLowerCase().includes(q) || a.codigo.toLowerCase().includes(q))
+      .sort((a, b) => Number(this.form.agenciaIds.includes(b.id)) - Number(this.form.agenciaIds.includes(a.id)) || a.nombre.localeCompare(b.nombre));
+  }
+
+  alternarAgencia(id: string): void {
+    this.form.agenciaIds = this.form.agenciaIds.includes(id) ? this.form.agenciaIds.filter((x) => x !== id) : [...this.form.agenciaIds, id];
+  }
+
+  /** Nombre del otro sello con que firma hoy la agencia (si no es el que se edita). */
+  otroSello(a: AgenciaConSello): string {
+    if (!a.selloId || a.selloId === this.editandoId) return '';
+    const s = this.sellos.find((x) => x.id === a.selloId);
+    return s ? `${s.nombre} ${s.apellido}` : '';
+  }
+
   abrirEditar(s: SelloConfig): void {
     this.editandoId = s.id;
-    this.form = { nombre: s.nombre, apellido: s.apellido, logo: s.logo ?? '', password: '' };
+    this.form = { nombre: s.nombre, apellido: s.apellido, logo: s.logo ?? '', password: '', agenciaIds: s.agencias.map((a) => a.id) };
+    this.busquedaAgencia = '';
     this.errorForm = '';
     this.modalAbierto = true;
   }
@@ -328,10 +381,10 @@ export class SellosComponent implements OnInit {
     this.trabajando = true;
     try {
       if (this.editandoId) {
-        await firstValueFrom(this.api.editar(this.editandoId, { nombre: f.nombre.trim(), apellido: f.apellido.trim(), logo: f.logo }));
+        await firstValueFrom(this.api.editar(this.editandoId, { nombre: f.nombre.trim(), apellido: f.apellido.trim(), logo: f.logo, agenciaIds: f.agenciaIds }));
         this.toast.success('Sello actualizado', `${f.nombre.trim()} ${f.apellido.trim()} se actualizó.`);
       } else {
-        await firstValueFrom(this.api.crear({ nombre: f.nombre.trim(), apellido: f.apellido.trim(), logo: f.logo || undefined, password: f.password }));
+        await firstValueFrom(this.api.crear({ nombre: f.nombre.trim(), apellido: f.apellido.trim(), logo: f.logo || undefined, password: f.password, agenciaIds: f.agenciaIds }));
         this.toast.success('Sello creado', `${f.nombre.trim()} ${f.apellido.trim()} ya puede firmar informes.`);
       }
       this.modalAbierto = false;
