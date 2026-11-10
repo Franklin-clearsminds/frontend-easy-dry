@@ -43,6 +43,17 @@ describe('exportarPorAgencia', () => {
     expect(r.cancelado).toBeFalse();
   });
 
+  it('con destinos por cliente filtra por cliente y no por agencia', async () => {
+    const clientes: AgenciaDestino[] = [{ id: 'c1', nombre: 'Toyota', filtro: { clienteId: 'c1' } }, { id: 'c2', nombre: 'Hino', filtro: { clienteId: 'c2' } }];
+    const pedidos: FiltrosReporte[] = [];
+    const t = dependencias({}, { generar: async (f) => { pedidos.push(f); return resultado(4); } });
+
+    const r = await exportarPorAgencia(BASE, clientes, t.deps);
+
+    expect(pedidos.map((p) => [p.clienteId, p.agenciaIds])).toEqual([['c1', undefined], ['c2', undefined]]);
+    expect(r.exportadas).toEqual(['Toyota', 'Hino']);
+  });
+
   it('las agencias sin filas no generan archivo y se informan aparte', async () => {
     const t = dependencias({ a1: 10, a2: 0, a3: 3 });
 

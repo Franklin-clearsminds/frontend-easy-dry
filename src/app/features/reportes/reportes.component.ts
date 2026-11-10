@@ -173,7 +173,7 @@ const hoyLocal = (): string => {
                     @for (c of reporte.categorias; track c.valor) { <option [value]="c.valor">{{ c.etiqueta }}</option> }
                   </select></div>
               }
-              @if (reporte.extras.includes('estado') && categoriaActual !== 'AMBOS') {
+              @if (reporte.extras.includes('estado')) {
                 <div><label class="field-label" for="r-estado">Estado</label>
                   <select id="r-estado" class="field select-chevron" name="estado" [(ngModel)]="estado">
                     <option value="">{{ reporte.id === 'alertas-stock' ? 'Abiertas (pendientes y en proceso)' : reporte.id === 'retos' ? 'Activos' : 'Todos' }}</option>
@@ -219,13 +219,13 @@ const hoyLocal = (): string => {
             </button>
             @if (puedePorAgencia) {
               @if (puedeExcel) {
-                <button type="button" class="btn-secondary" (click)="pedirPorAgencia('EXCEL')" [disabled]="cargando || !!porAgencia" title="Genera un Excel por cada agencia, sin vista previa. Sirve para periodos largos.">
-                  <i-lucide name="file-spreadsheet" class="w-4 h-4 text-emerald-700" aria-hidden="true"></i-lucide>Excel por agencia
+                <button type="button" class="btn-secondary" (click)="pedirPorAgencia('EXCEL')" [disabled]="cargando || !!porAgencia" [title]="'Genera un Excel por cada ' + unidadLote + ', sin vista previa. Sirve para periodos largos.'">
+                  <i-lucide name="file-spreadsheet" class="w-4 h-4 text-emerald-700" aria-hidden="true"></i-lucide>Excel por {{ unidadLote }}
                 </button>
               }
               @if (puedePdf) {
-                <button type="button" class="btn-secondary" (click)="pedirPorAgencia('PDF')" [disabled]="cargando || !!porAgencia" title="Genera un PDF por cada agencia, sin vista previa. Sirve para periodos largos.">
-                  <i-lucide name="file-text" class="w-4 h-4 text-rose-700" aria-hidden="true"></i-lucide>PDF por agencia
+                <button type="button" class="btn-secondary" (click)="pedirPorAgencia('PDF')" [disabled]="cargando || !!porAgencia" [title]="'Genera un PDF por cada ' + unidadLote + ', sin vista previa. Sirve para periodos largos.'">
+                  <i-lucide name="file-text" class="w-4 h-4 text-rose-700" aria-hidden="true"></i-lucide>PDF por {{ unidadLote }}
                 </button>
               }
             }
@@ -377,21 +377,21 @@ const hoyLocal = (): string => {
       <div modal-footer class="flex justify-end gap-2">
         <button type="button" class="btn-secondary" (click)="avisoGrande = null">Cancelar</button>
         @if (puedePorAgencia) {
-          <button type="button" class="btn-secondary" (click)="confirmarPorAgencia()">Un archivo por agencia</button>
+          <button type="button" class="btn-secondary" (click)="confirmarPorAgencia()">Un archivo por {{ unidadLote }}</button>
         }
         <button type="button" class="btn-primary" (click)="confirmarGrande()">Exportar de todos modos</button>
       </div>
     </app-modal>
 
-    <app-modal [isOpen]="!!porAgencia" [title]="porAgencia?.resultado ? 'Exportación terminada' : 'Exportando por agencia'" icon="file-spreadsheet" size="md" (close)="cerrarPorAgencia()">
+    <app-modal [isOpen]="!!porAgencia" [title]="porAgencia?.resultado ? 'Exportación terminada' : 'Exportando por ' + unidadEnCurso" icon="file-spreadsheet" size="md" (close)="cerrarPorAgencia()">
       @if (porAgencia; as p) {
         <div class="space-y-3 text-sm text-slate-700">
           @if (!p.resultado) {
-            <p>Agencia <strong>{{ p.actual }}</strong> de <strong>{{ p.total }}</strong>: {{ p.agencia || 'preparando…' }}</p>
+            <p>{{ unidadEnCurso === 'cliente' ? 'Cliente' : 'Agencia' }} <strong>{{ p.actual }}</strong> de <strong>{{ p.total }}</strong>: {{ p.agencia || 'preparando…' }}</p>
             <div class="h-2 rounded-full bg-slate-100 overflow-hidden" role="progressbar" [attr.aria-valuenow]="p.actual" aria-valuemin="0" [attr.aria-valuemax]="p.total">
               <div class="h-full bg-easydry-green transition-all" [style.width.%]="p.total ? (p.actual / p.total) * 100 : 0"></div>
             </div>
-            <p class="text-xs text-slate-500">Se descarga un archivo por agencia. Deja esta pestaña abierta hasta que termine; si el navegador pregunta por descargas múltiples, permítelas.</p>
+            <p class="text-xs text-slate-500">Se descarga un archivo por {{ unidadEnCurso }}. Deja esta pestaña abierta hasta que termine; si el navegador pregunta por descargas múltiples, permítelas.</p>
           } @else {
             <p><strong>{{ p.resultado.exportadas.length }}</strong> {{ p.resultado.exportadas.length === 1 ? 'archivo descargado' : 'archivos descargados' }}.</p>
             @if (p.resultado.sinDatos.length) { <p class="text-xs text-slate-600">Sin datos en el periodo (no se generó archivo): {{ p.resultado.sinDatos.join(', ') }}.</p> }
@@ -470,6 +470,8 @@ export class ReportesComponent implements OnInit {
   porAgencia: { formato: 'EXCEL' | 'PDF'; actual: number; total: number; agencia: string; resultado: ResultadoPorAgencia | null } | null = null;
   cancelandoPorAgencia = false;
   private cancelarPorAgenciaPedido = false;
+  /** Unidad del lote en curso: la que había al pedirlo, aunque después cambien los filtros. */
+  unidadEnCurso: 'agencia' | 'cliente' = 'agencia';
 
   private abiertos = new Set<string>();
   private tramos = new Map<string, number>();
@@ -477,10 +479,16 @@ export class ReportesComponent implements OnInit {
   get puedeExcel(): boolean { return this.authService.puede('reportes.excel'); }
   get puedePdf(): boolean { return this.authService.puede('reportes.pdf'); }
 
-  /** Un archivo por agencia solo tiene sentido en reportes agrupados por agencia y si no se eligió ya una sola. */
+  /** Servicios de lavado con «Todos» los clientes se sacan un archivo por cliente; en lo demás, uno por agencia. */
+  get unidadLote(): 'agencia' | 'cliente' {
+    return this.reporte?.plantilla === 'SERVICIOS' && !this.clienteId ? 'cliente' : 'agencia';
+  }
+
+  /** Un archivo por agencia (o por cliente) solo tiene sentido en reportes agrupados por agencia y si no se eligió ya una sola. */
   get puedePorAgencia(): boolean {
     const rep = this.reporte;
-    return !!rep && rep.agrupar === 'AGENCIA' && !this.agenciaId && this.agenciasOpc.length > 1 && (this.puedeExcel || this.puedePdf);
+    const opciones = this.unidadLote === 'cliente' ? this.clientesOpc.length : this.agenciasOpc.length;
+    return !!rep && rep.agrupar === 'AGENCIA' && !this.agenciaId && opciones > 1 && (this.puedeExcel || this.puedePdf);
   }
 
   get modulos(): string[] { return [...new Set(this.catalogo.map((r) => r.modulo))]; }
@@ -598,11 +606,11 @@ export class ReportesComponent implements OnInit {
     });
   }
 
-  /** Categoría que se aplicará: la elegida o la más amplia que el rol puede sacar. */
+  /** Categoría que se aplicará: la elegida o la primera que el rol puede sacar. */
   get categoriaActual(): CategoriaServicios | '' {
     const opciones = this.reporte?.categorias ?? [];
     if (!opciones.length) return '';
-    return opciones.some((o) => o.valor === this.categoria) ? (this.categoria as CategoriaServicios) : (opciones[opciones.length - 1].valor);
+    return opciones.some((o) => o.valor === this.categoria) ? (this.categoria as CategoriaServicios) : opciones[0].valor;
   }
 
   /** Estados del filtro: los de la categoría elegida (generales y especiales tienen los suyos). */
@@ -663,7 +671,7 @@ export class ReportesComponent implements OnInit {
       if (this.division) f.division = this.division;
     }
     if (rep.extras.includes('categoria') && this.categoriaActual) f.categoria = this.categoriaActual;
-    if (rep.extras.includes('estado') && this.estado && this.categoriaActual !== 'AMBOS') f.estado = this.estado;
+    if (rep.extras.includes('estado') && this.estado) f.estado = this.estado;
     if (rep.extras.includes('lavador') && this.lavadorId && this.categoriaActual !== 'ESPECIAL') f.lavadorId = this.lavadorId;
     if (rep.extras.includes('pulidor') && this.pulidorId && this.categoriaActual !== 'GENERAL') f.pulidorId = this.pulidorId;
     if ((rep.extras.includes('producto') || rep.extras.includes('productoFiltro')) && this.productoId) f.productoId = this.productoId;
@@ -774,6 +782,15 @@ export class ReportesComponent implements OnInit {
     this.cancelandoPorAgencia = true;
   }
 
+  /** Con «Todos» los clientes en servicios de lavado, un destino por cliente (con sus agencias); si no, uno por agencia. */
+  private destinosDe(base: FiltrosReporte, unidad: 'agencia' | 'cliente'): AgenciaDestino[] {
+    if (unidad === 'cliente') {
+      const conAgencias = new Set(this.agenciasDe(base).map((a) => this.opciones?.agencias.find((x) => x.id === a.id)?.clienteId));
+      return (this.opciones?.clientes ?? []).filter((c) => conAgencias.has(c.id)).map((c) => ({ id: c.id, nombre: c.nombre, filtro: { clienteId: c.id } }));
+    }
+    return this.agenciasDe(base);
+  }
+
   private agenciasDe(base: FiltrosReporte): AgenciaDestino[] {
     return (this.opciones?.agencias ?? [])
       .filter((a) => (!base.regionId || a.regionId === base.regionId) && (!base.clienteId || a.clienteId === base.clienteId))
@@ -782,8 +799,10 @@ export class ReportesComponent implements OnInit {
 
   private async iniciarPorAgencia(formato: 'EXCEL' | 'PDF', filtros: FiltrosReporte): Promise<void> {
     const { agenciaIds: _una, ...base } = filtros;
-    const agencias = this.agenciasDe(base);
+    const unidad: 'agencia' | 'cliente' = this.reporte?.plantilla === 'SERVICIOS' && !base.clienteId ? 'cliente' : 'agencia';
+    const agencias = this.destinosDe(base, unidad);
     if (!agencias.length) return;
+    this.unidadEnCurso = unidad;
     this.cancelarPorAgenciaPedido = false;
     this.cancelandoPorAgencia = false;
     this.porAgencia = { formato, actual: 0, total: agencias.length, agencia: '', resultado: null };

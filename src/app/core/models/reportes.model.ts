@@ -2,7 +2,7 @@
 
 export type TipoColumna = 'texto' | 'numero' | 'dinero' | 'fecha' | 'hora' | 'marca';
 export type PlantillaReporte = 'SERVICIOS' | 'TABLA';
-export type CategoriaServicios = 'GENERAL' | 'ESPECIAL' | 'AMBOS';
+export type CategoriaServicios = 'GENERAL' | 'ESPECIAL';
 export type FiltroExtra = 'estado' | 'lavador' | 'pulidor' | 'producto' | 'productoFiltro' | 'ubicacion' | 'semaforo' | 'categoria';
 export type ModoPeriodo = 'HOY' | 'SEMANA' | 'MES' | 'ANIO' | 'DIA' | 'SEMANA_DE' | 'MES_DE' | 'ANIO_DE' | 'RANGO';
 export type ValorCelda = string | number | null;

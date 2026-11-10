@@ -3,6 +3,8 @@ import { FiltrosReporte, ReporteGenerado } from '../../core/models/reportes.mode
 export interface AgenciaDestino {
   id: string;
   nombre: string;
+  /** Filtros propios del destino; sin ellos se filtra por la agencia. Sirve para sacar un archivo por cliente. */
+  filtro?: Partial<FiltrosReporte>;
 }
 
 export interface ProgresoPorAgencia {
@@ -57,7 +59,7 @@ export async function exportarPorAgencia(base: FiltrosReporte, agencias: Agencia
     }
     const aviso = (estado: ProgresoPorAgencia['estado']) => deps.progreso?.({ actual: i + 1, total: agencias.length, agencia: agencia.nombre, estado });
     aviso('generando');
-    const filtros: FiltrosReporte = { ...base, agenciaIds: [agencia.id] };
+    const filtros: FiltrosReporte = { ...base, ...(agencia.filtro ?? { agenciaIds: [agencia.id] }) };
     try {
       const res = await deps.generar(filtros);
       if (!res.totalFilas) {

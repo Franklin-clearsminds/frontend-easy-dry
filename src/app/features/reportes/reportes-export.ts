@@ -384,14 +384,21 @@ function escribirTabla(ws: any, columnas: ColumnaHoja[], filas: FilaReporte[], f
     cel.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
     cel.border = bordes;
   });
-  ws.getRow(filaEncabezado).height = 24;
+  ws.getRow(filaEncabezado).height = 30;
   filas.forEach((datos, idx) => {
     const fila = filaEncabezado + 1 + idx;
+    // Los textos se ajustan al ancho de la columna y la fila crece según las líneas que necesite el más largo.
+    const lineas = Math.max(1, ...columnas.map((c, i) => {
+      if (c.tipo !== 'texto') return 1;
+      const capacidad = Math.max(4, Math.floor((ws.getColumn(i + 1).width ?? 10) * 0.9) - 1);
+      return String(datos[c.clave] ?? '').split(/\r?\n/).reduce((a, parte) => a + Math.max(1, Math.ceil((parte.length + 0.3 * (parte.match(/[A-ZÁÉÍÓÚÑ]/g)?.length ?? 0)) / capacidad)), 0);
+    }));
+    ws.getRow(fila).height = Math.max(18, lineas * 13 + 6);
     columnas.forEach((c, i) => {
       const cel = ws.getCell(fila, i + 1);
       cel.value = valorExcel(datos[c.clave], c.tipo);
       cel.font = { size: 9, color: { argb: argb(TEXTO) } };
-      cel.alignment = { horizontal: alineacion(c.tipo), vertical: 'middle' };
+      cel.alignment = { horizontal: alineacion(c.tipo), vertical: 'middle', wrapText: c.tipo === 'texto' };
       cel.border = bordes;
       if (idx % 2 === 1) cel.fill = relleno(FILA_ALTERNA);
       if (c.tipo === 'fecha') cel.numFmt = 'dd/mm/yyyy';
@@ -409,9 +416,10 @@ function escribirTabla(ws: any, columnas: ColumnaHoja[], filas: FilaReporte[], f
       });
     }
   });
-  // Filtros en los encabezados y encabezado + primera columna congelados.
+  // Filtros en los encabezados; no se congela ninguna fila ni columna. Sin cuadrícula y con el encabezado repetido al imprimir.
   if (filas.length) ws.autoFilter = { from: { row: filaEncabezado, column: 1 }, to: { row: ultima, column: columnas.length } };
-  ws.views = [{ state: 'frozen', xSplit: 1, ySplit: filaEncabezado, topLeftCell: `B${filaEncabezado + 1}` }];
+  ws.views = [{ showGridLines: false }];
+  ws.pageSetup.printTitlesRow = `${filaEncabezado}:${filaEncabezado}`;
   return ultima;
 }
 

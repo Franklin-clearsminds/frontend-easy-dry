@@ -139,7 +139,7 @@ describe('reportes-export', () => {
   });
 
   describe('archivos', () => {
-    it('los reportes de tabla salen en una sola hoja continua con filtros, la agencia a la izquierda y el encabezado congelado', async () => {
+    it('los reportes de tabla salen en una sola hoja continua con filtros, la agencia a la izquierda y sin filas ni columnas congeladas', async () => {
       const wb = await construirExcel(reporte('TABLA', [grupo('Agencia Norte', 3), grupo('Agencia Sur', 2)]), null);
       expect(wb.worksheets.map((w: any) => w.name)).toEqual(['Servicios especiales', 'Resumen']);
       const ws = wb.worksheets[0];
@@ -148,8 +148,7 @@ describe('reportes-export', () => {
       expect(ws.getCell(filaEnc + 1, 1).value).toBe('Agencia Norte');
       expect(ws.getCell(filaEnc + 4, 1).value).toBe('Agencia Sur');
       expect(ws.autoFilter).toBeTruthy();
-      expect(ws.views[0].state).toBe('frozen');
-      expect((ws.views[0] as any).ySplit).toBe(filaEnc);
+      expect(ws.views.some((v: any) => v.state === 'frozen' || v.xSplit || v.ySplit)).toBe(false);
     });
 
     it('con una sola agencia no agrega resumen', async () => {
