@@ -155,7 +155,7 @@ export const MENU_CONFIG: MenuItem[] = [
     group: 'Auditorías'
   },
 
-  // ─── RRHH (prototipo con datos de ejemplo: solo lo ve el Super Admin) ──────
+  // ─── RRHH: tareas del personal y timbradas (según los permisos del rol) ──────
   {
     label: 'Tareas del personal',
     route: '/rrhh/tareas',

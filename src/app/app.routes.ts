@@ -190,9 +190,19 @@ export const routes: Routes = [
         ]
       },
 
-      // RRHH · prototipo con datos de ejemplo. Los códigos de módulo no existen en la base: solo el Super Admin pasa la guardia.
+      // RRHH: tareas del personal y timbradas. Los módulos existen en la base y cada rol los ve según sus permisos.
       {
         path: 'rrhh/tareas',
+        loadComponent: () =>
+          import('./features/rrhh/rrhh-tareas.component').then(m => m.RrhhTareasComponent),
+        canActivate: [
+          authGuard,
+          moduloGuard('rrhh/tareas')
+        ]
+      },
+      {
+        // Abre el detalle de una tarea (los avisos de la campana apuntan aquí).
+        path: 'rrhh/tareas/:tarea',
         loadComponent: () =>
           import('./features/rrhh/rrhh-tareas.component').then(m => m.RrhhTareasComponent),
         canActivate: [

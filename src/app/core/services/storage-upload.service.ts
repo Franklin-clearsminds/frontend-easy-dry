@@ -20,6 +20,7 @@ export type StorageCategory =
   | 'CATALOGO_INSUMOS'
   | 'INVENTARIO_ENVIOS'
   | 'AUDITORIAS'
+  | 'RRHH'
   | 'PERFIL_USUARIO';
 
 export type MediaEvidenceType =
@@ -45,6 +46,10 @@ export type MediaEvidenceType =
   | 'FOTO_INGRESO_INVENTARIO'
   | 'FOTO_ENVIO'
   | 'FOTO_AUDITORIA'
+  | 'FOTO_TIMBRADA'
+  | 'FOTO_TAREA'
+  | 'VIDEO_TAREA'
+  | 'DOCUMENTO_TAREA'
   | 'FOTO_PERFIL';
 
 export interface UploadTicket {
@@ -272,7 +277,7 @@ export class StorageUploadService {
     if (trimmed.includes('amazonaws.com/')) return trimmed.split('amazonaws.com/')[1]?.split('?')[0] || '';
     if (trimmed.startsWith('/uploads/')) return trimmed.replace(/^\/uploads\//, '').split('?')[0];
     if (trimmed.startsWith('uploads/')) return trimmed.replace(/^uploads\//, '').split('?')[0];
-    if (/^(agencias|catalogo|usuarios|maquinaria|thumbs|view)\//.test(trimmed)) {
+    if (/^(agencias|catalogo|usuarios|maquinaria|rrhh|thumbs|view)\//.test(trimmed)) {
       return trimmed.split('?')[0];
     }
     return '';
@@ -426,7 +431,7 @@ export class StorageUploadService {
       const key = trimmed.replace(/^uploads\//, '').split('?')[0];
       return apiUrl(`/storage/file?key=${encodeURIComponent(key)}`);
     }
-    if (/^(agencias|catalogo|usuarios|maquinaria|thumbs|view)\//.test(trimmed)) {
+    if (/^(agencias|catalogo|usuarios|maquinaria|rrhh|thumbs|view)\//.test(trimmed)) {
       const key = trimmed.split('?')[0];
       return apiUrl(`/storage/file?key=${encodeURIComponent(key)}`);
     }

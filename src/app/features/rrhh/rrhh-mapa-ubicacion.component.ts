@@ -181,12 +181,12 @@ export class RrhhMapaUbicacionComponent implements AfterViewInit, OnChanges, OnD
 
   // ───────────────────────── Buscador de lugares ─────────────────────────
 
-  /** Espera un instante tras cada tecla y pide sugerencias a Google (Places API nueva), acotadas a Ecuador. */
+  /** Espera a que se deje de escribir (700 ms, mínimo 4 letras) y pide sugerencias a Google (Places API nueva), acotadas a Ecuador. */
   buscar(): void {
     if (this.temporizador) clearTimeout(this.temporizador);
     const texto = this.busqueda.trim();
-    if (texto.length < 3 || this.estado !== 'listo') { this.sugerencias = []; this.buscando = false; return; }
-    this.temporizador = setTimeout(() => void this.consultar(texto), 300);
+    if (texto.length < 4 || this.estado !== 'listo') { this.sugerencias = []; this.buscando = false; return; }
+    this.temporizador = setTimeout(() => void this.consultar(texto), 700);
   }
 
   private async consultar(texto: string): Promise<void> {

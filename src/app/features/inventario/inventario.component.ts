@@ -11,6 +11,7 @@ import { LucideAngularModule } from 'lucide-angular';
 import { Subject, Subscription, of } from 'rxjs';
 import { catchError, debounceTime, distinctUntilChanged, map, tap } from 'rxjs/operators';
 import { ModalComponent } from '../../shared/components/modal/modal.component';
+import { RrhhUbicacionSitioComponent } from '../rrhh/rrhh-ubicacion-sitio.component';
 import { ModalPortalDirective } from '../../shared/directives/modal-portal.directive';
 import { ImageUploaderComponent } from '../../shared/components/image-uploader/image-uploader.component';
 import { StorageUploadService } from '../../core/services/storage-upload.service';
@@ -47,7 +48,7 @@ import { DespachoMasivoModalComponent } from './despacho-masivo/despacho-masivo-
 @Component({
   selector: 'app-inventario',
   standalone: true,
-  imports: [TablaFijaDirective, AvatarSrcDirective, CommonModule, FormsModule, LucideAngularModule, VerMediaDirective, ModalComponent, ModalPortalDirective, ImageUploaderComponent, ConsumoServiciosComponent, ThumbSrcDirective, DataTableComponent, DataTableCellDirective, InfiniteScrollComponent, StockUbicacionInsumosComponent, DespachoMasivoModalComponent, PaginationComponent],
+  imports: [TablaFijaDirective, AvatarSrcDirective, CommonModule, FormsModule, LucideAngularModule, VerMediaDirective, ModalComponent, ModalPortalDirective, ImageUploaderComponent, ConsumoServiciosComponent, ThumbSrcDirective, DataTableComponent, DataTableCellDirective, InfiniteScrollComponent, StockUbicacionInsumosComponent, DespachoMasivoModalComponent, PaginationComponent, RrhhUbicacionSitioComponent],
   template: `
     <div class="space-y-6 animate-fade-in pb-16">
 
@@ -3755,6 +3756,11 @@ import { DespachoMasivoModalComponent } from './despacho-masivo/despacho-masivo-
               </p>
           </div>
 
+          <!-- RRHH: ubicación y radio de timbrada de la bodega. Solo con la bodega ya creada y para quien configura ubicaciones. -->
+          @if (editandoBodega && puedeConfigurarUbicacionBodega) {
+            <app-rrhh-ubicacion-sitio tipo="BODEGA" [sitioId]="editandoBodega.id"></app-rrhh-ubicacion-sitio>
+          }
+
           <div class="p-3 bg-blue-50 rounded-xl border border-blue-200 text-blue-900 text-xs flex items-start gap-2">
             <i-lucide aria-hidden="true" name="shield-check" class="w-4 h-4 text-easydry-blue shrink-0 mt-0.5"></i-lucide>
             <p>
@@ -3939,6 +3945,7 @@ export class InventarioComponent implements OnInit, OnDestroy {
   get puedeGestionarBodegas(): boolean { return this.auth.puede('inventario.bodegas.gestionar'); }
   get puedeEstadoBodegas(): boolean { return this.auth.puede('inventario.bodegas.estado'); }
   get puedeEliminarBodegas(): boolean { return this.auth.puede('inventario.bodegas.eliminar'); }
+  get puedeConfigurarUbicacionBodega(): boolean { return this.auth.puede('inventario.bodegas.ubicacion'); }
   get puedeAjustarStock(): boolean { return this.auth.puede('inventario.reajustar'); }
   get puedeVerDespachos(): boolean { return this.auth.puede('despachos.ver'); }
   get puedeRecibirDespacho(): boolean { return this.auth.puede('despachos.recibir'); }
@@ -5795,9 +5802,15 @@ export class InventarioComponent implements OnInit, OnDestroy {
         .subscribe({
           next: (res) => {
             this.guardandoBodega = false;
-            this.modalBodegaOpen = false;
             this.toast.success('Bodega Registrada', res.message || 'Bodega creada exitosamente.');
             this.cargarBodegasDisponibles();
+            if (res?.id && this.puedeConfigurarUbicacionBodega) {
+              // Se deja el formulario abierto en modo edición para configurar enseguida la ubicación de la bodega recién creada.
+              this.editandoBodega = res as BodegaInventario;
+              this.toast.info('Configura la ubicación', 'Usa «Configurar ubicación» para validar las timbradas del personal de esta bodega, o cierra el formulario.');
+            } else {
+              this.modalBodegaOpen = false;
+            }
           },
           error: (err) => {
             this.guardandoBodega = false;

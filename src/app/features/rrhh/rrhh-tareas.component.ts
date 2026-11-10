@@ -1,34 +1,27 @@
-import { Component, inject } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { LucideAngularModule } from 'lucide-angular';
 import { ToastService } from '../../shared/services/toast.service';
 import { ModalComponent } from '../../shared/components/modal/modal.component';
-import { RrhhAdjuntosComponent } from './rrhh-adjuntos.component';
-import { RrhhMockService } from './rrhh-mock.service';
-import { AdjuntoMock, EstadoTarea, TareaMock, estaVencida } from './rrhh.modelos';
+import { AuthService } from '../../core/services/auth.service';
+import { EstadoTarea, PersonaAsignable, RrhhService, TareaApi } from '../../core/services/rrhh.service';
+import { AdjuntoElegido, RrhhAdjuntosComponent } from './rrhh-adjuntos.component';
+import { ESTADOS_TAREA, ETIQUETA_EVENTO, MAX_ADJUNTOS, ZONA_ECUADOR } from './rrhh.modelos';
 
-type FiltroEstado = '' | EstadoTarea | 'VENCIDA';
+type Pestana = 'mias' | 'asignadas';
+type FiltroEstado = '' | EstadoTarea | 'VENCIDA' | 'SIN_RESPONSABLE';
 
-const ESTADOS: { id: EstadoTarea; nombre: string; clase: string }[] = [
-  { id: 'PENDIENTE', nombre: 'Pendiente', clase: 'bg-amber-100 text-amber-800 border-amber-200' },
-  { id: 'COMPLETADA', nombre: 'Completada', clase: 'bg-sky-100 text-sky-800 border-sky-200' },
-  { id: 'REVISADA', nombre: 'Revisada', clase: 'bg-emerald-100 text-emerald-800 border-emerald-200' },
-  { id: 'CANCELADA', nombre: 'Cancelada', clase: 'bg-slate-100 text-slate-600 border-slate-200' },
-];
-
-const ETIQUETA_EVENTO: Record<string, string> = {
-  ASIGNADA: 'Asignada',
-  COMPLETADA: 'Completada',
-  REVISADA: 'Revisada',
-  DEVUELTA: 'Devuelta a pendiente',
-  CANCELADA: 'Cancelada',
+const mensajeDe = (e: unknown, defecto: string): string => {
+  const m = (e as { error?: { message?: string | string[] } } | null)?.error?.message;
+  return Array.isArray(m) ? m.join(', ') : m ? String(m) : defecto;
 };
 
 /**
- * RRHH · Tareas (PROTOTIPO con datos de ejemplo en memoria). El Super Admin asigna tareas a los operadores, la completa «como el operador»
- * para ver el flujo, y la revisa o la devuelve. Las notificaciones del módulo salen en su propia lista, sin tocar la campana real.
+ * RRHH · Tareas del personal. «Mis tareas» (quien las recibe): ve las suyas y las completa con una respuesta y evidencias.
+ * «Tareas asignadas» (quien asigna): asigna a personas de su alcance, y revisa, devuelve, cancela o reasigna las que asignó.
+ * Los avisos llegan por la campana del encabezado.
  */
 @Component({
   selector: 'app-rrhh-tareas',
@@ -39,24 +32,34 @@ const ETIQUETA_EVENTO: Record<string, string> = {
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-100 shadow-easydry">
         <div>
           <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-violet-100 text-violet-800 text-xs font-bold mb-2">
-            <i-lucide name="users" class="w-3.5 h-3.5" aria-hidden="true"></i-lucide><span>RRHH · Prototipo</span>
+            <i-lucide name="users" class="w-3.5 h-3.5" aria-hidden="true"></i-lucide><span>RRHH</span>
           </div>
           <h1 class="text-2xl font-extrabold text-slate-900 font-outfit">Tareas del personal</h1>
-          <p class="text-slate-500 text-xs mt-1 max-w-2xl">Asigna tareas a los operadores con título, descripción y archivos. El operador la completa con evidencias y una respuesta, y quien la asignó la revisa.</p>
+          <p class="text-slate-500 text-xs mt-1 max-w-2xl">
+            @if (pestana === 'mias') { Las tareas que te asignaron. Complétalas con una respuesta y al menos una evidencia: quien te la asignó la revisa. }
+            @else { Asigna tareas a las personas de tu alcance con título, descripción y archivos. Cuando las completan, tú las revisas. }
+          </p>
         </div>
-        <div class="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-          <button type="button" class="btn btn-secondary" (click)="restablecer()" title="Borra lo guardado en el navegador y vuelve a los datos de ejemplo">
-            <i-lucide name="rotate-ccw" class="w-4 h-4" aria-hidden="true"></i-lucide> Restablecer datos de ejemplo
-          </button>
-          <button type="button" class="btn btn-cta" (click)="abrirNueva()">
+        @if (pestana === 'asignadas' && puede('rrhh.tareas.asignar')) {
+          <button type="button" class="btn btn-cta w-full sm:w-auto" (click)="abrirNueva()">
             <i-lucide name="plus" class="w-4 h-4" aria-hidden="true"></i-lucide> Nueva tarea
           </button>
-        </div>
+        }
       </div>
 
-      <div class="rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 text-xs font-semibold text-violet-900" role="note">
-        Prototipo: los datos son de ejemplo y no se guarda nada en el servidor. Las tareas que nacen de un informe se conservan en este navegador al recargar (sin la vista previa de sus archivos); las demás se reinician.
-      </div>
+      @if (verMias && verAsignadas) {
+        <div class="flex gap-1 border-b border-slate-200" role="tablist" aria-label="Tareas">
+          <button type="button" role="tab" [attr.aria-selected]="pestana === 'mias'" class="px-4 min-h-11 text-sm font-bold border-b-2 -mb-px transition-colors" [ngClass]="pestana === 'mias' ? 'border-easydry-blue text-easydry-blue' : 'border-transparent text-slate-500 hover:text-slate-800'" (click)="cambiarPestana('mias')">Mis tareas</button>
+          <button type="button" role="tab" [attr.aria-selected]="pestana === 'asignadas'" class="px-4 min-h-11 text-sm font-bold border-b-2 -mb-px transition-colors" [ngClass]="pestana === 'asignadas' ? 'border-easydry-blue text-easydry-blue' : 'border-transparent text-slate-500 hover:text-slate-800'" (click)="cambiarPestana('asignadas')">Tareas asignadas</button>
+        </div>
+      }
+
+      @if (pestana === 'asignadas' && sinResponsable.length) {
+        <div class="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-xs font-semibold text-amber-900 flex flex-wrap items-center justify-between gap-2" role="alert">
+          <span>{{ sinResponsable.length }} tarea(s) pendiente(s) cuyo responsable ya no está activo. Reasígnalas para que no queden sin atender.</span>
+          <button type="button" class="btn btn-secondary btn-sm" (click)="filtroEstado = 'SIN_RESPONSABLE'">Verlas</button>
+        </div>
+      }
 
       <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
         @for (c of tarjetas; track c.titulo) {
@@ -68,143 +71,135 @@ const ETIQUETA_EVENTO: Record<string, string> = {
         }
       </div>
 
-      <div class="grid grid-cols-1 xl:grid-cols-3 gap-5">
-        <section class="xl:col-span-2 space-y-3" aria-label="Lista de tareas">
-          <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry p-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div>
-              <label class="field-label" for="rr-buscar">Buscar</label>
-              <input id="rr-buscar" class="field" [(ngModel)]="busqueda" placeholder="Título o descripción…" autocomplete="off">
-            </div>
-            <div>
-              <label class="field-label" for="rr-op">Operador</label>
-              <select id="rr-op" class="field" [(ngModel)]="filtroOperador">
-                <option value="">Todos</option>
-                @for (o of mock.operadores; track o.id) { <option [value]="o.id">{{ o.nombre }}</option> }
-              </select>
-            </div>
-            <div>
-              <label class="field-label" for="rr-est">Estado</label>
-              <select id="rr-est" class="field" [(ngModel)]="filtroEstado">
-                <option value="">Todos</option>
-                @for (e of estados; track e.id) { <option [value]="e.id">{{ e.nombre }}</option> }
-                <option value="VENCIDA">Vencida</option>
-              </select>
-            </div>
+      <section class="space-y-3" aria-label="Lista de tareas">
+        <div class="bg-white rounded-2xl border border-slate-100 shadow-easydry p-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div>
+            <label class="field-label" for="rr-buscar">Buscar</label>
+            <input id="rr-buscar" class="field" [(ngModel)]="busqueda" placeholder="Título o descripción…" autocomplete="off">
           </div>
+          @if (pestana === 'asignadas') {
+            <div>
+              <label class="field-label" for="rr-op">Responsable</label>
+              <select id="rr-op" class="field" [(ngModel)]="filtroPersona">
+                <option value="">Todos</option>
+                @for (p of responsables; track p.id) { <option [value]="p.id">{{ p.nombre }}</option> }
+              </select>
+            </div>
+          }
+          <div>
+            <label class="field-label" for="rr-est">Estado</label>
+            <select id="rr-est" class="field" [(ngModel)]="filtroEstado">
+              <option value="">Todos</option>
+              @for (e of estados; track e.id) { <option [value]="e.id">{{ e.nombre }}</option> }
+              <option value="VENCIDA">Vencida</option>
+              @if (pestana === 'asignadas') { <option value="SIN_RESPONSABLE">Sin responsable activo</option> }
+            </select>
+          </div>
+        </div>
 
-          @for (t of filtradas; track t.id) {
-            <article class="bg-white rounded-2xl border shadow-easydry p-4 space-y-2" [ngClass]="vencida(t) ? 'border-rose-300' : 'border-slate-100'">
-              <div class="flex flex-wrap items-start justify-between gap-2">
-                <div class="min-w-0">
-                  <h2 class="font-extrabold text-slate-900">{{ t.titulo }}</h2>
-                  <p class="text-xs text-slate-500">Para <strong class="text-slate-700">{{ mock.nombreOperador(t.operadorId) }}</strong> · {{ mock.agenciaDe(t.operadorId)?.nombre }}</p>
-                </div>
-                <div class="flex flex-wrap items-center gap-1.5">
-                  <span class="badge border" [ngClass]="claseEstado(t.estado)">{{ nombreEstado(t.estado) }}</span>
-                  @if (vencida(t)) { <span class="badge badge-critical">Vencida</span> }
-                </div>
+        @if (cargando) {
+          <div class="bg-white rounded-2xl border border-slate-100 p-10 text-center text-sm text-slate-500">Cargando tareas…</div>
+        }
+        @for (t of filtradas; track t.id) {
+          <article class="bg-white rounded-2xl border shadow-easydry p-4 space-y-2" [ngClass]="t.vencida ? 'border-rose-300' : 'border-slate-100'">
+            <div class="flex flex-wrap items-start justify-between gap-2">
+              <div class="min-w-0">
+                <h2 class="font-extrabold text-slate-900"><span class="text-slate-400 font-mono text-xs mr-1">{{ t.numero }}</span>{{ t.titulo }}</h2>
+                <p class="text-xs text-slate-500">
+                  @if (pestana === 'asignadas') { Para <strong class="text-slate-700">{{ t.asignadoA.nombre }}</strong>@if (t.asignadoA.agencia) { · {{ t.asignadoA.agencia }} } }
+                  @else { Asignada por <strong class="text-slate-700">{{ t.asignadoPor.nombre }}</strong> }
+                  @if (!t.asignadoA.activo) { <span class="badge badge-warn ml-1">Responsable inactivo</span> }
+                </p>
               </div>
-              @if (t.origen) {
-                <p class="text-xs"><span class="badge bg-violet-100 text-violet-800">Desde un informe</span> <a [routerLink]="['/informes-inspeccion', t.origen.informeId]" class="font-bold text-easydry-blue hover:underline">{{ t.origen.informeNumero }}</a> <span class="text-slate-500">· novedad «{{ t.origen.novedadTitulo }}»</span></p>
+              <div class="flex flex-wrap items-center gap-1.5">
+                <span class="badge border" [ngClass]="claseEstado(t.estado)">{{ nombreEstado(t.estado) }}</span>
+                @if (t.vencida) { <span class="badge badge-critical">Vencida</span> }
+              </div>
+            </div>
+            @if (t.origen) {
+              <p class="text-xs"><span class="badge bg-violet-100 text-violet-800">Desde un informe</span> @if (t.origen.numero) { <a [routerLink]="['/informes-inspeccion', t.origen.informeId]" class="font-bold text-easydry-blue hover:underline">{{ t.origen.numero }}</a> }</p>
+            }
+            <p class="text-sm text-slate-600 line-clamp-2">{{ t.descripcion }}</p>
+            <p class="text-[11px] text-slate-500">
+              Asignada {{ t.creadaEn | date:'dd/MM/yyyy HH:mm':zona }}
+              @if (t.fechaLimite) { · Límite {{ t.fechaLimite | date:'dd/MM/yyyy':zona }} }
+              @if (t.adjuntos.length) { · {{ t.adjuntos.length }} adjunto(s) }
+            </p>
+            <div class="flex flex-wrap gap-2 pt-1">
+              <button type="button" class="btn btn-secondary btn-sm" (click)="verDetalle(t)"><i-lucide name="eye" class="w-3.5 h-3.5" aria-hidden="true"></i-lucide> Ver detalle</button>
+              @if (pestana === 'mias' && t.estado === 'PENDIENTE') {
+                <button type="button" class="btn btn-primary btn-sm" (click)="abrirCompletar(t)"><i-lucide name="check-circle" class="w-3.5 h-3.5" aria-hidden="true"></i-lucide> Completar</button>
               }
-              <p class="text-sm text-slate-600 line-clamp-2">{{ t.descripcion }}</p>
-              <p class="text-[11px] text-slate-500">
-                Asignada {{ t.asignadaEn | date:'dd/MM/yyyy HH:mm' }}
-                @if (t.fechaLimite) { · Límite {{ t.fechaLimite | date:'dd/MM/yyyy' }} }
-                @if (t.adjuntos.length) { · {{ t.adjuntos.length }} adjunto(s) }
-              </p>
-              <div class="flex flex-wrap gap-2 pt-1">
-                <button type="button" class="btn btn-secondary btn-sm" (click)="verDetalle(t)"><i-lucide name="eye" class="w-3.5 h-3.5" aria-hidden="true"></i-lucide> Ver detalle</button>
-                @if (t.estado === 'PENDIENTE') {
-                  <button type="button" class="btn btn-primary btn-sm" (click)="abrirCompletar(t)"><i-lucide name="check-circle" class="w-3.5 h-3.5" aria-hidden="true"></i-lucide> Completar como operador</button>
-                }
-                @if (t.estado === 'COMPLETADA') {
-                  <button type="button" class="btn btn-primary btn-sm" (click)="aprobar(t)"><i-lucide name="check-check" class="w-3.5 h-3.5" aria-hidden="true"></i-lucide> Aprobar</button>
-                  <button type="button" class="btn btn-secondary btn-sm" (click)="abrirDevolver(t)"><i-lucide name="rotate-ccw" class="w-3.5 h-3.5" aria-hidden="true"></i-lucide> Devolver</button>
-                }
-              </div>
-            </article>
-          } @empty {
+              @if (pestana === 'asignadas' && t.estado === 'COMPLETADA' && puedeGestionar(t)) {
+                <button type="button" class="btn btn-primary btn-sm" (click)="aprobar(t)"><i-lucide name="check-check" class="w-3.5 h-3.5" aria-hidden="true"></i-lucide> Aprobar</button>
+                <button type="button" class="btn btn-secondary btn-sm" (click)="abrirDevolver(t)"><i-lucide name="rotate-ccw" class="w-3.5 h-3.5" aria-hidden="true"></i-lucide> Devolver</button>
+              }
+              @if (pestana === 'asignadas' && t.estado === 'PENDIENTE' && puedeGestionar(t) && !t.asignadoA.activo) {
+                <button type="button" class="btn btn-primary btn-sm" (click)="abrirReasignar(t)"><i-lucide name="user-cog" class="w-3.5 h-3.5" aria-hidden="true"></i-lucide> Reasignar</button>
+              }
+            </div>
+          </article>
+        } @empty {
+          @if (!cargando) {
             <div class="bg-white rounded-2xl border border-dashed border-slate-300 p-10 text-center text-sm text-slate-500">No hay tareas con esos filtros.</div>
           }
-        </section>
-
-        <aside class="bg-white rounded-2xl border border-slate-100 shadow-easydry p-4 space-y-3 h-fit" aria-label="Notificaciones del módulo">
-          <div class="flex items-center justify-between gap-2">
-            <h2 class="font-extrabold text-slate-900 inline-flex items-center gap-2"><i-lucide name="bell" class="w-4 h-4" aria-hidden="true"></i-lucide> Notificaciones
-              @if (mock.avisosSinLeer) { <span class="badge badge-critical">{{ mock.avisosSinLeer }}</span> }
-            </h2>
-            @if (mock.avisosSinLeer) { <button type="button" class="text-xs font-bold text-easydry-blue hover:underline" (click)="mock.marcarAvisosLeidos()">Marcar leídas</button> }
-          </div>
-          <p class="text-[11px] text-slate-500">Así llegarían los avisos del módulo. Cada uno dice a quién le saltaría.</p>
-          <ul class="space-y-2 max-h-[28rem] overflow-y-auto">
-            @for (a of mock.avisos; track a.id) {
-              <li class="rounded-xl border p-2.5 text-xs" [ngClass]="a.leida ? 'border-slate-100 bg-white' : 'border-sky-200 bg-sky-50'">
-                <p class="font-bold text-slate-800">{{ a.titulo }}</p>
-                <p class="text-slate-600">{{ a.mensaje }}</p>
-                <p class="text-[10px] text-slate-500 mt-1">Para: {{ a.destinatario }} · {{ a.fecha | date:'dd/MM HH:mm' }}@if (a.enlace) { · <a [routerLink]="a.enlace" class="font-bold text-easydry-blue hover:underline">Ver informe</a> }</p>
-              </li>
-            } @empty {
-              <li class="text-xs text-slate-500">Sin notificaciones.</li>
-            }
-          </ul>
-        </aside>
-      </div>
+        }
+      </section>
 
       <!-- Nueva tarea -->
       <app-modal [isOpen]="nueva.abierta" title="Nueva tarea" icon="clipboard-list" size="lg" (close)="nueva.abierta = false">
         <form class="space-y-4" (ngSubmit)="crear()" autocomplete="off">
           <div>
             <label class="field-label" for="nt-op">Asignar a *</label>
-            <select id="nt-op" name="op" class="field" [(ngModel)]="nueva.operadorId">
-              <option value="">Selecciona un operador…</option>
-              @for (o of mock.operadores; track o.id) { <option [value]="o.id">{{ o.nombre }} · {{ o.cargo }} · {{ mock.agencia(o.agenciaId)?.nombre }}</option> }
+            <select id="nt-op" name="op" class="field" [(ngModel)]="nueva.asignadoAId">
+              <option value="">Selecciona a una persona…</option>
+              @for (p of personas; track p.id) { <option [value]="p.id">{{ p.nombre }} · {{ p.rol }}@if (p.agencia) { · {{ p.agencia }} }</option> }
             </select>
+            @if (!personas.length) { <p class="text-[11px] text-amber-700 mt-1">No hay personas activas en tu alcance a las que se pueda asignar.</p> }
           </div>
           <div>
             <label class="field-label" for="nt-tit">Título *</label>
-            <input id="nt-tit" name="titulo" class="field" [(ngModel)]="nueva.titulo" maxlength="120" placeholder="Qué hay que hacer">
+            <input id="nt-tit" name="titulo" class="field" [(ngModel)]="nueva.titulo" maxlength="150" placeholder="Qué hay que hacer">
           </div>
           <div>
             <label class="field-label" for="nt-desc">Descripción *</label>
-            <textarea id="nt-desc" name="descripcion" class="field" rows="4" [(ngModel)]="nueva.descripcion" maxlength="1000" placeholder="Detalle de la tarea"></textarea>
+            <textarea id="nt-desc" name="descripcion" class="field" rows="4" [(ngModel)]="nueva.descripcion" maxlength="2000" placeholder="Detalle de la tarea"></textarea>
           </div>
           <div>
             <label class="field-label" for="nt-lim">Fecha límite (opcional)</label>
-            <input id="nt-lim" name="limite" type="date" class="field max-w-xs" [(ngModel)]="nueva.fechaLimite" [min]="mock.hoy()">
+            <input id="nt-lim" name="limite" type="date" class="field max-w-xs" [(ngModel)]="nueva.fechaLimite" [min]="hoy">
           </div>
           <div>
             <p class="field-label">Archivos de apoyo (opcional)</p>
-            <app-rrhh-adjuntos [adjuntos]="nueva.adjuntos" (adjuntosChange)="nueva.adjuntos = $event" etiqueta="Adjuntar archivos a la tarea"></app-rrhh-adjuntos>
+            <app-rrhh-adjuntos [(elegidos)]="nueva.adjuntos" (ocupadoChange)="nueva.ocupado = $event" etiqueta="Adjuntar archivos a la tarea"></app-rrhh-adjuntos>
           </div>
           @if (errorNueva) { <p class="text-sm font-semibold text-rose-700" role="alert">{{ errorNueva }}</p> }
           <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
             <button type="button" class="btn btn-secondary" (click)="nueva.abierta = false">Cancelar</button>
-            <button type="submit" class="btn btn-cta">Asignar tarea</button>
+            <button type="submit" class="btn btn-cta" [disabled]="nueva.ocupado || enviando">{{ nueva.ocupado ? 'Subiendo archivos…' : enviando ? 'Asignando…' : 'Asignar tarea' }}</button>
           </div>
         </form>
       </app-modal>
 
-      <!-- Completar como el operador -->
+      <!-- Completar -->
       <app-modal [isOpen]="!!completando" [title]="'Completar · ' + (completando?.titulo ?? '')" icon="check-circle" size="lg" (close)="completando = null">
         @if (completando) {
           <form class="space-y-4" (ngSubmit)="completar()" autocomplete="off">
-            <p class="text-xs text-slate-600">Estás completando la tarea en nombre de <strong>{{ mock.nombreOperador(completando.operadorId) }}</strong>.</p>
-            @if (completando.motivoDevolucion) {
-              <p class="rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-xs font-semibold text-amber-900">Fue devuelta: {{ completando.motivoDevolucion }}</p>
+            @if (devolucion(completando)) {
+              <p class="rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-xs font-semibold text-amber-900">Fue devuelta: {{ devolucion(completando) }}</p>
             }
             <div>
               <label class="field-label" for="co-resp">Respuesta *</label>
-              <textarea id="co-resp" name="respuesta" class="field" rows="4" [(ngModel)]="completar_.respuesta" maxlength="1000" placeholder="Qué hiciste y cómo quedó"></textarea>
+              <textarea id="co-resp" name="respuesta" class="field" rows="4" [(ngModel)]="respuesta.texto" maxlength="2000" placeholder="Qué hiciste y cómo quedó"></textarea>
             </div>
             <div>
-              <p class="field-label">Evidencias (imágenes, videos o documentos) *</p>
-              <app-rrhh-adjuntos [adjuntos]="completar_.evidencias" (adjuntosChange)="completar_.evidencias = $event" etiqueta="Adjuntar evidencias"></app-rrhh-adjuntos>
+              <p class="field-label">Evidencias (imágenes, videos o PDF) *</p>
+              <app-rrhh-adjuntos [(elegidos)]="respuesta.evidencias" (ocupadoChange)="respuesta.ocupado = $event" etiqueta="Adjuntar evidencias"></app-rrhh-adjuntos>
             </div>
             @if (errorCompletar) { <p class="text-sm font-semibold text-rose-700" role="alert">{{ errorCompletar }}</p> }
             <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
               <button type="button" class="btn btn-secondary" (click)="completando = null">Cancelar</button>
-              <button type="submit" class="btn btn-cta">Enviar como completada</button>
+              <button type="submit" class="btn btn-cta" [disabled]="respuesta.ocupado || enviando">{{ respuesta.ocupado ? 'Subiendo archivos…' : enviando ? 'Enviando…' : 'Enviar como completada' }}</button>
             </div>
           </form>
         }
@@ -213,15 +208,15 @@ const ETIQUETA_EVENTO: Record<string, string> = {
       <!-- Devolver -->
       <app-modal [isOpen]="!!devolviendo" title="Devolver tarea" icon="rotate-ccw" size="md" (close)="devolviendo = null">
         <form class="space-y-4" (ngSubmit)="devolver()" autocomplete="off">
-          <p class="text-xs text-slate-600">La tarea vuelve a <strong>Pendiente</strong> y el operador debe completarla de nuevo.</p>
+          <p class="text-xs text-slate-600">La tarea vuelve a <strong>Pendiente</strong> y la persona debe completarla de nuevo.</p>
           <div>
             <label class="field-label" for="dv-mot">Motivo *</label>
-            <textarea id="dv-mot" name="motivo" class="field" rows="3" [(ngModel)]="motivoDevolver" maxlength="300" placeholder="Qué falta o qué corregir"></textarea>
+            <textarea id="dv-mot" name="motivo" class="field" rows="3" [(ngModel)]="motivoDevolver" maxlength="500" placeholder="Qué falta o qué corregir"></textarea>
           </div>
           @if (errorDevolver) { <p class="text-sm font-semibold text-rose-700" role="alert">{{ errorDevolver }}</p> }
           <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
             <button type="button" class="btn btn-secondary" (click)="devolviendo = null">Cancelar</button>
-            <button type="submit" class="btn btn-cta">Devolver</button>
+            <button type="submit" class="btn btn-cta" [disabled]="enviando">Devolver</button>
           </div>
         </form>
       </app-modal>
@@ -231,11 +226,29 @@ const ETIQUETA_EVENTO: Record<string, string> = {
         <form class="space-y-4" (ngSubmit)="cancelar()" autocomplete="off">
           <div>
             <label class="field-label" for="ca-mot">Motivo (opcional)</label>
-            <textarea id="ca-mot" name="motivoCancelar" class="field" rows="3" [(ngModel)]="motivoCancelar" maxlength="300"></textarea>
+            <textarea id="ca-mot" name="motivoCancelar" class="field" rows="3" [(ngModel)]="motivoCancelar" maxlength="500"></textarea>
           </div>
           <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
             <button type="button" class="btn btn-secondary" (click)="cancelando = null">Volver</button>
-            <button type="submit" class="btn btn-danger">Cancelar tarea</button>
+            <button type="submit" class="btn btn-danger" [disabled]="enviando">Cancelar tarea</button>
+          </div>
+        </form>
+      </app-modal>
+
+      <!-- Reasignar -->
+      <app-modal [isOpen]="!!reasignando" title="Reasignar tarea" icon="user-cog" size="md" (close)="reasignando = null">
+        <form class="space-y-4" (ngSubmit)="reasignar()" autocomplete="off">
+          <p class="text-xs text-slate-600">«{{ reasignando?.titulo }}» pasa a otra persona y ambas reciben el aviso.</p>
+          <div>
+            <label class="field-label" for="re-op">Nuevo responsable *</label>
+            <select id="re-op" name="nuevo" class="field" [(ngModel)]="nuevoResponsable">
+              <option value="">Selecciona a una persona…</option>
+              @for (p of personas; track p.id) { <option [value]="p.id">{{ p.nombre }} · {{ p.rol }}@if (p.agencia) { · {{ p.agencia }} }</option> }
+            </select>
+          </div>
+          <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
+            <button type="button" class="btn btn-secondary" (click)="reasignando = null">Volver</button>
+            <button type="submit" class="btn btn-cta" [disabled]="!nuevoResponsable || enviando">Reasignar</button>
           </div>
         </form>
       </app-modal>
@@ -246,29 +259,29 @@ const ETIQUETA_EVENTO: Record<string, string> = {
           <div class="space-y-5 text-sm">
             <div class="flex flex-wrap items-center gap-2">
               <span class="badge border" [ngClass]="claseEstado(detalle.estado)">{{ nombreEstado(detalle.estado) }}</span>
-              @if (vencida(detalle)) { <span class="badge badge-critical">Vencida</span> }
-              <span class="text-xs text-slate-500">Para {{ mock.nombreOperador(detalle.operadorId) }} · {{ mock.agenciaDe(detalle.operadorId)?.nombre }}</span>
+              @if (detalle.vencida) { <span class="badge badge-critical">Vencida</span> }
+              <span class="text-xs text-slate-500">{{ detalle.numero }} · Para {{ detalle.asignadoA.nombre }}@if (detalle.asignadoA.agencia) { · {{ detalle.asignadoA.agencia }} } · Asignada por {{ detalle.asignadoPor.nombre }}</span>
             </div>
             @if (detalle.origen) {
-              <p class="rounded-lg border border-violet-200 bg-violet-50 p-2.5 text-xs text-violet-900">Nació de la novedad «{{ detalle.origen.novedadTitulo }}» del informe <a [routerLink]="['/informes-inspeccion', detalle.origen.informeId]" class="font-bold underline" (click)="detalle = null">{{ detalle.origen.informeNumero }}</a>. Los archivos de las tareas guardadas en el navegador solo conservan su nombre al recargar.</p>
+              <p class="rounded-lg border border-violet-200 bg-violet-50 p-2.5 text-xs text-violet-900">Nació de una novedad del informe @if (detalle.origen.numero) { <a [routerLink]="['/informes-inspeccion', detalle.origen.informeId]" class="font-bold underline" (click)="detalle = null">{{ detalle.origen.numero }}</a> }.</p>
             }
             <p class="whitespace-pre-line text-slate-700">{{ detalle.descripcion }}</p>
 
             <dl class="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
-              <div><dt class="text-[11px] font-bold uppercase text-slate-500">Asignada</dt><dd class="font-semibold">{{ detalle.asignadaEn | date:'dd/MM/yyyy HH:mm' }}</dd></div>
-              <div><dt class="text-[11px] font-bold uppercase text-slate-500">Completada</dt><dd class="font-semibold">{{ detalle.completadaEn ? (detalle.completadaEn | date:'dd/MM/yyyy HH:mm') : '—' }}</dd></div>
-              <div><dt class="text-[11px] font-bold uppercase text-slate-500">Revisada</dt><dd class="font-semibold">{{ detalle.revisadaEn ? (detalle.revisadaEn | date:'dd/MM/yyyy HH:mm') : '—' }}</dd></div>
-              <div><dt class="text-[11px] font-bold uppercase text-slate-500">Cancelada</dt><dd class="font-semibold">{{ detalle.canceladaEn ? (detalle.canceladaEn | date:'dd/MM/yyyy HH:mm') : '—' }}</dd></div>
-              <div><dt class="text-[11px] font-bold uppercase text-slate-500">Fecha límite</dt><dd class="font-semibold">{{ detalle.fechaLimite ? (detalle.fechaLimite | date:'dd/MM/yyyy') : 'Sin fecha límite' }}</dd></div>
+              <div><dt class="text-[11px] font-bold uppercase text-slate-500">Asignada</dt><dd class="font-semibold">{{ detalle.creadaEn | date:'dd/MM/yyyy HH:mm':zona }}</dd></div>
+              <div><dt class="text-[11px] font-bold uppercase text-slate-500">Completada</dt><dd class="font-semibold">{{ detalle.completadaEn ? (detalle.completadaEn | date:'dd/MM/yyyy HH:mm':zona) : '—' }}</dd></div>
+              <div><dt class="text-[11px] font-bold uppercase text-slate-500">Revisada</dt><dd class="font-semibold">{{ detalle.revisadaEn ? (detalle.revisadaEn | date:'dd/MM/yyyy HH:mm':zona) : '—' }}</dd></div>
+              <div><dt class="text-[11px] font-bold uppercase text-slate-500">Cancelada</dt><dd class="font-semibold">{{ detalle.canceladaEn ? (detalle.canceladaEn | date:'dd/MM/yyyy HH:mm':zona) : '—' }}</dd></div>
+              <div><dt class="text-[11px] font-bold uppercase text-slate-500">Fecha límite</dt><dd class="font-semibold">{{ detalle.fechaLimite ? (detalle.fechaLimite | date:'dd/MM/yyyy':zona) : 'Sin fecha límite' }}</dd></div>
             </dl>
 
-            <section class="space-y-2"><h3 class="font-extrabold text-slate-900">Archivos de la tarea</h3><app-rrhh-adjuntos [adjuntos]="detalle.adjuntos" [editable]="false"></app-rrhh-adjuntos></section>
+            <section class="space-y-2"><h3 class="font-extrabold text-slate-900">Archivos de la tarea</h3><app-rrhh-adjuntos [guardados]="adjuntosDe(detalle, 'ASIGNACION')" [editable]="false"></app-rrhh-adjuntos></section>
 
-            @if (detalle.respuesta || detalle.evidencias.length) {
+            @if (detalle.respuesta || adjuntosDe(detalle, 'RESPUESTA').length) {
               <section class="space-y-2">
-                <h3 class="font-extrabold text-slate-900">Respuesta del operador</h3>
+                <h3 class="font-extrabold text-slate-900">Respuesta</h3>
                 <p class="whitespace-pre-line text-slate-700">{{ detalle.respuesta || '—' }}</p>
-                <app-rrhh-adjuntos [adjuntos]="detalle.evidencias" [editable]="false"></app-rrhh-adjuntos>
+                <app-rrhh-adjuntos [guardados]="adjuntosDe(detalle, 'RESPUESTA')" [editable]="false"></app-rrhh-adjuntos>
               </section>
             }
             @if (detalle.motivoCancelacion) { <p class="text-xs text-slate-600"><strong>Motivo de la cancelación:</strong> {{ detalle.motivoCancelacion }}</p> }
@@ -276,140 +289,266 @@ const ETIQUETA_EVENTO: Record<string, string> = {
             <section class="space-y-2">
               <h3 class="font-extrabold text-slate-900">Historial</h3>
               <ol class="relative border-l-2 border-slate-200 ml-2 space-y-3">
-                @for (h of detalle.historial; track $index) {
+                @for (h of detalle.historial; track h.id) {
                   <li class="ml-4">
                     <span class="absolute -left-[7px] mt-1.5 w-3 h-3 rounded-full bg-easydry-blue border-2 border-white" aria-hidden="true"></span>
-                    <p class="text-sm font-bold text-slate-900">{{ etiquetaEvento(h.accion) }} <span class="text-xs font-semibold text-slate-500">· {{ h.fecha | date:'dd/MM/yyyy HH:mm' }}</span></p>
+                    <p class="text-sm font-bold text-slate-900">{{ etiquetaEvento(h.accion) }} <span class="text-xs font-semibold text-slate-500">· {{ h.actor }} · {{ h.fecha | date:'dd/MM/yyyy HH:mm':zona }}</span></p>
                     @if (h.detalle) { <p class="text-xs text-slate-600">{{ h.detalle }}</p> }
                   </li>
                 }
               </ol>
             </section>
 
-            <div class="flex flex-wrap gap-2 justify-end">
-              @if (detalle.estado === 'PENDIENTE') {
+            @if (pestana === 'asignadas' && detalle.estado === 'PENDIENTE' && puedeGestionar(detalle)) {
+              <div class="flex flex-wrap gap-2 justify-end">
+                <button type="button" class="btn btn-secondary btn-sm" (click)="abrirReasignar(detalle)"><i-lucide name="user-cog" class="w-3.5 h-3.5" aria-hidden="true"></i-lucide> Reasignar</button>
                 <button type="button" class="btn btn-danger btn-sm" (click)="abrirCancelar(detalle)"><i-lucide name="ban" class="w-3.5 h-3.5" aria-hidden="true"></i-lucide> Cancelar tarea</button>
-              }
-            </div>
+              </div>
+            }
           </div>
         }
       </app-modal>
     </div>
   `,
 })
-export class RrhhTareasComponent {
-  readonly mock = inject(RrhhMockService);
+export class RrhhTareasComponent implements OnInit {
+  private readonly api = inject(RrhhService);
+  private readonly auth = inject(AuthService);
   private readonly toast = inject(ToastService);
+  private readonly ruta = inject(ActivatedRoute);
 
-  readonly estados = ESTADOS;
+  readonly estados = ESTADOS_TAREA;
+  readonly zona = ZONA_ECUADOR;
+  readonly hoy = new Date().toISOString().slice(0, 10);
+
+  verMias = false;
+  verAsignadas = false;
+  pestana: Pestana = 'asignadas';
+  cargando = false;
+  enviando = false;
+
+  mias: TareaApi[] = [];
+  asignadas: TareaApi[] = [];
+  sinResponsable: TareaApi[] = [];
+  personas: PersonaAsignable[] = [];
+
   busqueda = '';
-  filtroOperador = '';
+  filtroPersona = '';
   filtroEstado: FiltroEstado = '';
 
-  nueva = { abierta: false, operadorId: '', titulo: '', descripcion: '', fechaLimite: '', adjuntos: [] as AdjuntoMock[] };
+  nueva = { abierta: false, asignadoAId: '', titulo: '', descripcion: '', fechaLimite: '', adjuntos: [] as AdjuntoElegido[], ocupado: false };
   errorNueva = '';
-  completando: TareaMock | null = null;
-  completar_ = { respuesta: '', evidencias: [] as AdjuntoMock[] };
+  completando: TareaApi | null = null;
+  respuesta = { texto: '', evidencias: [] as AdjuntoElegido[], ocupado: false };
   errorCompletar = '';
-  devolviendo: TareaMock | null = null;
+  devolviendo: TareaApi | null = null;
   motivoDevolver = '';
   errorDevolver = '';
-  cancelando: TareaMock | null = null;
+  cancelando: TareaApi | null = null;
   motivoCancelar = '';
-  detalle: TareaMock | null = null;
+  reasignando: TareaApi | null = null;
+  nuevoResponsable = '';
+  detalle: TareaApi | null = null;
+
+  puede(codigo: string): boolean { return this.auth.puede(codigo); }
+
+  ngOnInit(): void {
+    // Un administrador no recibe tareas: solo asigna y revisa.
+    const esAdmin = this.puede('funcion.administrador');
+    this.verMias = this.puede('rrhh.tareas.propias') && !esAdmin;
+    this.verAsignadas = this.puede('rrhh.tareas.asignar');
+    this.pestana = this.verMias ? 'mias' : 'asignadas';
+    this.cargar();
+    const id = this.ruta.snapshot.paramMap.get('tarea');
+    if (id) this.abrirPorId(id);
+  }
+
+  private abrirPorId(id: string): void {
+    this.api.detalleTarea(id).subscribe({
+      next: (t) => {
+        this.pestana = this.verMias && t.asignadoA.id === this.auth.currentUserValue?.id ? 'mias' : this.verAsignadas ? 'asignadas' : 'mias';
+        this.detalle = t;
+      },
+      error: () => this.toast.warning('Tarea no disponible', 'No tienes acceso a esa tarea o ya no existe.'),
+    });
+  }
+
+  cambiarPestana(p: Pestana): void {
+    this.pestana = p;
+    this.filtroEstado = '';
+    this.filtroPersona = '';
+  }
+
+  cargar(): void {
+    this.cargando = true;
+    let pendientes = 0;
+    const listo = () => { if (--pendientes <= 0) this.cargando = false; };
+    if (this.verMias) { pendientes++; this.api.misTareas().subscribe({ next: (t) => { this.mias = t; listo(); }, error: listo }); }
+    if (this.verAsignadas) {
+      pendientes += 3;
+      this.api.tareasAsignadas().subscribe({ next: (t) => { this.asignadas = t; listo(); }, error: listo });
+      this.api.sinResponsable().subscribe({ next: (t) => { this.sinResponsable = t; listo(); }, error: listo });
+      this.api.asignables().subscribe({ next: (p) => { this.personas = p; listo(); }, error: listo });
+    }
+    if (pendientes === 0) this.cargando = false;
+  }
+
+  private get lista(): TareaApi[] { return this.pestana === 'mias' ? this.mias : this.asignadas; }
+
+  get responsables(): { id: string; nombre: string }[] {
+    const mapa = new Map<string, string>();
+    for (const t of this.asignadas) mapa.set(t.asignadoA.id, t.asignadoA.nombre);
+    return [...mapa].map(([id, nombre]) => ({ id, nombre })).sort((a, b) => a.nombre.localeCompare(b.nombre));
+  }
 
   get tarjetas() {
-    const t = this.mock.tareas;
-    const hoy = this.mock.hoy();
-    const cuenta = (f: (x: TareaMock) => boolean) => t.filter(f).length;
+    const t = this.lista;
+    const cuenta = (f: (x: TareaApi) => boolean) => t.filter(f).length;
+    const mias = this.pestana === 'mias';
     return [
-      { titulo: 'Pendientes', filtro: 'PENDIENTE' as FiltroEstado, valor: cuenta((x) => x.estado === 'PENDIENTE'), nota: 'Esperan al operador', color: 'text-amber-600' },
-      { titulo: 'Vencidas', filtro: 'VENCIDA' as FiltroEstado, valor: cuenta((x) => estaVencida(x, hoy)), nota: 'Pasó la fecha límite', color: 'text-rose-600' },
-      { titulo: 'Por revisar', filtro: 'COMPLETADA' as FiltroEstado, valor: cuenta((x) => x.estado === 'COMPLETADA'), nota: 'Completadas sin revisar', color: 'text-sky-600' },
+      { titulo: 'Pendientes', filtro: 'PENDIENTE' as FiltroEstado, valor: cuenta((x) => x.estado === 'PENDIENTE'), nota: mias ? 'Por completar' : 'Esperan al responsable', color: 'text-amber-600' },
+      { titulo: 'Vencidas', filtro: 'VENCIDA' as FiltroEstado, valor: cuenta((x) => x.vencida), nota: 'Pasó la fecha límite', color: 'text-rose-600' },
+      { titulo: mias ? 'En revisión' : 'Por revisar', filtro: 'COMPLETADA' as FiltroEstado, valor: cuenta((x) => x.estado === 'COMPLETADA'), nota: mias ? 'Esperan a quien te la asignó' : 'Completadas sin revisar', color: 'text-sky-600' },
       { titulo: 'Revisadas', filtro: 'REVISADA' as FiltroEstado, valor: cuenta((x) => x.estado === 'REVISADA'), nota: 'Cerradas', color: 'text-emerald-600' },
     ];
   }
 
-  get filtradas(): TareaMock[] {
+  get filtradas(): TareaApi[] {
     const q = this.busqueda.trim().toLowerCase();
-    const hoy = this.mock.hoy();
-    return this.mock.tareas.filter((t) =>
-      (!q || t.titulo.toLowerCase().includes(q) || t.descripcion.toLowerCase().includes(q)) &&
-      (!this.filtroOperador || t.operadorId === this.filtroOperador) &&
-      (!this.filtroEstado || (this.filtroEstado === 'VENCIDA' ? estaVencida(t, hoy) : t.estado === this.filtroEstado)),
+    const sinResp = new Set(this.sinResponsable.map((t) => t.id));
+    return this.lista.filter((t) =>
+      (!q || t.titulo.toLowerCase().includes(q) || t.descripcion.toLowerCase().includes(q) || t.numero.toLowerCase().includes(q)) &&
+      (!this.filtroPersona || t.asignadoA.id === this.filtroPersona) &&
+      (!this.filtroEstado ||
+        (this.filtroEstado === 'VENCIDA' ? t.vencida : this.filtroEstado === 'SIN_RESPONSABLE' ? sinResp.has(t.id) : t.estado === this.filtroEstado)),
     );
   }
 
-  vencida(t: TareaMock): boolean { return estaVencida(t, this.mock.hoy()); }
-  nombreEstado(e: EstadoTarea): string { return ESTADOS.find((x) => x.id === e)?.nombre ?? e; }
-  claseEstado(e: EstadoTarea): string { return ESTADOS.find((x) => x.id === e)?.clase ?? ''; }
+  nombreEstado(e: EstadoTarea): string { return ESTADOS_TAREA.find((x) => x.id === e)?.nombre ?? e; }
+  claseEstado(e: EstadoTarea): string { return ESTADOS_TAREA.find((x) => x.id === e)?.clase ?? ''; }
   etiquetaEvento(a: string): string { return ETIQUETA_EVENTO[a] ?? a; }
+  adjuntosDe(t: TareaApi, etapa: 'ASIGNACION' | 'RESPUESTA') { return t.adjuntos.filter((a) => a.etapa === etapa); }
 
-  verDetalle(t: TareaMock): void { this.detalle = t; }
-
-  restablecer(): void {
-    this.mock.restablecer();
-    this.filtroEstado = '';
-    this.filtroOperador = '';
-    this.busqueda = '';
-    this.toast.info('Datos restablecidos', 'Volvieron los datos de ejemplo y se borró lo guardado en este navegador.');
+  /** Quien asignó la tarea o un administrador. */
+  puedeGestionar(t: TareaApi): boolean {
+    return t.asignadoPor.id === this.auth.currentUserValue?.id || this.puede('funcion.administrador');
   }
 
+  /** Motivo de la última devolución, si la tarea fue devuelta. */
+  devolucion(t: TareaApi): string {
+    const h = [...t.historial].reverse().find((x) => x.accion === 'DEVUELTA' || x.accion === 'COMPLETADA');
+    return h?.accion === 'DEVUELTA' ? (h.detalle ?? '') : '';
+  }
+
+  verDetalle(t: TareaApi): void {
+    this.detalle = t;
+    this.api.detalleTarea(t.id).subscribe({ next: (d) => { if (this.detalle?.id === d.id) this.detalle = d; } });
+  }
+
+  /** Reemplaza una tarea por su versión actualizada en las listas y recalcula las que quedaron sin responsable. */
+  private actualizar(t: TareaApi): void {
+    const cambiar = (l: TareaApi[]) => l.map((x) => (x.id === t.id ? t : x));
+    this.mias = cambiar(this.mias);
+    this.asignadas = cambiar(this.asignadas);
+    if (this.detalle?.id === t.id) this.detalle = t;
+    if (this.verAsignadas) this.api.sinResponsable().subscribe({ next: (l) => (this.sinResponsable = l) });
+  }
+
+  // ───────────────────────── Acciones ─────────────────────────
+
   abrirNueva(): void {
-    this.nueva = { abierta: true, operadorId: '', titulo: '', descripcion: '', fechaLimite: '', adjuntos: [] };
+    this.nueva = { abierta: true, asignadoAId: '', titulo: '', descripcion: '', fechaLimite: '', adjuntos: [], ocupado: false };
     this.errorNueva = '';
   }
 
   crear(): void {
     const n = this.nueva;
-    if (!n.operadorId) { this.errorNueva = 'Elige a quién se asigna la tarea.'; return; }
+    if (!n.asignadoAId) { this.errorNueva = 'Elige a quién se asigna la tarea.'; return; }
     if (!n.titulo.trim()) { this.errorNueva = 'Escribe el título de la tarea.'; return; }
     if (!n.descripcion.trim()) { this.errorNueva = 'Escribe la descripción de la tarea.'; return; }
-    const t = this.mock.crearTarea({ titulo: n.titulo, descripcion: n.descripcion, operadorId: n.operadorId, fechaLimite: n.fechaLimite || null, adjuntos: n.adjuntos });
-    this.nueva.abierta = false;
-    this.toast.success('Tarea asignada', `${this.mock.nombreOperador(t.operadorId)} la verá como pendiente.`);
+    if (n.adjuntos.some((a) => a.error)) { this.errorNueva = 'Quita los archivos que no se pudieron subir.'; return; }
+    this.enviando = true;
+    this.api
+      .crearTarea({
+        titulo: n.titulo.trim(), descripcion: n.descripcion.trim(), asignadoAId: n.asignadoAId,
+        fechaLimite: n.fechaLimite ? new Date(`${n.fechaLimite}T23:59:00-05:00`).toISOString() : undefined,
+        adjuntos: n.adjuntos.filter((a) => a.remoto).slice(0, MAX_ADJUNTOS).map((a) => ({ url: a.remoto, nombre: a.nombre })),
+      })
+      .subscribe({
+        next: (t) => {
+          this.enviando = false;
+          this.nueva.abierta = false;
+          this.asignadas = [t, ...this.asignadas];
+          this.toast.success('Tarea asignada', `${t.asignadoA.nombre} la verá como pendiente.`);
+        },
+        error: (e) => { this.enviando = false; this.errorNueva = mensajeDe(e, 'No se pudo asignar la tarea.'); },
+      });
   }
 
-  abrirCompletar(t: TareaMock): void {
+  abrirCompletar(t: TareaApi): void {
     this.completando = t;
-    this.completar_ = { respuesta: '', evidencias: [] };
+    this.respuesta = { texto: '', evidencias: [], ocupado: false };
     this.errorCompletar = '';
   }
 
   completar(): void {
     const t = this.completando;
     if (!t) return;
-    if (!this.completar_.respuesta.trim()) { this.errorCompletar = 'Escribe tu respuesta.'; return; }
-    if (!this.completar_.evidencias.length) { this.errorCompletar = 'Adjunta al menos una imagen, video o documento como evidencia.'; return; }
-    this.mock.completarTarea(t.id, this.completar_.respuesta, this.completar_.evidencias);
-    this.completando = null;
-    this.toast.success('Tarea completada', 'Quien la asignó recibe el aviso para revisarla.');
+    if (!this.respuesta.texto.trim()) { this.errorCompletar = 'Escribe tu respuesta.'; return; }
+    const archivos = this.respuesta.evidencias.filter((a) => a.remoto);
+    if (!archivos.length) { this.errorCompletar = 'Adjunta al menos una imagen, video o PDF como evidencia.'; return; }
+    this.enviando = true;
+    this.api.completarTarea(t.id, this.respuesta.texto.trim(), archivos.map((a) => ({ url: a.remoto, nombre: a.nombre }))).subscribe({
+      next: (r) => {
+        this.enviando = false;
+        this.completando = null;
+        this.actualizar(r);
+        this.toast.success('Tarea completada', 'Quien la asignó recibe el aviso para revisarla.');
+      },
+      error: (e) => { this.enviando = false; this.errorCompletar = mensajeDe(e, 'No se pudo completar la tarea.'); },
+    });
   }
 
-  aprobar(t: TareaMock): void {
-    this.mock.aprobarTarea(t.id);
-    this.toast.success('Tarea revisada', `«${t.titulo}» quedó como revisada.`);
+  aprobar(t: TareaApi): void {
+    this.api.revisarTarea(t.id, 'APROBAR').subscribe({
+      next: (r) => { this.actualizar(r); this.toast.success('Tarea revisada', `«${t.titulo}» quedó como revisada.`); },
+    });
   }
 
-  abrirDevolver(t: TareaMock): void { this.devolviendo = t; this.motivoDevolver = ''; this.errorDevolver = ''; }
+  abrirDevolver(t: TareaApi): void { this.devolviendo = t; this.motivoDevolver = ''; this.errorDevolver = ''; }
 
   devolver(): void {
     const t = this.devolviendo;
     if (!t) return;
     if (!this.motivoDevolver.trim()) { this.errorDevolver = 'Escribe el motivo para devolverla.'; return; }
-    this.mock.devolverTarea(t.id, this.motivoDevolver);
-    this.devolviendo = null;
-    this.toast.info('Tarea devuelta', `${this.mock.nombreOperador(t.operadorId)} debe completarla de nuevo.`);
+    this.enviando = true;
+    this.api.revisarTarea(t.id, 'DEVOLVER', this.motivoDevolver.trim()).subscribe({
+      next: (r) => { this.enviando = false; this.devolviendo = null; this.actualizar(r); this.toast.info('Tarea devuelta', `${r.asignadoA.nombre} debe completarla de nuevo.`); },
+      error: (e) => { this.enviando = false; this.errorDevolver = mensajeDe(e, 'No se pudo devolver la tarea.'); },
+    });
   }
 
-  abrirCancelar(t: TareaMock): void { this.cancelando = t; this.motivoCancelar = ''; }
+  abrirCancelar(t: TareaApi): void { this.cancelando = t; this.motivoCancelar = ''; }
 
   cancelar(): void {
     const t = this.cancelando;
     if (!t) return;
-    this.mock.cancelarTarea(t.id, this.motivoCancelar);
-    this.cancelando = null;
-    this.detalle = null;
-    this.toast.info('Tarea cancelada', `«${t.titulo}» se canceló.`);
+    this.enviando = true;
+    this.api.cancelarTarea(t.id, this.motivoCancelar.trim() || undefined).subscribe({
+      next: (r) => { this.enviando = false; this.cancelando = null; this.detalle = null; this.actualizar(r); this.toast.info('Tarea cancelada', `«${t.titulo}» se canceló.`); },
+      error: () => { this.enviando = false; },
+    });
+  }
+
+  abrirReasignar(t: TareaApi): void { this.reasignando = t; this.nuevoResponsable = ''; }
+
+  reasignar(): void {
+    const t = this.reasignando;
+    if (!t || !this.nuevoResponsable) return;
+    this.enviando = true;
+    this.api.reasignarTarea(t.id, this.nuevoResponsable).subscribe({
+      next: (r) => { this.enviando = false; this.reasignando = null; this.actualizar(r); this.toast.success('Tarea reasignada', `Ahora es de ${r.asignadoA.nombre}.`); },
+      error: () => { this.enviando = false; },
+    });
   }
 }

@@ -1,103 +1,85 @@
-# Módulo RRHH (prototipo)
+# Módulo RRHH
 
-Prototipo **solo del front web**, con **datos de ejemplo en memoria**. No hay backend, base de datos ni app móvil. Todo se reinicia al recargar la página, salvo las tareas que nacen de un informe (ver más abajo). Sirve para probar y presentar cómo funcionaría.
+Tareas del personal y timbradas, con backend, web y app móvil. Qué roles se validan por ubicación y cuáles solo con foto: [RRHH-TIMBRADAS-ROLES.md](../../../../../RRHH-TIMBRADAS-ROLES.md).
 
 ## Quién lo ve
 
-Solo el **Super Admin**. Las rutas usan los códigos de módulo `rrhh/tareas` y `rrhh/timbradas`, que no existen en la base de datos: el Super Admin pasa siempre por la guardia de módulos y los demás roles no los tienen asignados, así que no ven el menú y la ruta los manda a «sin acceso».
+Por permisos del rol (Roles y Permisos), no por nombre de rol:
 
-| Menú (grupo «RRHH») | Ruta | Pantalla |
+| Permiso | Qué da | Roles oficiales |
 |---|---|---|
-| Tareas del personal | `/rrhh/tareas` | [rrhh-tareas.component.ts](rrhh-tareas.component.ts) |
-| Timbradas | `/rrhh/timbradas` | [rrhh-timbradas.component.ts](rrhh-timbradas.component.ts) |
+| `rrhh.timbrar` | Timbrar y ver el historial propio | Todos menos ADMIN y SUPER_ADMIN |
+| `rrhh.tareas.propias` | Ver y completar las tareas que le asignaron | Todos menos ADMIN y SUPER_ADMIN |
+| `rrhh.tareas.asignar` | Asignar tareas y revisar, devolver, cancelar o reasignar las que asignó | SUPER_ADMIN, ADMIN, SUPERVISOR, coordinadores, LIDER, BACKUP y AUXILIAR |
+| `rrhh.timbradas.ver` | Ver las timbradas del equipo (foto, distancia, horas) | Los mismos que asignan tareas |
+| `rrhh.ubicaciones.gestionar` | Fijar la ubicación y el radio de cada agencia y bodega | SUPER_ADMIN y ADMIN |
 
-Sin lógica por rol por ahora: el Super Admin hace todo (asigna, completa «como el operador», revisa y timbra). La jerarquía de quién asigna a quién y cómo se ve según el rol quedan por definir.
+Cada quien ve y asigna solo dentro de su alcance (agencia, región o país). Los módulos del menú son `rrhh/tareas` y `rrhh/timbradas` (grupo «RRHH»).
+
+| Pantalla | Ruta | Archivo |
+|---|---|---|
+| Tareas del personal («Mis tareas» y «Tareas asignadas») | `/rrhh/tareas` y `/rrhh/tareas/:id` | [rrhh-tareas.component.ts](rrhh-tareas.component.ts) |
+| Timbradas («Timbrar» y «Timbradas del equipo») | `/rrhh/timbradas` | [rrhh-timbradas.component.ts](rrhh-timbradas.component.ts) |
 
 ## Archivos
 
 | Archivo | Qué hace |
 |---|---|
-| `rrhh.modelos.ts` | Tipos y reglas puras: distancia (Haversine), entrada o salida por hora, horas trabajadas, tarea vencida, agrupar por día, límites de adjuntos. |
-| `rrhh-mock.service.ts` | Los **datos de ejemplo** y las operaciones sobre ellos (crear, completar, revisar, devolver, cancelar, timbrar). Es lo único que habría que reemplazar por llamadas al backend. |
-| `rrhh-adjuntos.component.ts` | Selector de archivos con previsualización (imagen, video o documento). |
-| `rrhh-google-maps.ts` | Carga la API de Google Maps una sola vez con la clave del entorno. |
-| `rrhh-mapa-ubicacion.component.ts` | Mapa para elegir la ubicación de una agencia (usado en Sucursales). |
-| `rrhh-tareas.component.ts` | Pantalla de tareas y su lista de notificaciones. |
-| `rrhh-timbradas.component.ts` | Pantalla de timbradas. |
-| `rrhh-responsables.ts` | Recuerda en el navegador el responsable de cada novedad de un informe. |
-| `rrhh.modelos.spec.ts` | Pruebas de las reglas y del flujo con los datos de ejemplo. |
+| `core/services/rrhh.service.ts` | Cliente HTTP del backend (`/rrhh/...`) y sus tipos. |
+| `rrhh.modelos.ts` | Reglas puras de las pantallas: agrupar timbradas por día, tipos y límites de adjuntos. |
+| `rrhh-adjuntos.component.ts` | Selector de archivos que los **sube al almacenamiento** al elegirlos; en solo lectura muestra los guardados con URL firmada. |
+| `rrhh-ubicacion-sitio.component.ts` | Recuadro de ubicación y radio de una agencia o bodega (mapa de Google, guardado real y bitácora). |
+| `rrhh-mapa-ubicacion.component.ts` / `rrhh-google-maps.ts` | El mapa y el buscador de lugares. |
+| `rrhh.modelos.spec.ts` | Pruebas de las reglas. |
 
 ## 1. Tareas
 
-- El Super Admin asigna una tarea a un operador de ejemplo: **título**, **descripción**, **fecha límite** (opcional) y **archivos** (imágenes, videos o documentos).
-- Estados: **Pendiente → Completada → Revisada**, más **Cancelada**. **Vencida** no es un estado guardado: es una marca que se calcula cuando una tarea sigue Pendiente después de su fecha límite.
-- Para completarla se escribe una **respuesta** y se adjunta **al menos una evidencia**. Se hace con el botón «Completar como operador» (se simula al operador).
-- Quien asignó la tarea la **aprueba** (queda Revisada) o la **devuelve** a Pendiente con un motivo.
-- Solo una tarea Pendiente se puede **cancelar**.
-- Cada tarea muestra con **fecha y hora** cuándo se asignó, completó, revisó y canceló, y un historial con cada paso (incluidas las devoluciones).
-- **Adjuntos**: el selector abre el explorador real y previsualiza el archivo mientras la página siga abierta (no se sube a ningún lado). Tope de **5 archivos** de **10 MB** cada uno.
-
-### Notificaciones del módulo
-
-Salen en una lista propia a un lado de la pantalla, con contador de no leídas. **No** pasan por la campana del encabezado, que habla con el backend. Cada aviso dice a quién le llegaría:
-
-| Evento | Le llega a |
-|---|---|
-| Tarea asignada (queda Pendiente) | El operador |
-| Tarea completada | Quien asignó la tarea |
-| Tarea revisada, devuelta o cancelada | El operador |
-
-## 1b. Tareas desde los informes de inspección
-
-Cada **novedad** del informe tiene un selector opcional **«Responsable de la tarea»** (los operadores de ejemplo de RRHH). Sin responsable no hay tarea ni aviso.
-
-- El responsable elegido se recuerda en el navegador (`localStorage`, [rrhh-responsables.ts](rrhh-responsables.ts)), por informe y por novedad: sobrevive a recargar y a retomar el borrador. **Nunca se envía al servidor**; el formulario lo quita de los datos antes de guardar.
-- Al dar **«Guardar informe»** (el informe queda pendiente de revisión), cada novedad con responsable se vuelve una **tarea Pendiente** en RRHH, con el título y la descripción de la novedad y su fecha y hora de asignación. Si la novedad no tiene descripción se usa el título.
-- La tarea muestra su **origen** («Desde un informe · INF-… · novedad …») con enlace para abrir el informe. El informe no muestra nada de las tareas: el enlace va solo de la tarea al informe.
-- **Avisos** (en la lista de RRHH): uno **de la tarea** por cada novedad asignada y uno **del informe** por operador, aunque tenga varias novedades, con enlace al informe.
-- **Persistencia**: estas tareas y sus avisos se conservan en el navegador al recargar, con sus estados y respuestas. Los archivos adjuntos no caben: tras recargar quedan solo sus nombres, y el detalle lo avisa. Las tareas de ejemplo y las creadas a mano se reinician. El botón **«Restablecer datos de ejemplo»** borra todo lo guardado.
-- Quién revisa estas tareas sigue siendo el Super Admin desde RRHH; la jerarquía por roles queda pendiente.
+- Toda tarea tiene **un responsable obligatorio** (salvo las que nacen de un informe), título, descripción, fecha límite opcional y hasta 5 archivos de 10 MB (foto, video o PDF).
+- Estados: **Pendiente → Completada → Revisada**, más **Cancelada**. **Vencida** no se guarda: es una Pendiente con la fecha límite pasada.
+- El responsable la completa con una **respuesta** y **al menos una evidencia**. Quien la asignó (o un administrador) la **aprueba** o la **devuelve** a Pendiente con un motivo.
+- Solo una Pendiente se cancela o se reasigna. Si el responsable se desactiva, la tarea sigue con él y aparece en «Sin responsable activo» para que alguien la reasigne.
+- Se asigna **solo a personas del propio alcance**, nunca a uno mismo ni a un administrador.
+- Cada tarea guarda con fecha y hora cada paso (asignada, completada, revisada, devuelta, cancelada, reasignada).
+- **Avisos**: por la campana real, el tiempo real y el push del celular (asignada, completada, revisada, devuelta, cancelada, reasignada) y un aviso diario a las 06:30 de las tareas vencidas, una sola vez por tarea.
+- **Desde un informe**: cada novedad tiene un «Responsable de la tarea» opcional que se guarda con el borrador. Al **guardar el informe de forma definitiva** el servidor crea una tarea Pendiente por cada novedad con responsable, en la misma transacción. Si un responsable no es válido (inactivo o fuera de tu alcance) el informe no se guarda y se avisa.
 
 ## 2. Timbradas
 
-- Timbran solo los **operadores**. Se elige el operador que timbra; su agencia sale de los datos de ejemplo.
-- **La hora decide el tipo**: antes de las 12:00 es **Entrada** y desde las 12:00 es **Salida**.
-- **Una entrada y una salida por día**. Repetir la marca del mismo tipo se rechaza («Ya registraste tu entrada de hoy»). Un día con una sola de las dos aparece **Incompleto**. Un día sin ninguna marca no aparece como falta, porque sin turnos ni calendario no se sabe si debía trabajar.
-- **Foto**: se toma con la **cámara** del navegador. Si no hay cámara o se niega el permiso, se ofrece un selector de archivo con un aviso de que en el sistema real la foto será siempre de cámara.
-- **Ubicación**: al guardar se toma la ubicación y se calcula la distancia a la agencia con la fórmula de Haversine (real). Si está a **100 m o menos**, la marca se registra y sale una alerta verde. Si está más lejos, **se rechaza** y la alerta roja dice a cuántos metros está.
-- **Panel «Solo prototipo»** para la demostración:
-  - *¿Dónde estoy?*: «Mi GPS real», «Estoy en la agencia» (30 m), «Estoy a 300 m» o «Estoy lejos» (5 km).
-  - *¿Qué hora es?*: la actual, 08:30 (entrada) o 17:30 (salida), para probar los dos tipos a cualquier hora.
-- El **resumen por día** muestra, por operador, la hora de entrada y de salida (con su foto y la distancia al abrirlas), las horas trabajadas y si el día está Completo o Incompleto. Se puede filtrar por operador y por días incompletos.
+- Antes de las **12:00** la marca es **Entrada**; desde las **12:00**, **Salida**. Una de cada una por día. La **hora y el día los pone el servidor** (zona de Ecuador); la del dispositivo se guarda solo para auditar.
+- La **foto es siempre de la cámara** (web y app). Sin cámara en la web, se timbra desde la app. La foto no puede repetirse en otra marca.
+- **Ubicación**: quien tiene agencia o bodega asignada debe estar dentro del radio de su sitio y el GPS debe tener **120 m de precisión o mejor**; el servidor recalcula la distancia. Quien no tiene sitio asignado timbra solo con foto (se guarda igual la ubicación del dispositivo). Si el sitio no tiene ubicación guardada, la marca se acepta solo con foto y se avisa a los administradores.
+- **Timbrar exige conexión**: no hay cola de sincronización para esto.
+- Nadie edita ni borra una timbrada.
+- «Timbradas del equipo» muestra el resumen por día, el filtro de días incompletos y, al abrir una hora, la foto con la distancia, la precisión y desde dónde se marcó. Un día con una sola marca queda **Incompleto**; un día sin marcas no aparece como falta, porque no hay turnos ni calendario.
+- Los turnos que cruzan la medianoche quedan fuera por ahora.
 
-## 3. Ubicación de la agencia en Sucursales
+## 3. Ubicación de agencias y bodegas
 
-En el formulario de la agencia ([sucursales.component.ts](../sucursales/sucursales.component.ts)) hay un recuadro **violeta** «Ubicación de la agencia (RRHH)», visible **solo para el Super Admin**:
+Quien tiene `rrhh.ubicaciones.gestionar` ve el recuadro violeta **«Ubicación … (RRHH)»**:
 
-- Un **buscador de lugares**: escribes una dirección o un nombre y Google sugiere hasta 5 lugares de Ecuador; al elegir uno, el marcador salta ahí y lo ajustas después. Usa la **Places API (New)** (hay que habilitarla en Google Cloud además de la Maps JavaScript API).
-- Un **mapa de Google** ([rrhh-mapa-ubicacion.component.ts](rrhh-mapa-ubicacion.component.ts)): clic en el mapa o arrastrar el marcador para elegir el punto. La latitud y la longitud se rellenan solas y también se pueden escribir a mano; «Usar mi ubicación» toma la del navegador.
-- **«Guardar ubicación» es simulado**: la deja en memoria (`RrhhMockService.ubicacionesAgencia`, por id de agencia) y muestra «Guardada (simulado)» con la hora. No se envía al servidor y se pierde al recargar. Al volver a abrir esa agencia el mapa arranca con lo guardado. «Quitar» la borra.
-- Lo que se guarda aquí **no lo leen** las timbradas: las agencias de ejemplo de esa pantalla tienen su ubicación quemada.
+- en el formulario de **editar una agencia** (Sucursales), y
+- en el formulario de **editar una bodega** (Inventario → Bodegas).
+
+Se elige el punto con el **buscador de lugares** o en el **mapa de Google** (clic o arrastrar el marcador), se escribe el **radio permitido** (30 a 500 m, 100 por defecto) y se pulsa «Guardar ubicación». Cada cambio queda en la bitácora con el valor anterior. Solo aparece con la agencia o bodega ya creada.
 
 ### Clave de Google Maps
 
-El mapa usa la **Maps JavaScript API** y el buscador, la **Places API (New)** (ambas habilitadas en el proyecto y permitidas en la clave). La clave va en el `.env` del frontend (ignorado por git) como `NG_APP_GOOGLE_MAPS_KEY=AIza…`; `node scripts/sync-env.mjs` (lo corren `npm start` y `npm run dev`) la copia a `src/environments/environment.ts` como `googleMapsKey`.
+El mapa usa la **Maps JavaScript API** y el buscador, la **Places API (New)**. La clave va en el `.env` del frontend (ignorado por git) como `NG_APP_GOOGLE_MAPS_KEY=AIza…`; `node scripts/sync-env.mjs` (lo corren `npm start` y `npm run dev`) la copia a `src/environments/environment.ts` como `googleMapsKey`.
 
 - Sin clave, el recuadro avisa «Falta la clave de Google Maps» y deja escribir las coordenadas a mano.
-- Si Google la rechaza (API no habilitada, sin facturación o dominio no permitido) sale el mensaje con la causa probable.
-- El mapa solo se crea cuando el recuadro se ve, para no gastar una carga de mapa por abrir la pantalla.
-- Para producción, ponla en `.env.production` o en la variable `NG_APP_GOOGLE_MAPS_KEY` del CI, y restringe la clave por dominio en Google Cloud. `environment.prod.ts` se queda con la clave vacía en git.
+- Para producción, ponla en `.env.production` o en la variable `NG_APP_GOOGLE_MAPS_KEY` del CI, y restríngela por dominio en Google Cloud.
 
-## Datos de ejemplo
+## Archivos y archivado
 
-6 operadores en 3 agencias (Quito Norte, Guayaquil Centro, Cuenca), 8 tareas en distintos estados y 10 días hábiles de timbradas con algunos días incompletos.
+- Las fotos de timbrada y los adjuntos de tareas quedan en el bucket privado (`rrhh/timbradas/<usuario>/<mes>/` y `rrhh/tareas/<usuario>/`) y se sirven con URL firmada: los ve su dueño, quien tiene `rrhh.timbradas.ver` o asigna tareas dentro de su alcance, y los administradores. Siguen la regla de ciclo de vida de las demás evidencias.
+- Las timbradas y las tareas **cerradas** (Revisada o Cancelada) se archivan a Parquet a los 12 meses, igual que el resto de la operación. El archivador sigue apagado por defecto (`ARCHIVADO_ACTIVO`).
 
-## Qué falta para pasar a producción
+## Backend
 
-- Backend: tablas y endpoints de tareas, adjuntos, notificaciones y timbradas, y el campo de ubicación de la agencia (latitud y longitud) con migración. El guardado real de «Guardar ubicación» va en el formulario de agencia.
-- Reemplazar `rrhh-mock.service.ts` por llamadas al backend sin cambiar las pantallas.
-- Subir de verdad los archivos y guardar la foto de cada timbrada.
-- Conectar los avisos a la campana real.
-- Permisos por rol, jerarquía de asignación y ámbito (país, región, agencia).
-- Foto obligatoriamente de cámara (sin la alternativa del selector de archivo).
-- La app móvil para que el operador complete tareas y timbre desde el celular.
+`backend-easydry/src/modules/rrhh/` (reglas puras en `rrhh.reglas.ts`; servicios de timbradas, tareas y ubicaciones; tarea diaria de vencidas). Tablas: `timbradas`, `tareas_rrhh` (+ adjuntos e historial), `ubicacion_cambios`, y las columnas de ubicación de `Agencia` y `bodegas`.
+
+## Pendiente
+
+- Turnos que cruzan la medianoche y correcciones de marcas (hoy una marca no se corrige).
+- Reportes de RRHH (horas trabajadas por mes, días incompletos).
+- Leer lo archivado de forma transparente en «Mis timbradas», «Timbradas del equipo» y «Tareas» (hoy solo está configurada su tabla para archivar).

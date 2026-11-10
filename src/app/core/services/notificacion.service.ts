@@ -27,6 +27,14 @@ const TIPO_A_NOTIFICACION_TIPO: Record<string, NotificacionTipo> = {
   DESPACHO_CONFIRMADO: 'info',
   DESPACHO_FALTANTE: 'alerta',
   INFORME_INSPECCION_APROBADO: 'exito',
+  TAREA_ASIGNADA: 'info',
+  TAREA_COMPLETADA: 'info',
+  TAREA_REVISADA: 'exito',
+  TAREA_DEVUELTA: 'alerta',
+  TAREA_CANCELADA: 'info',
+  TAREA_REASIGNADA: 'info',
+  TAREA_VENCIDA: 'alerta',
+  UBICACION_FALTANTE: 'alerta',
 };
 
 /** Módulo funcional de cada tipo de notificación del backend, para agrupar/filtrar por área. */
@@ -56,6 +64,8 @@ const ENLACE_POR_ENTIDAD: Record<string, { enlace: string; enlaceLabel: string }
   ROL: { enlace: '/usuarios', enlaceLabel: 'Ver Roles' },
   AGENCIA: { enlace: '/sucursales', enlaceLabel: 'Ver Agencia' },
   INFORME_INSPECCION: { enlace: '/informes-inspeccion', enlaceLabel: 'Ver informe' },
+  TAREA_RRHH: { enlace: '/rrhh/tareas', enlaceLabel: 'Ver tarea' },
+  BODEGA: { enlace: '/inventario', enlaceLabel: 'Ver bodega' },
 };
 
 @Injectable({
@@ -92,7 +102,11 @@ export class NotificacionService {
       timestamp: fechaObj.getTime(),
       leida: !!n.leida,
       // El informe se abre directo: la notificación trae su id.
-      enlace: n.entidadTipo === 'INFORME_INSPECCION' && (n.entidadId || n.data?.informeId) ? `${enlaceInfo?.enlace}/${n.entidadId || n.data.informeId}` : enlaceInfo?.enlace,
+      // El informe y la tarea se abren directo: la notificación trae su id.
+      enlace:
+        n.entidadTipo === 'INFORME_INSPECCION' && (n.entidadId || n.data?.informeId) ? `${enlaceInfo?.enlace}/${n.entidadId || n.data.informeId}`
+        : n.entidadTipo === 'TAREA_RRHH' && (n.entidadId || n.data?.tareaId) ? `${enlaceInfo?.enlace}/${n.entidadId || n.data.tareaId}`
+        : enlaceInfo?.enlace,
       enlaceLabel: enlaceInfo?.enlaceLabel,
     };
   }
