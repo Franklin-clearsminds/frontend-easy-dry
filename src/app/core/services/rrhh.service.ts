@@ -60,7 +60,15 @@ export interface FiltroTareas {
 export interface EstadoTimbrada {
   ahora: string;
   dia: string;
-  tipoActual: TipoMarca;
+  /** La marca que correspondería ahora según su horario; null si hoy no puede timbrar. */
+  tipoActual: TipoMarca | null;
+  puedeTimbrar: boolean;
+  /** Por qué no puede timbrar ahora (día libre o fuera de la ventana del horario). */
+  motivoBloqueo: string | null;
+  horario: { trabaja: boolean; entrada: string; salida: string };
+  ventanas: { entrada: { desde: string; hasta: string }; salida: { desde: string; hasta: string } } | null;
+  toleranciaMin: number;
+  ventanaMin: number;
   marcasHoy: Array<{ id: string; tipo: TipoMarca; marcadaEn: string; verificacion: Verificacion; distanciaM: number | null }>;
   /** true si debe mandar su ubicación; si no, basta la foto. */
   exigeUbicacion: boolean;
@@ -110,6 +118,65 @@ export interface TimbradaApi {
   sitio: { tipo: 'AGENCIA' | 'BODEGA'; nombre: string } | null;
   distanciaM: number | null;
   radioM: number | null;
+}
+
+/** Cómo le fue a una persona un día frente a su horario. */
+export type EstadoDia =
+  | 'SIN_HORARIO' | 'DIA_LIBRE' | 'PENDIENTE' | 'EN_CURSO' | 'SIN_MARCA' | 'INCOMPLETO'
+  | 'CUMPLE' | 'ATRASO' | 'ENTRADA_TEMPRANA' | 'SALIDA_ANTICIPADA' | 'SALIDA_TARDIA';
+
+export interface EvaluacionDiaApi {
+  userId: string;
+  dia: string;
+  estado: EstadoDia;
+  observaciones: EstadoDia[];
+  horario: { entrada: string; salida: string } | null;
+  entradaReal: string | null;
+  salidaReal: string | null;
+  /** Minutos respecto a la hora del horario: positivo = después, negativo = antes. */
+  minutosEntrada: number | null;
+  minutosSalida: number | null;
+  horasReales: number | null;
+  horasDentroHorario: number | null;
+}
+
+export interface DiaHorario { trabaja: boolean; entrada: string; salida: string }
+/** Siete días, de lunes a domingo. */
+export type SemanaHorario = DiaHorario[];
+
+export interface AjusteHorarioApi {
+  toleranciaMin: number;
+  ventanaMin: number;
+  proximoCambio: { vigenteDesde: string; toleranciaMin: number; ventanaMin: number } | null;
+}
+
+export interface HorarioPersonaApi {
+  semana: SemanaHorario;
+  porDefecto: boolean;
+  proximoCambio: { vigenteDesde: string; semana: SemanaHorario } | null;
+}
+
+export interface HorarioEquipoApi extends HorarioPersonaApi { id: string; nombre: string; rol: string }
+
+export interface CambioHorarioApi {
+  id: string;
+  creadoEn: string;
+  actor: string;
+  vigenteDesde: string;
+  motivo: string;
+  dias: SemanaHorario;
+  anterior: SemanaHorario;
+}
+
+export interface CambioAjusteApi {
+  id: string;
+  creadoEn: string;
+  actor: string;
+  vigenteDesde: string;
+  motivo: string;
+  toleranciaMin: number;
+  ventanaMin: number;
+  anterior: { toleranciaMin: number; ventanaMin: number } | null;
 }
 
 export interface PersonaEquipo {
@@ -164,12 +231,43 @@ export class RrhhService {
     return this.post('timbradas/registrar', datos);
   }
 
-  misTimbradas(desde?: string, hasta?: string): Observable<{ filas: TimbradaApi[] }> {
+  misTimbradas(desde?: string, hasta?: string): Observable<{ filas: TimbradaApi[]; evaluacion: EvaluacionDiaApi[] }> {
     return this.post('timbradas/mias', { desde, hasta });
   }
 
-  timbradasEquipo(desde?: string, hasta?: string, userId?: string): Observable<{ filas: TimbradaApi[]; personas: PersonaEquipo[] }> {
+  timbradasEquipo(desde?: string, hasta?: string, userId?: string): Observable<{ filas: TimbradaApi[]; personas: PersonaEquipo[]; evaluacion: EvaluacionDiaApi[] }> {
     return this.post('timbradas/equipo', { desde, hasta, userId });
+  }
+
+  // ───────────────────────── Horarios ─────────────────────────
+
+  miHorario(): Observable<HorarioPersonaApi & { ajuste: AjusteHorarioApi }> {
+    return this.post('horarios/mio');
+  }
+
+  horariosEquipo(): Observable<{ personas: HorarioEquipoApi[]; ajuste: AjusteHorarioApi }> {
+    return this.post('horarios/equipo');
+  }
+
+  historialHorario(userId: string): Observable<CambioHorarioApi[]> {
+    return this.post('horarios/historial', { userId });
+  }
+
+  /** El nuevo horario rige desde mañana; el servidor guarda la versión anterior intacta. */
+  editarHorario(userId: string, dias: SemanaHorario, motivo: string): Observable<HorarioPersonaApi & { mensaje: string }> {
+    return this.post('horarios/editar', { userId, dias, motivo });
+  }
+
+  ajustesHorario(): Observable<AjusteHorarioApi> {
+    return this.post('horarios/ajustes');
+  }
+
+  historialAjustes(): Observable<CambioAjusteApi[]> {
+    return this.post('horarios/ajustes/historial');
+  }
+
+  editarAjuste(toleranciaMin: number, ventanaMin: number, motivo: string): Observable<AjusteHorarioApi & { mensaje: string }> {
+    return this.post('horarios/ajustes/editar', { toleranciaMin, ventanaMin, motivo });
   }
 
   // ───────────────────────── Tareas ─────────────────────────

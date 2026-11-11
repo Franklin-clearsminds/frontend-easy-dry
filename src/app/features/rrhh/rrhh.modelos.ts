@@ -2,7 +2,7 @@
  * RRHH · reglas puras de las pantallas (sin servidor): agrupar las timbradas por día, tipo de archivo y límites de los adjuntos.
  * Las reglas que deciden de verdad (hora de Ecuador, entrada o salida, distancia, precisión) viven en el backend.
  */
-import type { TimbradaApi } from '../../core/services/rrhh.service';
+import type { DiaHorario, EstadoDia, EvaluacionDiaApi, SemanaHorario, TimbradaApi } from '../../core/services/rrhh.service';
 
 export type TipoAdjunto = 'imagen' | 'video' | 'documento';
 
@@ -91,3 +91,87 @@ export const ETIQUETA_VERIFICACION: Record<string, string> = {
   SIN_VERIFICAR: 'Solo foto',
   SIN_REFERENCIA: 'Sin ubicación de referencia',
 };
+
+// ───────────────────────── Horarios ─────────────────────────
+
+export const NOMBRES_DIA = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'] as const;
+const ABREVIATURA_DIA = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'] as const;
+
+/** Horario con el que parte todo el personal: 08:00 a 15:00 los siete días. */
+export const HORARIO_POR_DEFECTO: SemanaHorario = Array.from({ length: 7 }, () => ({ trabaja: true, entrada: '08:00', salida: '15:00' }));
+
+export const copiarSemana = (s: SemanaHorario): SemanaHorario => s.map((d) => ({ ...d }));
+
+/** ¿Son iguales dos semanas? Un día libre no se compara por sus horas. */
+export function semanasIguales(a: SemanaHorario, b: SemanaHorario): boolean {
+  return a.length === b.length && a.every((d, i) => d.trabaja === b[i].trabaja && (!d.trabaja || (d.entrada === b[i].entrada && d.salida === b[i].salida)));
+}
+
+/** Primer problema de una semana (o null si está bien): igual de estricto que el servidor para avisar antes de enviar. */
+export function problemaDeSemana(semana: SemanaHorario): string | null {
+  for (let i = 0; i < semana.length; i++) {
+    const d = semana[i];
+    if (!d.trabaja) continue;
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(d.entrada) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(d.salida)) return `${NOMBRES_DIA[i]}: escribe la entrada y la salida.`;
+    if (d.entrada >= d.salida) return `${NOMBRES_DIA[i]}: la salida debe ser posterior a la entrada (no se admiten turnos que cruzan la medianoche).`;
+  }
+  return null;
+}
+
+/** La semana en pocas líneas: los días seguidos con el mismo horario se juntan («Lun a Vie · 08:00–15:00»). */
+export function resumenSemana(semana: SemanaHorario): string[] {
+  const clave = (d: DiaHorario) => (d.trabaja ? `${d.entrada}–${d.salida}` : 'Libre');
+  const grupos: { desde: number; hasta: number; texto: string }[] = [];
+  semana.forEach((d, i) => {
+    const texto = clave(d);
+    const ultimo = grupos[grupos.length - 1];
+    if (ultimo && ultimo.texto === texto) ultimo.hasta = i;
+    else grupos.push({ desde: i, hasta: i, texto });
+  });
+  return grupos.map((g) => `${g.desde === g.hasta ? ABREVIATURA_DIA[g.desde] : `${ABREVIATURA_DIA[g.desde]} a ${ABREVIATURA_DIA[g.hasta]}`} · ${g.texto}`);
+}
+
+export const ETIQUETA_ESTADO_DIA: Record<EstadoDia, { nombre: string; clase: string }> = {
+  CUMPLE: { nombre: 'Cumple', clase: 'badge-ok' },
+  ATRASO: { nombre: 'Atraso', clase: 'badge-warn' },
+  ENTRADA_TEMPRANA: { nombre: 'Entrada temprana', clase: 'badge-info' },
+  SALIDA_ANTICIPADA: { nombre: 'Salida anticipada', clase: 'badge-warn' },
+  SALIDA_TARDIA: { nombre: 'Salida tardía', clase: 'badge-info' },
+  INCOMPLETO: { nombre: 'Incompleto', clase: 'badge-warn' },
+  SIN_MARCA: { nombre: 'Sin marca', clase: 'badge-danger' },
+  DIA_LIBRE: { nombre: 'Día libre', clase: 'badge-neutral' },
+  PENDIENTE: { nombre: 'Pendiente', clase: 'badge-neutral' },
+  EN_CURSO: { nombre: 'En curso', clase: 'badge-neutral' },
+  SIN_HORARIO: { nombre: 'Sin horario', clase: 'badge-neutral' },
+};
+
+/** Estados que merecen atención (los demás son normales o aún no se pueden juzgar). */
+export const ESTADOS_NOVEDAD: ReadonlySet<EstadoDia> = new Set<EstadoDia>(['ATRASO', 'ENTRADA_TEMPRANA', 'SALIDA_ANTICIPADA', 'SALIDA_TARDIA', 'INCOMPLETO', 'SIN_MARCA']);
+
+/** «+40 min», «−5 min» o «a tiempo» (dentro de la tolerancia, o sin dato). */
+export function textoMinutos(min: number | null, toleranciaMin: number): string {
+  if (min === null) return '';
+  if (Math.abs(min) <= toleranciaMin) return 'a tiempo';
+  return `${min > 0 ? '+' : '−'}${Math.abs(min)} min`;
+}
+
+/** Un día evaluado, con las marcas del día para poder ver sus fotos. */
+export interface FilaDia extends EvaluacionDiaApi {
+  persona: string;
+  entrada: TimbradaApi | null;
+  salida: TimbradaApi | null;
+}
+
+/** Une la evaluación de cada día con las marcas de esa persona y día; del día más reciente al más antiguo. */
+export function filasDelRango(evaluacion: readonly EvaluacionDiaApi[], marcas: readonly TimbradaApi[], nombres: ReadonlyMap<string, string>): FilaDia[] {
+  const porClave = new Map<string, { entrada: TimbradaApi | null; salida: TimbradaApi | null }>();
+  for (const m of marcas) {
+    const k = `${m.userId}|${m.dia}`;
+    const c = porClave.get(k) ?? { entrada: null, salida: null };
+    if (m.tipo === 'ENTRADA') c.entrada = m; else c.salida = m;
+    porClave.set(k, c);
+  }
+  return evaluacion
+    .map((e) => ({ ...e, persona: nombres.get(e.userId) ?? '', ...(porClave.get(`${e.userId}|${e.dia}`) ?? { entrada: null, salida: null }) }))
+    .sort((a, b) => b.dia.localeCompare(a.dia) || a.persona.localeCompare(b.persona));
+}

@@ -9,7 +9,7 @@ import { RrhhMapaUbicacionComponent } from './rrhh-mapa-ubicacion.component';
 
 /** Distancia máxima al sitio para timbrar: fija por canal (la configura el sistema, no cada sitio). */
 export const RADIO_APP_M = 100;
-export const RADIO_WEB_M = 200;
+export const RADIO_WEB_M = 100;
 
 /**
  * Ubicación de una agencia o de una bodega para validar las timbradas de su personal. En el formulario solo se ve un botón con el estado
@@ -32,7 +32,7 @@ export const RADIO_WEB_M = 200;
         } @else if (guardada) {
           <p class="text-xs font-semibold text-emerald-800 inline-flex items-center gap-1"><i-lucide aria-hidden="true" name="check-circle" class="w-4 h-4"></i-lucide> Ubicación guardada ({{ guardada.latitud }}, {{ guardada.longitud }})</p>
         } @else {
-          <p class="text-xs text-violet-900">Aún sin ubicación guardada: el personal timbra solo con foto y se avisa a los administradores.</p>
+          <p class="text-xs text-violet-900">Aún sin ubicación guardada: el personal de este sitio no puede timbrar y se avisa a los administradores cuando lo intenta.</p>
         }
       </div>
       <button type="button" class="btn btn-secondary btn-sm" (click)="abrir()" [disabled]="cargando">
@@ -43,7 +43,7 @@ export const RADIO_WEB_M = 200;
     <app-modal [isOpen]="abierto" size="xl" [title]="'Ubicación ' + (tipo === 'AGENCIA' ? 'de la agencia' : 'de la bodega')" icon="map-pin" (close)="cerrar()">
       @if (abierto) {
         <div class="space-y-3">
-          <p class="text-xs text-violet-900">El personal con {{ tipo === 'AGENCIA' ? 'esta agencia' : 'esta bodega' }} asignada solo puede timbrar a {{ radioApp }} m o menos de este punto desde la app y a {{ radioWeb }} m o menos desde la web. Sin ubicación guardada, timbran solo con foto y se avisa a los administradores.</p>
+          <p class="text-xs text-violet-900">El personal con {{ tipo === 'AGENCIA' ? 'esta agencia' : 'esta bodega' }} asignada solo puede timbrar a {{ radioApp }} m o menos de este punto, desde la app y desde la web. Sin ubicación guardada no pueden timbrar, y se avisa a los administradores cuando lo intentan.</p>
           <app-rrhh-mapa-ubicacion [lat]="lat" [lng]="lng" (ubicacionChange)="lat = $event.lat; lng = $event.lng"></app-rrhh-mapa-ubicacion>
           @if (error) { <p class="text-xs font-semibold text-rose-700" role="alert">{{ error }}</p> }
         </div>
@@ -68,7 +68,6 @@ export class RrhhUbicacionSitioComponent implements OnChanges {
   @Input() sitioId: string | number | null = null;
 
   readonly radioApp = RADIO_APP_M;
-  readonly radioWeb = RADIO_WEB_M;
   readonly idTitulo = `ubic-${Math.random().toString(36).slice(2, 8)}`;
   lat: number | null = null;
   lng: number | null = null;
@@ -127,7 +126,7 @@ export class RrhhUbicacionSitioComponent implements OnChanges {
     this.guardando = true;
     this.error = '';
     this.api.guardarUbicacion(this.tipo, String(this.sitioId), this.lat as number, this.lng as number).subscribe({
-      next: (s) => { this.guardando = false; this.aplicar(s); this.abierto = false; this.toast.success('Ubicación guardada', `El personal de ${s.nombre} timbrará a ${RADIO_APP_M} m o menos desde la app y a ${RADIO_WEB_M} m o menos desde la web.`); },
+      next: (s) => { this.guardando = false; this.aplicar(s); this.abierto = false; this.toast.success('Ubicación guardada', `El personal de ${s.nombre} timbrará a ${RADIO_APP_M} m o menos de este punto, desde la app y desde la web.`); },
       error: (e) => { this.guardando = false; this.error = e?.error?.message ? String(e.error.message) : 'No se pudo guardar la ubicación.'; },
     });
   }
@@ -136,7 +135,7 @@ export class RrhhUbicacionSitioComponent implements OnChanges {
     if (!this.sitioId) return;
     this.guardando = true;
     this.api.quitarUbicacion(this.tipo, String(this.sitioId)).subscribe({
-      next: (s) => { this.guardando = false; this.lat = this.lng = null; this.aplicar(s); this.abierto = false; this.toast.info('Ubicación quitada', 'Hasta que se configure otra, el personal timbra solo con foto.'); },
+      next: (s) => { this.guardando = false; this.lat = this.lng = null; this.aplicar(s); this.abierto = false; this.toast.info('Ubicación quitada', 'Hasta que se configure otra, el personal de este sitio no puede timbrar.'); },
       error: () => { this.guardando = false; },
     });
   }
