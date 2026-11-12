@@ -1,7 +1,7 @@
 # Panel web de EasyDry como sitio estático en Render (Blueprint).
 #
 # Antes de desplegar, cambia los dominios de ESTE archivo por los reales:
-#   - https://www.api.easydry.com   → el dominio de tu backend (aparece en NG_APP_API_BASE_URL y en la cabecera Content-Security-Policy)
+#   - https://backend-easydry-14m5.onrender.com → el dominio de tu backend (NG_APP_API_BASE_URL lleva además /api/v1; la CSP solo el dominio)
 #   - el backend debe tener CORS_ORIGIN con el dominio de este panel (por ejemplo https://www.app.easydry.com)
 #
 # La Content-Security-Policy impide que se ejecute cualquier script que no sea el de la propia aplicación (defensa contra XSS):
@@ -25,7 +25,7 @@ services:
       - key: NG_APP_PRODUCTION
         value: "true"
       - key: NG_APP_API_BASE_URL
-        value: https://www.api.easydry.com
+        value: https://backend-easydry-14m5.onrender.com/api/v1
     routes:
       # Aplicación de una sola página: cualquier ruta devuelve index.html.
       - type: rewrite
@@ -34,7 +34,7 @@ services:
     headers:
       - path: /*
         name: Content-Security-Policy
-        value: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https://*.amazonaws.com; media-src 'self' blob: https://*.amazonaws.com; frame-src 'self' blob: https://*.amazonaws.com; connect-src 'self' https://www.api.easydry.com wss://www.api.easydry.com https://*.amazonaws.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests"
+        value: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https://*.amazonaws.com; media-src 'self' blob: https://*.amazonaws.com; frame-src 'self' blob: https://*.amazonaws.com; connect-src 'self' https://backend-easydry-14m5.onrender.com wss://backend-easydry-14m5.onrender.com https://*.amazonaws.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests"
       - path: /*
         name: Strict-Transport-Security
         value: max-age=31536000; includeSubDomains
